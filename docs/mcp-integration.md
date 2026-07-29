@@ -272,7 +272,56 @@ boss-mcp 当前只提供 stdio，生产部署需要二选一：
 3. **禁止预先做多 server 架构**：等真实需求出现再加，YAGNI
 4. **禁止在生产部署中让 backend fork server 子进程**：应该走 HTTP 让 server 独立部署
 
-## 9. 相关文件
+## 9. MCP 工具 vs 自建 Tool：选型决策
+
+不是所有功能都应该做成 MCP server。以下是本项目的决策框架。
+
+### 9.1 决策矩阵
+
+| 维度 | MCP 工具 | 自建 LangChain Tool |
+|---|---|---|
+| **适合场景** | 集成外部独立服务（API、数据库、浏览器） | 内部逻辑（匹配、评分、解析、格式化） |
+| **进程模型** | 独立子进程/独立服务 | 同进程函数调用 |
+| **通信开销** | stdio JSON-RPC，每次 fork | 零开销 |
+| **需要访问运行时内部状态** | ❌ 不能直接访问 model/state | ✅ 可以共享 |
+| **需要独立部署/扩展** | ✅ 可以 | ❌ 不能 |
+| **多语言/多项目复用** | ✅ 协议级复用 | ❌ Python 专属 |
+| **隔离性** | 进程级隔离，crash 不影响主进程 | 同进程，异常可能传播 |
+
+### 9.2 本项目当前分类
+
+| 功能 | 实现方式 | 理由 |
+|---|---|---|
+| 岗位搜索/详情/收藏 | MCP（boss-agent-cli） | 外部服务（Boss 直聘 API） |
+| Gmail 邮件收发 | MCP（未来） | 外部服务（Google API） |
+| Calendar 日历管理 | MCP（未来） | 外部服务（Google Calendar API） |
+| 简历解析 | 自建模块（resume.py） | 需要 LLM，启动时预加载 |
+| 简历池管理 | 自建 Tool | 需要访问本地存储 + LLM 选择逻辑 |
+| 简历-JD 匹配评分 | 自建 Tool | 纯计算 + LLM 分析 |
+| 简历润色/定制 | 自建 Tool（未来 Resume Agent） | 多步生成任务 |
+
+### 9.3 判断原则
+
+**一句话：调外部 API → MCP，内部处理 → 自建 Tool。**
+
+更详细的判断流程：
+
+```
+这个功能需要调用外部独立服务吗？
+├── 是 → MCP（如 Boss 直聘、Gmail、Calendar）
+└── 否 → 这个功能需要访问运行时内部状态（model/state/memory）吗？
+    ├── 是 → 自建 Tool（如简历匹配、上下文管理）
+    └── 否 → 纯计算逻辑，自建 Tool 最简单
+```
+
+### 9.4 反模式
+
+- ❌ 把内部逻辑包成 MCP server（多一层进程通信，无收益）
+- ❌ 在 MCP server 里再起一个 LLM 客户端（重复配置、延迟增加）
+- ❌ 为了“统一工具接口”把所有功能都做成 MCP（过度设计）
+- ✅ MCP 工具和自建 Tool 在 `ToolRegistry` 里统一管理，对 Agent 无差别
+
+## 10. 相关文件
 
 - 模块实现：[`src/career_agent/mcp_client.py`](../src/career_agent/mcp_client.py)
 - CLI 集成：[`src/career_agent/cli.py`](../src/career_agent/cli.py)
