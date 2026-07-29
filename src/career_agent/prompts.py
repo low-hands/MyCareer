@@ -54,14 +54,15 @@ RESUME_STRUCTURE_PROMPT = """\
 - name: 姓名（可能为空）
 - email: 邮箱（可能为空）
 - phone: 手机号（可能为空）
+- wechat: 微信号（可能为空）
 - summary: 简历原文已有的个人简介或个人总结（可能为空；不得自行生成）
-- skills: 原文明确出现的核心能力、领域知识或软技能列表（可能为空）
-- tech_stack: 原文明确出现的编程语言、框架、工具和平台列表（可能为空）
+- skills: 简历“技术能力、专业技能、个人能力”等明确技能栏目中列出的能力（可能为空）
+- technologies: 原文明确出现的编程语言、框架、库、模型、开发/部署工具和软件平台（可能为空）
 - work_experience: 工作/实习经历列表，每条含 company/title/duration/highlights（可能为空）
 - project_experience: 项目经历列表，每条含 name/role/duration/highlights（可能为空）
 - publications: 论文/发表列表，每条含 title/venue/year（可能为空）
 - awards: 竞赛/奖项列表，每条含 name/organization（可能为空）
-- education: 教育经历列表，每条含 school/degree/major/duration（可能为空）
+- education: 教育经历列表，每条含 school/degree/major/duration/gpa（可能为空）
 - stated_target_roles: 原文明确写出的目标岗位或求职方向（可能为空）
 - stated_target_cities: 原文明确写出的目标工作城市（可能为空）
 - stated_expected_salary: 原文明确写出的期望薪资（可能为空）
@@ -70,12 +71,20 @@ RESUME_STRUCTURE_PROMPT = """\
 
 1. 只提取文本中明确出现的信息，不得根据经历、技能或常识进行推断。
 2. 任一字段找不到时必须留空字符串或空列表，不得为了填满字段而生成内容。
-3. skills 放软技能和领域知识，tech_stack 放具体技术工具。
-4. 区分工作经历（公司实习/全职）和项目经历（学术项目、个人项目、开源项目）。
-5. highlights 按原文的独立职责、工作或成果逐条保存，不要合并成一段摘要。
-6. summary 只有原文存在个人简介、自我评价或个人总结栏目时才能填写。
-7. stated_target_roles、stated_target_cities、stated_expected_salary 只有原文明示求职意向时才能填写。
-8. 论文包括会议论文、期刊论文、预印本等；奖项包括竞赛获奖、奖学金、认证等。
+3. skills 只能来自明确的技能栏目，不得从工作或项目描述中重新归纳能力。
+   每一项必须是一个简短、独立的能力名称；去掉“Agent 开发”“大模型后训练与对齐”“技术栈框架”等栏目标题，
+   不要把冒号后的整句话作为一项。示例：["提示词工程", "工具编排与调用", "记忆管理"]。
+4. technologies 可从全文提取，但只包含语言、框架、库、模型、开发/部署工具和软件平台。
+   不得包含 API 或在线服务、数据集、评测基准、项目名称、业务能力、算法方法或项目描述短语。
+   可包含 Python、PyTorch、LangGraph、Qwen、OpenHands 等；不得包含 SerpAPI、公开数据集、
+   SWE-bench 等评测基准，以及 SFT、DAPO、LoRA、ReAct 等训练或推理方法。
+5. 区分工作经历（公司实习/全职）和项目经历（学术项目、个人项目、开源项目）。
+6. highlights 按原文的独立职责、工作或成果逐条保存，不要合并成一段摘要。
+7. summary 只有原文存在个人简介、自我评价或个人总结栏目时才能填写。
+8. stated_target_roles、stated_target_cities、stated_expected_salary 只有原文明示求职意向时才能填写。
+9. 论文包括会议论文、期刊论文、预印本等；奖项包括竞赛获奖、奖学金、认证等。
+10. education.gpa 只保存 GPA 数值或等级本身。同一行同时出现 GPA 和奖学金/荣誉时，必须拆开：
+    GPA 填入 education.gpa，奖学金或荣誉单独填入 awards，不得把奖项文本拼进 gpa。
 
 ## 输出格式
 

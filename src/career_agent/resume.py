@@ -55,6 +55,7 @@ class Education(BaseModel):
     degree: str = ""
     major: str = ""
     duration: str = ""
+    gpa: str = ""
 
 
 class ResumeData(BaseModel):
@@ -67,9 +68,10 @@ class ResumeData(BaseModel):
     name: str = ""
     email: str = ""
     phone: str = ""
+    wechat: str = ""
     summary: str = ""
     skills: list[str] = Field(default_factory=list)
-    tech_stack: list[str] = Field(default_factory=list)
+    technologies: list[str] = Field(default_factory=list)
     work_experience: list[WorkExperience] = Field(default_factory=list)
     project_experience: list[ProjectExperience] = Field(default_factory=list)
     publications: list[Publication] = Field(default_factory=list)
@@ -87,8 +89,8 @@ class ResumeData(BaseModel):
             facts.append(f"用户姓名: {self.name}")
         if self.skills:
             facts.append(f"核心技能: {', '.join(self.skills)}")
-        if self.tech_stack:
-            facts.append(f"技术栈: {', '.join(self.tech_stack)}")
+        if self.technologies:
+            facts.append(f"技术与工具: {', '.join(self.technologies)}")
         if self.stated_target_roles:
             facts.append(f"简历明确目标岗位: {', '.join(self.stated_target_roles)}")
         if self.stated_target_cities:
@@ -99,7 +101,13 @@ class ResumeData(BaseModel):
             entries = [
                 " ".join(
                     part
-                    for part in (edu.school, edu.degree, edu.major, edu.duration)
+                    for part in (
+                        edu.school,
+                        edu.degree,
+                        edu.major,
+                        edu.duration,
+                        f"GPA {edu.gpa}" if edu.gpa else "",
+                    )
                     if part
                 )
                 for edu in self.education
@@ -221,7 +229,7 @@ def _parse_json_from_text(text: str) -> ResumeData:
 
     # Coerce common type mismatches (model may return str instead of list)
     _list_fields = [
-        "skills", "tech_stack", "stated_target_roles", "stated_target_cities",
+        "skills", "technologies", "stated_target_roles", "stated_target_cities",
         "work_experience", "project_experience", "publications",
         "awards", "education",
     ]

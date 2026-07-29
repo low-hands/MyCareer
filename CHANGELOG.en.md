@@ -17,7 +17,7 @@ All notable changes to this project.
     - `Publication` — papers, articles, conference publications
     - `Award` — competitions, awards, certifications
   - Work and project details preserved as individual `highlights`
-  - Lightweight `list[str]` fields for `skills` and `tech_stack`
+  - Lightweight `list[str]` fields for `skills` and `technologies`
   - Explicit resume objectives stored in `stated_target_*` fields, separate from inferred role recommendations
   - `to_facts()` retains all extracted skills, technologies, education, and experience details
   - CLI resume labels come from the user or filename rather than the parsing model
@@ -43,6 +43,9 @@ All notable changes to this project.
   - Stopped inferring target roles, cities, salary, and summary during factual extraction
   - Allowed every field to remain empty instead of pressuring the model to satisfy required fields
   - Replaced `description` with `highlights` and removed unused publication-author and award year/rank fields
+  - Restricted `skills` to explicit skill sections instead of deriving them from project prose
+  - Restricted `technologies` to languages, frameworks, libraries, models, development/deployment tools, and software platforms
+  - Added factual extraction for messaging contact IDs and education GPA
 
 - **PDF parser**
   - Switched from `pypdf` to PyMuPDF (`fitz`) for better readable text and layout extraction on Chinese resumes
@@ -60,12 +63,6 @@ All notable changes to this project.
 
 - Added `pymupdf` for Chinese PDF resume text extraction
 - Removed unused `pypdf`
-
-### Known Limitations
-
-- `skills` may still absorb capability phrases from project prose and should be restricted to explicit skill sections
-- The current schema does not retain messaging contact IDs or education GPA
-- `tech_stack` also contains models, APIs, datasets, and benchmarks; its final name needs validation on more resumes
 
 ## [0.1.0] — 2025-07-29
 
