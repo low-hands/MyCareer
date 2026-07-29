@@ -114,7 +114,8 @@ career-agent/
 - [x] Prompt engineering (anti-hallucination + Chinese output)
 - [x] Schema compatibility + Trace visualization
 - [ ] LangGraph hybrid architecture (outer orchestration + inner Agent Loop)
-- [ ] Resume parsing + job matching
+- [x] Resume parsing (PDF/text + structured fact extraction)
+- [ ] Job matching
 - [ ] Multiple Specialist nodes (JD analysis, interview prep, etc.)
 - [ ] Evaluation system + Golden Cases
 

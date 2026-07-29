@@ -6,4 +6,6 @@ __pycache__/
 .env
 
 .DS_Store
-docs/mcp-integration.md
+
+# Local design notes and bad-case records; do not publish to GitHub.
+docs/

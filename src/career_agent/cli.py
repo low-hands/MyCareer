@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -28,7 +29,8 @@ from career_agent.tracing import InMemoryTraceSink, TraceSink
 # OpenAI API rejects "int" (must be "integer"), "float" (must be "number"), etc.
 _TYPE_FIXES = {"int": "integer", "float": "number", "bool": "boolean"}
 
-# Local multi-resume store: label -> ResumeData
+# Local multi-resume store: user-facing label -> ResumeData.
+# Labels belong to resume management and are never inferred by the parser.
 _resume_store: dict[str, ResumeData] = {}
 _active_resume_label: str | None = None
 
@@ -84,6 +86,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> None:
     model = model_from_env("orchestrator")
+    resume_model = model_from_env("resume")
     registry = ToolRegistry()
     resume: ResumeData | None = None
 
@@ -92,16 +95,20 @@ async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> No
     if resume_path:
         try:
             print(f"Loading resume from {resume_path}...")
-            resume = await load_resume(resume_path, model)
-            _resume_store[resume.label] = resume
-            _active_resume_label = resume.label
-            print(f"  [resume] [{resume.label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
+            resume = await load_resume(resume_path, resume_model)
+            label = Path(resume_path).stem
+            _resume_store[label] = resume
+            _active_resume_label = label
+            print(f"  [resume] [{label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
         except Exception as exc:
             print(f"  [resume] warning: failed to parse ({type(exc).__name__}: {exc})", file=sys.stderr)
 
     if no_mcp:
         print("Career Agent CLI (no MCP). Type 'exit' to quit.")
-        await _run_loop(model=model, registry=registry, trace_sink=InMemoryTraceSink(), show_trace=trace, resume=resume)
+        await _run_loop(
+            model=model, resume_model=resume_model, registry=registry,
+            trace_sink=InMemoryTraceSink(), show_trace=trace, resume=resume,
+        )
         return
 
     try:
@@ -126,7 +133,10 @@ async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> No
             f"Type 'exit' to quit."
         )
         sink = InMemoryTraceSink()
-        await _run_loop(model=model, registry=registry, trace_sink=sink, show_trace=trace, resume=resume)
+        await _run_loop(
+            model=model, resume_model=resume_model, registry=registry,
+            trace_sink=sink, show_trace=trace, resume=resume,
+        )
     except Exception as exc:
         print(f"error: failed to start boss-mcp ({type(exc).__name__}: {exc})", file=sys.stderr)
         print("Hint: install with `uv add 'boss-agent-cli[mcp]'`", file=sys.stderr)
@@ -134,7 +144,7 @@ async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> No
 
 
 async def _run_loop(
-    *, model, registry: ToolRegistry,
+    *, model, resume_model, registry: ToolRegistry,
     trace_sink: TraceSink | None = None,
     show_trace: bool = False,
     resume: ResumeData | None = None,
@@ -166,7 +176,7 @@ async def _run_loop(
                 else:
                     for lbl, r in _resume_store.items():
                         active = " *" if lbl == _active_resume_label else ""
-                        roles = ", ".join(r.target_roles[:2]) or "no target"
+                        roles = ", ".join(r.stated_target_roles[:2]) or "no stated target"
                         print(f"  [{lbl}]{active} {r.name or 'Unknown'} | {roles}")
                 continue
 
@@ -184,7 +194,7 @@ async def _run_loop(
             if len(parts) == 2:
                 # /resume <path> — load with auto label
                 file_path = cmd
-                label = "default"
+                label = Path(file_path).stem
             elif len(parts) == 3:
                 # /resume <label> <path>
                 label = cmd
@@ -195,8 +205,7 @@ async def _run_loop(
 
             try:
                 print(f"Loading resume from {file_path}...")
-                loaded = await load_resume(file_path, model)
-                loaded.label = label
+                loaded = await load_resume(file_path, resume_model)
                 _resume_store[label] = loaded
                 _active_resume_label = label
                 resume = loaded

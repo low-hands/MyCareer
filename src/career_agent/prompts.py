@@ -46,6 +46,48 @@ KNOWN_FACTS_SECTION = """Known facts:
 {facts}"""
 
 
+RESUME_STRUCTURE_PROMPT = """\
+你是一个简历解析助手。请从以下简历文本中提取结构化信息，填入对应的字段。
+
+## 提取字段
+
+- name: 姓名（可能为空）
+- email: 邮箱（可能为空）
+- phone: 手机号（可能为空）
+- summary: 简历原文已有的个人简介或个人总结（可能为空；不得自行生成）
+- skills: 原文明确出现的核心能力、领域知识或软技能列表（可能为空）
+- tech_stack: 原文明确出现的编程语言、框架、工具和平台列表（可能为空）
+- work_experience: 工作/实习经历列表，每条含 company/title/duration/highlights（可能为空）
+- project_experience: 项目经历列表，每条含 name/role/duration/highlights（可能为空）
+- publications: 论文/发表列表，每条含 title/venue/year（可能为空）
+- awards: 竞赛/奖项列表，每条含 name/organization（可能为空）
+- education: 教育经历列表，每条含 school/degree/major/duration（可能为空）
+- stated_target_roles: 原文明确写出的目标岗位或求职方向（可能为空）
+- stated_target_cities: 原文明确写出的目标工作城市（可能为空）
+- stated_expected_salary: 原文明确写出的期望薪资（可能为空）
+
+## 规则
+
+1. 只提取文本中明确出现的信息，不得根据经历、技能或常识进行推断。
+2. 任一字段找不到时必须留空字符串或空列表，不得为了填满字段而生成内容。
+3. skills 放软技能和领域知识，tech_stack 放具体技术工具。
+4. 区分工作经历（公司实习/全职）和项目经历（学术项目、个人项目、开源项目）。
+5. highlights 按原文的独立职责、工作或成果逐条保存，不要合并成一段摘要。
+6. summary 只有原文存在个人简介、自我评价或个人总结栏目时才能填写。
+7. stated_target_roles、stated_target_cities、stated_expected_salary 只有原文明示求职意向时才能填写。
+8. 论文包括会议论文、期刊论文、预印本等；奖项包括竞赛获奖、奖学金、认证等。
+
+## 输出格式
+
+请只输出一个合法的 JSON 对象，不要输出任何其他内容（不要 markdown 代码块、不要解释）。
+JSON 的 key 必须严格匹配上述字段名。
+
+## 简历文本
+
+{text}
+"""
+
+
 def render_system_prompt(
     *,
     base_prompt: str = CORE_AGENT_SYSTEM_PROMPT,

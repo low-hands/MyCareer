@@ -114,7 +114,8 @@ career-agent/
 - [x] Prompt 工程（防幻觉 + 中文输出）
 - [x] Schema 兼容 + Trace 可视化
 - [ ] LangGraph 混合架构（外层编排 + 内层 Agent Loop）
-- [ ] 简历解析 + 岗位匹配
+- [x] 简历解析（PDF/文本 + 结构化事实抽取）
+- [ ] 岗位匹配
 - [ ] 多 Specialist 节点（JD 分析、面试准备等）
 - [ ] 评估体系 + Golden Cases
 
