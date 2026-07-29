@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from career_agent.contracts import AgentRequest, ToolPermission
 from career_agent.mcp_client import MultiServerMCPClient, load_tools
 from career_agent.models import model_from_env
+from career_agent.resume import ResumeData, load_resume
 from career_agent.runtime.agent_loop_runtime import AgentLoopRuntime
 from career_agent.tools import ToolRegistry
 from career_agent.tracing import InMemoryTraceSink, TraceSink
@@ -26,6 +27,10 @@ from career_agent.tracing import InMemoryTraceSink, TraceSink
 # MCP servers sometimes use non-standard JSON Schema types.
 # OpenAI API rejects "int" (must be "integer"), "float" (must be "number"), etc.
 _TYPE_FIXES = {"int": "integer", "float": "number", "bool": "boolean"}
+
+# Local multi-resume store: label -> ResumeData
+_resume_store: dict[str, ResumeData] = {}
+_active_resume_label: str | None = None
 
 
 def _fix_schema_dict(schema: dict) -> bool:
@@ -68,16 +73,35 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print tool call trace after each agent response.",
     )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Path to a resume file (PDF or text) to load at startup.",
+    )
     return parser.parse_args(argv)
 
 
-async def _chat(no_mcp: bool, trace: bool) -> None:
+async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> None:
     model = model_from_env("orchestrator")
     registry = ToolRegistry()
+    resume: ResumeData | None = None
+
+    # Load resume if provided
+    global _active_resume_label
+    if resume_path:
+        try:
+            print(f"Loading resume from {resume_path}...")
+            resume = await load_resume(resume_path, model)
+            _resume_store[resume.label] = resume
+            _active_resume_label = resume.label
+            print(f"  [resume] [{resume.label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
+        except Exception as exc:
+            print(f"  [resume] warning: failed to parse ({type(exc).__name__}: {exc})", file=sys.stderr)
 
     if no_mcp:
         print("Career Agent CLI (no MCP). Type 'exit' to quit.")
-        await _run_loop(model=model, registry=registry, trace_sink=InMemoryTraceSink(), show_trace=trace)
+        await _run_loop(model=model, registry=registry, trace_sink=InMemoryTraceSink(), show_trace=trace, resume=resume)
         return
 
     try:
@@ -102,7 +126,7 @@ async def _chat(no_mcp: bool, trace: bool) -> None:
             f"Type 'exit' to quit."
         )
         sink = InMemoryTraceSink()
-        await _run_loop(model=model, registry=registry, trace_sink=sink, show_trace=trace)
+        await _run_loop(model=model, registry=registry, trace_sink=sink, show_trace=trace, resume=resume)
     except Exception as exc:
         print(f"error: failed to start boss-mcp ({type(exc).__name__}: {exc})", file=sys.stderr)
         print("Hint: install with `uv add 'boss-agent-cli[mcp]'`", file=sys.stderr)
@@ -113,6 +137,7 @@ async def _run_loop(
     *, model, registry: ToolRegistry,
     trace_sink: TraceSink | None = None,
     show_trace: bool = False,
+    resume: ResumeData | None = None,
 ) -> None:
     runtime = AgentLoopRuntime(
         model=model, tools=registry,
@@ -129,12 +154,66 @@ async def _run_loop(
             continue
         if message.casefold() in {"exit", "quit"}:
             break
+
+        # Handle /resume commands
+        if message.lower().startswith("/resume"):
+            parts = message.split(maxsplit=2)
+            cmd = parts[1] if len(parts) > 1 else ""
+
+            if cmd == "list":
+                if not _resume_store:
+                    print("  [resume] no resumes loaded.")
+                else:
+                    for lbl, r in _resume_store.items():
+                        active = " *" if lbl == _active_resume_label else ""
+                        roles = ", ".join(r.target_roles[:2]) or "no target"
+                        print(f"  [{lbl}]{active} {r.name or 'Unknown'} | {roles}")
+                continue
+
+            if cmd == "use":
+                label = parts[2] if len(parts) > 2 else ""
+                if label in _resume_store:
+                    _active_resume_label = label
+                    resume = _resume_store[label]
+                    print(f"  [resume] switched to [{label}]: {resume.name}")
+                else:
+                    print(f"  [resume] label not found: {label}. Use /resume list")
+                continue
+
+            # /resume <path> or /resume <label> <path>
+            if len(parts) == 2:
+                # /resume <path> — load with auto label
+                file_path = cmd
+                label = "default"
+            elif len(parts) == 3:
+                # /resume <label> <path>
+                label = cmd
+                file_path = parts[2]
+            else:
+                print("Usage: /resume [label] <path> | /resume list | /resume use <label>")
+                continue
+
+            try:
+                print(f"Loading resume from {file_path}...")
+                loaded = await load_resume(file_path, model)
+                loaded.label = label
+                _resume_store[label] = loaded
+                _active_resume_label = label
+                resume = loaded
+                print(f"  [resume] [{label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
+            except Exception as exc:
+                print(f"  [resume] error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            continue
+
+        # Build facts from resume for prompt injection
+        facts = resume.to_facts() if resume else []
         try:
             result = await runtime.run(
                 AgentRequest(
                     message=message,
                     thread_id=thread_id,
                     allowed_permissions={ToolPermission.READ},
+                    metadata={"facts": facts},
                 )
             )
         except Exception as exc:
@@ -159,7 +238,7 @@ async def _run_loop(
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     load_dotenv(override=True)
-    asyncio.run(_chat(no_mcp=args.no_mcp, trace=args.trace))
+    asyncio.run(_chat(no_mcp=args.no_mcp, trace=args.trace, resume_path=args.resume))
 
 
 if __name__ == "__main__":
