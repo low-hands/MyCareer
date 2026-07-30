@@ -8,7 +8,23 @@
 
 ### 新增
 
-- **简历解析模块** (`src/career_agent/resume.py`)
+- **岗位事实存储** (`src/career_agent/jobs/`)
+  - `JobPosting` 保存来源可追溯的岗位摘要或完整 JD，不混入匹配结果
+  - SQLite Repository 强制按 `tenant_id` 查询和更新
+  - 依次使用来源岗位 ID、规范化 URL、内容指纹去重
+  - 搜索摘要刷新不会清除已保存的完整 JD 或其他非空详情
+  - `SearchCriteria` 保存用户原始搜索意图，`SearchRun` 保存不可变的展示结果快照
+  - SearchRun SQLite 表只保存有序 `job_id` 引用，不复制完整 JD
+  - 支持按位置或公司/岗位/城市/薪资解析跨轮引用，并区分唯一命中、歧义和未找到
+  - Boss MCP Provider 使用 `boss_export` 只读内联模式获取完整筛选结果，并通过 `boss_detail` 补充完整 JD
+  - 上游 JSON 信封统一转换为 `JobPosting`，保留详情定位符但不保存凭据
+  - 每轮生成受 tenant/thread 上下文约束的搜索和详情工具，LLM 只生成 `SearchCriteria`/`SearchResultSelector`
+  - CLI 已接通搜索业务链；原始 Boss MCP 工具不再直接暴露给 LLM
+  - 会话存储跨轮复用，业务工具按轮捕获可信的 tenant/thread/user_query 上下文
+  - Agent loop 新增终态 Response Guard；明确的岗位搜索/详情请求必须有对应的成功工具调用证据
+  - 无证据答案会在有限预算内反馈重试，耗尽后返回安全提示；工具错误不计为有效证据
+
+- **简历领域模型与解析模块** (`src/career_agent/resumes/models.py`, `src/career_agent/resumes/parser.py`)
   - PDF 文本提取（PyMuPDF）+ 纯文本支持
   - LLM 结构化解析（`with_structured_output(ResumeData)`）
   - `ResumeData` 模型，Experience 分类：
@@ -20,13 +36,22 @@
   - `skills` 与 `technologies` 保持轻量 `list[str]`
   - 简历明示求职目标使用 `stated_target_*` 字段，与模型推荐岗位分离
   - `to_facts()` 完整保留技能、技术、教育与经历内容
-  - 多简历 CLI 标签由用户或文件名提供，不再由解析模型推断
+  - 简历岗位池元数据与解析事实分离，不再由解析模型推断
+
+- **岗位简历池** (`src/career_agent/resumes/`)
+  - 按自由岗位方向 `role_type` 对简历版本分池
+  - 每个池内版本号独立递增，版本绑定不可变原始文件及解析快照
+  - 单个 SQLite 数据库通过强制 `tenant_id` 查询实现租户隔离
+  - SHA-256 防止同一租户在同一岗位池重复上传相同文件
+  - 解析失败不写数据库、不遗留文件
+  - 当前选中版本持久化，程序重启后可恢复
 
 - **简历 CLI 集成**
-  - `--resume <path>` 启动时加载简历
-  - `/resume [label] <path>` 对话中加载
-  - `/resume list` 查看所有已加载简历
-  - `/resume use <label>` 切换活跃简历
+  - `--resume <path> --resume-role <role>` 启动时加入岗位池
+  - `/resume add <role> <path> [note]` 添加版本
+  - `/resume list [role]` 按岗位池查看版本
+  - `/resume show <version-id>` 查看版本详情
+  - `/resume use <version-id>` 选择活跃版本
   - 简历 facts 自动注入 system prompt
 
 - **Trace 可视化**（`--trace` 参数）

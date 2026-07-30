@@ -14,11 +14,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from career_agent.models import model_from_env
-from career_agent.resume import (
-    ResumeData,
-    extract_text_from_file,
-    parse_resume_with_llm,
-)
+from career_agent.resumes.models import ResumeData
+from career_agent.resumes.parser import extract_text_from_file, parse_resume_with_llm
 
 
 async def main() -> None:

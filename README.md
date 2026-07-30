@@ -12,6 +12,7 @@
 - **权限控制** — 工具按 READ / WRITE / EXTERNAL 分级，模型只能调用被授权的工具
 - **Trace 可视化** — `--trace` 参数实时显示每轮工具调用轨迹
 - **Schema 自动修复** — 兼容非标准 MCP 工具定义（如 `int` → `integer`）
+- **岗位简历池** — 按岗位方向管理多个不可变简历版本，SQLite 按租户持久化
 - **可插拔架构** — Runtime / Context / TraceSink 均为 Protocol，方便替换
 
 ## 架构
@@ -52,6 +53,13 @@ uv sync
 ORCHESTRATOR_MODEL=gpt-4o
 ORCHESTRATOR_API_KEY=sk-your-key-here
 ORCHESTRATOR_BASE_URL=https://api.openai.com/v1
+
+RESUME_MODEL=gpt-4o
+RESUME_API_KEY=sk-your-key-here
+RESUME_BASE_URL=https://api.openai.com/v1
+
+CAREER_AGENT_TENANT_ID=local
+CAREER_AGENT_DATA_DIR=~/.career-agent
 ```
 
 ### Boss 直聘登录
@@ -70,6 +78,28 @@ uv run career-agent            # 启动（带 MCP 工具）
 uv run career-agent --trace    # 启动并显示工具调用轨迹
 uv run career-agent --no-mcp   # 纯对话模式（不启动 MCP）
 ```
+
+启动时也可以直接将简历加入指定岗位池：
+
+```bash
+uv run career-agent \
+  --resume "/path/to/resume.pdf" \
+  --resume-role "Agent开发"
+```
+
+会话中的简历池命令：
+
+```text
+/resume add "Agent开发" "/path/to/resume.pdf" "通用版"
+/resume list
+/resume list "Agent开发"
+/resume show <version-id>
+/resume use <version-id>
+```
+
+数据默认保存在 `~/.career-agent/`。当前本地模式使用单个 SQLite
+数据库，并通过 `tenant_id` 对所有简历查询进行隔离；后续可将同一
+Repository 接口迁移到 PostgreSQL。
 
 ### 测试
 
@@ -91,11 +121,30 @@ career-agent/
 │   ├── tracing.py                      # TraceSink Protocol + InMemoryTraceSink
 │   ├── models.py                       # 模型客户端工厂
 │   ├── mcp_client.py                   # MCP 客户端封装
+│   ├── jobs/
+│   │   ├── models.py                   # JobPosting 岗位事实模型
+│   │   ├── sqlite_repo.py              # 岗位 SQLite Repository
+│   │   ├── search_models.py            # SearchCriteria / SearchRun / 解析结果
+│   │   ├── search_repository.py        # 不可变搜索快照接口
+│   │   ├── search_sqlite_repo.py       # SearchRun SQLite 实现
+│   │   ├── search_service.py           # 发布结果与跨轮引用解析
+│   │   ├── providers/                   # 外部岗位来源 Adapter（Boss MCP）
+│   │   ├── discovery_service.py         # 搜索、持久化、详情获取业务链
+│   │   ├── agent_tools.py               # 按任务生成的 function-calling 工具
+│   │   ├── grounding_guard.py           # 岗位搜索/详情接地策略
+│   │   └── wiring.py                    # MCP → 业务服务 → Agent 工具接线
+│   ├── resumes/
+│   │   ├── models.py                   # 简历领域模型（ResumeData / ResumeVersion）
+│   │   ├── parser.py                   # PDF/文本提取与 LLM 结构化
+│   │   ├── repository.py               # 简历版本持久化接口
+│   │   ├── sqlite_repo.py              # SQLite Repository 实现
+│   │   └── service.py                  # 岗位简历池业务服务
 │   ├── state.py                        # 对话状态持久化
 │   ├── evaluation.py                   # 评估框架
 │   └── runtime/
 │       ├── base.py                     # AgentRuntime Protocol
 │       ├── agent_loop_runtime.py       # 默认 Agent Loop
+│       ├── response_guard.py            # 终态答案审查与工具证据契约
 │       └── langgraph_runtime.py        # LangGraph 适配器
 └── tests/
 ```
@@ -115,6 +164,7 @@ career-agent/
 - [x] Schema 兼容 + Trace 可视化
 - [ ] LangGraph 混合架构（外层编排 + 内层 Agent Loop）
 - [x] 简历解析（PDF/文本 + 结构化事实抽取）
+- [x] 多租户岗位简历池（SQLite持久化 + 多版本）
 - [ ] 岗位匹配
 - [ ] 多 Specialist 节点（JD 分析、面试准备等）
 - [ ] 评估体系 + Golden Cases

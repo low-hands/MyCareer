@@ -23,8 +23,7 @@ def model_from_env(
     except KeyError as exc:
         missing = exc.args[0]
         raise SystemExit(
-            f"Missing environment variable: {missing}\n"
-            f"Set it in .env or via export. See .env.example for reference."
+            f"Missing environment variable: {missing}\nSet it in .env or via export. See .env.example for reference."
         ) from None
     return openai_compatible_model(
         model=model,

@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 from pydantic import Field
 
 from career_agent.contracts import AgentRequest, ToolPermission
+from career_agent.jobs.grounding_guard import JobGroundingGuard
 from career_agent.runtime.agent_loop_runtime import AgentLoopRuntime
 from career_agent.tools import ToolRegistry
 
@@ -93,3 +94,79 @@ async def test_disallowed_tool_is_not_exposed_to_model() -> None:
 
     assert model.bound_tool_names == []
     assert result.tool_calls == 0
+
+
+@tool("career_search_jobs")
+def search_jobs(query: str) -> str:
+    """Search grounded job postings."""
+
+    return '{"status":"no_results","message":"No grounded jobs found."}'
+
+
+@pytest.mark.asyncio
+async def test_response_guard_retries_ungrounded_answer_then_accepts_tool_backed_answer() -> None:
+    model = ScriptedToolModel(
+        responses=[
+            AIMessage(content="我推荐三家公司的 Agent 岗位。"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "career_search_jobs",
+                        "args": {"query": "Agent"},
+                        "id": "search-1",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="没有检索到符合条件的真实岗位。"),
+        ]
+    )
+    registry = ToolRegistry()
+    registry.register(search_jobs, permission=ToolPermission.READ)
+    runtime = AgentLoopRuntime(
+        model=model,
+        tools=registry,
+        response_guard=JobGroundingGuard(),
+    )
+
+    result = await runtime.run(
+        AgentRequest(
+            message="帮我搜索 Agent 开发岗位",
+            thread_id="grounded-search",
+        )
+    )
+
+    assert result.output == "没有检索到符合条件的真实岗位。"
+    assert result.model_messages == 3
+    assert result.tool_calls == 1
+    assert result.metadata["guard_rejections"] == 1
+
+
+@pytest.mark.asyncio
+async def test_response_guard_returns_safe_output_after_retry_budget_is_exhausted() -> None:
+    model = ScriptedToolModel(
+        responses=[
+            AIMessage(content="这是我记忆中的岗位。"),
+            AIMessage(content="我还是直接给出一个岗位。"),
+        ]
+    )
+    registry = ToolRegistry()
+    registry.register(search_jobs, permission=ToolPermission.READ)
+    runtime = AgentLoopRuntime(
+        model=model,
+        tools=registry,
+        response_guard=JobGroundingGuard(),
+        max_guard_retries=1,
+    )
+
+    result = await runtime.run(
+        AgentRequest(
+            message="帮我搜索北京的 Agent 岗位",
+            thread_id="blocked-search",
+        )
+    )
+
+    assert "无法在没有岗位工具证据的情况下回答" in result.output
+    assert result.tool_calls == 0
+    assert result.metadata["guard_blocked"] is True

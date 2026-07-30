@@ -2,37 +2,43 @@
 
 This module only wires dependencies together — it owns no agent logic.
 The ``--no-mcp`` flag lets the CLI still boot when ``boss-agent-cli`` is
-unavailable (useful for contract tests and offline demos); without it,
-the CLI launches the ``boss-mcp`` MCP server as a subprocess and
-registers every tool it advertises into the project's
-:class:`ToolRegistry` with ``READ`` permission.
+unavailable (useful for contract tests and offline demos). Without it,
+the CLI uses selected read-only Boss MCP tools behind the project's
+request-scoped Career tools; raw provider tools are never model-visible.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+import shlex
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 from career_agent.contracts import AgentRequest, ToolPermission
+from career_agent.jobs.agent_tools import JobDiscoveryToolContext
+from career_agent.jobs.discovery_service import JobDiscoveryService
+from career_agent.jobs.grounding_guard import JobGroundingGuard
+from career_agent.jobs.wiring import (
+    build_job_discovery_registry,
+    build_job_discovery_service,
+)
 from career_agent.mcp_client import MultiServerMCPClient, load_tools
 from career_agent.models import model_from_env
-from career_agent.resume import ResumeData, load_resume
+from career_agent.resumes.repository import DuplicateResumeError, ResumeNotFoundError
+from career_agent.resumes.service import ResumePoolService
+from career_agent.resumes.sqlite_repo import SQLiteResumeVersionRepository
 from career_agent.runtime.agent_loop_runtime import AgentLoopRuntime
+from career_agent.state import InMemoryConversationStore
 from career_agent.tools import ToolRegistry
 from career_agent.tracing import InMemoryTraceSink, TraceSink
 
 # MCP servers sometimes use non-standard JSON Schema types.
 # OpenAI API rejects "int" (must be "integer"), "float" (must be "number"), etc.
 _TYPE_FIXES = {"int": "integer", "float": "number", "bool": "boolean"}
-
-# Local multi-resume store: user-facing label -> ResumeData.
-# Labels belong to resume management and are never inferred by the parser.
-_resume_store: dict[str, ResumeData] = {}
-_active_resume_label: str | None = None
 
 
 def _fix_schema_dict(schema: dict) -> bool:
@@ -81,33 +87,74 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Path to a resume file (PDF or text) to load at startup.",
     )
+    parser.add_argument(
+        "--resume-role",
+        type=str,
+        default="未分类",
+        help="Role pool for --resume (default: 未分类).",
+    )
+    parser.add_argument(
+        "--tenant-id",
+        type=str,
+        default=os.getenv("CAREER_AGENT_TENANT_ID", "local"),
+        help="Tenant scope for local data (default: CAREER_AGENT_TENANT_ID or local).",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default=os.getenv("CAREER_AGENT_DATA_DIR", "~/.career-agent"),
+        help="Persistent data directory (default: CAREER_AGENT_DATA_DIR or ~/.career-agent).",
+    )
     return parser.parse_args(argv)
 
 
-async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> None:
+async def _chat(
+    no_mcp: bool,
+    trace: bool,
+    resume_path: str | None = None,
+    resume_role: str = "未分类",
+    tenant_id: str = "local",
+    data_dir: str = "~/.career-agent",
+) -> None:
     model = model_from_env("orchestrator")
     resume_model = model_from_env("resume")
-    registry = ToolRegistry()
-    resume: ResumeData | None = None
+    resolved_data_dir = Path(data_dir).expanduser().resolve()
+    database_path = resolved_data_dir / "career-agent.db"
+    resume_service = ResumePoolService(
+        repository=SQLiteResumeVersionRepository(database_path),
+        parser_model=resume_model,
+        storage_dir=resolved_data_dir / "resumes",
+    )
 
     # Load resume if provided
-    global _active_resume_label
     if resume_path:
         try:
             print(f"Loading resume from {resume_path}...")
-            resume = await load_resume(resume_path, resume_model)
-            label = Path(resume_path).stem
-            _resume_store[label] = resume
-            _active_resume_label = label
-            print(f"  [resume] [{label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
+            created = await resume_service.add_version(
+                tenant_id=tenant_id,
+                role_type=resume_role,
+                file_path=resume_path,
+            )
+            resume_service.use_version(tenant_id, created.version_id)
+            print(
+                f"  [resume] [{created.version_id[:8]}] {created.display_name} | "
+                f"{created.parsed_data.name or 'Unknown'}"
+            )
+        except DuplicateResumeError as exc:
+            print(f"  [resume] duplicate: {exc}", file=sys.stderr)
         except Exception as exc:
             print(f"  [resume] warning: failed to parse ({type(exc).__name__}: {exc})", file=sys.stderr)
 
     if no_mcp:
         print("Career Agent CLI (no MCP). Type 'exit' to quit.")
         await _run_loop(
-            model=model, resume_model=resume_model, registry=registry,
-            trace_sink=InMemoryTraceSink(), show_trace=trace, resume=resume,
+            model=model,
+            resume_model=resume_model,
+            job_discovery_service=None,
+            resume_service=resume_service,
+            tenant_id=tenant_id,
+            trace_sink=InMemoryTraceSink(),
+            show_trace=trace,
         )
         return
 
@@ -126,16 +173,20 @@ async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> No
         )
         tools = await load_tools(client)
         _sanitize_tools(tools)
-        for tool in tools:
-            registry.register(tool, permission=ToolPermission.READ)
-        print(
-            f"Career Agent CLI. boss-agent online with {len(tools)} tool(s). "
-            f"Type 'exit' to quit."
+        job_discovery_service = build_job_discovery_service(
+            mcp_tools=tools,
+            database_path=database_path,
         )
+        print("Career Agent CLI. Boss MCP online behind 2 Career tools. Type 'exit' to quit.")
         sink = InMemoryTraceSink()
         await _run_loop(
-            model=model, resume_model=resume_model, registry=registry,
-            trace_sink=sink, show_trace=trace, resume=resume,
+            model=model,
+            resume_model=resume_model,
+            job_discovery_service=job_discovery_service,
+            resume_service=resume_service,
+            tenant_id=tenant_id,
+            trace_sink=sink,
+            show_trace=trace,
         )
     except Exception as exc:
         print(f"error: failed to start boss-mcp ({type(exc).__name__}: {exc})", file=sys.stderr)
@@ -144,16 +195,20 @@ async def _chat(no_mcp: bool, trace: bool, resume_path: str | None = None) -> No
 
 
 async def _run_loop(
-    *, model, resume_model, registry: ToolRegistry,
+    *,
+    model,
+    resume_model,
+    job_discovery_service: JobDiscoveryService | None,
+    resume_service: ResumePoolService,
+    tenant_id: str,
     trace_sink: TraceSink | None = None,
     show_trace: bool = False,
-    resume: ResumeData | None = None,
 ) -> None:
-    runtime = AgentLoopRuntime(
-        model=model, tools=registry,
-        trace_sink=trace_sink or InMemoryTraceSink(),
-    )
-    thread_id = "local-cli"
+    sink = trace_sink or InMemoryTraceSink()
+    conversation_store = InMemoryConversationStore()
+    response_guard = JobGroundingGuard() if job_discovery_service is not None else None
+    thread_id = f"local-cli:{tenant_id}"
+    active_version = resume_service.get_active_version(tenant_id)
     while True:
         try:
             message = input("you> ").strip()
@@ -167,62 +222,113 @@ async def _run_loop(
 
         # Handle /resume commands
         if message.lower().startswith("/resume"):
-            parts = message.split(maxsplit=2)
-            cmd = parts[1] if len(parts) > 1 else ""
+            try:
+                parts = shlex.split(message)
+            except ValueError as exc:
+                print(f"  [resume] invalid command: {exc}", file=sys.stderr)
+                continue
+            cmd = parts[1].casefold() if len(parts) > 1 else "help"
 
             if cmd == "list":
-                if not _resume_store:
-                    print("  [resume] no resumes loaded.")
-                else:
-                    for lbl, r in _resume_store.items():
-                        active = " *" if lbl == _active_resume_label else ""
-                        roles = ", ".join(r.stated_target_roles[:2]) or "no stated target"
-                        print(f"  [{lbl}]{active} {r.name or 'Unknown'} | {roles}")
+                role_type = parts[2] if len(parts) > 2 else None
+                versions = resume_service.list_versions(tenant_id, role_type)
+                _print_resume_versions(versions, active_version)
                 continue
 
             if cmd == "use":
-                label = parts[2] if len(parts) > 2 else ""
-                if label in _resume_store:
-                    _active_resume_label = label
-                    resume = _resume_store[label]
-                    print(f"  [resume] switched to [{label}]: {resume.name}")
-                else:
-                    print(f"  [resume] label not found: {label}. Use /resume list")
+                selector = parts[2] if len(parts) > 2 else ""
+                try:
+                    active_version = resume_service.use_version(tenant_id, selector)
+                    print(f"  [resume] using [{active_version.version_id[:8]}] {active_version.display_name}")
+                except ResumeNotFoundError as exc:
+                    print(f"  [resume] {exc}", file=sys.stderr)
                 continue
 
-            # /resume <path> or /resume <label> <path>
-            if len(parts) == 2:
-                # /resume <path> — load with auto label
-                file_path = cmd
-                label = Path(file_path).stem
-            elif len(parts) == 3:
-                # /resume <label> <path>
-                label = cmd
-                file_path = parts[2]
-            else:
-                print("Usage: /resume [label] <path> | /resume list | /resume use <label>")
+            if cmd == "show":
+                selector = parts[2] if len(parts) > 2 else ""
+                try:
+                    selected = resume_service.resolve_version(tenant_id, selector)
+                    print(
+                        f"  [{selected.version_id[:8]}] {selected.display_name}\n"
+                        f"  source: {selected.original_filename}\n"
+                        f"{selected.parsed_data.model_dump_json(indent=2)}"
+                    )
+                except ResumeNotFoundError as exc:
+                    print(f"  [resume] {exc}", file=sys.stderr)
                 continue
 
-            try:
-                print(f"Loading resume from {file_path}...")
-                loaded = await load_resume(file_path, resume_model)
-                _resume_store[label] = loaded
-                _active_resume_label = label
-                resume = loaded
-                print(f"  [resume] [{label}] {resume.name or 'Unknown'} | {', '.join(resume.skills[:5])}...")
-            except Exception as exc:
-                print(f"  [resume] error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            if cmd == "add":
+                if len(parts) < 4:
+                    _print_resume_help()
+                    continue
+                role_type = parts[2]
+                file_path = parts[3]
+                note = parts[4] if len(parts) > 4 else ""
+                try:
+                    print(f"Loading resume from {file_path}...")
+                    created = await resume_service.add_version(
+                        tenant_id=tenant_id,
+                        role_type=role_type,
+                        file_path=file_path,
+                        note=note,
+                    )
+                    active_version = resume_service.use_version(
+                        tenant_id,
+                        created.version_id,
+                    )
+                    print(
+                        f"  [resume] added [{created.version_id[:8]}] "
+                        f"{created.display_name} | "
+                        f"{created.parsed_data.name or 'Unknown'}"
+                    )
+                except DuplicateResumeError as exc:
+                    print(f"  [resume] duplicate: {exc}", file=sys.stderr)
+                except Exception as exc:
+                    print(
+                        f"  [resume] error: {type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                    )
+                continue
+
+            _print_resume_help()
             continue
 
         # Build facts from resume for prompt injection
-        facts = resume.to_facts() if resume else []
+        facts = active_version.parsed_data.to_facts() if active_version else []
+        request_metadata: dict[str, object] = {"facts": facts}
+        if active_version:
+            request_metadata.update(
+                {
+                    "resume_version_id": active_version.version_id,
+                    "resume_role_type": active_version.role_type,
+                }
+            )
+        registry = (
+            build_job_discovery_registry(
+                service=job_discovery_service,
+                context=JobDiscoveryToolContext(
+                    tenant_id=tenant_id,
+                    thread_id=thread_id,
+                    user_query=message,
+                ),
+            )
+            if job_discovery_service is not None
+            else ToolRegistry()
+        )
+        runtime = AgentLoopRuntime(
+            model=model,
+            tools=registry,
+            state_store=conversation_store,
+            trace_sink=sink,
+            response_guard=response_guard,
+        )
         try:
             result = await runtime.run(
                 AgentRequest(
                     message=message,
                     thread_id=thread_id,
                     allowed_permissions={ToolPermission.READ},
-                    metadata={"facts": facts},
+                    metadata=request_metadata,
                 )
             )
         except Exception as exc:
@@ -232,10 +338,7 @@ async def _run_loop(
         if show_trace and trace_sink:
             run_trace = trace_sink.traces.get(result.trace_id)
             if run_trace:
-                tool_events = [
-                    e for e in run_trace.events
-                    if e.name in ("tool.started", "tool.completed")
-                ]
+                tool_events = [e for e in run_trace.events if e.name in ("tool.started", "tool.completed")]
                 if tool_events:
                     steps = []
                     for e in tool_events:
@@ -244,10 +347,44 @@ async def _run_loop(
                     print(f"  [trace] {' | '.join(steps)}")
 
 
+def _print_resume_versions(versions, active_version) -> None:
+    if not versions:
+        print("  [resume] no resume versions found.")
+        return
+
+    current_role: str | None = None
+    for version in versions:
+        if version.role_type != current_role:
+            current_role = version.role_type
+            print(f"  {current_role}")
+        active = " *" if active_version and version.version_id == active_version.version_id else ""
+        note = f" · {version.note}" if version.note else ""
+        print(f"    [{version.version_id[:8]}]{active} v{version.version_number}{note} · {version.original_filename}")
+
+
+def _print_resume_help() -> None:
+    print(
+        "Usage:\n"
+        '  /resume add "<role>" "<path>" ["note"]\n'
+        '  /resume list ["role"]\n'
+        "  /resume show <version-id>\n"
+        "  /resume use <version-id>"
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
     load_dotenv(override=True)
-    asyncio.run(_chat(no_mcp=args.no_mcp, trace=args.trace, resume_path=args.resume))
+    args = _parse_args(argv)
+    asyncio.run(
+        _chat(
+            no_mcp=args.no_mcp,
+            trace=args.trace,
+            resume_path=args.resume,
+            resume_role=args.resume_role,
+            tenant_id=args.tenant_id,
+            data_dir=args.data_dir,
+        )
+    )
 
 
 if __name__ == "__main__":

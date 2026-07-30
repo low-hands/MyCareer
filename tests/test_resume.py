@@ -8,13 +8,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from career_agent.prompts import RESUME_STRUCTURE_PROMPT
-from career_agent.resume import (
+from career_agent.resumes.models import (
     Award,
     Education,
     ProjectExperience,
     Publication,
     ResumeData,
     WorkExperience,
+)
+from career_agent.resumes.parser import (
     extract_text_from_file,
     parse_resume_with_llm,
 )
@@ -80,18 +82,14 @@ class TestResumeDataToFacts:
         assert "实现重排策略" in proj_fact
 
     def test_publication_does_not_infer_missing_venue(self) -> None:
-        data = ResumeData(
-            publications=[Publication(title="My Paper", venue="", year="2024")]
-        )
+        data = ResumeData(publications=[Publication(title="My Paper", venue="", year="2024")])
         facts = data.to_facts()
         pub_fact = next(f for f in facts if "论文" in f)
         assert "My Paper | 2024" in pub_fact
         assert "在投" not in pub_fact
 
     def test_award_uses_minimal_fields(self) -> None:
-        data = ResumeData(
-            awards=[Award(name="一等奖学金", organization="北京大学")]
-        )
+        data = ResumeData(awards=[Award(name="一等奖学金", organization="北京大学")])
         award_fact = next(f for f in data.to_facts() if "奖项" in f)
         assert "一等奖学金 | 北京大学" in award_fact
 
