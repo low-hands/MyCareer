@@ -1,6 +1,5 @@
 # Local Career Agent working documents
-/docs/architecture/
-/docs/iteration/*.md
+/docs/
 
 # Local runtime secrets
 .env
