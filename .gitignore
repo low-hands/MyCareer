@@ -1,0 +1,13 @@
+# Local Career Agent working documents
+/docs/architecture/
+/docs/iteration/*.md
+
+# Local runtime secrets
+.env
+
+# Local and Python-generated files
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/

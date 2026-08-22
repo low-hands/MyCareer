@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import hashlib
+import os
+from pathlib import Path
+import sqlite3
+from uuid import uuid4
+
+from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
+
+
+class ResumeStore:
+    def __init__(self, path: Path) -> None:
+        self.path = path.expanduser()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.path.parent, 0o700)
+        with self._connect() as connection:
+            self._migrate(connection)
+        os.chmod(self.path, 0o600)
+
+    def create_target_role(self, *, user_id: str, title: str, priority: int) -> TargetRole:
+        if not user_id.strip() or not title.strip():
+            raise ValueError("user_id and target role title are required.")
+        now = datetime.now(timezone.utc)
+        role = TargetRole(id=f"target_role_{uuid4().hex}", user_id=user_id, title=title.strip(), priority=priority, created_at=now, updated_at=now)
+        with self._connect() as connection:
+            connection.execute("INSERT INTO target_roles(id, user_id, title, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (role.id, role.user_id, role.title, role.priority, role.status, role.created_at.isoformat(), role.updated_at.isoformat()))
+        return role
+
+    def list_target_roles(self, *, user_id: str) -> tuple[TargetRole, ...]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT id, user_id, title, priority, status, created_at, updated_at FROM target_roles WHERE user_id = ? ORDER BY priority, created_at", (user_id,)).fetchall()
+        return tuple(self._role(row) for row in rows)
+
+    def get_target_role(self, *, user_id: str, target_role_id: str) -> TargetRole | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT id, user_id, title, priority, status, created_at, updated_at FROM target_roles WHERE id = ? AND user_id = ?", (target_role_id, user_id)).fetchone()
+        return self._role(row) if row else None
+
+    def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:
+        if bool(name) == bool(resume_id):
+            raise ValueError("Provide exactly one of name or resume_id.")
+        if document_format not in {"pdf", "text", "markdown"}:
+            raise ValueError("Unsupported resume document format.")
+        if not user_id.strip():
+            raise ValueError("user_id is required.")
+        if name and not target_role_id:
+            raise ValueError("A target_role_id is required for a new resume.")
+        if resume_id and target_role_id:
+            raise ValueError("target_role_id cannot change when appending a version.")
+        now = datetime.now(timezone.utc)
+        digest = hashlib.sha256(content).hexdigest()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if resume_id:
+                row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
+                if row is None:
+                    raise ValueError("Resume not found.")
+                resume = self._resume(row)
+                version_number = connection.execute("SELECT COALESCE(MAX(version_number), 0) + 1 FROM resume_versions WHERE resume_id = ?", (resume_id,)).fetchone()[0]
+            else:
+                target = connection.execute("SELECT id FROM target_roles WHERE id = ? AND user_id = ?", (target_role_id, user_id)).fetchone()
+                if target is None:
+                    raise ValueError("Target role not found.")
+                resume_id = f"resume_{uuid4().hex}"
+                resume = Resume(id=resume_id, user_id=user_id, target_role_id=target_role_id, name=name.strip(), latest_version_id="pending", created_at=now, updated_at=now)
+                version_number = 1
+            version = ResumeVersion(id=f"resume_version_{uuid4().hex}", resume_id=resume_id, version_number=version_number, document_format=document_format, content_sha256=digest, byte_size=len(content), created_at=now)
+            resume = resume.model_copy(update={"latest_version_id": version.id, "updated_at": now})
+            if version_number == 1:
+                connection.execute("INSERT INTO resumes(id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (resume.id, resume.user_id, resume.target_role_id, resume.name, resume.status, resume.latest_version_id, resume.created_at.isoformat(), resume.updated_at.isoformat()))
+            else:
+                connection.execute("UPDATE resumes SET latest_version_id = ?, updated_at = ? WHERE id = ? AND user_id = ?", (version.id, now.isoformat(), resume.id, user_id))
+            connection.execute("INSERT INTO resume_versions(id, resume_id, version_number, source_type, document_format, content_sha256, byte_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (version.id, version.resume_id, version.version_number, version.source_type, version.document_format, version.content_sha256, version.byte_size, version.created_at.isoformat()))
+            connection.execute("INSERT INTO resume_version_documents(resume_version_id, content) VALUES (?, ?)", (version.id, content))
+        os.chmod(self.path, 0o600)
+        return resume, version
+
+    def list_resumes(self, *, user_id: str, target_role_id: str | None = None) -> tuple[Resume, ...]:
+        query = "SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE user_id = ?"
+        params: tuple[str, ...] = (user_id,)
+        if target_role_id:
+            query += " AND target_role_id = ?"
+            params += (target_role_id,)
+        query += " ORDER BY updated_at DESC"
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return tuple(self._resume(row) for row in rows)
+
+    def get_resume(self, *, user_id: str, resume_id: str) -> Resume | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
+        return self._resume(row) if row else None
+
+    def list_versions(self, *, user_id: str, resume_id: str) -> tuple[ResumeVersion, ...]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT v.id, v.resume_id, v.version_number, v.source_type, v.document_format, v.content_sha256, v.byte_size, v.created_at FROM resume_versions v JOIN resumes r ON r.id = v.resume_id WHERE v.resume_id = ? AND r.user_id = ? ORDER BY v.version_number DESC", (resume_id, user_id)).fetchall()
+        return tuple(self._version(row) for row in rows)
+
+    def _migrate(self, connection: sqlite3.Connection) -> None:
+        has_resumes = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resumes'").fetchone() is not None
+        if not has_resumes:
+            connection.execute("CREATE TABLE resumes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, target_role_id TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL, latest_version_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
+            connection.execute("CREATE TABLE resume_versions (id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id), version_number INTEGER NOT NULL, source_type TEXT NOT NULL, document_format TEXT NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(resume_id, version_number))")
+            connection.execute("CREATE TABLE resume_version_documents (resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id), content BLOB NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(resumes)").fetchall()}
+        if "target_role_id" not in columns:
+            connection.execute("ALTER TABLE resumes ADD COLUMN target_role_id TEXT")
+        users = connection.execute("SELECT DISTINCT user_id FROM resumes WHERE target_role_id IS NULL").fetchall()
+        now = datetime.now(timezone.utc).isoformat()
+        for (user_id,) in users:
+            role_id = f"target_role_unassigned_{hashlib.sha256(user_id.encode()).hexdigest()[:24]}"
+            connection.execute("INSERT OR IGNORE INTO target_roles(id, user_id, title, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (role_id, user_id, "Unassigned", 9999, "active", now, now))
+            connection.execute("UPDATE resumes SET target_role_id = ? WHERE user_id = ? AND target_role_id IS NULL", (role_id, user_id))
+        connection.execute("CREATE INDEX IF NOT EXISTS resumes_user_role_updated_idx ON resumes(user_id, target_role_id, updated_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS target_roles_user_priority_idx ON target_roles(user_id, priority, created_at)")
+        connection.execute("PRAGMA user_version = 2")
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.path, timeout=30.0)
+        connection.execute("PRAGMA foreign_keys=ON")
+        return connection
+
+    @staticmethod
+    def _role(row: tuple) -> TargetRole:
+        return TargetRole(id=row[0], user_id=row[1], title=row[2], priority=row[3], status=row[4], created_at=row[5], updated_at=row[6])
+
+    @staticmethod
+    def _resume(row: tuple) -> Resume:
+        return Resume(id=row[0], user_id=row[1], target_role_id=row[2], name=row[3], status=row[4], latest_version_id=row[5], created_at=row[6], updated_at=row[7])
+
+    @staticmethod
+    def _version(row: tuple) -> ResumeVersion:
+        return ResumeVersion(id=row[0], resume_id=row[1], version_number=row[2], source_type=row[3], document_format=row[4], content_sha256=row[5], byte_size=row[6], created_at=row[7])
