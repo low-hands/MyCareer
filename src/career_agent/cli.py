@@ -19,6 +19,7 @@ from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMain
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.runs import JobDiscoveryRunStore
@@ -43,12 +44,24 @@ def build_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
     )
     adapter = BossReadOnlyAdapter(transport)
     run_store = JobDiscoveryRunStore(Path(args.run_store).expanduser())
-    return JobDiscoveryGateway(adapter, worker, JobDiscoveryService(InMemoryJobRepository()), run_store=run_store)
+    return JobDiscoveryGateway(
+        adapter,
+        worker,
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=run_store,
+        job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
+    )
 
 
 def build_analysis_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
     config = replace(OpenAICompatibleAgentConfig.from_env(), timeout_seconds=args.agent_timeout_seconds)
-    return JobDiscoveryGateway(None, OpenAICompatibleAgentWorker(config), JobDiscoveryService(InMemoryJobRepository()), run_store=JobDiscoveryRunStore(Path(args.run_store).expanduser()))
+    return JobDiscoveryGateway(
+        None,
+        OpenAICompatibleAgentWorker(config),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(Path(args.run_store).expanduser()),
+        job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
+    )
 
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
@@ -114,6 +127,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--boss-timeout-seconds", type=float, default=300.0, help="Read-only BOSS call timeout (default: 300).")
     parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
     parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
+    parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     parser.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
     parser.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")
@@ -157,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--jd-stdin", action="store_true", help="Read JD text once from standard input.")
     analyze.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
     analyze.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
+    analyze.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     analyze.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     analyze.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
     analyze.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")
@@ -191,10 +206,46 @@ def build_parser() -> argparse.ArgumentParser:
     resume_show.add_argument("--resume-id", required=True, help="Resume identifier.")
     resume_show.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume store path.")
 
+    job = subparsers.add_parser("job", help="List, find, and read saved jobs and complete JD snapshots.")
+    job_subparsers = job.add_subparsers(dest="job_command", required=True)
+    job_list = job_subparsers.add_parser("list", help="List recently persisted jobs.")
+    job_list.add_argument("--user-id", required=True, help="Job owner identifier.")
+    job_list.add_argument("--limit", type=int, default=20, help="Maximum results, from 1 to 100 (default: 20).")
+    job_list.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+    job_find = job_subparsers.add_parser("find", help="Find saved jobs by metadata and complete JD text.")
+    job_find.add_argument("--user-id", required=True, help="Job owner identifier.")
+    job_find.add_argument("--query", required=True, help="Company, title, city, skill, or JD text to find.")
+    job_find.add_argument("--limit", type=int, default=20, help="Maximum results, from 1 to 100 (default: 20).")
+    job_find.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+    job_show = job_subparsers.add_parser("show", help="Show one complete persisted JD with provenance.")
+    job_show.add_argument("--user-id", required=True, help="Job owner identifier.")
+    job_show.add_argument("--job-posting-id", help="Posting ID returned by job list or find.")
+    job_show.add_argument("--run-id", help="Job Discovery run that produced the result.")
+    job_show.add_argument("--selection-index", type=int, help="One-based result index within --run-id.")
+    job_show.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+
     status = subparsers.add_parser("status", help="Read a durable run status and safe trace summary.", description="Read a persisted job discovery run without calling BOSS.")
     status.add_argument("--run-id", required=True, help="Run ID returned by discover.")
     _add_runtime_options(status)
     return parser
+
+
+def _stored_job_summary_payload(item: StoredJobSummary) -> dict[str, object]:
+    return item.model_dump(mode="json")
+
+
+def _stored_job_payload(record: StoredJobRecord) -> dict[str, object]:
+    return {
+        "job": {
+            **record.posting.model_dump(mode="json"),
+            "city": record.city,
+            "salary": record.salary,
+            "availability_status": record.availability_status,
+            "last_checked_at": record.last_checked_at.isoformat(),
+            "closed_at": record.closed_at.isoformat() if record.closed_at else None,
+        },
+        "jd_snapshot": record.snapshot.model_dump(mode="json"),
+    }
 
 
 def _chat_tool_result_payload(result: JobDiscoveryGatewayResult) -> dict[str, object]:
@@ -403,6 +454,39 @@ def main(
             return EXIT_ARGUMENT_ERROR
         except Exception as error:
             json.dump({"state": "failed", "error_code": "RESUME_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_UNKNOWN_ERROR
+    if args.command == "job":
+        try:
+            repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
+            if args.job_command == "list":
+                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.list_jobs(user_id=args.user_id, limit=args.limit)]}
+            elif args.job_command == "find":
+                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.search_saved_jobs(user_id=args.user_id, query=args.query, limit=args.limit)]}
+            else:
+                by_posting = bool(args.job_posting_id)
+                by_run = bool(args.run_id or args.selection_index is not None)
+                if by_posting == by_run:
+                    raise ValueError("Use either --job-posting-id or both --run-id and --selection-index.")
+                if by_run and (not args.run_id or args.selection_index is None or args.selection_index < 1):
+                    raise ValueError("--run-id requires a positive --selection-index.")
+                record = (
+                    repository.get_job(user_id=args.user_id, job_posting_id=args.job_posting_id)
+                    if by_posting
+                    else repository.get_for_run(user_id=args.user_id, run_id=args.run_id, selection_index=args.selection_index)
+                )
+                if record is None:
+                    raise ValueError("Persisted job not found for this user.")
+                payload = _stored_job_payload(record)
+            json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            json.dump({"state": "failed", "error_code": "JOB_STORE_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
+        except Exception as error:
+            json.dump({"state": "failed", "error_code": "JOB_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
             stdout.write("\n")
             return EXIT_UNKNOWN_ERROR
     machine_output = args.json or not stdout.isatty()

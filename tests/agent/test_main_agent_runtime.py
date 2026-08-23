@@ -8,6 +8,7 @@ from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscover
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ConversationTaskState, ToolCall
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
 
 
@@ -192,6 +193,29 @@ def test_analysis_formatter_uses_placeholder_for_empty_sections():
     result = JobDiscoveryGatewayResult(run_id="run-1", state="analysis_ready", message="Analysis ready.", analysis=JDAnalysis(result_ref="r1", job_summary="摘要"))
 
     assert MainAgentRuntime._assistant_message(result) == "岗位摘要\n摘要\n\n工作职责\n- 暂无明确说明\n\n必备技能\n- 暂无明确说明\n\n加分项\n- 暂无明确说明\n\n待确认问题\n- 暂无明确说明"
+
+
+def test_complete_jd_is_not_projected_into_main_agent_observation() -> None:
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 8, 23, tzinfo=timezone.utc)
+    detail = JobDetail(
+        source_name="boss",
+        source_job_id="job-1",
+        title="AI Engineer",
+        company_name="Acme",
+        description="PRIVATE COMPLETE JD CONTENT",
+        captured_at=now,
+        provenance=Provenance(source_name="boss", source_job_id="job-1", captured_at=now, operation="detail", adapter_version="test-v1"),
+    )
+    result = JobDiscoveryGatewayResult(run_id="run-private", state="analysis_ready", message="Ready", detail=detail, analysis=JDAnalysis(result_ref="r1", job_summary="Safe summary"))
+
+    observation = MainAgentRuntime._tool_observation("job_discovery", result)
+
+    serialized = observation.model_dump_json()
+    assert "PRIVATE COMPLETE JD CONTENT" not in serialized
+    assert "run-private" not in serialized
+    assert "Safe summary" in serialized
 
 
 def test_normal_answer_commits_history_without_tool(tmp_path) -> None:
