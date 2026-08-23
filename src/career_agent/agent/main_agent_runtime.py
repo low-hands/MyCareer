@@ -1,11 +1,23 @@
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, Literal, TypedDict
+
+from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, MainAgentContext, project_job_discovery_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+
+
+class MainAgentState(TypedDict, total=False):
+    context: MainAgentContext
+    decision: AgentDecision
+    last_tool_result: JobDiscoveryGatewayResult
+    tool_call_fingerprints: tuple[str, ...]
+    tool_call_count: int
+    assistant_message: str
 
 
 class MainAgentTurnResult:
@@ -17,10 +29,31 @@ class MainAgentTurnResult:
 
 
 class MainAgentRuntime:
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry) -> None:
+    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "failed"})
+
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, max_tool_calls: int = 3) -> None:
+        if max_tool_calls < 1:
+            raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
         self._decision_maker = decision_maker
         self._tools = tools
+        self._max_tool_calls = max_tool_calls
+
+        graph = StateGraph(MainAgentState)
+        graph.add_node("decide", self._decide)
+        graph.add_node("invoke_tool", self._invoke_tool)
+        graph.add_node("finish", self._finish)
+        graph.add_node("fallback", self._fallback)
+        graph.add_edge(START, "decide")
+        graph.add_conditional_edges(
+            "decide",
+            self._after_decision,
+            {"invoke_tool": "invoke_tool", "finish": "finish", "fallback": "fallback"},
+        )
+        graph.add_edge("invoke_tool", "decide")
+        graph.add_edge("finish", END)
+        graph.add_edge("fallback", END)
+        self._graph = graph.compile()
 
     def run_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentTurnResult:
         context = self._context_manager.load_for_turn(user_id=user_id, conversation_id=conversation_id, user_message=user_message)
@@ -29,15 +62,120 @@ class MainAgentRuntime:
         return result
 
     def _run_loaded_context(self, context: MainAgentContext) -> MainAgentTurnResult:
-        decision = self._decision_maker.decide(context, self._tools.schemas())
+        state = self._graph.invoke(
+            {
+                "context": context,
+                "tool_call_fingerprints": (),
+                "tool_call_count": 0,
+            }
+        )
+        return MainAgentTurnResult(
+            decision=state["decision"],
+            context=state["context"],
+            assistant_message=state["assistant_message"],
+            tool_result=state.get("last_tool_result"),
+        )
+
+    def _decide(self, state: MainAgentState) -> MainAgentState:
+        return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
+
+    @staticmethod
+    def _tool_call_fingerprint(decision: AgentDecision) -> str:
+        if decision.tool_call is None:
+            return ""
+        return json.dumps(
+            {"name": decision.tool_call.name, "arguments": decision.tool_call.arguments},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def _after_decision(self, state: MainAgentState) -> Literal["invoke_tool", "finish", "fallback"]:
+        decision = state["decision"]
         if decision.action != "tool_call":
-            return MainAgentTurnResult(decision=decision, context=context, assistant_message=decision.message or "")
+            return "finish"
+        if decision.tool_call is None:
+            raise ValueError("tool_call action requires tool_call arguments")
+        if state.get("tool_call_count", 0) >= self._max_tool_calls:
+            return "fallback"
+        if self._tool_call_fingerprint(decision) in state.get("tool_call_fingerprints", ()):
+            return "fallback"
+        last_result = state.get("last_tool_result")
+        if last_result is not None and last_result.state in self._WAITING_STATES:
+            return "fallback"
+        return "invoke_tool"
+
+    def _invoke_tool(self, state: MainAgentState) -> MainAgentState:
+        context = state["context"]
+        decision = state["decision"]
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         arguments = self._project_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
         result = self._tools.invoke(decision.tool_call.name, arguments)
         updated = self._update_task(context, result)
-        return MainAgentTurnResult(decision=decision, context=updated, tool_result=result, assistant_message=self._assistant_message(result))
+        observation = self._tool_observation(decision.tool_call.name, result)
+        updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
+        fingerprint = self._tool_call_fingerprint(decision)
+        return {
+            "context": updated,
+            "last_tool_result": result,
+            "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
+            "tool_call_count": state.get("tool_call_count", 0) + 1,
+        }
+
+    @staticmethod
+    def _finish(state: MainAgentState) -> MainAgentState:
+        decision = state["decision"]
+        message = decision.message or ""
+        if not message and state.get("last_tool_result") is not None:
+            message = MainAgentRuntime._assistant_message(state["last_tool_result"])
+        return {"assistant_message": message}
+
+    @staticmethod
+    def _fallback(state: MainAgentState) -> MainAgentState:
+        result = state.get("last_tool_result")
+        if result is not None:
+            return {"assistant_message": MainAgentRuntime._assistant_message(result)}
+        return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
+
+    @staticmethod
+    def _tool_observation(name: str, result: JobDiscoveryGatewayResult) -> ToolObservation:
+        payload: dict[str, Any] = {
+            "items": [
+                {
+                    "selection_index": index,
+                    "title": item.title,
+                    "company_name": item.company_name,
+                    "city": item.city,
+                    "salary": item.salary,
+                    "rationale": item.rationale,
+                    "cautions": item.cautions,
+                }
+                for index, item in enumerate(result.items, start=1)
+            ],
+            "error_code": result.error_code,
+            "error_stage": result.error_stage,
+            "error_detail": result.error_detail,
+            "recovery_action": result.recovery_action,
+            "manual_search_query": result.manual_search_query,
+        }
+        analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
+        if analyses:
+            analysis_indices = result.analysis_selection_indices or tuple(range(1, len(analyses) + 1))
+            payload["analyses"] = [
+                {
+                    "selection_index": selection_index,
+                    "job_summary": analysis.job_summary,
+                    "responsibilities": analysis.responsibilities,
+                    "required_skills": analysis.required_skills,
+                    "preferred_qualifications": analysis.preferred_qualifications,
+                    "clarification_questions": analysis.clarification_questions,
+                }
+                for selection_index, analysis in zip(analysis_indices, analyses)
+            ]
+        if result.comparison is not None:
+            payload["comparison"] = result.comparison.model_dump(mode="json")
+        return ToolObservation(tool_name=name, state=result.state, message=result.message, next_action=result.next_action, payload=payload)
 
     @staticmethod
     def _assistant_message(result: JobDiscoveryGatewayResult) -> str:

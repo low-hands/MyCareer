@@ -25,6 +25,21 @@ class Gateway:
         return JobDiscoveryGatewayResult(run_id="run-1", state="selection_required", message="Select a result.", items=(GatewayJobItem(result_ref="r1", title="AI Engineer", company_name="Acme"),), next_action="select_result")
 
 
+class AlwaysReadyGateway:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def advance(self, **kwargs):
+        self.calls.append(kwargs)
+        return JobDiscoveryGatewayResult(
+            run_id="run-1",
+            state="analysis_ready",
+            message="Analysis ready.",
+            selected_result_ref="r1",
+            analysis=JDAnalysis(result_ref="r1", job_summary="Summary"),
+        )
+
+
 class DecisionMaker:
     def __init__(self, decision: AgentDecision) -> None:
         self.decision = decision
@@ -32,6 +47,18 @@ class DecisionMaker:
     def decide(self, context, tool_names):
         assert tuple(spec["function"]["name"] for spec in tool_names) == ("job_discovery",)
         return self.decision
+
+
+class SequenceDecisionMaker:
+    def __init__(self, *decisions: AgentDecision) -> None:
+        self.decisions = list(decisions)
+        self.contexts = []
+
+    def decide(self, context, tool_names):
+        self.contexts.append(context)
+        if not self.decisions:
+            raise AssertionError("Main Agent requested more decisions than expected")
+        return self.decisions.pop(0)
 
 
 def build_runtime(tmp_path, decision: AgentDecision, gateway: Gateway | None = None):
@@ -53,6 +80,66 @@ def test_initial_workflow_call_projects_profile_defaults(tmp_path) -> None:
     assert call["user_message"] == "Find jobs."
     assert result.context.task.run_id == "run-1"
     assert result.context.task.candidates[0].result_ref == "r1"
+    assert len(gateway.calls) == 1
+
+
+def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",)))
+    gateway = Gateway()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})),
+        AgentDecision(action="ask_user", message="我找到了一个岗位，要查看第 1 个吗？"),
+    )
+    agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=MainAgentToolRegistry(gateway))
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="帮我找工作")
+
+    assert result.decision.action == "ask_user"
+    assert result.assistant_message == "我找到了一个岗位，要查看第 1 个吗？"
+    assert len(gateway.calls) == 1
+    assert len(decisions.contexts) == 2
+    observation = decisions.contexts[1].model_context()["tool_observations"][0]
+    assert observation["tool_name"] == "job_discovery"
+    assert observation["state"] == "selection_required"
+    assert observation["payload"]["items"][0]["selection_index"] == 1
+    serialized = str(observation)
+    assert "run-1" not in serialized
+    assert "r1" not in serialized
+
+
+def test_repeated_tool_call_is_stopped_without_duplicate_execution(tmp_path) -> None:
+    agent, gateway, _ = build_runtime(
+        tmp_path,
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})),
+    )
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Find work.")
+
+    assert len(gateway.calls) == 1
+    assert result.assistant_message == "Select a result."
+
+
+def test_tool_loop_stops_at_configured_limit(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    gateway = AlwaysReadyGateway()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role A"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role B"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role C"})),
+    )
+    agent = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(gateway),
+        max_tool_calls=2,
+    )
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Research several roles.")
+
+    assert len(gateway.calls) == 2
+    assert result.assistant_message.startswith("岗位摘要\nSummary")
 
 
 def test_workflow_selection_uses_index_not_internal_result_ref(tmp_path) -> None:
