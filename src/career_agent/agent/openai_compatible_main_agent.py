@@ -79,6 +79,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         return (
             "You are a Career Agent. Decide exactly one next action using only the supplied context. "
             "Use a listed tool only when its preconditions match task state. The job_discovery tool advances one stateful workflow; do not invent internal IDs or JD text. "
+            "Tool observations contain safe results from tools already called during this turn. After receiving an observation, answer or ask the user unless another distinct tool call is genuinely required; never repeat an identical tool call. "
             "Use ordinary assistant text when no tool is needed and ask_user when required information or authorization is missing. "
             f"Available tools: {', '.join(tool_names)}."
         )

@@ -45,12 +45,21 @@ class ConversationMessageContext(ContractModel):
     created_at: datetime
 
 
+class ToolObservation(ContractModel):
+    tool_name: str
+    state: str
+    message: str
+    next_action: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class MainAgentContext(ContractModel):
     conversation_id: str
     profile: CareerProfileContext
     preferences: AgentPreferencesContext = AgentPreferencesContext()
     task: ConversationTaskState = ConversationTaskState()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
+    tool_observations: tuple[ToolObservation, ...] = ()
     user_message: str = Field(min_length=1)
 
     def model_context(self) -> dict[str, Any]:
@@ -79,6 +88,7 @@ class MainAgentContext(ContractModel):
                 ],
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
+            "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
             "user_message": self.user_message,
         }
 
