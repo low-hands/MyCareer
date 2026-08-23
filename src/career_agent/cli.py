@@ -11,6 +11,7 @@ from typing import Callable, Sequence, TextIO
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
+from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
@@ -70,7 +71,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
-        tools=MainAgentToolRegistry(build_gateway(args)),
+        tools=MainAgentToolRegistry(
+            build_gateway(args),
+            job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
+        ),
     )
 
 
@@ -248,7 +252,9 @@ def _stored_job_payload(record: StoredJobRecord) -> dict[str, object]:
     }
 
 
-def _chat_tool_result_payload(result: JobDiscoveryGatewayResult) -> dict[str, object]:
+def _chat_tool_result_payload(result: JobDiscoveryGatewayResult | ToolObservation) -> dict[str, object]:
+    if isinstance(result, ToolObservation):
+        return result.model_dump(mode="json")
     payload: dict[str, object] = {
         "state": result.state,
         "message": result.message,
@@ -361,9 +367,11 @@ def _write_human(result: JobDiscoveryGatewayResult, output: TextIO, *, show_trac
             output.write(f"  [{event.sequence}] {event.event_type} {event.stage} outcome={event.outcome}\n")
 
 
-def _failure_exit_code(result: JobDiscoveryGatewayResult) -> int:
+def _failure_exit_code(result: JobDiscoveryGatewayResult | ToolObservation) -> int:
     if result.state != "failed":
         return EXIT_OK
+    if isinstance(result, ToolObservation):
+        return EXIT_WORKFLOW_ERROR
     code = result.error_code or ""
     if code.startswith("AGENT_"):
         return EXIT_WORKFLOW_ERROR

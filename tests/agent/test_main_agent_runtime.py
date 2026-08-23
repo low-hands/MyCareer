@@ -10,6 +10,7 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.jobs import SQLiteJobPostingRepository
 
 
 class Gateway:
@@ -227,6 +228,95 @@ def test_normal_answer_commits_history_without_tool(tmp_path) -> None:
     assert result.tool_result is None
     assert gateway.calls == []
     assert [message.content for message in loaded.recent_messages] == ["What is an AI Engineer?", "AI Engineers build AI products."]
+
+
+def _seed_saved_job(repository: SQLiteJobPostingRepository, *, user_id: str = "u1", source_job_id: str = "saved-1") -> str:
+    from datetime import datetime, timezone
+
+    captured_at = datetime(2026, 8, 23, tzinfo=timezone.utc)
+    record = repository.save_detail(
+        user_id=user_id,
+        run_id=f"run-{source_job_id}",
+        result_ref=f"ref-{source_job_id}",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="boss",
+            source_job_id=source_job_id,
+            title="RAG Engineer",
+            company_name="Acme",
+            description="PRIVATE SAVED JD: Build production RAG systems.",
+            city="Shanghai",
+            captured_at=captured_at,
+            provenance=Provenance(source_name="boss", source_job_id=source_job_id, captured_at=captured_at, operation="detail", adapter_version="test-v1"),
+        ),
+    )
+    return record.posting.id
+
+
+def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    job_posting_id = _seed_saved_job(repository)
+    _seed_saved_job(repository, user_id="other", source_job_id="saved-other")
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
+        AgentDecision(action="final", message="找到了以前看过的岗位。"),
+    )
+    tools = MainAgentToolRegistry(Gateway(), job_repository=repository)
+    agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
+
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("job_discovery", "find_saved_jobs", "get_saved_job")
+    assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
+    observation = decisions.contexts[1].tool_observations[0]
+    assert observation.tool_name == "find_saved_jobs"
+    assert observation.payload["items"][0]["job_posting_id"] == job_posting_id
+    assert len(observation.payload["items"]) == 1
+    assert "PRIVATE SAVED JD" not in observation.model_dump_json()
+    assert result.assistant_message == "找到了以前看过的岗位。"
+
+
+def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    job_posting_id = _seed_saved_job(repository)
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"job_posting_id": job_posting_id})),
+        AgentDecision(action="final", message="这是该岗位的完整 JD。"),
+    )
+    agent = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+    )
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位")
+
+    observation = decisions.contexts[1].tool_observations[0]
+    assert observation.tool_name == "get_saved_job"
+    assert observation.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
+    assert result.assistant_message == "这是该岗位的完整 JD。"
+
+
+@pytest.mark.parametrize("tool_name,arguments", [
+    ("find_saved_jobs", {"query": "RAG", "user_id": "other"}),
+    ("get_saved_job", {"job_posting_id": "job-1", "user_id": "other"}),
+])
+def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, arguments) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    agent = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(AgentDecision(action="tool_call", tool_call=ToolCall(name=tool_name, arguments=arguments))),
+        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+    )
+
+    with pytest.raises(ValueError, match="cannot accept internal argument"):
+        agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权读取")
 
 
 @pytest.mark.parametrize("forbidden", ["user_id", "conversation_id", "run_id", "result_ref", "security_id", "job_id", "jd_text"])

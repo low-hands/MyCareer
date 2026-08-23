@@ -110,6 +110,15 @@ class JobDiscoveryToolArguments(ContractModel):
         return self
 
 
+class FindSavedJobsToolArguments(ContractModel):
+    query: str = Field(min_length=1)
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class GetSavedJobToolArguments(ContractModel):
+    job_posting_id: str = Field(min_length=1)
+
+
 class JobDiscoveryWorkflowInput(ContractModel):
     user_id: str
     conversation_id: str
@@ -165,3 +174,15 @@ def project_job_discovery_arguments(context: MainAgentContext, arguments: dict[s
         jd_selection_index=model_arguments.jd_selection_index,
         research_request=request,
     ).model_dump()
+
+
+def project_saved_job_arguments(context: MainAgentContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "find_saved_jobs":
+        model_arguments = FindSavedJobsToolArguments.model_validate(arguments)
+    elif name == "get_saved_job":
+        model_arguments = GetSavedJobToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown saved-job tool: {name}")
+    return {"user_id": context.profile.user_id, **model_arguments.model_dump()}
