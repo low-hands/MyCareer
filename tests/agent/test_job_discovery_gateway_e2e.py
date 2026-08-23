@@ -9,6 +9,7 @@ from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentCon
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.storage.memory import InMemoryJobRepository
+from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.runs import JobDiscoveryRunStore
 
 NOW = datetime(2026, 8, 18, tzinfo=timezone.utc)
@@ -80,6 +81,7 @@ def test_gateway_returns_results_then_researches_user_selected_job():
     assert selected.selected_result_ref == "boss:security-1"
     assert selected.detail.description == "Build reliable LLM systems."
     assert selected.analysis.job_summary == "Build reliable LLM systems."
+    assert "Build reliable LLM systems." not in selected.trace.model_dump_json()
     assert transport.calls == [("search", "AI Engineer", "--page", "1"), ("detail", "security-1", "--job-id", "job-1")]
     assert len(client.completions.requests) == 2
 
@@ -133,6 +135,27 @@ def test_gateway_select_survives_new_gateway_instance(tmp_path):
     assert selected.detail.description == "Build reliable LLM systems."
     assert transport.calls == [("search", "AI Engineer", "--page", "1"), ("detail", "security-1", "--job-id", "job-1")]
     assert len(client_b.completions.requests) == 1
+
+
+def test_gateway_persists_complete_jd_for_later_user_scoped_retrieval(tmp_path):
+    transport = Transport()
+    jobs_path = tmp_path / "jobs.sqlite3"
+    jobs = SQLiteJobPostingRepository(jobs_path)
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(transport, clock=lambda: NOW),
+        OpenAICompatibleAgentWorker(OpenAICompatibleAgentConfig(endpoint="https://example.test/v1/chat/completions", api_key="test", model="test-model"), client=Client()),
+        JobDiscoveryService(InMemoryJobRepository()),
+        job_repository=jobs,
+    )
+
+    started = gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-persist-jd", target_role="AI Engineer"))
+    gateway.select(run_id=started.run_id, result_ref="boss:security-1", user_id="user-1")
+
+    rebuilt = SQLiteJobPostingRepository(jobs_path)
+    stored = rebuilt.get_for_run(user_id="user-1", run_id=started.run_id, selection_index=1)
+    assert stored is not None
+    assert stored.snapshot.content == "Build reliable LLM systems."
+    assert rebuilt.get_for_run(user_id="other", run_id=started.run_id, selection_index=1) is None
 
 
 def test_gateway_advance_starts_then_selects_by_index():

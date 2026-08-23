@@ -13,6 +13,7 @@ from career_agent.connectors.boss_readonly import BossReadOnlyAdapter
 from career_agent.domain.job_discovery import JobDetail, SearchResult, new_id
 from career_agent.harness.observability import InMemoryTraceRecorder, RunTrace, TraceRecorder
 from career_agent.services.job_discovery import JobDiscoveryService, PromotionResult, PromotionSuccess
+from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.runs import JobDiscoveryRunStore
 
 
@@ -72,9 +73,10 @@ class JobDiscoveryGatewayResult(BaseModel):
 class JobDiscoveryGateway:
     """Business-facing capability boundary for the main Career Agent."""
 
-    def __init__(self, adapter: BossReadOnlyAdapter, worker: Any, promotion_service: JobDiscoveryService, *, checkpointer: Any | None = None, trace_recorder: TraceRecorder | None = None, run_store: JobDiscoveryRunStore | None = None) -> None:
+    def __init__(self, adapter: BossReadOnlyAdapter, worker: Any, promotion_service: JobDiscoveryService, *, checkpointer: Any | None = None, trace_recorder: TraceRecorder | None = None, run_store: JobDiscoveryRunStore | None = None, job_repository: JobPostingRepository | None = None) -> None:
         self._trace = trace_recorder or InMemoryTraceRecorder()
         self._run_store = run_store
+        self._job_repository = job_repository
         self._graph = LangGraphJobDiscovery(adapter, worker, checkpointer=checkpointer or InMemorySaver(), trace_recorder=self._trace)
         self._promotion = JobDiscoveryPromotionFacade(promotion_service)
         self._requests: dict[str, JobDiscoveryRequest] = {}
@@ -331,7 +333,10 @@ class JobDiscoveryGateway:
         return JobDiscoveryGatewayResult(run_id=run_id, state="running", message="Job Discovery is running.", trace=trace)
 
     def _persist(self, run_id: str, state: JobDiscoveryState) -> None:
-        if self._run_store is None or not state.get("results"):
+        if not state.get("results"):
+            return
+        self._persist_details(run_id, state)
+        if self._run_store is None:
             return
         self._run_store.save(
             run_id=run_id,
@@ -346,6 +351,26 @@ class JobDiscoveryGateway:
             error_detail=state.get("error_detail"),
             recoverable=state.get("recoverable"),
         )
+
+    def _persist_details(self, run_id: str, state: JobDiscoveryState) -> None:
+        if self._job_repository is None:
+            return
+        request = state.get("request")
+        if request is None:
+            return
+        results = tuple(state.get("results", ()))
+        selection_indices = {result.result_ref: index for index, result in enumerate(results, start=1)}
+        for result_ref, detail in state.get("details", {}).items():
+            selection_index = selection_indices.get(result_ref)
+            if selection_index is None:
+                continue
+            self._job_repository.save_detail(
+                user_id=request.user_id,
+                run_id=run_id,
+                result_ref=result_ref,
+                selection_index=selection_index,
+                detail=detail,
+            )
 
     def _restore(self, run_id: str) -> JobDiscoveryState:
         if self._run_store is None:

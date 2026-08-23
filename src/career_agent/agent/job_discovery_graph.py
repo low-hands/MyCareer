@@ -254,9 +254,9 @@ class LangGraphJobDiscovery:
                         break
             if detail is None:
                 continue
+            details[result_ref] = detail
             analysis = self._analyze_detail(state, result, detail)
             if isinstance(analysis, JDAnalysis):
-                details[result_ref] = detail
                 analyses[result_ref] = analysis
             else:
                 errors[result_ref] = analysis.get("error_code", "JD_ANALYSIS_FAILED")
