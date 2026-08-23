@@ -7,21 +7,21 @@ from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 
 
 class MainAgentState(TypedDict, total=False):
     context: MainAgentContext
     decision: AgentDecision
-    last_tool_result: JobDiscoveryGatewayResult
+    last_tool_result: MainAgentToolOutput
     tool_call_fingerprints: tuple[str, ...]
     tool_call_count: int
     assistant_message: str
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: JobDiscoveryGatewayResult | None = None) -> None:
+    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None) -> None:
         self.decision = decision
         self.context = context
         self.assistant_message = assistant_message
@@ -112,7 +112,7 @@ class MainAgentRuntime:
             raise ValueError("tool_call action requires tool_call arguments")
         arguments = self._project_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
         result = self._tools.invoke(decision.tool_call.name, arguments)
-        updated = self._update_task(context, result)
+        updated = self._update_task(context, result) if isinstance(result, JobDiscoveryGatewayResult) else context
         observation = self._tool_observation(decision.tool_call.name, result)
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
         fingerprint = self._tool_call_fingerprint(decision)
@@ -139,7 +139,9 @@ class MainAgentRuntime:
         return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
 
     @staticmethod
-    def _tool_observation(name: str, result: JobDiscoveryGatewayResult) -> ToolObservation:
+    def _tool_observation(name: str, result: MainAgentToolOutput) -> ToolObservation:
+        if isinstance(result, ToolObservation):
+            return result
         payload: dict[str, Any] = {
             "items": [
                 {
@@ -178,7 +180,9 @@ class MainAgentRuntime:
         return ToolObservation(tool_name=name, state=result.state, message=result.message, next_action=result.next_action, payload=payload)
 
     @staticmethod
-    def _assistant_message(result: JobDiscoveryGatewayResult) -> str:
+    def _assistant_message(result: MainAgentToolOutput) -> str:
+        if isinstance(result, ToolObservation):
+            return result.message
         analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
         if result.state not in {"analysis_ready", "partial_analysis_ready"} or not analyses:
             return result.message
@@ -206,6 +210,8 @@ class MainAgentRuntime:
     def _project_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name == "job_discovery":
             return project_job_discovery_arguments(context, arguments)
+        if name in {"find_saved_jobs", "get_saved_job"}:
+            return project_saved_job_arguments(context, name, arguments)
         return arguments
 
     @staticmethod

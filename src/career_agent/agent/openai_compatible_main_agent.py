@@ -78,7 +78,8 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     def _system_prompt(tool_names: tuple[str, ...]) -> str:
         return (
             "You are a Career Agent. Decide exactly one next action using only the supplied context. "
-            "Use a listed tool only when its preconditions match task state. The job_discovery tool advances one stateful workflow; do not invent internal IDs or JD text. "
+            "Use a listed tool only when its preconditions match task state. The job_discovery tool discovers new online jobs and advances one stateful workflow; do not invent internal IDs or JD text. "
+            "Use find_saved_jobs only to recall the current user's previously saved jobs, then use get_saved_job with a returned job_posting_id only when complete saved JD text is needed. Do not switch a failed saved-job lookup into online discovery unless the user asks for new jobs. "
             "Tool observations contain safe results from tools already called during this turn. After receiving an observation, answer or ask the user unless another distinct tool call is genuinely required; never repeat an identical tool call. "
             "Use ordinary assistant text when no tool is needed and ask_user when required information or authorization is missing. "
             f"Available tools: {', '.join(tool_names)}."
