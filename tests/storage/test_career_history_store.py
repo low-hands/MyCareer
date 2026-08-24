@@ -1,0 +1,207 @@
+import pytest
+
+from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.resumes import ResumeStore
+
+
+def build_stores(tmp_path):
+    path = tmp_path / "career.sqlite3"
+    resumes = ResumeStore(path)
+    history = CareerHistoryStore(path)
+    return history, resumes, path
+
+
+def create_record(store: CareerHistoryStore, *, user_id: str = "u1"):
+    return store.create_record(
+        user_id=user_id,
+        record_type="work",
+        organization="Acme",
+        title="AI Engineer",
+        start_year=2023,
+        start_month=7,
+        is_current=True,
+    )
+
+
+def test_store_supports_manual_evidence_without_resume_tables(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career-only.sqlite3")
+    record = create_record(store)
+
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Led product discovery.",
+        origin="user_input",
+    )
+
+    assert store.get_evidence(user_id="u1", career_evidence_id=evidence.id) == evidence
+
+
+def test_records_persist_and_are_user_scoped(tmp_path) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+
+    rebuilt = CareerHistoryStore(path)
+
+    assert rebuilt.get_record(user_id="u1", career_record_id=record.id) == record
+    assert rebuilt.list_records(user_id="u1") == (record,)
+    assert rebuilt.get_record(user_id="u2", career_record_id=record.id) is None
+    assert rebuilt.list_records(user_id="u2") == ()
+
+
+def test_evidence_creation_is_scoped_and_emits_created_event(tmp_path) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Improved answer accuracy from 62% to 81%.",
+        origin="user_input",
+    )
+
+    assert evidence.verification_status == "pending"
+    assert store.get_evidence(user_id="u1", career_evidence_id=evidence.id) == evidence
+    assert store.get_evidence(user_id="u2", career_evidence_id=evidence.id) is None
+    assert store.list_evidence(user_id="u1", career_record_id=record.id) == (evidence,)
+    event = store.list_evidence_events(
+        user_id="u1", career_evidence_id=evidence.id
+    )[0]
+    assert event.event_type == "created"
+    assert event.actor_type == "user"
+
+    with pytest.raises(ValueError, match="Career record not found"):
+        store.create_evidence(
+            user_id="u2",
+            career_record_id=record.id,
+            claim="Foreign claim",
+            origin="user_input",
+        )
+
+
+def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
+    store, resumes, _ = build_stores(tmp_path)
+    record = create_record(store)
+    role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
+    _, version = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="Base",
+        content=b"Resume body",
+        document_format="text",
+    )
+    other_role = resumes.create_target_role(
+        user_id="u2", title="Product Manager", priority=1
+    )
+    _, other_version = resumes.import_document(
+        user_id="u2",
+        target_role_id=other_role.id,
+        name="Other",
+        content=b"Other user's resume",
+        document_format="text",
+    )
+
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Built an AI product.",
+        origin="resume_extraction",
+        source_resume_version_id=version.id,
+        source_locator="line=1",
+    )
+
+    assert evidence.source_resume_version_id == version.id
+    with pytest.raises(ValueError, match="Source resume version not found"):
+        store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Unowned source",
+            origin="resume_extraction",
+            source_resume_version_id="missing-version",
+            source_locator="line=1",
+        )
+    with pytest.raises(ValueError, match="Source resume version not found"):
+        store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Cross-user source",
+            origin="resume_extraction",
+            source_resume_version_id=other_version.id,
+            source_locator="line=1",
+        )
+
+
+def test_confirm_is_atomic_audited_and_idempotent(tmp_path) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Built a RAG evaluation pipeline.",
+        origin="agent_inference",
+    )
+
+    confirmed = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=evidence.id,
+        reason="User verified the project result.",
+    )
+    repeated = store.confirm_evidence(
+        user_id="u1", career_evidence_id=evidence.id
+    )
+
+    assert confirmed.verification_status == "confirmed"
+    assert repeated == confirmed
+    events = store.list_evidence_events(
+        user_id="u1", career_evidence_id=evidence.id
+    )
+    assert [event.event_type for event in events] == ["created", "confirmed"]
+    assert events[-1].reason == "User verified the project result."
+    assert store.list_evidence(
+        user_id="u1", verification_status="confirmed"
+    ) == (confirmed,)
+
+    with pytest.raises(ValueError, match="Cannot change confirmed evidence"):
+        store.reject_evidence(user_id="u1", career_evidence_id=evidence.id)
+
+
+def test_reject_is_audited_and_cannot_be_confirmed(tmp_path) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="An incorrect extracted fact.",
+        origin="user_input",
+    )
+
+    rejected = store.reject_evidence(
+        user_id="u1", career_evidence_id=evidence.id
+    )
+
+    assert rejected.verification_status == "rejected"
+    assert [
+        event.event_type
+        for event in store.list_evidence_events(
+            user_id="u1", career_evidence_id=evidence.id
+        )
+    ] == ["created", "rejected"]
+    with pytest.raises(ValueError, match="Cannot change rejected evidence"):
+        store.confirm_evidence(user_id="u1", career_evidence_id=evidence.id)
+
+
+def test_evidence_commands_reject_cross_user_access(tmp_path) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Private fact",
+        origin="user_input",
+    )
+
+    with pytest.raises(ValueError, match="Career evidence not found"):
+        store.confirm_evidence(user_id="u2", career_evidence_id=evidence.id)
+    assert store.list_evidence_events(
+        user_id="u2", career_evidence_id=evidence.id
+    ) == ()
