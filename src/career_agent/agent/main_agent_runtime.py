@@ -14,6 +14,8 @@ from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentTo
 class MainAgentState(TypedDict, total=False):
     context: MainAgentContext
     decision: AgentDecision
+    pending_capability_name: str
+    pending_tool_result: MainAgentToolOutput
     last_tool_result: MainAgentToolOutput
     tool_call_fingerprints: tuple[str, ...]
     tool_call_count: int
@@ -41,16 +43,25 @@ class MainAgentRuntime:
 
         graph = StateGraph(MainAgentState)
         graph.add_node("decide", self._decide)
-        graph.add_node("invoke_tool", self._invoke_tool)
+        graph.add_node("invoke_atomic_tool", self._invoke_atomic_tool)
+        graph.add_node("run_job_discovery_workflow", self._run_job_discovery_workflow)
+        graph.add_node("observe", self._observe)
         graph.add_node("finish", self._finish)
         graph.add_node("fallback", self._fallback)
         graph.add_edge(START, "decide")
         graph.add_conditional_edges(
             "decide",
             self._after_decision,
-            {"invoke_tool": "invoke_tool", "finish": "finish", "fallback": "fallback"},
+            {
+                "invoke_atomic_tool": "invoke_atomic_tool",
+                "run_job_discovery_workflow": "run_job_discovery_workflow",
+                "finish": "finish",
+                "fallback": "fallback",
+            },
         )
-        graph.add_edge("invoke_tool", "decide")
+        graph.add_edge("invoke_atomic_tool", "observe")
+        graph.add_edge("run_job_discovery_workflow", "observe")
+        graph.add_edge("observe", "decide")
         graph.add_edge("finish", END)
         graph.add_edge("fallback", END)
         self._graph = graph.compile()
@@ -90,7 +101,7 @@ class MainAgentRuntime:
             separators=(",", ":"),
         )
 
-    def _after_decision(self, state: MainAgentState) -> Literal["invoke_tool", "finish", "fallback"]:
+    def _after_decision(self, state: MainAgentState) -> Literal["invoke_atomic_tool", "run_job_discovery_workflow", "finish", "fallback"]:
         decision = state["decision"]
         if decision.action != "tool_call":
             return "finish"
@@ -103,19 +114,39 @@ class MainAgentRuntime:
         last_result = state.get("last_tool_result")
         if last_result is not None and last_result.state in self._WAITING_STATES:
             return "fallback"
-        return "invoke_tool"
+        kind = self._tools.capability_kind(decision.tool_call.name)
+        if kind == "atomic_tool":
+            return "invoke_atomic_tool"
+        if decision.tool_call.name == "job_discovery":
+            return "run_job_discovery_workflow"
+        raise ValueError(f"Workflow has no main-agent graph node: {decision.tool_call.name}")
 
-    def _invoke_tool(self, state: MainAgentState) -> MainAgentState:
+    def _invoke_atomic_tool(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
         decision = state["decision"]
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
-        arguments = self._project_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
-        result = self._tools.invoke(decision.tool_call.name, arguments)
+        arguments = self._project_atomic_tool_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
+        result = self._tools.invoke_atomic_tool(decision.tool_call.name, arguments)
+        return {"pending_capability_name": decision.tool_call.name, "pending_tool_result": result}
+
+    def _run_job_discovery_workflow(self, state: MainAgentState) -> MainAgentState:
+        context = state["context"]
+        decision = state["decision"]
+        if decision.tool_call is None:
+            raise ValueError("tool_call action requires tool_call arguments")
+        arguments = project_job_discovery_arguments(context, decision.tool_call.arguments)
+        result = self._tools.invoke_workflow("job_discovery", arguments)
+        return {"pending_capability_name": "job_discovery", "pending_tool_result": result}
+
+    def _observe(self, state: MainAgentState) -> MainAgentState:
+        context = state["context"]
+        result = state["pending_tool_result"]
+        capability_name = state["pending_capability_name"]
         updated = self._update_task(context, result) if isinstance(result, JobDiscoveryGatewayResult) else context
-        observation = self._tool_observation(decision.tool_call.name, result)
+        observation = self._tool_observation(capability_name, result)
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
-        fingerprint = self._tool_call_fingerprint(decision)
+        fingerprint = self._tool_call_fingerprint(state["decision"])
         return {
             "context": updated,
             "last_tool_result": result,
@@ -207,9 +238,7 @@ class MainAgentRuntime:
         return "\n\n".join(blocks)
 
     @staticmethod
-    def _project_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
-        if name == "job_discovery":
-            return project_job_discovery_arguments(context, arguments)
+    def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
         if name in {"list_target_roles", "list_resumes", "get_resume_metadata"}:

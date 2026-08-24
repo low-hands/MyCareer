@@ -70,6 +70,31 @@ def build_runtime(tmp_path, decision: AgentDecision, gateway: Gateway | None = N
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=MainAgentToolRegistry(gateway)), gateway, manager
 
 
+def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
+    agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
+
+    assert set(agent._graph.get_graph().nodes) == {
+        "__start__",
+        "decide",
+        "invoke_atomic_tool",
+        "run_job_discovery_workflow",
+        "observe",
+        "finish",
+        "fallback",
+        "__end__",
+    }
+
+
+def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    tools = MainAgentToolRegistry(Gateway(), job_repository=repository)
+
+    assert tools.workflow_names == ("job_discovery",)
+    assert tools.atomic_tool_names == ("find_saved_jobs", "get_saved_job")
+    assert tools.capability_kind("job_discovery") == "workflow"
+    assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
+
+
 def test_initial_workflow_call_projects_profile_defaults(tmp_path) -> None:
     agent, gateway, _ = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})))
 
@@ -340,10 +365,10 @@ def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()
 
 
-def test_unknown_tool_is_rejected_without_commit(tmp_path) -> None:
+def test_unknown_capability_is_rejected_without_commit(tmp_path) -> None:
     agent, _, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="boss.detail", arguments={})))
 
-    with pytest.raises(ValueError, match="Unknown main-agent tool"):
+    with pytest.raises(ValueError, match="Unknown main-agent capability"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="Do it.")
 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()
