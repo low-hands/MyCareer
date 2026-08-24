@@ -5,9 +5,20 @@ import hashlib
 import os
 from pathlib import Path
 import sqlite3
+from typing import Literal
 from uuid import uuid4
 
+from pydantic import BaseModel, ConfigDict
+
 from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
+
+
+class StoredResumeDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    resume_version_id: str
+    document_format: Literal["pdf", "text", "markdown"]
+    raw_bytes: bytes
 
 
 class ResumeStore:
@@ -97,6 +108,30 @@ class ResumeStore:
         with self._connect() as connection:
             rows = connection.execute("SELECT v.id, v.resume_id, v.version_number, v.source_type, v.document_format, v.content_sha256, v.byte_size, v.created_at FROM resume_versions v JOIN resumes r ON r.id = v.resume_id WHERE v.resume_id = ? AND r.user_id = ? ORDER BY v.version_number DESC", (resume_id, user_id)).fetchall()
         return tuple(self._version(row) for row in rows)
+
+    def read_version_document(
+        self, *, user_id: str, resume_version_id: str
+    ) -> StoredResumeDocument | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT version.id, version.document_format, document.content
+                FROM resume_version_documents AS document
+                JOIN resume_versions AS version
+                  ON version.id = document.resume_version_id
+                JOIN resumes AS resume
+                  ON resume.id = version.resume_id
+                WHERE version.id = ? AND resume.user_id = ?
+                """,
+                (resume_version_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return StoredResumeDocument(
+            resume_version_id=row[0],
+            document_format=row[1],
+            raw_bytes=bytes(row[2]),
+        )
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         has_resumes = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resumes'").fetchone() is not None
