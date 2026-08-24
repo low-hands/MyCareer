@@ -1,6 +1,8 @@
 import hashlib
 import sqlite3
 
+import pytest
+
 from career_agent.storage.resumes import ResumeStore
 
 
@@ -58,6 +60,57 @@ def test_store_does_not_expose_document_content_in_metadata(tmp_path) -> None:
     assert "content" not in version.model_dump()
     raw = sqlite3.connect(path).execute("SELECT content FROM resume_version_documents WHERE resume_version_id = ?", (version.id,)).fetchone()[0]
     assert raw == b"private resume body"
+
+
+@pytest.mark.parametrize(
+    ("document_format", "raw_bytes"),
+    [
+        ("pdf", b"%PDF-1.7\nresume artifact"),
+        ("text", "简历文本".encode("utf-8")),
+        ("markdown", "# 简历\n\n工作经历".encode("utf-8")),
+    ],
+)
+def test_read_version_document_returns_exact_original_bytes(
+    tmp_path, document_format: str, raw_bytes: bytes
+) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = create_role(store)
+    _, version = store.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name=f"{document_format} resume",
+        content=raw_bytes,
+        document_format=document_format,
+    )
+
+    document = store.read_version_document(
+        user_id="u1", resume_version_id=version.id
+    )
+
+    assert document is not None
+    assert document.resume_version_id == version.id
+    assert document.document_format == document_format
+    assert document.raw_bytes == raw_bytes
+    assert hashlib.sha256(document.raw_bytes).hexdigest() == version.content_sha256
+
+
+def test_read_version_document_is_user_scoped(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = create_role(store, user_id="u1")
+    _, version = store.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="Private",
+        content=b"PRIVATE RESUME CONTENT",
+        document_format="text",
+    )
+
+    assert store.read_version_document(
+        user_id="u2", resume_version_id=version.id
+    ) is None
+    assert store.read_version_document(
+        user_id="u1", resume_version_id="missing-version"
+    ) is None
 
 
 def test_migrates_legacy_v1_resumes_to_unassigned_target_role(tmp_path) -> None:
