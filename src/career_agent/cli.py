@@ -17,8 +17,10 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
+from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
@@ -68,13 +70,22 @@ def build_analysis_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     context_manager = ContextManager(CareerContextStore(Path(args.context_store).expanduser()))
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
+    resume_analysis_config = replace(
+        OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
+        timeout_seconds=args.agent_timeout_seconds,
+    )
+    resume_store = ResumeStore(Path(args.resume_store).expanduser())
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         tools=MainAgentToolRegistry(
             build_gateway(args),
             job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
-            resume_store=ResumeStore(Path(args.resume_store).expanduser()),
+            resume_store=resume_store,
+            resume_analysis_service=ResumeAnalysisService(
+                resume_store,
+                OpenAIResumeAnalysisWorker(resume_analysis_config),
+            ),
         ),
     )
 
@@ -507,7 +518,7 @@ def main(
             turn = runtime.run_turn(user_id=args.user_id, conversation_id=args.session_id, user_message=args.message)
             return _write_chat_payload(turn, user_id=args.user_id, session_id=args.session_id, output=stdout)
         except AgentConfigurationError as error:
-            return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_* and JOB_DISCOVERY_AGENT_* configuration.")
+            return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_*, JOB_DISCOVERY_AGENT_*, and RESUME_ANALYSIS_AGENT_* configuration.")
         except AgentWorkerError as error:
             return _write_chat_error(error, stdout, code=EXIT_WORKFLOW_ERROR, next_action="Retry later or inspect the model configuration.")
         except (OSError, ValueError) as error:
