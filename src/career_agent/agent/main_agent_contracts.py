@@ -131,6 +131,10 @@ class GetResumeMetadataToolArguments(ContractModel):
     resume_id: str = Field(min_length=1)
 
 
+class AnalyzeResumeToolArguments(ContractModel):
+    resume_version_id: str = Field(min_length=1)
+
+
 class JobDiscoveryWorkflowInput(ContractModel):
     user_id: str
     conversation_id: str
@@ -209,6 +213,8 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = ListResumesToolArguments.model_validate(arguments)
     elif name == "get_resume_metadata":
         model_arguments = GetResumeMetadataToolArguments.model_validate(arguments)
+    elif name == "analyze_resume":
+        model_arguments = AnalyzeResumeToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown resume tool: {name}")
     return {"user_id": context.profile.user_id, **model_arguments.model_dump()}

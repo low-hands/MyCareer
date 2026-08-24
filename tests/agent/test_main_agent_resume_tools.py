@@ -6,6 +6,12 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.resume_analysis_contracts import (
+    ExtractedCareerEvidence,
+    ExtractedCareerRecord,
+    ResumeAnalysisResult,
+)
+from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 
@@ -45,10 +51,21 @@ def seed_resume(store: ResumeStore, *, user_id: str = "u1", title: str = "AI Eng
     return role, resume, first, second
 
 
-def build_agent(tmp_path, store: ResumeStore, decisions: SequenceDecisionMaker, *, user_id: str = "u1"):
+def build_agent(
+    tmp_path,
+    store: ResumeStore,
+    decisions: SequenceDecisionMaker,
+    *,
+    user_id: str = "u1",
+    resume_analysis_service: ResumeAnalysisService | None = None,
+):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
-    tools = MainAgentToolRegistry(UnusedGateway(), resume_store=store)
+    tools = MainAgentToolRegistry(
+        UnusedGateway(),
+        resume_store=store,
+        resume_analysis_service=resume_analysis_service,
+    )
     return MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools), tools
 
 
@@ -116,3 +133,126 @@ def test_resume_tools_reject_model_supplied_user_id(tmp_path, tool_name, argumen
     with pytest.raises(ValueError, match="cannot accept internal argument"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权读取")
 
+
+class RecordingResumeAnalysisWorker:
+    def __init__(self) -> None:
+        self.documents = []
+
+    def analyze(self, document):
+        self.documents.append(document)
+        return ResumeAnalysisResult(
+            records=(
+                ExtractedCareerRecord(
+                    record_type="work",
+                    organization="Example Inc.",
+                    title="Product Manager",
+                    start_year=2022,
+                    is_current=True,
+                    source_locator="page 1, Experience",
+                    source_quote="Example Inc. — Product Manager",
+                    evidence=(
+                        ExtractedCareerEvidence(
+                            claim="Led knowledge-base product planning",
+                            source_locator="page 1, bullet 1",
+                            source_quote="Led knowledge-base product planning",
+                        ),
+                    ),
+                ),
+            ),
+            clarification_questions=("What was the start month?",),
+        )
+
+
+def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    _, _, _, version = seed_resume(store)
+    worker = RecordingResumeAnalysisWorker()
+    service = ResumeAnalysisService(store, worker)
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="analyze_resume",
+                arguments={"resume_version_id": version.id},
+            ),
+        ),
+        AgentDecision(action="final", message="我已提取出一段待确认经历。"),
+    )
+    agent, tools = build_agent(
+        tmp_path,
+        store,
+        decisions,
+        resume_analysis_service=service,
+    )
+
+    result = agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="分析最新版本的简历",
+    )
+
+    assert tools.names[-1] == "analyze_resume"
+    schema = next(
+        spec for spec in tools.schemas() if spec["function"]["name"] == "analyze_resume"
+    )
+    assert "user_id" not in schema["function"]["parameters"].get("properties", {})
+    assert worker.documents[0].raw_bytes == b"PRIVATE RESUME CONTENT v2"
+    observation = decisions.contexts[1].tool_observations[-1]
+    assert observation.state == "resume_analysis_ready"
+    assert observation.payload["records"][0]["title"] == "Product Manager"
+    assert observation.payload["clarification_questions"] == ("What was the start month?",)
+    serialized = observation.model_dump_json()
+    assert "PRIVATE RESUME CONTENT" not in serialized
+    assert "raw_bytes" not in serialized
+    assert result.assistant_message == "我已提取出一段待确认经历。"
+
+
+def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    _, _, _, foreign_version = seed_resume(store, user_id="other")
+    worker = RecordingResumeAnalysisWorker()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="analyze_resume",
+                arguments={"resume_version_id": foreign_version.id},
+            ),
+        ),
+        AgentDecision(action="final", message="没有找到这个简历版本。"),
+    )
+    agent, _ = build_agent(
+        tmp_path,
+        store,
+        decisions,
+        resume_analysis_service=ResumeAnalysisService(store, worker),
+    )
+
+    agent.run_turn(user_id="u1", conversation_id="c1", user_message="分析这个版本")
+
+    observation = decisions.contexts[1].tool_observations[-1]
+    assert observation.state == "resume_version_not_found"
+    assert worker.documents == []
+
+
+def test_analyze_resume_tool_rejects_model_supplied_user_id(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    worker = RecordingResumeAnalysisWorker()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="analyze_resume",
+                arguments={"resume_version_id": "version-1", "user_id": "other"},
+            ),
+        )
+    )
+    agent, _ = build_agent(
+        tmp_path,
+        store,
+        decisions,
+        resume_analysis_service=ResumeAnalysisService(store, worker),
+    )
+
+    with pytest.raises(ValueError, match="cannot accept internal argument"):
+        agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权分析")

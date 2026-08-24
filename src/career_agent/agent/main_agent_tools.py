@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import (
+    AnalyzeResumeToolArguments,
     FindSavedJobsToolArguments,
     GetResumeMetadataToolArguments,
     GetSavedJobToolArguments,
@@ -13,6 +14,11 @@ from career_agent.agent.main_agent_contracts import (
     ListResumesToolArguments,
     ListTargetRolesToolArguments,
     ToolObservation,
+)
+from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.services.resume_analysis import (
+    ResumeAnalysisService,
+    ResumeVersionNotFoundError,
 )
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
@@ -23,7 +29,14 @@ CapabilityKind = Literal["atomic_tool", "workflow"]
 
 
 class MainAgentToolRegistry:
-    def __init__(self, gateway: JobDiscoveryGateway, *, job_repository: JobPostingRepository | None = None, resume_store: ResumeStore | None = None) -> None:
+    def __init__(
+        self,
+        gateway: JobDiscoveryGateway,
+        *,
+        job_repository: JobPostingRepository | None = None,
+        resume_store: ResumeStore | None = None,
+        resume_analysis_service: ResumeAnalysisService | None = None,
+    ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], JobDiscoveryGatewayResult]] = {
             "job_discovery": self._job_discovery,
         }
@@ -31,6 +44,7 @@ class MainAgentToolRegistry:
         self._gateway = gateway
         self._job_repository = job_repository
         self._resume_store = resume_store
+        self._resume_analysis_service = resume_analysis_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -46,6 +60,8 @@ class MainAgentToolRegistry:
                     "get_resume_metadata": self._get_resume_metadata,
                 }
             )
+        if resume_analysis_service is not None:
+            self._atomic_handlers["analyze_resume"] = self._analyze_resume
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -126,6 +142,17 @@ class MainAgentToolRegistry:
                         },
                     },
                 ]
+            )
+        if self._resume_analysis_service is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "analyze_resume",
+                        "description": "Analyze one current-user resume version by resume_version_id. Use when the user asks to read, extract, review, or analyze resume content. Returns structured candidate career records, grounded evidence quotes, clarification questions, and warnings; never returns the original PDF, Markdown, text, bytes, file path, or content hash. Analysis candidates are not yet user-confirmed or persisted as career facts.",
+                        "parameters": AnalyzeResumeToolArguments.model_json_schema(),
+                    },
+                }
             )
         return tuple(schemas)
 
@@ -317,5 +344,48 @@ class MainAgentToolRegistry:
                     }
                     for version in versions
                 ],
+            },
+        )
+
+    def _analyze_resume(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_analysis_service is None:
+            raise ValueError("Resume analysis service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = AnalyzeResumeToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            result = self._resume_analysis_service.analyze_version(
+                user_id=user_id,
+                resume_version_id=model_arguments.resume_version_id,
+            )
+        except ResumeVersionNotFoundError:
+            return ToolObservation(
+                tool_name="analyze_resume",
+                state="resume_version_not_found",
+                message="没有找到这个简历版本，或它不属于当前用户。",
+                payload={"resume_version_id": model_arguments.resume_version_id},
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="analyze_resume",
+                state="failed",
+                message="简历分析暂时失败，请稍后重试。" if error.retryable else "简历分析失败。",
+                payload={
+                    "resume_version_id": model_arguments.resume_version_id,
+                    "error_code": error.code,
+                    "retryable": error.retryable,
+                },
+            )
+        return ToolObservation(
+            tool_name="analyze_resume",
+            state="resume_analysis_ready",
+            message=f"已分析该简历版本，提取出 {len(result.records)} 段候选经历。",
+            next_action="review_and_confirm_extracted_career_facts",
+            payload={
+                "resume_version_id": model_arguments.resume_version_id,
+                "records": [record.model_dump(mode="json") for record in result.records],
+                "clarification_questions": result.clarification_questions,
+                "warnings": result.warnings,
             },
         )

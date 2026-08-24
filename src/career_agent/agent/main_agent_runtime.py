@@ -241,7 +241,7 @@ class MainAgentRuntime:
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
-        if name in {"list_target_roles", "list_resumes", "get_resume_metadata"}:
+        if name in {"list_target_roles", "list_resumes", "get_resume_metadata", "analyze_resume"}:
             return project_resume_arguments(context, name, arguments)
         return arguments
 
