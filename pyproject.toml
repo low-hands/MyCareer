@@ -7,7 +7,7 @@ name = "career-agent"
 version = "0.1.0"
 description = "Local Career Agent domain foundation"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.7", "python-dotenv>=1.0", "langgraph>=0.2", "openai>=1.0", "pypdf>=6.0"]
+dependencies = ["pydantic>=2.7", "python-dotenv>=1.0", "langgraph>=0.2", "openai>=1.66", "pypdf>=6.0"]
 
 [project.scripts]
 career-agent = "career_agent.cli:main"
