@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import (
@@ -19,25 +19,27 @@ from career_agent.storage.resumes import ResumeStore
 
 
 MainAgentToolOutput = JobDiscoveryGatewayResult | ToolObservation
+CapabilityKind = Literal["atomic_tool", "workflow"]
 
 
 class MainAgentToolRegistry:
     def __init__(self, gateway: JobDiscoveryGateway, *, job_repository: JobPostingRepository | None = None, resume_store: ResumeStore | None = None) -> None:
-        self._handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
+        self._workflow_handlers: dict[str, Callable[[dict[str, Any]], JobDiscoveryGatewayResult]] = {
             "job_discovery": self._job_discovery,
         }
+        self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {}
         self._gateway = gateway
         self._job_repository = job_repository
         self._resume_store = resume_store
         if job_repository is not None:
-            self._handlers.update(
+            self._atomic_handlers.update(
                 {
                     "find_saved_jobs": self._find_saved_jobs,
                     "get_saved_job": self._get_saved_job,
                 }
             )
         if resume_store is not None:
-            self._handlers.update(
+            self._atomic_handlers.update(
                 {
                     "list_target_roles": self._list_target_roles,
                     "list_resumes": self._list_resumes,
@@ -47,7 +49,22 @@ class MainAgentToolRegistry:
 
     @property
     def names(self) -> tuple[str, ...]:
-        return tuple(self._handlers)
+        return (*self.workflow_names, *self.atomic_tool_names)
+
+    @property
+    def workflow_names(self) -> tuple[str, ...]:
+        return tuple(self._workflow_handlers)
+
+    @property
+    def atomic_tool_names(self) -> tuple[str, ...]:
+        return tuple(self._atomic_handlers)
+
+    def capability_kind(self, name: str) -> CapabilityKind:
+        if name in self._workflow_handlers:
+            return "workflow"
+        if name in self._atomic_handlers:
+            return "atomic_tool"
+        raise ValueError(f"Unknown main-agent capability: {name}")
 
     def schemas(self) -> tuple[dict[str, Any], ...]:
         schemas = [
@@ -112,10 +129,16 @@ class MainAgentToolRegistry:
             )
         return tuple(schemas)
 
-    def invoke(self, name: str, arguments: dict[str, Any]) -> MainAgentToolOutput:
-        handler = self._handlers.get(name)
+    def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
+        handler = self._workflow_handlers.get(name)
         if handler is None:
-            raise ValueError(f"Unknown main-agent tool: {name}")
+            raise ValueError(f"Unknown main-agent workflow: {name}")
+        return handler(arguments)
+
+    def invoke_atomic_tool(self, name: str, arguments: dict[str, Any]) -> ToolObservation:
+        handler = self._atomic_handlers.get(name)
+        if handler is None:
+            raise ValueError(f"Unknown main-agent atomic tool: {name}")
         return handler(arguments)
 
     def _job_discovery(self, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
