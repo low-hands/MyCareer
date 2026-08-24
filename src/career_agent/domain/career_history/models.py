@@ -100,3 +100,49 @@ class CareerEvidence(CareerHistoryContract):
             raise ValueError("source_locator requires source_resume_version_id")
 
         return self
+
+
+class CareerEvidenceEvent(CareerHistoryContract):
+    id: str = Field(min_length=1)
+    user_id: str = Field(min_length=1)
+    career_evidence_id: str = Field(min_length=1)
+
+    event_type: Literal[
+        "created",
+        "confirmed",
+        "rejected",
+    ]
+    previous_status: Literal[
+        "pending",
+        "confirmed",
+        "rejected",
+    ] | None = None
+    new_status: Literal[
+        "pending",
+        "confirmed",
+        "rejected",
+    ]
+    actor_type: Literal[
+        "user",
+        "agent",
+        "system",
+    ]
+    reason: str | None = Field(default=None, min_length=1)
+    occurred_at: datetime
+
+    @model_validator(mode="after")
+    def validate_transition(self) -> CareerEvidenceEvent:
+        expected_transitions = {
+            "created": (None, "pending"),
+            "confirmed": ("pending", "confirmed"),
+            "rejected": ("pending", "rejected"),
+        }
+        if (self.previous_status, self.new_status) != expected_transitions[
+            self.event_type
+        ]:
+            raise ValueError(f"invalid status transition for {self.event_type}")
+
+        if self.event_type in {"confirmed", "rejected"} and self.actor_type != "user":
+            raise ValueError(f"{self.event_type} event requires user actor")
+
+        return self
