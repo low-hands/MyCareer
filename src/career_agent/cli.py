@@ -74,6 +74,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         tools=MainAgentToolRegistry(
             build_gateway(args),
             job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
+            resume_store=ResumeStore(Path(args.resume_store).expanduser()),
         ),
     )
 
@@ -132,6 +133,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
     parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+    parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     parser.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
     parser.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")
