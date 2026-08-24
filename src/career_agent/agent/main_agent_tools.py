@@ -144,6 +144,7 @@ class MainAgentToolRegistry:
                 "captured_at": record.snapshot.captured_at.isoformat(),
                 "provenance": record.snapshot.provenance.model_dump(mode="json"),
             },
+            "analysis": record.analysis.analysis.model_dump(mode="json") if record.analysis else None,
         }
         return ToolObservation(
             tool_name="get_saved_job",

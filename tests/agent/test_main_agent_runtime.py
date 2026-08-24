@@ -10,7 +10,7 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
-from career_agent.storage.jobs import SQLiteJobPostingRepository
+from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
 
 
 class Gateway:
@@ -250,6 +250,16 @@ def _seed_saved_job(repository: SQLiteJobPostingRepository, *, user_id: str = "u
             provenance=Provenance(source_name="boss", source_job_id=source_job_id, captured_at=captured_at, operation="detail", adapter_version="test-v1"),
         ),
     )
+    repository.save_analysis(
+        user_id=user_id,
+        jd_snapshot_id=record.snapshot.id,
+        analyzer_version="jd-analysis-v1",
+        analysis=JDAnalysisPayload(
+            job_summary="构建生产级 RAG 系统。",
+            responsibilities=("建设 RAG 系统",),
+            required_skills=("Python",),
+        ),
+    )
     return record.posting.id
 
 
@@ -298,6 +308,7 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     observation = decisions.contexts[1].tool_observations[0]
     assert observation.tool_name == "get_saved_job"
     assert observation.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
+    assert observation.payload["analysis"]["required_skills"] == ["Python"]
     assert result.assistant_message == "这是该岗位的完整 JD。"
 
 

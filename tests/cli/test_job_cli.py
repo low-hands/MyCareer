@@ -4,7 +4,7 @@ import json
 
 from career_agent.cli import EXIT_ARGUMENT_ERROR, main
 from career_agent.domain.job_discovery import JobDetail, Provenance
-from career_agent.storage.jobs import SQLiteJobPostingRepository
+from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
 
 
 NOW = datetime(2026, 8, 23, 8, 0, tzinfo=timezone.utc)
@@ -27,6 +27,12 @@ def seed(path) -> str:
             captured_at=NOW,
             provenance=Provenance(source_name="boss", source_job_id="boss-1", captured_at=NOW, operation="detail", adapter_version="test-v1"),
         ),
+    )
+    repository.save_analysis(
+        user_id="u1",
+        jd_snapshot_id=stored.snapshot.id,
+        analyzer_version="jd-analysis-v1",
+        analysis=JDAnalysisPayload(job_summary="构建可靠的 RAG 与 Agent 系统。", required_skills=("Python",)),
     )
     return stored.posting.id
 
@@ -59,5 +65,6 @@ def test_job_show_supports_run_selection_and_enforces_user_scope(tmp_path) -> No
 
     assert code == 0
     assert shown["jd_snapshot"]["content"] == "Build reliable RAG and agent systems."
+    assert shown["analysis"]["required_skills"] == ["Python"]
     assert rejected_code == EXIT_ARGUMENT_ERROR
     assert rejected["error_code"] == "JOB_STORE_INPUT_ERROR"

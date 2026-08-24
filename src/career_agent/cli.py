@@ -249,6 +249,7 @@ def _stored_job_payload(record: StoredJobRecord) -> dict[str, object]:
             "closed_at": record.closed_at.isoformat() if record.closed_at else None,
         },
         "jd_snapshot": record.snapshot.model_dump(mode="json"),
+        "analysis": record.analysis.analysis.model_dump(mode="json") if record.analysis else None,
     }
 
 
