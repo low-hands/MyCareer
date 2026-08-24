@@ -3,7 +3,11 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from career_agent.domain.career_history import CareerEvidence, CareerRecord
+from career_agent.domain.career_history import (
+    CareerEvidence,
+    CareerEvidenceEvent,
+    CareerRecord,
+)
 
 
 NOW = datetime(2026, 8, 24, tzinfo=timezone.utc)
@@ -38,6 +42,21 @@ def evidence(**overrides: object) -> CareerEvidence:
     }
     values.update(overrides)
     return CareerEvidence.model_validate(values)
+
+
+def evidence_event(**overrides: object) -> CareerEvidenceEvent:
+    values = {
+        "id": "event-1",
+        "user_id": "user-1",
+        "career_evidence_id": "evidence-1",
+        "event_type": "confirmed",
+        "previous_status": "pending",
+        "new_status": "confirmed",
+        "actor_type": "user",
+        "occurred_at": NOW,
+    }
+    values.update(overrides)
+    return CareerEvidenceEvent.model_validate(values)
 
 
 def test_career_record_accepts_month_precision() -> None:
@@ -113,3 +132,42 @@ def test_contracts_are_frozen() -> None:
 
     with pytest.raises(ValidationError):
         value.title = "Product Manager"
+
+
+@pytest.mark.parametrize(
+    ("event_type", "previous_status", "new_status"),
+    [
+        ("created", None, "pending"),
+        ("confirmed", "pending", "confirmed"),
+        ("rejected", "pending", "rejected"),
+    ],
+)
+def test_career_evidence_event_accepts_valid_transitions(
+    event_type: str,
+    previous_status: str | None,
+    new_status: str,
+) -> None:
+    value = evidence_event(
+        event_type=event_type,
+        previous_status=previous_status,
+        new_status=new_status,
+    )
+
+    assert value.event_type == event_type
+
+
+def test_career_evidence_event_rejects_invalid_transition() -> None:
+    with pytest.raises(ValidationError, match="invalid status transition"):
+        evidence_event(previous_status="confirmed", new_status="rejected")
+
+
+@pytest.mark.parametrize("event_type", ["confirmed", "rejected"])
+def test_evidence_decision_requires_user_actor(event_type: str) -> None:
+    new_status = "confirmed" if event_type == "confirmed" else "rejected"
+
+    with pytest.raises(ValidationError, match="requires user actor"):
+        evidence_event(
+            event_type=event_type,
+            new_status=new_status,
+            actor_type="agent",
+        )
