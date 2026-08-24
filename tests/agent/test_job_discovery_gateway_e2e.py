@@ -137,7 +137,7 @@ def test_gateway_select_survives_new_gateway_instance(tmp_path):
     assert len(client_b.completions.requests) == 1
 
 
-def test_gateway_persists_complete_jd_for_later_user_scoped_retrieval(tmp_path):
+def test_gateway_persists_complete_jd_and_analysis_for_later_user_scoped_retrieval(tmp_path):
     transport = Transport()
     jobs_path = tmp_path / "jobs.sqlite3"
     jobs = SQLiteJobPostingRepository(jobs_path)
@@ -155,6 +155,11 @@ def test_gateway_persists_complete_jd_for_later_user_scoped_retrieval(tmp_path):
     stored = rebuilt.get_for_run(user_id="user-1", run_id=started.run_id, selection_index=1)
     assert stored is not None
     assert stored.snapshot.content == "Build reliable LLM systems."
+    assert stored.analysis is not None
+    assert stored.analysis.analyzer_version == "jd-analysis-v1"
+    assert stored.analysis.analysis.job_summary == "Build reliable LLM systems."
+    assert stored.analysis.analysis.required_skills == ("Python",)
+    assert "boss:security-1" not in stored.analysis.model_dump_json()
     assert rebuilt.get_for_run(user_id="other", run_id=started.run_id, selection_index=1) is None
 
 

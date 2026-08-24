@@ -27,6 +27,27 @@ from career_agent.domain.job_discovery import (
 AvailabilityStatus = Literal["active", "closed", "unknown"]
 
 
+class JDAnalysisPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_summary: str
+    responsibilities: tuple[str, ...] = ()
+    required_skills: tuple[str, ...] = ()
+    preferred_qualifications: tuple[str, ...] = ()
+    clarification_questions: tuple[str, ...] = ()
+
+
+class StoredJDAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    job_posting_id: str
+    jd_snapshot_id: str
+    analyzer_version: str
+    analysis: JDAnalysisPayload
+    created_at: datetime
+
+
 class StoredJobRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -37,6 +58,7 @@ class StoredJobRecord(BaseModel):
     availability_status: AvailabilityStatus
     last_checked_at: datetime
     closed_at: datetime | None = None
+    analysis: StoredJDAnalysis | None = None
 
 
 class StoredJobSummary(BaseModel):
@@ -72,6 +94,23 @@ class JobPostingRepository(Protocol):
     def get_job(self, *, user_id: str, job_posting_id: str) -> StoredJobRecord | None: ...
 
     def get_for_run(self, *, user_id: str, run_id: str, selection_index: int) -> StoredJobRecord | None: ...
+
+    def save_analysis(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+        analysis: JDAnalysisPayload,
+    ) -> StoredJDAnalysis: ...
+
+    def get_latest_analysis(
+        self,
+        *,
+        user_id: str,
+        job_posting_id: str,
+        analyzer_version: str | None = None,
+    ) -> StoredJDAnalysis | None: ...
 
     def mark_availability(self, *, user_id: str, job_posting_id: str, status: AvailabilityStatus, checked_at: datetime | None = None) -> bool: ...
 
@@ -135,12 +174,31 @@ class SQLiteJobPostingRepository:
                     result_ref TEXT NOT NULL,
                     selection_index INTEGER NOT NULL,
                     job_posting_id TEXT NOT NULL,
+                    jd_snapshot_id TEXT,
                     PRIMARY KEY(user_id, run_id, result_ref),
                     UNIQUE(user_id, run_id, selection_index),
-                    FOREIGN KEY(job_posting_id) REFERENCES job_postings(id)
+                    FOREIGN KEY(job_posting_id) REFERENCES job_postings(id),
+                    FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
                 )
                 """
             )
+            run_link_columns = {row[1] for row in connection.execute("PRAGMA table_info(job_run_links)")}
+            if "jd_snapshot_id" not in run_link_columns:
+                connection.execute("ALTER TABLE job_run_links ADD COLUMN jd_snapshot_id TEXT REFERENCES jd_snapshots(id)")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS jd_analyses (
+                    id TEXT PRIMARY KEY,
+                    jd_snapshot_id TEXT NOT NULL,
+                    analyzer_version TEXT NOT NULL,
+                    analysis_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(jd_snapshot_id, analyzer_version),
+                    FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
+                )
+                """
+            )
+            connection.execute("CREATE INDEX IF NOT EXISTS jd_analyses_snapshot_created_idx ON jd_analyses(jd_snapshot_id, created_at DESC)")
             connection.execute(
                 "CREATE VIRTUAL TABLE IF NOT EXISTS job_posting_fts USING fts5(job_posting_id UNINDEXED, user_id UNINDEXED, title, company_name, city, jd_content, tokenize='unicode61')"
             )
@@ -246,8 +304,8 @@ class SQLiteJobPostingRepository:
                     ),
                 )
             connection.execute(
-                "INSERT INTO job_run_links(user_id, run_id, result_ref, selection_index, job_posting_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, run_id, result_ref) DO UPDATE SET selection_index=excluded.selection_index, job_posting_id=excluded.job_posting_id",
-                (user_id, run_id, result_ref, selection_index, posting_id),
+                "INSERT INTO job_run_links(user_id, run_id, result_ref, selection_index, job_posting_id, jd_snapshot_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, run_id, result_ref) DO UPDATE SET selection_index=excluded.selection_index, job_posting_id=excluded.job_posting_id, jd_snapshot_id=excluded.jd_snapshot_id",
+                (user_id, run_id, result_ref, selection_index, posting_id, snapshot.id),
             )
             connection.execute("DELETE FROM job_posting_fts WHERE job_posting_id = ?", (posting_id,))
             connection.execute(
@@ -311,16 +369,86 @@ class SQLiteJobPostingRepository:
                 self._RECORD_SELECT + " WHERE p.user_id = ? AND p.id = ?",
                 (user_id, job_posting_id),
             ).fetchone()
-        return self._record_from_row(row) if row else None
+            if row is None:
+                return None
+            record = self._record_from_row(row)
+            analysis = self._analysis_for_snapshot(connection, user_id=user_id, jd_snapshot_id=record.snapshot.id)
+        return record.model_copy(update={"analysis": analysis})
 
     def get_for_run(self, *, user_id: str, run_id: str, selection_index: int) -> StoredJobRecord | None:
         with self._connect() as connection:
             row = connection.execute(
-                self._RECORD_SELECT
-                + " JOIN job_run_links l ON l.job_posting_id = p.id WHERE p.user_id = ? AND l.user_id = ? AND l.run_id = ? AND l.selection_index = ?",
+                self._RUN_RECORD_SELECT
+                + " WHERE p.user_id = ? AND l.user_id = ? AND l.run_id = ? AND l.selection_index = ?",
                 (user_id, user_id, run_id, selection_index),
             ).fetchone()
-        return self._record_from_row(row) if row else None
+            if row is None:
+                return None
+            record = self._record_from_row(row)
+            analysis = self._analysis_for_snapshot(connection, user_id=user_id, jd_snapshot_id=record.snapshot.id)
+        return record.model_copy(update={"analysis": analysis})
+
+    def save_analysis(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+        analysis: JDAnalysisPayload,
+    ) -> StoredJDAnalysis:
+        if not user_id or not jd_snapshot_id or not analyzer_version.strip():
+            raise ValueError("user_id, jd_snapshot_id, and analyzer_version are required")
+        payload = JDAnalysisPayload.model_validate(analysis)
+        created_at = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            owner = connection.execute(
+                "SELECT s.job_posting_id FROM jd_snapshots s JOIN job_postings p ON p.id = s.job_posting_id WHERE s.id = ? AND p.user_id = ?",
+                (jd_snapshot_id, user_id),
+            ).fetchone()
+            if owner is None:
+                raise ValueError("JD snapshot not found for this user")
+            existing = connection.execute(
+                "SELECT id, jd_snapshot_id, analyzer_version, analysis_json, created_at FROM jd_analyses WHERE jd_snapshot_id = ? AND analyzer_version = ?",
+                (jd_snapshot_id, analyzer_version),
+            ).fetchone()
+            if existing is not None:
+                return self._analysis_from_row(owner[0], existing)
+            stored = StoredJDAnalysis(
+                id=new_id("jd_analysis"),
+                job_posting_id=owner[0],
+                jd_snapshot_id=jd_snapshot_id,
+                analyzer_version=analyzer_version,
+                analysis=payload,
+                created_at=created_at,
+            )
+            connection.execute(
+                "INSERT INTO jd_analyses(id, jd_snapshot_id, analyzer_version, analysis_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                (stored.id, jd_snapshot_id, analyzer_version, payload.model_dump_json(), created_at.isoformat()),
+            )
+        os.chmod(self.path, 0o600)
+        return stored
+
+    def get_latest_analysis(
+        self,
+        *,
+        user_id: str,
+        job_posting_id: str,
+        analyzer_version: str | None = None,
+    ) -> StoredJDAnalysis | None:
+        sql = (
+            "SELECT a.id, a.jd_snapshot_id, a.analyzer_version, a.analysis_json, a.created_at "
+            "FROM job_postings p JOIN jd_analyses a ON a.jd_snapshot_id = p.latest_snapshot_id "
+            "WHERE p.user_id = ? AND p.id = ?"
+        )
+        params: tuple[object, ...] = (user_id, job_posting_id)
+        if analyzer_version is not None:
+            sql += " AND a.analyzer_version = ?"
+            params = (*params, analyzer_version)
+        sql += " ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1"
+        with self._connect() as connection:
+            row = connection.execute(sql, params).fetchone()
+        return self._analysis_from_row(job_posting_id, row) if row else None
 
     def mark_availability(self, *, user_id: str, job_posting_id: str, status: AvailabilityStatus, checked_at: datetime | None = None) -> bool:
         if status not in {"active", "closed", "unknown"}:
@@ -385,6 +513,41 @@ class SQLiteJobPostingRepository:
             source_name=row[5], source_url=row[6], availability_status=row[7], captured_at=row[8], last_checked_at=row[9],
         )
 
+    @classmethod
+    def _analysis_for_snapshot(
+        cls,
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+    ) -> StoredJDAnalysis | None:
+        row = connection.execute(
+            "SELECT a.id, a.jd_snapshot_id, a.analyzer_version, a.analysis_json, a.created_at "
+            "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
+            "JOIN job_postings p ON p.id = s.job_posting_id "
+            "WHERE p.user_id = ? AND a.jd_snapshot_id = ? "
+            "ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1",
+            (user_id, jd_snapshot_id),
+        ).fetchone()
+        if row is None:
+            return None
+        posting_id = connection.execute(
+            "SELECT job_posting_id FROM jd_snapshots WHERE id = ?",
+            (jd_snapshot_id,),
+        ).fetchone()[0]
+        return cls._analysis_from_row(posting_id, row)
+
+    @staticmethod
+    def _analysis_from_row(job_posting_id: str, row: tuple) -> StoredJDAnalysis:
+        return StoredJDAnalysis(
+            id=row[0],
+            job_posting_id=job_posting_id,
+            jd_snapshot_id=row[1],
+            analyzer_version=row[2],
+            analysis=JDAnalysisPayload.model_validate_json(row[3]),
+            created_at=row[4],
+        )
+
     _SUMMARY_SELECT = """
         SELECT p.id, p.title, p.company_name, p.city, p.salary, p.source_name,
                p.source_url, p.availability_status, s.captured_at, p.last_checked_at
@@ -400,6 +563,17 @@ class SQLiteJobPostingRepository:
                s.captured_at, s.provenance_json, s.normalizer_version
         FROM job_postings p
         JOIN jd_snapshots s ON s.id = p.latest_snapshot_id
+    """
+    _RUN_RECORD_SELECT = """
+        SELECT p.id, p.user_id, p.source_name, p.source_job_id, p.source_url,
+               p.title, p.company_name, p.availability_status, p.persisted_at,
+               p.last_seen_at, p.latest_snapshot_id, p.company_title_fingerprint,
+               p.content_fingerprint, p.city, p.salary, p.last_checked_at, p.closed_at,
+               s.id, s.version, s.content, s.content_hash,
+               s.captured_at, s.provenance_json, s.normalizer_version
+        FROM job_run_links l
+        JOIN job_postings p ON p.id = l.job_posting_id
+        JOIN jd_snapshots s ON s.id = COALESCE(l.jd_snapshot_id, p.latest_snapshot_id)
     """
 
     def _connect(self) -> sqlite3.Connection:
