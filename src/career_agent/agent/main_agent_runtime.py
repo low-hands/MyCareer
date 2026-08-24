@@ -7,7 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 
 
@@ -212,6 +212,8 @@ class MainAgentRuntime:
             return project_job_discovery_arguments(context, arguments)
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
+        if name in {"list_target_roles", "list_resumes", "get_resume_metadata"}:
+            return project_resume_arguments(context, name, arguments)
         return arguments
 
     @staticmethod

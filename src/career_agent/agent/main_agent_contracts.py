@@ -119,6 +119,18 @@ class GetSavedJobToolArguments(ContractModel):
     job_posting_id: str = Field(min_length=1)
 
 
+class ListTargetRolesToolArguments(ContractModel):
+    pass
+
+
+class ListResumesToolArguments(ContractModel):
+    target_role_id: str | None = Field(default=None, min_length=1)
+
+
+class GetResumeMetadataToolArguments(ContractModel):
+    resume_id: str = Field(min_length=1)
+
+
 class JobDiscoveryWorkflowInput(ContractModel):
     user_id: str
     conversation_id: str
@@ -185,4 +197,18 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         model_arguments = GetSavedJobToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown saved-job tool: {name}")
+    return {"user_id": context.profile.user_id, **model_arguments.model_dump()}
+
+
+def project_resume_arguments(context: MainAgentContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "list_target_roles":
+        model_arguments = ListTargetRolesToolArguments.model_validate(arguments)
+    elif name == "list_resumes":
+        model_arguments = ListResumesToolArguments.model_validate(arguments)
+    elif name == "get_resume_metadata":
+        model_arguments = GetResumeMetadataToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown resume tool: {name}")
     return {"user_id": context.profile.user_id, **model_arguments.model_dump()}
