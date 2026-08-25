@@ -109,6 +109,162 @@ class ResumeStore:
             rows = connection.execute("SELECT v.id, v.resume_id, v.version_number, v.source_type, v.document_format, v.content_sha256, v.byte_size, v.created_at FROM resume_versions v JOIN resumes r ON r.id = v.resume_id WHERE v.resume_id = ? AND r.user_id = ? ORDER BY v.version_number DESC", (resume_id, user_id)).fetchall()
         return tuple(self._version(row) for row in rows)
 
+    def get_tailored_version(
+        self, *, user_id: str, tailoring_draft_id: str
+    ) -> tuple[Resume, ResumeVersion] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT resume.id, resume.user_id, resume.target_role_id,
+                       resume.name, resume.status, resume.latest_version_id,
+                       resume.created_at, resume.updated_at,
+                       version.id, version.resume_id, version.version_number,
+                       version.source_type, version.document_format,
+                       version.content_sha256, version.byte_size, version.created_at
+                FROM resume_tailoring_version_links AS link
+                JOIN resume_versions AS version
+                  ON version.id = link.new_resume_version_id
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE link.tailoring_draft_id = ? AND link.user_id = ?
+                """,
+                (tailoring_draft_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._resume(row[:8]), self._version(row[8:])
+
+    def create_tailored_version(
+        self,
+        *,
+        user_id: str,
+        source_resume_version_id: str,
+        tailoring_draft_id: str,
+        markdown: str,
+    ) -> tuple[Resume, ResumeVersion]:
+        if not user_id.strip() or not source_resume_version_id.strip() or not tailoring_draft_id.strip():
+            raise ValueError(
+                "user_id, source_resume_version_id, and tailoring_draft_id are required"
+            )
+        normalized = markdown.strip()
+        if not normalized:
+            raise ValueError("Tailored resume Markdown must not be empty")
+        content = normalized.encode("utf-8")
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                """
+                SELECT new_resume_version_id
+                FROM resume_tailoring_version_links
+                WHERE tailoring_draft_id = ? AND user_id = ?
+                """,
+                (tailoring_draft_id, user_id),
+            ).fetchone()
+            if existing is not None:
+                version_row = connection.execute(
+                    """
+                    SELECT id, resume_id, version_number, source_type,
+                           document_format, content_sha256, byte_size, created_at
+                    FROM resume_versions WHERE id = ?
+                    """,
+                    (existing[0],),
+                ).fetchone()
+                resume_row = connection.execute(
+                    """
+                    SELECT id, user_id, target_role_id, name, status,
+                           latest_version_id, created_at, updated_at
+                    FROM resumes WHERE id = ? AND user_id = ?
+                    """,
+                    (version_row[1], user_id),
+                ).fetchone()
+                return self._resume(resume_row), self._version(version_row)
+
+            source = connection.execute(
+                """
+                SELECT version.resume_id
+                FROM resume_versions AS version
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE version.id = ? AND resume.user_id = ?
+                """,
+                (source_resume_version_id, user_id),
+            ).fetchone()
+            if source is None:
+                raise ValueError("Source resume version not found")
+            resume_id = source[0]
+            version_number = connection.execute(
+                """
+                SELECT COALESCE(MAX(version_number), 0) + 1
+                FROM resume_versions WHERE resume_id = ?
+                """,
+                (resume_id,),
+            ).fetchone()[0]
+            version = ResumeVersion(
+                id=f"resume_version_{uuid4().hex}",
+                resume_id=resume_id,
+                version_number=version_number,
+                source_type="agent_tailoring",
+                document_format="markdown",
+                content_sha256=hashlib.sha256(content).hexdigest(),
+                byte_size=len(content),
+                created_at=now,
+            )
+            connection.execute(
+                """
+                INSERT INTO resume_versions(
+                    id, resume_id, version_number, source_type, document_format,
+                    content_sha256, byte_size, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    version.id,
+                    version.resume_id,
+                    version.version_number,
+                    version.source_type,
+                    version.document_format,
+                    version.content_sha256,
+                    version.byte_size,
+                    version.created_at.isoformat(),
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO resume_version_documents(resume_version_id, content)
+                VALUES (?, ?)
+                """,
+                (version.id, content),
+            )
+            connection.execute(
+                """
+                INSERT INTO resume_tailoring_version_links(
+                    tailoring_draft_id, user_id, source_resume_version_id,
+                    new_resume_version_id, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    tailoring_draft_id,
+                    user_id,
+                    source_resume_version_id,
+                    version.id,
+                    now.isoformat(),
+                ),
+            )
+            connection.execute(
+                """
+                UPDATE resumes SET latest_version_id = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (version.id, now.isoformat(), resume_id, user_id),
+            )
+            resume_row = connection.execute(
+                """
+                SELECT id, user_id, target_role_id, name, status,
+                       latest_version_id, created_at, updated_at
+                FROM resumes WHERE id = ? AND user_id = ?
+                """,
+                (resume_id, user_id),
+            ).fetchone()
+        return self._resume(resume_row), version
+
     def read_version_document(
         self, *, user_id: str, resume_version_id: str
     ) -> StoredResumeDocument | None:
@@ -151,7 +307,20 @@ class ResumeStore:
             connection.execute("UPDATE resumes SET target_role_id = ? WHERE user_id = ? AND target_role_id IS NULL", (role_id, user_id))
         connection.execute("CREATE INDEX IF NOT EXISTS resumes_user_role_updated_idx ON resumes(user_id, target_role_id, updated_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS target_roles_user_priority_idx ON target_roles(user_id, priority, created_at)")
-        connection.execute("PRAGMA user_version = 2")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS resume_tailoring_version_links (
+                tailoring_draft_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                source_resume_version_id TEXT NOT NULL,
+                new_resume_version_id TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(source_resume_version_id) REFERENCES resume_versions(id),
+                FOREIGN KEY(new_resume_version_id) REFERENCES resume_versions(id)
+            )
+            """
+        )
+        connection.execute("PRAGMA user_version = 3")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

@@ -53,6 +53,17 @@ class ResumeTailoringResult(ResumeTailoringContract):
     warnings: tuple[str, ...] = Field(default=(), max_length=10)
 
 
+class AcceptedTailoringChange(ResumeTailoringContract):
+    change_index: int = Field(ge=1)
+    change: ResumeTailoringChange
+
+
+class FinalizedResumeDocument(ResumeTailoringContract):
+    markdown: str = Field(min_length=1, max_length=500_000)
+    applied_change_indices: tuple[int, ...] = Field(min_length=1, max_length=30)
+    warnings: tuple[str, ...] = Field(default=(), max_length=10)
+
+
 class ResumeTailoringWorker(Protocol):
     def tailor(
         self,
@@ -63,3 +74,13 @@ class ResumeTailoringWorker(Protocol):
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
         tailoring_goal: str | None = None,
     ) -> ResumeTailoringResult: ...
+
+
+class ResumeFinalizationWorker(Protocol):
+    def finalize(
+        self,
+        *,
+        document: StoredResumeDocument,
+        accepted_changes: tuple[AcceptedTailoringChange, ...],
+        confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
+    ) -> FinalizedResumeDocument: ...

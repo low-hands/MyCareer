@@ -270,6 +270,7 @@ class MainAgentRuntime:
             "draft_resume_tailoring",
             "get_resume_tailoring_draft",
             "review_resume_tailoring",
+            "finalize_resume_tailoring",
         }:
             return project_resume_arguments(context, name, arguments)
         return arguments
@@ -321,6 +322,18 @@ class MainAgentRuntime:
                 update={
                     "active_resume_job_match_id": result.payload.get("match_id"),
                     "resume_job_match_status": "ready",
+                }
+            )
+        elif (
+            result.tool_name == "finalize_resume_tailoring"
+            and result.state == "resume_tailoring_finalized"
+        ):
+            task = task.model_copy(
+                update={
+                    "resume_tailoring_status": "finalized",
+                    "active_resume_version_id": result.payload.get(
+                        "resume_version_id"
+                    ),
                 }
             )
         elif (

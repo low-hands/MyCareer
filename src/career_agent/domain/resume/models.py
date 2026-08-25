@@ -35,7 +35,7 @@ class ResumeVersion(ResumeContract):
     id: str = Field(min_length=1)
     resume_id: str = Field(min_length=1)
     version_number: int = Field(ge=1)
-    source_type: Literal["user_import"] = "user_import"
+    source_type: Literal["user_import", "agent_tailoring"] = "user_import"
     document_format: Literal["pdf", "text", "markdown"]
     content_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     byte_size: int = Field(ge=1)

@@ -9,6 +9,7 @@ from career_agent.agent.main_agent_contracts import (
     ConfirmResumeAnalysisToolArguments,
     DraftResumeTailoringToolArguments,
     FindSavedJobsToolArguments,
+    FinalizeResumeTailoringToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
     GetResumeJobMatchToolArguments,
@@ -33,7 +34,9 @@ from career_agent.services.resume_job_match import (
     ResumeJobMatchService,
 )
 from career_agent.services.resume_tailoring import (
+    ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
+    ResumeTailoringNotReadyError,
     ResumeTailoringService,
 )
 from career_agent.storage.jobs import JobPostingRepository
@@ -102,6 +105,7 @@ class MainAgentToolRegistry:
                     "draft_resume_tailoring": self._draft_resume_tailoring,
                     "get_resume_tailoring_draft": self._get_resume_tailoring_draft,
                     "review_resume_tailoring": self._review_resume_tailoring,
+                    "finalize_resume_tailoring": self._finalize_resume_tailoring,
                 }
             )
 
@@ -260,6 +264,14 @@ class MainAgentToolRegistry:
                             "name": "review_resume_tailoring",
                             "description": "Accept or reject specific 1-based change indices in an active tailoring draft. Use only decisions the user explicitly made; never infer acceptance from vague approval. Decisions are persisted and may be completed across turns. This does not create a new resume version.",
                             "parameters": ReviewResumeTailoringToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "finalize_resume_tailoring",
+                            "description": "Create one new immutable Markdown ResumeVersion from the explicitly accepted changes in a fully reviewed tailoring draft. Call only when the user explicitly asks to generate/save the new version after reviewing every change. Repeated calls are idempotent. Never use vague approval as authorization.",
+                            "parameters": FinalizeResumeTailoringToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -753,6 +765,13 @@ class MainAgentToolRegistry:
                 message="没有找到这份简历定制草稿，或它已经过期。",
                 payload={"draft_id": model_arguments.draft_id},
             )
+        except ResumeTailoringAlreadyFinalizedError:
+            return ToolObservation(
+                tool_name="review_resume_tailoring",
+                state="resume_tailoring_already_finalized",
+                message="这份草稿已经生成了新简历版本，审阅决定不能再修改。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
         return self._tailoring_observation(
             tool_name="review_resume_tailoring",
             draft=draft,
@@ -761,6 +780,67 @@ class MainAgentToolRegistry:
                 if draft.status == "reviewed"
                 else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理。"
             ),
+        )
+
+    def _finalize_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_tailoring_service is None:
+            raise ValueError("Resume tailoring service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = FinalizeResumeTailoringToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.draft_id is None:
+            raise ValueError("finalize_resume_tailoring requires draft_id")
+        try:
+            finalized = self._resume_tailoring_service.finalize_draft(
+                user_id=user_id,
+                draft_id=model_arguments.draft_id,
+            )
+        except ResumeTailoringDraftNotFoundError:
+            return ToolObservation(
+                tool_name="finalize_resume_tailoring",
+                state="resume_tailoring_draft_not_found",
+                message="没有找到这份简历定制草稿，或它已经过期。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        except ResumeTailoringNotReadyError as error:
+            return ToolObservation(
+                tool_name="finalize_resume_tailoring",
+                state="resume_tailoring_not_ready",
+                message="必须先逐条审阅所有建议，并至少接受一条修改。",
+                payload={
+                    "draft_id": model_arguments.draft_id,
+                    "reason": str(error),
+                },
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="finalize_resume_tailoring",
+                state="failed",
+                message="生成新简历版本暂时失败，请稍后重试。" if error.retryable else "生成新简历版本失败。",
+                payload={"error_code": error.code, "retryable": error.retryable},
+            )
+        return ToolObservation(
+            tool_name="finalize_resume_tailoring",
+            state="resume_tailoring_finalized",
+            message=(
+                "已生成新的不可变 Markdown 简历版本。"
+                if finalized.created
+                else "这份定制草稿已经生成过简历版本，已返回原结果。"
+            ),
+            next_action="offer_resume_export_or_review",
+            payload={
+                "draft_id": finalized.draft_id,
+                "resume_id": finalized.resume.id,
+                "resume_version_id": finalized.resume_version.id,
+                "version_number": finalized.resume_version.version_number,
+                "document_format": finalized.resume_version.document_format,
+                "source_type": finalized.resume_version.source_type,
+                "created_at": finalized.resume_version.created_at.isoformat(),
+                "applied_change_indices": finalized.applied_change_indices,
+                "warnings": finalized.warnings,
+                "created": finalized.created,
+            },
         )
 
     @staticmethod

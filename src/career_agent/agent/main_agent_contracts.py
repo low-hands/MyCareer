@@ -42,7 +42,10 @@ class ConversationTaskState(ContractModel):
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
-    resume_tailoring_status: Literal["pending", "in_review", "reviewed"] | None = None
+    resume_tailoring_status: Literal[
+        "pending", "in_review", "reviewed", "finalized"
+    ] | None = None
+    active_resume_version_id: str | None = None
 
 
 class ConversationMessageContext(ContractModel):
@@ -210,6 +213,10 @@ class ReviewResumeTailoringToolArguments(ContractModel):
         return self
 
 
+class FinalizeResumeTailoringToolArguments(ContractModel):
+    draft_id: str | None = Field(default=None, min_length=1)
+
+
 class GetResumeAnalysisToolArguments(ContractModel):
     analysis_id: str | None = Field(default=None, min_length=1)
 
@@ -308,6 +315,8 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = GetResumeTailoringDraftToolArguments.model_validate(arguments)
     elif name == "review_resume_tailoring":
         model_arguments = ReviewResumeTailoringToolArguments.model_validate(arguments)
+    elif name == "finalize_resume_tailoring":
+        model_arguments = FinalizeResumeTailoringToolArguments.model_validate(arguments)
     elif name == "get_resume_analysis":
         model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
     elif name == "confirm_resume_analysis":
@@ -330,7 +339,11 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         if match_id is None:
             raise ValueError("draft_resume_tailoring requires an active resume-job match")
         payload["match_id"] = match_id
-    if name in {"get_resume_tailoring_draft", "review_resume_tailoring"}:
+    if name in {
+        "get_resume_tailoring_draft",
+        "review_resume_tailoring",
+        "finalize_resume_tailoring",
+    }:
         draft_id = payload.get("draft_id") or context.task.active_resume_tailoring_draft_id
         if draft_id is None:
             raise ValueError(f"{name} requires an active tailoring draft")
