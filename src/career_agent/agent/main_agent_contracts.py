@@ -6,6 +6,7 @@ from typing import Any, Literal, Protocol
 from pydantic import Field, model_validator
 
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
+from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.job_discovery import ContractModel
 
@@ -105,6 +106,7 @@ class MainAgentContext(ContractModel):
     career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
     tool_observations: tuple[ToolObservation, ...] = ()
+    conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
 
     def model_context(self) -> dict[str, Any]:
@@ -153,6 +155,11 @@ class MainAgentContext(ContractModel):
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
+            "conversation_summary": (
+                self.conversation_summary.model_dump(mode="json")
+                if self.conversation_summary
+                else None
+            ),
             "user_message": self.user_message,
         }
 

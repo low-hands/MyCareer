@@ -19,6 +19,7 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
 from career_agent.agent.deepagent_resume_tailoring_worker import (
@@ -85,8 +86,11 @@ def build_analysis_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
 
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
-    context_manager = ContextManager(CareerContextStore(Path(args.context_store).expanduser()))
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
+    context_manager = ContextManager(
+        CareerContextStore(Path(args.context_store).expanduser()),
+        summary_worker=OpenAIConversationSummaryWorker(main_config),
+    )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
         timeout_seconds=args.agent_timeout_seconds,
