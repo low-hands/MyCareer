@@ -47,6 +47,28 @@ class ConversationMessageContext(ContractModel):
     created_at: datetime
 
 
+class CareerMemoryRecord(ContractModel):
+    record_type: Literal[
+        "education",
+        "work",
+        "internship",
+        "project",
+        "certification",
+    ]
+    organization: str | None = None
+    title: str
+    start_year: int | None = None
+    start_month: int | None = None
+    end_year: int | None = None
+    end_month: int | None = None
+    is_current: bool = False
+    confirmed_highlights: tuple[str, ...] = ()
+
+
+class CareerMemoryContext(ContractModel):
+    records: tuple[CareerMemoryRecord, ...] = ()
+
+
 class ToolObservation(ContractModel):
     tool_name: str
     state: str
@@ -60,18 +82,23 @@ class MainAgentContext(ContractModel):
     profile: CareerProfileContext
     preferences: AgentPreferencesContext = AgentPreferencesContext()
     task: ConversationTaskState = ConversationTaskState()
+    career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
     tool_observations: tuple[ToolObservation, ...] = ()
     user_message: str = Field(min_length=1)
 
     def model_context(self) -> dict[str, Any]:
         return {
-            "profile": {
+            "career_profile": {
                 "target_roles": self.profile.target_roles,
                 "default_city": self.profile.default_city,
                 "salary_preference": self.profile.salary_preference,
                 "experience": self.profile.experience,
                 "education": self.profile.education,
+                "records": [
+                    record.model_dump(mode="json")
+                    for record in self.career_memory.records
+                ],
             },
             "preferences": self.preferences.model_dump(mode="json"),
             "task": {

@@ -5,7 +5,7 @@ import pytest
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_contracts import JDAnalysis
 from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ConversationTaskState, ToolCall
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, ToolCall
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -75,6 +75,7 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
 
     assert set(agent._graph.get_graph().nodes) == {
         "__start__",
+        "hydrate_career_context",
         "decide",
         "invoke_atomic_tool",
         "run_job_discovery_workflow",
@@ -83,6 +84,42 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
         "fallback",
         "__end__",
     }
+
+
+def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
+    class Projector:
+        def project(self, *, user_id, query):
+            assert user_id == "u1"
+            assert query == "帮我规划下一步"
+            return CareerMemoryContext(
+                records=(
+                    CareerMemoryRecord(
+                        record_type="work",
+                        organization="Example Inc.",
+                        title="Product Manager",
+                        is_current=True,
+                        confirmed_highlights=("Led an AI product",),
+                    ),
+                )
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(AgentDecision(action="final", message="done"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(Gateway()),
+        career_context_projector=Projector(),
+    )
+
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我规划下一步",
+    )
+
+    assert decisions.contexts[0].career_memory.records[0].title == "Product Manager"
 
 
 def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:

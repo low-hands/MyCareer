@@ -6,6 +6,7 @@ from typing import Any, Literal, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
@@ -33,22 +34,25 @@ class MainAgentTurnResult:
 class MainAgentRuntime:
     _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "failed"})
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, max_tool_calls: int = 3) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
         self._decision_maker = decision_maker
         self._tools = tools
+        self._career_context_projector = career_context_projector
         self._max_tool_calls = max_tool_calls
 
         graph = StateGraph(MainAgentState)
+        graph.add_node("hydrate_career_context", self._hydrate_career_context)
         graph.add_node("decide", self._decide)
         graph.add_node("invoke_atomic_tool", self._invoke_atomic_tool)
         graph.add_node("run_job_discovery_workflow", self._run_job_discovery_workflow)
         graph.add_node("observe", self._observe)
         graph.add_node("finish", self._finish)
         graph.add_node("fallback", self._fallback)
-        graph.add_edge(START, "decide")
+        graph.add_edge(START, "hydrate_career_context")
+        graph.add_edge("hydrate_career_context", "decide")
         graph.add_conditional_edges(
             "decide",
             self._after_decision,
@@ -89,6 +93,16 @@ class MainAgentRuntime:
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
         return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
+
+    def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
+        if self._career_context_projector is None:
+            return {}
+        context = state["context"]
+        memory = self._career_context_projector.project(
+            user_id=context.profile.user_id,
+            query=context.user_message,
+        )
+        return {"context": context.model_copy(update={"career_memory": memory})}
 
     @staticmethod
     def _tool_call_fingerprint(decision: AgentDecision) -> str:
