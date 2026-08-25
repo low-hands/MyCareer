@@ -19,15 +19,21 @@ from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAg
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
+from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
+from career_agent.agent.openai_resume_tailoring_worker import OpenAIResumeTailoringWorker
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.resume_analysis import ResumeAnalysisService
+from career_agent.services.resume_job_match import ResumeJobMatchService
+from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
+from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
+from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.runs import JobDiscoveryRunStore
 
 
@@ -79,19 +85,36 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     )
     resume_store = ResumeStore(Path(args.resume_store).expanduser())
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
+    job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
+    match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
         tools=MainAgentToolRegistry(
             build_gateway(args),
-            job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
+            job_repository=job_repository,
             resume_store=resume_store,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
                 SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
                 career_history_store,
+            ),
+            resume_job_match_service=ResumeJobMatchService(
+                resume_store,
+                job_repository,
+                career_history_store,
+                OpenAIResumeJobMatchWorker(resume_analysis_config),
+                match_store,
+            ),
+            resume_tailoring_service=ResumeTailoringService(
+                resume_store,
+                job_repository,
+                career_history_store,
+                match_store,
+                SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
+                OpenAIResumeTailoringWorker(resume_analysis_config),
             ),
         ),
     )

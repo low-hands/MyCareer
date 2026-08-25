@@ -228,6 +228,7 @@ class CareerHistoryStore:
         user_id: str,
         career_record_id: str | None = None,
         verification_status: EvidenceStatus | None = None,
+        source_resume_version_id: str | None = None,
     ) -> tuple[CareerEvidence, ...]:
         query = """
             SELECT id, user_id, career_record_id, claim, origin,
@@ -243,6 +244,9 @@ class CareerHistoryStore:
         if verification_status is not None:
             query += " AND verification_status = ?"
             parameters.append(verification_status)
+        if source_resume_version_id is not None:
+            query += " AND source_resume_version_id = ?"
+            parameters.append(source_resume_version_id)
         query += " ORDER BY created_at, id"
 
         with self._connect() as connection:
