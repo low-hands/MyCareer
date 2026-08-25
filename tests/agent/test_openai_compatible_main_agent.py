@@ -44,7 +44,7 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
 
     payload = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert decision.action == "ask_user"
-    assert payload["profile"]["target_roles"] == ["AI Engineer"]
+    assert payload["career_profile"]["target_roles"] == ["AI Engineer"]
     assert "resume_text" not in payload
     assert "job_discovery" in client.completions.kwargs["messages"][0]["content"]
     assert "job_discovery.research" not in client.completions.kwargs["messages"][0]["content"]

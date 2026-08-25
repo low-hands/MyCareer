@@ -78,6 +78,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     def _system_prompt(tool_names: tuple[str, ...]) -> str:
         return (
             "You are a Career Agent. Decide exactly one next action using only the supplied context. "
+            "career_profile combines the user's stated goals and preferences with a bounded projection of confirmed career facts. Use it for ordinary personalization and reasoning, but do not invent details beyond it. "
             "Use a listed tool only when its preconditions match task state. The job_discovery tool discovers new online jobs and advances one stateful workflow; do not invent internal IDs or JD text. "
             "Use find_saved_jobs only to recall the current user's previously saved jobs, then use get_saved_job with a returned job_posting_id only when complete saved JD text is needed. Do not switch a failed saved-job lookup into online discovery unless the user asks for new jobs. "
             "Use list_target_roles and list_resumes to locate resume families, then get_resume_metadata only when immutable version metadata is needed. These metadata tools never provide resume document content; do not claim to have read or analyzed a resume from their metadata. Use analyze_resume with a resume_version_id when the user asks to read or analyze that version. Use get_resume_analysis to review a prior analysis_id. Call confirm_resume_analysis only after the user explicitly confirms that specific analysis; never treat analysis output or vague approval as confirmation. "

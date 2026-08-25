@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import ToolObservation
@@ -77,9 +78,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         timeout_seconds=args.agent_timeout_seconds,
     )
     resume_store = ResumeStore(Path(args.resume_store).expanduser())
+    career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
+        career_context_projector=CareerContextProjector(career_history_store),
         tools=MainAgentToolRegistry(
             build_gateway(args),
             job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
@@ -88,7 +91,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
                 SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
-                CareerHistoryStore(Path(args.resume_store).expanduser()),
+                career_history_store,
             ),
         ),
     )
