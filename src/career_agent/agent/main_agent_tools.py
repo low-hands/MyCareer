@@ -23,12 +23,17 @@ from career_agent.agent.main_agent_contracts import (
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListTargetRolesToolArguments,
+    ListEmailEventsToolArguments,
     MatchResumeToJobToolArguments,
     ReviewResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
+    ResolveEmailEventToolArguments,
+    SyncApplicationEmailsToolArguments,
     ToolObservation,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.connectors.email_accounts import EmailCredentialError
+from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.services.resume_analysis import (
     ResumeAnalysisNotFoundError,
     ResumeAnalysisService,
@@ -39,6 +44,12 @@ from career_agent.services.applications import (
     ApplicationService,
     ConcurrentApplicationUpdateError,
     InvalidApplicationTransitionError,
+)
+from career_agent.services.email_tracking import (
+    EmailAccountNotFoundError,
+    EmailEventNotFoundError,
+    EmailEventResolutionError,
+    EmailTrackingService,
 )
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
@@ -76,8 +87,9 @@ class MainAgentToolRegistry:
         resume_tailoring_service: ResumeTailoringService | None = None,
         resume_export_service: ResumeExportService | None = None,
         application_service: ApplicationService | None = None,
+        email_tracking_service: EmailTrackingService | None = None,
     ) -> None:
-        self._workflow_handlers: dict[str, Callable[[dict[str, Any]], JobDiscoveryGatewayResult]] = {
+        self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
         }
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {}
@@ -89,6 +101,7 @@ class MainAgentToolRegistry:
         self._resume_tailoring_service = resume_tailoring_service
         self._resume_export_service = resume_export_service
         self._application_service = application_service
+        self._email_tracking_service = email_tracking_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -139,6 +152,16 @@ class MainAgentToolRegistry:
                     "update_application_status": self._update_application_status,
                     "list_applications": self._list_applications,
                     "get_application": self._get_application,
+                }
+            )
+        if email_tracking_service is not None:
+            self._workflow_handlers["sync_application_emails"] = (
+                self._sync_application_emails
+            )
+            self._atomic_handlers.update(
+                {
+                    "list_email_events": self._list_email_events,
+                    "resolve_email_event": self._resolve_email_event,
                 }
             )
 
@@ -357,13 +380,157 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if self._email_tracking_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "sync_application_emails",
+                            "description": "Run the read-only Gmail/QQ recruiting-email synchronization workflow. It fetches metadata first, reads only candidate bodies in an isolated worker, links events to tracked applications, and returns safe summaries. Use when the user asks to check or refresh employer email progress.",
+                            "parameters": SyncApplicationEmailsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_email_events",
+                            "description": "List safe structured recruiting-email events, optionally only those awaiting confirmation. Never returns email bodies or credentials.",
+                            "parameters": ListEmailEventsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "resolve_email_event",
+                            "description": "Approve or dismiss one pending email event. Approval may explicitly correct its application link and updates the application only when the transition is valid. Use only after clear user confirmation.",
+                            "parameters": ResolveEmailEventToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
         return tuple(schemas)
 
-    def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
+    def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> MainAgentToolOutput:
         handler = self._workflow_handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown main-agent workflow: {name}")
         return handler(arguments)
+
+    def _sync_application_emails(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._email_tracking_service is None:
+            raise ValueError("Email tracking service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = SyncApplicationEmailsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            result = self._email_tracking_service.sync(
+                user_id=user_id,
+                account_id=model_arguments.account_id,
+            )
+        except EmailAccountNotFoundError:
+            return ToolObservation(
+                tool_name="sync_application_emails",
+                state="email_account_not_found",
+                message="没有找到可用的邮箱账号，请先连接 Gmail 或 QQ 邮箱。",
+            )
+        except (EmailCredentialError, GmailAPIError, RuntimeError, AgentWorkerError) as error:
+            return ToolObservation(
+                tool_name="sync_application_emails",
+                state="failed",
+                message="邮箱同步暂时失败；邮箱内容、凭证和错误响应均未进入 Main Agent 上下文。",
+                payload={
+                    "error_code": (
+                        error.code
+                        if isinstance(error, AgentWorkerError)
+                        else type(error).__name__
+                    ),
+                    "retryable": isinstance(error, (GmailAPIError, AgentWorkerError)),
+                },
+            )
+        pending = [event for event in result.events_created if event.status == "pending_confirmation"]
+        return ToolObservation(
+            tool_name="sync_application_emails",
+            state="email_events_pending" if pending else "email_sync_complete",
+            message=(
+                f"已同步 {result.accounts_synced} 个邮箱，检查 {result.messages_seen} 封新邮件，"
+                f"识别 {len(result.events_created)} 个求职事件，其中 {len(pending)} 个需要确认。"
+            ),
+            next_action="confirm_email_events" if pending else "track_application_progress",
+            payload={
+                "accounts_synced": result.accounts_synced,
+                "messages_seen": result.messages_seen,
+                "candidate_messages": result.candidate_messages,
+                "events": [self._email_event_payload(event) for event in result.events_created],
+            },
+        )
+
+    def _list_email_events(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._email_tracking_service is None:
+            raise ValueError("Email tracking service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ListEmailEventsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        events = self._email_tracking_service.list_events(
+            user_id=user_id,
+            status=model_arguments.status,
+            limit=model_arguments.limit,
+        )
+        return ToolObservation(
+            tool_name="list_email_events",
+            state="email_events_found" if events else "no_email_events_found",
+            message=f"找到 {len(events)} 个邮件事件。" if events else "没有找到匹配的邮件事件。",
+            payload={"items": [self._email_event_payload(event) for event in events]},
+        )
+
+    def _resolve_email_event(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._email_tracking_service is None:
+            raise ValueError("Email tracking service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ResolveEmailEventToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            event = self._email_tracking_service.resolve_event(
+                user_id=user_id,
+                event_id=model_arguments.event_id,
+                approve=model_arguments.approve,
+                application_id=model_arguments.application_id,
+            )
+        except EmailEventNotFoundError:
+            return ToolObservation(
+                tool_name="resolve_email_event",
+                state="email_event_not_found",
+                message="没有找到这个邮件事件，或它不属于当前用户。",
+            )
+        except EmailEventResolutionError as error:
+            return ToolObservation(
+                tool_name="resolve_email_event",
+                state="email_event_resolution_conflict",
+                message="该邮件事件暂时不能应用到投递记录。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="resolve_email_event",
+            state="email_event_resolved",
+            message="邮件事件已应用。" if event.status == "applied" else "邮件事件已忽略。",
+            payload=self._email_event_payload(event),
+        )
+
+    @staticmethod
+    def _email_event_payload(event) -> dict[str, Any]:
+        return {
+            "email_event_id": event.id,
+            "application_id": event.application_id,
+            "event_type": event.event_type,
+            "status": event.status,
+            "confidence": event.confidence,
+            "classifier": event.classifier,
+            "summary": event.summary,
+            "occurred_at": event.occurred_at.isoformat(),
+        }
 
     def invoke_atomic_tool(self, name: str, arguments: dict[str, Any]) -> ToolObservation:
         handler = self._atomic_handlers.get(name)
@@ -1130,6 +1297,7 @@ class MainAgentToolRegistry:
                 "events": [
                     {
                         "event_type": event.event_type,
+                        "source": event.source,
                         "previous_status": event.previous_status,
                         "new_status": event.new_status,
                         "note": event.note,

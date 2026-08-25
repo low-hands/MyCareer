@@ -78,7 +78,7 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
         "hydrate_career_context",
         "decide",
         "invoke_atomic_tool",
-        "run_job_discovery_workflow",
+        "run_workflow",
         "observe",
         "finish",
         "fallback",
