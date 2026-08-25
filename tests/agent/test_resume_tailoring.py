@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timezone
-import json
+from pathlib import Path
 
 import pytest
 
@@ -18,13 +18,16 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_resume_tailoring_worker import (
-    OpenAIResumeTailoringWorker,
+from career_agent.agent.deepagent_resume_tailoring_worker import (
+    DeepAgentResumeTailoringWorker,
 )
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
 from career_agent.domain.job_discovery import JobDetail, Provenance
-from career_agent.services.resume_tailoring import ResumeTailoringService
+from career_agent.services.resume_tailoring import (
+    ResumeTailoringDraftNotFoundError,
+    ResumeTailoringService,
+)
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
@@ -54,7 +57,20 @@ VALID_DRAFT = {
                     "source_quote": "Built RAG systems",
                 }
             ],
-        }
+        },
+        {
+            "target_locator": "Skills",
+            "original_quote": "Python",
+            "proposed_text": "Python · Retrieval-Augmented Generation",
+            "rationale": "Surfaces an explicitly demonstrated specialization.",
+            "addresses_requirements": ["RAG development"],
+            "support_evidence": [
+                {
+                    "source_locator": "Experience, bullet 1",
+                    "source_quote": "Built RAG systems",
+                }
+            ],
+        },
     ],
     "preserved_strengths": ["RAG experience"],
     "unresolved_gaps": ["Go is not stated"],
@@ -63,37 +79,44 @@ VALID_DRAFT = {
 }
 
 
-class FakeResponses:
+class FakeDeepAgent:
     def __init__(self, output=VALID_DRAFT) -> None:
         self.output = output
-        self.kwargs = None
+        self.state = None
 
-    def create(self, **kwargs):
-        self.kwargs = kwargs
-        output_text = self.output if isinstance(self.output, str) else json.dumps(self.output)
-        return type("Response", (), {"output_text": output_text})()
-
-
-class FakeClient:
-    def __init__(self, output=VALID_DRAFT) -> None:
-        self.responses = FakeResponses(output)
+    def invoke(self, state):
+        self.state = state
+        return {"structured_response": self.output}
 
 
-def openai_worker(client: FakeClient) -> OpenAIResumeTailoringWorker:
-    return OpenAIResumeTailoringWorker(
+def skill_root(tmp_path: Path) -> Path:
+    root = tmp_path / "skills"
+    skill = root / "resume-tailoring"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: resume-tailoring\ndescription: Tailor a grounded resume.\n---\n\n"
+        "Use only grounded resume evidence.\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def deep_worker(tmp_path: Path, agent: FakeDeepAgent) -> DeepAgentResumeTailoringWorker:
+    return DeepAgentResumeTailoringWorker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="multimodal-model",
         ),
-        client=client,
+        skills_root=skill_root(tmp_path),
+        agent=agent,
     )
 
 
-def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal() -> None:
-    client = FakeClient()
+def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal(tmp_path) -> None:
+    agent = FakeDeepAgent()
 
-    result = openai_worker(client).tailor(
+    result = deep_worker(tmp_path, agent).tailor(
         document=StoredResumeDocument(
             resume_version_id="v1",
             document_format="markdown",
@@ -105,20 +128,18 @@ def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal() -> None:
     )
 
     assert result.changes[0].proposed_text.startswith("Built production")
-    kwargs = client.responses.kwargs
-    text = kwargs["input"][0]["content"][0]["text"]
+    text = agent.state["messages"][0]["content"][0]["text"]
     assert "<resume_document>" in text
     assert "<job_description>" in text
     assert "<grounded_match_result>" in text
     assert "Keep it concise" in text
-    assert "never claim it has been applied" in kwargs["instructions"]
 
 
-def test_tailoring_worker_sends_pdf_as_input_file() -> None:
+def test_tailoring_worker_sends_pdf_as_input_file(tmp_path) -> None:
     raw_pdf = b"%PDF-1.7\x00\xffbinary"
-    client = FakeClient()
+    agent = FakeDeepAgent()
 
-    openai_worker(client).tailor(
+    deep_worker(tmp_path, agent).tailor(
         document=StoredResumeDocument(
             resume_version_id="pdf-v1",
             document_format="pdf",
@@ -128,15 +149,15 @@ def test_tailoring_worker_sends_pdf_as_input_file() -> None:
         match_result=VALID_MATCH,
     )
 
-    content = client.responses.kwargs["input"][0]["content"]
-    assert content[0]["type"] == "input_file"
-    assert content[0]["file_data"] == (
-        "data:application/pdf;base64," + base64.b64encode(raw_pdf).decode("ascii")
-    )
+    content = agent.state["messages"][0]["content"]
+    assert content[0]["type"] == "file"
+    assert content[0]["base64"] == base64.b64encode(raw_pdf).decode("ascii")
+    assert content[0]["mime_type"] == "application/pdf"
+    assert content[0]["filename"] == "pdf-v1.pdf"
     assert "detail" not in content[0]
 
 
-def test_tailoring_contract_rejects_change_without_resume_evidence() -> None:
+def test_tailoring_contract_rejects_change_without_resume_evidence(tmp_path) -> None:
     invalid = dict(VALID_DRAFT)
     invalid["changes"] = [
         {
@@ -150,7 +171,7 @@ def test_tailoring_contract_rejects_change_without_resume_evidence() -> None:
     ]
 
     with pytest.raises(AgentWorkerError) as error:
-        openai_worker(FakeClient(invalid)).tailor(
+        deep_worker(tmp_path, FakeDeepAgent(invalid)).tailor(
             document=StoredResumeDocument(
                 resume_version_id="v1",
                 document_format="text",
@@ -161,6 +182,47 @@ def test_tailoring_contract_rejects_change_without_resume_evidence() -> None:
         )
 
     assert error.value.code == "RESUME_TAILORING_INVALID_RESPONSE"
+
+
+def test_tailoring_worker_requires_local_skill_source(tmp_path) -> None:
+    with pytest.raises(ValueError, match="Resume tailoring skill is missing"):
+        DeepAgentResumeTailoringWorker(
+            OpenAICompatibleAgentConfig(
+                endpoint="https://example.test/v1/chat/completions",
+                api_key="secret",
+                model="multimodal-model",
+            ),
+            skills_root=tmp_path / "missing",
+            agent=FakeDeepAgent(),
+        )
+
+
+def test_tailoring_worker_configures_isolated_deep_agent_with_skill(tmp_path) -> None:
+    captured = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return FakeDeepAgent()
+
+    root = skill_root(tmp_path)
+    worker = DeepAgentResumeTailoringWorker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="multimodal-model",
+        ),
+        skills_root=root,
+        agent_factory=factory,
+    )
+
+    assert isinstance(worker._agent, FakeDeepAgent)
+    assert captured["skills"] == ["/"]
+    assert captured["response_format"] is ResumeTailoringResult
+    assert captured["subagents"] == []
+    assert captured["backend"].cwd == root.resolve()
+    assert captured["backend"].virtual_mode is True
+    assert captured["permissions"][0].operations == ["write"]
+    assert captured["permissions"][0].mode == "deny"
 
 
 class RecordingTailoringWorker:
@@ -246,6 +308,45 @@ def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tm
     assert worker.calls[0]["match_result"] == VALID_MATCH
     assert service.get_draft(user_id="u1", draft_id=draft.id) == draft
 
+    partial = service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        accepted_change_indices=(1,),
+    )
+    assert partial.status == "in_review"
+    assert partial.pending_change_indices == (2,)
+    assert partial.change_reviews[0].decision == "accepted"
+
+    rebuilt = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3")
+    assert rebuilt.get(user_id="u1", draft_id=draft.id) == partial
+
+    reviewed = service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        rejected_change_indices=(2,),
+        feedback="Keep the skills section unchanged.",
+    )
+    assert reviewed.status == "reviewed"
+    assert reviewed.pending_change_indices == ()
+    assert [item.decision for item in reviewed.change_reviews] == [
+        "accepted",
+        "rejected",
+    ]
+    assert reviewed.change_reviews[1].feedback == "Keep the skills section unchanged."
+
+    with pytest.raises(ValueError, match="Unknown tailoring change index"):
+        service.review_draft(
+            user_id="u1",
+            draft_id=draft.id,
+            accepted_change_indices=(3,),
+        )
+    with pytest.raises(ResumeTailoringDraftNotFoundError):
+        service.review_draft(
+            user_id="other",
+            draft_id=draft.id,
+            accepted_change_indices=(1,),
+        )
+
 
 class UnusedGateway:
     def advance(self, **kwargs):
@@ -283,6 +384,14 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         UnusedGateway(),
         resume_tailoring_service=service,
     )
+    review_schema = next(
+        spec
+        for spec in tools.schemas()
+        if spec["function"]["name"] == "review_resume_tailoring"
+    )
+    assert "user_id" not in review_schema["function"]["parameters"].get(
+        "properties", {}
+    )
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
@@ -297,6 +406,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
 
     observation = decisions.contexts[1].tool_observations[-1]
     assert observation.state == "resume_tailoring_draft_ready"
+    assert [change["change_index"] for change in observation.payload["changes"]] == [1, 2]
     assert result.context.task.active_resume_tailoring_draft_id == observation.payload["draft_id"]
     assert result.context.task.resume_tailoring_status == "pending"
     serialized = observation.model_dump_json()
@@ -322,3 +432,33 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     )
     reviewed = review_decisions.contexts[1].tool_observations[-1]
     assert reviewed.payload["draft_id"] == observation.payload["draft_id"]
+
+    decision_maker = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="review_resume_tailoring",
+                arguments={
+                    "accepted_change_indices": [1],
+                    "rejected_change_indices": [2],
+                    "feedback": "Keep the skills section unchanged.",
+                },
+            ),
+        ),
+        AgentDecision(action="final", message="已记录你的逐条决定。"),
+    )
+    review_action_runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decision_maker,
+        tools=tools,
+    )
+    reviewed_result = review_action_runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="接受第一条，拒绝第二条，技能区保持原样",
+    )
+    review_observation = decision_maker.contexts[1].tool_observations[-1]
+    assert review_observation.tool_name == "review_resume_tailoring"
+    assert review_observation.payload["status"] == "reviewed"
+    assert review_observation.payload["pending_change_indices"] == ()
+    assert reviewed_result.context.task.resume_tailoring_status == "reviewed"

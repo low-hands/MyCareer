@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import stat
 import sys
 from dataclasses import replace
@@ -20,7 +21,7 @@ from career_agent.agent.openai_compatible_client import AgentConfigurationError,
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
-from career_agent.agent.openai_resume_tailoring_worker import OpenAIResumeTailoringWorker
+from career_agent.agent.deepagent_resume_tailoring_worker import DeepAgentResumeTailoringWorker
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.resume_analysis import ResumeAnalysisService
@@ -114,7 +115,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
                 match_store,
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
-                OpenAIResumeTailoringWorker(resume_analysis_config),
+                DeepAgentResumeTailoringWorker(
+                    resume_analysis_config,
+                    skills_root=Path(args.resume_tailoring_skills_dir),
+                ),
             ),
         ),
     )
@@ -175,6 +179,11 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
+    parser.add_argument(
+        "--resume-tailoring-skills-dir",
+        default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
+        help="Local skill source directory containing resume-tailoring/SKILL.md (default: RESUME_TAILORING_SKILLS_DIR or skills).",
+    )
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     parser.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
     parser.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")

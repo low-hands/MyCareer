@@ -42,7 +42,7 @@ class ConversationTaskState(ContractModel):
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
-    resume_tailoring_status: Literal["pending"] | None = None
+    resume_tailoring_status: Literal["pending", "in_review", "reviewed"] | None = None
 
 
 class ConversationMessageContext(ContractModel):
@@ -189,6 +189,27 @@ class GetResumeTailoringDraftToolArguments(ContractModel):
     draft_id: str | None = Field(default=None, min_length=1)
 
 
+class ReviewResumeTailoringToolArguments(ContractModel):
+    draft_id: str | None = Field(default=None, min_length=1)
+    accepted_change_indices: tuple[int, ...] = Field(default=(), max_length=30)
+    rejected_change_indices: tuple[int, ...] = Field(default=(), max_length=30)
+    feedback: str | None = Field(default=None, min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_decisions(self) -> ReviewResumeTailoringToolArguments:
+        accepted = self.accepted_change_indices
+        rejected = self.rejected_change_indices
+        if not accepted and not rejected:
+            raise ValueError("at least one accepted or rejected change index is required")
+        if any(index < 1 for index in (*accepted, *rejected)):
+            raise ValueError("change indices must be positive")
+        if len(set(accepted)) != len(accepted) or len(set(rejected)) != len(rejected):
+            raise ValueError("change indices must be unique")
+        if set(accepted).intersection(rejected):
+            raise ValueError("a change cannot be both accepted and rejected")
+        return self
+
+
 class GetResumeAnalysisToolArguments(ContractModel):
     analysis_id: str | None = Field(default=None, min_length=1)
 
@@ -285,6 +306,8 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = DraftResumeTailoringToolArguments.model_validate(arguments)
     elif name == "get_resume_tailoring_draft":
         model_arguments = GetResumeTailoringDraftToolArguments.model_validate(arguments)
+    elif name == "review_resume_tailoring":
+        model_arguments = ReviewResumeTailoringToolArguments.model_validate(arguments)
     elif name == "get_resume_analysis":
         model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
     elif name == "confirm_resume_analysis":
@@ -307,9 +330,9 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         if match_id is None:
             raise ValueError("draft_resume_tailoring requires an active resume-job match")
         payload["match_id"] = match_id
-    if name == "get_resume_tailoring_draft":
+    if name in {"get_resume_tailoring_draft", "review_resume_tailoring"}:
         draft_id = payload.get("draft_id") or context.task.active_resume_tailoring_draft_id
         if draft_id is None:
-            raise ValueError("get_resume_tailoring_draft requires an active tailoring draft")
+            raise ValueError(f"{name} requires an active tailoring draft")
         payload["draft_id"] = draft_id
     return {"user_id": context.profile.user_id, **payload}

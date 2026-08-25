@@ -101,3 +101,27 @@ class ResumeTailoringService:
                 "Resume tailoring draft not found, expired, or belongs to another user"
             )
         return draft
+
+    def review_draft(
+        self,
+        *,
+        user_id: str,
+        draft_id: str,
+        accepted_change_indices: tuple[int, ...] = (),
+        rejected_change_indices: tuple[int, ...] = (),
+        feedback: str | None = None,
+    ) -> StoredResumeTailoringDraft:
+        if not user_id.strip() or not draft_id.strip():
+            raise ValueError("user_id and draft_id are required")
+        draft = self._draft_store.review_changes(
+            user_id=user_id,
+            draft_id=draft_id,
+            accepted_change_indices=accepted_change_indices,
+            rejected_change_indices=rejected_change_indices,
+            feedback=feedback,
+        )
+        if draft is None:
+            raise ResumeTailoringDraftNotFoundError(
+                "Resume tailoring draft not found, expired, or belongs to another user"
+            )
+        return draft
