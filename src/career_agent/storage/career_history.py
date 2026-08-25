@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -12,11 +14,18 @@ from career_agent.domain.career_history import (
     CareerEvidenceEvent,
     CareerRecord,
 )
+from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
 
 
 EvidenceOrigin = Literal["resume_extraction", "user_input", "agent_inference"]
 EvidenceStatus = Literal["pending", "confirmed", "rejected"]
 RecordType = Literal["education", "work", "internship", "project", "certification"]
+
+
+@dataclass(frozen=True)
+class CareerHistoryImportResult:
+    records: tuple[CareerRecord, ...]
+    evidence: tuple[CareerEvidence, ...]
 
 
 class CareerHistoryStore:
@@ -125,6 +134,7 @@ class CareerHistoryStore:
         origin: EvidenceOrigin,
         source_resume_version_id: str | None = None,
         source_locator: str | None = None,
+        source_quote: str | None = None,
     ) -> CareerEvidence:
         now = datetime.now(timezone.utc)
         evidence = CareerEvidence(
@@ -136,6 +146,7 @@ class CareerHistoryStore:
             verification_status="pending",
             source_resume_version_id=source_resume_version_id,
             source_locator=source_locator,
+            source_quote=source_quote,
             created_at=now,
             updated_at=now,
         )
@@ -175,8 +186,8 @@ class CareerHistoryStore:
                 INSERT INTO career_evidence(
                     id, user_id, career_record_id, claim, origin,
                     verification_status, source_resume_version_id,
-                    source_locator, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_locator, source_quote, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     evidence.id,
@@ -187,6 +198,7 @@ class CareerHistoryStore:
                     evidence.verification_status,
                     evidence.source_resume_version_id,
                     evidence.source_locator,
+                    evidence.source_quote,
                     evidence.created_at.isoformat(),
                     evidence.updated_at.isoformat(),
                 ),
@@ -202,7 +214,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, career_record_id, claim, origin,
                        verification_status, source_resume_version_id,
-                       source_locator, created_at, updated_at
+                       source_locator, source_quote, created_at, updated_at
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
@@ -220,7 +232,7 @@ class CareerHistoryStore:
         query = """
             SELECT id, user_id, career_record_id, claim, origin,
                    verification_status, source_resume_version_id,
-                   source_locator, created_at, updated_at
+                   source_locator, source_quote, created_at, updated_at
             FROM career_evidence
             WHERE user_id = ?
         """
@@ -285,6 +297,186 @@ class CareerHistoryStore:
             ).fetchall()
         return tuple(self._event(row) for row in rows)
 
+    def import_confirmed_resume_analysis(
+        self,
+        *,
+        user_id: str,
+        analysis_id: str,
+        resume_version_id: str,
+        result: ResumeAnalysisResult,
+    ) -> CareerHistoryImportResult:
+        """Atomically imports one user-confirmed analysis and is idempotent by analysis ID."""
+        if not user_id.strip() or not analysis_id.strip() or not resume_version_id.strip():
+            raise ValueError("user_id, analysis_id, and resume_version_id are required")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                """
+                SELECT user_id, career_record_ids_json, career_evidence_ids_json
+                FROM resume_analysis_career_imports
+                WHERE analysis_id = ?
+                """,
+                (analysis_id,),
+            ).fetchone()
+            if existing is not None:
+                if existing[0] != user_id:
+                    raise ValueError("Resume analysis import not found.")
+                return CareerHistoryImportResult(
+                    records=self._records_by_ids(connection, json.loads(existing[1])),
+                    evidence=self._evidence_by_ids(connection, json.loads(existing[2])),
+                )
+            if not self._resume_version_belongs_to_user(
+                connection,
+                user_id=user_id,
+                resume_version_id=resume_version_id,
+            ):
+                raise ValueError("Source resume version not found.")
+
+            now = datetime.now(timezone.utc)
+            records: list[CareerRecord] = []
+            all_evidence: list[CareerEvidence] = []
+            for extracted in result.records:
+                record = CareerRecord(
+                    id=f"career_record_{uuid4().hex}",
+                    user_id=user_id,
+                    record_type=extracted.record_type,
+                    organization=extracted.organization,
+                    title=extracted.title,
+                    start_year=extracted.start_year,
+                    start_month=extracted.start_month,
+                    end_year=extracted.end_year,
+                    end_month=extracted.end_month,
+                    is_current=extracted.is_current,
+                    created_at=now,
+                    updated_at=now,
+                )
+                connection.execute(
+                    """
+                    INSERT INTO career_records(
+                        id, user_id, record_type, organization, title,
+                        start_year, start_month, end_year, end_month, is_current,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record.id,
+                        record.user_id,
+                        record.record_type,
+                        record.organization,
+                        record.title,
+                        record.start_year,
+                        record.start_month,
+                        record.end_year,
+                        record.end_month,
+                        int(record.is_current),
+                        record.created_at.isoformat(),
+                        record.updated_at.isoformat(),
+                    ),
+                )
+                records.append(record)
+
+                candidates = [
+                    (
+                        extracted.source_quote,
+                        extracted.source_locator,
+                        extracted.source_quote,
+                    ),
+                    *(
+                        (item.claim, item.source_locator, item.source_quote)
+                        for item in extracted.evidence
+                    ),
+                ]
+                seen: set[tuple[str, str, str]] = set()
+                for claim, locator, quote in candidates:
+                    key = (claim, locator, quote)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    evidence = CareerEvidence(
+                        id=f"career_evidence_{uuid4().hex}",
+                        user_id=user_id,
+                        career_record_id=record.id,
+                        claim=claim,
+                        origin="resume_extraction",
+                        verification_status="confirmed",
+                        source_resume_version_id=resume_version_id,
+                        source_locator=locator,
+                        source_quote=quote,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO career_evidence(
+                            id, user_id, career_record_id, claim, origin,
+                            verification_status, source_resume_version_id,
+                            source_locator, source_quote, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            evidence.id,
+                            evidence.user_id,
+                            evidence.career_record_id,
+                            evidence.claim,
+                            evidence.origin,
+                            evidence.verification_status,
+                            evidence.source_resume_version_id,
+                            evidence.source_locator,
+                            evidence.source_quote,
+                            evidence.created_at.isoformat(),
+                            evidence.updated_at.isoformat(),
+                        ),
+                    )
+                    self._insert_event(
+                        connection,
+                        CareerEvidenceEvent(
+                            id=f"career_evidence_event_{uuid4().hex}",
+                            user_id=user_id,
+                            career_evidence_id=evidence.id,
+                            event_type="created",
+                            previous_status=None,
+                            new_status="pending",
+                            actor_type="system",
+                            occurred_at=now,
+                        ),
+                    )
+                    self._insert_event(
+                        connection,
+                        CareerEvidenceEvent(
+                            id=f"career_evidence_event_{uuid4().hex}",
+                            user_id=user_id,
+                            career_evidence_id=evidence.id,
+                            event_type="confirmed",
+                            previous_status="pending",
+                            new_status="confirmed",
+                            actor_type="user",
+                            reason=f"Confirmed resume analysis {analysis_id}",
+                            occurred_at=now,
+                        ),
+                    )
+                    all_evidence.append(evidence)
+
+            connection.execute(
+                """
+                INSERT INTO resume_analysis_career_imports(
+                    analysis_id, user_id, resume_version_id,
+                    career_record_ids_json, career_evidence_ids_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    analysis_id,
+                    user_id,
+                    resume_version_id,
+                    json.dumps([record.id for record in records]),
+                    json.dumps([evidence.id for evidence in all_evidence]),
+                    now.isoformat(),
+                ),
+            )
+        return CareerHistoryImportResult(
+            records=tuple(records),
+            evidence=tuple(all_evidence),
+        )
+
     def _decide_evidence(
         self,
         *,
@@ -299,7 +491,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, career_record_id, claim, origin,
                        verification_status, source_resume_version_id,
-                       source_locator, created_at, updated_at
+                       source_locator, source_quote, created_at, updated_at
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
@@ -429,12 +621,18 @@ class CareerHistoryStore:
                 ),
                 source_resume_version_id TEXT,
                 source_locator TEXT,
+                source_quote TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 CHECK (source_locator IS NULL OR source_resume_version_id IS NOT NULL),
+                CHECK (source_quote IS NULL OR source_resume_version_id IS NOT NULL),
                 CHECK (
                     origin != 'resume_extraction'
-                    OR (source_resume_version_id IS NOT NULL AND source_locator IS NOT NULL)
+                    OR (
+                        source_resume_version_id IS NOT NULL
+                        AND source_locator IS NOT NULL
+                        AND source_quote IS NOT NULL
+                    )
                 )
             );
 
@@ -459,12 +657,35 @@ class CareerHistoryStore:
                 occurred_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS resume_analysis_career_imports (
+                analysis_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                resume_version_id TEXT NOT NULL,
+                career_record_ids_json TEXT NOT NULL,
+                career_evidence_ids_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS career_records_user_time_idx
                 ON career_records(user_id, start_year DESC, start_month DESC);
             CREATE INDEX IF NOT EXISTS career_evidence_user_record_idx
                 ON career_evidence(user_id, career_record_id, verification_status);
             CREATE INDEX IF NOT EXISTS career_evidence_events_evidence_idx
                 ON career_evidence_events(career_evidence_id, occurred_at);
+            CREATE INDEX IF NOT EXISTS resume_analysis_career_imports_user_idx
+                ON resume_analysis_career_imports(user_id, created_at DESC);
+            """
+        )
+        evidence_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+        if "source_quote" not in evidence_columns:
+            connection.execute("ALTER TABLE career_evidence ADD COLUMN source_quote TEXT")
+        connection.execute(
+            """
+            UPDATE career_evidence
+            SET source_quote = claim
+            WHERE origin = 'resume_extraction' AND source_quote IS NULL
             """
         )
 
@@ -501,8 +722,9 @@ class CareerHistoryStore:
             verification_status=row[5],
             source_resume_version_id=row[6],
             source_locator=row[7],
-            created_at=row[8],
-            updated_at=row[9],
+            source_quote=row[8],
+            created_at=row[9],
+            updated_at=row[10],
         )
 
     @staticmethod
@@ -518,3 +740,43 @@ class CareerHistoryStore:
             reason=row[7],
             occurred_at=row[8],
         )
+
+    @classmethod
+    def _records_by_ids(
+        cls, connection: sqlite3.Connection, ids: list[str]
+    ) -> tuple[CareerRecord, ...]:
+        records = []
+        for record_id in ids:
+            row = connection.execute(
+                """
+                SELECT id, user_id, record_type, organization, title,
+                       start_year, start_month, end_year, end_month, is_current,
+                       created_at, updated_at
+                FROM career_records WHERE id = ?
+                """,
+                (record_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Imported career record is missing.")
+            records.append(cls._record(row))
+        return tuple(records)
+
+    @classmethod
+    def _evidence_by_ids(
+        cls, connection: sqlite3.Connection, ids: list[str]
+    ) -> tuple[CareerEvidence, ...]:
+        evidence_items = []
+        for evidence_id in ids:
+            row = connection.execute(
+                """
+                SELECT id, user_id, career_record_id, claim, origin,
+                       verification_status, source_resume_version_id,
+                       source_locator, source_quote, created_at, updated_at
+                FROM career_evidence WHERE id = ?
+                """,
+                (evidence_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Imported career evidence is missing.")
+            evidence_items.append(cls._evidence(row))
+        return tuple(evidence_items)

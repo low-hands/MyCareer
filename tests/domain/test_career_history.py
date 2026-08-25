@@ -101,7 +101,7 @@ def test_career_record_rejects_end_before_start(overrides: dict[str, int]) -> No
         record(is_current=False, **overrides)
 
 
-def test_resume_extraction_requires_source_version_and_locator() -> None:
+def test_resume_extraction_requires_source_version_locator_and_quote() -> None:
     with pytest.raises(ValidationError, match="resume extraction requires"):
         evidence(origin="resume_extraction")
 
@@ -109,6 +109,7 @@ def test_resume_extraction_requires_source_version_and_locator() -> None:
         origin="resume_extraction",
         source_resume_version_id="resume-version-1",
         source_locator="page=1;start=10;end=42",
+        source_quote="Improved answer accuracy from 62% to 81%.",
     )
 
     assert value.source_resume_version_id == "resume-version-1"

@@ -83,6 +83,7 @@ class CareerEvidence(CareerHistoryContract):
 
     source_resume_version_id: str | None = Field(default=None, min_length=1)
     source_locator: str | None = Field(default=None, min_length=1)
+    source_quote: str | None = Field(default=None, min_length=1)
 
     created_at: datetime
     updated_at: datetime
@@ -90,14 +91,19 @@ class CareerEvidence(CareerHistoryContract):
     @model_validator(mode="after")
     def validate_source(self) -> CareerEvidence:
         if self.origin == "resume_extraction" and (
-            self.source_resume_version_id is None or self.source_locator is None
+            self.source_resume_version_id is None
+            or self.source_locator is None
+            or self.source_quote is None
         ):
             raise ValueError(
-                "resume extraction requires source_resume_version_id and source_locator"
+                "resume extraction requires source_resume_version_id, source_locator, and source_quote"
             )
 
         if self.source_locator is not None and self.source_resume_version_id is None:
             raise ValueError("source_locator requires source_resume_version_id")
+
+        if self.source_quote is not None and self.source_resume_version_id is None:
+            raise ValueError("source_quote requires source_resume_version_id")
 
         return self
 

@@ -1,5 +1,10 @@
 import pytest
 
+from career_agent.agent.resume_analysis_contracts import (
+    ExtractedCareerEvidence,
+    ExtractedCareerRecord,
+    ResumeAnalysisResult,
+)
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.resumes import ResumeStore
 
@@ -108,6 +113,7 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
         origin="resume_extraction",
         source_resume_version_id=version.id,
         source_locator="line=1",
+        source_quote="Built an AI product.",
     )
 
     assert evidence.source_resume_version_id == version.id
@@ -119,6 +125,7 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
             origin="resume_extraction",
             source_resume_version_id="missing-version",
             source_locator="line=1",
+            source_quote="Unowned source",
         )
     with pytest.raises(ValueError, match="Source resume version not found"):
         store.create_evidence(
@@ -128,6 +135,7 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
             origin="resume_extraction",
             source_resume_version_id=other_version.id,
             source_locator="line=1",
+            source_quote="Cross-user source",
         )
 
 
@@ -205,3 +213,65 @@ def test_evidence_commands_reject_cross_user_access(tmp_path) -> None:
     assert store.list_evidence_events(
         user_id="u2", career_evidence_id=evidence.id
     ) == ()
+
+
+def test_confirmed_resume_analysis_import_is_atomic_audited_and_idempotent(tmp_path) -> None:
+    store, resumes, _ = build_stores(tmp_path)
+    role = resumes.create_target_role(user_id="u1", title="Product Manager", priority=1)
+    _, version = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="PM Resume",
+        content=b"resume",
+        document_format="text",
+    )
+    analysis = ResumeAnalysisResult(
+        records=(
+            ExtractedCareerRecord(
+                record_type="work",
+                organization="Example Inc.",
+                title="Product Manager",
+                start_year=2022,
+                is_current=True,
+                source_locator="Experience heading",
+                source_quote="Example Inc. Product Manager 2022-Present",
+                evidence=(
+                    ExtractedCareerEvidence(
+                        claim="Led knowledge-base planning",
+                        source_locator="Experience bullet 1",
+                        source_quote="Led knowledge-base planning",
+                    ),
+                ),
+            ),
+        )
+    )
+
+    imported = store.import_confirmed_resume_analysis(
+        user_id="u1",
+        analysis_id="analysis-1",
+        resume_version_id=version.id,
+        result=analysis,
+    )
+    repeated = store.import_confirmed_resume_analysis(
+        user_id="u1",
+        analysis_id="analysis-1",
+        resume_version_id=version.id,
+        result=analysis,
+    )
+
+    assert repeated == imported
+    assert len(imported.records) == 1
+    assert len(imported.evidence) == 2
+    assert store.list_records(user_id="u1") == imported.records
+    assert {item.id for item in store.list_evidence(user_id="u1")} == {
+        item.id for item in imported.evidence
+    }
+    assert all(item.verification_status == "confirmed" for item in imported.evidence)
+    assert imported.evidence[1].source_quote == "Led knowledge-base planning"
+    for evidence in imported.evidence:
+        assert [
+            event.event_type
+            for event in store.list_evidence_events(
+                user_id="u1", career_evidence_id=evidence.id
+            )
+        ] == ["created", "confirmed"]

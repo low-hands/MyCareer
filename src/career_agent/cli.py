@@ -22,9 +22,11 @@ from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, Subproces
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
 from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.runs import JobDiscoveryRunStore
 
 
@@ -85,6 +87,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
+                SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
+                CareerHistoryStore(Path(args.resume_store).expanduser()),
             ),
         ),
     )
