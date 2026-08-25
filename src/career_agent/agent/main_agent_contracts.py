@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
+from career_agent.domain.email_tracking import EmailEventStatus
 from career_agent.domain.job_discovery import ContractModel
 
 
@@ -40,7 +41,7 @@ class ApplicationCandidateContextItem(ContractModel):
 
 
 class ConversationTaskState(ContractModel):
-    active_workflow: Literal["job_discovery", "none"] = "none"
+    active_workflow: Literal["job_discovery", "email_tracking", "none"] = "none"
     run_id: str | None = None
     phase: str | None = None
     selected_result_ref: str | None = None
@@ -295,6 +296,21 @@ class GetApplicationToolArguments(ContractModel):
         return self
 
 
+class SyncApplicationEmailsToolArguments(ContractModel):
+    account_id: str | None = Field(default=None, min_length=1)
+
+
+class ListEmailEventsToolArguments(ContractModel):
+    status: EmailEventStatus | None = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+class ResolveEmailEventToolArguments(ContractModel):
+    event_id: str = Field(min_length=1)
+    approve: bool
+    application_id: str | None = Field(default=None, min_length=1)
+
+
 class GetResumeAnalysisToolArguments(ContractModel):
     analysis_id: str | None = Field(default=None, min_length=1)
 
@@ -467,4 +483,23 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         if application_id is None:
             raise ValueError(f"{name} requires an active application")
         payload["application_id"] = application_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_email_arguments(
+    context: MainAgentContext, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "sync_application_emails":
+        model_arguments = SyncApplicationEmailsToolArguments.model_validate(arguments)
+    elif name == "list_email_events":
+        model_arguments = ListEmailEventsToolArguments.model_validate(arguments)
+    elif name == "resolve_email_event":
+        model_arguments = ResolveEmailEventToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown email tool: {name}")
+    payload = model_arguments.model_dump()
+    if name == "resolve_email_event" and payload.get("application_id") is None:
+        payload["application_id"] = context.task.active_application_id
     return {"user_id": context.profile.user_id, **payload}

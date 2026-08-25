@@ -1,0 +1,150 @@
+from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+from career_agent.domain.email_tracking import (
+    EmailAssessment,
+    EmailSyncBatch,
+    RemoteEmailContent,
+    RemoteEmailMetadata,
+)
+from career_agent.services.email_tracking import EmailTrackingService
+from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+
+
+class Connector:
+    provider = "gmail"
+
+    def __init__(self, metadata):
+        self.metadata = metadata
+        self.content_calls = []
+
+    def sync_metadata(self, *, cursor, since):
+        return EmailSyncBatch(messages=(self.metadata,), next_cursor_value="h2")
+
+    def get_content(self, *, external_message_id):
+        self.content_calls.append(external_message_id)
+        return RemoteEmailContent(
+            external_message_id=external_message_id,
+            text="Acme 邀请您参加 AI Engineer 面试，请选择面试时间。",
+        )
+
+
+class Resolver:
+    def __init__(self, connector):
+        self.connector = connector
+
+    def resolve(self, **kwargs):
+        return self.connector
+
+
+class Applications:
+    def __init__(self):
+        self.applied = []
+        self.application = SimpleNamespace(
+            id="app-1",
+            status="submitted",
+            submitted_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        )
+        self.job = SimpleNamespace(
+            posting=SimpleNamespace(company_name="Acme", title="AI Engineer")
+        )
+
+    def list_applications(self, **kwargs):
+        return (SimpleNamespace(application=self.application, job=self.job),)
+
+    def apply_email_event(self, **kwargs):
+        self.applied.append(kwargs)
+        self.application.status = "interviewing"
+        return self.application
+
+
+def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: Path) -> None:
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1",
+        provider="gmail",
+        email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m1",
+        external_thread_id="t1",
+        sender="Acme Recruiting <jobs@acme.example>",
+        subject="Acme AI Engineer 面试邀请",
+        received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    connector = Connector(metadata)
+    applications = Applications()
+    service = EmailTrackingService(store, applications, Resolver(connector))
+
+    result = service.sync(user_id="u1", account_id=account.id)
+
+    assert result.messages_seen == 1
+    assert result.candidate_messages == 1
+    assert connector.content_calls == ["m1"]
+    assert result.events_created[0].event_type == "interview_invitation"
+    assert result.events_created[0].status == "applied"
+    assert applications.applied[0]["application_id"] == "app-1"
+    assert store.get_cursor(account_id=account.id).value == "h2"
+    assert b"Acme \xe9\x82\x80\xe8\xaf\xb7" not in (tmp_path / "email.sqlite3").read_bytes()
+
+
+def test_non_candidate_does_not_fetch_body(tmp_path: Path) -> None:
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m2",
+        sender="Newsletter <news@example.com>",
+        subject="Weekly product digest",
+        received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    connector = Connector(metadata)
+    service = EmailTrackingService(store, Applications(), Resolver(connector))
+
+    result = service.sync(user_id="u1", account_id=account.id)
+
+    assert result.candidate_messages == 0
+    assert connector.content_calls == []
+    assert result.events_created == ()
+
+
+class PendingWorker:
+    classifier = "test_pending_v1"
+
+    def assess(self, **kwargs):
+        return EmailAssessment(
+            event_type="interview_invitation",
+            application_id="app-1",
+            confidence=0.7,
+            summary="识别到面试邀请，但置信度不足。",
+        )
+
+
+def test_pending_event_requires_explicit_resolution(tmp_path: Path) -> None:
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m3", sender="Acme Recruiting",
+        subject="面试邀请", received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    applications = Applications()
+    service = EmailTrackingService(
+        store, applications, Resolver(Connector(metadata)), PendingWorker()
+    )
+
+    event = service.sync(user_id="u1", account_id=account.id).events_created[0]
+    assert event.status == "pending_confirmation"
+    assert applications.applied == []
+
+    resolved = service.resolve_event(
+        user_id="u1", event_id=event.id, approve=True
+    )
+    assert resolved.status == "applied"
+    assert len(applications.applied) == 1

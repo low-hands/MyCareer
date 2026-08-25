@@ -156,6 +156,7 @@ class SQLiteApplicationStore:
         new_status: ApplicationStatus,
         submitted_at: datetime,
         note: str | None,
+        source: str = "user_reported",
     ) -> Application | None:
         now = datetime.now(timezone.utc)
         event_type = "note_added" if expected_status == new_status else "status_changed"
@@ -163,7 +164,7 @@ class SQLiteApplicationStore:
             id=f"application_event_{uuid4().hex}",
             application_id=application_id,
             user_id=user_id,
-            source="user_reported",
+            source=source,
             event_type=event_type,
             previous_status=expected_status,
             new_status=new_status,

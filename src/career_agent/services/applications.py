@@ -111,6 +111,7 @@ class ApplicationService:
         application_id: str,
         status: ApplicationStatus,
         note: str | None = None,
+        source: str = "user_reported",
     ) -> Application:
         application = self._application_store.get(
             user_id=user_id,
@@ -134,12 +135,44 @@ class ApplicationService:
             new_status=status,
             submitted_at=application.submitted_at,
             note=note,
+            source=source,
         )
         if updated is None:
             raise ConcurrentApplicationUpdateError(
                 "Application changed before this update could be saved"
             )
         return updated
+
+    def apply_email_event(
+        self,
+        *,
+        user_id: str,
+        application_id: str,
+        event_type: str,
+        note: str,
+    ) -> Application:
+        application = self._application_store.get(
+            user_id=user_id,
+            application_id=application_id,
+        )
+        if application is None:
+            raise ApplicationInputNotFoundError("application")
+        desired_status = {
+            "acknowledgement": "acknowledged",
+            "interview_invitation": "interviewing",
+            "rejection": "rejected",
+            "offer": "offer",
+            "material_request": application.status,
+        }.get(event_type)
+        if desired_status is None:
+            raise InvalidApplicationTransitionError("unsupported email event")
+        return self.update_application(
+            user_id=user_id,
+            application_id=application_id,
+            status=desired_status,
+            note=note,
+            source="email_sync",
+        )
 
     def list_applications(
         self,

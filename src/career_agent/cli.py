@@ -22,19 +22,23 @@ from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMain
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
+from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
 from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
+from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.applications import ApplicationService
+from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.applications import SQLiteApplicationStore
+from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
@@ -99,6 +103,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
     job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
     match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
+    application_service = ApplicationService(
+        SQLiteApplicationStore(Path(args.application_store).expanduser()),
+        job_repository,
+        resume_store,
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
@@ -111,10 +120,12 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 resume_store,
                 SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),
             ),
-            application_service=ApplicationService(
-                SQLiteApplicationStore(Path(args.application_store).expanduser()),
-                job_repository,
-                resume_store,
+            application_service=application_service,
+            email_tracking_service=EmailTrackingService(
+                SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
+                application_service,
+                EnvironmentEmailConnectorResolver(),
+                OpenAIEmailTrackingWorker(resume_analysis_config),
             ),
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
@@ -204,6 +215,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
     parser.add_argument("--application-store", default="~/.career-agent/applications.sqlite3", help="Local application tracking and event store path.")
+    parser.add_argument("--email-store", default="~/.career-agent/email.sqlite3", help="Local email-account metadata, cursor, and event store path.")
     parser.add_argument(
         "--resume-tailoring-skills-dir",
         default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
@@ -304,6 +316,20 @@ def build_parser() -> argparse.ArgumentParser:
     job_show.add_argument("--run-id", help="Job Discovery run that produced the result.")
     job_show.add_argument("--selection-index", type=int, help="One-based result index within --run-id.")
     job_show.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+
+    email_command = subparsers.add_parser(
+        "email", help="Connect Gmail or QQ accounts without storing mailbox passwords."
+    )
+    email_subparsers = email_command.add_subparsers(dest="email_command", required=True)
+    email_add = email_subparsers.add_parser("add-account", help="Register an email account and an env-based secret reference.")
+    email_add.add_argument("--user-id", required=True)
+    email_add.add_argument("--provider", choices=("gmail", "qq"), required=True)
+    email_add.add_argument("--address", required=True)
+    email_add.add_argument("--credential-env", required=True, help="Environment variable containing Gmail OAuth JSON or a QQ authorization code.")
+    email_add.add_argument("--email-store", default="~/.career-agent/email.sqlite3")
+    email_list = email_subparsers.add_parser("list-accounts", help="List safe email account metadata.")
+    email_list.add_argument("--user-id", required=True)
+    email_list.add_argument("--email-store", default="~/.career-agent/email.sqlite3")
 
     status = subparsers.add_parser("status", help="Read a durable run status and safe trace summary.", description="Read a persisted job discovery run without calling BOSS.")
     status.add_argument("--run-id", required=True, help="Run ID returned by discover.")
@@ -579,6 +605,41 @@ def main(
             json.dump({"state": "failed", "error_code": "JOB_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
             stdout.write("\n")
             return EXIT_UNKNOWN_ERROR
+    if args.command == "email":
+        try:
+            store = SQLiteEmailTrackingStore(Path(args.email_store).expanduser())
+            if args.email_command == "add-account":
+                if not args.credential_env.replace("_", "").isalnum():
+                    raise ValueError("--credential-env must be an environment variable name")
+                account = store.add_account(
+                    user_id=args.user_id,
+                    provider=args.provider,
+                    email_address=args.address,
+                    credential_ref=f"env:{args.credential_env}",
+                )
+                payload = {"account": {
+                    "email_account_id": account.id,
+                    "provider": account.provider,
+                    "email_address": account.email_address,
+                    "status": account.status,
+                }}
+            else:
+                payload = {"accounts": [
+                    {
+                        "email_account_id": account.id,
+                        "provider": account.provider,
+                        "email_address": account.email_address,
+                        "status": account.status,
+                    }
+                    for account in store.list_accounts(user_id=args.user_id)
+                ]}
+            json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            json.dump({"state": "failed", "error_code": "EMAIL_ACCOUNT_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
     machine_output = args.json or not stdout.isatty()
     if args.command == "chat":
         try:
