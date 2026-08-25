@@ -9,6 +9,7 @@ from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.email_tracking import EmailEventStatus
+from career_agent.domain.interviews import InterviewDetails, InterviewStatus
 from career_agent.domain.job_discovery import ContractModel
 
 
@@ -40,6 +41,15 @@ class ApplicationCandidateContextItem(ContractModel):
     status: ApplicationStatus
 
 
+class InterviewCandidateContextItem(ContractModel):
+    interview_round_id: str
+    application_id: str
+    sequence_number: int
+    employer_label: str | None = None
+    status: InterviewStatus
+    scheduled_start: datetime | None = None
+
+
 class ConversationTaskState(ContractModel):
     active_workflow: Literal["job_discovery", "email_tracking", "none"] = "none"
     run_id: str | None = None
@@ -61,6 +71,8 @@ class ConversationTaskState(ContractModel):
     active_application_id: str | None = None
     active_application_status: ApplicationStatus | None = None
     application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
+    active_interview_round_id: str | None = None
+    interview_candidates: tuple[InterviewCandidateContextItem, ...] = ()
 
 
 class ConversationMessageContext(ContractModel):
@@ -151,6 +163,22 @@ class MainAgentContext(ContractModel):
                     }
                     for index, candidate in enumerate(
                         self.task.application_candidates, start=1
+                    )
+                ],
+                "interview_candidates": [
+                    {
+                        "selection_index": index,
+                        "sequence_number": candidate.sequence_number,
+                        "employer_label": candidate.employer_label,
+                        "status": candidate.status,
+                        "scheduled_start": (
+                            candidate.scheduled_start.isoformat()
+                            if candidate.scheduled_start is not None
+                            else None
+                        ),
+                    }
+                    for index, candidate in enumerate(
+                        self.task.interview_candidates, start=1
                     )
                 ],
             },
@@ -309,6 +337,53 @@ class ResolveEmailEventToolArguments(ContractModel):
     event_id: str = Field(min_length=1)
     approve: bool
     application_id: str | None = Field(default=None, min_length=1)
+    interview_round_id: str | None = Field(default=None, min_length=1)
+
+
+class ListInterviewsToolArguments(ContractModel):
+    application_id: str | None = Field(default=None, min_length=1)
+    statuses: tuple[InterviewStatus, ...] = Field(default=(), max_length=4)
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+class GetInterviewToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "GetInterviewToolArguments":
+        if self.interview_round_id is not None and self.selection_index is not None:
+            raise ValueError("use either interview_round_id or selection_index")
+        return self
+
+
+class CreateInterviewToolArguments(ContractModel):
+    application_id: str | None = Field(default=None, min_length=1)
+    details: InterviewDetails
+
+
+class UpdateInterviewToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    details: InterviewDetails
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "UpdateInterviewToolArguments":
+        if self.interview_round_id is not None and self.selection_index is not None:
+            raise ValueError("use either interview_round_id or selection_index")
+        return self
+
+
+class CompleteInterviewToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    completed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "CompleteInterviewToolArguments":
+        if self.interview_round_id is not None and self.selection_index is not None:
+            raise ValueError("use either interview_round_id or selection_index")
+        return self
 
 
 class GetResumeAnalysisToolArguments(ContractModel):
@@ -502,4 +577,45 @@ def project_email_arguments(
     payload = model_arguments.model_dump()
     if name == "resolve_email_event" and payload.get("application_id") is None:
         payload["application_id"] = context.task.active_application_id
+    if name == "resolve_email_event" and payload.get("interview_round_id") is None:
+        payload["interview_round_id"] = context.task.active_interview_round_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_interview_arguments(
+    context: MainAgentContext, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "list_interviews":
+        model_arguments = ListInterviewsToolArguments.model_validate(arguments)
+    elif name == "get_interview":
+        model_arguments = GetInterviewToolArguments.model_validate(arguments)
+    elif name == "create_interview":
+        model_arguments = CreateInterviewToolArguments.model_validate(arguments)
+    elif name == "update_interview":
+        model_arguments = UpdateInterviewToolArguments.model_validate(arguments)
+    elif name == "complete_interview":
+        model_arguments = CompleteInterviewToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown interview tool: {name}")
+    payload = model_arguments.model_dump()
+    if name == "create_interview":
+        application_id = payload.get("application_id") or context.task.active_application_id
+        if application_id is None:
+            raise ValueError("create_interview requires an active application")
+        payload["application_id"] = application_id
+    if name in {"get_interview", "update_interview", "complete_interview"}:
+        interview_round_id = payload.get("interview_round_id")
+        selection_index = payload.pop("selection_index", None)
+        if interview_round_id is None and selection_index is not None:
+            if selection_index > len(context.task.interview_candidates):
+                raise ValueError("interview selection index is out of range")
+            interview_round_id = context.task.interview_candidates[
+                selection_index - 1
+            ].interview_round_id
+        interview_round_id = interview_round_id or context.task.active_interview_round_id
+        if interview_round_id is None:
+            raise ValueError(f"{name} requires an active interview")
+        payload["interview_round_id"] = interview_round_id
     return {"user_id": context.profile.user_id, **payload}

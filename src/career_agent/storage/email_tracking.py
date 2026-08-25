@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -231,6 +232,7 @@ class SQLiteEmailTrackingStore:
             confidence=assessment.confidence,
             classifier=classifier,
             summary=assessment.summary,
+            interview_details=assessment.interview_details,
             occurred_at=occurred_at,
             created_at=now,
             resolved_at=now if status != "pending_confirmation" else None,
@@ -240,9 +242,9 @@ class SQLiteEmailTrackingStore:
                 """
                 INSERT INTO email_events(
                     id, user_id, email_message_id, application_id, event_type,
-                    status, confidence, classifier, summary, occurred_at, created_at,
-                    resolved_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, confidence, classifier, summary, interview_details_json,
+                    occurred_at, created_at, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(email_message_id) DO NOTHING
                 """,
                 (
@@ -255,6 +257,15 @@ class SQLiteEmailTrackingStore:
                     event.confidence,
                     event.classifier,
                     event.summary,
+                    (
+                        json.dumps(
+                            event.interview_details.model_dump(mode="json"),
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        )
+                        if event.interview_details is not None
+                        else None
+                    ),
                     event.occurred_at.isoformat(),
                     event.created_at.isoformat(),
                     event.resolved_at.isoformat() if event.resolved_at else None,
@@ -316,6 +327,22 @@ class SQLiteEmailTrackingStore:
             ).fetchone()
         return self._event(row) if row else None
 
+    def get_message(
+        self, *, user_id: str, email_message_id: str
+    ) -> EmailMessage | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, account_id, provider, external_message_id,
+                       external_thread_id, sender, subject, received_at,
+                       content_sha256, encrypted_content_ref, application_id,
+                       classification, candidate, created_at
+                FROM email_messages WHERE id = ? AND user_id = ?
+                """,
+                (email_message_id, user_id),
+            ).fetchone()
+        return self._message(row) if row else None
+
     def list_events(
         self,
         *,
@@ -358,7 +385,8 @@ class SQLiteEmailTrackingStore:
 
     _EVENT_SELECT = (
         "SELECT id, user_id, email_message_id, application_id, event_type, "
-        "status, confidence, classifier, summary, occurred_at, created_at, resolved_at "
+        "status, confidence, classifier, summary, interview_details_json, "
+        "occurred_at, created_at, resolved_at "
         "FROM email_events"
     )
 
@@ -423,12 +451,20 @@ class SQLiteEmailTrackingStore:
                 confidence REAL NOT NULL,
                 classifier TEXT NOT NULL,
                 summary TEXT NOT NULL,
+                interview_details_json TEXT,
                 occurred_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 resolved_at TEXT
             )
             """
         )
+        event_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(email_events)")
+        }
+        if "interview_details_json" not in event_columns:
+            connection.execute(
+                "ALTER TABLE email_events ADD COLUMN interview_details_json TEXT"
+            )
         connection.execute(
             """
             CREATE INDEX IF NOT EXISTS email_events_user_status_idx
@@ -470,5 +506,7 @@ class SQLiteEmailTrackingStore:
         return EmailEvent(
             id=row[0], user_id=row[1], email_message_id=row[2], application_id=row[3],
             event_type=row[4], status=row[5], confidence=row[6], classifier=row[7],
-            summary=row[8], occurred_at=row[9], created_at=row[10], resolved_at=row[11]
+            summary=row[8],
+            interview_details=(json.loads(row[9]) if row[9] else None),
+            occurred_at=row[10], created_at=row[11], resolved_at=row[12]
         )
