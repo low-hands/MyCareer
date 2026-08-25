@@ -27,6 +27,8 @@ from career_agent.agent.main_agent_contracts import (
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListActionItemsToolArguments,
+    ListCalendarAccountsToolArguments,
+    ListCalendarLinksToolArguments,
     ListTargetRolesToolArguments,
     ListEmailEventsToolArguments,
     ListInterviewsToolArguments,
@@ -36,6 +38,9 @@ from career_agent.agent.main_agent_contracts import (
     ResolveEmailEventToolArguments,
     ResolveActionItemToolArguments,
     SnoozeActionItemToolArguments,
+    PrepareInterviewCalendarSyncToolArguments,
+    GetCalendarProposalToolArguments,
+    ExecuteCalendarProposalToolArguments,
     SyncApplicationEmailsToolArguments,
     UpdateInterviewToolArguments,
     ToolObservation,
@@ -58,6 +63,14 @@ from career_agent.services.action_center import (
     ActionCenterService,
     ActionItemNotFoundError,
     InvalidActionTransitionError,
+)
+from career_agent.connectors.calendar import CalendarConnectorError
+from career_agent.services.calendar import (
+    CalendarAccountNotFoundError,
+    CalendarProposalConflictError,
+    CalendarProposalNotFoundError,
+    CalendarService,
+    CalendarSyncNotAvailableError,
 )
 from career_agent.services.email_tracking import (
     EmailAccountNotFoundError,
@@ -109,6 +122,7 @@ class MainAgentToolRegistry:
         email_tracking_service: EmailTrackingService | None = None,
         interview_service: InterviewService | None = None,
         action_center_service: ActionCenterService | None = None,
+        calendar_service: CalendarService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -125,6 +139,7 @@ class MainAgentToolRegistry:
         self._email_tracking_service = email_tracking_service
         self._interview_service = interview_service
         self._action_center_service = action_center_service
+        self._calendar_service = calendar_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -205,6 +220,16 @@ class MainAgentToolRegistry:
                     "complete_action_item": self._complete_action_item,
                     "dismiss_action_item": self._dismiss_action_item,
                     "snooze_action_item": self._snooze_action_item,
+                }
+            )
+        if calendar_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "list_calendar_accounts": self._list_calendar_accounts,
+                    "list_calendar_links": self._list_calendar_links,
+                    "prepare_interview_calendar_sync": self._prepare_interview_calendar_sync,
+                    "get_calendar_proposal": self._get_calendar_proposal,
+                    "execute_calendar_proposal": self._execute_calendar_proposal,
                 }
             )
 
@@ -538,6 +563,51 @@ class MainAgentToolRegistry:
                             "name": "snooze_action_item",
                             "description": "Snooze one action item until an explicit future timestamp requested by the user.",
                             "parameters": SnoozeActionItemToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
+        if self._calendar_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_calendar_accounts",
+                            "description": "List safe Google Calendar account metadata. Credentials are never returned.",
+                            "parameters": ListCalendarAccountsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_calendar_links",
+                            "description": "List the user's interview-to-calendar synchronization links and current sync status.",
+                            "parameters": ListCalendarLinksToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "prepare_interview_calendar_sync",
+                            "description": "Prepare a fixed create, update, or cancel preview for one real InterviewRound. This does not write to an external calendar and must be shown to the user for approval.",
+                            "parameters": PrepareInterviewCalendarSyncToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_calendar_proposal",
+                            "description": "Read one pending or historical fixed calendar-change proposal without executing it.",
+                            "parameters": GetCalendarProposalToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "execute_calendar_proposal",
+                            "description": "Execute exactly one unchanged, unexpired calendar proposal only after the user explicitly approves that displayed proposal. This is an external write.",
+                            "parameters": ExecuteCalendarProposalToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -964,6 +1034,176 @@ class MainAgentToolRegistry:
             payload=self._action_payload(item),
         )
 
+    def _list_calendar_accounts(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._calendar_service is None:
+            raise ValueError("Calendar service is not configured")
+        user_id = str(arguments["user_id"])
+        ListCalendarAccountsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        accounts = self._calendar_service.list_accounts(user_id=user_id)
+        return ToolObservation(
+            tool_name="list_calendar_accounts",
+            state="calendar_accounts_found" if accounts else "no_calendar_accounts",
+            message=(
+                f"找到 {len(accounts)} 个 Calendar 账户。"
+                if accounts else "尚未配置 Calendar 账户。"
+            ),
+            payload={
+                "items": [
+                    {
+                        "selection_index": index,
+                        "calendar_account_id": account.id,
+                        "provider": account.provider,
+                        "email_address": account.email_address,
+                        "calendar_id": account.calendar_id,
+                        "status": account.status,
+                    }
+                    for index, account in enumerate(accounts, start=1)
+                ]
+            },
+        )
+
+    def _list_calendar_links(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._calendar_service is None:
+            raise ValueError("Calendar service is not configured")
+        user_id = str(arguments["user_id"])
+        ListCalendarLinksToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        links = self._calendar_service.list_links(user_id=user_id)
+        return ToolObservation(
+            tool_name="list_calendar_links",
+            state="calendar_links_found" if links else "no_calendar_links",
+            message=(
+                f"找到 {len(links)} 条面试 Calendar 同步记录。"
+                if links else "当前没有面试 Calendar 同步记录。"
+            ),
+            payload={
+                "items": [
+                    {
+                        "calendar_link_id": link.id,
+                        "calendar_account_id": link.calendar_account_id,
+                        "interview_round_id": link.interview_round_id,
+                        "status": link.status,
+                        "external_html_link": link.external_html_link,
+                        "updated_at": link.updated_at.isoformat(),
+                    }
+                    for link in links
+                ]
+            },
+        )
+
+    def _prepare_interview_calendar_sync(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._calendar_service is None:
+            raise ValueError("Calendar service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = PrepareInterviewCalendarSyncToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("prepare_interview_calendar_sync requires interview_round_id")
+        try:
+            proposal = self._calendar_service.prepare_interview_sync(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+                calendar_account_id=model_arguments.calendar_account_id,
+            )
+        except CalendarAccountNotFoundError as error:
+            return ToolObservation(
+                tool_name="prepare_interview_calendar_sync",
+                state="calendar_account_required",
+                message="需要先配置或选择一个 Calendar 账户。",
+                payload={"reason": str(error)},
+            )
+        except CalendarSyncNotAvailableError as error:
+            return ToolObservation(
+                tool_name="prepare_interview_calendar_sync",
+                state="calendar_sync_not_available",
+                message="当前面试没有需要执行的 Calendar 变更。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="prepare_interview_calendar_sync",
+            state="calendar_approval_required",
+            message="Calendar 变更预览已生成；执行前需要用户明确确认。",
+            next_action="ask_calendar_approval",
+            payload=self._calendar_proposal_payload(proposal),
+        )
+
+    def _get_calendar_proposal(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._calendar_service is None:
+            raise ValueError("Calendar service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetCalendarProposalToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.proposal_id is None:
+            raise ValueError("get_calendar_proposal requires proposal_id")
+        try:
+            proposal = self._calendar_service.get_proposal(
+                user_id=user_id, proposal_id=model_arguments.proposal_id
+            )
+        except CalendarProposalNotFoundError:
+            return ToolObservation(
+                tool_name="get_calendar_proposal",
+                state="calendar_proposal_not_found",
+                message="没有找到该 Calendar 变更预览，或它不属于当前用户。",
+            )
+        return ToolObservation(
+            tool_name="get_calendar_proposal",
+            state="calendar_proposal_ready",
+            message="已读取 Calendar 变更预览。",
+            payload=self._calendar_proposal_payload(proposal),
+        )
+
+    def _execute_calendar_proposal(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._calendar_service is None:
+            raise ValueError("Calendar service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ExecuteCalendarProposalToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.proposal_id is None:
+            raise ValueError("execute_calendar_proposal requires proposal_id")
+        try:
+            execution = self._calendar_service.execute_proposal(
+                user_id=user_id, proposal_id=model_arguments.proposal_id
+            )
+        except CalendarProposalNotFoundError:
+            return ToolObservation(
+                tool_name="execute_calendar_proposal",
+                state="calendar_proposal_not_found",
+                message="没有找到该 Calendar 变更预览，或它不属于当前用户。",
+            )
+        except CalendarProposalConflictError as error:
+            return ToolObservation(
+                tool_name="execute_calendar_proposal",
+                state="calendar_approval_invalid",
+                message="该 Calendar 批准已失效，没有执行外部写入。",
+                payload={"reason": str(error)},
+            )
+        except CalendarConnectorError as error:
+            return ToolObservation(
+                tool_name="execute_calendar_proposal",
+                state="calendar_write_failed",
+                message="Calendar 外部写入没有获得成功确认。",
+                payload={"error_code": error.code, "error_detail": str(error)},
+            )
+        return ToolObservation(
+            tool_name="execute_calendar_proposal",
+            state="calendar_sync_complete",
+            message="Calendar 变更已执行并获得成功确认。",
+            payload={
+                **self._calendar_proposal_payload(execution.proposal),
+                "calendar_link_id": execution.link.id,
+                "calendar_link_status": execution.link.status,
+                "external_html_link": execution.link.external_html_link,
+            },
+        )
+
     @staticmethod
     def _email_event_payload(event) -> dict[str, Any]:
         return {
@@ -1022,6 +1262,29 @@ class MainAgentToolRegistry:
             "snoozed_until": (
                 item.snoozed_until.isoformat()
                 if item.snoozed_until is not None
+                else None
+            ),
+        }
+
+    @staticmethod
+    def _calendar_proposal_payload(proposal) -> dict[str, Any]:
+        return {
+            "proposal_id": proposal.id,
+            "calendar_account_id": proposal.calendar_account_id,
+            "interview_round_id": proposal.interview_round_id,
+            "operation": proposal.operation,
+            "status": proposal.status,
+            "payload_hash": proposal.payload_hash,
+            "payload": (
+                proposal.payload.model_dump(mode="json")
+                if proposal.payload is not None
+                else None
+            ),
+            "created_at": proposal.created_at.isoformat(),
+            "expires_at": proposal.expires_at.isoformat(),
+            "executed_at": (
+                proposal.executed_at.isoformat()
+                if proposal.executed_at is not None
                 else None
             ),
         }

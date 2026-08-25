@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CalendarAccountCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
 
@@ -35,7 +35,7 @@ class MainAgentTurnResult:
 
 
 class MainAgentRuntime:
-    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "failed"})
+    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "failed"})
 
     def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3) -> None:
         if max_tool_calls < 1:
@@ -253,6 +253,24 @@ class MainAgentRuntime:
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
         if isinstance(result, ToolObservation):
+            if result.state == "calendar_approval_required":
+                payload = result.payload.get("payload")
+                if isinstance(payload, dict):
+                    return (
+                        "请确认是否执行以下 Calendar 变更：\n"
+                        f"- 操作：{result.payload.get('operation')}\n"
+                        f"- 标题：{payload.get('title')}\n"
+                        f"- 开始：{payload.get('start_at')}\n"
+                        f"- 结束：{payload.get('end_at')}\n"
+                        f"- 时区：{payload.get('timezone')}\n"
+                        f"- 地点：{payload.get('location') or '未提供'}\n"
+                        f"- 预览失效时间：{result.payload.get('expires_at')}\n"
+                        "只有你明确确认后才会写入外部 Calendar。"
+                    )
+                return (
+                    "请确认是否取消这条 Calendar 事件。"
+                    f"预览失效时间：{result.payload.get('expires_at')}。"
+                )
             return result.message
         analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
         if result.state not in {"analysis_ready", "partial_analysis_ready"} or not analyses:
@@ -300,6 +318,14 @@ class MainAgentRuntime:
         }:
             return project_action_center_arguments(context, name, arguments)
         if name in {
+            "list_calendar_accounts",
+            "list_calendar_links",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+        }:
+            return project_calendar_arguments(context, name, arguments)
+        if name in {
             "list_target_roles",
             "list_resumes",
             "get_resume_metadata",
@@ -345,6 +371,40 @@ class MainAgentRuntime:
                 update={
                     "active_workflow": "email_tracking",
                     "phase": result.state,
+                }
+            )
+        elif result.tool_name == "list_calendar_accounts" and result.state in {
+            "calendar_accounts_found",
+            "no_calendar_accounts",
+        }:
+            task = task.model_copy(
+                update={
+                    "calendar_account_candidates": tuple(
+                        CalendarAccountCandidateContextItem(
+                            calendar_account_id=item["calendar_account_id"],
+                            provider=item["provider"],
+                            email_address=item["email_address"],
+                            calendar_id=item["calendar_id"],
+                        )
+                        for item in result.payload.get("items", ())
+                    )
+                }
+            )
+        elif result.tool_name in {
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+        } and result.state in {
+            "calendar_approval_required",
+            "calendar_proposal_ready",
+            "calendar_sync_complete",
+        }:
+            task = task.model_copy(
+                update={
+                    "active_calendar_proposal_id": result.payload.get("proposal_id"),
+                    "active_interview_round_id": result.payload.get(
+                        "interview_round_id"
+                    ) or task.active_interview_round_id,
                 }
             )
         elif result.tool_name == "get_daily_brief" and result.state == "daily_brief_ready":

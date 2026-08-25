@@ -59,6 +59,13 @@ class ActionCandidateContextItem(ContractModel):
     due_at: datetime | None = None
 
 
+class CalendarAccountCandidateContextItem(ContractModel):
+    calendar_account_id: str
+    provider: Literal["google"]
+    email_address: str
+    calendar_id: str
+
+
 class ConversationTaskState(ContractModel):
     active_workflow: Literal["job_discovery", "email_tracking", "none"] = "none"
     run_id: str | None = None
@@ -84,6 +91,8 @@ class ConversationTaskState(ContractModel):
     interview_candidates: tuple[InterviewCandidateContextItem, ...] = ()
     active_action_item_id: str | None = None
     action_candidates: tuple[ActionCandidateContextItem, ...] = ()
+    active_calendar_proposal_id: str | None = None
+    calendar_account_candidates: tuple[CalendarAccountCandidateContextItem, ...] = ()
 
 
 class ConversationMessageContext(ContractModel):
@@ -206,6 +215,17 @@ class MainAgentContext(ContractModel):
                     }
                     for index, candidate in enumerate(
                         self.task.action_candidates, start=1
+                    )
+                ],
+                "calendar_accounts": [
+                    {
+                        "selection_index": index,
+                        "provider": candidate.provider,
+                        "email_address": candidate.email_address,
+                        "calendar_id": candidate.calendar_id,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.calendar_account_candidates, start=1
                     )
                 ],
             },
@@ -438,6 +458,37 @@ class ResolveActionItemToolArguments(ContractModel):
 
 class SnoozeActionItemToolArguments(ResolveActionItemToolArguments):
     snoozed_until: datetime
+
+
+class ListCalendarAccountsToolArguments(ContractModel):
+    pass
+
+
+class ListCalendarLinksToolArguments(ContractModel):
+    pass
+
+
+class PrepareInterviewCalendarSyncToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    interview_selection_index: int | None = Field(default=None, ge=1)
+    calendar_account_id: str | None = Field(default=None, min_length=1)
+    calendar_account_selection_index: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_selectors(self) -> "PrepareInterviewCalendarSyncToolArguments":
+        if self.interview_round_id and self.interview_selection_index:
+            raise ValueError("use one interview selector")
+        if self.calendar_account_id and self.calendar_account_selection_index:
+            raise ValueError("use one calendar account selector")
+        return self
+
+
+class GetCalendarProposalToolArguments(ContractModel):
+    proposal_id: str | None = Field(default=None, min_length=1)
+
+
+class ExecuteCalendarProposalToolArguments(GetCalendarProposalToolArguments):
+    pass
 
 
 class GetResumeAnalysisToolArguments(ContractModel):
@@ -704,4 +755,52 @@ def project_action_center_arguments(
         if action_item_id is None:
             raise ValueError(f"{name} requires an active action item")
         payload["action_item_id"] = action_item_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_calendar_arguments(
+    context: MainAgentContext, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "list_calendar_accounts":
+        model_arguments = ListCalendarAccountsToolArguments.model_validate(arguments)
+    elif name == "list_calendar_links":
+        model_arguments = ListCalendarLinksToolArguments.model_validate(arguments)
+    elif name == "prepare_interview_calendar_sync":
+        model_arguments = PrepareInterviewCalendarSyncToolArguments.model_validate(arguments)
+    elif name == "get_calendar_proposal":
+        model_arguments = GetCalendarProposalToolArguments.model_validate(arguments)
+    elif name == "execute_calendar_proposal":
+        model_arguments = ExecuteCalendarProposalToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown calendar tool: {name}")
+    payload = model_arguments.model_dump()
+    if name == "prepare_interview_calendar_sync":
+        interview_round_id = payload.get("interview_round_id")
+        interview_index = payload.pop("interview_selection_index", None)
+        if interview_round_id is None and interview_index is not None:
+            if interview_index > len(context.task.interview_candidates):
+                raise ValueError("interview selection index is out of range")
+            interview_round_id = context.task.interview_candidates[
+                interview_index - 1
+            ].interview_round_id
+        interview_round_id = interview_round_id or context.task.active_interview_round_id
+        if interview_round_id is None:
+            raise ValueError("prepare_interview_calendar_sync requires an active interview")
+        payload["interview_round_id"] = interview_round_id
+        account_id = payload.get("calendar_account_id")
+        account_index = payload.pop("calendar_account_selection_index", None)
+        if account_id is None and account_index is not None:
+            if account_index > len(context.task.calendar_account_candidates):
+                raise ValueError("calendar account selection index is out of range")
+            account_id = context.task.calendar_account_candidates[
+                account_index - 1
+            ].calendar_account_id
+        payload["calendar_account_id"] = account_id
+    if name in {"get_calendar_proposal", "execute_calendar_proposal"}:
+        proposal_id = payload.get("proposal_id") or context.task.active_calendar_proposal_id
+        if proposal_id is None:
+            raise ValueError(f"{name} requires an active calendar proposal")
+        payload["proposal_id"] = proposal_id
     return {"user_id": context.profile.user_id, **payload}

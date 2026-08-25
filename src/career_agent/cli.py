@@ -29,9 +29,11 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
 )
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
+from career_agent.connectors.calendar import EnvironmentCalendarConnectorResolver
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.applications import ApplicationService
 from career_agent.services.action_center import ActionCenterService
+from career_agent.services.calendar import CalendarService
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_analysis import ResumeAnalysisService
@@ -41,6 +43,7 @@ from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.action_center import SQLiteActionItemStore
+from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
@@ -129,6 +132,12 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         email_tracking_service,
         interview_service,
     )
+    calendar_service = CalendarService(
+        SQLiteCalendarStore(Path(args.calendar_store).expanduser()),
+        interview_service,
+        application_service,
+        EnvironmentCalendarConnectorResolver(),
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
@@ -145,6 +154,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             interview_service=interview_service,
             email_tracking_service=email_tracking_service,
             action_center_service=action_center_service,
+            calendar_service=calendar_service,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
@@ -235,6 +245,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--application-store", default="~/.career-agent/applications.sqlite3", help="Local application tracking and event store path.")
     parser.add_argument("--email-store", default="~/.career-agent/email.sqlite3", help="Local email-account metadata, cursor, and event store path.")
     parser.add_argument("--action-store", default="~/.career-agent/actions.sqlite3", help="Local generated career action-item and lifecycle store path.")
+    parser.add_argument("--calendar-store", default="~/.career-agent/calendar.sqlite3", help="Local Calendar account, approval proposal, event-link, and audit store path.")
     parser.add_argument(
         "--resume-tailoring-skills-dir",
         default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
@@ -349,6 +360,36 @@ def build_parser() -> argparse.ArgumentParser:
     email_list = email_subparsers.add_parser("list-accounts", help="List safe email account metadata.")
     email_list.add_argument("--user-id", required=True)
     email_list.add_argument("--email-store", default="~/.career-agent/email.sqlite3")
+
+    calendar_command = subparsers.add_parser(
+        "calendar", help="Connect Google Calendar without storing OAuth secrets."
+    )
+    calendar_subparsers = calendar_command.add_subparsers(
+        dest="calendar_command", required=True
+    )
+    calendar_add = calendar_subparsers.add_parser(
+        "add-account", help="Register Google Calendar and an env-based OAuth reference."
+    )
+    calendar_add.add_argument("--user-id", required=True)
+    calendar_add.add_argument("--address", required=True)
+    calendar_add.add_argument(
+        "--calendar-id", default="primary",
+        help="Google Calendar identifier (default: primary).",
+    )
+    calendar_add.add_argument(
+        "--credential-env", required=True,
+        help="Environment variable containing Google OAuth JSON with Calendar scope.",
+    )
+    calendar_add.add_argument(
+        "--calendar-store", default="~/.career-agent/calendar.sqlite3"
+    )
+    calendar_list = calendar_subparsers.add_parser(
+        "list-accounts", help="List safe Calendar account metadata."
+    )
+    calendar_list.add_argument("--user-id", required=True)
+    calendar_list.add_argument(
+        "--calendar-store", default="~/.career-agent/calendar.sqlite3"
+    )
 
     status = subparsers.add_parser("status", help="Read a durable run status and safe trace summary.", description="Read a persisted job discovery run without calling BOSS.")
     status.add_argument("--run-id", required=True, help="Run ID returned by discover.")
@@ -657,6 +698,60 @@ def main(
             return EXIT_OK
         except (OSError, ValueError) as error:
             json.dump({"state": "failed", "error_code": "EMAIL_ACCOUNT_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
+    if args.command == "calendar":
+        try:
+            store = SQLiteCalendarStore(Path(args.calendar_store).expanduser())
+            if args.calendar_command == "add-account":
+                if not args.credential_env.replace("_", "").isalnum():
+                    raise ValueError(
+                        "--credential-env must be an environment variable name"
+                    )
+                account = store.add_account(
+                    user_id=args.user_id,
+                    email_address=args.address,
+                    calendar_id=args.calendar_id,
+                    credential_ref=f"env:{args.credential_env}",
+                )
+                payload = {
+                    "account": {
+                        "calendar_account_id": account.id,
+                        "provider": account.provider,
+                        "email_address": account.email_address,
+                        "calendar_id": account.calendar_id,
+                        "status": account.status,
+                    }
+                }
+            else:
+                payload = {
+                    "accounts": [
+                        {
+                            "calendar_account_id": account.id,
+                            "provider": account.provider,
+                            "email_address": account.email_address,
+                            "calendar_id": account.calendar_id,
+                            "status": account.status,
+                        }
+                        for account in store.list_accounts(user_id=args.user_id)
+                    ]
+                }
+            json.dump(
+                payload, stdout, ensure_ascii=False, separators=(",", ":")
+            )
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            json.dump(
+                {
+                    "state": "failed",
+                    "error_code": "CALENDAR_ACCOUNT_INPUT_ERROR",
+                    "error_detail": str(error),
+                },
+                stdout,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
             stdout.write("\n")
             return EXIT_ARGUMENT_ERROR
     machine_output = args.json or not stdout.isatty()
