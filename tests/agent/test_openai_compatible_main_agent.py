@@ -1,6 +1,7 @@
 import json
 
 from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationTaskState, JobDiscoveryToolArguments, MainAgentContext
+from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 
@@ -37,6 +38,11 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
             selected_result_ref="opaque-selected-ref-do-not-leak",
             candidates=(CandidateContextItem(result_ref="opaque-candidate-ref-do-not-leak", title="AI Engineer", company_name="Acme", city="Shanghai"),),
         ),
+        conversation_summary=ConversationSummaryContent(
+            user_goals=("Find an AI Engineer role",),
+            confirmed_decisions=("Use the current resume",),
+            active_constraints=("Do not apply automatically",),
+        ),
         user_message="Help me find work.",
     )
 
@@ -55,6 +61,9 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
     assert "opaque-selected-ref-do-not-leak" not in raw_context
     assert "opaque-candidate-ref-do-not-leak" not in raw_context
     assert json.loads(raw_context)["task"]["candidates"][0]["selection_index"] == 1
+    assert json.loads(raw_context)["conversation_summary"]["confirmed_decisions"] == [
+        "Use the current resume"
+    ]
 
 
 def test_main_agent_parses_native_tool_call() -> None:
