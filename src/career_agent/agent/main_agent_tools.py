@@ -6,8 +6,10 @@ from typing import Any, Literal
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
+    ConfirmResumeAnalysisToolArguments,
     FindSavedJobsToolArguments,
     GetResumeMetadataToolArguments,
+    GetResumeAnalysisToolArguments,
     GetSavedJobToolArguments,
     JobDiscoveryToolArguments,
     JobDiscoveryWorkflowInput,
@@ -17,6 +19,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.services.resume_analysis import (
+    ResumeAnalysisNotFoundError,
     ResumeAnalysisService,
     ResumeVersionNotFoundError,
 )
@@ -61,7 +64,13 @@ class MainAgentToolRegistry:
                 }
             )
         if resume_analysis_service is not None:
-            self._atomic_handlers["analyze_resume"] = self._analyze_resume
+            self._atomic_handlers.update(
+                {
+                    "analyze_resume": self._analyze_resume,
+                    "get_resume_analysis": self._get_resume_analysis,
+                    "confirm_resume_analysis": self._confirm_resume_analysis,
+                }
+            )
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -144,15 +153,33 @@ class MainAgentToolRegistry:
                 ]
             )
         if self._resume_analysis_service is not None:
-            schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "analyze_resume",
-                        "description": "Analyze one current-user resume version by resume_version_id. Use when the user asks to read, extract, review, or analyze resume content. Returns structured candidate career records, grounded evidence quotes, clarification questions, and warnings; never returns the original PDF, Markdown, text, bytes, file path, or content hash. Analysis candidates are not yet user-confirmed or persisted as career facts.",
-                        "parameters": AnalyzeResumeToolArguments.model_json_schema(),
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "analyze_resume",
+                            "description": "Analyze one current-user resume version by resume_version_id. Use when the user asks to read, extract, review, or analyze resume content. Returns a pending analysis_id plus structured candidate career records, grounded evidence quotes, clarification questions, and warnings; never returns the original file. Candidates are not career facts until the user explicitly confirms them.",
+                            "parameters": AnalyzeResumeToolArguments.model_json_schema(),
+                        },
                     },
-                }
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_resume_analysis",
+                            "description": "Retrieve one current user's unexpired resume analysis draft by analysis_id so its candidates can be reviewed before confirmation. Never returns the original resume file.",
+                            "parameters": GetResumeAnalysisToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_resume_analysis",
+                            "description": "Confirm all candidates in one resume analysis by analysis_id and persist them as CareerRecord and confirmed CareerEvidence. Call only after the user explicitly confirms that specific analysis; never infer confirmation.",
+                            "parameters": ConfirmResumeAnalysisToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
             )
         return tuple(schemas)
 
@@ -355,7 +382,7 @@ class MainAgentToolRegistry:
             {key: value for key, value in arguments.items() if key != "user_id"}
         )
         try:
-            result = self._resume_analysis_service.analyze_version(
+            draft = self._resume_analysis_service.analyze_version(
                 user_id=user_id,
                 resume_version_id=model_arguments.resume_version_id,
             )
@@ -380,12 +407,90 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="analyze_resume",
             state="resume_analysis_ready",
-            message=f"已分析该简历版本，提取出 {len(result.records)} 段候选经历。",
+            message=f"已分析该简历版本，提取出 {len(draft.result.records)} 段候选经历。",
             next_action="review_and_confirm_extracted_career_facts",
             payload={
+                "analysis_id": draft.id,
                 "resume_version_id": model_arguments.resume_version_id,
-                "records": [record.model_dump(mode="json") for record in result.records],
-                "clarification_questions": result.clarification_questions,
-                "warnings": result.warnings,
+                "expires_at": draft.expires_at.isoformat(),
+                "records": [record.model_dump(mode="json") for record in draft.result.records],
+                "clarification_questions": draft.result.clarification_questions,
+                "warnings": draft.result.warnings,
+            },
+        )
+
+    def _get_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_analysis_service is None:
+            raise ValueError("Resume analysis service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetResumeAnalysisToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.analysis_id is None:
+            raise ValueError("get_resume_analysis requires analysis_id")
+        try:
+            draft = self._resume_analysis_service.get_analysis(
+                user_id=user_id,
+                analysis_id=model_arguments.analysis_id,
+            )
+        except ResumeAnalysisNotFoundError:
+            return ToolObservation(
+                tool_name="get_resume_analysis",
+                state="resume_analysis_not_found",
+                message="没有找到这次简历分析，或它已经过期。",
+                payload={"analysis_id": model_arguments.analysis_id},
+            )
+        return ToolObservation(
+            tool_name="get_resume_analysis",
+            state="resume_analysis_ready",
+            message=f"已读取这次简历分析，其中有 {len(draft.result.records)} 段候选经历。",
+            next_action=(
+                "review_and_confirm_extracted_career_facts"
+                if draft.status == "pending"
+                else None
+            ),
+            payload={
+                "analysis_id": draft.id,
+                "resume_version_id": draft.resume_version_id,
+                "status": draft.status,
+                "expires_at": draft.expires_at.isoformat(),
+                "records": [record.model_dump(mode="json") for record in draft.result.records],
+                "clarification_questions": draft.result.clarification_questions,
+                "warnings": draft.result.warnings,
+            },
+        )
+
+    def _confirm_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_analysis_service is None:
+            raise ValueError("Resume analysis service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ConfirmResumeAnalysisToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.analysis_id is None:
+            raise ValueError("confirm_resume_analysis requires analysis_id")
+        try:
+            imported = self._resume_analysis_service.confirm_analysis(
+                user_id=user_id,
+                analysis_id=model_arguments.analysis_id,
+            )
+        except ResumeAnalysisNotFoundError:
+            return ToolObservation(
+                tool_name="confirm_resume_analysis",
+                state="resume_analysis_not_found",
+                message="没有找到这次简历分析，或它已经过期，无法确认。",
+                payload={"analysis_id": model_arguments.analysis_id},
+            )
+        return ToolObservation(
+            tool_name="confirm_resume_analysis",
+            state="resume_analysis_confirmed",
+            message=(
+                f"已确认并保存 {len(imported.records)} 段职业经历和 "
+                f"{len(imported.evidence)} 条事实证据。"
+            ),
+            payload={
+                "analysis_id": model_arguments.analysis_id,
+                "career_record_ids": [record.id for record in imported.records],
+                "career_evidence_ids": [evidence.id for evidence in imported.evidence],
             },
         )

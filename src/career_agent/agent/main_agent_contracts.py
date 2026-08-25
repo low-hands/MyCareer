@@ -37,6 +37,8 @@ class ConversationTaskState(ContractModel):
     selected_result_ref: str | None = None
     manual_search_query: str | None = None
     candidates: tuple[CandidateContextItem, ...] = ()
+    active_resume_analysis_id: str | None = None
+    resume_analysis_status: Literal["pending", "confirmed"] | None = None
 
 
 class ConversationMessageContext(ContractModel):
@@ -86,6 +88,7 @@ class MainAgentContext(ContractModel):
                     }
                     for index, candidate in enumerate(self.task.candidates, start=1)
                 ],
+                "resume_analysis_status": self.task.resume_analysis_status,
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
@@ -133,6 +136,14 @@ class GetResumeMetadataToolArguments(ContractModel):
 
 class AnalyzeResumeToolArguments(ContractModel):
     resume_version_id: str = Field(min_length=1)
+
+
+class GetResumeAnalysisToolArguments(ContractModel):
+    analysis_id: str | None = Field(default=None, min_length=1)
+
+
+class ConfirmResumeAnalysisToolArguments(ContractModel):
+    analysis_id: str | None = Field(default=None, min_length=1)
 
 
 class JobDiscoveryWorkflowInput(ContractModel):
@@ -215,6 +226,16 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = GetResumeMetadataToolArguments.model_validate(arguments)
     elif name == "analyze_resume":
         model_arguments = AnalyzeResumeToolArguments.model_validate(arguments)
+    elif name == "get_resume_analysis":
+        model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
+    elif name == "confirm_resume_analysis":
+        model_arguments = ConfirmResumeAnalysisToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown resume tool: {name}")
-    return {"user_id": context.profile.user_id, **model_arguments.model_dump()}
+    payload = model_arguments.model_dump()
+    if name in {"get_resume_analysis", "confirm_resume_analysis"}:
+        analysis_id = payload.get("analysis_id") or context.task.active_resume_analysis_id
+        if analysis_id is None:
+            raise ValueError(f"{name} requires an active resume analysis")
+        payload["analysis_id"] = analysis_id
+    return {"user_id": context.profile.user_id, **payload}

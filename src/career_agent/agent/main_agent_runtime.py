@@ -143,7 +143,10 @@ class MainAgentRuntime:
         context = state["context"]
         result = state["pending_tool_result"]
         capability_name = state["pending_capability_name"]
-        updated = self._update_task(context, result) if isinstance(result, JobDiscoveryGatewayResult) else context
+        if isinstance(result, JobDiscoveryGatewayResult):
+            updated = self._update_task(context, result)
+        else:
+            updated = self._update_atomic_task(context, result)
         observation = self._tool_observation(capability_name, result)
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
         fingerprint = self._tool_call_fingerprint(state["decision"])
@@ -241,7 +244,14 @@ class MainAgentRuntime:
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
-        if name in {"list_target_roles", "list_resumes", "get_resume_metadata", "analyze_resume"}:
+        if name in {
+            "list_target_roles",
+            "list_resumes",
+            "get_resume_metadata",
+            "analyze_resume",
+            "get_resume_analysis",
+            "confirm_resume_analysis",
+        }:
             return project_resume_arguments(context, name, arguments)
         return arguments
 
@@ -257,4 +267,31 @@ class MainAgentRuntime:
             task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state, "selected_result_ref": result.selected_result_ref, "manual_search_query": result.manual_search_query})
         elif result.state in {"failed", "waiting_user"}:
             task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state})
+        return context.model_copy(update={"task": task})
+
+    @staticmethod
+    def _update_atomic_task(
+        context: MainAgentContext, result: ToolObservation
+    ) -> MainAgentContext:
+        task = context.task
+        if result.tool_name == "analyze_resume" and result.state == "resume_analysis_ready":
+            task = task.model_copy(
+                update={
+                    "active_resume_analysis_id": result.payload.get("analysis_id"),
+                    "resume_analysis_status": "pending",
+                }
+            )
+        elif result.tool_name == "get_resume_analysis" and result.state == "resume_analysis_ready":
+            status = result.payload.get("status")
+            task = task.model_copy(
+                update={
+                    "active_resume_analysis_id": result.payload.get("analysis_id"),
+                    "resume_analysis_status": status if status in {"pending", "confirmed"} else None,
+                }
+            )
+        elif (
+            result.tool_name == "confirm_resume_analysis"
+            and result.state == "resume_analysis_confirmed"
+        ):
+            task = task.model_copy(update={"resume_analysis_status": "confirmed"})
         return context.model_copy(update={"task": task})

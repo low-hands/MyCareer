@@ -14,6 +14,8 @@ from career_agent.agent.resume_analysis_contracts import (
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
+from career_agent.storage.career_history import CareerHistoryStore
 
 
 class UnusedGateway:
@@ -167,7 +169,13 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     store = ResumeStore(tmp_path / "resumes.sqlite3")
     _, _, _, version = seed_resume(store)
     worker = RecordingResumeAnalysisWorker()
-    service = ResumeAnalysisService(store, worker)
+    draft_store = SQLiteResumeAnalysisDraftStore(tmp_path / "drafts.sqlite3")
+    service = ResumeAnalysisService(
+        store,
+        worker,
+        draft_store,
+        CareerHistoryStore(tmp_path / "resumes.sqlite3"),
+    )
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -191,7 +199,11 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
         user_message="分析最新版本的简历",
     )
 
-    assert tools.names[-1] == "analyze_resume"
+    assert tools.names[-3:] == (
+        "analyze_resume",
+        "get_resume_analysis",
+        "confirm_resume_analysis",
+    )
     schema = next(
         spec for spec in tools.schemas() if spec["function"]["name"] == "analyze_resume"
     )
@@ -199,11 +211,14 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     assert worker.documents[0].raw_bytes == b"PRIVATE RESUME CONTENT v2"
     observation = decisions.contexts[1].tool_observations[-1]
     assert observation.state == "resume_analysis_ready"
+    assert observation.payload["analysis_id"].startswith("resume_analysis_")
     assert observation.payload["records"][0]["title"] == "Product Manager"
     assert observation.payload["clarification_questions"] == ("What was the start month?",)
     serialized = observation.model_dump_json()
     assert "PRIVATE RESUME CONTENT" not in serialized
     assert "raw_bytes" not in serialized
+    assert result.context.task.resume_analysis_status == "pending"
+    assert result.context.task.active_resume_analysis_id == observation.payload["analysis_id"]
     assert result.assistant_message == "我已提取出一段待确认经历。"
 
 
@@ -225,7 +240,12 @@ def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
         tmp_path,
         store,
         decisions,
-        resume_analysis_service=ResumeAnalysisService(store, worker),
+        resume_analysis_service=ResumeAnalysisService(
+            store,
+                worker,
+                SQLiteResumeAnalysisDraftStore(tmp_path / "drafts.sqlite3"),
+                CareerHistoryStore(tmp_path / "resumes.sqlite3"),
+        ),
     )
 
     agent.run_turn(user_id="u1", conversation_id="c1", user_message="分析这个版本")
@@ -251,8 +271,89 @@ def test_analyze_resume_tool_rejects_model_supplied_user_id(tmp_path) -> None:
         tmp_path,
         store,
         decisions,
-        resume_analysis_service=ResumeAnalysisService(store, worker),
+        resume_analysis_service=ResumeAnalysisService(
+            store,
+                worker,
+                SQLiteResumeAnalysisDraftStore(tmp_path / "drafts.sqlite3"),
+                CareerHistoryStore(tmp_path / "resumes.sqlite3"),
+        ),
     )
 
     with pytest.raises(ValueError, match="cannot accept internal argument"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权分析")
+
+
+def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) -> None:
+    path = tmp_path / "resumes.sqlite3"
+    store = ResumeStore(path)
+    _, _, _, version = seed_resume(store)
+    worker = RecordingResumeAnalysisWorker()
+    draft_store = SQLiteResumeAnalysisDraftStore(path)
+    history_store = CareerHistoryStore(path)
+    service = ResumeAnalysisService(store, worker, draft_store, history_store)
+
+    analyze_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="analyze_resume",
+                arguments={"resume_version_id": version.id},
+            ),
+        ),
+        AgentDecision(action="final", message="请确认这次分析结果。"),
+    )
+    analyze_agent, _ = build_agent(
+        tmp_path,
+        store,
+        analyze_decisions,
+        resume_analysis_service=service,
+    )
+    analyze_result = analyze_agent.run_turn(
+        user_id="u1", conversation_id="c1", user_message="分析这份简历"
+    )
+    analysis_id = analyze_result.context.task.active_resume_analysis_id
+    assert analysis_id is not None
+
+    review_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="get_resume_analysis", arguments={}),
+        ),
+        AgentDecision(action="final", message="有一段候选经历等待确认。"),
+    )
+    review_agent, _ = build_agent(
+        tmp_path,
+        store,
+        review_decisions,
+        resume_analysis_service=service,
+    )
+    review_agent.run_turn(
+        user_id="u1", conversation_id="c1", user_message="给我再看一下"
+    )
+    review_observation = review_decisions.contexts[1].tool_observations[-1]
+    assert review_observation.payload["analysis_id"] == analysis_id
+    assert review_observation.payload["status"] == "pending"
+
+    confirm_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="confirm_resume_analysis", arguments={}),
+        ),
+        AgentDecision(action="final", message="已经保存到职业档案。"),
+    )
+    confirm_agent, _ = build_agent(
+        tmp_path,
+        store,
+        confirm_decisions,
+        resume_analysis_service=service,
+    )
+    confirmed = confirm_agent.run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认这些内容"
+    )
+
+    confirm_observation = confirm_decisions.contexts[1].tool_observations[-1]
+    assert confirm_observation.state == "resume_analysis_confirmed"
+    assert confirm_observation.payload["analysis_id"] == analysis_id
+    assert len(history_store.list_records(user_id="u1")) == 1
+    assert len(history_store.list_evidence(user_id="u1")) == 2
+    assert confirmed.context.task.resume_analysis_status == "confirmed"
