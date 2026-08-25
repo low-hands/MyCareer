@@ -21,7 +21,10 @@ from career_agent.agent.openai_compatible_client import AgentConfigurationError,
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
-from career_agent.agent.deepagent_resume_tailoring_worker import DeepAgentResumeTailoringWorker
+from career_agent.agent.deepagent_resume_tailoring_worker import (
+    DeepAgentResumeFinalizationWorker,
+    DeepAgentResumeTailoringWorker,
+)
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.resume_analysis import ResumeAnalysisService
@@ -116,6 +119,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 match_store,
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
                 DeepAgentResumeTailoringWorker(
+                    resume_analysis_config,
+                    skills_root=Path(args.resume_tailoring_skills_dir),
+                ),
+                DeepAgentResumeFinalizationWorker(
                     resume_analysis_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),

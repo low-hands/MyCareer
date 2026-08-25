@@ -19,7 +19,7 @@ class StoredResumeTailoringDraft(BaseModel):
     user_id: str
     match_id: str
     tailoring_goal: str | None = None
-    status: Literal["pending", "in_review", "reviewed"] = "pending"
+    status: Literal["pending", "in_review", "reviewed", "finalized"] = "pending"
     worker_version: str
     result: ResumeTailoringResult
     change_reviews: tuple[TailoringChangeReview, ...] = ()
@@ -195,7 +195,7 @@ class SQLiteResumeTailoringDraftStore:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 """
-                SELECT result_json
+                SELECT result_json, review_status
                 FROM resume_tailoring_drafts
                 WHERE id = ? AND user_id = ? AND expires_at > ?
                 """,
@@ -203,6 +203,8 @@ class SQLiteResumeTailoringDraftStore:
             ).fetchone()
             if row is None:
                 return None
+            if row[1] == "finalized":
+                raise ValueError("Finalized tailoring decisions cannot be changed")
             result = ResumeTailoringResult.model_validate_json(row[0])
             all_indices = (*accepted_change_indices, *rejected_change_indices)
             if not all_indices:
@@ -259,6 +261,19 @@ class SQLiteResumeTailoringDraftStore:
                 (review_status, draft_id, user_id),
             )
         return self.get(user_id=user_id, draft_id=draft_id)
+
+    def mark_finalized(
+        self, *, user_id: str, draft_id: str
+    ) -> StoredResumeTailoringDraft | None:
+        with self._connect() as connection:
+            updated = connection.execute(
+                """
+                UPDATE resume_tailoring_drafts SET review_status = 'finalized'
+                WHERE id = ? AND user_id = ? AND review_status IN ('reviewed', 'finalized')
+                """,
+                (draft_id, user_id),
+            ).rowcount
+        return self.get(user_id=user_id, draft_id=draft_id) if updated else None
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

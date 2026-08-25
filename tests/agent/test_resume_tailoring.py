@@ -19,13 +19,20 @@ from career_agent.agent.openai_compatible_client import (
     OpenAICompatibleAgentConfig,
 )
 from career_agent.agent.deepagent_resume_tailoring_worker import (
+    DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.resume_tailoring_contracts import (
+    AcceptedTailoringChange,
+    FinalizedResumeDocument,
+    ResumeTailoringResult,
+)
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_tailoring import (
+    ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
+    ResumeTailoringNotReadyError,
     ResumeTailoringService,
 )
 from career_agent.storage.career_history import CareerHistoryStore
@@ -225,6 +232,83 @@ def test_tailoring_worker_configures_isolated_deep_agent_with_skill(tmp_path) ->
     assert captured["permissions"][0].mode == "deny"
 
 
+def test_finalization_worker_applies_only_supplied_accepted_changes(tmp_path) -> None:
+    agent = FakeDeepAgent(
+        {
+            "markdown": "# Candidate\n\n- Built production RAG systems.",
+            "applied_change_indices": [1],
+            "warnings": [],
+        }
+    )
+    worker = DeepAgentResumeFinalizationWorker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="multimodal-model",
+        ),
+        skills_root=skill_root(tmp_path),
+        agent=agent,
+    )
+    accepted = AcceptedTailoringChange(
+        change_index=1,
+        change=ResumeTailoringResult.model_validate(VALID_DRAFT).changes[0],
+    )
+
+    result = worker.finalize(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems",
+        ),
+        accepted_changes=(accepted,),
+    )
+
+    assert result.applied_change_indices == (1,)
+    text = agent.state["messages"][0]["content"][0]["text"]
+    assert "<resume_document>" in text
+    assert "<accepted_changes>" in text
+    assert '"change_index": 1' in text
+
+
+def test_finalization_worker_sends_pdf_as_input_file(tmp_path) -> None:
+    agent = FakeDeepAgent(
+        {
+            "markdown": "# Candidate\n\n- Built production RAG systems.",
+            "applied_change_indices": [1],
+            "warnings": [],
+        }
+    )
+    worker = DeepAgentResumeFinalizationWorker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="multimodal-model",
+        ),
+        skills_root=skill_root(tmp_path),
+        agent=agent,
+    )
+    accepted = AcceptedTailoringChange(
+        change_index=1,
+        change=ResumeTailoringResult.model_validate(VALID_DRAFT).changes[0],
+    )
+    raw_pdf = b"%PDF-1.7\x00\xffbinary"
+
+    worker.finalize(
+        document=StoredResumeDocument(
+            resume_version_id="pdf-v1",
+            document_format="pdf",
+            raw_bytes=raw_pdf,
+        ),
+        accepted_changes=(accepted,),
+    )
+
+    content = agent.state["messages"][0]["content"]
+    assert content[0]["type"] == "file"
+    assert content[0]["base64"] == base64.b64encode(raw_pdf).decode("ascii")
+    assert content[0]["mime_type"] == "application/pdf"
+    assert '"change_index": 1' in content[1]["text"]
+
+
 class RecordingTailoringWorker:
     def __init__(self) -> None:
         self.calls = []
@@ -232,6 +316,23 @@ class RecordingTailoringWorker:
     def tailor(self, **kwargs) -> ResumeTailoringResult:
         self.calls.append(kwargs)
         return ResumeTailoringResult.model_validate(VALID_DRAFT)
+
+
+class RecordingFinalizationWorker:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def finalize(self, **kwargs) -> FinalizedResumeDocument:
+        self.calls.append(kwargs)
+        return FinalizedResumeDocument(
+            markdown=(
+                "# Candidate\n\n## Experience\n\n"
+                "- Built production RAG systems for knowledge retrieval."
+            ),
+            applied_change_indices=tuple(
+                item.change_index for item in kwargs["accepted_changes"]
+            ),
+        )
 
 
 def seed_service(tmp_path):
@@ -281,6 +382,7 @@ def seed_service(tmp_path):
     history = CareerHistoryStore(resume_path)
     drafts = SQLiteResumeTailoringDraftStore(resume_path)
     tailoring_worker = RecordingTailoringWorker()
+    finalization_worker = RecordingFinalizationWorker()
     service = ResumeTailoringService(
         resumes,
         jobs,
@@ -288,12 +390,13 @@ def seed_service(tmp_path):
         matches,
         drafts,
         tailoring_worker,
+        finalization_worker,
     )
-    return service, tailoring_worker, stored_match
+    return service, tailoring_worker, finalization_worker, stored_match
 
 
 def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tmp_path) -> None:
-    service, worker, stored_match = seed_service(tmp_path)
+    service, worker, finalization_worker, stored_match = seed_service(tmp_path)
 
     draft = service.create_draft(
         user_id="u1",
@@ -334,7 +437,25 @@ def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tm
     ]
     assert reviewed.change_reviews[1].feedback == "Keep the skills section unchanged."
 
-    with pytest.raises(ValueError, match="Unknown tailoring change index"):
+    finalized = service.finalize_draft(user_id="u1", draft_id=draft.id)
+    assert finalized.created is True
+    assert finalized.applied_change_indices == (1,)
+    assert finalized.resume_version.version_number == 2
+    assert finalized.resume_version.source_type == "agent_tailoring"
+    assert finalized.resume_version.document_format == "markdown"
+    stored_document = service._resume_store.read_version_document(
+        user_id="u1",
+        resume_version_id=finalized.resume_version.id,
+    )
+    assert stored_document is not None
+    assert stored_document.raw_bytes.startswith(b"# Candidate")
+    assert service.get_draft(user_id="u1", draft_id=draft.id).status == "finalized"
+    repeated = service.finalize_draft(user_id="u1", draft_id=draft.id)
+    assert repeated.created is False
+    assert repeated.resume_version.id == finalized.resume_version.id
+    assert len(finalization_worker.calls) == 1
+
+    with pytest.raises(ResumeTailoringAlreadyFinalizedError):
         service.review_draft(
             user_id="u1",
             draft_id=draft.id,
@@ -346,6 +467,54 @@ def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tm
             draft_id=draft.id,
             accepted_change_indices=(1,),
         )
+
+
+def test_tailoring_finalization_requires_complete_review_and_an_accepted_change(
+    tmp_path,
+) -> None:
+    service, _, finalization_worker, stored_match = seed_service(tmp_path)
+    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+
+    with pytest.raises(ResumeTailoringNotReadyError, match="Every tailoring change"):
+        service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        rejected_change_indices=(1, 2),
+    )
+    with pytest.raises(ResumeTailoringNotReadyError, match="At least one"):
+        service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    assert finalization_worker.calls == []
+
+
+def test_tailoring_finalization_rejects_worker_change_index_mismatch(tmp_path) -> None:
+    service, _, finalization_worker, stored_match = seed_service(tmp_path)
+    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+    service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        accepted_change_indices=(1,),
+        rejected_change_indices=(2,),
+    )
+
+    def mismatched_finalize(**kwargs) -> FinalizedResumeDocument:
+        finalization_worker.calls.append(kwargs)
+        return FinalizedResumeDocument(
+            markdown="# Candidate\n\nChanged resume",
+            applied_change_indices=(2,),
+        )
+
+    finalization_worker.finalize = mismatched_finalize
+    with pytest.raises(ValueError, match="exactly the accepted changes"):
+        service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    assert service.get_draft(user_id="u1", draft_id=draft.id).status == "reviewed"
+    assert service._resume_store.get_tailored_version(
+        user_id="u1",
+        tailoring_draft_id=draft.id,
+    ) is None
 
 
 class UnusedGateway:
@@ -364,7 +533,7 @@ class SequenceDecisionMaker:
 
 
 def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None:
-    service, _, stored_match = seed_service(tmp_path)
+    service, _, _, stored_match = seed_service(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     decisions = SequenceDecisionMaker(
@@ -462,3 +631,29 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     assert review_observation.payload["status"] == "reviewed"
     assert review_observation.payload["pending_change_indices"] == ()
     assert reviewed_result.context.task.resume_tailoring_status == "reviewed"
+
+    finalize_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="finalize_resume_tailoring", arguments={}),
+        ),
+        AgentDecision(action="final", message="已生成新的 Markdown 简历版本。"),
+    )
+    finalize_runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=finalize_decisions,
+        tools=tools,
+    )
+    finalized_result = finalize_runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认，生成新的简历版本",
+    )
+    finalization_observation = finalize_decisions.contexts[1].tool_observations[-1]
+    assert finalization_observation.state == "resume_tailoring_finalized"
+    assert finalization_observation.payload["source_type"] == "agent_tailoring"
+    assert "markdown" not in finalization_observation.payload
+    assert finalized_result.context.task.resume_tailoring_status == "finalized"
+    assert finalized_result.context.task.active_resume_version_id == (
+        finalization_observation.payload["resume_version_id"]
+    )
