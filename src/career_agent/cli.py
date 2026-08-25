@@ -31,6 +31,7 @@ from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, Subproces
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.applications import ApplicationService
+from career_agent.services.action_center import ActionCenterService
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_analysis import ResumeAnalysisService
@@ -39,6 +40,7 @@ from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.applications import SQLiteApplicationStore
+from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
@@ -114,6 +116,19 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         SQLiteInterviewStore(Path(args.application_store).expanduser()),
         application_service,
     )
+    email_tracking_service = EmailTrackingService(
+        SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
+        application_service,
+        EnvironmentEmailConnectorResolver(),
+        OpenAIEmailTrackingWorker(resume_analysis_config),
+        interview_service,
+    )
+    action_center_service = ActionCenterService(
+        SQLiteActionItemStore(Path(args.action_store).expanduser()),
+        application_service,
+        email_tracking_service,
+        interview_service,
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
@@ -128,13 +143,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
             application_service=application_service,
             interview_service=interview_service,
-            email_tracking_service=EmailTrackingService(
-                SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
-                application_service,
-                EnvironmentEmailConnectorResolver(),
-                OpenAIEmailTrackingWorker(resume_analysis_config),
-                interview_service,
-            ),
+            email_tracking_service=email_tracking_service,
+            action_center_service=action_center_service,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
@@ -224,6 +234,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
     parser.add_argument("--application-store", default="~/.career-agent/applications.sqlite3", help="Local application tracking and event store path.")
     parser.add_argument("--email-store", default="~/.career-agent/email.sqlite3", help="Local email-account metadata, cursor, and event store path.")
+    parser.add_argument("--action-store", default="~/.career-agent/actions.sqlite3", help="Local generated career action-item and lifecycle store path.")
     parser.add_argument(
         "--resume-tailoring-skills-dir",
         default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
