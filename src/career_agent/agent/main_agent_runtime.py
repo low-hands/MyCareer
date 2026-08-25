@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_email_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
 
@@ -284,6 +284,14 @@ class MainAgentRuntime:
         if name in {"list_email_events", "resolve_email_event"}:
             return project_email_arguments(context, name, arguments)
         if name in {
+            "list_interviews",
+            "get_interview",
+            "create_interview",
+            "update_interview",
+            "complete_interview",
+        }:
+            return project_interview_arguments(context, name, arguments)
+        if name in {
             "list_target_roles",
             "list_resumes",
             "get_resume_metadata",
@@ -329,6 +337,39 @@ class MainAgentRuntime:
                 update={
                     "active_workflow": "email_tracking",
                     "phase": result.state,
+                }
+            )
+        elif result.tool_name == "list_interviews" and result.state in {
+            "interviews_found",
+            "no_interviews_found",
+        }:
+            task = task.model_copy(
+                update={
+                    "interview_candidates": tuple(
+                        InterviewCandidateContextItem(
+                            interview_round_id=item["interview_round_id"],
+                            application_id=item["application_id"],
+                            sequence_number=item["sequence_number"],
+                            employer_label=item.get("employer_label"),
+                            status=item["status"],
+                            scheduled_start=item.get("scheduled_start"),
+                        )
+                        for item in result.payload.get("items", ())
+                    )
+                }
+            )
+        elif result.tool_name in {
+            "get_interview",
+            "create_interview",
+            "update_interview",
+            "complete_interview",
+        } and result.state == "interview_ready":
+            task = task.model_copy(
+                update={
+                    "active_interview_round_id": result.payload.get(
+                        "interview_round_id"
+                    ),
+                    "active_application_id": result.payload.get("application_id"),
                 }
             )
         elif result.tool_name == "analyze_resume" and result.state == "resume_analysis_ready":

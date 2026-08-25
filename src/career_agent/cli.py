@@ -32,6 +32,7 @@ from career_agent.connectors.email_accounts import EnvironmentEmailConnectorReso
 from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.applications import ApplicationService
 from career_agent.services.email_tracking import EmailTrackingService
+from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -39,6 +40,7 @@ from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
@@ -108,6 +110,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         job_repository,
         resume_store,
     )
+    interview_service = InterviewService(
+        SQLiteInterviewStore(Path(args.application_store).expanduser()),
+        application_service,
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
@@ -121,11 +127,13 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),
             ),
             application_service=application_service,
+            interview_service=interview_service,
             email_tracking_service=EmailTrackingService(
                 SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
                 application_service,
                 EnvironmentEmailConnectorResolver(),
                 OpenAIEmailTrackingWorker(resume_analysis_config),
+                interview_service,
             ),
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,

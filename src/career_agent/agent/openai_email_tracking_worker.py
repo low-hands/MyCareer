@@ -105,6 +105,11 @@ class OpenAIEmailTrackingWorker:
             "application_id only from the supplied candidates and only when company, role, "
             "identifiers, and timing make the match unique. Use unclear and null when uncertain. "
             "Distinguish acknowledgement, interview invitation, rejection, offer, and material "
-            "request. Confidence must reflect both event classification and application linkage. "
+            "request. For interview invitations, extract interview_details only when explicitly "
+            "stated. employer_label may contain 一面/二面/final round only when those exact labels "
+            "appear in the email; never infer a round number. Use invited for a new appointment, "
+            "rescheduled for an explicit time change, details_updated for added link/location, and "
+            "cancelled for cancellation. Preserve timezone or UTC offset and use null for unknown "
+            "schedule fields. Confidence must reflect both event classification and application linkage. "
             "The summary must be short, factual, and must not copy sensitive body content."
         )

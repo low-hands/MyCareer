@@ -16,6 +16,7 @@ from career_agent.domain.email_tracking import (
     RemoteEmailContent,
     RemoteEmailMetadata,
 )
+from career_agent.domain.interviews import InterviewDetails
 from career_agent.services.applications import (
     ApplicationInputNotFoundError,
     ApplicationService,
@@ -23,6 +24,12 @@ from career_agent.services.applications import (
     InvalidApplicationTransitionError,
 )
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+from career_agent.services.interviews import (
+    AmbiguousInterviewMatchError,
+    InterviewApplicationConflictError,
+    InterviewNotFoundError,
+    InterviewService,
+)
 
 
 class EmailTrackingWorker(Protocol):
@@ -112,6 +119,11 @@ class DeterministicEmailTrackingWorker:
             application_id=application_id,
             confidence=confidence,
             summary=summary,
+            interview_details=(
+                InterviewDetails(change_type="invited")
+                if event_type == "interview_invitation"
+                else None
+            ),
         )
 
 
@@ -127,6 +139,7 @@ class EmailTrackingService:
         application_service: ApplicationService,
         connector_resolver: EmailConnectorResolver,
         worker: EmailTrackingWorker | None = None,
+        interview_service: InterviewService | None = None,
         *,
         auto_apply_confidence: float = 0.9,
         initial_sync_days: int = 90,
@@ -135,6 +148,7 @@ class EmailTrackingService:
         self._application_service = application_service
         self._connector_resolver = connector_resolver
         self._worker = worker or DeterministicEmailTrackingWorker()
+        self._interview_service = interview_service
         self._auto_apply_confidence = auto_apply_confidence
         self._initial_sync_days = initial_sync_days
 
@@ -215,7 +229,11 @@ class EmailTrackingService:
                     classifier=self._worker.classifier,
                 )
                 if event_inserted and self._can_auto_apply(assessment):
-                    resolved = self._try_apply_event(user_id=user_id, event=event)
+                    resolved = self._try_apply_event(
+                        user_id=user_id,
+                        event=event,
+                        source_thread_id=metadata.external_thread_id,
+                    )
                     if resolved is not None:
                         event = resolved
                 if event_inserted:
@@ -252,6 +270,7 @@ class EmailTrackingService:
         event_id: str,
         approve: bool,
         application_id: str | None = None,
+        interview_round_id: str | None = None,
     ) -> EmailEvent:
         event = self._store.get_event(user_id=user_id, event_id=event_id)
         if event is None:
@@ -272,15 +291,44 @@ class EmailTrackingService:
         if target_application_id is None:
             raise EmailEventResolutionError("approval requires an application_id")
         event = event.model_copy(update={"application_id": target_application_id})
-        resolved = self._try_apply_event(user_id=user_id, event=event)
+        message = self._store.get_message(
+            user_id=user_id,
+            email_message_id=event.email_message_id,
+        )
+        resolved = self._try_apply_event(
+            user_id=user_id,
+            event=event,
+            source_thread_id=(message.external_thread_id if message else None),
+            interview_round_id=interview_round_id,
+        )
         if resolved is None:
             raise EmailEventResolutionError("email event conflicts with application state")
         return resolved
 
-    def _try_apply_event(self, *, user_id: str, event: EmailEvent) -> EmailEvent | None:
+    def _try_apply_event(
+        self,
+        *,
+        user_id: str,
+        event: EmailEvent,
+        source_thread_id: str | None = None,
+        interview_round_id: str | None = None,
+    ) -> EmailEvent | None:
         if event.application_id is None or event.event_type == "unclear":
             return None
         try:
+            if (
+                event.event_type == "interview_invitation"
+                and self._interview_service is not None
+            ):
+                self._interview_service.record_email_event(
+                    user_id=user_id,
+                    application_id=event.application_id,
+                    email_event_id=event.id,
+                    source_thread_id=source_thread_id,
+                    details=event.interview_details or InterviewDetails(),
+                    occurred_at=event.occurred_at,
+                    interview_round_id=interview_round_id,
+                )
             self._application_service.apply_email_event(
                 user_id=user_id,
                 application_id=event.application_id,
@@ -291,6 +339,9 @@ class EmailTrackingService:
             ApplicationInputNotFoundError,
             InvalidApplicationTransitionError,
             ConcurrentApplicationUpdateError,
+            AmbiguousInterviewMatchError,
+            InterviewApplicationConflictError,
+            InterviewNotFoundError,
         ):
             return None
         return self._store.resolve_event(

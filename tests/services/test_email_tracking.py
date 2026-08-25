@@ -9,7 +9,9 @@ from career_agent.domain.email_tracking import (
     RemoteEmailMetadata,
 )
 from career_agent.services.email_tracking import EmailTrackingService
+from career_agent.services.interviews import InterviewService
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+from career_agent.storage.interviews import SQLiteInterviewStore
 
 
 class Connector:
@@ -58,6 +60,11 @@ class Applications:
         self.application.status = "interviewing"
         return self.application
 
+    def get_application(self, *, user_id, application_id):
+        if user_id != "u1" or application_id != self.application.id:
+            raise ValueError("application unavailable")
+        return SimpleNamespace(application=self.application)
+
 
 def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: Path) -> None:
     store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
@@ -76,7 +83,12 @@ def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: 
     )
     connector = Connector(metadata)
     applications = Applications()
-    service = EmailTrackingService(store, applications, Resolver(connector))
+    interviews = InterviewService(
+        SQLiteInterviewStore(tmp_path / "applications.sqlite3"), applications
+    )
+    service = EmailTrackingService(
+        store, applications, Resolver(connector), interview_service=interviews
+    )
 
     result = service.sync(user_id="u1", account_id=account.id)
 
@@ -86,6 +98,10 @@ def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: 
     assert result.events_created[0].event_type == "interview_invitation"
     assert result.events_created[0].status == "applied"
     assert applications.applied[0]["application_id"] == "app-1"
+    interview = interviews.list_interviews(user_id="u1")[0]
+    assert interview.sequence_number == 1
+    assert interview.employer_label is None
+    assert interview.status == "identified"
     assert store.get_cursor(account_id=account.id).value == "h2"
     assert b"Acme \xe9\x82\x80\xe8\xaf\xb7" not in (tmp_path / "email.sqlite3").read_bytes()
 

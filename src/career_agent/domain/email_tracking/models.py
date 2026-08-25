@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from career_agent.domain.interviews import InterviewDetails
+
 
 EmailProvider = Literal["gmail", "qq"]
 EmailEventType = Literal[
@@ -79,6 +81,7 @@ class EmailEvent(EmailTrackingContract):
     confidence: float = Field(ge=0.0, le=1.0)
     classifier: str = Field(min_length=1, max_length=200)
     summary: str = Field(min_length=1, max_length=2000)
+    interview_details: InterviewDetails | None = None
     occurred_at: datetime
     created_at: datetime
     resolved_at: datetime | None = None
@@ -91,6 +94,8 @@ class EmailEvent(EmailTrackingContract):
             raise ValueError("resolved events require resolved_at")
         if self.status == "applied" and self.application_id is None:
             raise ValueError("applied events require an application")
+        if self.interview_details is not None and self.event_type != "interview_invitation":
+            raise ValueError("interview details require an interview invitation event")
         return self
 
 
@@ -126,3 +131,10 @@ class EmailAssessment(EmailTrackingContract):
     application_id: str | None = Field(default=None, min_length=1)
     confidence: float = Field(ge=0.0, le=1.0)
     summary: str = Field(min_length=1, max_length=2000)
+    interview_details: InterviewDetails | None = None
+
+    @model_validator(mode="after")
+    def validate_interview_details(self) -> "EmailAssessment":
+        if self.interview_details is not None and self.event_type != "interview_invitation":
+            raise ValueError("interview details require an interview invitation event")
+        return self

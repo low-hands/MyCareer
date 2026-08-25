@@ -7,12 +7,15 @@ from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDis
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
+    CompleteInterviewToolArguments,
+    CreateInterviewToolArguments,
     CreateApplicationToolArguments,
     DraftResumeTailoringToolArguments,
     ExportResumeArtifactToolArguments,
     FindSavedJobsToolArguments,
     FinalizeResumeTailoringToolArguments,
     GetApplicationToolArguments,
+    GetInterviewToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
     GetResumeJobMatchToolArguments,
@@ -24,11 +27,13 @@ from career_agent.agent.main_agent_contracts import (
     ListApplicationsToolArguments,
     ListTargetRolesToolArguments,
     ListEmailEventsToolArguments,
+    ListInterviewsToolArguments,
     MatchResumeToJobToolArguments,
     ReviewResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
     ResolveEmailEventToolArguments,
     SyncApplicationEmailsToolArguments,
+    UpdateInterviewToolArguments,
     ToolObservation,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -50,6 +55,11 @@ from career_agent.services.email_tracking import (
     EmailEventNotFoundError,
     EmailEventResolutionError,
     EmailTrackingService,
+)
+from career_agent.services.interviews import (
+    InterviewApplicationConflictError,
+    InterviewNotFoundError,
+    InterviewService,
 )
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
@@ -88,6 +98,7 @@ class MainAgentToolRegistry:
         resume_export_service: ResumeExportService | None = None,
         application_service: ApplicationService | None = None,
         email_tracking_service: EmailTrackingService | None = None,
+        interview_service: InterviewService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -102,6 +113,7 @@ class MainAgentToolRegistry:
         self._resume_export_service = resume_export_service
         self._application_service = application_service
         self._email_tracking_service = email_tracking_service
+        self._interview_service = interview_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -162,6 +174,16 @@ class MainAgentToolRegistry:
                 {
                     "list_email_events": self._list_email_events,
                     "resolve_email_event": self._resolve_email_event,
+                }
+            )
+        if interview_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "list_interviews": self._list_interviews,
+                    "get_interview": self._get_interview,
+                    "create_interview": self._create_interview,
+                    "update_interview": self._update_interview,
+                    "complete_interview": self._complete_interview,
                 }
             )
 
@@ -409,6 +431,51 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if self._interview_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_interviews",
+                            "description": "List real interview appointments, optionally for one application or by status. sequence_number is only the system's chronological appointment number, not an employer-confirmed round label.",
+                            "parameters": ListInterviewsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_interview",
+                            "description": "Read one interview appointment and its append-only invitation, reschedule, detail-update, cancellation, and completion history.",
+                            "parameters": GetInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "create_interview",
+                            "description": "Create a user-reported real interview appointment for an application. employer_label may be provided only when the employer explicitly used that label; never infer 一面/二面 from sequence.",
+                            "parameters": CreateInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "update_interview",
+                            "description": "Apply an explicitly user-reported reschedule, added detail, or cancellation to one existing interview. A reschedule updates the same appointment rather than creating another one.",
+                            "parameters": UpdateInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "complete_interview",
+                            "description": "Mark one real interview completed only after the user explicitly confirms they attended it. Time passing alone is never confirmation.",
+                            "parameters": CompleteInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
         return tuple(schemas)
 
     def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> MainAgentToolOutput:
@@ -498,6 +565,7 @@ class MainAgentToolRegistry:
                 event_id=model_arguments.event_id,
                 approve=model_arguments.approve,
                 application_id=model_arguments.application_id,
+                interview_round_id=model_arguments.interview_round_id,
             )
         except EmailEventNotFoundError:
             return ToolObservation(
@@ -519,6 +587,169 @@ class MainAgentToolRegistry:
             payload=self._email_event_payload(event),
         )
 
+    def _list_interviews(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ListInterviewsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        interviews = self._interview_service.list_interviews(
+            user_id=user_id,
+            application_id=model_arguments.application_id,
+            statuses=model_arguments.statuses,
+            limit=model_arguments.limit,
+        )
+        return ToolObservation(
+            tool_name="list_interviews",
+            state="interviews_found" if interviews else "no_interviews_found",
+            message=f"找到 {len(interviews)} 场面试。" if interviews else "没有找到匹配的面试安排。",
+            payload={
+                "items": [
+                    {
+                        "selection_index": index,
+                        **self._interview_payload(interview),
+                    }
+                    for index, interview in enumerate(interviews, start=1)
+                ]
+            },
+        )
+
+    def _get_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetInterviewToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("get_interview requires interview_round_id")
+        try:
+            detail = self._interview_service.get_interview(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+            )
+        except InterviewNotFoundError:
+            return ToolObservation(
+                tool_name="get_interview",
+                state="interview_not_found",
+                message="没有找到这场面试，或它不属于当前用户。",
+            )
+        return ToolObservation(
+            tool_name="get_interview",
+            state="interview_ready",
+            message=f"已读取系统中的第 {detail.interview.sequence_number} 场面试。",
+            payload={
+                **self._interview_payload(detail.interview),
+                "events": [
+                    {
+                        "event_type": event.event_type,
+                        "source": event.source,
+                        "email_event_id": event.email_event_id,
+                        "details": event.details.model_dump(mode="json"),
+                        "occurred_at": event.occurred_at.isoformat(),
+                    }
+                    for event in detail.events
+                ],
+            },
+        )
+
+    def _create_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = CreateInterviewToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.application_id is None:
+            raise ValueError("create_interview requires application_id")
+        try:
+            interview = self._interview_service.create_manual(
+                user_id=user_id,
+                application_id=model_arguments.application_id,
+                details=model_arguments.details,
+            )
+        except InterviewApplicationConflictError as error:
+            return ToolObservation(
+                tool_name="create_interview",
+                state="interview_application_conflict",
+                message="无法为这条投递创建面试安排。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="create_interview",
+            state="interview_ready",
+            message=f"已记录系统中的第 {interview.sequence_number} 场面试。",
+            payload=self._interview_payload(interview),
+        )
+
+    def _update_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = UpdateInterviewToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("update_interview requires interview_round_id")
+        try:
+            interview = self._interview_service.update_manual(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+                details=model_arguments.details,
+            )
+        except InterviewNotFoundError:
+            return ToolObservation(
+                tool_name="update_interview", state="interview_not_found",
+                message="没有找到这场面试，或它不属于当前用户。",
+            )
+        except InterviewApplicationConflictError as error:
+            return ToolObservation(
+                tool_name="update_interview", state="interview_update_conflict",
+                message="这场面试当前不能按该方式更新。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="update_interview",
+            state="interview_ready",
+            message="面试安排已更新，原安排仍保留在事件历史中。",
+            payload=self._interview_payload(interview),
+        )
+
+    def _complete_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = CompleteInterviewToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("complete_interview requires interview_round_id")
+        try:
+            interview = self._interview_service.complete_interview(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+                completed_at=model_arguments.completed_at,
+            )
+        except InterviewNotFoundError:
+            return ToolObservation(
+                tool_name="complete_interview", state="interview_not_found",
+                message="没有找到这场面试，或它不属于当前用户。",
+            )
+        except InterviewApplicationConflictError as error:
+            return ToolObservation(
+                tool_name="complete_interview", state="interview_completion_conflict",
+                message="这场面试当前不能标记为完成。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="complete_interview",
+            state="interview_ready",
+            message="已将这场面试标记为完成。",
+            next_action="offer_interview_retro",
+            payload=self._interview_payload(interview),
+        )
+
     @staticmethod
     def _email_event_payload(event) -> dict[str, Any]:
         return {
@@ -530,6 +761,36 @@ class MainAgentToolRegistry:
             "classifier": event.classifier,
             "summary": event.summary,
             "occurred_at": event.occurred_at.isoformat(),
+            "interview_details": (
+                event.interview_details.model_dump(mode="json")
+                if event.interview_details is not None
+                else None
+            ),
+        }
+
+    @staticmethod
+    def _interview_payload(interview) -> dict[str, Any]:
+        return {
+            "interview_round_id": interview.id,
+            "application_id": interview.application_id,
+            "sequence_number": interview.sequence_number,
+            "employer_label": interview.employer_label,
+            "status": interview.status,
+            "scheduled_start": (
+                interview.scheduled_start.isoformat()
+                if interview.scheduled_start is not None
+                else None
+            ),
+            "scheduled_end": (
+                interview.scheduled_end.isoformat()
+                if interview.scheduled_end is not None
+                else None
+            ),
+            "timezone": interview.timezone,
+            "interview_format": interview.interview_format,
+            "location": interview.location,
+            "meeting_url": interview.meeting_url,
+            "contact_summary": interview.contact_summary,
         }
 
     def invoke_atomic_tool(self, name: str, arguments: dict[str, Any]) -> ToolObservation:
