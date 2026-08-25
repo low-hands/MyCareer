@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
 
@@ -292,6 +292,14 @@ class MainAgentRuntime:
         }:
             return project_interview_arguments(context, name, arguments)
         if name in {
+            "get_daily_brief",
+            "list_action_items",
+            "complete_action_item",
+            "dismiss_action_item",
+            "snooze_action_item",
+        }:
+            return project_action_center_arguments(context, name, arguments)
+        if name in {
             "list_target_roles",
             "list_resumes",
             "get_resume_metadata",
@@ -337,6 +345,47 @@ class MainAgentRuntime:
                 update={
                     "active_workflow": "email_tracking",
                     "phase": result.state,
+                }
+            )
+        elif result.tool_name == "get_daily_brief" and result.state == "daily_brief_ready":
+            items = tuple(
+                item
+                for section in ("overdue", "due_today", "upcoming", "no_due_date")
+                for item in result.payload.get(section, ())
+            )
+            task = task.model_copy(
+                update={
+                    "action_candidates": tuple(
+                        MainAgentRuntime._action_candidate(item) for item in items
+                    )
+                }
+            )
+        elif result.tool_name == "list_action_items" and result.state in {
+            "action_items_found",
+            "no_action_items_found",
+        }:
+            task = task.model_copy(
+                update={
+                    "action_candidates": tuple(
+                        MainAgentRuntime._action_candidate(item)
+                        for item in result.payload.get("items", ())
+                    )
+                }
+            )
+        elif result.tool_name in {
+            "complete_action_item",
+            "dismiss_action_item",
+            "snooze_action_item",
+        } and result.state in {"action_item_resolved", "action_item_snoozed"}:
+            action_item_id = result.payload.get("action_item_id")
+            task = task.model_copy(
+                update={
+                    "active_action_item_id": action_item_id,
+                    "action_candidates": tuple(
+                        candidate
+                        for candidate in task.action_candidates
+                        if candidate.action_item_id != action_item_id
+                    ),
                 }
             )
         elif result.tool_name == "list_interviews" and result.state in {
@@ -495,3 +544,13 @@ class MainAgentRuntime:
                 }
             )
         return context.model_copy(update={"task": task})
+
+    @staticmethod
+    def _action_candidate(item: dict[str, Any]) -> ActionCandidateContextItem:
+        return ActionCandidateContextItem(
+            action_item_id=item["action_item_id"],
+            action_type=item["action_type"],
+            title=item["title"],
+            status=item["status"],
+            due_at=item.get("due_at"),
+        )

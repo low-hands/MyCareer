@@ -15,6 +15,7 @@ from career_agent.agent.main_agent_contracts import (
     FindSavedJobsToolArguments,
     FinalizeResumeTailoringToolArguments,
     GetApplicationToolArguments,
+    GetDailyBriefToolArguments,
     GetInterviewToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
@@ -25,6 +26,7 @@ from career_agent.agent.main_agent_contracts import (
     JobDiscoveryWorkflowInput,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
+    ListActionItemsToolArguments,
     ListTargetRolesToolArguments,
     ListEmailEventsToolArguments,
     ListInterviewsToolArguments,
@@ -32,6 +34,8 @@ from career_agent.agent.main_agent_contracts import (
     ReviewResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
     ResolveEmailEventToolArguments,
+    ResolveActionItemToolArguments,
+    SnoozeActionItemToolArguments,
     SyncApplicationEmailsToolArguments,
     UpdateInterviewToolArguments,
     ToolObservation,
@@ -49,6 +53,11 @@ from career_agent.services.applications import (
     ApplicationService,
     ConcurrentApplicationUpdateError,
     InvalidApplicationTransitionError,
+)
+from career_agent.services.action_center import (
+    ActionCenterService,
+    ActionItemNotFoundError,
+    InvalidActionTransitionError,
 )
 from career_agent.services.email_tracking import (
     EmailAccountNotFoundError,
@@ -99,6 +108,7 @@ class MainAgentToolRegistry:
         application_service: ApplicationService | None = None,
         email_tracking_service: EmailTrackingService | None = None,
         interview_service: InterviewService | None = None,
+        action_center_service: ActionCenterService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -114,6 +124,7 @@ class MainAgentToolRegistry:
         self._application_service = application_service
         self._email_tracking_service = email_tracking_service
         self._interview_service = interview_service
+        self._action_center_service = action_center_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -184,6 +195,16 @@ class MainAgentToolRegistry:
                     "create_interview": self._create_interview,
                     "update_interview": self._update_interview,
                     "complete_interview": self._complete_interview,
+                }
+            )
+        if action_center_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "get_daily_brief": self._get_daily_brief,
+                    "list_action_items": self._list_action_items,
+                    "complete_action_item": self._complete_action_item,
+                    "dismiss_action_item": self._dismiss_action_item,
+                    "snooze_action_item": self._snooze_action_item,
                 }
             )
 
@@ -476,6 +497,51 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if self._action_center_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_daily_brief",
+                            "description": "Generate the current user's source-grounded daily career brief from applications, recruiting email events, and real interviews. The report is computed on demand and is not stored as stale narrative memory.",
+                            "parameters": GetDailyBriefToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_action_items",
+                            "description": "Refresh and list persisted career action items such as follow-ups, pending email confirmations, interview preparation, reminders, material requests, and retrospectives.",
+                            "parameters": ListActionItemsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "complete_action_item",
+                            "description": "Mark one action item completed only after the user explicitly reports completing it.",
+                            "parameters": ResolveActionItemToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "dismiss_action_item",
+                            "description": "Dismiss one action item only after the user explicitly says it is not applicable or should be ignored.",
+                            "parameters": ResolveActionItemToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "snooze_action_item",
+                            "description": "Snooze one action item until an explicit future timestamp requested by the user.",
+                            "parameters": SnoozeActionItemToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
         return tuple(schemas)
 
     def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> MainAgentToolOutput:
@@ -750,6 +816,154 @@ class MainAgentToolRegistry:
             payload=self._interview_payload(interview),
         )
 
+    def _get_daily_brief(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._action_center_service is None:
+            raise ValueError("Action Center service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetDailyBriefToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            brief = self._action_center_service.daily_brief(
+                user_id=user_id,
+                timezone_name=model_arguments.timezone,
+            )
+        except ValueError:
+            return ToolObservation(
+                tool_name="get_daily_brief",
+                state="invalid_timezone",
+                message="无法识别该时区，请提供 IANA 时区名称，例如 Asia/Shanghai。",
+            )
+        sections = {
+            "overdue": brief.overdue,
+            "due_today": brief.due_today,
+            "upcoming": brief.upcoming,
+            "no_due_date": brief.no_due_date,
+        }
+        count = sum(len(items) for items in sections.values())
+        return ToolObservation(
+            tool_name="get_daily_brief",
+            state="daily_brief_ready",
+            message=f"今日职业简报包含 {count} 个待办事项。" if count else "今日没有待办事项。",
+            payload={
+                "timezone": brief.timezone,
+                "generated_at": brief.generated_at.isoformat(),
+                **{
+                    name: [self._action_payload(item) for item in items]
+                    for name, items in sections.items()
+                },
+            },
+        )
+
+    def _list_action_items(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._action_center_service is None:
+            raise ValueError("Action Center service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ListActionItemsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            items = self._action_center_service.list_actions(
+                user_id=user_id,
+                statuses=model_arguments.statuses,
+                limit=model_arguments.limit,
+                timezone_name=model_arguments.timezone,
+            )
+        except ValueError:
+            return ToolObservation(
+                tool_name="list_action_items",
+                state="invalid_timezone",
+                message="无法识别该时区，请提供 IANA 时区名称，例如 Asia/Shanghai。",
+            )
+        return ToolObservation(
+            tool_name="list_action_items",
+            state="action_items_found" if items else "no_action_items_found",
+            message=f"找到 {len(items)} 个行动事项。" if items else "当前没有匹配的行动事项。",
+            payload={
+                "items": [
+                    {"selection_index": index, **self._action_payload(item)}
+                    for index, item in enumerate(items, start=1)
+                ]
+            },
+        )
+
+    def _complete_action_item(self, arguments: dict[str, Any]) -> ToolObservation:
+        return self._resolve_action_item(arguments, action="complete")
+
+    def _dismiss_action_item(self, arguments: dict[str, Any]) -> ToolObservation:
+        return self._resolve_action_item(arguments, action="dismiss")
+
+    def _resolve_action_item(
+        self, arguments: dict[str, Any], *, action: Literal["complete", "dismiss"]
+    ) -> ToolObservation:
+        if self._action_center_service is None:
+            raise ValueError("Action Center service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ResolveActionItemToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.action_item_id is None:
+            raise ValueError(f"{action}_action_item requires action_item_id")
+        try:
+            item = (
+                self._action_center_service.complete_action(
+                    user_id=user_id,
+                    action_item_id=model_arguments.action_item_id,
+                )
+                if action == "complete"
+                else self._action_center_service.dismiss_action(
+                    user_id=user_id,
+                    action_item_id=model_arguments.action_item_id,
+                )
+            )
+        except ActionItemNotFoundError:
+            return ToolObservation(
+                tool_name=f"{action}_action_item",
+                state="action_item_not_found",
+                message="没有找到这个行动事项，或它不属于当前用户。",
+            )
+        return ToolObservation(
+            tool_name=f"{action}_action_item",
+            state="action_item_resolved",
+            message="行动事项已完成。" if action == "complete" else "行动事项已忽略。",
+            payload=self._action_payload(item),
+        )
+
+    def _snooze_action_item(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._action_center_service is None:
+            raise ValueError("Action Center service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = SnoozeActionItemToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.action_item_id is None:
+            raise ValueError("snooze_action_item requires action_item_id")
+        try:
+            item = self._action_center_service.snooze_action(
+                user_id=user_id,
+                action_item_id=model_arguments.action_item_id,
+                snoozed_until=model_arguments.snoozed_until,
+            )
+        except ActionItemNotFoundError:
+            return ToolObservation(
+                tool_name="snooze_action_item",
+                state="action_item_not_found",
+                message="没有找到这个行动事项，或它不属于当前用户。",
+            )
+        except InvalidActionTransitionError as error:
+            return ToolObservation(
+                tool_name="snooze_action_item",
+                state="invalid_action_transition",
+                message="无法将该行动事项稍后提醒。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="snooze_action_item",
+            state="action_item_snoozed",
+            message="行动事项已设置为稍后提醒。",
+            payload=self._action_payload(item),
+        )
+
     @staticmethod
     def _email_event_payload(event) -> dict[str, Any]:
         return {
@@ -791,6 +1005,25 @@ class MainAgentToolRegistry:
             "location": interview.location,
             "meeting_url": interview.meeting_url,
             "contact_summary": interview.contact_summary,
+        }
+
+    @staticmethod
+    def _action_payload(item) -> dict[str, Any]:
+        return {
+            "action_item_id": item.id,
+            "action_type": item.action_type,
+            "source_type": item.source_type,
+            "source_id": item.source_id,
+            "application_id": item.application_id,
+            "title": item.title,
+            "summary": item.summary,
+            "due_at": item.due_at.isoformat() if item.due_at is not None else None,
+            "status": item.status,
+            "snoozed_until": (
+                item.snoozed_until.isoformat()
+                if item.snoozed_until is not None
+                else None
+            ),
         }
 
     def invoke_atomic_tool(self, name: str, arguments: dict[str, Any]) -> ToolObservation:

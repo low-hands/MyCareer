@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
+from career_agent.domain.action_center import ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
 from career_agent.domain.interviews import InterviewDetails, InterviewStatus
 from career_agent.domain.job_discovery import ContractModel
@@ -50,6 +51,14 @@ class InterviewCandidateContextItem(ContractModel):
     scheduled_start: datetime | None = None
 
 
+class ActionCandidateContextItem(ContractModel):
+    action_item_id: str
+    action_type: ActionType
+    title: str
+    status: ActionStatus
+    due_at: datetime | None = None
+
+
 class ConversationTaskState(ContractModel):
     active_workflow: Literal["job_discovery", "email_tracking", "none"] = "none"
     run_id: str | None = None
@@ -73,6 +82,8 @@ class ConversationTaskState(ContractModel):
     application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
     active_interview_round_id: str | None = None
     interview_candidates: tuple[InterviewCandidateContextItem, ...] = ()
+    active_action_item_id: str | None = None
+    action_candidates: tuple[ActionCandidateContextItem, ...] = ()
 
 
 class ConversationMessageContext(ContractModel):
@@ -179,6 +190,22 @@ class MainAgentContext(ContractModel):
                     }
                     for index, candidate in enumerate(
                         self.task.interview_candidates, start=1
+                    )
+                ],
+                "action_candidates": [
+                    {
+                        "selection_index": index,
+                        "action_type": candidate.action_type,
+                        "title": candidate.title,
+                        "status": candidate.status,
+                        "due_at": (
+                            candidate.due_at.isoformat()
+                            if candidate.due_at is not None
+                            else None
+                        ),
+                    }
+                    for index, candidate in enumerate(
+                        self.task.action_candidates, start=1
                     )
                 ],
             },
@@ -384,6 +411,33 @@ class CompleteInterviewToolArguments(ContractModel):
         if self.interview_round_id is not None and self.selection_index is not None:
             raise ValueError("use either interview_round_id or selection_index")
         return self
+
+
+class GetDailyBriefToolArguments(ContractModel):
+    timezone: str = Field(default="Asia/Shanghai", min_length=1, max_length=100)
+
+
+class ListActionItemsToolArguments(ContractModel):
+    statuses: tuple[ActionStatus, ...] = Field(
+        default=("open", "snoozed"), min_length=1, max_length=4
+    )
+    limit: int = Field(default=50, ge=1, le=100)
+    timezone: str = Field(default="Asia/Shanghai", min_length=1, max_length=100)
+
+
+class ResolveActionItemToolArguments(ContractModel):
+    action_item_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "ResolveActionItemToolArguments":
+        if self.action_item_id is not None and self.selection_index is not None:
+            raise ValueError("use either action_item_id or selection_index")
+        return self
+
+
+class SnoozeActionItemToolArguments(ResolveActionItemToolArguments):
+    snoozed_until: datetime
 
 
 class GetResumeAnalysisToolArguments(ContractModel):
@@ -618,4 +672,36 @@ def project_interview_arguments(
         if interview_round_id is None:
             raise ValueError(f"{name} requires an active interview")
         payload["interview_round_id"] = interview_round_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_action_center_arguments(
+    context: MainAgentContext, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "get_daily_brief":
+        model_arguments = GetDailyBriefToolArguments.model_validate(arguments)
+    elif name == "list_action_items":
+        model_arguments = ListActionItemsToolArguments.model_validate(arguments)
+    elif name in {"complete_action_item", "dismiss_action_item"}:
+        model_arguments = ResolveActionItemToolArguments.model_validate(arguments)
+    elif name == "snooze_action_item":
+        model_arguments = SnoozeActionItemToolArguments.model_validate(arguments)
+    else:
+        raise ValueError(f"Unknown action-center tool: {name}")
+    payload = model_arguments.model_dump()
+    if name in {"complete_action_item", "dismiss_action_item", "snooze_action_item"}:
+        action_item_id = payload.get("action_item_id")
+        selection_index = payload.pop("selection_index", None)
+        if action_item_id is None and selection_index is not None:
+            if selection_index > len(context.task.action_candidates):
+                raise ValueError("action selection index is out of range")
+            action_item_id = context.task.action_candidates[
+                selection_index - 1
+            ].action_item_id
+        action_item_id = action_item_id or context.task.active_action_item_id
+        if action_item_id is None:
+            raise ValueError(f"{name} requires an active action item")
+        payload["action_item_id"] = action_item_id
     return {"user_id": context.profile.user_id, **payload}
