@@ -7,14 +7,18 @@ from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDis
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
+    DraftResumeTailoringToolArguments,
     FindSavedJobsToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
+    GetResumeJobMatchToolArguments,
+    GetResumeTailoringDraftToolArguments,
     GetSavedJobToolArguments,
     JobDiscoveryToolArguments,
     JobDiscoveryWorkflowInput,
     ListResumesToolArguments,
     ListTargetRolesToolArguments,
+    MatchResumeToJobToolArguments,
     ToolObservation,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -23,8 +27,17 @@ from career_agent.services.resume_analysis import (
     ResumeAnalysisService,
     ResumeVersionNotFoundError,
 )
+from career_agent.services.resume_job_match import (
+    ResumeJobMatchInputNotFoundError,
+    ResumeJobMatchService,
+)
+from career_agent.services.resume_tailoring import (
+    ResumeTailoringDraftNotFoundError,
+    ResumeTailoringService,
+)
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 
 
 MainAgentToolOutput = JobDiscoveryGatewayResult | ToolObservation
@@ -39,6 +52,8 @@ class MainAgentToolRegistry:
         job_repository: JobPostingRepository | None = None,
         resume_store: ResumeStore | None = None,
         resume_analysis_service: ResumeAnalysisService | None = None,
+        resume_job_match_service: ResumeJobMatchService | None = None,
+        resume_tailoring_service: ResumeTailoringService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], JobDiscoveryGatewayResult]] = {
             "job_discovery": self._job_discovery,
@@ -48,6 +63,8 @@ class MainAgentToolRegistry:
         self._job_repository = job_repository
         self._resume_store = resume_store
         self._resume_analysis_service = resume_analysis_service
+        self._resume_job_match_service = resume_job_match_service
+        self._resume_tailoring_service = resume_tailoring_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -69,6 +86,20 @@ class MainAgentToolRegistry:
                     "analyze_resume": self._analyze_resume,
                     "get_resume_analysis": self._get_resume_analysis,
                     "confirm_resume_analysis": self._confirm_resume_analysis,
+                }
+            )
+        if resume_job_match_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "match_resume_to_job": self._match_resume_to_job,
+                    "get_resume_job_match": self._get_resume_job_match,
+                }
+            )
+        if resume_tailoring_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "draft_resume_tailoring": self._draft_resume_tailoring,
+                    "get_resume_tailoring_draft": self._get_resume_tailoring_draft,
                 }
             )
 
@@ -177,6 +208,48 @@ class MainAgentToolRegistry:
                             "name": "confirm_resume_analysis",
                             "description": "Confirm all candidates in one resume analysis by analysis_id and persist them as CareerRecord and confirmed CareerEvidence. Call only after the user explicitly confirms that specific analysis; never infer confirmation.",
                             "parameters": ConfirmResumeAnalysisToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
+        if self._resume_job_match_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "match_resume_to_job",
+                            "description": "Compare one exact current-user resume version with one exact saved job's complete JD. Use resume_version_id and job_posting_id returned by the resume and saved-job tools. Returns a persisted match_id and grounded requirement-by-requirement assessment; does not search online and never returns either original document.",
+                            "parameters": MatchResumeToJobToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_resume_job_match",
+                            "description": "Retrieve a previously persisted resume-job match by match_id. When omitted, the current conversation's active match is used. Returns only the structured assessment, never the original resume or complete JD.",
+                            "parameters": GetResumeJobMatchToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
+        if self._resume_tailoring_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "draft_resume_tailoring",
+                            "description": "Create a reviewable tailoring draft from a persisted resume-job match. Uses the active match when match_id is omitted. May accept a user tailoring goal. Returns grounded proposed changes and a draft_id; it does not alter or create a resume version.",
+                            "parameters": DraftResumeTailoringToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_resume_tailoring_draft",
+                            "description": "Retrieve an unexpired tailoring draft by draft_id, or use the active draft when omitted. Returns proposed changes for review; it does not apply them.",
+                            "parameters": GetResumeTailoringDraftToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -492,5 +565,178 @@ class MainAgentToolRegistry:
                 "analysis_id": model_arguments.analysis_id,
                 "career_record_ids": [record.id for record in imported.records],
                 "career_evidence_ids": [evidence.id for evidence in imported.evidence],
+            },
+        )
+
+    def _match_resume_to_job(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_job_match_service is None:
+            raise ValueError("Resume-job match service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = MatchResumeToJobToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            stored = self._resume_job_match_service.match(
+                user_id=user_id,
+                resume_version_id=model_arguments.resume_version_id,
+                job_posting_id=model_arguments.job_posting_id,
+            )
+        except ResumeJobMatchInputNotFoundError as error:
+            return ToolObservation(
+                tool_name="match_resume_to_job",
+                state="match_input_not_found",
+                message=(
+                    "没有找到这个简历版本，或它不属于当前用户。"
+                    if error.input_kind == "resume_version"
+                    else "没有找到这个已保存职位，或它不属于当前用户。"
+                ),
+                payload={
+                    "missing_input": error.input_kind,
+                    "resume_version_id": model_arguments.resume_version_id,
+                    "job_posting_id": model_arguments.job_posting_id,
+                },
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="match_resume_to_job",
+                state="failed",
+                message="简历与岗位匹配暂时失败，请稍后重试。" if error.retryable else "简历与岗位匹配失败。",
+                payload={
+                    "resume_version_id": model_arguments.resume_version_id,
+                    "job_posting_id": model_arguments.job_posting_id,
+                    "error_code": error.code,
+                    "retryable": error.retryable,
+                },
+            )
+        return ToolObservation(
+            tool_name="match_resume_to_job",
+            state="resume_job_match_ready",
+            message=f"已完成逐项匹配，整体匹配度为 {stored.result.overall_fit}。",
+            next_action="explain_match_or_offer_resume_tailoring",
+            payload={
+                "match_id": stored.id,
+                "resume_version_id": model_arguments.resume_version_id,
+                "job_posting_id": model_arguments.job_posting_id,
+                "created_at": stored.created_at.isoformat(),
+                **stored.result.model_dump(mode="json"),
+            },
+        )
+
+    def _get_resume_job_match(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_job_match_service is None:
+            raise ValueError("Resume-job match service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetResumeJobMatchToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.match_id is None:
+            raise ValueError("get_resume_job_match requires match_id")
+        try:
+            stored = self._resume_job_match_service.get_match(
+                user_id=user_id,
+                match_id=model_arguments.match_id,
+            )
+        except ResumeJobMatchInputNotFoundError:
+            return ToolObservation(
+                tool_name="get_resume_job_match",
+                state="resume_job_match_not_found",
+                message="没有找到这次简历岗位匹配，或它不属于当前用户。",
+                payload={"match_id": model_arguments.match_id},
+            )
+        return ToolObservation(
+            tool_name="get_resume_job_match",
+            state="resume_job_match_ready",
+            message=f"已读取匹配结果，整体匹配度为 {stored.result.overall_fit}。",
+            next_action="explain_match_or_offer_resume_tailoring",
+            payload={
+                "match_id": stored.id,
+                "resume_version_id": stored.resume_version_id,
+                "job_posting_id": stored.job_posting_id,
+                "created_at": stored.created_at.isoformat(),
+                **stored.result.model_dump(mode="json"),
+            },
+        )
+
+    def _draft_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_tailoring_service is None:
+            raise ValueError("Resume tailoring service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = DraftResumeTailoringToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.match_id is None:
+            raise ValueError("draft_resume_tailoring requires match_id")
+        try:
+            draft = self._resume_tailoring_service.create_draft(
+                user_id=user_id,
+                match_id=model_arguments.match_id,
+                tailoring_goal=model_arguments.tailoring_goal,
+            )
+        except ResumeJobMatchInputNotFoundError:
+            return ToolObservation(
+                tool_name="draft_resume_tailoring",
+                state="resume_job_match_not_found",
+                message="没有找到可用于定制的匹配结果，或它不属于当前用户。",
+                payload={"match_id": model_arguments.match_id},
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="draft_resume_tailoring",
+                state="failed",
+                message="简历定制暂时失败，请稍后重试。" if error.retryable else "简历定制失败。",
+                payload={"error_code": error.code, "retryable": error.retryable},
+            )
+        return self._tailoring_observation(
+            tool_name="draft_resume_tailoring",
+            draft=draft,
+            message=f"已生成 {len(draft.result.changes)} 条待审阅的简历修改建议。",
+        )
+
+    def _get_resume_tailoring_draft(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_tailoring_service is None:
+            raise ValueError("Resume tailoring service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetResumeTailoringDraftToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.draft_id is None:
+            raise ValueError("get_resume_tailoring_draft requires draft_id")
+        try:
+            draft = self._resume_tailoring_service.get_draft(
+                user_id=user_id,
+                draft_id=model_arguments.draft_id,
+            )
+        except ResumeTailoringDraftNotFoundError:
+            return ToolObservation(
+                tool_name="get_resume_tailoring_draft",
+                state="resume_tailoring_draft_not_found",
+                message="没有找到这份简历定制草稿，或它已经过期。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        return self._tailoring_observation(
+            tool_name="get_resume_tailoring_draft",
+            draft=draft,
+            message=f"已读取包含 {len(draft.result.changes)} 条修改建议的草稿。",
+        )
+
+    @staticmethod
+    def _tailoring_observation(
+        *,
+        tool_name: str,
+        draft: StoredResumeTailoringDraft,
+        message: str,
+    ) -> ToolObservation:
+        return ToolObservation(
+            tool_name=tool_name,
+            state="resume_tailoring_draft_ready",
+            message=message,
+            next_action="review_tailoring_changes",
+            payload={
+                "draft_id": draft.id,
+                "match_id": draft.match_id,
+                "status": draft.status,
+                "tailoring_goal": draft.tailoring_goal,
+                "expires_at": draft.expires_at.isoformat(),
+                **draft.result.model_dump(mode="json"),
             },
         )

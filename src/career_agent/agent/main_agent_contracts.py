@@ -39,6 +39,10 @@ class ConversationTaskState(ContractModel):
     candidates: tuple[CandidateContextItem, ...] = ()
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed"] | None = None
+    active_resume_job_match_id: str | None = None
+    resume_job_match_status: Literal["ready"] | None = None
+    active_resume_tailoring_draft_id: str | None = None
+    resume_tailoring_status: Literal["pending"] | None = None
 
 
 class ConversationMessageContext(ContractModel):
@@ -116,6 +120,8 @@ class MainAgentContext(ContractModel):
                     for index, candidate in enumerate(self.task.candidates, start=1)
                 ],
                 "resume_analysis_status": self.task.resume_analysis_status,
+                "resume_job_match_status": self.task.resume_job_match_status,
+                "resume_tailoring_status": self.task.resume_tailoring_status,
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
@@ -163,6 +169,24 @@ class GetResumeMetadataToolArguments(ContractModel):
 
 class AnalyzeResumeToolArguments(ContractModel):
     resume_version_id: str = Field(min_length=1)
+
+
+class MatchResumeToJobToolArguments(ContractModel):
+    resume_version_id: str = Field(min_length=1)
+    job_posting_id: str = Field(min_length=1)
+
+
+class GetResumeJobMatchToolArguments(ContractModel):
+    match_id: str | None = Field(default=None, min_length=1)
+
+
+class DraftResumeTailoringToolArguments(ContractModel):
+    match_id: str | None = Field(default=None, min_length=1)
+    tailoring_goal: str | None = Field(default=None, min_length=1, max_length=2000)
+
+
+class GetResumeTailoringDraftToolArguments(ContractModel):
+    draft_id: str | None = Field(default=None, min_length=1)
 
 
 class GetResumeAnalysisToolArguments(ContractModel):
@@ -253,6 +277,14 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = GetResumeMetadataToolArguments.model_validate(arguments)
     elif name == "analyze_resume":
         model_arguments = AnalyzeResumeToolArguments.model_validate(arguments)
+    elif name == "match_resume_to_job":
+        model_arguments = MatchResumeToJobToolArguments.model_validate(arguments)
+    elif name == "get_resume_job_match":
+        model_arguments = GetResumeJobMatchToolArguments.model_validate(arguments)
+    elif name == "draft_resume_tailoring":
+        model_arguments = DraftResumeTailoringToolArguments.model_validate(arguments)
+    elif name == "get_resume_tailoring_draft":
+        model_arguments = GetResumeTailoringDraftToolArguments.model_validate(arguments)
     elif name == "get_resume_analysis":
         model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
     elif name == "confirm_resume_analysis":
@@ -265,4 +297,19 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         if analysis_id is None:
             raise ValueError(f"{name} requires an active resume analysis")
         payload["analysis_id"] = analysis_id
+    if name == "get_resume_job_match":
+        match_id = payload.get("match_id") or context.task.active_resume_job_match_id
+        if match_id is None:
+            raise ValueError("get_resume_job_match requires an active resume-job match")
+        payload["match_id"] = match_id
+    if name == "draft_resume_tailoring":
+        match_id = payload.get("match_id") or context.task.active_resume_job_match_id
+        if match_id is None:
+            raise ValueError("draft_resume_tailoring requires an active resume-job match")
+        payload["match_id"] = match_id
+    if name == "get_resume_tailoring_draft":
+        draft_id = payload.get("draft_id") or context.task.active_resume_tailoring_draft_id
+        if draft_id is None:
+            raise ValueError("get_resume_tailoring_draft requires an active tailoring draft")
+        payload["draft_id"] = draft_id
     return {"user_id": context.profile.user_id, **payload}

@@ -265,6 +265,10 @@ class MainAgentRuntime:
             "analyze_resume",
             "get_resume_analysis",
             "confirm_resume_analysis",
+            "match_resume_to_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "get_resume_tailoring_draft",
         }:
             return project_resume_arguments(context, name, arguments)
         return arguments
@@ -308,4 +312,25 @@ class MainAgentRuntime:
             and result.state == "resume_analysis_confirmed"
         ):
             task = task.model_copy(update={"resume_analysis_status": "confirmed"})
+        elif (
+            result.tool_name in {"match_resume_to_job", "get_resume_job_match"}
+            and result.state == "resume_job_match_ready"
+        ):
+            task = task.model_copy(
+                update={
+                    "active_resume_job_match_id": result.payload.get("match_id"),
+                    "resume_job_match_status": "ready",
+                }
+            )
+        elif (
+            result.tool_name
+            in {"draft_resume_tailoring", "get_resume_tailoring_draft"}
+            and result.state == "resume_tailoring_draft_ready"
+        ):
+            task = task.model_copy(
+                update={
+                    "active_resume_tailoring_draft_id": result.payload.get("draft_id"),
+                    "resume_tailoring_status": "pending",
+                }
+            )
         return context.model_copy(update={"task": task})
