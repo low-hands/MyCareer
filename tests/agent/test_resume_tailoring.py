@@ -29,6 +29,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringResult,
 )
 from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_tailoring import (
     ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
@@ -38,6 +39,7 @@ from career_agent.services.resume_tailoring import (
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
+from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
@@ -552,6 +554,10 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     tools = MainAgentToolRegistry(
         UnusedGateway(),
         resume_tailoring_service=service,
+        resume_export_service=ResumeExportService(
+            service._resume_store,
+            SQLiteResumeArtifactStore(tmp_path / "resumes.sqlite3"),
+        ),
     )
     review_schema = next(
         spec
@@ -657,3 +663,38 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     assert finalized_result.context.task.active_resume_version_id == (
         finalization_observation.payload["resume_version_id"]
     )
+
+    export_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="export_resume_artifact", arguments={}),
+        ),
+        AgentDecision(action="final", message="简历文件已经准备好。"),
+    )
+    export_runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=export_decisions,
+        tools=tools,
+    )
+    exported_result = export_runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="把刚生成的简历给我下载",
+    )
+    export_observation = export_decisions.contexts[1].tool_observations[-1]
+    assert export_observation.state == "resume_artifact_ready"
+    assert export_observation.payload["resume_version_id"] == (
+        finalization_observation.payload["resume_version_id"]
+    )
+    assert export_observation.payload["filename"] == "AI Resume-v2.md"
+    assert "PRIVATE RESUME" not in export_observation.model_dump_json()
+    assert "content" not in export_observation.payload
+    assert "path" not in export_observation.payload
+    assert exported_result.context.task.active_resume_artifact_id == (
+        export_observation.payload["artifact_id"]
+    )
+    assert len(exported_result.artifacts) == 1
+    assert exported_result.artifacts[0].reference.id == (
+        export_observation.payload["artifact_id"]
+    )
+    assert exported_result.artifacts[0].content.startswith(b"# Candidate")

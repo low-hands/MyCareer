@@ -7,9 +7,12 @@ from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDis
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
+    CreateApplicationToolArguments,
     DraftResumeTailoringToolArguments,
+    ExportResumeArtifactToolArguments,
     FindSavedJobsToolArguments,
     FinalizeResumeTailoringToolArguments,
+    GetApplicationToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
     GetResumeJobMatchToolArguments,
@@ -18,9 +21,11 @@ from career_agent.agent.main_agent_contracts import (
     JobDiscoveryToolArguments,
     JobDiscoveryWorkflowInput,
     ListResumesToolArguments,
+    ListApplicationsToolArguments,
     ListTargetRolesToolArguments,
     MatchResumeToJobToolArguments,
     ReviewResumeTailoringToolArguments,
+    UpdateApplicationStatusToolArguments,
     ToolObservation,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -29,10 +34,21 @@ from career_agent.services.resume_analysis import (
     ResumeAnalysisService,
     ResumeVersionNotFoundError,
 )
+from career_agent.services.applications import (
+    ApplicationInputNotFoundError,
+    ApplicationService,
+    ConcurrentApplicationUpdateError,
+    InvalidApplicationTransitionError,
+)
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
 )
+from career_agent.services.resume_export import (
+    ResumeExportNotFoundError,
+    ResumeExportService,
+)
+from career_agent.domain.resume import ResumeArtifactDelivery
 from career_agent.services.resume_tailoring import (
     ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
@@ -58,6 +74,8 @@ class MainAgentToolRegistry:
         resume_analysis_service: ResumeAnalysisService | None = None,
         resume_job_match_service: ResumeJobMatchService | None = None,
         resume_tailoring_service: ResumeTailoringService | None = None,
+        resume_export_service: ResumeExportService | None = None,
+        application_service: ApplicationService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], JobDiscoveryGatewayResult]] = {
             "job_discovery": self._job_discovery,
@@ -69,6 +87,8 @@ class MainAgentToolRegistry:
         self._resume_analysis_service = resume_analysis_service
         self._resume_job_match_service = resume_job_match_service
         self._resume_tailoring_service = resume_tailoring_service
+        self._resume_export_service = resume_export_service
+        self._application_service = application_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -83,6 +103,10 @@ class MainAgentToolRegistry:
                     "list_resumes": self._list_resumes,
                     "get_resume_metadata": self._get_resume_metadata,
                 }
+            )
+        if resume_export_service is not None:
+            self._atomic_handlers["export_resume_artifact"] = (
+                self._export_resume_artifact
             )
         if resume_analysis_service is not None:
             self._atomic_handlers.update(
@@ -106,6 +130,15 @@ class MainAgentToolRegistry:
                     "get_resume_tailoring_draft": self._get_resume_tailoring_draft,
                     "review_resume_tailoring": self._review_resume_tailoring,
                     "finalize_resume_tailoring": self._finalize_resume_tailoring,
+                }
+            )
+        if application_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "create_application": self._create_application,
+                    "update_application_status": self._update_application_status,
+                    "list_applications": self._list_applications,
+                    "get_application": self._get_application,
                 }
             )
 
@@ -276,6 +309,54 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if self._resume_export_service is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "export_resume_artifact",
+                        "description": "Prepare an owned immutable resume version for download and return only an opaque artifact reference plus safe file metadata. Use the active version when resume_version_id is omitted. Call only when the user asks to download, export, or receive the resume file. Never place file content or a local path in the conversation.",
+                        "parameters": ExportResumeArtifactToolArguments.model_json_schema(),
+                    },
+                }
+            )
+        if self._application_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "create_application",
+                            "description": "Track a real externally submitted application using one exact owned resume version and the saved job's current immutable JD snapshot. Use the active job and resume version when IDs are omitted. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
+                            "parameters": CreateApplicationToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "update_application_status",
+                            "description": "Update the active or specified application to a valid pipeline status, or add a note by supplying the unchanged status with a note. Use only status changes or facts explicitly supplied by the user.",
+                            "parameters": UpdateApplicationStatusToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "list_applications",
+                            "description": "List the current user's tracked applications, optionally filtered by pipeline statuses. Returns safe job and application metadata, not resume or JD contents.",
+                            "parameters": ListApplicationsToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_application",
+                            "description": "Read one tracked application and its append-only event timeline. Uses the active application when application_id is omitted.",
+                            "parameters": GetApplicationToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
         return tuple(schemas)
 
     def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
@@ -289,6 +370,17 @@ class MainAgentToolRegistry:
         if handler is None:
             raise ValueError(f"Unknown main-agent atomic tool: {name}")
         return handler(arguments)
+
+    def deliver_resume_artifact(
+        self, *, user_id: str, artifact_id: str
+    ) -> ResumeArtifactDelivery:
+        """Resolve an attachment outside the model-visible tool/state loop."""
+        if self._resume_export_service is None:
+            raise ValueError("Resume export service is not configured")
+        return self._resume_export_service.read_artifact(
+            user_id=user_id,
+            artifact_id=artifact_id,
+        )
 
     def _job_discovery(self, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
         workflow_input = JobDiscoveryWorkflowInput.model_validate(arguments)
@@ -842,6 +934,226 @@ class MainAgentToolRegistry:
                 "created": finalized.created,
             },
         )
+
+    def _export_resume_artifact(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_export_service is None:
+            raise ValueError("Resume export service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ExportResumeArtifactToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.resume_version_id is None:
+            raise ValueError("export_resume_artifact requires resume_version_id")
+        try:
+            artifact = self._resume_export_service.prepare_export(
+                user_id=user_id,
+                resume_version_id=model_arguments.resume_version_id,
+            )
+        except ResumeExportNotFoundError:
+            return ToolObservation(
+                tool_name="export_resume_artifact",
+                state="resume_version_not_found",
+                message="没有找到可导出的简历版本，或它不属于当前用户。",
+                payload={"resume_version_id": model_arguments.resume_version_id},
+            )
+        return ToolObservation(
+            tool_name="export_resume_artifact",
+            state="resume_artifact_ready",
+            message=f"简历文件 {artifact.filename} 已准备好。",
+            next_action="deliver_artifact",
+            payload={
+                "artifact_id": artifact.id,
+                "resume_version_id": artifact.resume_version_id,
+                "filename": artifact.filename,
+                "media_type": artifact.media_type,
+                "byte_size": artifact.byte_size,
+                "created_at": artifact.created_at.isoformat(),
+            },
+        )
+
+    def _create_application(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._application_service is None:
+            raise ValueError("Application service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = CreateApplicationToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if (
+            model_arguments.job_posting_id is None
+            or model_arguments.resume_version_id is None
+        ):
+            raise ValueError("create_application requires job and resume version IDs")
+        try:
+            result = self._application_service.create_application(
+                user_id=user_id,
+                job_posting_id=model_arguments.job_posting_id,
+                resume_version_id=model_arguments.resume_version_id,
+                submitted_at=model_arguments.submitted_at,
+                note=model_arguments.note,
+            )
+            detail = self._application_service.get_application(
+                user_id=user_id,
+                application_id=result.application.id,
+            )
+        except ApplicationInputNotFoundError as error:
+            return ToolObservation(
+                tool_name="create_application",
+                state="application_input_not_found",
+                message="没有找到对应的已保存岗位或简历版本，或它不属于当前用户。",
+                payload={"missing_input": str(error)},
+            )
+        return ToolObservation(
+            tool_name="create_application",
+            state="application_ready",
+            message=(
+                "已创建投递记录。"
+                if result.created
+                else "这个岗位已有进行中的投递记录，已返回原记录。"
+            ),
+            next_action="track_application_progress",
+            payload={
+                **self._application_payload(result.application, detail.job),
+                "created": result.created,
+            },
+        )
+
+    def _update_application_status(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._application_service is None:
+            raise ValueError("Application service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = UpdateApplicationStatusToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.application_id is None:
+            raise ValueError("update_application_status requires application_id")
+        try:
+            application = self._application_service.update_application(
+                user_id=user_id,
+                application_id=model_arguments.application_id,
+                status=model_arguments.status,
+                note=model_arguments.note,
+            )
+            detail = self._application_service.get_application(
+                user_id=user_id,
+                application_id=application.id,
+            )
+        except ApplicationInputNotFoundError:
+            return ToolObservation(
+                tool_name="update_application_status",
+                state="application_not_found",
+                message="没有找到这条投递记录，或它不属于当前用户。",
+                payload={"application_id": model_arguments.application_id},
+            )
+        except InvalidApplicationTransitionError as error:
+            return ToolObservation(
+                tool_name="update_application_status",
+                state="invalid_application_transition",
+                message="这次投递状态变化不符合当前流程。",
+                payload={
+                    "application_id": model_arguments.application_id,
+                    "reason": str(error),
+                },
+            )
+        except ConcurrentApplicationUpdateError:
+            return ToolObservation(
+                tool_name="update_application_status",
+                state="application_update_conflict",
+                message="这条投递记录刚刚发生了变化，请重新读取后再更新。",
+                payload={"application_id": model_arguments.application_id},
+            )
+        return ToolObservation(
+            tool_name="update_application_status",
+            state="application_ready",
+            message=f"投递状态已更新为 {application.status}。",
+            next_action="track_application_progress",
+            payload=self._application_payload(application, detail.job),
+        )
+
+    def _list_applications(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._application_service is None:
+            raise ValueError("Application service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ListApplicationsToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        items = self._application_service.list_applications(
+            user_id=user_id,
+            statuses=model_arguments.statuses,
+            limit=model_arguments.limit,
+        )
+        return ToolObservation(
+            tool_name="list_applications",
+            state="applications_found" if items else "no_applications_found",
+            message=f"找到 {len(items)} 条投递记录。" if items else "当前没有匹配的投递记录。",
+            payload={
+                "statuses": model_arguments.statuses,
+                "items": [
+                    {
+                        "selection_index": index,
+                        **self._application_payload(item.application, item.job),
+                    }
+                    for index, item in enumerate(items, start=1)
+                ],
+            },
+        )
+
+    def _get_application(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._application_service is None:
+            raise ValueError("Application service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetApplicationToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.application_id is None:
+            raise ValueError("get_application requires application_id")
+        try:
+            detail = self._application_service.get_application(
+                user_id=user_id,
+                application_id=model_arguments.application_id,
+            )
+        except ApplicationInputNotFoundError:
+            return ToolObservation(
+                tool_name="get_application",
+                state="application_not_found",
+                message="没有找到这条投递记录，或它不属于当前用户。",
+                payload={"application_id": model_arguments.application_id},
+            )
+        return ToolObservation(
+            tool_name="get_application",
+            state="application_ready",
+            message=f"已读取 {detail.job.posting.company_name} 的投递记录。",
+            next_action="track_application_progress",
+            payload={
+                **self._application_payload(detail.application, detail.job),
+                "events": [
+                    {
+                        "event_type": event.event_type,
+                        "previous_status": event.previous_status,
+                        "new_status": event.new_status,
+                        "note": event.note,
+                        "occurred_at": event.occurred_at.isoformat(),
+                    }
+                    for event in detail.events
+                ],
+            },
+        )
+
+    @staticmethod
+    def _application_payload(application, job) -> dict[str, Any]:
+        return {
+            "application_id": application.id,
+            "job_posting_id": application.job_posting_id,
+            "resume_version_id": application.resume_version_id,
+            "jd_snapshot_id": application.jd_snapshot_id,
+            "title": job.posting.title,
+            "company_name": job.posting.company_name,
+            "status": application.status,
+            "submitted_at": application.submitted_at.isoformat(),
+            "created_at": application.created_at.isoformat(),
+            "updated_at": application.updated_at.isoformat(),
+        }
 
     @staticmethod
     def _tailoring_observation(

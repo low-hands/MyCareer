@@ -6,6 +6,7 @@ from typing import Any, Literal, Protocol
 from pydantic import Field, model_validator
 
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
+from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.job_discovery import ContractModel
 
 
@@ -30,6 +31,13 @@ class CandidateContextItem(ContractModel):
     salary: str | None = None
 
 
+class ApplicationCandidateContextItem(ContractModel):
+    application_id: str
+    title: str
+    company_name: str
+    status: ApplicationStatus
+
+
 class ConversationTaskState(ContractModel):
     active_workflow: Literal["job_discovery", "none"] = "none"
     run_id: str | None = None
@@ -46,6 +54,11 @@ class ConversationTaskState(ContractModel):
         "pending", "in_review", "reviewed", "finalized"
     ] | None = None
     active_resume_version_id: str | None = None
+    active_resume_artifact_id: str | None = None
+    active_job_posting_id: str | None = None
+    active_application_id: str | None = None
+    active_application_status: ApplicationStatus | None = None
+    application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
 
 
 class ConversationMessageContext(ContractModel):
@@ -125,6 +138,18 @@ class MainAgentContext(ContractModel):
                 "resume_analysis_status": self.task.resume_analysis_status,
                 "resume_job_match_status": self.task.resume_job_match_status,
                 "resume_tailoring_status": self.task.resume_tailoring_status,
+                "active_application_status": self.task.active_application_status,
+                "application_candidates": [
+                    {
+                        "selection_index": index,
+                        "title": candidate.title,
+                        "company_name": candidate.company_name,
+                        "status": candidate.status,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.application_candidates, start=1
+                    )
+                ],
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
@@ -215,6 +240,52 @@ class ReviewResumeTailoringToolArguments(ContractModel):
 
 class FinalizeResumeTailoringToolArguments(ContractModel):
     draft_id: str | None = Field(default=None, min_length=1)
+
+
+class ExportResumeArtifactToolArguments(ContractModel):
+    resume_version_id: str | None = Field(default=None, min_length=1)
+
+
+class CreateApplicationToolArguments(ContractModel):
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    resume_version_id: str | None = Field(default=None, min_length=1)
+    submitted_at: datetime | None = None
+    note: str | None = Field(default=None, min_length=1, max_length=2000)
+
+
+class UpdateApplicationStatusToolArguments(ContractModel):
+    application_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    status: ApplicationStatus
+    note: str | None = Field(default=None, min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_application_selector(self) -> "UpdateApplicationStatusToolArguments":
+        if self.application_id is not None and self.selection_index is not None:
+            raise ValueError("use either application_id or selection_index")
+        return self
+
+
+class ListApplicationsToolArguments(ContractModel):
+    statuses: tuple[ApplicationStatus, ...] = Field(default=(), max_length=8)
+    limit: int = Field(default=20, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_statuses(self) -> "ListApplicationsToolArguments":
+        if len(set(self.statuses)) != len(self.statuses):
+            raise ValueError("application statuses must be unique")
+        return self
+
+
+class GetApplicationToolArguments(ContractModel):
+    application_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_application_selector(self) -> "GetApplicationToolArguments":
+        if self.application_id is not None and self.selection_index is not None:
+            raise ValueError("use either application_id or selection_index")
+        return self
 
 
 class GetResumeAnalysisToolArguments(ContractModel):
@@ -317,6 +388,16 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = ReviewResumeTailoringToolArguments.model_validate(arguments)
     elif name == "finalize_resume_tailoring":
         model_arguments = FinalizeResumeTailoringToolArguments.model_validate(arguments)
+    elif name == "export_resume_artifact":
+        model_arguments = ExportResumeArtifactToolArguments.model_validate(arguments)
+    elif name == "create_application":
+        model_arguments = CreateApplicationToolArguments.model_validate(arguments)
+    elif name == "update_application_status":
+        model_arguments = UpdateApplicationStatusToolArguments.model_validate(arguments)
+    elif name == "list_applications":
+        model_arguments = ListApplicationsToolArguments.model_validate(arguments)
+    elif name == "get_application":
+        model_arguments = GetApplicationToolArguments.model_validate(arguments)
     elif name == "get_resume_analysis":
         model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
     elif name == "confirm_resume_analysis":
@@ -348,4 +429,35 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         if draft_id is None:
             raise ValueError(f"{name} requires an active tailoring draft")
         payload["draft_id"] = draft_id
+    if name == "export_resume_artifact":
+        resume_version_id = (
+            payload.get("resume_version_id") or context.task.active_resume_version_id
+        )
+        if resume_version_id is None:
+            raise ValueError("export_resume_artifact requires an active resume version")
+        payload["resume_version_id"] = resume_version_id
+    if name == "create_application":
+        job_posting_id = payload.get("job_posting_id") or context.task.active_job_posting_id
+        resume_version_id = (
+            payload.get("resume_version_id") or context.task.active_resume_version_id
+        )
+        if job_posting_id is None or resume_version_id is None:
+            raise ValueError(
+                "create_application requires an active job and resume version"
+            )
+        payload["job_posting_id"] = job_posting_id
+        payload["resume_version_id"] = resume_version_id
+    if name in {"update_application_status", "get_application"}:
+        application_id = payload.get("application_id")
+        selection_index = payload.pop("selection_index", None)
+        if application_id is None and selection_index is not None:
+            if selection_index > len(context.task.application_candidates):
+                raise ValueError("application selection index is out of range")
+            application_id = context.task.application_candidates[
+                selection_index - 1
+            ].application_id
+        application_id = application_id or context.task.active_application_id
+        if application_id is None:
+            raise ValueError(f"{name} requires an active application")
+        payload["application_id"] = application_id
     return {"user_id": context.profile.user_id, **payload}
