@@ -22,6 +22,7 @@ from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMain
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
+from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
 from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
 from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
@@ -36,6 +37,7 @@ from career_agent.services.action_center import ActionCenterService
 from career_agent.services.calendar import CalendarService
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
+from career_agent.services.interview_preparation import InterviewPreparationService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -46,6 +48,7 @@ from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
+from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
@@ -138,6 +141,14 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         application_service,
         EnvironmentCalendarConnectorResolver(),
     )
+    interview_preparation_service = InterviewPreparationService(
+        interview_service,
+        application_service,
+        resume_store,
+        career_history_store,
+        OpenAIInterviewPreparationWorker(resume_analysis_config),
+        SQLiteInterviewPreparationStore(Path(args.resume_store).expanduser()),
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
@@ -152,6 +163,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
             application_service=application_service,
             interview_service=interview_service,
+            interview_preparation_service=interview_preparation_service,
             email_tracking_service=email_tracking_service,
             action_center_service=action_center_service,
             calendar_service=calendar_service,

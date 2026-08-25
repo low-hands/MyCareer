@@ -8,7 +8,7 @@ from pydantic import Field, model_validator
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
-from career_agent.domain.action_center import ActionStatus, ActionType
+from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
 from career_agent.domain.interviews import InterviewDetails, InterviewStatus
 from career_agent.domain.job_discovery import ContractModel
@@ -54,6 +54,8 @@ class InterviewCandidateContextItem(ContractModel):
 class ActionCandidateContextItem(ContractModel):
     action_item_id: str
     action_type: ActionType
+    source_type: ActionSourceType
+    source_id: str
     title: str
     status: ActionStatus
     due_at: datetime | None = None
@@ -89,6 +91,7 @@ class ConversationTaskState(ContractModel):
     application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
     active_interview_round_id: str | None = None
     interview_candidates: tuple[InterviewCandidateContextItem, ...] = ()
+    active_interview_preparation_id: str | None = None
     active_action_item_id: str | None = None
     action_candidates: tuple[ActionCandidateContextItem, ...] = ()
     active_calendar_proposal_id: str | None = None
@@ -201,10 +204,14 @@ class MainAgentContext(ContractModel):
                         self.task.interview_candidates, start=1
                     )
                 ],
+                "interview_preparation_ready": (
+                    self.task.active_interview_preparation_id is not None
+                ),
                 "action_candidates": [
                     {
                         "selection_index": index,
                         "action_type": candidate.action_type,
+                        "source_type": candidate.source_type,
                         "title": candidate.title,
                         "status": candidate.status,
                         "due_at": (
@@ -431,6 +438,27 @@ class CompleteInterviewToolArguments(ContractModel):
         if self.interview_round_id is not None and self.selection_index is not None:
             raise ValueError("use either interview_round_id or selection_index")
         return self
+
+
+class PrepareInterviewToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    action_selection_index: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "PrepareInterviewToolArguments":
+        selectors = (
+            self.interview_round_id,
+            self.selection_index,
+            self.action_selection_index,
+        )
+        if sum(value is not None for value in selectors) > 1:
+            raise ValueError("use one interview selector")
+        return self
+
+
+class GetInterviewPreparationToolArguments(ContractModel):
+    preparation_id: str | None = Field(default=None, min_length=1)
 
 
 class GetDailyBriefToolArguments(ContractModel):
@@ -723,6 +751,52 @@ def project_interview_arguments(
         if interview_round_id is None:
             raise ValueError(f"{name} requires an active interview")
         payload["interview_round_id"] = interview_round_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_interview_preparation_arguments(
+    context: MainAgentContext, name: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if "user_id" in arguments:
+        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    if name == "prepare_interview":
+        model_arguments = PrepareInterviewToolArguments.model_validate(arguments)
+        payload = model_arguments.model_dump()
+        interview_round_id = payload.get("interview_round_id")
+        selection_index = payload.pop("selection_index", None)
+        action_selection_index = payload.pop("action_selection_index", None)
+        if interview_round_id is None and selection_index is not None:
+            if selection_index > len(context.task.interview_candidates):
+                raise ValueError("interview selection index is out of range")
+            interview_round_id = context.task.interview_candidates[
+                selection_index - 1
+            ].interview_round_id
+        if interview_round_id is None and action_selection_index is not None:
+            if action_selection_index > len(context.task.action_candidates):
+                raise ValueError("action selection index is out of range")
+            action = context.task.action_candidates[action_selection_index - 1]
+            if (
+                action.action_type != "interview_preparation"
+                or action.source_type != "interview_round"
+            ):
+                raise ValueError("selected action is not interview preparation")
+            interview_round_id = action.source_id
+        interview_round_id = interview_round_id or context.task.active_interview_round_id
+        if interview_round_id is None:
+            raise ValueError("prepare_interview requires an active interview")
+        payload["interview_round_id"] = interview_round_id
+    elif name == "get_interview_preparation":
+        model_arguments = GetInterviewPreparationToolArguments.model_validate(arguments)
+        payload = model_arguments.model_dump()
+        preparation_id = (
+            payload.get("preparation_id")
+            or context.task.active_interview_preparation_id
+        )
+        if preparation_id is None:
+            raise ValueError("get_interview_preparation requires an active preparation")
+        payload["preparation_id"] = preparation_id
+    else:
+        raise ValueError(f"Unknown interview preparation tool: {name}")
     return {"user_id": context.profile.user_id, **payload}
 
 
