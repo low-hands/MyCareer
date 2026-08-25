@@ -19,6 +19,7 @@ from career_agent.agent.main_agent_contracts import (
     ListResumesToolArguments,
     ListTargetRolesToolArguments,
     MatchResumeToJobToolArguments,
+    ReviewResumeTailoringToolArguments,
     ToolObservation,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -100,6 +101,7 @@ class MainAgentToolRegistry:
                 {
                     "draft_resume_tailoring": self._draft_resume_tailoring,
                     "get_resume_tailoring_draft": self._get_resume_tailoring_draft,
+                    "review_resume_tailoring": self._review_resume_tailoring,
                 }
             )
 
@@ -250,6 +252,14 @@ class MainAgentToolRegistry:
                             "name": "get_resume_tailoring_draft",
                             "description": "Retrieve an unexpired tailoring draft by draft_id, or use the active draft when omitted. Returns proposed changes for review; it does not apply them.",
                             "parameters": GetResumeTailoringDraftToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "review_resume_tailoring",
+                            "description": "Accept or reject specific 1-based change indices in an active tailoring draft. Use only decisions the user explicitly made; never infer acceptance from vague approval. Decisions are persisted and may be completed across turns. This does not create a new resume version.",
+                            "parameters": ReviewResumeTailoringToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -719,6 +729,40 @@ class MainAgentToolRegistry:
             message=f"已读取包含 {len(draft.result.changes)} 条修改建议的草稿。",
         )
 
+    def _review_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_tailoring_service is None:
+            raise ValueError("Resume tailoring service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ReviewResumeTailoringToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.draft_id is None:
+            raise ValueError("review_resume_tailoring requires draft_id")
+        try:
+            draft = self._resume_tailoring_service.review_draft(
+                user_id=user_id,
+                draft_id=model_arguments.draft_id,
+                accepted_change_indices=model_arguments.accepted_change_indices,
+                rejected_change_indices=model_arguments.rejected_change_indices,
+                feedback=model_arguments.feedback,
+            )
+        except ResumeTailoringDraftNotFoundError:
+            return ToolObservation(
+                tool_name="review_resume_tailoring",
+                state="resume_tailoring_draft_not_found",
+                message="没有找到这份简历定制草稿，或它已经过期。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        return self._tailoring_observation(
+            tool_name="review_resume_tailoring",
+            draft=draft,
+            message=(
+                "所有简历修改建议都已完成审阅。"
+                if draft.status == "reviewed"
+                else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理。"
+            ),
+        )
+
     @staticmethod
     def _tailoring_observation(
         *,
@@ -737,6 +781,21 @@ class MainAgentToolRegistry:
                 "status": draft.status,
                 "tailoring_goal": draft.tailoring_goal,
                 "expires_at": draft.expires_at.isoformat(),
-                **draft.result.model_dump(mode="json"),
+                "change_reviews": [
+                    review.model_dump(mode="json") for review in draft.change_reviews
+                ],
+                "pending_change_indices": draft.pending_change_indices,
+                "strategy_summary": draft.result.strategy_summary,
+                "changes": [
+                    {
+                        "change_index": index,
+                        **change.model_dump(mode="json"),
+                    }
+                    for index, change in enumerate(draft.result.changes, start=1)
+                ],
+                "preserved_strengths": draft.result.preserved_strengths,
+                "unresolved_gaps": draft.result.unresolved_gaps,
+                "clarification_questions": draft.result.clarification_questions,
+                "warnings": draft.result.warnings,
             },
         )
