@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CalendarAccountCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CalendarAccountCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
 
@@ -309,6 +309,8 @@ class MainAgentRuntime:
             "complete_interview",
         }:
             return project_interview_arguments(context, name, arguments)
+        if name in {"prepare_interview", "get_interview_preparation"}:
+            return project_interview_preparation_arguments(context, name, arguments)
         if name in {
             "get_daily_brief",
             "list_action_items",
@@ -481,6 +483,25 @@ class MainAgentRuntime:
                     "active_application_id": result.payload.get("application_id"),
                 }
             )
+        elif result.tool_name in {
+            "prepare_interview",
+            "get_interview_preparation",
+        } and result.state == "interview_preparation_ready":
+            task = task.model_copy(
+                update={
+                    "active_interview_preparation_id": result.payload.get(
+                        "preparation_id"
+                    ),
+                    "active_interview_round_id": result.payload.get(
+                        "interview_round_id"
+                    ),
+                    "active_application_id": result.payload.get("application_id"),
+                    "active_job_posting_id": result.payload.get("job_posting_id"),
+                    "active_resume_version_id": result.payload.get(
+                        "resume_version_id"
+                    ),
+                }
+            )
         elif result.tool_name == "analyze_resume" and result.state == "resume_analysis_ready":
             task = task.model_copy(
                 update={
@@ -610,6 +631,8 @@ class MainAgentRuntime:
         return ActionCandidateContextItem(
             action_item_id=item["action_item_id"],
             action_type=item["action_type"],
+            source_type=item["source_type"],
+            source_id=item["source_id"],
             title=item["title"],
             status=item["status"],
             due_at=item.get("due_at"),

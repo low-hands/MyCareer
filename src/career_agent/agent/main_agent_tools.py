@@ -8,6 +8,8 @@ from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
     CompleteInterviewToolArguments,
+    PrepareInterviewToolArguments,
+    GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
     CreateApplicationToolArguments,
     DraftResumeTailoringToolArguments,
@@ -83,6 +85,11 @@ from career_agent.services.interviews import (
     InterviewNotFoundError,
     InterviewService,
 )
+from career_agent.services.interview_preparation import (
+    InterviewPreparationInputNotFoundError,
+    InterviewPreparationNotAvailableError,
+    InterviewPreparationService,
+)
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
@@ -121,6 +128,7 @@ class MainAgentToolRegistry:
         application_service: ApplicationService | None = None,
         email_tracking_service: EmailTrackingService | None = None,
         interview_service: InterviewService | None = None,
+        interview_preparation_service: InterviewPreparationService | None = None,
         action_center_service: ActionCenterService | None = None,
         calendar_service: CalendarService | None = None,
     ) -> None:
@@ -138,6 +146,7 @@ class MainAgentToolRegistry:
         self._application_service = application_service
         self._email_tracking_service = email_tracking_service
         self._interview_service = interview_service
+        self._interview_preparation_service = interview_preparation_service
         self._action_center_service = action_center_service
         self._calendar_service = calendar_service
         if job_repository is not None:
@@ -210,6 +219,13 @@ class MainAgentToolRegistry:
                     "create_interview": self._create_interview,
                     "update_interview": self._update_interview,
                     "complete_interview": self._complete_interview,
+                }
+            )
+        if interview_preparation_service is not None:
+            self._atomic_handlers.update(
+                {
+                    "prepare_interview": self._prepare_interview,
+                    "get_interview_preparation": self._get_interview_preparation,
                 }
             )
         if action_center_service is not None:
@@ -518,6 +534,27 @@ class MainAgentToolRegistry:
                             "name": "complete_interview",
                             "description": "Mark one real interview completed only after the user explicitly confirms they attended it. Time passing alone is never confirmation.",
                             "parameters": CompleteInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
+        if self._interview_preparation_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "prepare_interview",
+                            "description": "Generate or reuse a grounded preparation guide for one real upcoming interview from its exact JD snapshot, submitted resume version, confirmed evidence, and logistics. This is preparation, not a mock interview and not employer inside information.",
+                            "parameters": PrepareInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_interview_preparation",
+                            "description": "Read one persisted interview preparation result without re-reading full source documents.",
+                            "parameters": GetInterviewPreparationToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -884,6 +921,71 @@ class MainAgentToolRegistry:
             message="已将这场面试标记为完成。",
             next_action="offer_interview_retro",
             payload=self._interview_payload(interview),
+        )
+
+    def _prepare_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._interview_preparation_service is None:
+            raise ValueError("Interview preparation service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = PrepareInterviewToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("prepare_interview requires interview_round_id")
+        try:
+            preparation = self._interview_preparation_service.prepare(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+            )
+        except InterviewPreparationInputNotFoundError as error:
+            return ToolObservation(
+                tool_name="prepare_interview",
+                state="interview_preparation_input_not_found",
+                message="无法读取这场面试对应的完整准备输入。",
+                payload={"reason": str(error)},
+            )
+        except InterviewPreparationNotAvailableError as error:
+            return ToolObservation(
+                tool_name="prepare_interview",
+                state="interview_preparation_not_available",
+                message="当前面试状态不适合生成准备材料。",
+                payload={"reason": str(error)},
+            )
+        return ToolObservation(
+            tool_name="prepare_interview",
+            state="interview_preparation_ready",
+            message="面试准备材料已生成。",
+            next_action="review_interview_preparation",
+            payload=self._interview_preparation_payload(preparation),
+        )
+
+    def _get_interview_preparation(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._interview_preparation_service is None:
+            raise ValueError("Interview preparation service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetInterviewPreparationToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.preparation_id is None:
+            raise ValueError("get_interview_preparation requires preparation_id")
+        try:
+            preparation = self._interview_preparation_service.get(
+                user_id=user_id,
+                preparation_id=model_arguments.preparation_id,
+            )
+        except InterviewPreparationInputNotFoundError:
+            return ToolObservation(
+                tool_name="get_interview_preparation",
+                state="interview_preparation_not_found",
+                message="没有找到该面试准备结果，或它不属于当前用户。",
+            )
+        return ToolObservation(
+            tool_name="get_interview_preparation",
+            state="interview_preparation_ready",
+            message="已读取面试准备材料。",
+            payload=self._interview_preparation_payload(preparation),
         )
 
     def _get_daily_brief(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1287,6 +1389,19 @@ class MainAgentToolRegistry:
                 if proposal.executed_at is not None
                 else None
             ),
+        }
+
+    @staticmethod
+    def _interview_preparation_payload(preparation) -> dict[str, Any]:
+        return {
+            "preparation_id": preparation.id,
+            "interview_round_id": preparation.interview_round_id,
+            "application_id": preparation.application_id,
+            "job_posting_id": preparation.job_posting_id,
+            "jd_snapshot_id": preparation.jd_snapshot_id,
+            "resume_version_id": preparation.resume_version_id,
+            "created_at": preparation.created_at.isoformat(),
+            "preparation": preparation.result.model_dump(mode="json"),
         }
 
     def invoke_atomic_tool(self, name: str, arguments: dict[str, Any]) -> ToolObservation:
