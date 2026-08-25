@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from io import StringIO
 
 from career_agent.agent.job_discovery_contracts import JDAnalysis
 from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall
+from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall, ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult
+from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
 from career_agent.cli import EXIT_WORKFLOW_ERROR, main
 
 
@@ -176,6 +178,61 @@ def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
     assert payload["tool_result"]["items"] == [{"selection_index": 1, "title": "AI Engineer", "company_name": "Acme", "city": None, "salary": None, "rationale": None, "cautions": []}]
     assert "internal-run-do-not-leak" not in output.getvalue()
     assert "opaque-result-ref-do-not-leak" not in output.getvalue()
+
+
+def test_chat_emits_artifact_metadata_without_attachment_bytes() -> None:
+    context = type("Context", (), {"task": None})()
+    reference = ResumeArtifactReference(
+        id="resume_artifact_1",
+        user_id="u1",
+        resume_version_id="resume_version_1",
+        filename="AI Resume-v2.md",
+        media_type="text/markdown; charset=utf-8",
+        byte_size=22,
+        created_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
+    )
+    turn = MainAgentTurnResult(
+        decision=AgentDecision(action="final", message="文件已准备好。"),
+        context=context,
+        assistant_message="文件已准备好。",
+        tool_result=ToolObservation(
+            tool_name="export_resume_artifact",
+            state="resume_artifact_ready",
+            message="文件已准备好。",
+            payload={"artifact_id": reference.id},
+        ),
+        artifacts=(
+            ResumeArtifactDelivery(
+                reference=reference,
+                content=b"PRIVATE RESUME BYTES!",
+            ),
+        ),
+    )
+    output = StringIO()
+
+    code = main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--message",
+            "下载简历",
+            "--boss-data-dir",
+            "/tmp/boss",
+        ],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    payload = json.loads(output.getvalue())
+    assert code == 0
+    assert payload["artifacts"][0]["id"] == reference.id
+    assert payload["artifacts"][0]["filename"] == reference.filename
+    assert "PRIVATE RESUME BYTES" not in output.getvalue()
+    assert "content" not in payload["artifacts"][0]
 
 
 def test_chat_keeps_structured_analysis_with_human_summary() -> None:

@@ -8,8 +8,9 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ApplicationCandidateContextItem, CandidateContextItem, DecisionMaker, MainAgentContext, ToolObservation, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
+from career_agent.domain.resume import ResumeArtifactDelivery
 
 
 class MainAgentState(TypedDict, total=False):
@@ -19,16 +20,18 @@ class MainAgentState(TypedDict, total=False):
     pending_tool_result: MainAgentToolOutput
     last_tool_result: MainAgentToolOutput
     tool_call_fingerprints: tuple[str, ...]
+    artifact_ids: tuple[str, ...]
     tool_call_count: int
     assistant_message: str
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None) -> None:
+    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, artifacts: tuple[ResumeArtifactDelivery, ...] = ()) -> None:
         self.decision = decision
         self.context = context
         self.assistant_message = assistant_message
         self.tool_result = tool_result
+        self.artifacts = artifacts
 
 
 class MainAgentRuntime:
@@ -81,14 +84,24 @@ class MainAgentRuntime:
             {
                 "context": context,
                 "tool_call_fingerprints": (),
+                "artifact_ids": (),
                 "tool_call_count": 0,
             }
+        )
+        tool_result = state.get("last_tool_result")
+        artifacts = tuple(
+            self._tools.deliver_resume_artifact(
+                user_id=context.profile.user_id,
+                artifact_id=artifact_id,
+            )
+            for artifact_id in state.get("artifact_ids", ())
         )
         return MainAgentTurnResult(
             decision=state["decision"],
             context=state["context"],
             assistant_message=state["assistant_message"],
-            tool_result=state.get("last_tool_result"),
+            tool_result=tool_result,
+            artifacts=artifacts,
         )
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
@@ -164,11 +177,17 @@ class MainAgentRuntime:
         observation = self._tool_observation(capability_name, result)
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
         fingerprint = self._tool_call_fingerprint(state["decision"])
+        artifact_ids = state.get("artifact_ids", ())
+        if isinstance(result, ToolObservation) and result.state == "resume_artifact_ready":
+            artifact_id = result.payload.get("artifact_id")
+            if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
+                artifact_ids = (*artifact_ids, artifact_id)
         return {
             "context": updated,
             "last_tool_result": result,
             "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
             "tool_call_count": state.get("tool_call_count", 0) + 1,
+            "artifact_ids": artifact_ids,
         }
 
     @staticmethod
@@ -271,6 +290,11 @@ class MainAgentRuntime:
             "get_resume_tailoring_draft",
             "review_resume_tailoring",
             "finalize_resume_tailoring",
+            "export_resume_artifact",
+            "create_application",
+            "update_application_status",
+            "list_applications",
+            "get_application",
         }:
             return project_resume_arguments(context, name, arguments)
         return arguments
@@ -322,6 +346,71 @@ class MainAgentRuntime:
                 update={
                     "active_resume_job_match_id": result.payload.get("match_id"),
                     "resume_job_match_status": "ready",
+                    "active_job_posting_id": result.payload.get("job_posting_id"),
+                    "active_resume_version_id": result.payload.get(
+                        "resume_version_id"
+                    ),
+                }
+            )
+        elif (
+            result.tool_name == "get_saved_job" and result.state == "saved_job_ready"
+        ):
+            job = result.payload.get("job", {})
+            task = task.model_copy(
+                update={"active_job_posting_id": job.get("job_posting_id")}
+            )
+        elif (
+            result.tool_name == "get_resume_metadata"
+            and result.state == "resume_metadata_ready"
+        ):
+            resume = result.payload.get("resume", {})
+            task = task.model_copy(
+                update={
+                    "active_resume_version_id": resume.get("latest_version_id")
+                }
+            )
+        elif (
+            result.tool_name
+            in {"create_application", "update_application_status", "get_application"}
+            and result.state == "application_ready"
+        ):
+            task = task.model_copy(
+                update={
+                    "active_application_id": result.payload.get("application_id"),
+                    "active_application_status": result.payload.get("status"),
+                    "active_job_posting_id": result.payload.get("job_posting_id"),
+                    "active_resume_version_id": result.payload.get(
+                        "resume_version_id"
+                    ),
+                }
+            )
+        elif result.tool_name == "list_applications" and result.state in {
+            "applications_found",
+            "no_applications_found",
+        }:
+            task = task.model_copy(
+                update={
+                    "application_candidates": tuple(
+                        ApplicationCandidateContextItem(
+                            application_id=item["application_id"],
+                            title=item["title"],
+                            company_name=item["company_name"],
+                            status=item["status"],
+                        )
+                        for item in result.payload.get("items", ())
+                    )
+                }
+            )
+        elif (
+            result.tool_name == "export_resume_artifact"
+            and result.state == "resume_artifact_ready"
+        ):
+            task = task.model_copy(
+                update={
+                    "active_resume_version_id": result.payload.get(
+                        "resume_version_id"
+                    ),
+                    "active_resume_artifact_id": result.payload.get("artifact_id"),
                 }
             )
         elif (

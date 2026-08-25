@@ -27,15 +27,19 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
 )
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.services.job_discovery import JobDiscoveryService
+from career_agent.services.applications import ApplicationService
 from career_agent.services.resume_analysis import ResumeAnalysisService
+from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
+from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.runs import JobDiscoveryRunStore
@@ -99,6 +103,15 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             build_gateway(args),
             job_repository=job_repository,
             resume_store=resume_store,
+            resume_export_service=ResumeExportService(
+                resume_store,
+                SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),
+            ),
+            application_service=ApplicationService(
+                SQLiteApplicationStore(Path(args.application_store).expanduser()),
+                job_repository,
+                resume_store,
+            ),
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
@@ -186,6 +199,7 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
+    parser.add_argument("--application-store", default="~/.career-agent/applications.sqlite3", help="Local application tracking and event store path.")
     parser.add_argument(
         "--resume-tailoring-skills-dir",
         default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
@@ -371,6 +385,10 @@ def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) 
             "tool_name": turn.decision.tool_call.name if turn.decision.tool_call else None,
         },
         "tool_result": _chat_tool_result_payload(tool_result) if tool_result else None,
+        "artifacts": [
+            artifact.reference.model_dump(mode="json")
+            for artifact in turn.artifacts
+        ],
     }
     json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
     output.write("\n")

@@ -109,6 +109,28 @@ class ResumeStore:
             rows = connection.execute("SELECT v.id, v.resume_id, v.version_number, v.source_type, v.document_format, v.content_sha256, v.byte_size, v.created_at FROM resume_versions v JOIN resumes r ON r.id = v.resume_id WHERE v.resume_id = ? AND r.user_id = ? ORDER BY v.version_number DESC", (resume_id, user_id)).fetchall()
         return tuple(self._version(row) for row in rows)
 
+    def get_version(
+        self, *, user_id: str, resume_version_id: str
+    ) -> tuple[Resume, ResumeVersion] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT resume.id, resume.user_id, resume.target_role_id,
+                       resume.name, resume.status, resume.latest_version_id,
+                       resume.created_at, resume.updated_at,
+                       version.id, version.resume_id, version.version_number,
+                       version.source_type, version.document_format,
+                       version.content_sha256, version.byte_size, version.created_at
+                FROM resume_versions AS version
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE version.id = ? AND resume.user_id = ?
+                """,
+                (resume_version_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._resume(row[:8]), self._version(row[8:])
+
     def get_tailored_version(
         self, *, user_id: str, tailoring_draft_id: str
     ) -> tuple[Resume, ResumeVersion] | None:
