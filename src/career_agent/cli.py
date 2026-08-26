@@ -22,6 +22,9 @@ from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMain
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
+from career_agent.agent.openai_resume_tailoring_reviewer import (
+    OpenAIResumeTailoringReviewer,
+)
 from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
 from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
 from career_agent.agent.deepagent_resume_tailoring_worker import (
@@ -194,6 +197,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                     resume_analysis_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),
+                reviewer=OpenAIResumeTailoringReviewer(resume_analysis_config),
             ),
         ),
     )

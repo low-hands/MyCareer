@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +19,9 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
+from career_agent.agent.openai_resume_tailoring_reviewer import (
+    OpenAIResumeTailoringReviewer,
+)
 from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
@@ -26,15 +30,20 @@ from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.agent.resume_tailoring_contracts import (
     AcceptedTailoringChange,
     FinalizedResumeDocument,
+    ResumeReviewIssue,
+    ResumeReviewResult,
     ResumeTailoringResult,
 )
+from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_tailoring import (
+    ResumeFinalReviewBlockedError,
     ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
     ResumeTailoringNotReadyError,
     ResumeTailoringService,
+    ResumeTailoringSupersededError,
 )
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
@@ -96,6 +105,23 @@ class FakeDeepAgent:
     def invoke(self, state):
         self.state = state
         return {"structured_response": self.output}
+
+
+class FakeResponsesClient:
+    def __init__(self, output: dict) -> None:
+        self.output = output
+        self.calls = []
+        self.responses = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+
+        class Response:
+            output_text = ""
+
+        response = Response()
+        response.output_text = json.dumps(self.output)
+        return response
 
 
 def skill_root(tmp_path: Path) -> Path:
@@ -311,6 +337,40 @@ def test_finalization_worker_sends_pdf_as_input_file(tmp_path) -> None:
     assert '"change_index": 1' in content[1]["text"]
 
 
+def test_independent_reviewer_receives_pdf_and_structured_candidate() -> None:
+    client = FakeResponsesClient(
+        {"verdict": "pass", "summary": "Grounded and relevant.", "issues": []}
+    )
+    reviewer = OpenAIResumeTailoringReviewer(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="multimodal-model",
+        ),
+        client=client,
+    )
+    raw_pdf = b"%PDF-1.7 reviewer"
+
+    result = reviewer.review_draft(
+        document=StoredResumeDocument(
+            resume_version_id="pdf-v1",
+            document_format="pdf",
+            raw_bytes=raw_pdf,
+        ),
+        jd_text="Build RAG systems",
+        match_result=VALID_MATCH,
+        draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+
+    assert result.verdict == "pass"
+    call = client.calls[0]
+    content = call["input"][0]["content"]
+    assert content[0]["type"] == "input_file"
+    assert content[0]["file_data"].startswith("data:application/pdf;base64,")
+    assert "<candidate_change_set>" in content[1]["text"]
+    assert call["text"]["format"]["schema"] == ResumeReviewResult.model_json_schema()
+
+
 class RecordingTailoringWorker:
     def __init__(self) -> None:
         self.calls = []
@@ -337,7 +397,34 @@ class RecordingFinalizationWorker:
         )
 
 
-def seed_service(tmp_path):
+class RecordingReviewer:
+    def __init__(self, *, final_verdict="pass") -> None:
+        self.draft_calls = []
+        self.final_calls = []
+        self.final_verdict = final_verdict
+
+    def review_draft(self, **kwargs) -> ResumeReviewResult:
+        self.draft_calls.append(kwargs)
+        return ResumeReviewResult(verdict="pass", summary="Draft is grounded.")
+
+    def review_final(self, **kwargs) -> ResumeReviewResult:
+        self.final_calls.append(kwargs)
+        if self.final_verdict == "pass":
+            return ResumeReviewResult(verdict="pass", summary="Final resume is exact.")
+        return ResumeReviewResult(
+            verdict="block",
+            summary="An unapproved substantive edit was introduced.",
+            issues=(
+                ResumeReviewIssue(
+                    category="change_set_mismatch",
+                    severity="blocking",
+                    explanation="Final content differs beyond accepted changes.",
+                ),
+            ),
+        )
+
+
+def seed_service(tmp_path, *, reviewer=None):
     resume_path = tmp_path / "resumes.sqlite3"
     resumes = ResumeStore(resume_path)
     role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -393,8 +480,87 @@ def seed_service(tmp_path):
         drafts,
         tailoring_worker,
         finalization_worker,
+        reviewer=reviewer,
     )
     return service, tailoring_worker, finalization_worker, stored_match
+
+
+def test_review_graph_revises_grounding_failure_then_persists_passed_trace(tmp_path) -> None:
+    valid = ResumeTailoringResult.model_validate(VALID_DRAFT)
+    invalid_data = valid.model_dump(mode="json")
+    invalid_data["changes"][0]["support_evidence"][0]["source_quote"] = "Invented fact"
+
+    class SequenceWorker:
+        def __init__(self) -> None:
+            self.outputs = [ResumeTailoringResult.model_validate(invalid_data), valid]
+            self.calls = []
+
+        def tailor(self, **kwargs):
+            self.calls.append(kwargs)
+            return self.outputs.pop(0)
+
+    worker = SequenceWorker()
+    reviewer = RecordingReviewer()
+    outcome = ResumeTailoringReviewGraph(worker, reviewer).run(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        jd_text="Build production RAG systems",
+        match_result=VALID_MATCH,
+        user_feedback="Keep every change concise.",
+    )
+
+    assert outcome.trace.status == "passed"
+    assert outcome.trace.stop_reason == "passed"
+    assert len(outcome.trace.attempts) == 2
+    assert outcome.trace.attempts[0].result.verdict == "revise"
+    assert worker.calls[1]["review_feedback"]
+    assert worker.calls[0]["user_feedback"] == "Keep every change concise."
+    assert worker.calls[1]["user_feedback"] == "Keep every change concise."
+    assert len(reviewer.draft_calls) == 1
+
+
+def test_review_graph_stops_when_writer_returns_unchanged_draft(tmp_path) -> None:
+    draft = ResumeTailoringResult.model_validate(VALID_DRAFT)
+
+    class UnchangedWorker:
+        def tailor(self, **kwargs):
+            return draft
+
+    class ReviseReviewer(RecordingReviewer):
+        def review_draft(self, **kwargs) -> ResumeReviewResult:
+            self.draft_calls.append(kwargs)
+            return ResumeReviewResult(
+                verdict="revise",
+                summary="Clarify one sentence.",
+                issues=(
+                    ResumeReviewIssue(
+                        category="unclear_expression",
+                        severity="blocking",
+                        change_index=1,
+                        explanation="The sentence is ambiguous.",
+                        revision_instruction="Clarify the sentence.",
+                    ),
+                ),
+            )
+
+    reviewer = ReviseReviewer()
+    outcome = ResumeTailoringReviewGraph(UnchangedWorker(), reviewer).run(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        jd_text="Build production RAG systems",
+        match_result=VALID_MATCH,
+    )
+
+    assert outcome.trace.status == "blocked"
+    assert outcome.trace.stop_reason == "no_progress"
+    assert len(outcome.trace.attempts) == 2
+    assert len(reviewer.draft_calls) == 1
 
 
 def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tmp_path) -> None:
@@ -519,6 +685,100 @@ def test_tailoring_finalization_rejects_worker_change_index_mismatch(tmp_path) -
     ) is None
 
 
+def test_service_persists_automated_review_and_runs_final_qa(tmp_path) -> None:
+    reviewer = RecordingReviewer()
+    service, _, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
+
+    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+
+    assert draft.automated_review is not None
+    assert draft.automated_review.status == "passed"
+    rebuilt = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3").get(
+        user_id="u1", draft_id=draft.id
+    )
+    assert rebuilt is not None
+    assert rebuilt.automated_review == draft.automated_review
+
+    service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        accepted_change_indices=(1,),
+        rejected_change_indices=(2,),
+    )
+    finalized = service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    assert finalized.created is True
+    assert len(reviewer.draft_calls) == 1
+    assert len(reviewer.final_calls) == 1
+
+
+def test_user_feedback_creates_reviewed_child_draft_without_old_decisions(tmp_path) -> None:
+    reviewer = RecordingReviewer()
+    service, worker, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
+    original = service.create_draft(user_id="u1", match_id=stored_match.id)
+    service.review_draft(
+        user_id="u1",
+        draft_id=original.id,
+        accepted_change_indices=(1,),
+    )
+
+    revised = service.revise_draft(
+        user_id="u1",
+        draft_id=original.id,
+        feedback="第一条更简洁一些，但不要增加数字。",
+    )
+
+    assert revised.id != original.id
+    assert revised.parent_draft_id == original.id
+    assert revised.revision_number == 2
+    assert revised.revision_feedback == "第一条更简洁一些，但不要增加数字。"
+    assert revised.status == "pending"
+    assert revised.change_reviews == ()
+    assert revised.pending_change_indices == (1, 2)
+    assert revised.automated_review is not None
+    assert revised.automated_review.status == "passed"
+    assert worker.calls[1]["previous_draft"] == original.result
+    assert worker.calls[1]["user_feedback"] == "第一条更简洁一些，但不要增加数字。"
+    assert worker.calls[1]["review_feedback"] == ()
+    stored_original = service.get_draft(user_id="u1", draft_id=original.id)
+    assert stored_original.status == "superseded"
+    assert stored_original.change_reviews[0].decision == "accepted"
+
+    with pytest.raises(ResumeTailoringSupersededError):
+        service.review_draft(
+            user_id="u1",
+            draft_id=original.id,
+            rejected_change_indices=(2,),
+        )
+    with pytest.raises(ResumeTailoringNotReadyError, match="newer"):
+        service.finalize_draft(user_id="u1", draft_id=original.id)
+
+    rebuilt = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3").get(
+        user_id="u1", draft_id=revised.id
+    )
+    assert rebuilt == revised
+
+
+def test_final_reviewer_blocks_version_creation_after_user_approval(tmp_path) -> None:
+    reviewer = RecordingReviewer(final_verdict="block")
+    service, _, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
+    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+    service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        accepted_change_indices=(1,),
+        rejected_change_indices=(2,),
+    )
+
+    with pytest.raises(ResumeFinalReviewBlockedError, match="new user review"):
+        service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    assert service.get_draft(user_id="u1", draft_id=draft.id).status == "reviewed"
+    assert service._resume_store.get_tailored_version(
+        user_id="u1", tailoring_draft_id=draft.id
+    ) is None
+
+
 class UnusedGateway:
     def advance(self, **kwargs):
         raise AssertionError("Tailoring must not enter Job Discovery")
@@ -532,6 +792,78 @@ class SequenceDecisionMaker:
     def decide(self, context, tool_specs):
         self.contexts.append(context)
         return self.decisions.pop(0)
+
+
+def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> None:
+    reviewer = RecordingReviewer()
+    service, _, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    tools = MainAgentToolRegistry(
+        UnusedGateway(),
+        resume_tailoring_service=service,
+    )
+    revise_schema = next(
+        spec
+        for spec in tools.schemas()
+        if spec["function"]["name"] == "revise_resume_tailoring"
+    )
+    assert "user_id" not in revise_schema["function"]["parameters"].get(
+        "properties", {}
+    )
+
+    create_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="draft_resume_tailoring",
+                arguments={"match_id": stored_match.id},
+            ),
+        ),
+        AgentDecision(action="final", message="请先看这份修改建议。"),
+    )
+    created = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=create_decisions,
+        tools=tools,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="先给我一版定制建议",
+    )
+    parent_id = created.context.task.active_resume_tailoring_draft_id
+    assert parent_id is not None
+
+    revise_decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="revise_resume_tailoring",
+                arguments={"feedback": "第一条再简洁一点，不要增加数字。"},
+            ),
+        ),
+        AgentDecision(action="final", message="已按意见生成新草稿，请重新审阅。"),
+    )
+    revised = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=revise_decisions,
+        tools=tools,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="第一条再简洁一点，不要增加数字",
+    )
+
+    observation = revise_decisions.contexts[1].tool_observations[-1]
+    assert observation.tool_name == "revise_resume_tailoring"
+    assert observation.state == "resume_tailoring_draft_ready"
+    assert observation.payload["parent_draft_id"] == parent_id
+    assert observation.payload["revision_number"] == 2
+    assert observation.payload["change_reviews"] == []
+    assert revised.context.task.active_resume_tailoring_draft_id == observation.payload[
+        "draft_id"
+    ]
+    assert revised.context.task.resume_tailoring_status == "pending"
 
 
 def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None:

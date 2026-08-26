@@ -35,7 +35,7 @@ class MainAgentTurnResult:
 
 
 class MainAgentRuntime:
-    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "failed"})
+    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "resume_tailoring_review_blocked", "resume_final_review_blocked", "resume_tailoring_superseded", "failed"})
 
     def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3) -> None:
         if max_tool_calls < 1:
@@ -339,6 +339,7 @@ class MainAgentRuntime:
             "draft_resume_tailoring",
             "get_resume_tailoring_draft",
             "review_resume_tailoring",
+            "revise_resume_tailoring",
             "finalize_resume_tailoring",
             "export_resume_artifact",
             "create_application",
@@ -615,6 +616,7 @@ class MainAgentRuntime:
                 "draft_resume_tailoring",
                 "get_resume_tailoring_draft",
                 "review_resume_tailoring",
+                "revise_resume_tailoring",
             }
             and result.state == "resume_tailoring_draft_ready"
         ):
