@@ -81,7 +81,7 @@ class ConversationTaskState(ContractModel):
     resume_job_match_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
     resume_tailoring_status: Literal[
-        "pending", "in_review", "reviewed", "finalized"
+        "pending", "in_review", "reviewed", "finalized", "superseded"
     ] | None = None
     active_resume_version_id: str | None = None
     active_resume_artifact_id: str | None = None
@@ -326,6 +326,11 @@ class ReviewResumeTailoringToolArguments(ContractModel):
         if set(accepted).intersection(rejected):
             raise ValueError("a change cannot be both accepted and rejected")
         return self
+
+
+class ReviseResumeTailoringToolArguments(ContractModel):
+    draft_id: str | None = Field(default=None, min_length=1)
+    feedback: str = Field(min_length=1, max_length=2000)
 
 
 class FinalizeResumeTailoringToolArguments(ContractModel):
@@ -617,6 +622,8 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = GetResumeTailoringDraftToolArguments.model_validate(arguments)
     elif name == "review_resume_tailoring":
         model_arguments = ReviewResumeTailoringToolArguments.model_validate(arguments)
+    elif name == "revise_resume_tailoring":
+        model_arguments = ReviseResumeTailoringToolArguments.model_validate(arguments)
     elif name == "finalize_resume_tailoring":
         model_arguments = FinalizeResumeTailoringToolArguments.model_validate(arguments)
     elif name == "export_resume_artifact":
@@ -654,6 +661,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
     if name in {
         "get_resume_tailoring_draft",
         "review_resume_tailoring",
+        "revise_resume_tailoring",
         "finalize_resume_tailoring",
     }:
         draft_id = payload.get("draft_id") or context.task.active_resume_tailoring_draft_id

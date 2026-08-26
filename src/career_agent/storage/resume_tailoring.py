@@ -7,9 +7,16 @@ import sqlite3
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.resume_tailoring_contracts import (
+    ResumeReviewTrace,
+    ResumeTailoringResult,
+)
+
+
+class ParentTailoringDraftNotRevisableError(ValueError):
+    """Raised when lineage creation loses a finalized/superseded parent race."""
 
 
 class StoredResumeTailoringDraft(BaseModel):
@@ -18,10 +25,16 @@ class StoredResumeTailoringDraft(BaseModel):
     id: str
     user_id: str
     match_id: str
+    parent_draft_id: str | None = None
+    revision_number: int = Field(default=1, ge=1)
+    revision_feedback: str | None = None
     tailoring_goal: str | None = None
-    status: Literal["pending", "in_review", "reviewed", "finalized"] = "pending"
+    status: Literal[
+        "pending", "in_review", "reviewed", "finalized", "superseded"
+    ] = "pending"
     worker_version: str
     result: ResumeTailoringResult
+    automated_review: ResumeReviewTrace | None = None
     change_reviews: tuple[TailoringChangeReview, ...] = ()
     created_at: datetime
     expires_at: datetime
@@ -60,11 +73,15 @@ class SQLiteResumeTailoringDraftStore:
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     match_id TEXT NOT NULL,
+                    parent_draft_id TEXT,
+                    revision_number INTEGER NOT NULL DEFAULT 1,
+                    revision_feedback TEXT,
                     tailoring_goal TEXT,
                     status TEXT NOT NULL CHECK(status IN ('pending')),
                     review_status TEXT NOT NULL DEFAULT 'pending',
                     worker_version TEXT NOT NULL,
                     result_json TEXT NOT NULL,
+                    automated_review_json TEXT,
                     created_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL
                 )
@@ -82,6 +99,28 @@ class SQLiteResumeTailoringDraftStore:
                     ALTER TABLE resume_tailoring_drafts
                     ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'
                     """
+                )
+            if "automated_review_json" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE resume_tailoring_drafts
+                    ADD COLUMN automated_review_json TEXT
+                    """
+                )
+            if "parent_draft_id" not in columns:
+                connection.execute(
+                    "ALTER TABLE resume_tailoring_drafts ADD COLUMN parent_draft_id TEXT"
+                )
+            if "revision_number" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE resume_tailoring_drafts
+                    ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1
+                    """
+                )
+            if "revision_feedback" not in columns:
+                connection.execute(
+                    "ALTER TABLE resume_tailoring_drafts ADD COLUMN revision_feedback TEXT"
                 )
             connection.execute(
                 """
@@ -110,18 +149,26 @@ class SQLiteResumeTailoringDraftStore:
         *,
         user_id: str,
         match_id: str,
+        parent_draft_id: str | None = None,
+        revision_number: int = 1,
+        revision_feedback: str | None = None,
         tailoring_goal: str | None,
         worker_version: str,
         result: ResumeTailoringResult,
+        automated_review: ResumeReviewTrace | None = None,
     ) -> StoredResumeTailoringDraft:
         created_at = datetime.now(timezone.utc)
         draft = StoredResumeTailoringDraft(
             id=f"resume_tailoring_{uuid4().hex}",
             user_id=user_id,
             match_id=match_id,
+            parent_draft_id=parent_draft_id,
+            revision_number=revision_number,
+            revision_feedback=revision_feedback,
             tailoring_goal=tailoring_goal,
             worker_version=worker_version,
             result=result,
+            automated_review=automated_review,
             created_at=created_at,
             expires_at=created_at + self.DEFAULT_TTL,
         )
@@ -129,14 +176,19 @@ class SQLiteResumeTailoringDraftStore:
             connection.execute(
                 """
                 INSERT INTO resume_tailoring_drafts(
-                    id, user_id, match_id, tailoring_goal, status,
-                    review_status, worker_version, result_json, created_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, user_id, match_id, parent_draft_id, revision_number,
+                    revision_feedback, tailoring_goal, status,
+                    review_status, worker_version, result_json, created_at,
+                    expires_at, automated_review_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     draft.id,
                     draft.user_id,
                     draft.match_id,
+                    draft.parent_draft_id,
+                    draft.revision_number,
+                    draft.revision_feedback,
                     draft.tailoring_goal,
                     draft.status,
                     draft.status,
@@ -144,8 +196,27 @@ class SQLiteResumeTailoringDraftStore:
                     draft.result.model_dump_json(),
                     draft.created_at.isoformat(),
                     draft.expires_at.isoformat(),
+                    (
+                        draft.automated_review.model_dump_json()
+                        if draft.automated_review is not None
+                        else None
+                    ),
                 ),
             )
+            if draft.parent_draft_id is not None:
+                updated = connection.execute(
+                    """
+                    UPDATE resume_tailoring_drafts
+                    SET review_status = 'superseded'
+                    WHERE id = ? AND user_id = ?
+                      AND review_status NOT IN ('finalized', 'superseded')
+                    """,
+                    (draft.parent_draft_id, draft.user_id),
+                ).rowcount
+                if updated != 1:
+                    raise ParentTailoringDraftNotRevisableError(
+                        "Parent tailoring draft is no longer eligible for revision"
+                    )
         return draft
 
     def get(
@@ -159,8 +230,10 @@ class SQLiteResumeTailoringDraftStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, user_id, match_id, tailoring_goal, review_status,
-                       worker_version, result_json, created_at, expires_at
+                SELECT id, user_id, match_id, parent_draft_id, revision_number,
+                       revision_feedback, tailoring_goal, review_status,
+                       worker_version, result_json, automated_review_json,
+                       created_at, expires_at
                 FROM resume_tailoring_drafts
                 WHERE id = ? AND user_id = ? AND expires_at > ?
                 """,
@@ -203,8 +276,10 @@ class SQLiteResumeTailoringDraftStore:
             ).fetchone()
             if row is None:
                 return None
-            if row[1] == "finalized":
-                raise ValueError("Finalized tailoring decisions cannot be changed")
+            if row[1] in {"finalized", "superseded"}:
+                raise ValueError(
+                    "Finalized or superseded tailoring decisions cannot be changed"
+                )
             result = ResumeTailoringResult.model_validate_json(row[0])
             all_indices = (*accepted_change_indices, *rejected_change_indices)
             if not all_indices:
@@ -289,10 +364,16 @@ class SQLiteResumeTailoringDraftStore:
             id=row[0],
             user_id=row[1],
             match_id=row[2],
-            tailoring_goal=row[3],
-            status=row[4],
-            worker_version=row[5],
-            result=ResumeTailoringResult.model_validate_json(row[6]),
+            parent_draft_id=row[3],
+            revision_number=row[4],
+            revision_feedback=row[5],
+            tailoring_goal=row[6],
+            status=row[7],
+            worker_version=row[8],
+            result=ResumeTailoringResult.model_validate_json(row[9]),
+            automated_review=(
+                ResumeReviewTrace.model_validate_json(row[10]) if row[10] else None
+            ),
             change_reviews=tuple(
                 TailoringChangeReview(
                     change_index=review[0],
@@ -302,6 +383,6 @@ class SQLiteResumeTailoringDraftStore:
                 )
                 for review in review_rows
             ),
-            created_at=row[7],
-            expires_at=row[8],
+            created_at=row[11],
+            expires_at=row[12],
         )

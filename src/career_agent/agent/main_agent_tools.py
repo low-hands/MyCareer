@@ -36,6 +36,7 @@ from career_agent.agent.main_agent_contracts import (
     ListInterviewsToolArguments,
     MatchResumeToJobToolArguments,
     ReviewResumeTailoringToolArguments,
+    ReviseResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
     ResolveEmailEventToolArguments,
     ResolveActionItemToolArguments,
@@ -100,10 +101,13 @@ from career_agent.services.resume_export import (
 )
 from career_agent.domain.resume import ResumeArtifactDelivery
 from career_agent.services.resume_tailoring import (
+    ResumeFinalReviewBlockedError,
     ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
     ResumeTailoringNotReadyError,
+    ResumeTailoringReviewBlockedError,
     ResumeTailoringService,
+    ResumeTailoringSupersededError,
 )
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
@@ -189,6 +193,7 @@ class MainAgentToolRegistry:
                     "draft_resume_tailoring": self._draft_resume_tailoring,
                     "get_resume_tailoring_draft": self._get_resume_tailoring_draft,
                     "review_resume_tailoring": self._review_resume_tailoring,
+                    "revise_resume_tailoring": self._revise_resume_tailoring,
                     "finalize_resume_tailoring": self._finalize_resume_tailoring,
                 }
             )
@@ -404,6 +409,14 @@ class MainAgentToolRegistry:
                             "name": "review_resume_tailoring",
                             "description": "Accept or reject specific 1-based change indices in an active tailoring draft. Use only decisions the user explicitly made; never infer acceptance from vague approval. Decisions are persisted and may be completed across turns. This does not create a new resume version.",
                             "parameters": ReviewResumeTailoringToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "revise_resume_tailoring",
+                            "description": "Create a new child draft from the active tailoring draft using explicit user feedback. The new draft discards all prior accept/reject decisions, reruns the bounded Writer/Reviewer loop, and must be reviewed again. It never overwrites the parent draft or creates a ResumeVersion.",
+                            "parameters": ReviseResumeTailoringToolArguments.model_json_schema(),
                         },
                     },
                     {
@@ -1832,6 +1845,13 @@ class MainAgentToolRegistry:
                 message="没有找到可用于定制的匹配结果，或它不属于当前用户。",
                 payload={"match_id": model_arguments.match_id},
             )
+        except ResumeTailoringReviewBlockedError as error:
+            return ToolObservation(
+                tool_name="draft_resume_tailoring",
+                state="resume_tailoring_review_blocked",
+                message="自动审核未能产出安全的简历修改草稿，需要调整目标或人工确认。",
+                payload={"reason": str(error)},
+            )
         except AgentWorkerError as error:
             return ToolObservation(
                 tool_name="draft_resume_tailoring",
@@ -1903,6 +1923,13 @@ class MainAgentToolRegistry:
                 message="这份草稿已经生成了新简历版本，审阅决定不能再修改。",
                 payload={"draft_id": model_arguments.draft_id},
             )
+        except ResumeTailoringSupersededError:
+            return ToolObservation(
+                tool_name="review_resume_tailoring",
+                state="resume_tailoring_superseded",
+                message="该草稿已有更新版本，请审阅当前最新草稿。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
         return self._tailoring_observation(
             tool_name="review_resume_tailoring",
             draft=draft,
@@ -1910,6 +1937,65 @@ class MainAgentToolRegistry:
                 "所有简历修改建议都已完成审阅。"
                 if draft.status == "reviewed"
                 else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理。"
+            ),
+        )
+
+    def _revise_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._resume_tailoring_service is None:
+            raise ValueError("Resume tailoring service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ReviseResumeTailoringToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.draft_id is None:
+            raise ValueError("revise_resume_tailoring requires draft_id")
+        try:
+            draft = self._resume_tailoring_service.revise_draft(
+                user_id=user_id,
+                draft_id=model_arguments.draft_id,
+                feedback=model_arguments.feedback,
+            )
+        except ResumeTailoringDraftNotFoundError:
+            return ToolObservation(
+                tool_name="revise_resume_tailoring",
+                state="resume_tailoring_draft_not_found",
+                message="没有找到要修改的简历草稿，或它已经过期。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        except ResumeTailoringAlreadyFinalizedError:
+            return ToolObservation(
+                tool_name="revise_resume_tailoring",
+                state="resume_tailoring_already_finalized",
+                message="该草稿已经生成简历版本；如需继续修改，应基于新版本重新匹配和定制。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        except ResumeTailoringSupersededError:
+            return ToolObservation(
+                tool_name="revise_resume_tailoring",
+                state="resume_tailoring_superseded",
+                message="该草稿已有更新版本，请基于当前最新草稿继续反馈。",
+                payload={"draft_id": model_arguments.draft_id},
+            )
+        except ResumeTailoringReviewBlockedError as error:
+            return ToolObservation(
+                tool_name="revise_resume_tailoring",
+                state="resume_tailoring_review_blocked",
+                message="根据用户反馈生成的新草稿未通过自动审核，原草稿保持不变。",
+                payload={"reason": str(error)},
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="revise_resume_tailoring",
+                state="failed",
+                message="重新生成简历草稿暂时失败，请稍后重试。" if error.retryable else "重新生成简历草稿失败。",
+                payload={"error_code": error.code, "retryable": error.retryable},
+            )
+        return self._tailoring_observation(
+            tool_name="revise_resume_tailoring",
+            draft=draft,
+            message=(
+                f"已根据反馈生成第 {draft.revision_number} 版草稿；"
+                "旧审批决定未继承，请重新逐条审阅。"
             ),
         )
 
@@ -1939,6 +2025,16 @@ class MainAgentToolRegistry:
                 tool_name="finalize_resume_tailoring",
                 state="resume_tailoring_not_ready",
                 message="必须先逐条审阅所有建议，并至少接受一条修改。",
+                payload={
+                    "draft_id": model_arguments.draft_id,
+                    "reason": str(error),
+                },
+            )
+        except ResumeFinalReviewBlockedError as error:
+            return ToolObservation(
+                tool_name="finalize_resume_tailoring",
+                state="resume_final_review_blocked",
+                message="最终审核发现未获批准或不安全的实质变化，因此没有创建新简历版本。",
                 payload={
                     "draft_id": model_arguments.draft_id,
                     "reason": str(error),
@@ -2210,9 +2306,24 @@ class MainAgentToolRegistry:
             payload={
                 "draft_id": draft.id,
                 "match_id": draft.match_id,
+                "parent_draft_id": draft.parent_draft_id,
+                "revision_number": draft.revision_number,
                 "status": draft.status,
                 "tailoring_goal": draft.tailoring_goal,
                 "expires_at": draft.expires_at.isoformat(),
+                "automated_review": (
+                    {
+                        "status": draft.automated_review.status,
+                        "attempt_count": len(draft.automated_review.attempts),
+                        "warning_categories": [
+                            issue.category
+                            for issue in draft.automated_review.attempts[-1].result.issues
+                            if issue.severity == "warning"
+                        ],
+                    }
+                    if draft.automated_review is not None
+                    else None
+                ),
                 "change_reviews": [
                     review.model_dump(mode="json") for review in draft.change_reviews
                 ],
