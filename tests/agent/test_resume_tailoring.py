@@ -485,6 +485,126 @@ def seed_service(tmp_path, *, reviewer=None):
     return service, tailoring_worker, finalization_worker, stored_match
 
 
+def _scanned_pdf() -> bytes:
+    """A structurally valid PDF whose only page draws graphics, never text."""
+
+    return _single_page_pdf(None)
+
+
+def _single_page_pdf(text: str | None) -> bytes:
+    objects = [
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
+        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj",
+        b"3 0 obj<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>"
+        b"/MediaBox[0 0 612 792]/Contents 5 0 R>>endobj",
+        b"4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj",
+    ]
+    stream = (
+        b"0 0 0 RG 10 10 m 20 20 l S"
+        if text is None
+        else b"BT /F1 12 Tf 72 720 Td (" + text.encode("ascii") + b") Tj ET"
+    )
+    objects.append(
+        b"5 0 obj<</Length "
+        + str(len(stream)).encode("ascii")
+        + b">>stream\n"
+        + stream
+        + b"\nendstream endobj"
+    )
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for obj in objects:
+        offsets.append(len(out))
+        out += obj + b"\n"
+    xref_at = len(out)
+    size = str(len(objects) + 1).encode("ascii")
+    out += b"xref\n0 " + size + b"\n0000000000 65535 f \n"
+    for offset in offsets:
+        out += ("%010d 00000 n \n" % offset).encode("ascii")
+    out += (
+        b"trailer<</Size " + size + b"/Root 1 0 R>>\nstartxref\n"
+        + str(xref_at).encode("ascii")
+        + b"\n%%EOF\n"
+    )
+    return out
+
+
+def test_pdf_grounding_blocks_a_quote_absent_from_extracted_text() -> None:
+    invalid = ResumeTailoringResult.model_validate(VALID_DRAFT).model_dump(mode="json")
+    invalid["changes"][0]["support_evidence"][0]["source_quote"] = "Led a team of 50"
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("Built RAG systems and Python"),
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(invalid),
+    )
+
+    assert [issue.severity for issue in issues] == ["blocking"]
+    assert issues[0].category == "unsupported_fact"
+    assert issues[0].source_quote == "Led a team of 50"
+
+
+def test_scanned_pdf_warns_instead_of_skipping_grounding() -> None:
+    invalid = ResumeTailoringResult.model_validate(VALID_DRAFT).model_dump(mode="json")
+    invalid["changes"][0]["support_evidence"][0]["source_quote"] = "Led a team of 50"
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v2",
+            document_format="pdf",
+            raw_bytes=_scanned_pdf(),
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(invalid),
+    )
+
+    # The page is readable but carries no text, so every quote outside the
+    # confirmed set is flagged without blocking: unverifiable is not disproven.
+    assert issues
+    assert {issue.severity for issue in issues} == {"warning"}
+    assert {issue.category for issue in issues} == {"unsupported_fact"}
+    assert "Led a team of 50" in {issue.source_quote for issue in issues}
+
+
+def test_unparseable_pdf_blocks_instead_of_warning() -> None:
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v4",
+            document_format="pdf",
+            raw_bytes=b"%PDF-1.7 truncated garbage",
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+
+    # A corrupt upload proves nothing, so it must not buy the warning-only path.
+    assert issues
+    assert {issue.severity for issue in issues} == {"blocking"}
+
+
+def test_undecodable_text_resume_still_blocks_grounding() -> None:
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v3",
+            document_format="text",
+            raw_bytes=b"\xff\xfe not utf-8",
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+
+    assert issues
+    assert {issue.severity for issue in issues} == {"blocking"}
+
+
 def test_review_graph_revises_grounding_failure_then_persists_passed_trace(tmp_path) -> None:
     valid = ResumeTailoringResult.model_validate(VALID_DRAFT)
     invalid_data = valid.model_dump(mode="json")
@@ -799,6 +919,16 @@ def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> Non
     service, _, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed active match"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={"active_resume_job_match_id": stored_match.id}
+        ),
+        assistant_message="seeded",
+    )
     tools = MainAgentToolRegistry(
         UnusedGateway(),
         resume_tailoring_service=service,
@@ -817,7 +947,7 @@ def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> Non
             action="tool_call",
             tool_call=ToolCall(
                 name="draft_resume_tailoring",
-                arguments={"match_id": stored_match.id},
+                arguments={},
             ),
         ),
         AgentDecision(action="final", message="请先看这份修改建议。"),
@@ -854,7 +984,7 @@ def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> Non
         user_message="第一条再简洁一点，不要增加数字",
     )
 
-    observation = revise_decisions.contexts[1].tool_observations[-1]
+    observation = revised.tool_result
     assert observation.tool_name == "revise_resume_tailoring"
     assert observation.state == "resume_tailoring_draft_ready"
     assert observation.payload["parent_draft_id"] == parent_id
@@ -870,13 +1000,22 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     service, _, _, stored_match = seed_service(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed active match"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={"active_resume_job_match_id": stored_match.id}
+        ),
+        assistant_message="seeded",
+    )
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
             tool_call=ToolCall(
                 name="draft_resume_tailoring",
                 arguments={
-                    "match_id": stored_match.id,
                     "tailoring_goal": "Keep it concise",
                 },
             ),
@@ -911,7 +1050,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         user_message="按这个岗位优化一下简历",
     )
 
-    observation = decisions.contexts[1].tool_observations[-1]
+    observation = result.tool_result
     assert observation.state == "resume_tailoring_draft_ready"
     assert [change["change_index"] for change in observation.payload["changes"]] == [1, 2]
     assert result.context.task.active_resume_tailoring_draft_id == observation.payload["draft_id"]
@@ -932,12 +1071,12 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         decision_maker=review_decisions,
         tools=tools,
     )
-    review_runtime.run_turn(
+    recalled_result = review_runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="再看一下草稿",
     )
-    reviewed = review_decisions.contexts[1].tool_observations[-1]
+    reviewed = recalled_result.tool_result
     assert reviewed.payload["draft_id"] == observation.payload["draft_id"]
 
     decision_maker = SequenceDecisionMaker(
@@ -964,7 +1103,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         conversation_id="c1",
         user_message="接受第一条，拒绝第二条，技能区保持原样",
     )
-    review_observation = decision_maker.contexts[1].tool_observations[-1]
+    review_observation = reviewed_result.tool_result
     assert review_observation.tool_name == "review_resume_tailoring"
     assert review_observation.payload["status"] == "reviewed"
     assert review_observation.payload["pending_change_indices"] == ()
@@ -987,7 +1126,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         conversation_id="c1",
         user_message="确认，生成新的简历版本",
     )
-    finalization_observation = finalize_decisions.contexts[1].tool_observations[-1]
+    finalization_observation = finalized_result.tool_result
     assert finalization_observation.state == "resume_tailoring_finalized"
     assert finalization_observation.payload["source_type"] == "agent_tailoring"
     assert "markdown" not in finalization_observation.payload
@@ -1013,7 +1152,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         conversation_id="c1",
         user_message="把刚生成的简历给我下载",
     )
-    export_observation = export_decisions.contexts[1].tool_observations[-1]
+    export_observation = exported_result.tool_result
     assert export_observation.state == "resume_artifact_ready"
     assert export_observation.payload["resume_version_id"] == (
         finalization_observation.payload["resume_version_id"]
