@@ -8,6 +8,7 @@ from career_agent.domain.email_tracking import (
     RemoteEmailContent,
     RemoteEmailMetadata,
 )
+from career_agent.domain.interviews import InterviewDetails
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
@@ -66,7 +67,7 @@ class Applications:
         return SimpleNamespace(application=self.application)
 
 
-def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: Path) -> None:
+def test_heuristic_worker_never_auto_applies_a_keyword_match(tmp_path: Path) -> None:
     store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
     account = store.add_account(
         user_id="u1",
@@ -96,12 +97,11 @@ def test_sync_reads_only_candidate_body_and_auto_applies_unique_event(tmp_path: 
     assert result.candidate_messages == 1
     assert connector.content_calls == ["m1"]
     assert result.events_created[0].event_type == "interview_invitation"
-    assert result.events_created[0].status == "applied"
-    assert applications.applied[0]["application_id"] == "app-1"
-    interview = interviews.list_interviews(user_id="u1")[0]
-    assert interview.sequence_number == 1
-    assert interview.employer_label is None
-    assert interview.status == "identified"
+    # A company-name substring hit reaches 0.95 under the heuristic worker, but
+    # that score cannot authorize a durable write on its own.
+    assert result.events_created[0].status == "pending_confirmation"
+    assert applications.applied == []
+    assert interviews.list_interviews(user_id="u1") == ()
     assert store.get_cursor(account_id=account.id).value == "h2"
     assert b"Acme \xe9\x82\x80\xe8\xaf\xb7" not in (tmp_path / "email.sqlite3").read_bytes()
 
@@ -130,6 +130,7 @@ def test_non_candidate_does_not_fetch_body(tmp_path: Path) -> None:
 
 class PendingWorker:
     classifier = "test_pending_v1"
+    authorizes_auto_apply = True
 
     def assess(self, **kwargs):
         return EmailAssessment(
@@ -138,6 +139,49 @@ class PendingWorker:
             confidence=0.7,
             summary="识别到面试邀请，但置信度不足。",
         )
+
+
+class CalibratedWorker:
+    classifier = "test_calibrated_v1"
+    authorizes_auto_apply = True
+
+    def assess(self, **kwargs):
+        return EmailAssessment(
+            event_type="interview_invitation",
+            application_id="app-1",
+            confidence=0.97,
+            summary="已唯一匹配投递记录。",
+            interview_details=InterviewDetails(change_type="invited"),
+        )
+
+
+def test_calibrated_worker_may_auto_apply_above_the_threshold(tmp_path: Path) -> None:
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m4", sender="Acme Recruiting",
+        subject="面试邀请", received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    applications = Applications()
+    interviews = InterviewService(
+        SQLiteInterviewStore(tmp_path / "applications.sqlite3"), applications
+    )
+    service = EmailTrackingService(
+        store, applications, Resolver(Connector(metadata)), CalibratedWorker(),
+        interview_service=interviews,
+    )
+
+    event = service.sync(user_id="u1", account_id=account.id).events_created[0]
+
+    assert event.status == "applied"
+    assert applications.applied[0]["application_id"] == "app-1"
+    interview = interviews.list_interviews(user_id="u1")[0]
+    assert interview.sequence_number == 1
+    assert interview.employer_label is None
+    assert interview.status == "identified"
 
 
 def test_pending_event_requires_explicit_resolution(tmp_path: Path) -> None:
