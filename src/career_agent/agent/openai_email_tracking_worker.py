@@ -24,6 +24,10 @@ def _base_url(endpoint: str) -> str:
 
 class OpenAIEmailTrackingWorker:
     classifier = "openai_email_tracking_v1"
+    # The model self-reports this confidence and it has never been measured
+    # against labelled mail, so it cannot authorize a durable write. Flip this
+    # to True only once the score is calibrated on real recruiting email.
+    authorizes_auto_apply = False
 
     def __init__(self, config: OpenAICompatibleAgentConfig, *, client: Any | None = None) -> None:
         self._config = config

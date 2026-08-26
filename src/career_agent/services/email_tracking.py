@@ -34,6 +34,10 @@ from career_agent.services.interviews import (
 
 class EmailTrackingWorker(Protocol):
     classifier: str
+    # Whether this worker's confidence is calibrated well enough to authorize a
+    # durable application write without user approval. Heuristic workers must
+    # leave this False: their scores are not comparable across workers.
+    authorizes_auto_apply: bool
 
     def assess(
         self,
@@ -68,6 +72,9 @@ class DeterministicEmailTrackingWorker:
     """Conservative baseline; an LLM worker can replace it behind the same contract."""
 
     classifier = "deterministic_email_tracking_v1"
+    # Substring hits cannot justify silently rewriting an application status or
+    # creating an interview round; every event it produces awaits confirmation.
+    authorizes_auto_apply = False
 
     _EVENT_PATTERNS = (
         ("rejection", ("unfortunately", "regret to inform", "not move forward", "不合适", "未通过", "很遗憾")),
@@ -388,7 +395,8 @@ class EmailTrackingService:
 
     def _can_auto_apply(self, assessment: EmailAssessment) -> bool:
         return (
-            assessment.application_id is not None
+            getattr(self._worker, "authorizes_auto_apply", False)
+            and assessment.application_id is not None
             and assessment.event_type != "unclear"
             and assessment.confidence >= self._auto_apply_confidence
         )
