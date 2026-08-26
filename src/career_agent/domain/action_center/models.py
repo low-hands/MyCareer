@@ -15,7 +15,16 @@ ActionType = Literal[
     "interview_retro",
 ]
 ActionSourceType = Literal["application", "email_event", "interview_round"]
-ActionStatus = Literal["open", "completed", "dismissed", "snoozed"]
+# "completed" means the user did the thing; "obsolete" means the condition that
+# generated the item went away on its own. Collapsing the two would let the
+# history claim credit for work nobody did.
+ActionStatus = Literal["open", "completed", "dismissed", "snoozed", "obsolete"]
+# Statuses that carry a resolved_at timestamp.
+RESOLVED_ACTION_STATUSES = frozenset({"completed", "dismissed", "obsolete"})
+# Statuses that record a user decision and must therefore survive a refresh.
+# "obsolete" is deliberately absent: it is a system observation, so the item
+# reopens if the generating condition comes back.
+USER_RESOLVED_ACTION_STATUSES = frozenset({"completed", "dismissed"})
 
 
 class ActionCenterContract(BaseModel):
@@ -49,7 +58,7 @@ class ActionItem(ActionCenterContract):
             raise ValueError("snoozed actions require snoozed_until")
         if self.status != "snoozed" and self.snoozed_until is not None:
             raise ValueError("only snoozed actions can have snoozed_until")
-        if self.status in {"completed", "dismissed"} and self.resolved_at is None:
+        if self.status in RESOLVED_ACTION_STATUSES and self.resolved_at is None:
             raise ValueError("resolved actions require resolved_at")
         if self.status in {"open", "snoozed"} and self.resolved_at is not None:
             raise ValueError("active actions cannot have resolved_at")
@@ -61,7 +70,13 @@ class ActionItemEvent(ActionCenterContract):
     user_id: str = Field(min_length=1)
     action_item_id: str = Field(min_length=1)
     event_type: Literal[
-        "created", "refreshed", "completed", "dismissed", "snoozed", "reopened"
+        "created",
+        "refreshed",
+        "completed",
+        "dismissed",
+        "snoozed",
+        "reopened",
+        "obsoleted",
     ]
     previous_status: ActionStatus | None = None
     new_status: ActionStatus

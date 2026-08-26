@@ -12,6 +12,8 @@ from career_agent.domain.action_center import (
     ActionItemEvent,
     ActionStatus,
     ActionType,
+    RESOLVED_ACTION_STATUSES,
+    USER_RESOLVED_ACTION_STATUSES,
 )
 
 
@@ -67,7 +69,7 @@ class SQLiteActionItemStore:
                 self._insert_event(connection, item, "created", None, "open", now)
                 return item
             item = self._item(row)
-            if item.status in {"completed", "dismissed"}:
+            if item.status in USER_RESOLVED_ACTION_STATUSES:
                 return item
             status: ActionStatus = item.status
             snoozed_until = item.snoozed_until
@@ -75,6 +77,11 @@ class SQLiteActionItemStore:
             if status == "snoozed" and snoozed_until is not None and snoozed_until <= now:
                 status = "open"
                 snoozed_until = None
+                event_type = "reopened"
+            elif status == "obsolete":
+                # The generating condition came back, and nobody decided this was
+                # done, so the item owes the user attention again.
+                status = "open"
                 event_type = "reopened"
             updated = item.model_copy(
                 update={
@@ -85,19 +92,27 @@ class SQLiteActionItemStore:
                     "status": status,
                     "snoozed_until": snoozed_until,
                     "updated_at": now,
+                    # An active item carries no resolution timestamp, so a
+                    # reopened one has to give up the one it had while obsolete.
+                    "resolved_at": (
+                        item.resolved_at
+                        if status in RESOLVED_ACTION_STATUSES
+                        else None
+                    ),
                 }
             )
             connection.execute(
                 """
                 UPDATE action_items SET
                     application_id = ?, title = ?, summary = ?, due_at = ?,
-                    status = ?, snoozed_until = ?, updated_at = ?
+                    status = ?, snoozed_until = ?, updated_at = ?, resolved_at = ?
                 WHERE id = ? AND user_id = ?
                 """,
                 (
                     updated.application_id, updated.title, updated.summary,
                     self._iso(updated.due_at), updated.status,
                     self._iso(updated.snoozed_until), updated.updated_at.isoformat(),
+                    self._iso(updated.resolved_at),
                     updated.id, updated.user_id,
                 ),
             )
@@ -130,17 +145,20 @@ class SQLiteActionItemStore:
                 item = self._item(row)
                 if item.stable_key in active_keys:
                     continue
+                # The candidate stopped being generated, which says nothing about
+                # whether the user acted. Record it as obsolete so completion
+                # counts stay honest.
                 connection.execute(
                     """
                     UPDATE action_items
-                    SET status = 'completed', snoozed_until = NULL,
+                    SET status = 'obsolete', snoozed_until = NULL,
                         updated_at = ?, resolved_at = ?
                     WHERE id = ? AND user_id = ?
                     """,
                     (now.isoformat(), now.isoformat(), item.id, user_id),
                 )
                 self._insert_event(
-                    connection, item, "completed", item.status, "completed", now
+                    connection, item, "obsoleted", item.status, "obsolete", now
                 )
 
     def get(self, *, user_id: str, action_item_id: str) -> ActionItem | None:
@@ -189,9 +207,9 @@ class SQLiteActionItemStore:
             if row is None:
                 return None
             item = self._item(row)
-            if item.status in {"completed", "dismissed"}:
+            if item.status in USER_RESOLVED_ACTION_STATUSES:
                 return item
-            resolved_at = changed_at if status in {"completed", "dismissed"} else None
+            resolved_at = changed_at if status in RESOLVED_ACTION_STATUSES else None
             updated = item.model_copy(
                 update={
                     "status": status,
@@ -219,6 +237,7 @@ class SQLiteActionItemStore:
                 "dismissed": "dismissed",
                 "snoozed": "snoozed",
                 "open": "reopened",
+                "obsolete": "obsoleted",
             }[status]
             self._insert_event(
                 connection, updated, event_type, item.status, updated.status, changed_at
