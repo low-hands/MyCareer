@@ -6,6 +6,8 @@ from career_agent.domain.action_center.models import (
     ActionStatus,
     ActionType,
     DailyBrief,
+    RESOLVED_ACTION_STATUSES,
+    USER_RESOLVED_ACTION_STATUSES,
 )
 
 __all__ = [
@@ -16,4 +18,6 @@ __all__ = [
     "ActionStatus",
     "ActionType",
     "DailyBrief",
+    "RESOLVED_ACTION_STATUSES",
+    "USER_RESOLVED_ACTION_STATUSES",
 ]

@@ -154,7 +154,9 @@ def test_complete_and_snooze_survive_refresh_and_expired_snooze_reopens(tmp_path
     )] == ["created", "snoozed", "reopened"]
 
 
-def test_source_resolution_auto_completes_obsolete_generated_action(tmp_path) -> None:
+def test_source_resolution_marks_generated_action_obsolete_not_completed(
+    tmp_path,
+) -> None:
     service, store, emails = build_service(tmp_path)
     confirmation = next(
         item for item in service.refresh(user_id="u1", now=NOW)
@@ -164,9 +166,55 @@ def test_source_resolution_auto_completes_obsolete_generated_action(tmp_path) ->
     emails.pending = False
     service.refresh(user_id="u1", now=NOW + timedelta(hours=1))
 
+    # The pending event disappeared on its own; the user never acted on it, so
+    # the item must not be counted as completed work.
     resolved = store.get(user_id="u1", action_item_id=confirmation.id)
-    assert resolved.status == "completed"
+    assert resolved.status == "obsolete"
     assert resolved.resolved_at is not None
+    assert [event.event_type for event in store.list_events(
+        user_id="u1", action_item_id=confirmation.id
+    )][-1] == "obsoleted"
+
+
+def test_obsolete_action_reopens_when_its_condition_returns(tmp_path) -> None:
+    service, store, emails = build_service(tmp_path)
+    confirmation = next(
+        item for item in service.refresh(user_id="u1", now=NOW)
+        if item.action_type == "email_event_confirmation"
+    )
+    emails.pending = False
+    service.refresh(user_id="u1", now=NOW + timedelta(hours=1))
+
+    emails.pending = True
+    service.refresh(user_id="u1", now=NOW + timedelta(hours=2))
+
+    # Nobody decided this was done, so the returning condition owes the user
+    # attention again rather than staying silently resolved.
+    reopened = store.get(user_id="u1", action_item_id=confirmation.id)
+    assert reopened.status == "open"
+    assert reopened.resolved_at is None
+    assert [event.event_type for event in store.list_events(
+        user_id="u1", action_item_id=confirmation.id
+    )][-1] == "reopened"
+
+
+def test_user_completed_action_stays_resolved_when_its_condition_returns(
+    tmp_path,
+) -> None:
+    service, store, emails = build_service(tmp_path)
+    confirmation = next(
+        item for item in service.refresh(user_id="u1", now=NOW)
+        if item.action_type == "email_event_confirmation"
+    )
+    service.complete_action(user_id="u1", action_item_id=confirmation.id)
+
+    emails.pending = False
+    service.refresh(user_id="u1", now=NOW + timedelta(hours=1))
+    emails.pending = True
+    service.refresh(user_id="u1", now=NOW + timedelta(hours=2))
+
+    # A user decision is not a system observation: refresh must not undo it.
+    assert store.get(user_id="u1", action_item_id=confirmation.id).status == "completed"
 
 
 def test_snooze_rejects_timestamp_without_timezone(tmp_path) -> None:
