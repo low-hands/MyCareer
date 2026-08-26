@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+from io import BytesIO
 from typing import Literal, TypedDict
+
+from pypdf import PdfReader
 
 from langgraph.graph import END, START, StateGraph
 
@@ -266,12 +269,11 @@ class ResumeTailoringReviewGraph:
             for requirement in match_result.requirements
             for evidence in requirement.resume_evidence
         )
-        resume_text: str | None = None
-        if document.document_format != "pdf":
-            try:
-                resume_text = cls._normalize(document.raw_bytes.decode("utf-8-sig"))
-            except UnicodeDecodeError:
-                resume_text = None
+        resume_text, readable = cls._resume_text(document)
+        # A readable document that yields no text is a genuine scan: grounding is
+        # unverifiable, so warn. An unreadable document proves nothing and must
+        # still block, otherwise a corrupt upload silently buys a free pass.
+        unverifiable = resume_text is None and readable
 
         issues: list[ResumeReviewIssue] = []
         locators: dict[str, int] = {}
@@ -293,10 +295,22 @@ class ResumeTailoringReviewGraph:
                 locators[locator] = index
             for evidence in change.support_evidence:
                 quote = cls._normalize(evidence.source_quote)
-                grounded = quote in known_quotes or (
-                    resume_text is not None and quote in resume_text
-                )
-                if document.document_format != "pdf" and not grounded:
+                if quote in known_quotes:
+                    continue
+                if unverifiable:
+                    # Grounding is unverifiable rather than disproven, so surface
+                    # it for the reviewer and the user instead of passing it.
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="warning",
+                            change_index=index,
+                            source_quote=evidence.source_quote,
+                            explanation="The exact resume version has no extractable text, so this support quote could not be verified.",
+                            revision_instruction="Confirm the quote against the original resume before accepting the change.",
+                        )
+                    )
+                elif resume_text is None or quote not in resume_text:
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
@@ -308,6 +322,27 @@ class ResumeTailoringReviewGraph:
                         )
                     )
         return tuple(issues)
+
+    @classmethod
+    def _resume_text(cls, document: StoredResumeDocument) -> tuple[str | None, bool]:
+        """Return (normalized text or None, whether the document was readable).
+
+        The two are independent: a readable scan has no text, while an unreadable
+        upload has neither. Callers must treat those cases differently.
+        """
+
+        if document.document_format == "pdf":
+            try:
+                reader = PdfReader(BytesIO(document.raw_bytes), strict=False)
+                extracted = " ".join(page.extract_text() or "" for page in reader.pages)
+            except Exception:
+                return None, False
+            return cls._normalize(extracted) or None, True
+        try:
+            decoded = document.raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return None, False
+        return cls._normalize(decoded) or None, True
 
     @staticmethod
     def _normalize(value: str) -> str:
