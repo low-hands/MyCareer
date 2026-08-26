@@ -6,7 +6,11 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
+    ConversationTaskState,
+    MainAgentContext,
+    ResumeCandidateContextItem,
     ToolCall,
+    ToolResult,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -83,6 +87,7 @@ def build_application_agent(tmp_path, decisions):
         context_manager=manager,
         decision_maker=decisions,
         tools=tools,
+        max_tool_calls=5,
     )
     return runtime, manager, tools, job, resume, version
 
@@ -99,22 +104,36 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
-                    name="get_saved_job",
-                    arguments={"job_posting_id": job.posting.id},
+                    name="find_saved_jobs",
+                    arguments={"query": job.posting.title},
                 ),
             ),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
+                    name="get_saved_job",
+                    arguments={"selection_index": 1},
+                ),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="list_resumes", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
                     name="get_resume_metadata",
-                    arguments={"resume_id": resume.id},
+                    arguments={"selection_index": 1},
                 ),
             ),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
                     name="create_application",
-                    arguments={"note": "Applied on the company site."},
+                    arguments={
+                        "resume_version_selection_index": 1,
+                        "note": "Applied on the company site.",
+                    },
                 ),
             ),
             AgentDecision(action="final", message="已记录这次投递。"),
@@ -127,7 +146,7 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
         user_message="我用这份简历投了刚才那个岗位，帮我记录",
     )
 
-    created = decisions.contexts[3].tool_observations[-1]
+    created = created_result.tool_results[-1]
     assert created.state == "application_ready"
     assert created.payload["job_posting_id"] == job.posting.id
     assert created.payload["resume_version_id"] == version.id
@@ -193,7 +212,7 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
         ),
         AgentDecision(action="final", message="这是这次投递的进展。"),
     )
-    MainAgentRuntime(
+    detail_result = MainAgentRuntime(
         context_manager=manager,
         decision_maker=get_decisions,
         tools=tools,
@@ -202,9 +221,113 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
         conversation_id="c1",
         user_message="看看刚才那个投递的记录",
     )
-    detail = get_decisions.contexts[1].tool_observations[-1]
+    detail = detail_result.tool_result
     assert [event["event_type"] for event in detail.payload["events"]] == [
         "created",
         "status_changed",
     ]
     assert all("user_id" not in event for event in detail.payload["events"])
+
+
+def test_reading_other_resume_metadata_does_not_replace_application_version(
+    tmp_path,
+) -> None:
+    decisions = SequenceDecisionMaker()
+    runtime, manager, tools, job, resume, tailored_version = build_application_agent(
+        tmp_path, decisions
+    )
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    other_resume, other_version = resumes.import_document(
+        user_id="u1",
+        target_role_id=resume.target_role_id,
+        name="Other Resume",
+        content=b"OTHER RESUME V9",
+        document_format="text",
+    )
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed active v10"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={
+                "active_job_posting_id": job.posting.id,
+                "active_resume_version_id": tailored_version.id,
+                "resume_candidates": (
+                    ResumeCandidateContextItem(
+                        resume_id=other_resume.id,
+                        target_role_id=other_resume.target_role_id,
+                        name=other_resume.name,
+                        status=other_resume.status,
+                        latest_version_id=other_version.id,
+                    ),
+                ),
+            }
+        ),
+        assistant_message="seeded",
+    )
+    decisions.decisions.extend(
+        [
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="get_resume_metadata", arguments={"selection_index": 1}
+                ),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(action="final", message="已记录这次投递。"),
+        ]
+    )
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我看完另一份简历了，记一下刚才用定制版完成的投递",
+    )
+
+    assert result.tool_results[0].payload["resume"]["latest_version_id"] == (
+        other_version.id
+    )
+    assert result.tool_results[1].payload["resume_version_id"] == (
+        tailored_version.id
+    )
+    schema = next(
+        item
+        for item in tools.schemas()
+        if item["function"]["name"] == "create_application"
+    )["function"]["parameters"]["properties"]
+    assert "resume_version_selection_index" in schema
+    assert "resume_version_id" not in schema
+
+
+def test_get_application_selects_application_without_replacing_job_or_resume() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_job_posting_id="current-job",
+            active_resume_version_id="current-resume-v10",
+        ),
+        user_message="查看历史投递",
+    )
+    historical = ToolResult(
+        tool_name="get_application",
+        state="application_ready",
+        message="已读取历史投递。",
+        payload={
+            "application_id": "old-application",
+            "status": "rejected",
+            "job_posting_id": "old-job",
+            "resume_version_id": "old-resume-v3",
+        },
+    )
+
+    updated = MainAgentRuntime._update_atomic_task(context, historical)
+
+    assert updated.task.active_application_id == "old-application"
+    assert updated.task.active_application_status == "rejected"
+    assert updated.task.active_job_posting_id == "current-job"
+    assert updated.task.active_resume_version_id == "current-resume-v10"

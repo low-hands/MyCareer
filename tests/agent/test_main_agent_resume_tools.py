@@ -77,8 +77,8 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
     seed_resume(store, user_id="other", title="Backend Engineer", name="Other Private Resume")
     decisions = SequenceDecisionMaker(
         AgentDecision(action="tool_call", tool_call=ToolCall(name="list_target_roles", arguments={})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={"target_role_id": role.id})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_resume_metadata", arguments={"resume_id": resume.id})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={"target_role_selection_index": 1})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_resume_metadata", arguments={"selection_index": 1})),
         AgentDecision(action="final", message="你有一份 AI Engineer 简历，共两个版本。"),
     )
     agent, tools = build_agent(tmp_path, store, decisions)
@@ -87,32 +87,29 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
 
     assert tools.names == ("job_discovery", "list_target_roles", "list_resumes", "get_resume_metadata")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
-    role_observation = decisions.contexts[1].tool_observations[-1]
+    role_observation = result.tool_results[0]
     assert role_observation.payload["items"] == [{"selection_index": 1, "target_role_id": role.id, "title": "AI Engineer", "priority": 1, "status": "active"}]
-    resume_observation = decisions.contexts[2].tool_observations[-1]
+    resume_observation = result.tool_results[1]
     assert resume_observation.payload["items"][0]["resume_id"] == resume.id
     assert "Other Private Resume" not in resume_observation.model_dump_json()
-    metadata_observation = decisions.contexts[3].tool_observations[-1]
+    metadata_observation = result.tool_results[2]
     assert metadata_observation.payload["resume"]["resume_id"] == resume.id
     assert [item["resume_version_id"] for item in metadata_observation.payload["versions"]] == [second.id, first.id]
     serialized = metadata_observation.model_dump_json()
     assert "PRIVATE RESUME CONTENT" not in serialized
     assert first.content_sha256 not in serialized
-    assert result.assistant_message == "你有一份 AI Engineer 简历，共两个版本。"
+    assert result.assistant_message == "已读取简历“AI Base”及其 2 个版本的元数据。"
 
 
 def test_get_resume_metadata_hides_foreign_resume(tmp_path) -> None:
     store = ResumeStore(tmp_path / "resumes.sqlite3")
     _, foreign_resume, _, _ = seed_resume(store, user_id="other")
-    decisions = SequenceDecisionMaker(
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_resume_metadata", arguments={"resume_id": foreign_resume.id})),
-        AgentDecision(action="final", message="没有找到这份简历。"),
+    agent, tools = build_agent(tmp_path, store, SequenceDecisionMaker(AgentDecision(action="final", message="")))
+
+    observation = tools.invoke_atomic_tool(
+        "get_resume_metadata",
+        {"user_id": "u1", "resume_id": foreign_resume.id},
     )
-    agent, _ = build_agent(tmp_path, store, decisions)
-
-    agent.run_turn(user_id="u1", conversation_id="c1", user_message="读取这份简历")
-
-    observation = decisions.contexts[1].tool_observations[-1]
     assert observation.state == "resume_not_found"
     assert "Other" not in observation.model_dump_json()
 
@@ -132,7 +129,7 @@ def test_resume_tools_reject_model_supplied_user_id(tmp_path, tool_name, argumen
     )
     agent, _ = build_agent(tmp_path, store, decisions)
 
-    with pytest.raises(ValueError, match="cannot accept internal argument"):
+    with pytest.raises(ValueError, match="cannot accept internal identifier"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权读取")
 
 
@@ -177,13 +174,15 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
         CareerHistoryStore(tmp_path / "resumes.sqlite3"),
     )
     decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={})),
         AgentDecision(
             action="tool_call",
             tool_call=ToolCall(
-                name="analyze_resume",
-                arguments={"resume_version_id": version.id},
+                name="get_resume_metadata",
+                arguments={"selection_index": 1},
             ),
         ),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="analyze_resume", arguments={"selection_index": 1})),
         AgentDecision(action="final", message="我已提取出一段待确认经历。"),
     )
     agent, tools = build_agent(
@@ -209,7 +208,7 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     )
     assert "user_id" not in schema["function"]["parameters"].get("properties", {})
     assert worker.documents[0].raw_bytes == b"PRIVATE RESUME CONTENT v2"
-    observation = decisions.contexts[1].tool_observations[-1]
+    observation = result.tool_results[-1]
     assert observation.state == "resume_analysis_ready"
     assert observation.payload["analysis_id"].startswith("resume_analysis_")
     assert observation.payload["records"][0]["title"] == "Product Manager"
@@ -219,27 +218,17 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     assert "raw_bytes" not in serialized
     assert result.context.task.resume_analysis_status == "pending"
     assert result.context.task.active_resume_analysis_id == observation.payload["analysis_id"]
-    assert result.assistant_message == "我已提取出一段待确认经历。"
+    assert result.assistant_message == "已分析该简历版本，提取出 1 段候选经历。"
 
 
 def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
     store = ResumeStore(tmp_path / "resumes.sqlite3")
     _, _, _, foreign_version = seed_resume(store, user_id="other")
     worker = RecordingResumeAnalysisWorker()
-    decisions = SequenceDecisionMaker(
-        AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(
-                name="analyze_resume",
-                arguments={"resume_version_id": foreign_version.id},
-            ),
-        ),
-        AgentDecision(action="final", message="没有找到这个简历版本。"),
-    )
-    agent, _ = build_agent(
+    agent, tools = build_agent(
         tmp_path,
         store,
-        decisions,
+        SequenceDecisionMaker(AgentDecision(action="final", message="")),
         resume_analysis_service=ResumeAnalysisService(
             store,
                 worker,
@@ -248,9 +237,10 @@ def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
         ),
     )
 
-    agent.run_turn(user_id="u1", conversation_id="c1", user_message="分析这个版本")
-
-    observation = decisions.contexts[1].tool_observations[-1]
+    observation = tools.invoke_atomic_tool(
+        "analyze_resume",
+        {"user_id": "u1", "resume_version_id": foreign_version.id},
+    )
     assert observation.state == "resume_version_not_found"
     assert worker.documents == []
 
@@ -279,7 +269,7 @@ def test_analyze_resume_tool_rejects_model_supplied_user_id(tmp_path) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="cannot accept internal argument"):
+    with pytest.raises(ValueError, match="cannot accept internal identifier"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权分析")
 
 
@@ -293,12 +283,11 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
     service = ResumeAnalysisService(store, worker, draft_store, history_store)
 
     analyze_decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_resume_metadata", arguments={"selection_index": 1})),
         AgentDecision(
             action="tool_call",
-            tool_call=ToolCall(
-                name="analyze_resume",
-                arguments={"resume_version_id": version.id},
-            ),
+            tool_call=ToolCall(name="analyze_resume", arguments={"selection_index": 1}),
         ),
         AgentDecision(action="final", message="请确认这次分析结果。"),
     )
@@ -327,10 +316,10 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
         review_decisions,
         resume_analysis_service=service,
     )
-    review_agent.run_turn(
+    review_result = review_agent.run_turn(
         user_id="u1", conversation_id="c1", user_message="给我再看一下"
     )
-    review_observation = review_decisions.contexts[1].tool_observations[-1]
+    review_observation = review_result.tool_result
     assert review_observation.payload["analysis_id"] == analysis_id
     assert review_observation.payload["status"] == "pending"
 
@@ -351,7 +340,7 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
         user_id="u1", conversation_id="c1", user_message="确认这些内容"
     )
 
-    confirm_observation = confirm_decisions.contexts[1].tool_observations[-1]
+    confirm_observation = confirmed.tool_result
     assert confirm_observation.state == "resume_analysis_confirmed"
     assert confirm_observation.payload["analysis_id"] == analysis_id
     assert len(history_store.list_records(user_id="u1")) == 1

@@ -481,8 +481,13 @@ def _chat_tool_result_payload(result: JobDiscoveryGatewayResult | ToolObservatio
 
 def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) -> int:
     tool_result = turn.tool_result
+    tool_results = turn.tool_results or ((tool_result,) if tool_result else ())
+    failed_result = next(
+        (result for result in reversed(tool_results) if result.state == "failed"),
+        None,
+    )
     payload = {
-        "state": "completed" if not tool_result or tool_result.state != "failed" else "failed",
+        "state": "failed" if failed_result else "completed",
         "user_id": user_id,
         "session_id": session_id,
         "assistant_message": turn.assistant_message,
@@ -491,6 +496,9 @@ def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) 
             "tool_name": turn.decision.tool_call.name if turn.decision.tool_call else None,
         },
         "tool_result": _chat_tool_result_payload(tool_result) if tool_result else None,
+        "tool_results": [
+            _chat_tool_result_payload(result) for result in tool_results
+        ],
         "artifacts": [
             artifact.reference.model_dump(mode="json")
             for artifact in turn.artifacts
@@ -498,7 +506,7 @@ def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) 
     }
     json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
     output.write("\n")
-    return _failure_exit_code(tool_result) if tool_result else EXIT_OK
+    return _failure_exit_code(failed_result) if failed_result else EXIT_OK
 
 
 def _write_chat_error(error: Exception, output: TextIO, *, code: int, next_action: str | None = None) -> int:

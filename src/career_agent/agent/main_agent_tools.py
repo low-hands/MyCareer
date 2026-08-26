@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any, Literal
 
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
@@ -291,7 +292,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "find_saved_jobs",
-                            "description": "Search only the current user's previously saved or viewed jobs. Use this for historical recall, not for discovering new online jobs. Returns summaries and job_posting_id values, never complete JD text.",
+                            "description": "Search only the current user's previously saved or viewed jobs. Use this for historical recall, not for discovering new online jobs. Results become numbered saved-job candidates; complete JD text stays outside the decision context.",
                             "parameters": FindSavedJobsToolArguments.model_json_schema(),
                         },
                     },
@@ -299,7 +300,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_saved_job",
-                            "description": "Read one previously saved job and its complete JD by job_posting_id. Use only when the user asks to inspect a specific saved result or complete JD.",
+                            "description": "Read the selected or active saved job. Pass selection_index after find_saved_jobs, or omit it to use the active job. The complete JD is delivered outside the decision context.",
                             "parameters": GetSavedJobToolArguments.model_json_schema(),
                         },
                     },
@@ -312,7 +313,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "list_target_roles",
-                            "description": "List the current user's resume target-role categories. Returns safe metadata and target_role_id values; never returns resume document content.",
+                            "description": "List the current user's resume target-role categories as numbered candidates. Never returns resume document content.",
                             "parameters": ListTargetRolesToolArguments.model_json_schema(),
                         },
                     },
@@ -320,7 +321,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "list_resumes",
-                            "description": "List the current user's resume families, optionally filtered by a target_role_id returned by list_target_roles. Returns safe metadata and IDs only; never returns resume document content.",
+                            "description": "List the current user's resume families, optionally filtered with target_role_selection_index from list_target_roles. Returns numbered safe metadata only; never returns resume document content.",
                             "parameters": ListResumesToolArguments.model_json_schema(),
                         },
                     },
@@ -328,7 +329,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_resume_metadata",
-                            "description": "Read one of the current user's resume families and its immutable version metadata by resume_id. Never returns PDF, text, Markdown, extracted content, or file paths.",
+                            "description": "Read a resume family selected by selection_index and list its immutable versions as numbered metadata. Never returns PDF, text, Markdown, extracted content, or file paths.",
                             "parameters": GetResumeMetadataToolArguments.model_json_schema(),
                         },
                     },
@@ -341,7 +342,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "analyze_resume",
-                            "description": "Analyze one current-user resume version by resume_version_id. Use when the user asks to read, extract, review, or analyze resume content. Returns a pending analysis_id plus structured candidate career records, grounded evidence quotes, clarification questions, and warnings; never returns the original file. Candidates are not career facts until the user explicitly confirms them.",
+                            "description": "Analyze a selected resume version, or the active latest version when selection_index is omitted. Use when the user asks to read, extract, review, or analyze resume content. Structured candidates are delivered outside the decision context and are not career facts until explicitly confirmed.",
                             "parameters": AnalyzeResumeToolArguments.model_json_schema(),
                         },
                     },
@@ -349,7 +350,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_resume_analysis",
-                            "description": "Retrieve one current user's unexpired resume analysis draft by analysis_id so its candidates can be reviewed before confirmation. Never returns the original resume file.",
+                            "description": "Retrieve the active unexpired resume analysis draft so its candidates can be reviewed before confirmation. Never returns the original resume file.",
                             "parameters": GetResumeAnalysisToolArguments.model_json_schema(),
                         },
                     },
@@ -357,7 +358,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "confirm_resume_analysis",
-                            "description": "Confirm all candidates in one resume analysis by analysis_id and persist them as CareerRecord and confirmed CareerEvidence. Call only after the user explicitly confirms that specific analysis; never infer confirmation.",
+                            "description": "Confirm all candidates in the active resume analysis and persist them as CareerRecord and confirmed CareerEvidence. Call only after explicit user confirmation; never infer confirmation.",
                             "parameters": ConfirmResumeAnalysisToolArguments.model_json_schema(),
                         },
                     },
@@ -370,7 +371,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "match_resume_to_job",
-                            "description": "Compare one exact current-user resume version with one exact saved job's complete JD. Use resume_version_id and job_posting_id returned by the resume and saved-job tools. Returns a persisted match_id and grounded requirement-by-requirement assessment; does not search online and never returns either original document.",
+                            "description": "Compare an exact current-user resume version with one saved job's complete JD. Use resume_version_selection_index and job_selection_index to choose directly from existing candidates, or omit either selector to use its active object. Returns a grounded assessment outside the decision context; does not search online and never returns either original document.",
                             "parameters": MatchResumeToJobToolArguments.model_json_schema(),
                         },
                     },
@@ -378,7 +379,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_resume_job_match",
-                            "description": "Retrieve a previously persisted resume-job match by match_id. When omitted, the current conversation's active match is used. Returns only the structured assessment, never the original resume or complete JD.",
+                            "description": "Retrieve the current conversation's active persisted resume-job match. Returns only the structured assessment, never the original resume or complete JD.",
                             "parameters": GetResumeJobMatchToolArguments.model_json_schema(),
                         },
                     },
@@ -391,7 +392,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "draft_resume_tailoring",
-                            "description": "Create a reviewable tailoring draft from a persisted resume-job match. Uses the active match when match_id is omitted. May accept a user tailoring goal. Returns grounded proposed changes and a draft_id; it does not alter or create a resume version.",
+                            "description": "Create a reviewable tailoring draft from the active persisted resume-job match. May accept a user tailoring goal. Grounded proposed changes are delivered outside decision context; this does not alter or create a resume version.",
                             "parameters": DraftResumeTailoringToolArguments.model_json_schema(),
                         },
                     },
@@ -399,7 +400,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_resume_tailoring_draft",
-                            "description": "Retrieve an unexpired tailoring draft by draft_id, or use the active draft when omitted. Returns proposed changes for review; it does not apply them.",
+                            "description": "Retrieve the active unexpired tailoring draft. Returns proposed changes for review outside decision context; it does not apply them.",
                             "parameters": GetResumeTailoringDraftToolArguments.model_json_schema(),
                         },
                     },
@@ -435,7 +436,7 @@ class MainAgentToolRegistry:
                     "type": "function",
                     "function": {
                         "name": "export_resume_artifact",
-                        "description": "Prepare an owned immutable resume version for download and return only an opaque artifact reference plus safe file metadata. Use the active version when resume_version_id is omitted. Call only when the user asks to download, export, or receive the resume file. Never place file content or a local path in the conversation.",
+                        "description": "Prepare the active owned immutable resume version for download and return only an opaque artifact reference plus safe file metadata. Call only when the user asks to download, export, or receive the resume file. Never place file content or a local path in the conversation.",
                         "parameters": ExportResumeArtifactToolArguments.model_json_schema(),
                     },
                 }
@@ -447,7 +448,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "create_application",
-                            "description": "Track a real externally submitted application using one exact owned resume version and the saved job's current immutable JD snapshot. Use the active job and resume version when IDs are omitted. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
+                            "description": "Track a real externally submitted application using one exact owned resume version and the saved job's current immutable JD snapshot. Use job_selection_index or resume_version_selection_index to override the active objects. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
                             "parameters": CreateApplicationToolArguments.model_json_schema(),
                         },
                     },
@@ -471,7 +472,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_application",
-                            "description": "Read one tracked application and its append-only event timeline. Uses the active application when application_id is omitted.",
+                            "description": "Read a tracked application selected by selection_index, or use the active application, including its append-only event timeline.",
                             "parameters": GetApplicationToolArguments.model_json_schema(),
                         },
                     },
@@ -662,7 +663,39 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
-        return tuple(schemas)
+        return tuple(self._decision_tool_schema(schema) for schema in schemas)
+
+    @staticmethod
+    def _decision_tool_schema(schema: dict[str, Any]) -> dict[str, Any]:
+        """Remove internal identifiers from the model-callable contract.
+
+        Handlers still receive injected identifiers after argument projection;
+        the decision model can only choose indexes already present in its task
+        context or rely on the active object.
+        """
+
+        projected = deepcopy(schema)
+
+        def scrub(node: object) -> None:
+            if isinstance(node, dict):
+                properties = node.get("properties")
+                if isinstance(properties, dict):
+                    for key in tuple(properties):
+                        if key.endswith("_id"):
+                            del properties[key]
+                required = node.get("required")
+                if isinstance(required, list):
+                    node["required"] = [
+                        key for key in required if not str(key).endswith("_id")
+                    ]
+                for value in node.values():
+                    scrub(value)
+            elif isinstance(node, list):
+                for value in node:
+                    scrub(value)
+
+        scrub(projected["function"]["parameters"])
+        return projected
 
     def invoke_workflow(self, name: str, arguments: dict[str, Any]) -> MainAgentToolOutput:
         handler = self._workflow_handlers.get(name)
