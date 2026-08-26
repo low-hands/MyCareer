@@ -235,6 +235,54 @@ def test_chat_emits_artifact_metadata_without_attachment_bytes() -> None:
     assert "content" not in payload["artifacts"][0]
 
 
+def test_chat_emits_all_tool_results_in_execution_order() -> None:
+    first = ToolObservation(
+        tool_name="list_resumes",
+        state="resumes_found",
+        message="找到一份简历。",
+        payload={"items": [{"selection_index": 1, "name": "AI Resume"}]},
+    )
+    second = ToolObservation(
+        tool_name="get_resume_metadata",
+        state="resume_metadata_ready",
+        message="已读取简历元数据。",
+        payload={"versions": [{"selection_index": 1, "version_number": 2}]},
+    )
+    turn = MainAgentTurnResult(
+        decision=AgentDecision(action="final", message=None),
+        context=type("Context", (), {"task": None})(),
+        assistant_message=second.message,
+        tool_result=second,
+        tool_results=(first, second),
+    )
+    output = StringIO()
+
+    code = main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--message",
+            "查看简历",
+            "--boss-data-dir",
+            "/tmp/boss",
+        ],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    payload = json.loads(output.getvalue())
+    assert code == 0
+    assert [item["tool_name"] for item in payload["tool_results"]] == [
+        "list_resumes",
+        "get_resume_metadata",
+    ]
+    assert payload["tool_result"] == payload["tool_results"][-1]
+
+
 def test_chat_keeps_structured_analysis_with_human_summary() -> None:
     analysis = JDAnalysis(result_ref="r1", job_summary="LLM 应用落地。", responsibilities=("建设 LLM 应用",), required_skills=("Python",), preferred_qualifications=("RAG 经验",), clarification_questions=("经验年限不明确",))
     turn = MainAgentTurnResult(

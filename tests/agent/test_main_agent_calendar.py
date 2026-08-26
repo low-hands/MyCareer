@@ -66,6 +66,16 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
 ) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed active interview"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={"active_interview_round_id": "interview-1"}
+        ),
+        assistant_message="seeded",
+    )
     calendar = Calendar()
     tools = MainAgentToolRegistry(Gateway(), calendar_service=calendar)
     first_runtime = MainAgentRuntime(
@@ -76,7 +86,7 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
                     action="tool_call",
                     tool_call=ToolCall(
                         name="prepare_interview_calendar_sync",
-                        arguments={"interview_round_id": "interview-1"},
+                        arguments={},
                     ),
                 ),
                 AgentDecision(

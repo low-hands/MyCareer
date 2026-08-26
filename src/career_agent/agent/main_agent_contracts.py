@@ -68,8 +68,57 @@ class CalendarAccountCandidateContextItem(ContractModel):
     calendar_id: str
 
 
+class SavedJobCandidateContextItem(ContractModel):
+    job_posting_id: str
+    title: str
+    company_name: str
+    city: str | None = None
+    salary: str | None = None
+
+
+class TargetRoleCandidateContextItem(ContractModel):
+    target_role_id: str
+    title: str
+    priority: int
+    status: str
+
+
+class ResumeCandidateContextItem(ContractModel):
+    resume_id: str
+    target_role_id: str
+    name: str
+    status: str
+    latest_version_id: str | None = None
+
+
+class ResumeVersionCandidateContextItem(ContractModel):
+    resume_version_id: str
+    version_number: int
+    source_type: str
+    document_format: str
+    byte_size: int
+
+
+class EmailEventCandidateContextItem(ContractModel):
+    email_event_id: str
+    event_type: str
+    status: EmailEventStatus
+    summary: str
+
+
 class ConversationTaskState(ContractModel):
-    active_workflow: Literal["job_discovery", "email_tracking", "none"] = "none"
+    """Durable per-conversation task state.
+
+    ``active_workflow`` names the one multi-turn workflow that currently holds a
+    suspended run, and ``run_id``/``phase``/``selected_result_ref``/
+    ``manual_search_query`` are scoped to that workflow alone. Single-turn
+    capabilities must not touch the slot: they finish inside one turn and have
+    no run to resume, so claiming it would silently discard a workflow the user
+    is still in the middle of. Use ``enter_workflow``/``leave_workflow`` rather
+    than updating the fields piecemeal.
+    """
+
+    active_workflow: Literal["job_discovery", "none"] = "none"
     run_id: str | None = None
     phase: str | None = None
     selected_result_ref: str | None = None
@@ -96,6 +145,59 @@ class ConversationTaskState(ContractModel):
     action_candidates: tuple[ActionCandidateContextItem, ...] = ()
     active_calendar_proposal_id: str | None = None
     calendar_account_candidates: tuple[CalendarAccountCandidateContextItem, ...] = ()
+    saved_job_candidates: tuple[SavedJobCandidateContextItem, ...] = ()
+    target_role_candidates: tuple[TargetRoleCandidateContextItem, ...] = ()
+    resume_candidates: tuple[ResumeCandidateContextItem, ...] = ()
+    resume_version_candidates: tuple[ResumeVersionCandidateContextItem, ...] = ()
+    email_event_candidates: tuple[EmailEventCandidateContextItem, ...] = ()
+    email_sync_phase: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_workflow_slot(self) -> "ConversationTaskState":
+        if (self.active_workflow == "none") != (self.run_id is None):
+            raise ValueError(
+                "active_workflow and run_id must be set together: a named "
+                "workflow needs a run to resume, and a run needs an owner."
+            )
+        return self
+
+    def enter_workflow(
+        self,
+        workflow: Literal["job_discovery"],
+        *,
+        run_id: str,
+        phase: str | None = None,
+        selected_result_ref: str | None = None,
+        manual_search_query: str | None = None,
+        candidates: tuple[CandidateContextItem, ...] | None = None,
+    ) -> "ConversationTaskState":
+        """Claim the workflow slot, replacing any previous occupant's scope.
+
+        Every scoped field is written in one copy so a new workflow can never
+        inherit a stale phase or selection from the one it displaced.
+        """
+        return self.model_copy(
+            update={
+                "active_workflow": workflow,
+                "run_id": run_id,
+                "phase": phase,
+                "selected_result_ref": selected_result_ref,
+                "manual_search_query": manual_search_query,
+                "candidates": self.candidates if candidates is None else candidates,
+            }
+        )
+
+    def leave_workflow(self) -> "ConversationTaskState":
+        """Release the slot and clear the scoped fields together."""
+        return self.model_copy(
+            update={
+                "active_workflow": "none",
+                "run_id": None,
+                "phase": None,
+                "selected_result_ref": None,
+                "manual_search_query": None,
+            }
+        )
 
 
 class ConversationMessageContext(ContractModel):
@@ -126,12 +228,35 @@ class CareerMemoryContext(ContractModel):
     records: tuple[CareerMemoryRecord, ...] = ()
 
 
-class ToolObservation(ContractModel):
+class ToolResult(ContractModel):
+    """Complete internal result used by reducers and the delivery layer.
+
+    This object is deliberately excluded from ``MainAgentContext`` so adding a
+    field to a tool handler can never silently expand the decision prompt.
+    """
+
     tool_name: str
     state: str
     message: str
     next_action: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+# Compatibility name for capability handlers. New orchestration code should
+# call this a result, not an observation: observations are model-facing.
+ToolObservation = ToolResult
+
+
+class DecisionObservation(ContractModel):
+    """Closed, bounded observation visible to the Main Agent decision model."""
+
+    tool_name: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    state: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    next_action: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9_]+$",
+        max_length=80,
+    )
 
 
 class MainAgentContext(ContractModel):
@@ -141,7 +266,7 @@ class MainAgentContext(ContractModel):
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
-    tool_observations: tuple[ToolObservation, ...] = ()
+    tool_observations: tuple[DecisionObservation, ...] = Field(default=(), max_length=3)
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
 
@@ -162,6 +287,7 @@ class MainAgentContext(ContractModel):
             "task": {
                 "active_workflow": self.task.active_workflow,
                 "phase": self.task.phase,
+                "email_sync_phase": self.task.email_sync_phase,
                 "manual_search_query": self.task.manual_search_query,
                 "candidates": [
                     {
@@ -235,6 +361,62 @@ class MainAgentContext(ContractModel):
                         self.task.calendar_account_candidates, start=1
                     )
                 ],
+                "saved_jobs": [
+                    {
+                        "selection_index": index,
+                        "title": candidate.title,
+                        "company_name": candidate.company_name,
+                        "city": candidate.city,
+                        "salary": candidate.salary,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.saved_job_candidates, start=1
+                    )
+                ],
+                "target_roles": [
+                    {
+                        "selection_index": index,
+                        "title": candidate.title,
+                        "priority": candidate.priority,
+                        "status": candidate.status,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.target_role_candidates, start=1
+                    )
+                ],
+                "resumes": [
+                    {
+                        "selection_index": index,
+                        "name": candidate.name,
+                        "status": candidate.status,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.resume_candidates, start=1
+                    )
+                ],
+                "resume_versions": [
+                    {
+                        "selection_index": index,
+                        "version_number": candidate.version_number,
+                        "source_type": candidate.source_type,
+                        "document_format": candidate.document_format,
+                        "byte_size": candidate.byte_size,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.resume_version_candidates, start=1
+                    )
+                ],
+                "email_events": [
+                    {
+                        "selection_index": index,
+                        "event_type": candidate.event_type,
+                        "status": candidate.status,
+                        "summary": candidate.summary,
+                    }
+                    for index, candidate in enumerate(
+                        self.task.email_event_candidates, start=1
+                    )
+                ],
             },
             "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
@@ -270,7 +452,8 @@ class FindSavedJobsToolArguments(ContractModel):
 
 
 class GetSavedJobToolArguments(ContractModel):
-    job_posting_id: str = Field(min_length=1)
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
 
 
 class ListTargetRolesToolArguments(ContractModel):
@@ -279,19 +462,24 @@ class ListTargetRolesToolArguments(ContractModel):
 
 class ListResumesToolArguments(ContractModel):
     target_role_id: str | None = Field(default=None, min_length=1)
+    target_role_selection_index: int | None = Field(default=None, ge=1)
 
 
 class GetResumeMetadataToolArguments(ContractModel):
-    resume_id: str = Field(min_length=1)
+    resume_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
 
 
 class AnalyzeResumeToolArguments(ContractModel):
-    resume_version_id: str = Field(min_length=1)
+    resume_version_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
 
 
 class MatchResumeToJobToolArguments(ContractModel):
-    resume_version_id: str = Field(min_length=1)
-    job_posting_id: str = Field(min_length=1)
+    resume_version_id: str | None = Field(default=None, min_length=1)
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    resume_version_selection_index: int | None = Field(default=None, ge=1)
+    job_selection_index: int | None = Field(default=None, ge=1)
 
 
 class GetResumeJobMatchToolArguments(ContractModel):
@@ -344,6 +532,8 @@ class ExportResumeArtifactToolArguments(ContractModel):
 class CreateApplicationToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
     resume_version_id: str | None = Field(default=None, min_length=1)
+    job_selection_index: int | None = Field(default=None, ge=1)
+    resume_version_selection_index: int | None = Field(default=None, ge=1)
     submitted_at: datetime | None = None
     note: str | None = Field(default=None, min_length=1, max_length=2000)
 
@@ -393,7 +583,8 @@ class ListEmailEventsToolArguments(ContractModel):
 
 
 class ResolveEmailEventToolArguments(ContractModel):
-    event_id: str = Field(min_length=1)
+    event_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
     approve: bool
     application_id: str | None = Field(default=None, min_length=1)
     interview_round_id: str | None = Field(default=None, min_length=1)
@@ -558,7 +749,16 @@ class DecisionMaker(Protocol):
     def decide(self, context: MainAgentContext, tool_specs: tuple[dict[str, Any], ...]) -> AgentDecision: ...
 
 
+def _reject_internal_identifiers(name: str, arguments: dict[str, Any]) -> None:
+    forbidden = sorted(key for key in arguments if key == "user_id" or key.endswith("_id"))
+    if forbidden:
+        raise ValueError(
+            f"{name} cannot accept internal identifiers: {', '.join(forbidden)}"
+        )
+
+
 def project_job_discovery_arguments(context: MainAgentContext, arguments: dict[str, Any]) -> dict[str, Any]:
+    _reject_internal_identifiers("job_discovery", arguments)
     forbidden = {"user_id", "conversation_id", "run_id", "result_ref", "security_id", "job_id", "jd_text"}.intersection(arguments)
     if forbidden:
         raise ValueError(f"Job Discovery tool cannot accept internal arguments: {', '.join(sorted(forbidden))}")
@@ -590,20 +790,31 @@ def project_job_discovery_arguments(context: MainAgentContext, arguments: dict[s
 
 
 def project_saved_job_arguments(context: MainAgentContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "find_saved_jobs":
         model_arguments = FindSavedJobsToolArguments.model_validate(arguments)
     elif name == "get_saved_job":
         model_arguments = GetSavedJobToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown saved-job tool: {name}")
-    return {"user_id": context.profile.user_id, **model_arguments.model_dump()}
+    payload = model_arguments.model_dump()
+    if name == "get_saved_job":
+        selection_index = payload.pop("selection_index", None)
+        job_posting_id = context.task.active_job_posting_id
+        if selection_index is not None:
+            if selection_index > len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_id = context.task.saved_job_candidates[
+                selection_index - 1
+            ].job_posting_id
+        if job_posting_id is None:
+            raise ValueError("get_saved_job requires a selected or active saved job")
+        payload["job_posting_id"] = job_posting_id
+    return {"user_id": context.profile.user_id, **payload}
 
 
 def project_resume_arguments(context: MainAgentContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "list_target_roles":
         model_arguments = ListTargetRolesToolArguments.model_validate(arguments)
     elif name == "list_resumes":
@@ -643,6 +854,61 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
     else:
         raise ValueError(f"Unknown resume tool: {name}")
     payload = model_arguments.model_dump()
+    if name == "list_resumes":
+        selection_index = payload.pop("target_role_selection_index", None)
+        if selection_index is not None:
+            if selection_index > len(context.task.target_role_candidates):
+                raise ValueError("target-role selection index is out of range")
+            payload["target_role_id"] = context.task.target_role_candidates[
+                selection_index - 1
+            ].target_role_id
+    if name == "get_resume_metadata":
+        selection_index = payload.pop("selection_index", None)
+        if selection_index is not None:
+            if selection_index > len(context.task.resume_candidates):
+                raise ValueError("resume selection index is out of range")
+            payload["resume_id"] = context.task.resume_candidates[
+                selection_index - 1
+            ].resume_id
+        if payload.get("resume_id") is None:
+            raise ValueError("get_resume_metadata requires a selected resume")
+    if name == "analyze_resume":
+        selection_index = payload.pop("selection_index", None)
+        resume_version_id = context.task.active_resume_version_id
+        if selection_index is not None:
+            if selection_index > len(context.task.resume_version_candidates):
+                raise ValueError("resume-version selection index is out of range")
+            resume_version_id = context.task.resume_version_candidates[
+                selection_index - 1
+            ].resume_version_id
+        if resume_version_id is None:
+            raise ValueError("analyze_resume requires a selected or active resume version")
+        payload["resume_version_id"] = resume_version_id
+    if name == "match_resume_to_job":
+        resume_selection_index = payload.pop(
+            "resume_version_selection_index", None
+        )
+        job_selection_index = payload.pop("job_selection_index", None)
+        resume_version_id = context.task.active_resume_version_id
+        if resume_selection_index is not None:
+            if resume_selection_index > len(context.task.resume_version_candidates):
+                raise ValueError("resume-version selection index is out of range")
+            resume_version_id = context.task.resume_version_candidates[
+                resume_selection_index - 1
+            ].resume_version_id
+        job_posting_id = context.task.active_job_posting_id
+        if job_selection_index is not None:
+            if job_selection_index > len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_id = context.task.saved_job_candidates[
+                job_selection_index - 1
+            ].job_posting_id
+        if resume_version_id is None or job_posting_id is None:
+            raise ValueError(
+                "match_resume_to_job requires selected or active resume and saved job"
+            )
+        payload["resume_version_id"] = resume_version_id
+        payload["job_posting_id"] = job_posting_id
     if name in {"get_resume_analysis", "confirm_resume_analysis"}:
         analysis_id = payload.get("analysis_id") or context.task.active_resume_analysis_id
         if analysis_id is None:
@@ -676,13 +942,27 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             raise ValueError("export_resume_artifact requires an active resume version")
         payload["resume_version_id"] = resume_version_id
     if name == "create_application":
-        job_posting_id = payload.get("job_posting_id") or context.task.active_job_posting_id
-        resume_version_id = (
-            payload.get("resume_version_id") or context.task.active_resume_version_id
+        job_selection_index = payload.pop("job_selection_index", None)
+        resume_selection_index = payload.pop(
+            "resume_version_selection_index", None
         )
+        job_posting_id = context.task.active_job_posting_id
+        if job_selection_index is not None:
+            if job_selection_index > len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_id = context.task.saved_job_candidates[
+                job_selection_index - 1
+            ].job_posting_id
+        resume_version_id = context.task.active_resume_version_id
+        if resume_selection_index is not None:
+            if resume_selection_index > len(context.task.resume_version_candidates):
+                raise ValueError("resume-version selection index is out of range")
+            resume_version_id = context.task.resume_version_candidates[
+                resume_selection_index - 1
+            ].resume_version_id
         if job_posting_id is None or resume_version_id is None:
             raise ValueError(
-                "create_application requires an active job and resume version"
+                "create_application requires selected or active job and resume version"
             )
         payload["job_posting_id"] = job_posting_id
         payload["resume_version_id"] = resume_version_id
@@ -705,8 +985,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
 def project_email_arguments(
     context: MainAgentContext, name: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "sync_application_emails":
         model_arguments = SyncApplicationEmailsToolArguments.model_validate(arguments)
     elif name == "list_email_events":
@@ -716,6 +995,16 @@ def project_email_arguments(
     else:
         raise ValueError(f"Unknown email tool: {name}")
     payload = model_arguments.model_dump()
+    if name == "resolve_email_event":
+        selection_index = payload.pop("selection_index", None)
+        if selection_index is not None:
+            if selection_index > len(context.task.email_event_candidates):
+                raise ValueError("email-event selection index is out of range")
+            payload["event_id"] = context.task.email_event_candidates[
+                selection_index - 1
+            ].email_event_id
+        if payload.get("event_id") is None:
+            raise ValueError("resolve_email_event requires a selected email event")
     if name == "resolve_email_event" and payload.get("application_id") is None:
         payload["application_id"] = context.task.active_application_id
     if name == "resolve_email_event" and payload.get("interview_round_id") is None:
@@ -726,8 +1015,7 @@ def project_email_arguments(
 def project_interview_arguments(
     context: MainAgentContext, name: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "list_interviews":
         model_arguments = ListInterviewsToolArguments.model_validate(arguments)
     elif name == "get_interview":
@@ -765,8 +1053,7 @@ def project_interview_arguments(
 def project_interview_preparation_arguments(
     context: MainAgentContext, name: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "prepare_interview":
         model_arguments = PrepareInterviewToolArguments.model_validate(arguments)
         payload = model_arguments.model_dump()
@@ -811,8 +1098,7 @@ def project_interview_preparation_arguments(
 def project_action_center_arguments(
     context: MainAgentContext, name: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "get_daily_brief":
         model_arguments = GetDailyBriefToolArguments.model_validate(arguments)
     elif name == "list_action_items":
@@ -843,8 +1129,7 @@ def project_action_center_arguments(
 def project_calendar_arguments(
     context: MainAgentContext, name: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if "user_id" in arguments:
-        raise ValueError(f"{name} cannot accept internal argument: user_id")
+    _reject_internal_identifiers(name, arguments)
     if name == "list_calendar_accounts":
         model_arguments = ListCalendarAccountsToolArguments.model_validate(arguments)
     elif name == "list_calendar_links":

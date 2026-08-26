@@ -10,6 +10,8 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
+    ResumeVersionCandidateContextItem,
+    SavedJobCandidateContextItem,
     ToolCall,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -317,14 +319,43 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     )
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed active inputs"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={
+                "resume_version_candidates": (
+                    ResumeVersionCandidateContextItem(
+                        resume_version_id=version.id,
+                        version_number=version.version_number,
+                        source_type=version.source_type,
+                        document_format=version.document_format,
+                        byte_size=version.byte_size,
+                    ),
+                ),
+                "saved_job_candidates": (
+                    SavedJobCandidateContextItem(
+                        job_posting_id=saved.posting.id,
+                        title=saved.posting.title,
+                        company_name=saved.posting.company_name,
+                        city=saved.city,
+                        salary=saved.salary,
+                    ),
+                ),
+            }
+        ),
+        assistant_message="seeded",
+    )
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
             tool_call=ToolCall(
                 name="match_resume_to_job",
                 arguments={
-                    "resume_version_id": version.id,
-                    "job_posting_id": saved.posting.id,
+                    "resume_version_selection_index": 1,
+                    "job_selection_index": 1,
                 },
             ),
         ),
@@ -351,7 +382,11 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
         if spec["function"]["name"] == "match_resume_to_job"
     )
     assert "user_id" not in schema["function"]["parameters"].get("properties", {})
-    observation = decisions.contexts[1].tool_observations[-1]
+    assert set(schema["function"]["parameters"]["properties"]) == {
+        "resume_version_selection_index",
+        "job_selection_index",
+    }
+    observation = result.tool_result
     assert observation.state == "resume_job_match_ready"
     assert observation.payload["requirements"][0]["status"] == "matched"
     serialized = observation.model_dump_json()
@@ -359,7 +394,7 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     assert "PRIVATE JD" not in serialized
     assert result.context.task.active_resume_job_match_id == observation.payload["match_id"]
     assert result.context.task.resume_job_match_status == "ready"
-    assert result.assistant_message == "这份简历与岗位整体中等匹配。"
+    assert result.assistant_message == "已完成逐项匹配，整体匹配度为 moderate。"
 
     review_decisions = SequenceDecisionMaker(
         AgentDecision(
@@ -373,12 +408,12 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
         decision_maker=review_decisions,
         tools=tools,
     )
-    review_runtime.run_turn(
+    review_result = review_runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="再看一下刚才的匹配",
     )
-    reviewed = review_decisions.contexts[1].tool_observations[-1]
+    reviewed = review_result.tool_result
     assert reviewed.tool_name == "get_resume_job_match"
     assert reviewed.payload["match_id"] == observation.payload["match_id"]
 
@@ -415,7 +450,7 @@ def test_main_agent_match_tool_rejects_model_supplied_user_id(tmp_path) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="cannot accept internal argument"):
+    with pytest.raises(ValueError, match="cannot accept internal identifier"):
         runtime.run_turn(
             user_id="u1",
             conversation_id="c1",

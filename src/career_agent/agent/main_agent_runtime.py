@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, ActionCandidateContextItem, ApplicationCandidateContextItem, CalendarAccountCandidateContextItem, CandidateContextItem, DecisionMaker, InterviewCandidateContextItem, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, DecisionObservation, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
 
@@ -19,6 +20,7 @@ class MainAgentState(TypedDict, total=False):
     pending_capability_name: str
     pending_tool_result: MainAgentToolOutput
     last_tool_result: MainAgentToolOutput
+    tool_results: tuple[MainAgentToolOutput, ...]
     tool_call_fingerprints: tuple[str, ...]
     artifact_ids: tuple[str, ...]
     tool_call_count: int
@@ -26,11 +28,12 @@ class MainAgentState(TypedDict, total=False):
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, artifacts: tuple[ResumeArtifactDelivery, ...] = ()) -> None:
+    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = ()) -> None:
         self.decision = decision
         self.context = context
         self.assistant_message = assistant_message
         self.tool_result = tool_result
+        self.tool_results = tool_results
         self.artifacts = artifacts
 
 
@@ -85,6 +88,7 @@ class MainAgentRuntime:
                 "context": context,
                 "tool_call_fingerprints": (),
                 "artifact_ids": (),
+                "tool_results": (),
                 "tool_call_count": 0,
             }
         )
@@ -101,6 +105,7 @@ class MainAgentRuntime:
             context=state["context"],
             assistant_message=state["assistant_message"],
             tool_result=tool_result,
+            tool_results=state.get("tool_results", ()),
             artifacts=artifacts,
         )
 
@@ -189,6 +194,7 @@ class MainAgentRuntime:
         return {
             "context": updated,
             "last_tool_result": result,
+            "tool_results": (*state.get("tool_results", ()), result),
             "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
             "tool_call_count": state.get("tool_call_count", 0) + 1,
             "artifact_ids": artifact_ids,
@@ -197,9 +203,16 @@ class MainAgentRuntime:
     @staticmethod
     def _finish(state: MainAgentState) -> MainAgentState:
         decision = state["decision"]
-        message = decision.message or ""
-        if not message and state.get("last_tool_result") is not None:
-            message = MainAgentRuntime._assistant_message(state["last_tool_result"])
+        result = state.get("last_tool_result")
+        if result is not None and decision.action == "final":
+            # The decision model only saw DecisionObservation, never the full
+            # result. A final answer about that result must therefore come from
+            # the authoritative presenter rather than ungrounded model prose.
+            message = MainAgentRuntime._assistant_message(result)
+        else:
+            message = decision.message or ""
+            if not message and result is not None:
+                message = MainAgentRuntime._assistant_message(result)
         return {"assistant_message": message}
 
     @staticmethod
@@ -210,45 +223,18 @@ class MainAgentRuntime:
         return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
 
     @staticmethod
-    def _tool_observation(name: str, result: MainAgentToolOutput) -> ToolObservation:
+    def _tool_observation(name: str, result: MainAgentToolOutput) -> DecisionObservation:
         if isinstance(result, ToolObservation):
-            return result
-        payload: dict[str, Any] = {
-            "items": [
-                {
-                    "selection_index": index,
-                    "title": item.title,
-                    "company_name": item.company_name,
-                    "city": item.city,
-                    "salary": item.salary,
-                    "rationale": item.rationale,
-                    "cautions": item.cautions,
-                }
-                for index, item in enumerate(result.items, start=1)
-            ],
-            "error_code": result.error_code,
-            "error_stage": result.error_stage,
-            "error_detail": result.error_detail,
-            "recovery_action": result.recovery_action,
-            "manual_search_query": result.manual_search_query,
-        }
-        analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
-        if analyses:
-            analysis_indices = result.analysis_selection_indices or tuple(range(1, len(analyses) + 1))
-            payload["analyses"] = [
-                {
-                    "selection_index": selection_index,
-                    "job_summary": analysis.job_summary,
-                    "responsibilities": analysis.responsibilities,
-                    "required_skills": analysis.required_skills,
-                    "preferred_qualifications": analysis.preferred_qualifications,
-                    "clarification_questions": analysis.clarification_questions,
-                }
-                for selection_index, analysis in zip(analysis_indices, analyses)
-            ]
-        if result.comparison is not None:
-            payload["comparison"] = result.comparison.model_dump(mode="json")
-        return ToolObservation(tool_name=name, state=result.state, message=result.message, next_action=result.next_action, payload=payload)
+            return DecisionObservation(
+                tool_name=result.tool_name,
+                state=result.state,
+                next_action=result.next_action,
+            )
+        return DecisionObservation(
+            tool_name=name,
+            state=result.state,
+            next_action=result.next_action,
+        )
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
@@ -353,289 +339,25 @@ class MainAgentRuntime:
     @staticmethod
     def _update_task(context: MainAgentContext, result: JobDiscoveryGatewayResult) -> MainAgentContext:
         task = context.task
+        # A run-less result never claims the slot: the gateway returns one when it
+        # refuses to start, and overwriting a live run with it would strand it.
+        if not result.run_id:
+            return context.model_copy(update={"task": task})
         if result.state == "selection_required":
             candidates = tuple(CandidateContextItem(result_ref=item.result_ref, title=item.title, company_name=item.company_name, city=item.city, salary=item.salary) for item in result.items)
-            task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state, "selected_result_ref": None, "candidates": candidates})
+            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, candidates=candidates)
         elif result.state == "analysis_ready":
-            task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state, "selected_result_ref": result.selected_result_ref})
+            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, selected_result_ref=result.selected_result_ref)
         elif result.state == "detail_unavailable":
-            task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state, "selected_result_ref": result.selected_result_ref, "manual_search_query": result.manual_search_query})
+            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, selected_result_ref=result.selected_result_ref, manual_search_query=result.manual_search_query)
         elif result.state in {"failed", "waiting_user"}:
-            task = task.model_copy(update={"active_workflow": "job_discovery", "run_id": result.run_id, "phase": result.state})
+            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state)
         return context.model_copy(update={"task": task})
 
     @staticmethod
     def _update_atomic_task(
         context: MainAgentContext, result: ToolObservation
     ) -> MainAgentContext:
-        task = context.task
-        if result.tool_name == "sync_application_emails":
-            task = task.model_copy(
-                update={
-                    "active_workflow": "email_tracking",
-                    "phase": result.state,
-                }
-            )
-        elif result.tool_name == "list_calendar_accounts" and result.state in {
-            "calendar_accounts_found",
-            "no_calendar_accounts",
-        }:
-            task = task.model_copy(
-                update={
-                    "calendar_account_candidates": tuple(
-                        CalendarAccountCandidateContextItem(
-                            calendar_account_id=item["calendar_account_id"],
-                            provider=item["provider"],
-                            email_address=item["email_address"],
-                            calendar_id=item["calendar_id"],
-                        )
-                        for item in result.payload.get("items", ())
-                    )
-                }
-            )
-        elif result.tool_name in {
-            "prepare_interview_calendar_sync",
-            "get_calendar_proposal",
-            "execute_calendar_proposal",
-        } and result.state in {
-            "calendar_approval_required",
-            "calendar_proposal_ready",
-            "calendar_sync_complete",
-        }:
-            task = task.model_copy(
-                update={
-                    "active_calendar_proposal_id": result.payload.get("proposal_id"),
-                    "active_interview_round_id": result.payload.get(
-                        "interview_round_id"
-                    ) or task.active_interview_round_id,
-                }
-            )
-        elif result.tool_name == "get_daily_brief" and result.state == "daily_brief_ready":
-            items = tuple(
-                item
-                for section in ("overdue", "due_today", "upcoming", "no_due_date")
-                for item in result.payload.get(section, ())
-            )
-            task = task.model_copy(
-                update={
-                    "action_candidates": tuple(
-                        MainAgentRuntime._action_candidate(item) for item in items
-                    )
-                }
-            )
-        elif result.tool_name == "list_action_items" and result.state in {
-            "action_items_found",
-            "no_action_items_found",
-        }:
-            task = task.model_copy(
-                update={
-                    "action_candidates": tuple(
-                        MainAgentRuntime._action_candidate(item)
-                        for item in result.payload.get("items", ())
-                    )
-                }
-            )
-        elif result.tool_name in {
-            "complete_action_item",
-            "dismiss_action_item",
-            "snooze_action_item",
-        } and result.state in {"action_item_resolved", "action_item_snoozed"}:
-            action_item_id = result.payload.get("action_item_id")
-            task = task.model_copy(
-                update={
-                    "active_action_item_id": action_item_id,
-                    "action_candidates": tuple(
-                        candidate
-                        for candidate in task.action_candidates
-                        if candidate.action_item_id != action_item_id
-                    ),
-                }
-            )
-        elif result.tool_name == "list_interviews" and result.state in {
-            "interviews_found",
-            "no_interviews_found",
-        }:
-            task = task.model_copy(
-                update={
-                    "interview_candidates": tuple(
-                        InterviewCandidateContextItem(
-                            interview_round_id=item["interview_round_id"],
-                            application_id=item["application_id"],
-                            sequence_number=item["sequence_number"],
-                            employer_label=item.get("employer_label"),
-                            status=item["status"],
-                            scheduled_start=item.get("scheduled_start"),
-                        )
-                        for item in result.payload.get("items", ())
-                    )
-                }
-            )
-        elif result.tool_name in {
-            "get_interview",
-            "create_interview",
-            "update_interview",
-            "complete_interview",
-        } and result.state == "interview_ready":
-            task = task.model_copy(
-                update={
-                    "active_interview_round_id": result.payload.get(
-                        "interview_round_id"
-                    ),
-                    "active_application_id": result.payload.get("application_id"),
-                }
-            )
-        elif result.tool_name in {
-            "prepare_interview",
-            "get_interview_preparation",
-        } and result.state == "interview_preparation_ready":
-            task = task.model_copy(
-                update={
-                    "active_interview_preparation_id": result.payload.get(
-                        "preparation_id"
-                    ),
-                    "active_interview_round_id": result.payload.get(
-                        "interview_round_id"
-                    ),
-                    "active_application_id": result.payload.get("application_id"),
-                    "active_job_posting_id": result.payload.get("job_posting_id"),
-                    "active_resume_version_id": result.payload.get(
-                        "resume_version_id"
-                    ),
-                }
-            )
-        elif result.tool_name == "analyze_resume" and result.state == "resume_analysis_ready":
-            task = task.model_copy(
-                update={
-                    "active_resume_analysis_id": result.payload.get("analysis_id"),
-                    "resume_analysis_status": "pending",
-                }
-            )
-        elif result.tool_name == "get_resume_analysis" and result.state == "resume_analysis_ready":
-            status = result.payload.get("status")
-            task = task.model_copy(
-                update={
-                    "active_resume_analysis_id": result.payload.get("analysis_id"),
-                    "resume_analysis_status": status if status in {"pending", "confirmed"} else None,
-                }
-            )
-        elif (
-            result.tool_name == "confirm_resume_analysis"
-            and result.state == "resume_analysis_confirmed"
-        ):
-            task = task.model_copy(update={"resume_analysis_status": "confirmed"})
-        elif (
-            result.tool_name in {"match_resume_to_job", "get_resume_job_match"}
-            and result.state == "resume_job_match_ready"
-        ):
-            task = task.model_copy(
-                update={
-                    "active_resume_job_match_id": result.payload.get("match_id"),
-                    "resume_job_match_status": "ready",
-                    "active_job_posting_id": result.payload.get("job_posting_id"),
-                    "active_resume_version_id": result.payload.get(
-                        "resume_version_id"
-                    ),
-                }
-            )
-        elif (
-            result.tool_name == "get_saved_job" and result.state == "saved_job_ready"
-        ):
-            job = result.payload.get("job", {})
-            task = task.model_copy(
-                update={"active_job_posting_id": job.get("job_posting_id")}
-            )
-        elif (
-            result.tool_name == "get_resume_metadata"
-            and result.state == "resume_metadata_ready"
-        ):
-            resume = result.payload.get("resume", {})
-            task = task.model_copy(
-                update={
-                    "active_resume_version_id": resume.get("latest_version_id")
-                }
-            )
-        elif (
-            result.tool_name
-            in {"create_application", "update_application_status", "get_application"}
-            and result.state == "application_ready"
-        ):
-            task = task.model_copy(
-                update={
-                    "active_application_id": result.payload.get("application_id"),
-                    "active_application_status": result.payload.get("status"),
-                    "active_job_posting_id": result.payload.get("job_posting_id"),
-                    "active_resume_version_id": result.payload.get(
-                        "resume_version_id"
-                    ),
-                }
-            )
-        elif result.tool_name == "list_applications" and result.state in {
-            "applications_found",
-            "no_applications_found",
-        }:
-            task = task.model_copy(
-                update={
-                    "application_candidates": tuple(
-                        ApplicationCandidateContextItem(
-                            application_id=item["application_id"],
-                            title=item["title"],
-                            company_name=item["company_name"],
-                            status=item["status"],
-                        )
-                        for item in result.payload.get("items", ())
-                    )
-                }
-            )
-        elif (
-            result.tool_name == "export_resume_artifact"
-            and result.state == "resume_artifact_ready"
-        ):
-            task = task.model_copy(
-                update={
-                    "active_resume_version_id": result.payload.get(
-                        "resume_version_id"
-                    ),
-                    "active_resume_artifact_id": result.payload.get("artifact_id"),
-                }
-            )
-        elif (
-            result.tool_name == "finalize_resume_tailoring"
-            and result.state == "resume_tailoring_finalized"
-        ):
-            task = task.model_copy(
-                update={
-                    "resume_tailoring_status": "finalized",
-                    "active_resume_version_id": result.payload.get(
-                        "resume_version_id"
-                    ),
-                }
-            )
-        elif (
-            result.tool_name
-            in {
-                "draft_resume_tailoring",
-                "get_resume_tailoring_draft",
-                "review_resume_tailoring",
-                "revise_resume_tailoring",
-            }
-            and result.state == "resume_tailoring_draft_ready"
-        ):
-            task = task.model_copy(
-                update={
-                    "active_resume_tailoring_draft_id": result.payload.get("draft_id"),
-                    "resume_tailoring_status": result.payload.get("status"),
-                }
-            )
-        return context.model_copy(update={"task": task})
-
-    @staticmethod
-    def _action_candidate(item: dict[str, Any]) -> ActionCandidateContextItem:
-        return ActionCandidateContextItem(
-            action_item_id=item["action_item_id"],
-            action_type=item["action_type"],
-            source_type=item["source_type"],
-            source_id=item["source_id"],
-            title=item["title"],
-            status=item["status"],
-            due_at=item.get("due_at"),
+        return context.model_copy(
+            update={"task": reduce_task_state(context.task, result)}
         )

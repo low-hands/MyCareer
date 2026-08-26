@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_contracts import JDAnalysis
 from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, ToolCall
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, ToolCall, ToolResult
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -164,9 +165,14 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
     assert len(gateway.calls) == 1
     assert len(decisions.contexts) == 2
     observation = decisions.contexts[1].model_context()["tool_observations"][0]
-    assert observation["tool_name"] == "job_discovery"
-    assert observation["state"] == "selection_required"
-    assert observation["payload"]["items"][0]["selection_index"] == 1
+    assert observation == {
+        "tool_name": "job_discovery",
+        "state": "selection_required",
+        "next_action": "select_result",
+    }
+    assert decisions.contexts[1].model_context()["task"]["candidates"][0][
+        "selection_index"
+    ] == 1
     serialized = str(observation)
     assert "run-1" not in serialized
     assert "r1" not in serialized
@@ -278,7 +284,86 @@ def test_complete_jd_is_not_projected_into_main_agent_observation() -> None:
     serialized = observation.model_dump_json()
     assert "PRIVATE COMPLETE JD CONTENT" not in serialized
     assert "run-private" not in serialized
-    assert "Safe summary" in serialized
+    assert "Safe summary" not in serialized
+    assert set(observation.model_dump()) == {"tool_name", "state", "next_action"}
+
+
+def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
+    sentinel = "PRIVATE-PAYLOAD-DO-NOT-PROMPT"
+    result = ToolResult(
+        tool_name="get_saved_job",
+        state="saved_job_ready",
+        message=f"message:{sentinel}",
+        next_action="match_resume_to_job",
+        payload={"jd_snapshot": {"content": sentinel}, "job_posting_id": "secret-id"},
+    )
+
+    observation = MainAgentRuntime._tool_observation("get_saved_job", result)
+
+    assert observation.model_dump() == {
+        "tool_name": "get_saved_job",
+        "state": "saved_job_ready",
+        "next_action": "match_resume_to_job",
+    }
+    assert sentinel not in observation.model_dump_json()
+    assert len(observation.model_dump_json()) < 256
+    with pytest.raises(ValidationError):
+        DecisionObservation.model_validate(
+            {**observation.model_dump(), "payload": {"content": sentinel}}
+        )
+
+
+def test_final_model_message_cannot_characterize_an_opaque_tool_result() -> None:
+    result = ToolResult(
+        tool_name="analyze_resume",
+        state="resume_analysis_ready",
+        message="已分析简历并生成待确认候选事实。",
+        payload={"records": [{"title": "PRIVATE RESULT"}]},
+    )
+
+    update = MainAgentRuntime._finish(
+        {
+            "decision": AgentDecision(
+                action="final",
+                message="看起来很不错，经历非常有竞争力。",
+            ),
+            "last_tool_result": result,
+        }
+    )
+
+    assert update["assistant_message"] == result.message
+    assert "很不错" not in update["assistant_message"]
+
+
+def test_decision_tool_schema_recursively_removes_internal_ids() -> None:
+    schema = {
+        "type": "function",
+        "function": {
+            "name": "example",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "selection_index": {"type": "integer"},
+                    "application_id": {"type": "string"},
+                    "details": {
+                        "type": "object",
+                        "properties": {"source_id": {"type": "string"}},
+                        "required": ["source_id"],
+                    },
+                },
+                "required": ["application_id", "selection_index"],
+            },
+        },
+    }
+
+    projected = MainAgentToolRegistry._decision_tool_schema(schema)
+    serialized = str(projected)
+
+    assert "application_id" not in serialized
+    assert "source_id" not in serialized
+    assert projected["function"]["parameters"]["required"] == [
+        "selection_index"
+    ]
 
 
 def test_normal_answer_commits_history_without_tool(tmp_path) -> None:
@@ -343,11 +428,14 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
     assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("job_discovery", "find_saved_jobs", "get_saved_job")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
+    tool_result = result.tool_results[0]
     assert observation.tool_name == "find_saved_jobs"
-    assert observation.payload["items"][0]["job_posting_id"] == job_posting_id
-    assert len(observation.payload["items"]) == 1
+    assert not hasattr(observation, "payload")
+    assert tool_result.payload["items"][0]["job_posting_id"] == job_posting_id
+    assert len(tool_result.payload["items"]) == 1
+    assert result.context.model_context()["task"]["saved_jobs"][0]["selection_index"] == 1
     assert "PRIVATE SAVED JD" not in observation.model_dump_json()
-    assert result.assistant_message == "找到了以前看过的岗位。"
+    assert result.assistant_message == "找到 1 个已保存职位。"
 
 
 def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:
@@ -356,7 +444,8 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     job_posting_id = _seed_saved_job(repository)
     decisions = SequenceDecisionMaker(
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"job_posting_id": job_posting_id})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"selection_index": 1})),
         AgentDecision(action="final", message="这是该岗位的完整 JD。"),
     )
     agent = MainAgentRuntime(
@@ -367,11 +456,13 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位")
 
-    observation = decisions.contexts[1].tool_observations[0]
+    observation = decisions.contexts[2].tool_observations[-1]
+    tool_result = result.tool_results[-1]
     assert observation.tool_name == "get_saved_job"
-    assert observation.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
-    assert observation.payload["analysis"]["required_skills"] == ["Python"]
-    assert result.assistant_message == "这是该岗位的完整 JD。"
+    assert "PRIVATE SAVED JD" not in observation.model_dump_json()
+    assert tool_result.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
+    assert tool_result.payload["analysis"]["required_skills"] == ["Python"]
+    assert result.assistant_message == "已读取 RAG Engineer（Acme）的完整 JD。"
 
 
 @pytest.mark.parametrize("tool_name,arguments", [
@@ -388,7 +479,7 @@ def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, argu
         tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
     )
 
-    with pytest.raises(ValueError, match="cannot accept internal argument"):
+    with pytest.raises(ValueError, match="cannot accept internal identifier"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="越权读取")
 
 
@@ -396,7 +487,7 @@ def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, argu
 def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> None:
     agent, _, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={forbidden: "hidden"})))
 
-    with pytest.raises(ValueError, match="internal arguments"):
+    with pytest.raises(ValueError, match="internal (arguments|identifiers)"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="Do it.")
 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()
