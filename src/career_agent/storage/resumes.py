@@ -11,6 +11,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict
 
 from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
+from career_agent.storage.schema import apply_schema
 
 
 class StoredResumeDocument(BaseModel):
@@ -27,7 +28,7 @@ class ResumeStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            self._migrate(connection)
+            apply_schema(connection, "resumes", 3, self._migrate)
         os.chmod(self.path, 0o600)
 
     def create_target_role(self, *, user_id: str, title: str, priority: int) -> TargetRole:
@@ -342,6 +343,9 @@ class ResumeStore:
             )
             """
         )
+        # user_version is per-file and this file has seven owners, so it cannot
+        # describe any one of them. Keep writing it for backward compatibility
+        # with files created before the registry existed.
         connection.execute("PRAGMA user_version = 3")
 
     def _connect(self) -> sqlite3.Connection:

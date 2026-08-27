@@ -22,6 +22,7 @@ from career_agent.domain.job_discovery import (
     normalize_jd,
     validate_job_detail,
 )
+from career_agent.storage.schema import apply_schema
 
 
 AvailabilityStatus = Literal["active", "closed", "unknown"]
@@ -122,87 +123,91 @@ class SQLiteJobPostingRepository:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS job_postings (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    source_name TEXT NOT NULL,
-                    source_identity TEXT NOT NULL,
-                    source_job_id TEXT,
-                    source_url TEXT,
-                    title TEXT NOT NULL,
-                    company_name TEXT NOT NULL,
-                    city TEXT,
-                    salary TEXT,
-                    availability_status TEXT NOT NULL CHECK(availability_status IN ('active', 'closed', 'unknown')),
-                    persisted_at TEXT NOT NULL,
-                    last_seen_at TEXT NOT NULL,
-                    last_checked_at TEXT NOT NULL,
-                    closed_at TEXT,
-                    latest_snapshot_id TEXT NOT NULL,
-                    company_title_fingerprint TEXT NOT NULL,
-                    content_fingerprint TEXT NOT NULL,
-                    UNIQUE(user_id, source_name, source_identity)
-                )
-                """
-            )
-            connection.execute("CREATE INDEX IF NOT EXISTS job_postings_user_recent_idx ON job_postings(user_id, last_checked_at DESC)")
-            connection.execute("CREATE INDEX IF NOT EXISTS job_postings_user_status_idx ON job_postings(user_id, availability_status)")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS jd_snapshots (
-                    id TEXT PRIMARY KEY,
-                    job_posting_id TEXT NOT NULL,
-                    version INTEGER NOT NULL,
-                    content TEXT NOT NULL,
-                    content_hash TEXT NOT NULL,
-                    captured_at TEXT NOT NULL,
-                    provenance_json TEXT NOT NULL,
-                    normalizer_version TEXT NOT NULL,
-                    UNIQUE(job_posting_id, content_hash),
-                    UNIQUE(job_posting_id, version),
-                    FOREIGN KEY(job_posting_id) REFERENCES job_postings(id)
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS job_run_links (
-                    user_id TEXT NOT NULL,
-                    run_id TEXT NOT NULL,
-                    result_ref TEXT NOT NULL,
-                    selection_index INTEGER NOT NULL,
-                    job_posting_id TEXT NOT NULL,
-                    jd_snapshot_id TEXT,
-                    PRIMARY KEY(user_id, run_id, result_ref),
-                    UNIQUE(user_id, run_id, selection_index),
-                    FOREIGN KEY(job_posting_id) REFERENCES job_postings(id),
-                    FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
-                )
-                """
-            )
-            run_link_columns = {row[1] for row in connection.execute("PRAGMA table_info(job_run_links)")}
-            if "jd_snapshot_id" not in run_link_columns:
-                connection.execute("ALTER TABLE job_run_links ADD COLUMN jd_snapshot_id TEXT REFERENCES jd_snapshots(id)")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS jd_analyses (
-                    id TEXT PRIMARY KEY,
-                    jd_snapshot_id TEXT NOT NULL,
-                    analyzer_version TEXT NOT NULL,
-                    analysis_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(jd_snapshot_id, analyzer_version),
-                    FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
-                )
-                """
-            )
-            connection.execute("CREATE INDEX IF NOT EXISTS jd_analyses_snapshot_created_idx ON jd_analyses(jd_snapshot_id, created_at DESC)")
-            connection.execute(
-                "CREATE VIRTUAL TABLE IF NOT EXISTS job_posting_fts USING fts5(job_posting_id UNINDEXED, user_id UNINDEXED, title, company_name, city, jd_content, tokenize='unicode61')"
-            )
+            apply_schema(connection, "job_postings", 1, self._migrate)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_postings (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                source_name TEXT NOT NULL,
+                source_identity TEXT NOT NULL,
+                source_job_id TEXT,
+                source_url TEXT,
+                title TEXT NOT NULL,
+                company_name TEXT NOT NULL,
+                city TEXT,
+                salary TEXT,
+                availability_status TEXT NOT NULL CHECK(availability_status IN ('active', 'closed', 'unknown')),
+                persisted_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                last_checked_at TEXT NOT NULL,
+                closed_at TEXT,
+                latest_snapshot_id TEXT NOT NULL,
+                company_title_fingerprint TEXT NOT NULL,
+                content_fingerprint TEXT NOT NULL,
+                UNIQUE(user_id, source_name, source_identity)
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS job_postings_user_recent_idx ON job_postings(user_id, last_checked_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS job_postings_user_status_idx ON job_postings(user_id, availability_status)")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS jd_snapshots (
+                id TEXT PRIMARY KEY,
+                job_posting_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                provenance_json TEXT NOT NULL,
+                normalizer_version TEXT NOT NULL,
+                UNIQUE(job_posting_id, content_hash),
+                UNIQUE(job_posting_id, version),
+                FOREIGN KEY(job_posting_id) REFERENCES job_postings(id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_run_links (
+                user_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                result_ref TEXT NOT NULL,
+                selection_index INTEGER NOT NULL,
+                job_posting_id TEXT NOT NULL,
+                jd_snapshot_id TEXT,
+                PRIMARY KEY(user_id, run_id, result_ref),
+                UNIQUE(user_id, run_id, selection_index),
+                FOREIGN KEY(job_posting_id) REFERENCES job_postings(id),
+                FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
+            )
+            """
+        )
+        run_link_columns = {row[1] for row in connection.execute("PRAGMA table_info(job_run_links)")}
+        if "jd_snapshot_id" not in run_link_columns:
+            connection.execute("ALTER TABLE job_run_links ADD COLUMN jd_snapshot_id TEXT REFERENCES jd_snapshots(id)")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS jd_analyses (
+                id TEXT PRIMARY KEY,
+                jd_snapshot_id TEXT NOT NULL,
+                analyzer_version TEXT NOT NULL,
+                analysis_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(jd_snapshot_id, analyzer_version),
+                FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS jd_analyses_snapshot_created_idx ON jd_analyses(jd_snapshot_id, created_at DESC)")
+        connection.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS job_posting_fts USING fts5(job_posting_id UNINDEXED, user_id UNINDEXED, title, company_name, city, jd_content, tokenize='unicode61')"
+        )
 
     def save_detail(
         self,

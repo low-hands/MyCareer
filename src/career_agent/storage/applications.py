@@ -11,6 +11,7 @@ from career_agent.domain.applications import (
     ApplicationEvent,
     ApplicationStatus,
 )
+from career_agent.storage.schema import apply_schema
 
 
 class SQLiteApplicationStore:
@@ -20,7 +21,7 @@ class SQLiteApplicationStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            self._migrate(connection)
+            apply_schema(connection, "applications", 1, self._migrate)
         os.chmod(self.path, 0o600)
 
     def create(

@@ -9,6 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict
 
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.storage.schema import apply_schema
 
 
 class StoredResumeJobMatch(BaseModel):
@@ -34,8 +35,13 @@ class SQLiteResumeJobMatchStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """
+            apply_schema(connection, "resume_job_matches", 1, self._migrate)
+        os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
                 CREATE TABLE IF NOT EXISTS resume_job_matches (
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -55,14 +61,13 @@ class SQLiteResumeJobMatchStore:
                     )
                 )
                 """
-            )
-            connection.execute(
-                """
+        )
+        connection.execute(
+            """
                 CREATE INDEX IF NOT EXISTS resume_job_matches_user_created_idx
                 ON resume_job_matches(user_id, created_at DESC)
                 """
-            )
-        os.chmod(self.path, 0o600)
+        )
 
     def find(
         self,

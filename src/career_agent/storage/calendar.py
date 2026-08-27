@@ -15,6 +15,7 @@ from career_agent.domain.calendar import (
     CalendarEventPayload,
     CalendarProposalStatus,
 )
+from career_agent.storage.schema import apply_schema
 
 
 class SQLiteCalendarStore:
@@ -24,7 +25,7 @@ class SQLiteCalendarStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            self._migrate(connection)
+            apply_schema(connection, "calendar", 1, self._migrate)
         os.chmod(self.path, 0o600)
 
     def add_account(

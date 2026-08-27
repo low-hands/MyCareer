@@ -12,6 +12,7 @@ from career_agent.agent.conversation_memory_contracts import (
     SummaryMessage,
 )
 from career_agent.agent.session_contracts import AgentSession
+from career_agent.storage.schema import apply_schema
 
 
 class CareerContextStore:
@@ -21,34 +22,35 @@ class CareerContextStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
-            connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")
-            connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
-            connection.execute("CREATE TABLE IF NOT EXISTS agent_preferences_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
-            connection.execute("CREATE TABLE IF NOT EXISTS conversation_task_state (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id))")
-            connection.execute("CREATE TABLE IF NOT EXISTS conversation_messages (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id, sequence))")
-            connection.execute("CREATE INDEX IF NOT EXISTS conversation_messages_recent_idx ON conversation_messages(user_id, conversation_id, sequence DESC)")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS conversation_summaries (
-                    user_id TEXT NOT NULL,
-                    conversation_id TEXT NOT NULL,
-                    content_json TEXT NOT NULL,
-                    through_sequence INTEGER NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY(user_id, conversation_id)
-                )
-                """
-            )
+            apply_schema(connection, "agent_context", 1, self._migrate)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
+        connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")
+        connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS agent_preferences_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS conversation_task_state (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id))")
+        connection.execute("CREATE TABLE IF NOT EXISTS conversation_messages (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id, sequence))")
+        connection.execute("CREATE INDEX IF NOT EXISTS conversation_messages_recent_idx ON conversation_messages(user_id, conversation_id, sequence DESC)")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_summaries (
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                content_json TEXT NOT NULL,
+                through_sequence INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, conversation_id)
+            )
+            """
+        )
 
     def get_session(self, user_id: str, session_id: str) -> AgentSession | None:
         with self._connect() as connection:
             row = connection.execute("SELECT session_id, user_id, status, created_at, last_active_at FROM sessions WHERE session_id = ? AND user_id = ?", (session_id, user_id)).fetchone()
         return AgentSession(session_id=row[0], user_id=row[1], status=row[2], created_at=row[3], last_active_at=row[4]) if row else None
-
-    def get_session_owner(self, session_id: str) -> str | None:
-        return None
 
     def upsert_session(self, session: AgentSession) -> AgentSession:
         with self._connect() as connection:
