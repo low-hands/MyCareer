@@ -23,6 +23,7 @@ from career_agent.services.applications import (
     ConcurrentApplicationUpdateError,
     InvalidApplicationTransitionError,
 )
+from career_agent.security.redaction import redact_text
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.services.interviews import (
     AmbiguousInterviewMatchError,
@@ -196,7 +197,13 @@ class EmailTrackingService:
                 batch = connector.sync_metadata(cursor=None, since=since)
             seen_count += len(batch.messages)
             for metadata in batch.messages:
+                # Match on the original, persist the scrubbed copy. A subject line
+                # carries one-time codes ("您的验证码是 …") and magic links just as
+                # often as the body does, and it reaches both the store and the
+                # model. Scrubbing before the match would risk changing which
+                # mails are recognised as candidates.
                 is_candidate = self._is_candidate(metadata, candidates)
+                metadata = self._scrub_metadata(metadata)
                 message, inserted = self._store.save_message(
                     user_id=user_id,
                     account=account,
@@ -210,8 +217,10 @@ class EmailTrackingService:
                     user_id=user_id, email_message_id=message.id
                 ) is not None:
                     continue
-                content = connector.get_content(
-                    external_message_id=metadata.external_message_id
+                content = self._scrub(
+                    connector.get_content(
+                        external_message_id=metadata.external_message_id
+                    )
                 )
                 content_sha256 = hashlib.sha256(content.text.encode("utf-8")).hexdigest()
                 # Persist only the hash. Raw body remains inside this worker call.
@@ -386,6 +395,39 @@ class EmailTrackingService:
             or candidate.job_title.casefold() in haystack
             for candidate in applications
         )
+
+    @staticmethod
+    def _scrub(content: RemoteEmailContent) -> RemoteEmailContent:
+        """Strip credentials before the body reaches a model or a hash.
+
+        Recruiting mail carries magic-link tokens, password resets, and one-time
+        codes that the classifier never needs. Scrubbing here rather than inside
+        the worker means every downstream consumer inherits it, and the content
+        hash is taken over the scrubbed text so a resent mail with a rotated
+        token still dedupes to the same digest.
+        """
+        scrubbed = redact_text(content.text)
+        if scrubbed == content.text:
+            return content
+        return content.model_copy(update={"text": scrubbed})
+
+    @staticmethod
+    def _scrub_metadata(metadata: RemoteEmailMetadata) -> RemoteEmailMetadata:
+        """Strip credentials from the envelope, not just the body.
+
+        ``subject`` is persisted and sent to the model, so a code announced in the
+        subject would leak on both paths even with a scrubbed body. ``sender`` is
+        scrubbed for symmetry; a display name is free text the platform controls.
+        """
+        updates = {
+            field: scrubbed
+            for field, scrubbed in (
+                ("sender", redact_text(metadata.sender)),
+                ("subject", redact_text(metadata.subject)),
+            )
+            if scrubbed != getattr(metadata, field)
+        }
+        return metadata.model_copy(update=updates) if updates else metadata
 
     def _require_account(self, *, user_id: str, account_id: str):
         account = self._store.get_account(user_id=user_id, account_id=account_id)

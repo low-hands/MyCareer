@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.domain.job_discovery import JobDetail, Provenance, SearchResult
+from career_agent.security.redaction import redact_text
 
 
 class BossAdapterError(Exception):
@@ -191,7 +192,10 @@ class BossReadOnlyAdapter:
             security_id=security_id,
             title=str(data.get("title") or ""),
             company_name=str(data.get("company") or ""),
-            description=str(data.get("description") or ""),
+            # The JD body is free text from the platform and is the one field
+            # large enough to carry a tracking token or session URL into both the
+            # snapshot store and the analysis prompt.
+            description=redact_text(str(data.get("description") or "")),
             captured_at=captured_at,
             provenance=provenance,
             city=str(data.get("city") or "") or None,

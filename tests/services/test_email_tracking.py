@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -208,3 +209,96 @@ def test_pending_event_requires_explicit_resolution(tmp_path: Path) -> None:
     )
     assert resolved.status == "applied"
     assert len(applications.applied) == 1
+
+
+class CredentialLeakingConnector(Connector):
+    """A mailbox whose body carries credentials alongside the real signal."""
+
+    BODY = (
+        "Acme 邀请您参加 AI Engineer 面试。\n"
+        "会议链接 https://meet.google.com/abc-defg-hij\n"
+        "登录 https://portal.acme.example/sso?token=eyJhbGciOi.SECRET\n"
+        "您的验证码是 483920"
+    )
+
+    def get_content(self, *, external_message_id):
+        self.content_calls.append(external_message_id)
+        return RemoteEmailContent(
+            external_message_id=external_message_id, text=self.BODY
+        )
+
+
+class BodyCapturingWorker:
+    classifier = "test_capture_v1"
+    authorizes_auto_apply = False
+
+    def __init__(self) -> None:
+        self.seen_bodies: list[str] = []
+        self.seen_subjects: list[str] = []
+
+    def assess(self, *, metadata, content, applications):
+        self.seen_bodies.append(content.text)
+        self.seen_subjects.append(metadata.subject)
+        return EmailAssessment(
+            event_type="interview_invitation", application_id="app-1",
+            confidence=0.9, summary="面试邀请。",
+        )
+
+
+def test_email_body_is_scrubbed_before_it_reaches_the_worker(tmp_path: Path) -> None:
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m5", sender="Acme Recruiting",
+        subject="面试邀请", received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    worker = BodyCapturingWorker()
+    service = EmailTrackingService(
+        store, Applications(), Resolver(CredentialLeakingConnector(metadata)), worker
+    )
+
+    service.sync(user_id="u1", account_id=account.id)
+
+    body = worker.seen_bodies[0]
+    # The model runs on a third-party API, so the credentials must be gone
+    # before the call, not merely absent from what we persist.
+    assert "eyJhbGciOi.SECRET" not in body
+    assert "483920" not in body
+    # The meeting link is the point of an invitation and has to survive.
+    assert "https://meet.google.com/abc-defg-hij" in body
+    assert "sso?token=<redacted>" in body
+
+
+def test_a_code_in_the_subject_is_scrubbed_on_both_the_model_and_store_paths(
+    tmp_path: Path,
+) -> None:
+    """The envelope reaches the model and the database just as the body does."""
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m6", sender="Acme Recruiting",
+        subject="Acme 面试邀请 验证码 483920",
+        received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    worker = BodyCapturingWorker()
+    service = EmailTrackingService(
+        store, Applications(), Resolver(CredentialLeakingConnector(metadata)), worker
+    )
+
+    service.sync(user_id="u1", account_id=account.id)
+
+    assert "483920" not in worker.seen_subjects[0]
+    # The company and the intent still have to be readable for classification.
+    assert "Acme" in worker.seen_subjects[0]
+    with sqlite3.connect(tmp_path / "email.sqlite3") as connection:
+        subjects = [
+            row[0]
+            for row in connection.execute("SELECT subject FROM email_messages")
+        ]
+    assert subjects and all("483920" not in subject for subject in subjects)
