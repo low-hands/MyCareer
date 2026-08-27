@@ -179,7 +179,7 @@ class MockInterviewTurn(MockInterviewContract):
     question: str = Field(min_length=1, max_length=2000)
     answer: str | None = Field(default=None, min_length=1, max_length=20_000)
     evaluation: MockInterviewAnswerEvaluation | None = None
-    status: Literal["awaiting_answer", "evaluated"] = "awaiting_answer"
+    status: Literal["awaiting_answer", "answered", "evaluated"] = "awaiting_answer"
     asked_at: datetime
     answered_at: datetime | None = None
     evaluated_at: datetime | None = None
@@ -201,6 +201,13 @@ class MockInterviewTurn(MockInterviewContract):
                 )
             ):
                 raise ValueError("awaiting turns cannot contain answer or evaluation data")
+        elif self.status == "answered":
+            if self.answer is None or self.answered_at is None:
+                raise ValueError("answered turns require answer and answered_at")
+            if self.evaluation is not None or self.evaluated_at is not None:
+                raise ValueError("answered turns cannot contain evaluation data")
+            if self.answered_at < self.asked_at:
+                raise ValueError("answered_at cannot precede asked_at")
         else:
             if any(
                 value is None
