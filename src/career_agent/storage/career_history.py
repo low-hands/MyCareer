@@ -15,6 +15,7 @@ from career_agent.domain.career_history import (
     CareerRecord,
 )
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
+from career_agent.storage.schema import apply_schema
 
 
 EvidenceOrigin = Literal["resume_extraction", "user_input", "agent_inference"]
@@ -34,7 +35,7 @@ class CareerHistoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            self._migrate(connection)
+            apply_schema(connection, "career_history", 2, self._migrate)
         os.chmod(self.path, 0o600)
 
     def create_record(

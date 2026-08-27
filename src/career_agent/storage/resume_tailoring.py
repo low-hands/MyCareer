@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.storage.schema import apply_schema
 from career_agent.agent.resume_tailoring_contracts import (
     ResumeReviewTrace,
     ResumeTailoringResult,
@@ -67,82 +68,86 @@ class SQLiteResumeTailoringDraftStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS resume_tailoring_drafts (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    match_id TEXT NOT NULL,
-                    parent_draft_id TEXT,
-                    revision_number INTEGER NOT NULL DEFAULT 1,
-                    revision_feedback TEXT,
-                    tailoring_goal TEXT,
-                    status TEXT NOT NULL CHECK(status IN ('pending')),
-                    review_status TEXT NOT NULL DEFAULT 'pending',
-                    worker_version TEXT NOT NULL,
-                    result_json TEXT NOT NULL,
-                    automated_review_json TEXT,
-                    created_at TEXT NOT NULL,
-                    expires_at TEXT NOT NULL
-                )
-                """
-            )
-            columns = {
-                row[1]
-                for row in connection.execute(
-                    "PRAGMA table_info(resume_tailoring_drafts)"
-                ).fetchall()
-            }
-            if "review_status" not in columns:
-                connection.execute(
-                    """
-                    ALTER TABLE resume_tailoring_drafts
-                    ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'
-                    """
-                )
-            if "automated_review_json" not in columns:
-                connection.execute(
-                    """
-                    ALTER TABLE resume_tailoring_drafts
-                    ADD COLUMN automated_review_json TEXT
-                    """
-                )
-            if "parent_draft_id" not in columns:
-                connection.execute(
-                    "ALTER TABLE resume_tailoring_drafts ADD COLUMN parent_draft_id TEXT"
-                )
-            if "revision_number" not in columns:
-                connection.execute(
-                    """
-                    ALTER TABLE resume_tailoring_drafts
-                    ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1
-                    """
-                )
-            if "revision_feedback" not in columns:
-                connection.execute(
-                    "ALTER TABLE resume_tailoring_drafts ADD COLUMN revision_feedback TEXT"
-                )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS resume_tailoring_change_reviews (
-                    draft_id TEXT NOT NULL,
-                    user_id TEXT NOT NULL,
-                    change_index INTEGER NOT NULL CHECK(change_index > 0),
-                    decision TEXT NOT NULL CHECK(decision IN ('accepted', 'rejected')),
-                    feedback TEXT,
-                    reviewed_at TEXT NOT NULL,
-                    PRIMARY KEY(draft_id, change_index),
-                    FOREIGN KEY(draft_id) REFERENCES resume_tailoring_drafts(id)
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS resume_tailoring_user_created_idx
-                ON resume_tailoring_drafts(user_id, created_at DESC)
-                """
-            )
+            apply_schema(connection, "resume_tailoring", 1, self._migrate)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+                CREATE TABLE IF NOT EXISTS resume_tailoring_drafts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                match_id TEXT NOT NULL,
+                parent_draft_id TEXT,
+                revision_number INTEGER NOT NULL DEFAULT 1,
+                revision_feedback TEXT,
+                tailoring_goal TEXT,
+                status TEXT NOT NULL CHECK(status IN ('pending')),
+                review_status TEXT NOT NULL DEFAULT 'pending',
+                worker_version TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                automated_review_json TEXT,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+            """
+        )
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(resume_tailoring_drafts)"
+            ).fetchall()
+        }
+        if "review_status" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE resume_tailoring_drafts
+                ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'
+                """
+            )
+        if "automated_review_json" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE resume_tailoring_drafts
+                ADD COLUMN automated_review_json TEXT
+                """
+            )
+        if "parent_draft_id" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_tailoring_drafts ADD COLUMN parent_draft_id TEXT"
+            )
+        if "revision_number" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE resume_tailoring_drafts
+                ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1
+                """
+            )
+        if "revision_feedback" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_tailoring_drafts ADD COLUMN revision_feedback TEXT"
+            )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS resume_tailoring_change_reviews (
+                draft_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                change_index INTEGER NOT NULL CHECK(change_index > 0),
+                decision TEXT NOT NULL CHECK(decision IN ('accepted', 'rejected')),
+                feedback TEXT,
+                reviewed_at TEXT NOT NULL,
+                PRIMARY KEY(draft_id, change_index),
+                FOREIGN KEY(draft_id) REFERENCES resume_tailoring_drafts(id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS resume_tailoring_user_created_idx
+            ON resume_tailoring_drafts(user_id, created_at DESC)
+            """
+        )
 
     def create(
         self,

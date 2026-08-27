@@ -9,6 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict
 
 from career_agent.domain.interview_preparation import InterviewPreparationResult
+from career_agent.storage.schema import apply_schema
 
 
 class StoredInterviewPreparation(BaseModel):
@@ -34,8 +35,13 @@ class SQLiteInterviewPreparationStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """
+            apply_schema(connection, "interview_preparations", 1, self._migrate)
+        os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
                 CREATE TABLE IF NOT EXISTS interview_preparations (
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -51,14 +57,13 @@ class SQLiteInterviewPreparationStore:
                     UNIQUE(user_id, interview_round_id, input_fingerprint, worker_version)
                 )
                 """
-            )
-            connection.execute(
-                """
+        )
+        connection.execute(
+            """
                 CREATE INDEX IF NOT EXISTS interview_preparations_user_round_idx
                 ON interview_preparations(user_id, interview_round_id, created_at DESC)
                 """
-            )
-        os.chmod(self.path, 0o600)
+        )
 
     def find(
         self,

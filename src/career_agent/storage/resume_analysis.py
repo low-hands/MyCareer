@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
 from career_agent.services.resume_analysis import ResumeAnalysisDraft
+from career_agent.storage.schema import apply_schema
 
 
 class SQLiteResumeAnalysisDraftStore:
@@ -22,7 +23,7 @@ class SQLiteResumeAnalysisDraftStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            self._migrate(connection)
+            apply_schema(connection, "resume_analysis", 1, self._migrate)
         os.chmod(self.path, 0o600)
 
     def create(

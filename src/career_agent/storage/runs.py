@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.domain.job_discovery import SearchResult
 from career_agent.harness.observability import RunTrace
+from career_agent.storage.schema import apply_schema
 
 
 class StoredJobDiscoveryRun(BaseModel):
@@ -36,8 +37,12 @@ class JobDiscoveryRunStore:
             os.chmod(self.path, 0o600)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute("CREATE TABLE IF NOT EXISTS job_discovery_runs (run_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+            apply_schema(connection, "job_discovery_runs", 1, self._migrate)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        connection.execute("CREATE TABLE IF NOT EXISTS job_discovery_runs (run_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
 
     def save(
         self,
