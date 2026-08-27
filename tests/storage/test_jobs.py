@@ -64,6 +64,15 @@ def test_same_jd_is_idempotent_and_changed_content_creates_new_snapshot(tmp_path
     assert changed.posting.id == first.posting.id
     assert changed.snapshot.id != first.snapshot.id
     assert changed.snapshot.version == 2
+    assert repository.get_snapshot(
+        user_id="u1", jd_snapshot_id=first.snapshot.id
+    ) == first.snapshot
+    assert repository.get_snapshot(
+        user_id="u1", jd_snapshot_id=changed.snapshot.id
+    ) == changed.snapshot
+    assert repository.get_snapshot(
+        user_id="other", jd_snapshot_id=first.snapshot.id
+    ) is None
 
 
 def test_analysis_is_persisted_per_snapshot_and_idempotent_across_rebuild(tmp_path) -> None:
