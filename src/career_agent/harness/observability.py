@@ -111,6 +111,17 @@ class InMemoryTraceRecorder:
         with self._lock:
             self._events[trace.run_id] = list(trace.events)
 
+    def forget(self, run_id: str) -> None:
+        """Release one run's events.
+
+        This recorder accumulates every event for the process lifetime, so a
+        caller that bounds its own per-run caches has to be able to release these
+        too. Safe only where the events are already on a persisted record;
+        ``restore`` puts them back.
+        """
+        with self._lock:
+            self._events.pop(run_id, None)
+
 
 class NoopTraceRecorder:
     def record(

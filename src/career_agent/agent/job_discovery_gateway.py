@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -75,22 +76,25 @@ class JobDiscoveryGateway:
 
     _JD_ANALYZER_VERSION = "jd-analysis-v1"
 
-    def __init__(self, adapter: BossReadOnlyAdapter, worker: Any, promotion_service: JobDiscoveryService, *, checkpointer: Any | None = None, trace_recorder: TraceRecorder | None = None, run_store: JobDiscoveryRunStore | None = None, job_repository: JobPostingRepository | None = None) -> None:
+    def __init__(self, adapter: BossReadOnlyAdapter, worker: Any, promotion_service: JobDiscoveryService, *, checkpointer: Any | None = None, trace_recorder: TraceRecorder | None = None, run_store: JobDiscoveryRunStore | None = None, job_repository: JobPostingRepository | None = None, max_cached_runs: int = 32) -> None:
         self._trace = trace_recorder or InMemoryTraceRecorder()
         self._run_store = run_store
         self._job_repository = job_repository
         self._graph = LangGraphJobDiscovery(adapter, worker, checkpointer=checkpointer or InMemorySaver(), trace_recorder=self._trace)
         self._promotion = JobDiscoveryPromotionFacade(promotion_service)
         self._requests: dict[str, JobDiscoveryRequest] = {}
-        self._states: dict[str, JobDiscoveryState] = {}
+        self._states: "OrderedDict[str, JobDiscoveryState]" = OrderedDict()
         self._restored_without_checkpoint: set[str] = set()
         self._confirmation_runs: dict[str, str] = {}
+        self._persisted_runs: set[str] = set()
+        if max_cached_runs < 1:
+            raise ValueError("max_cached_runs must be at least 1: the run being served has to stay cached.")
+        self._max_cached_runs = max_cached_runs
 
     def research(self, request: JobDiscoveryRequest) -> JobDiscoveryGatewayResult:
         run_id = new_id("job_discovery")
         state = self._graph.invoke(request, run_id=run_id)
-        self._requests[run_id] = request
-        self._states[run_id] = state
+        self._remember(run_id, request, state)
         self._restored_without_checkpoint.discard(run_id)
         self._persist(run_id, state)
         return self._project(run_id, state)
@@ -132,7 +136,7 @@ class JobDiscoveryGateway:
                 state = self._graph.research_selected_many(request=request, results=tuple(state["results"]), result_refs=result_refs, run_id=task.run_id)
             else:
                 state = self._graph.resume(conversation_id=task.run_id, value={"result_refs": result_refs})
-            self._states[task.run_id] = state
+            self._touch(task.run_id, state)
             self._persist(task.run_id, state)
             return self._project(task.run_id, state)
         if phase == "detail_unavailable":
@@ -173,7 +177,7 @@ class JobDiscoveryGateway:
             state = self._graph.resume(conversation_id=run_id, value={"result_refs": [result_ref]})
         else:
             state = self._graph.research_selected(request=request, results=tuple(results.values()), result_ref=result_ref, run_id=run_id)
-        self._states[run_id] = state
+        self._touch(run_id, state)
         self._restored_without_checkpoint.discard(run_id)
         self._persist(run_id, state)
         return self._project(run_id, state)
@@ -192,14 +196,14 @@ class JobDiscoveryGateway:
         if result is None:
             return JobDiscoveryGatewayResult(run_id=run_id, state="failed", message="The selected candidate is unavailable.", error_code="INVALID_RESULT_REF", error_stage="provided_jd", trace=self._graph.trace(run_id))
         updated = self._graph.analyze_user_provided_jd(request=request, result=result, jd_text=jd_text, run_id=run_id)
-        self._states[run_id] = updated
+        self._touch(run_id, updated)
         self._persist(run_id, updated)
         return self._project(run_id, updated)
 
     def resume(self, *, run_id: str, value: object = None) -> JobDiscoveryGatewayResult:
         request = self._request(run_id)
         state = self._graph.resume(conversation_id=run_id, value=value)
-        self._states[run_id] = state
+        self._touch(run_id, state)
         self._persist(run_id, state)
         return self._project(run_id, state)
 
@@ -207,7 +211,7 @@ class JobDiscoveryGateway:
         if run_id not in self._requests:
             self._restore(run_id)
         state = self._states.get(run_id) or self._graph.state(run_id)
-        self._states[run_id] = state
+        self._touch(run_id, state)
         return self._project(run_id, state)
 
     def request_waitlist_confirmation(self, *, run_id: str, result_ref: str, target_role_title: str | None = None) -> JobDiscoveryGatewayResult:
@@ -335,15 +339,13 @@ class JobDiscoveryGateway:
         return JobDiscoveryGatewayResult(run_id=run_id, state="running", message="Job Discovery is running.", trace=trace)
 
     def _persist(self, run_id: str, state: JobDiscoveryState) -> None:
-        if not state.get("results"):
-            return
         self._persist_details(run_id, state)
         if self._run_store is None:
             return
         self._run_store.save(
             run_id=run_id,
             request=state["request"],
-            results=tuple(state["results"]),
+            results=tuple(state.get("results", ())),
             phase=state.get("phase", "unknown"),
             trace=self._graph.trace(run_id),
             selected_result_ref=state.get("selected_result_refs", (None,))[0],
@@ -353,6 +355,10 @@ class JobDiscoveryGateway:
             error_detail=state.get("error_detail"),
             recoverable=state.get("recoverable"),
         )
+        # A phase name alone does not prove durability. Track the successful
+        # write so eviction never relies on a record that is absent (including a
+        # terminal search with zero results).
+        self._persisted_runs.add(run_id)
 
     def _persist_details(self, run_id: str, state: JobDiscoveryState) -> None:
         if self._job_repository is None:
@@ -391,6 +397,7 @@ class JobDiscoveryGateway:
         record = self._run_store.get(run_id)
         if record is None:
             raise ValueError("Job discovery run does not exist.")
+        self._persisted_runs.add(run_id)
         request = record.request
         target = TargetRoleProposal(id=f"role_{request.target_role.casefold().replace(' ', '_')}", title=request.target_role, source="explicit", rationale="The user explicitly stated this target role.")
         state: JobDiscoveryState = {
@@ -410,13 +417,111 @@ class JobDiscoveryGateway:
             state["error_stage"] = record.error_stage or ""
             state["error_detail"] = record.error_detail or ""
             state["recoverable"] = bool(record.recoverable)
-        self._requests[run_id] = request
-        self._states[run_id] = state
+        self._remember(run_id, request, state)
         self._restored_without_checkpoint.add(run_id)
         restore = getattr(self._trace, "restore", None)
         if restore is not None:
             restore(record.trace)
         return state
+
+    def _remember(self, run_id: str, request: JobDiscoveryRequest, state: JobDiscoveryState) -> None:
+        """Cache one run, evicting the oldest once the cap is reached.
+
+        These caches are keyed by run_id and nothing ever removed an entry, so a
+        long-lived process grew one request plus one full state — results, JD
+        detail, analysis — per run, forever.
+
+        Eviction is only safe when ``_restore`` can rebuild the entry from the
+        run store. Without a store the cache *is* the record, so we keep
+        everything rather than silently lose a resumable run.
+        """
+        self._requests[run_id] = request
+        self._touch(run_id, state)
+        if self._run_store is None:
+            return
+        # Scan oldest-first for a run that survives a rebuild. An unevictable run
+        # keeps its slot, so the cap is a target rather than a hard bound: better
+        # to hold memory than to hand back a run that lies about its phase.
+        while len(self._states) > self._max_cached_runs:
+            evictable = next(
+                (
+                    candidate
+                    for candidate in self._states
+                    if candidate != run_id and self._is_rebuildable(candidate)
+                ),
+                None,
+            )
+            if evictable is None:
+                return
+            self._forget(evictable)
+
+    _REBUILDABLE_PHASES = frozenset({"selection_required", "failed"})
+
+    def _is_rebuildable(self, run_id: str) -> bool:
+        """Whether ``_restore`` can reproduce this run without losing anything.
+
+        ``StoredJobDiscoveryRun`` persists the request, the results and the phase.
+        It does *not* persist ``details``, ``analyses``, ``comparison`` or
+        ``detail_errors``, so a run past the fetch — ``analysis_ready``,
+        ``detail_unavailable`` — would come back still claiming that phase with
+        the payload behind it empty, and a later waitlist confirmation would fail
+        on state the caller was told existed. Those stay in memory.
+
+        ``waiting_user`` is excluded for a different reason: resuming it needs the
+        LangGraph checkpoint, which a restored run no longer has.
+
+        A run holding an unresolved confirmation is never evictable. The pending
+        record lives in the promotion facade, so dropping our side of the mapping
+        would leave an approval the user can still answer and we can no longer
+        attribute.
+        """
+        state = self._states.get(run_id)
+        if (
+            state is None
+            or run_id not in self._persisted_runs
+            or state.get("phase") not in self._REBUILDABLE_PHASES
+        ):
+            return False
+        return not any(owner == run_id for owner in self._confirmation_runs.values())
+
+    def _touch(self, run_id: str, state: JobDiscoveryState) -> None:
+        """Store a run's state and mark it as the most recently used.
+
+        Plain assignment would leave the key at its original position, making
+        eviction first-in-first-out: a long conversation still advancing its
+        first run would lose it to newer runs that went idle immediately.
+        """
+        self._states[run_id] = state
+        self._states.move_to_end(run_id)
+
+    def _forget(self, run_id: str) -> None:
+        """Drop every trace of one run together.
+
+        Half-evicting would be worse than not evicting: a run_id left in
+        ``_restored_without_checkpoint`` without its state would resume down the
+        checkpoint path that the flag exists to avoid.
+        """
+        self._requests.pop(run_id, None)
+        self._states.pop(run_id, None)
+        self._restored_without_checkpoint.discard(run_id)
+        self._persisted_runs.discard(run_id)
+        for confirmation_id, owner in list(self._confirmation_runs.items()):
+            if owner == run_id:
+                del self._confirmation_runs[confirmation_id]
+        # The state dicts are not the only per-run memory. The default recorder
+        # keeps every event and the default checkpointer keeps every step, both
+        # keyed by run_id and both previously never released. Trace events are
+        # already on the persisted record, so dropping them here is recoverable;
+        # the checkpoint is not, which is why only rebuildable phases get here.
+        forget_trace = getattr(self._trace, "forget", None)
+        if forget_trace is not None:
+            forget_trace(run_id)
+        delete_thread = getattr(self._graph.checkpointer, "delete_thread", None)
+        if delete_thread is not None:
+            try:
+                delete_thread(run_id)
+            except (KeyError, NotImplementedError):
+                pass
 
     def _request(self, run_id: str) -> JobDiscoveryRequest:
         request = self._requests.get(run_id)

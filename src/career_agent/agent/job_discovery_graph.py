@@ -60,6 +60,11 @@ class LangGraphJobDiscovery:
         self._checkpointer = checkpointer or InMemorySaver()
         self._graph = graph.compile(checkpointer=self._checkpointer)
 
+    @property
+    def checkpointer(self) -> Any:
+        """Exposed so a caller bounding its own caches can drop a run's steps too."""
+        return self._checkpointer
+
     @staticmethod
     def _duration_ms(start_ns: int) -> int:
         return max(0, (perf_counter_ns() - start_ns) // 1_000_000)
@@ -208,6 +213,15 @@ class LangGraphJobDiscovery:
         max_results = min(self._policy.max_search_results, 15)
         requested_city = state["request"].city
         filtered_results = tuple(result for result in results if self._matches_requested_city(result, requested_city))
+        if not filtered_results:
+            return {
+                "results": (),
+                "phase": "failed",
+                "error_code": "NO_RESULTS",
+                "error_stage": "boss_search",
+                "error_detail": "No jobs matched the current search filters.",
+                "recoverable": False,
+            }
         return {"results": filtered_results[:max_results], "phase": "selection_required"}
 
     @staticmethod

@@ -1,5 +1,8 @@
+import pytest
 import json
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 from career_agent.agent.main_agent_contracts import ConversationTaskState
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
@@ -33,6 +36,14 @@ class FailingDetailTransport(Transport):
         self.calls.append(tuple(args))
         if args[0] == "detail":
             return json.dumps({"ok": False, "schema_version": "1.0", "command": "detail", "data": None, "pagination": None, "error": {"code": "UNKNOWN", "message": "detail unavailable"}, "hints": {}})
+        return super().__call__(args)
+
+
+class EmptySearchTransport(Transport):
+    def __call__(self, args):
+        self.calls.append(tuple(args))
+        if args[0] == "search":
+            return envelope([], "search")
         return super().__call__(args)
 
 
@@ -265,3 +276,225 @@ def test_gateway_advance_selects_a_restored_run_without_checkpoint(tmp_path):
     assert analyzed.detail.content_origin == "user_provided"
     assert analyzed.analysis.job_summary == "Build reliable LLM systems."
     assert transport.calls.count(("detail", "security-1", "--job-id", "job-1")) == 3
+
+
+def _worker():
+    return OpenAICompatibleAgentWorker(OpenAICompatibleAgentConfig(endpoint="https://example.test/v1/chat/completions", api_key="test", model="test-model"), client=Client())
+
+
+def test_evicted_run_is_restored_from_the_run_store_on_next_touch(tmp_path):
+    """The cap bounds memory without ending a run the user can still resume."""
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(tmp_path / "runs.sqlite3"),
+        max_cached_runs=2,
+    )
+    first = gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-evict-1", target_role="AI Engineer"))
+    for index in range(2, 5):
+        gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id=f"conversation-evict-{index}", target_role="AI Engineer"))
+
+    assert len(gateway._states) == 2
+    assert first.run_id not in gateway._states
+
+    revived = gateway.select(run_id=first.run_id, result_ref="boss:security-1", user_id="user-1")
+    assert revived.state == "analysis_ready"
+    assert revived.detail.description == "Build reliable LLM systems."
+
+
+def test_an_analyzed_run_is_never_evicted_because_the_store_cannot_rebuild_it(tmp_path):
+    """The record holds results and phase, not details or analyses.
+
+    Evicting here would restore a run still claiming ``analysis_ready`` with the
+    payload behind it empty, and a later waitlist confirmation would fail on
+    state the caller was told existed.
+    """
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(tmp_path / "runs.sqlite3"),
+        max_cached_runs=1,
+    )
+    analyzed = gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-analyzed", target_role="AI Engineer"))
+    gateway.select(run_id=analyzed.run_id, result_ref="boss:security-1", user_id="user-1")
+    assert gateway._states[analyzed.run_id]["phase"] == "analysis_ready"
+
+    for index in range(3):
+        gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id=f"conversation-pressure-{index}", target_role="AI Engineer"))
+
+    assert analyzed.run_id in gateway._states
+    still_there = gateway.request_waitlist_confirmation(run_id=analyzed.run_id, result_ref="boss:security-1")
+    assert still_there.state == "confirmation_required"
+
+
+def test_a_run_holding_a_pending_confirmation_is_never_evicted(tmp_path):
+    """The pending record lives in the promotion facade, not the run store.
+
+    Dropping our side of the mapping would leave an approval the user can still
+    answer and we can no longer attribute to a run.
+    """
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(tmp_path / "runs.sqlite3"),
+        max_cached_runs=1,
+    )
+    owner = gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-pending", target_role="AI Engineer"))
+    gateway.select(run_id=owner.run_id, result_ref="boss:security-1", user_id="user-1")
+    pending = gateway.request_waitlist_confirmation(run_id=owner.run_id, result_ref="boss:security-1")
+    confirmation_id = pending.confirmation_id
+
+    for index in range(3):
+        gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id=f"conversation-noise-{index}", target_role="AI Engineer"))
+
+    assert gateway._confirmation_runs.get(confirmation_id) == owner.run_id
+
+
+def test_a_gateway_without_a_run_store_never_evicts():
+    """With no durable record the cache *is* the run, so the cap must not apply."""
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        max_cached_runs=2,
+    )
+    run_ids = [
+        gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id=f"conversation-keep-{index}", target_role="AI Engineer")).run_id
+        for index in range(4)
+    ]
+
+    assert len(gateway._states) == 4
+    assert all(run_id in gateway._states for run_id in run_ids)
+
+
+def test_eviction_drops_the_request_and_the_state_together(tmp_path):
+    """A run_id left in one cache but not the other resumes down the wrong path."""
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(tmp_path / "runs.sqlite3"),
+        max_cached_runs=1,
+    )
+    first = gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-pair-1", target_role="AI Engineer"))
+    gateway.research(JobDiscoveryRequest(user_id="user-1", conversation_id="conversation-pair-2", target_role="AI Engineer"))
+
+    assert first.run_id not in gateway._states
+    assert first.run_id not in gateway._requests
+    assert first.run_id not in gateway._restored_without_checkpoint
+    # The state dicts are not the only per-run memory the cap has to release.
+    assert gateway._trace.snapshot(first.run_id).events == ()
+
+
+def test_per_run_memory_stays_flat_as_runs_accumulate(tmp_path):
+    """The cap has to bound every per-run store, not just the two dicts.
+
+    ``InMemorySaver`` keeps three keyed collections and ``InMemoryTraceRecorder``
+    a fourth. Asserting a run_id is absent proves only that one key went; it says
+    nothing about growth. Measure the totals instead.
+    """
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=JobDiscoveryRunStore(tmp_path / "runs.sqlite3"),
+        max_cached_runs=2,
+    )
+    checkpointer = gateway._graph.checkpointer
+
+    def footprint() -> tuple[int, ...]:
+        return (
+            len(gateway._states),
+            len(gateway._requests),
+            len(gateway._persisted_runs),
+            len(gateway._trace._events),
+            len(checkpointer.storage),
+            len(checkpointer.blobs),
+            len(checkpointer.writes),
+        )
+
+    measurements = {}
+    for index in range(12):
+        gateway.research(
+            JobDiscoveryRequest(
+                user_id="user-1",
+                conversation_id=f"conversation-flat-{index}",
+                target_role="AI Engineer",
+            )
+        )
+        measurements[index + 1] = footprint()
+
+    assert measurements[12] == measurements[4], measurements
+    # Nothing survives that does not belong to a still-cached run.
+    cached = set(gateway._states)
+    assert {key[0] for key in checkpointer.blobs} <= cached
+    assert {key[0] for key in checkpointer.writes} <= cached
+    assert set(checkpointer.storage) <= cached
+
+
+def test_the_cap_must_leave_room_for_the_run_being_served():
+    with pytest.raises(ValueError, match="at least 1"):
+        JobDiscoveryGateway(
+            BossReadOnlyAdapter(Transport(), clock=lambda: NOW),
+            _worker(),
+            JobDiscoveryService(InMemoryJobRepository()),
+            max_cached_runs=0,
+        )
+
+
+def test_an_empty_search_becomes_a_persisted_failure_before_eviction(tmp_path):
+    store = JobDiscoveryRunStore(tmp_path / "runs.sqlite3")
+    gateway = JobDiscoveryGateway(
+        BossReadOnlyAdapter(EmptySearchTransport(), clock=lambda: NOW),
+        _worker(),
+        JobDiscoveryService(InMemoryJobRepository()),
+        run_store=store,
+        max_cached_runs=1,
+    )
+    first = gateway.research(
+        JobDiscoveryRequest(
+            user_id="user-1",
+            conversation_id="conversation-empty-1",
+            target_role="AI Engineer",
+        )
+    )
+    gateway.research(
+        JobDiscoveryRequest(
+            user_id="user-1",
+            conversation_id="conversation-empty-2",
+            target_role="AI Engineer",
+        )
+    )
+
+    assert first.run_id not in gateway._states
+    stored = store.get(first.run_id)
+    assert stored is not None
+    assert stored.phase == "failed"
+    assert stored.error_code == "NO_RESULTS"
+    restored = gateway.status(run_id=first.run_id)
+    assert restored.state == "failed"
+    assert restored.error_code == "NO_RESULTS"
+    assert restored.items == ()
+
+
+def test_the_evictable_phase_list_stays_a_whitelist_of_known_safe_phases():
+    """A phase added later must default to un-evictable, not to evictable.
+
+    The graph emits `partial_analysis_ready` too, and it holds the same
+    unpersisted `details`/`analyses` that make `analysis_ready` unsafe to drop.
+    Naming the safe phases rather than the unsafe ones is what makes forgetting to
+    update this list a memory cost instead of a correctness bug.
+    """
+    source = Path("src/career_agent/agent/job_discovery_graph.py").read_text()
+    # Two spellings in the source: the literal in a returned dict, and the local
+    # `phase = "..."` that a conditional assigns before returning it.
+    emitted = set(re.findall(r'"phase": "([a-z_]+)"', source)) | set(
+        re.findall(r'phase = "([a-z_]+)"', source)
+    )
+    assert {"analysis_ready", "partial_analysis_ready", "detail_unavailable"} <= emitted
+    assert JobDiscoveryGateway._REBUILDABLE_PHASES <= emitted
+    # Anything holding post-fetch payload the run store does not persist is out.
+    assert JobDiscoveryGateway._REBUILDABLE_PHASES == {"selection_required", "failed"}
