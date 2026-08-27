@@ -10,8 +10,10 @@ from career_agent.domain.mock_interviews import (
     MockInterviewPlan,
     MockInterviewPlanItem,
     MockInterviewQuestionResult,
+    MockInterviewReport,
     MockInterviewSession,
     MockInterviewTurn,
+    MockInterviewType,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +34,29 @@ class MockInterviewWorkerContract(BaseModel):
         frozen=True,
         str_strip_whitespace=True,
     )
+
+
+class MockInterviewStartRequest(MockInterviewWorkerContract):
+    user_id: str = Field(min_length=1)
+    application_id: str = Field(min_length=1)
+    job_posting_id: str = Field(min_length=1)
+    jd_snapshot_id: str = Field(min_length=1)
+    resume_version_id: str = Field(min_length=1)
+    interview_type: MockInterviewType
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    max_primary_questions: int = Field(default=6, ge=1, le=20)
+    max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)
+
+
+class MockInterviewGraphResult(MockInterviewWorkerContract):
+    session_id: str = Field(min_length=1)
+    state: Literal["awaiting_answer", "running", "completed", "cancelled"]
+    message: str = Field(min_length=1)
+    turn_id: str | None = Field(default=None, min_length=1)
+    question: str | None = Field(default=None, min_length=1, max_length=2000)
+    evaluation: MockInterviewAnswerEvaluation | None = None
+    report_id: str | None = Field(default=None, min_length=1)
+    report: MockInterviewReport | None = None
 
 
 class MockInterviewPlanDraft(MockInterviewWorkerContract):

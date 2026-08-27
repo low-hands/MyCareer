@@ -94,6 +94,8 @@ class JobPostingRepository(Protocol):
 
     def get_job(self, *, user_id: str, job_posting_id: str) -> StoredJobRecord | None: ...
 
+    def get_snapshot(self, *, user_id: str, jd_snapshot_id: str) -> JDSnapshot | None: ...
+
     def get_for_run(self, *, user_id: str, run_id: str, selection_index: int) -> StoredJobRecord | None: ...
 
     def save_analysis(
@@ -379,6 +381,23 @@ class SQLiteJobPostingRepository:
             record = self._record_from_row(row)
             analysis = self._analysis_for_snapshot(connection, user_id=user_id, jd_snapshot_id=record.snapshot.id)
         return record.model_copy(update={"analysis": analysis})
+
+    def get_snapshot(
+        self, *, user_id: str, jd_snapshot_id: str
+    ) -> JDSnapshot | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT s.job_posting_id, s.id, s.version, s.content,
+                       s.content_hash, s.captured_at, s.provenance_json,
+                       s.normalizer_version
+                FROM jd_snapshots AS s
+                JOIN job_postings AS p ON p.id = s.job_posting_id
+                WHERE p.user_id = ? AND s.id = ?
+                """,
+                (user_id, jd_snapshot_id),
+            ).fetchone()
+        return self._snapshot_from_row(row[0], row[1:]) if row else None
 
     def get_for_run(self, *, user_id: str, run_id: str, selection_index: int) -> StoredJobRecord | None:
         with self._connect() as connection:
