@@ -110,7 +110,7 @@ def test_plan_requires_ordered_items_and_aligned_resume_evidence() -> None:
         )
 
 
-def test_turn_separates_awaiting_answer_from_evaluated_data() -> None:
+def test_turn_separates_awaiting_answer_answered_and_evaluated_data() -> None:
     awaiting = MockInterviewTurn(
         id="turn-1",
         session_id="mock-1",
@@ -123,13 +123,21 @@ def test_turn_separates_awaiting_answer_from_evaluated_data() -> None:
     )
     assert awaiting.answer is None
 
-    completed = MockInterviewTurn(
+    answered = MockInterviewTurn(
         **{
             **awaiting.model_dump(),
-            "status": "evaluated",
+            "status": "answered",
             "answer": "I would start with an offline labelled set.",
-            "evaluation": evaluation().model_dump(),
             "answered_at": NOW + timedelta(minutes=2),
+        }
+    )
+    assert answered.evaluation is None
+
+    completed = MockInterviewTurn(
+        **{
+            **answered.model_dump(),
+            "status": "evaluated",
+            "evaluation": evaluation().model_dump(),
             "evaluated_at": NOW + timedelta(minutes=2, seconds=1),
         }
     )

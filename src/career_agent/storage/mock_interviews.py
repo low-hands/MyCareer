@@ -24,7 +24,7 @@ class SQLiteMockInterviewStore:
     """Durable state for multi-turn mock interview sessions.
 
     The store owns lifecycle and turn invariants so the graph never has to
-    reconstruct them from model context: one awaiting turn per session, one
+    reconstruct them from model context: one in-progress turn per session, one
     active session per user, follow-ups bounded per primary question, and
     reports grounded in evaluated turns.
     """
@@ -35,7 +35,13 @@ class SQLiteMockInterviewStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "mock_interviews", 1, self._migrate)
+            apply_schema(
+                connection,
+                "mock_interviews",
+                2,
+                self._migrate,
+                {2: self._upgrade_v2},
+            )
         os.chmod(self.path, 0o600)
 
     def create_session(
@@ -138,7 +144,7 @@ class SQLiteMockInterviewStore:
         if session.status != "active":
             raise ValueError("only an active session can be paused")
         if session.current_turn_id is not None:
-            raise ValueError("cannot pause while a turn awaits an answer")
+            raise ValueError("cannot pause while a turn is in progress")
         now = datetime.now(timezone.utc)
         return self._transition(
             session,
@@ -186,7 +192,7 @@ class SQLiteMockInterviewStore:
         if session.status != "active":
             raise ValueError("only an active session can ask a question")
         if session.current_turn_id is not None:
-            raise ValueError("a previous turn is still awaiting an answer")
+            raise ValueError("a previous turn is still in progress")
         plan = self.get_plan(user_id=session.user_id, session_id=session.id)
         if plan is None:
             raise ValueError("session has no plan")
@@ -257,45 +263,110 @@ class SQLiteMockInterviewStore:
             updated = self._apply(connection, session, updates)
         return updated, turn
 
-    def record_evaluation(
+    def record_answer(
         self,
         *,
         session: MockInterviewSession,
         turn: MockInterviewTurn,
         answer: str,
-        evaluation: MockInterviewAnswerEvaluation,
         answered_at: datetime | None = None,
-        evaluated_at: datetime | None = None,
     ) -> tuple[MockInterviewSession, MockInterviewTurn]:
-        if session.current_turn_id != turn.id:
-            raise ValueError("turn is not the session's awaiting turn")
-        if turn.status != "awaiting_answer":
-            raise ValueError("turn already has an evaluation")
         answered = answered_at or datetime.now(timezone.utc)
-        evaluated = evaluated_at or answered
-        evaluated_turn = turn.model_copy(
-            update={
-                "answer": answer,
-                "evaluation": evaluation,
-                "status": "evaluated",
-                "answered_at": answered,
-                "evaluated_at": evaluated,
-            }
-        )
-        MockInterviewTurn.model_validate(evaluated_turn.model_dump())
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            current = self._load_turn(connection, session.id, turn.id)
+            if current is None:
+                raise ValueError("mock interview turn does not exist")
+            candidate = current.model_copy(
+                update={
+                    "answer": answer,
+                    "evaluation": None,
+                    "status": "answered",
+                    "answered_at": answered,
+                    "evaluated_at": None,
+                }
+            )
+            answered_turn = MockInterviewTurn.model_validate(candidate.model_dump())
+            if current.status in {"answered", "evaluated"}:
+                if current.answer != answered_turn.answer:
+                    raise ValueError("turn already has a different answer")
+                stored_session = self._load_session(
+                    connection, session.user_id, session.id
+                )
+                if stored_session is None:
+                    raise ValueError("mock interview session does not exist")
+                return stored_session, current
+            if session.current_turn_id != turn.id:
+                raise ValueError("turn is not the session's current turn")
+            if current.status != "awaiting_answer":
+                raise ValueError("turn cannot accept an answer in its current state")
             changed = connection.execute(
                 """
                 UPDATE mock_interview_turns SET
-                    answer = ?, evaluation_json = ?, status = 'evaluated',
-                    answered_at = ?, evaluated_at = ?
+                    answer = ?, status = 'answered', answered_at = ?
                 WHERE id = ? AND session_id = ? AND status = 'awaiting_answer'
                 """,
                 (
-                    answer,
-                    evaluation.model_dump_json(),
+                    answered_turn.answer,
                     answered.isoformat(),
+                    turn.id,
+                    session.id,
+                ),
+            ).rowcount
+            if not changed:
+                raise RuntimeError("mock interview turn changed concurrently")
+            updated = self._apply(
+                connection,
+                session,
+                {
+                    "updated_at": datetime.now(timezone.utc),
+                },
+            )
+        return updated, answered_turn
+
+    def record_evaluation(
+        self,
+        *,
+        session: MockInterviewSession,
+        turn: MockInterviewTurn,
+        evaluation: MockInterviewAnswerEvaluation,
+        evaluated_at: datetime | None = None,
+    ) -> tuple[MockInterviewSession, MockInterviewTurn]:
+        evaluated = evaluated_at or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = self._load_turn(connection, session.id, turn.id)
+            if current is None:
+                raise ValueError("mock interview turn does not exist")
+            if current.status == "evaluated":
+                stored_session = self._load_session(
+                    connection, session.user_id, session.id
+                )
+                if stored_session is None:
+                    raise ValueError("mock interview session does not exist")
+                return stored_session, current
+            if session.current_turn_id != turn.id:
+                raise ValueError("turn is not the session's current turn")
+            if current.status != "answered":
+                raise ValueError("turn requires a persisted answer before evaluation")
+            evaluated_turn = current.model_copy(
+                update={
+                    "evaluation": evaluation,
+                    "status": "evaluated",
+                    "evaluated_at": evaluated,
+                }
+            )
+            evaluated_turn = MockInterviewTurn.model_validate(
+                evaluated_turn.model_dump()
+            )
+            changed = connection.execute(
+                """
+                UPDATE mock_interview_turns SET
+                    evaluation_json = ?, status = 'evaluated', evaluated_at = ?
+                WHERE id = ? AND session_id = ? AND status = 'answered'
+                """,
+                (
+                    evaluation.model_dump_json(),
                     evaluated.isoformat(),
                     turn.id,
                     session.id,
@@ -319,7 +390,7 @@ class SQLiteMockInterviewStore:
         if session.status not in {"active", "paused"}:
             raise ValueError("only a started session can be completed")
         if session.current_turn_id is not None:
-            raise ValueError("cannot complete while a turn awaits an answer")
+            raise ValueError("cannot complete while a turn is in progress")
         if report.session_id != session.id:
             raise ValueError("report does not belong to this session")
         evaluated = {
@@ -493,6 +564,31 @@ class SQLiteMockInterviewStore:
             raise RuntimeError("mock interview session changed concurrently")
         return updated
 
+    def _load_session(
+        self,
+        connection: sqlite3.Connection,
+        user_id: str,
+        session_id: str,
+    ) -> MockInterviewSession | None:
+        row = connection.execute(
+            self._SESSION_SELECT + " WHERE id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+        return self._session(row) if row else None
+
+    def _load_turn(
+        self,
+        connection: sqlite3.Connection,
+        session_id: str,
+        turn_id: str,
+    ) -> MockInterviewTurn | None:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            self._TURN_SELECT + " WHERE id = ? AND session_id = ?",
+            (turn_id, session_id),
+        ).fetchone()
+        return self._turn(row) if row else None
+
     @staticmethod
     def _require_no_resumable_session(
         connection: sqlite3.Connection, user_id: str
@@ -558,6 +654,7 @@ class SQLiteMockInterviewStore:
             )
             """
         )
+
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS mock_interview_plans (
@@ -621,6 +718,13 @@ class SQLiteMockInterviewStore:
             ON mock_interview_turns(session_id, sequence_number)
             """
         )
+
+    @staticmethod
+    def _upgrade_v2(connection: sqlite3.Connection) -> None:
+        # Version 2 adds the domain-level ``answered`` status. The status column
+        # intentionally has no SQLite CHECK constraint, so existing rows need no
+        # physical rewrite; the explicit step prevents a silent semantic bump.
+        return None
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

@@ -114,27 +114,91 @@ def test_only_one_turn_awaits_an_answer_at_a_time(tmp_path) -> None:
     assert active.current_turn_id == turn.id
     assert active.current_plan_item == 1
 
-    with pytest.raises(ValueError, match="still awaiting an answer"):
+    with pytest.raises(ValueError, match="still in progress"):
         store.ask(
             session=active,
             plan_item_number=2,
             question_type="system_design",
             question="How would you evaluate it?",
         )
-    with pytest.raises(ValueError, match="awaits an answer"):
+    with pytest.raises(ValueError, match="in progress"):
         store.pause(session=active)
 
-    active, evaluated = store.record_evaluation(
+    active, answered = store.record_answer(
         session=active,
         turn=turn,
         answer="I started from an offline labelled set.",
-        evaluation=evaluation(),
         answered_at=NOW + timedelta(minutes=2),
+    )
+    assert active.current_turn_id == turn.id
+    assert answered.status == "answered"
+
+    active, evaluated = store.record_evaluation(
+        session=active,
+        turn=answered,
+        evaluation=evaluation(),
         evaluated_at=NOW + timedelta(minutes=2, seconds=5),
     )
     assert active.current_turn_id is None
     assert store.get_turn(user_id="u1", turn_id=turn.id) == evaluated
     assert evaluated.evaluation.rating == "adequate"
+
+
+def test_answer_and_evaluation_writes_are_idempotent_and_survive_reload(
+    tmp_path,
+) -> None:
+    store = build_store(tmp_path)
+    active = started(store, create_session(store))
+    active_before_answer, turn = store.ask(
+        session=active,
+        plan_item_number=1,
+        question_type="project_deep_dive",
+        question="What did you personally own?",
+        asked_at=NOW,
+    )
+
+    active, answered = store.record_answer(
+        session=active_before_answer,
+        turn=turn,
+        answer="  I owned retrieval evaluation.  ",
+        answered_at=NOW + timedelta(minutes=1),
+    )
+    duplicate_session, duplicate_answer = store.record_answer(
+        session=active_before_answer,
+        turn=turn,
+        answer="I owned retrieval evaluation.",
+        answered_at=NOW + timedelta(minutes=2),
+    )
+    assert duplicate_session == active
+    assert duplicate_answer == answered
+    with pytest.raises(ValueError, match="different answer"):
+        store.record_answer(
+            session=active_before_answer,
+            turn=turn,
+            answer="A conflicting retry.",
+        )
+
+    reloaded = SQLiteMockInterviewStore(store.path)
+    restored_session = reloaded.get_session(user_id="u1", session_id=active.id)
+    restored_turn = reloaded.get_turn(user_id="u1", turn_id=turn.id)
+    assert restored_session.current_turn_id == turn.id
+    assert restored_turn.status == "answered"
+
+    evaluated_session, evaluated_turn = reloaded.record_evaluation(
+        session=restored_session,
+        turn=restored_turn,
+        evaluation=evaluation(),
+        evaluated_at=NOW + timedelta(minutes=3),
+    )
+    duplicate_session, duplicate_turn = reloaded.record_evaluation(
+        session=restored_session,
+        turn=restored_turn,
+        evaluation=evaluation(next_action="finish"),
+        evaluated_at=NOW + timedelta(minutes=4),
+    )
+    assert duplicate_session == evaluated_session
+    assert duplicate_turn == evaluated_turn
+    assert duplicate_turn.evaluation.next_action == "next_question"
 
 
 def test_follow_ups_are_bounded_and_primary_questions_advance_the_plan(tmp_path) -> None:
@@ -147,14 +211,18 @@ def test_follow_ups_are_bounded_and_primary_questions_advance_the_plan(tmp_path)
         question="Describe the retrieval pipeline you built.",
         asked_at=NOW,
     )
-    active, _ = store.record_evaluation(
+    active, primary = store.record_answer(
         session=active,
         turn=primary,
         answer="It used hybrid search.",
+        answered_at=NOW + timedelta(minutes=1),
+    )
+    active, _ = store.record_evaluation(
+        session=active,
+        turn=primary,
         evaluation=evaluation(
             next_action="follow_up", follow_up_question="Which failure mode did you test?"
         ),
-        answered_at=NOW + timedelta(minutes=1),
     )
     active, follow_up = store.ask(
         session=active,
@@ -165,12 +233,16 @@ def test_follow_ups_are_bounded_and_primary_questions_advance_the_plan(tmp_path)
         parent_turn_id=primary.id,
         asked_at=NOW + timedelta(minutes=2),
     )
-    active, _ = store.record_evaluation(
+    active, follow_up = store.record_answer(
         session=active,
         turn=follow_up,
         answer="Recall drift on long queries.",
-        evaluation=evaluation(),
         answered_at=NOW + timedelta(minutes=3),
+    )
+    active, _ = store.record_evaluation(
+        session=active,
+        turn=follow_up,
+        evaluation=evaluation(),
     )
 
     assert active.current_plan_item == 1
@@ -241,12 +313,16 @@ def test_report_must_be_grounded_in_evaluated_answers(tmp_path) -> None:
         question="Explain one design trade-off.",
         asked_at=NOW,
     )
-    active, _ = store.record_evaluation(
+    active, turn = store.record_answer(
         session=active,
         turn=turn,
         answer="I chose latency over recall.",
-        evaluation=evaluation(next_action="finish"),
         answered_at=NOW + timedelta(minutes=1),
+    )
+    active, _ = store.record_evaluation(
+        session=active,
+        turn=turn,
+        evaluation=evaluation(next_action="finish"),
     )
 
     def report(plan_item_number: int) -> MockInterviewReport:
