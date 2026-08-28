@@ -5,6 +5,15 @@ from copy import deepcopy
 from typing import Any, Literal
 
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
+from career_agent.agent.mock_interview_contracts import (
+    MockInterviewGraphResult,
+    MockInterviewStartRequest,
+)
+from career_agent.agent.mock_interview_graph import (
+    MockInterviewCheckpointMissingError,
+    MockInterviewGraph,
+    MockInterviewGraphVersionError,
+)
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
@@ -42,6 +51,8 @@ from career_agent.agent.main_agent_contracts import (
     ResolveEmailEventToolArguments,
     ResolveActionItemToolArguments,
     SnoozeActionItemToolArguments,
+    StartMockInterviewToolArguments,
+    StartMockInterviewWorkflowInput,
     PrepareInterviewCalendarSyncToolArguments,
     GetCalendarProposalToolArguments,
     ExecuteCalendarProposalToolArguments,
@@ -136,6 +147,7 @@ class MainAgentToolRegistry:
         interview_preparation_service: InterviewPreparationService | None = None,
         action_center_service: ActionCenterService | None = None,
         calendar_service: CalendarService | None = None,
+        mock_interview_graph: MockInterviewGraph | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -154,6 +166,7 @@ class MainAgentToolRegistry:
         self._interview_preparation_service = interview_preparation_service
         self._action_center_service = action_center_service
         self._calendar_service = calendar_service
+        self._mock_interview_graph = mock_interview_graph
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -233,6 +246,10 @@ class MainAgentToolRegistry:
                     "prepare_interview": self._prepare_interview,
                     "get_interview_preparation": self._get_interview_preparation,
                 }
+            )
+        if mock_interview_graph is not None and application_service is not None:
+            self._workflow_handlers["start_mock_interview"] = (
+                self._start_mock_interview
             )
         if action_center_service is not None:
             self._atomic_handlers.update(
@@ -573,6 +590,23 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if self._mock_interview_graph is not None and self._application_service is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "start_mock_interview",
+                        "description": (
+                            "Start one stateful mock interview for the active or numbered "
+                            "application, using its exact submitted resume and immutable JD. "
+                            "Optionally bind a numbered real interview appointment for context. "
+                            "After the first question, user answers are routed directly to the "
+                            "active mock-interview workflow; do not call this tool again to answer."
+                        ),
+                        "parameters": StartMockInterviewToolArguments.model_json_schema(),
+                    },
+                }
+            )
         if self._action_center_service is not None:
             schemas.extend(
                 [
@@ -750,6 +784,166 @@ class MainAgentToolRegistry:
                 "candidate_messages": result.candidate_messages,
                 "events": [self._email_event_payload(event) for event in result.events_created],
             },
+        )
+
+    def _start_mock_interview(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._mock_interview_graph is None or self._application_service is None:
+            raise ValueError("Mock interview workflow is not configured")
+        workflow_input = StartMockInterviewWorkflowInput.model_validate(arguments)
+        try:
+            detail = self._application_service.get_application(
+                user_id=workflow_input.user_id,
+                application_id=workflow_input.application_id,
+            )
+            application = detail.application
+            if workflow_input.interview_round_id is not None:
+                if self._interview_service is None:
+                    raise ValueError("Interview service is not configured")
+                interview = self._interview_service.get_interview(
+                    user_id=workflow_input.user_id,
+                    interview_round_id=workflow_input.interview_round_id,
+                ).interview
+                if interview.application_id != application.id:
+                    raise InterviewApplicationConflictError(
+                        "mock interview appointment belongs to another application"
+                    )
+            result = self._mock_interview_graph.start(
+                MockInterviewStartRequest(
+                    user_id=workflow_input.user_id,
+                    application_id=application.id,
+                    interview_round_id=workflow_input.interview_round_id,
+                    job_posting_id=application.job_posting_id,
+                    jd_snapshot_id=application.jd_snapshot_id,
+                    resume_version_id=application.resume_version_id,
+                    interview_type=workflow_input.interview_type,
+                    max_primary_questions=workflow_input.max_primary_questions,
+                    max_follow_ups_per_question=(
+                        workflow_input.max_follow_ups_per_question
+                    ),
+                )
+            )
+        except (ApplicationInputNotFoundError, AgentWorkerError, ValueError) as error:
+            return ToolObservation(
+                tool_name="start_mock_interview",
+                state="failed",
+                message="模拟面试暂时无法启动；请确认投递记录和对应材料仍然可用。",
+                payload={
+                    "error_code": (
+                        error.code
+                        if isinstance(error, AgentWorkerError)
+                        else type(error).__name__
+                    ),
+                    "retryable": (
+                        error.retryable
+                        if isinstance(error, AgentWorkerError)
+                        else False
+                    ),
+                },
+            )
+        return self._mock_interview_observation(result)
+
+    def resume_mock_interview(
+        self, *, user_id: str, session_id: str, answer: str
+    ) -> ToolObservation:
+        """Resume the active workflow through an internal, non-model-facing path."""
+        if self._mock_interview_graph is None:
+            raise ValueError("Mock interview workflow is not configured")
+        try:
+            result = self._mock_interview_graph.resume(
+                user_id=user_id,
+                session_id=session_id,
+                answer=answer,
+            )
+        except MockInterviewCheckpointMissingError:
+            return ToolObservation(
+                tool_name="start_mock_interview",
+                state="mock_interview_checkpoint_missing",
+                message=(
+                    "模拟面试的业务记录仍在，但执行断点已经丢失，当前会话无法继续。"
+                ),
+                next_action="restart_mock_interview",
+                payload={"session_id": session_id},
+            )
+        except MockInterviewGraphVersionError:
+            return ToolObservation(
+                tool_name="start_mock_interview",
+                state="mock_interview_graph_incompatible",
+                message=(
+                    "这次模拟面试由不兼容的旧版流程创建，不能用当前版本安全恢复。"
+                ),
+                next_action="restart_mock_interview",
+                payload={"session_id": session_id},
+            )
+        except (AgentWorkerError, ValueError) as error:
+            return ToolObservation(
+                tool_name="start_mock_interview",
+                state="failed",
+                message="这次模拟面试回答暂时无法处理，请稍后用相同回答重试。",
+                payload={
+                    "session_id": session_id,
+                    "error_code": (
+                        error.code
+                        if isinstance(error, AgentWorkerError)
+                        else type(error).__name__
+                    ),
+                    "retryable": (
+                        error.retryable
+                        if isinstance(error, AgentWorkerError)
+                        else False
+                    ),
+                },
+            )
+        return self._mock_interview_observation(result)
+
+    @staticmethod
+    def _mock_interview_observation(
+        result: MockInterviewGraphResult,
+    ) -> ToolObservation:
+        state = {
+            "awaiting_answer": "mock_interview_answer_required",
+            "running": "mock_interview_running",
+            "completed": "mock_interview_completed",
+            "cancelled": "mock_interview_cancelled",
+        }[result.state]
+        message = result.message
+        if result.state == "awaiting_answer" and result.question is not None:
+            blocks = []
+            if result.evaluation is not None:
+                blocks.append(
+                    "上一题反馈：\n"
+                    f"{result.evaluation.summary}\n"
+                    f"下一步原因：{result.evaluation.next_action_reason}"
+                )
+            blocks.append(f"模拟面试题：\n{result.question}")
+            message = "\n\n".join(blocks)
+        elif result.state == "completed" and result.report is not None:
+            report = result.report
+            strengths = "\n".join(f"- {item}" for item in report.strengths) or "- 暂无"
+            development = (
+                "\n".join(f"- {item}" for item in report.development_areas)
+                or "- 暂无"
+            )
+            actions = (
+                "\n".join(f"- {item}" for item in report.practice_actions)
+                or "- 暂无"
+            )
+            message = (
+                f"模拟面试完成。\n\n总结\n{report.summary}\n\n"
+                f"表现亮点\n{strengths}\n\n待提升\n{development}\n\n"
+                f"练习建议\n{actions}"
+            )
+        return ToolObservation(
+            tool_name="start_mock_interview",
+            state=state,
+            message=message,
+            next_action=(
+                "answer_mock_interview_question"
+                if result.state == "awaiting_answer"
+                else None
+            ),
+            payload=result.model_dump(mode="json"),
         )
 
     def _list_email_events(self, arguments: dict[str, Any]) -> ToolObservation:

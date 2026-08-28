@@ -21,9 +21,9 @@ from career_agent.domain.mock_interviews import (
     MockInterviewPlan,
     MockInterviewReport,
     MockInterviewSession,
-    MockInterviewTurn,
 )
 from career_agent.storage.jobs import JobPostingRepository
+from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 
@@ -33,6 +33,14 @@ class MockInterviewSources:
     document: StoredResumeDocument
     jd_text: str
     confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
+
+
+class MockInterviewCheckpointMissingError(RuntimeError):
+    """Business state exists but LangGraph has no resumable checkpoint."""
+
+
+class MockInterviewGraphVersionError(RuntimeError):
+    """A persisted session belongs to an incompatible graph definition."""
 
 
 class MockInterviewSourceProvider(Protocol):
@@ -47,9 +55,11 @@ class StoredMockInterviewSourceProvider:
         *,
         resumes: ResumeStore,
         jobs: JobPostingRepository,
+        career_history: CareerHistoryStore | None = None,
     ) -> None:
         self._resumes = resumes
         self._jobs = jobs
+        self._career_history = career_history
 
     def load(self, *, session: MockInterviewSession) -> MockInterviewSources:
         document = self._resumes.read_version_document(
@@ -64,10 +74,30 @@ class StoredMockInterviewSourceProvider:
         )
         if snapshot is None or snapshot.job_posting_id != session.job_posting_id:
             raise ValueError("Mock interview JD snapshot no longer exists")
-        return MockInterviewSources(document=document, jd_text=snapshot.content)
+        confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
+        if self._career_history is not None:
+            confirmed_facts = tuple(
+                ConfirmedResumeFact(
+                    claim=item.claim,
+                    source_locator=item.source_locator,
+                    source_quote=item.source_quote,
+                )
+                for item in self._career_history.list_evidence(
+                    user_id=session.user_id,
+                    verification_status="confirmed",
+                    source_resume_version_id=session.resume_version_id,
+                )
+                if item.source_locator is not None and item.source_quote is not None
+            )
+        return MockInterviewSources(
+            document=document,
+            jd_text=snapshot.content,
+            confirmed_facts=confirmed_facts,
+        )
 
 
 class MockInterviewState(TypedDict, total=False):
+    graph_version: int
     user_id: str
     session_id: str
     route: Literal["primary", "follow_up", "report"]
@@ -76,7 +106,7 @@ class MockInterviewState(TypedDict, total=False):
     follow_up_question: str
     follow_up_parent_turn_id: str
     answer: str | None
-    evaluation: MockInterviewAnswerEvaluation
+    evaluation: dict[str, Any]
     completion_reason: MockInterviewCompletionReason
     report_id: str
 
@@ -88,6 +118,8 @@ class MockInterviewGraph:
     owns the queryable business record. Full JD and resume content are loaded by
     worker nodes and never copied into checkpoint state.
     """
+
+    GRAPH_VERSION = 1
 
     def __init__(
         self,
@@ -137,6 +169,7 @@ class MockInterviewGraph:
             interview_type=request.interview_type,
             max_primary_questions=request.max_primary_questions,
             max_follow_ups_per_question=request.max_follow_ups_per_question,
+            graph_version=self.GRAPH_VERSION,
         )
         try:
             state = self._graph.invoke(
@@ -144,6 +177,7 @@ class MockInterviewGraph:
                     "user_id": session.user_id,
                     "session_id": session.id,
                     "route": "primary",
+                    "graph_version": self.GRAPH_VERSION,
                 },
                 config=self._config(session.id),
             )
@@ -154,8 +188,11 @@ class MockInterviewGraph:
             )
             if current is not None and current.status not in {"completed", "cancelled"}:
                 self._store.cancel(session=current)
+            self._delete_checkpoint_best_effort(session.id)
             raise
-        return self._project(session.user_id, session.id, state)
+        result = self._project(session.user_id, session.id, state)
+        self._cleanup_terminal_checkpoint(result)
+        return result
 
     def resume(
         self,
@@ -168,6 +205,7 @@ class MockInterviewGraph:
         if not normalized:
             raise ValueError("Mock interview answer must not be empty")
         session = self._require_session(user_id, session_id)
+        self._require_resumable_checkpoint(session)
         if session.status != "active" or session.current_turn_id is None:
             raise ValueError("Mock interview is not awaiting an answer")
         turn = self._store.get_turn(user_id=user_id, turn_id=session.current_turn_id)
@@ -184,14 +222,40 @@ class MockInterviewGraph:
             )
         else:
             raise ValueError("Mock interview turn is no longer awaiting an answer")
-        return self._project(user_id, session_id, state)
+        result = self._project(user_id, session_id, state)
+        self._cleanup_terminal_checkpoint(result)
+        return result
 
     def retry(self, *, user_id: str, session_id: str) -> MockInterviewGraphResult:
         session = self._require_session(user_id, session_id)
         if session.status != "active":
             return self._project(user_id, session_id, {})
+        self._require_resumable_checkpoint(session)
         state = self._graph.invoke(None, config=self._config(session_id))
-        return self._project(user_id, session_id, state)
+        result = self._project(user_id, session_id, state)
+        self._cleanup_terminal_checkpoint(result)
+        return result
+
+    def cancel(
+        self, *, user_id: str, session_id: str
+    ) -> MockInterviewGraphResult:
+        """Cancel one business session and remove its resumable graph thread.
+
+        Cancellation is intentionally owned by the graph boundary: the store
+        cannot clean execution state because it has no checkpointer. Deleting a
+        terminal session's thread again makes this operation repair an orphan
+        left by an interrupted earlier cleanup.
+        """
+        session = self._require_session(user_id, session_id)
+        if session.status == "completed":
+            raise ValueError("completed mock interviews cannot be cancelled")
+        if session.status != "cancelled":
+            self._store.cancel(session=session)
+        # Do not hide cleanup failure here. The business transition is already
+        # durable, and retrying cancel will enter the idempotent branch above
+        # and attempt the deletion again.
+        self._delete_checkpoint(session_id)
+        return self._project(user_id, session_id, {})
 
     def status(self, *, user_id: str, session_id: str) -> MockInterviewGraphResult:
         self._require_session(user_id, session_id)
@@ -309,7 +373,7 @@ class MockInterviewGraph:
                 raise ValueError("Evaluated mock interview turn has no evaluation")
             return {
                 "answer": None,
-                "evaluation": turn.evaluation,
+                "evaluation": turn.evaluation.model_dump(mode="json"),
                 "evaluated_turn_id": turn.id,
                 "current_turn_id": None,
             }
@@ -346,7 +410,7 @@ class MockInterviewGraph:
         )
         return {
             "answer": None,
-            "evaluation": evaluated_turn.evaluation,
+            "evaluation": evaluated_turn.evaluation.model_dump(mode="json"),
             "evaluated_turn_id": evaluated_turn.id,
             "current_turn_id": None,
         }
@@ -358,9 +422,10 @@ class MockInterviewGraph:
             user_id=session.user_id,
             turn_id=state["evaluated_turn_id"],
         )
-        evaluation = state.get("evaluation")
-        if turn is None or evaluation is None:
+        raw_evaluation = state.get("evaluation")
+        if turn is None or raw_evaluation is None:
             raise ValueError("Mock interview evaluation is unavailable for routing")
+        evaluation = MockInterviewAnswerEvaluation.model_validate(raw_evaluation)
         turns = self._store.list_turns(user_id=session.user_id, session_id=session.id)
         primary_id = turn.id if turn.turn_type == "primary" else turn.parent_turn_id
         follow_up_count = sum(
@@ -428,7 +493,12 @@ class MockInterviewGraph:
         state: MockInterviewState,
     ) -> MockInterviewGraphResult:
         session = self._require_session(user_id, session_id)
-        evaluation = state.get("evaluation")
+        raw_evaluation = state.get("evaluation")
+        evaluation = (
+            MockInterviewAnswerEvaluation.model_validate(raw_evaluation)
+            if raw_evaluation is not None
+            else None
+        )
         if session.status == "completed":
             report = self._store.get_report(user_id=user_id, session_id=session_id)
             return MockInterviewGraphResult(
@@ -471,6 +541,38 @@ class MockInterviewGraph:
         if session is None:
             raise ValueError("Mock interview session does not exist")
         return session
+
+    def _require_resumable_checkpoint(self, session: MockInterviewSession) -> None:
+        if session.graph_version != self.GRAPH_VERSION:
+            raise MockInterviewGraphVersionError(
+                "Mock interview graph version is incompatible: "
+                f"session={session.graph_version}, runtime={self.GRAPH_VERSION}"
+            )
+        checkpoint = self._checkpointer.get_tuple(self._config(session.id))
+        if checkpoint is None:
+            raise MockInterviewCheckpointMissingError(
+                "Mock interview checkpoint is missing"
+            )
+
+    def _cleanup_terminal_checkpoint(
+        self, result: MockInterviewGraphResult
+    ) -> None:
+        if result.state in {"completed", "cancelled"}:
+            self._delete_checkpoint_best_effort(result.session_id)
+
+    def _delete_checkpoint_best_effort(self, session_id: str) -> None:
+        try:
+            self._delete_checkpoint(session_id)
+        except Exception:
+            # Checkpoint retention must not turn an already persisted business
+            # completion (or the original node failure) into a different result.
+            # A later retention sweep may delete the orphaned thread.
+            return
+
+    def _delete_checkpoint(self, session_id: str) -> None:
+        delete_thread = getattr(self._checkpointer, "delete_thread", None)
+        if delete_thread is not None:
+            delete_thread(session_id)
 
     def _require_plan(self, session: MockInterviewSession) -> MockInterviewPlan:
         plan = self._store.get_plan(user_id=session.user_id, session_id=session.id)

@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,9 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewStartRequest,
 )
 from career_agent.agent.mock_interview_graph import (
+    MockInterviewCheckpointMissingError,
     MockInterviewGraph,
+    MockInterviewGraphVersionError,
     MockInterviewSources,
 )
 from career_agent.domain.mock_interviews import (
@@ -20,6 +23,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewScoreDimension,
 )
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
+from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -240,6 +244,7 @@ def test_graph_state_keeps_large_sources_out_of_the_checkpoint(tmp_path: Path) -
     assert "Design reliable retrieval" not in serialized
     assert "Built retrieval systems" not in serialized
     assert set(snapshot) <= {
+        "graph_version",
         "user_id",
         "session_id",
         "route",
@@ -294,3 +299,125 @@ def test_evaluation_failure_retries_from_the_persisted_answer(tmp_path: Path) ->
     assert resumed.state == "awaiting_answer"
     assert resumed.question == "How did you validate that decision?"
     assert worker.evaluate_calls == 1
+
+
+def test_sqlite_checkpoint_resumes_after_connection_and_graph_reopen(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMockInterviewStore(tmp_path / "mock.sqlite3")
+    checkpoint_path = tmp_path / "checkpoints.sqlite3"
+    first_owner = SQLiteCheckpointOwner(checkpoint_path)
+    first_graph = MockInterviewGraph(
+        store=store,
+        worker=Worker(),
+        sources=Sources(),
+        checkpointer=first_owner.saver,
+    )
+    started = first_graph.start(_request(max_follow_ups_per_question=0))
+    assert first_owner.saver.get_tuple(first_graph._config(started.session_id)) is not None
+    first_owner.close()
+
+    second_owner = SQLiteCheckpointOwner(checkpoint_path)
+    second_graph = MockInterviewGraph(
+        store=SQLiteMockInterviewStore(store.path),
+        worker=Worker(),
+        sources=Sources(),
+        checkpointer=second_owner.saver,
+    )
+    next_question = second_graph.resume(
+        user_id="u1",
+        session_id=started.session_id,
+        answer="I owned the offline evaluation design.",
+    )
+
+    assert next_question.state == "awaiting_answer"
+    assert next_question.question == "How would you design retrieval failure recovery?"
+    completed = second_graph.resume(
+        user_id="u1",
+        session_id=started.session_id,
+        answer="I would degrade to lexical retrieval and monitor recovery.",
+    )
+    assert completed.state == "completed"
+    assert second_owner.saver.get_tuple(
+        second_graph._config(started.session_id)
+    ) is None
+    assert store.get_report(user_id="u1", session_id=started.session_id) is not None
+    second_owner.close()
+
+
+def test_resume_distinguishes_missing_checkpoint_from_business_state(
+    tmp_path: Path,
+) -> None:
+    first_graph, store, _, _ = _graph(tmp_path)
+    started = first_graph.start(_request())
+    reopened_without_checkpoint = MockInterviewGraph(
+        store=SQLiteMockInterviewStore(store.path),
+        worker=Worker(),
+        sources=Sources(),
+    )
+
+    with pytest.raises(MockInterviewCheckpointMissingError):
+        reopened_without_checkpoint.resume(
+            user_id="u1",
+            session_id=started.session_id,
+            answer="An answer that must not be written.",
+        )
+
+    turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
+    assert turn.status == "awaiting_answer"
+    assert turn.answer is None
+
+
+def test_resume_rejects_an_incompatible_graph_version(tmp_path: Path) -> None:
+    graph, store, _, _ = _graph(tmp_path)
+    started = graph.start(_request())
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE mock_interview_sessions SET graph_version = 999 WHERE id = ?",
+            (started.session_id,),
+        )
+
+    with pytest.raises(MockInterviewGraphVersionError, match="session=999"):
+        graph.resume(
+            user_id="u1",
+            session_id=started.session_id,
+            answer="Do not process this answer.",
+        )
+
+
+def test_cancel_deletes_checkpoint_threads_without_accumulating_orphans(
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "mock-interview-checkpoints.sqlite3"
+    owner = SQLiteCheckpointOwner(checkpoint_path)
+    store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
+    graph = MockInterviewGraph(
+        store=store,
+        worker=Worker(),
+        sources=Sources(),
+        checkpointer=owner.saver,
+    )
+
+    session_ids = []
+    for _ in range(4):
+        started = graph.start(_request())
+        session_ids.append(started.session_id)
+        cancelled = graph.cancel(user_id="u1", session_id=started.session_id)
+
+        assert cancelled.state == "cancelled"
+        assert owner.saver.get_tuple(graph._config(started.session_id)) is None
+
+    with sqlite3.connect(checkpoint_path) as connection:
+        checkpoint_threads = connection.execute(
+            "SELECT COUNT(DISTINCT thread_id) FROM checkpoints"
+        ).fetchone()[0]
+        pending_write_threads = connection.execute(
+            "SELECT COUNT(DISTINCT thread_id) FROM writes"
+        ).fetchone()[0]
+    assert checkpoint_threads == 0
+    assert pending_write_threads == 0
+
+    # A repeated cancellation also acts as orphan-repair and remains stable.
+    repeated = graph.cancel(user_id="u1", session_id=session_ids[-1])
+    assert repeated.state == "cancelled"
+    owner.close()

@@ -51,6 +51,7 @@ class MockInterviewSession(MockInterviewContract):
     jd_snapshot_id: str = Field(min_length=1)
     resume_version_id: str = Field(min_length=1)
     interview_type: MockInterviewType
+    graph_version: int = Field(default=1, ge=1)
     status: MockInterviewStatus = "created"
     max_primary_questions: int = Field(default=6, ge=1, le=20)
     max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)

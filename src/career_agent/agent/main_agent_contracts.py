@@ -12,6 +12,7 @@ from career_agent.domain.action_center import ActionSourceType, ActionStatus, Ac
 from career_agent.domain.email_tracking import EmailEventStatus
 from career_agent.domain.interviews import InterviewDetails, InterviewStatus
 from career_agent.domain.job_discovery import ContractModel
+from career_agent.domain.mock_interviews import MockInterviewType
 
 
 class CareerProfileContext(ContractModel):
@@ -118,7 +119,7 @@ class ConversationTaskState(ContractModel):
     than updating the fields piecemeal.
     """
 
-    active_workflow: Literal["job_discovery", "none"] = "none"
+    active_workflow: Literal["job_discovery", "mock_interview", "none"] = "none"
     run_id: str | None = None
     phase: str | None = None
     selected_result_ref: str | None = None
@@ -163,7 +164,7 @@ class ConversationTaskState(ContractModel):
 
     def enter_workflow(
         self,
-        workflow: Literal["job_discovery"],
+        workflow: Literal["job_discovery", "mock_interview"],
         *,
         run_id: str,
         phase: str | None = None,
@@ -657,6 +658,23 @@ class GetInterviewPreparationToolArguments(ContractModel):
     preparation_id: str | None = Field(default=None, min_length=1)
 
 
+class StartMockInterviewToolArguments(ContractModel):
+    application_selection_index: int | None = Field(default=None, ge=1)
+    interview_selection_index: int | None = Field(default=None, ge=1)
+    interview_type: MockInterviewType = "mixed"
+    max_primary_questions: int = Field(default=6, ge=1, le=20)
+    max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "StartMockInterviewToolArguments":
+        if (
+            self.application_selection_index is not None
+            and self.interview_selection_index is not None
+        ):
+            raise ValueError("use either an application or interview selector")
+        return self
+
+
 class GetDailyBriefToolArguments(ContractModel):
     timezone: str = Field(default="Asia/Shanghai", min_length=1, max_length=100)
 
@@ -732,6 +750,15 @@ class JobDiscoveryWorkflowInput(ContractModel):
     selection_index: int | None = Field(default=None, ge=1)
     jd_selection_index: int | None = Field(default=None, ge=1)
     research_request: JobDiscoveryRequest | None = None
+
+
+class StartMockInterviewWorkflowInput(ContractModel):
+    user_id: str = Field(min_length=1)
+    application_id: str = Field(min_length=1)
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    interview_type: MockInterviewType
+    max_primary_questions: int = Field(ge=1, le=20)
+    max_follow_ups_per_question: int = Field(ge=0, le=5)
 
 
 class ToolCall(ContractModel):
@@ -1093,6 +1120,53 @@ def project_interview_preparation_arguments(
     else:
         raise ValueError(f"Unknown interview preparation tool: {name}")
     return {"user_id": context.profile.user_id, **payload}
+
+
+def project_mock_interview_arguments(
+    context: MainAgentContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    _reject_internal_identifiers("start_mock_interview", arguments)
+    model_arguments = StartMockInterviewToolArguments.model_validate(arguments)
+    application_id = context.task.active_application_id
+    interview_round_id: str | None = None
+
+    if model_arguments.application_selection_index is not None:
+        index = model_arguments.application_selection_index
+        if index > len(context.task.application_candidates):
+            raise ValueError("application selection index is out of range")
+        application_id = context.task.application_candidates[index - 1].application_id
+    elif model_arguments.interview_selection_index is not None:
+        index = model_arguments.interview_selection_index
+        if index > len(context.task.interview_candidates):
+            raise ValueError("interview selection index is out of range")
+        candidate = context.task.interview_candidates[index - 1]
+        application_id = candidate.application_id
+        interview_round_id = candidate.interview_round_id
+
+    if application_id is None:
+        raise ValueError("start_mock_interview requires an active application")
+    if interview_round_id is None and context.task.active_interview_round_id is not None:
+        active = next(
+            (
+                candidate
+                for candidate in context.task.interview_candidates
+                if candidate.interview_round_id
+                == context.task.active_interview_round_id
+                and candidate.application_id == application_id
+            ),
+            None,
+        )
+        if active is not None:
+            interview_round_id = active.interview_round_id
+
+    return StartMockInterviewWorkflowInput(
+        user_id=context.profile.user_id,
+        application_id=application_id,
+        interview_round_id=interview_round_id,
+        interview_type=model_arguments.interview_type,
+        max_primary_questions=model_arguments.max_primary_questions,
+        max_follow_ups_per_question=model_arguments.max_follow_ups_per_question,
+    ).model_dump()
 
 
 def project_action_center_arguments(

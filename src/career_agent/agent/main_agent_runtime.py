@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, DecisionObservation, MainAgentContext, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery
@@ -40,7 +40,7 @@ class MainAgentTurnResult:
 class MainAgentRuntime:
     _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "resume_tailoring_review_blocked", "resume_final_review_blocked", "resume_tailoring_superseded", "failed"})
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = ()) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
@@ -48,17 +48,29 @@ class MainAgentRuntime:
         self._tools = tools
         self._career_context_projector = career_context_projector
         self._max_tool_calls = max_tool_calls
+        self._owned_resources = owned_resources
+        self._closed = False
 
         graph = StateGraph(MainAgentState)
         graph.add_node("hydrate_career_context", self._hydrate_career_context)
+        graph.add_node("resume_active_workflow", self._resume_active_workflow)
         graph.add_node("decide", self._decide)
         graph.add_node("invoke_atomic_tool", self._invoke_atomic_tool)
         graph.add_node("run_workflow", self._run_workflow)
         graph.add_node("observe", self._observe)
         graph.add_node("finish", self._finish)
+        graph.add_node("present_workflow", self._present_workflow)
         graph.add_node("fallback", self._fallback)
         graph.add_edge(START, "hydrate_career_context")
-        graph.add_edge("hydrate_career_context", "decide")
+        graph.add_conditional_edges(
+            "hydrate_career_context",
+            self._after_hydration,
+            {
+                "resume_active_workflow": "resume_active_workflow",
+                "decide": "decide",
+            },
+        )
+        graph.add_edge("resume_active_workflow", "observe")
         graph.add_conditional_edges(
             "decide",
             self._after_decision,
@@ -71,10 +83,24 @@ class MainAgentRuntime:
         )
         graph.add_edge("invoke_atomic_tool", "observe")
         graph.add_edge("run_workflow", "observe")
-        graph.add_edge("observe", "decide")
+        graph.add_conditional_edges(
+            "observe",
+            self._after_observe,
+            {"decide": "decide", "present_workflow": "present_workflow"},
+        )
         graph.add_edge("finish", END)
+        graph.add_edge("present_workflow", END)
         graph.add_edge("fallback", END)
         self._graph = graph.compile()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        for resource in reversed(self._owned_resources):
+            close = getattr(resource, "close", None)
+            if close is not None:
+                close()
+        self._closed = True
 
     def run_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentTurnResult:
         context = self._context_manager.load_for_turn(user_id=user_id, conversation_id=conversation_id, user_message=user_message)
@@ -111,6 +137,37 @@ class MainAgentRuntime:
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
         return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
+
+    @staticmethod
+    def _after_hydration(
+        state: MainAgentState,
+    ) -> Literal["resume_active_workflow", "decide"]:
+        task = state["context"].task
+        if task.active_workflow == "mock_interview" and task.phase not in {
+            "mock_interview_checkpoint_missing",
+            "mock_interview_graph_incompatible",
+        }:
+            return "resume_active_workflow"
+        return "decide"
+
+    def _resume_active_workflow(self, state: MainAgentState) -> MainAgentState:
+        context = state["context"]
+        session_id = context.task.run_id
+        if session_id is None:
+            raise ValueError("Active mock interview has no resumable session")
+        result = self._tools.resume_mock_interview(
+            user_id=context.profile.user_id,
+            session_id=session_id,
+            answer=context.user_message,
+        )
+        return {
+            "decision": AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="start_mock_interview", arguments={}),
+            ),
+            "pending_capability_name": "start_mock_interview",
+            "pending_tool_result": result,
+        }
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
         if self._career_context_projector is None:
@@ -170,6 +227,10 @@ class MainAgentRuntime:
             arguments = project_job_discovery_arguments(context, decision.tool_call.arguments)
         elif name == "sync_application_emails":
             arguments = project_email_arguments(context, name, decision.tool_call.arguments)
+        elif name == "start_mock_interview":
+            arguments = project_mock_interview_arguments(
+                context, decision.tool_call.arguments
+            )
         else:
             raise ValueError(f"Unknown main-agent workflow: {name}")
         result = self._tools.invoke_workflow(name, arguments)
@@ -181,6 +242,8 @@ class MainAgentRuntime:
         capability_name = state["pending_capability_name"]
         if isinstance(result, JobDiscoveryGatewayResult):
             updated = self._update_task(context, result)
+        elif isinstance(result, ToolObservation) and result.tool_name == "start_mock_interview":
+            updated = self._update_mock_interview_task(context, result)
         else:
             updated = self._update_atomic_task(context, result)
         observation = self._tool_observation(capability_name, result)
@@ -198,6 +261,22 @@ class MainAgentRuntime:
             "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
             "tool_call_count": state.get("tool_call_count", 0) + 1,
             "artifact_ids": artifact_ids,
+        }
+
+    @staticmethod
+    def _after_observe(
+        state: MainAgentState,
+    ) -> Literal["decide", "present_workflow"]:
+        if state.get("pending_capability_name") == "start_mock_interview":
+            return "present_workflow"
+        return "decide"
+
+    @staticmethod
+    def _present_workflow(state: MainAgentState) -> MainAgentState:
+        return {
+            "assistant_message": MainAgentRuntime._assistant_message(
+                state["last_tool_result"]
+            )
         }
 
     @staticmethod
@@ -352,6 +431,51 @@ class MainAgentRuntime:
             task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, selected_result_ref=result.selected_result_ref, manual_search_query=result.manual_search_query)
         elif result.state in {"failed", "waiting_user"}:
             task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state)
+        return context.model_copy(update={"task": task})
+
+    @staticmethod
+    def _update_mock_interview_task(
+        context: MainAgentContext, result: ToolObservation
+    ) -> MainAgentContext:
+        task = context.task
+        session_id = result.payload.get("session_id")
+        if result.state in {
+            "mock_interview_answer_required",
+            "mock_interview_running",
+        }:
+            if not isinstance(session_id, str) or not session_id:
+                raise ValueError("Mock interview result has no session_id")
+            task = task.enter_workflow(
+                "mock_interview",
+                run_id=session_id,
+                phase=result.state,
+                candidates=(),
+            )
+        elif result.state in {
+            "mock_interview_completed",
+            "mock_interview_cancelled",
+        }:
+            if task.active_workflow == "mock_interview":
+                task = task.leave_workflow()
+        elif result.state == "failed" and task.active_workflow == "mock_interview":
+            # A persisted answer can be retried. Keep ownership instead of
+            # stranding the graph after a transient Worker failure.
+            task = task.enter_workflow(
+                "mock_interview",
+                run_id=task.run_id or str(session_id),
+                phase="failed",
+                candidates=(),
+            )
+        elif result.state in {
+            "mock_interview_checkpoint_missing",
+            "mock_interview_graph_incompatible",
+        } and task.active_workflow == "mock_interview":
+            task = task.enter_workflow(
+                "mock_interview",
+                run_id=task.run_id or str(session_id),
+                phase=result.state,
+                candidates=(),
+            )
         return context.model_copy(update={"task": task})
 
     @staticmethod

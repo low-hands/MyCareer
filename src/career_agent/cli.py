@@ -16,6 +16,11 @@ from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDis
 from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.mock_interview_graph import (
+    MockInterviewGraph,
+    StoredMockInterviewSourceProvider,
+)
+from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
 from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
@@ -26,6 +31,7 @@ from career_agent.agent.openai_resume_tailoring_reviewer import (
     OpenAIResumeTailoringReviewer,
 )
 from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
+from career_agent.agent.openai_mock_interview_worker import OpenAIMockInterviewWorker
 from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
 from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
@@ -46,12 +52,14 @@ from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
+from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.memory import InMemoryJobRepository
@@ -152,10 +160,31 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         OpenAIInterviewPreparationWorker(resume_analysis_config),
         SQLiteInterviewPreparationStore(Path(args.resume_store).expanduser()),
     )
+    checkpoint_owner = SQLiteCheckpointOwner(
+        Path(args.mock_interview_checkpoint_store).expanduser()
+    )
+    mock_interview_graph = MockInterviewGraph(
+        store=SQLiteMockInterviewStore(
+            Path(args.mock_interview_store).expanduser()
+        ),
+        worker=OpenAIMockInterviewWorker(
+            resume_analysis_config,
+            skill_loader=MockInterviewSkillLoader(
+                Path(args.mock_interview_skills_dir)
+            ),
+        ),
+        sources=StoredMockInterviewSourceProvider(
+            resumes=resume_store,
+            jobs=job_repository,
+            career_history=career_history_store,
+        ),
+        checkpointer=checkpoint_owner.saver,
+    )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
+        owned_resources=(checkpoint_owner,),
         tools=MainAgentToolRegistry(
             build_gateway(args),
             job_repository=job_repository,
@@ -170,6 +199,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             email_tracking_service=email_tracking_service,
             action_center_service=action_center_service,
             calendar_service=calendar_service,
+            mock_interview_graph=mock_interview_graph,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
@@ -263,9 +293,24 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--action-store", default="~/.career-agent/actions.sqlite3", help="Local generated career action-item and lifecycle store path.")
     parser.add_argument("--calendar-store", default="~/.career-agent/calendar.sqlite3", help="Local Calendar account, approval proposal, event-link, and audit store path.")
     parser.add_argument(
+        "--mock-interview-store",
+        default="~/.career-agent/mock-interviews.sqlite3",
+        help="Local mock-interview session, turn, and report store path.",
+    )
+    parser.add_argument(
+        "--mock-interview-checkpoint-store",
+        default="~/.career-agent/mock-interview-checkpoints.sqlite3",
+        help="Local durable LangGraph checkpoint store for mock interviews.",
+    )
+    parser.add_argument(
         "--resume-tailoring-skills-dir",
         default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
         help="Local skill source directory containing resume-tailoring/SKILL.md (default: RESUME_TAILORING_SKILLS_DIR or skills).",
+    )
+    parser.add_argument(
+        "--mock-interview-skills-dir",
+        default=os.environ.get("MOCK_INTERVIEW_SKILLS_DIR", "skills"),
+        help="Local skill source directory containing mock-interview/SKILL.md (default: MOCK_INTERVIEW_SKILLS_DIR or skills).",
     )
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     parser.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
@@ -780,6 +825,7 @@ def main(
             return EXIT_ARGUMENT_ERROR
     machine_output = args.json or not stdout.isatty()
     if args.command == "chat":
+        runtime = None
         try:
             runtime = runtime_factory(args) if runtime_factory else build_main_agent_runtime(args)
             turn = runtime.run_turn(user_id=args.user_id, conversation_id=args.session_id, user_message=args.message)
@@ -792,6 +838,10 @@ def main(
             return _write_chat_error(error, stdout, code=EXIT_ARGUMENT_ERROR, next_action="Check the command help and session parameters.")
         except Exception as error:
             return _write_chat_error(error, stdout, code=EXIT_UNKNOWN_ERROR)
+        finally:
+            close = getattr(runtime, "close", None)
+            if close is not None:
+                close()
     try:
         gateway = gateway_factory(args) if gateway_factory else (build_analysis_gateway(args) if args.command == "analyze-jd" else build_gateway(args))
         if args.command == "discover":
