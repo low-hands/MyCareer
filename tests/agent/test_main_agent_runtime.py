@@ -77,11 +77,13 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
     assert set(agent._graph.get_graph().nodes) == {
         "__start__",
         "hydrate_career_context",
+        "resume_active_workflow",
         "decide",
         "invoke_atomic_tool",
         "run_workflow",
         "observe",
         "finish",
+        "present_workflow",
         "fallback",
         "__end__",
     }

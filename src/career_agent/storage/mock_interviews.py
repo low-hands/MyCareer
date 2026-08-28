@@ -38,9 +38,9 @@ class SQLiteMockInterviewStore:
             apply_schema(
                 connection,
                 "mock_interviews",
-                2,
+                3,
                 self._migrate,
-                {2: self._upgrade_v2},
+                {2: self._upgrade_v2, 3: self._upgrade_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -56,6 +56,7 @@ class SQLiteMockInterviewStore:
         interview_round_id: str | None = None,
         max_primary_questions: int = 6,
         max_follow_ups_per_question: int = 2,
+        graph_version: int = 1,
     ) -> MockInterviewSession:
         now = datetime.now(timezone.utc)
         session = MockInterviewSession(
@@ -67,6 +68,7 @@ class SQLiteMockInterviewStore:
             jd_snapshot_id=jd_snapshot_id,
             resume_version_id=resume_version_id,
             interview_type=interview_type,
+            graph_version=graph_version,
             status="created",
             max_primary_questions=max_primary_questions,
             max_follow_ups_per_question=max_follow_ups_per_question,
@@ -80,11 +82,11 @@ class SQLiteMockInterviewStore:
                 """
                 INSERT INTO mock_interview_sessions(
                     id, user_id, application_id, interview_round_id, job_posting_id,
-                    jd_snapshot_id, resume_version_id, interview_type, status,
+                    jd_snapshot_id, resume_version_id, interview_type, graph_version, status,
                     max_primary_questions, max_follow_ups_per_question,
                     current_plan_item, current_turn_id,
                     created_at, started_at, paused_at, completed_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._session_values(session),
             )
@@ -514,7 +516,7 @@ class SQLiteMockInterviewStore:
 
     _SESSION_SELECT = (
         "SELECT id, user_id, application_id, interview_round_id, job_posting_id, "
-        "jd_snapshot_id, resume_version_id, interview_type, status, "
+        "jd_snapshot_id, resume_version_id, interview_type, graph_version, status, "
         "max_primary_questions, max_follow_ups_per_question, current_plan_item, "
         "current_turn_id, created_at, started_at, paused_at, completed_at, updated_at "
         "FROM mock_interview_sessions"
@@ -641,6 +643,7 @@ class SQLiteMockInterviewStore:
                 jd_snapshot_id TEXT NOT NULL,
                 resume_version_id TEXT NOT NULL,
                 interview_type TEXT NOT NULL,
+                graph_version INTEGER NOT NULL DEFAULT 1,
                 status TEXT NOT NULL,
                 max_primary_questions INTEGER NOT NULL,
                 max_follow_ups_per_question INTEGER NOT NULL,
@@ -726,6 +729,20 @@ class SQLiteMockInterviewStore:
         # physical rewrite; the explicit step prevents a silent semantic bump.
         return None
 
+    @staticmethod
+    def _upgrade_v3(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(mock_interview_sessions)"
+            ).fetchall()
+        }
+        if "graph_version" not in columns:
+            connection.execute(
+                "ALTER TABLE mock_interview_sessions "
+                "ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 1"
+            )
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")
@@ -737,7 +754,8 @@ class SQLiteMockInterviewStore:
             session.id, session.user_id, session.application_id,
             session.interview_round_id, session.job_posting_id,
             session.jd_snapshot_id, session.resume_version_id,
-            session.interview_type, session.status, session.max_primary_questions,
+            session.interview_type, session.graph_version, session.status,
+            session.max_primary_questions,
             session.max_follow_ups_per_question, session.current_plan_item,
             session.current_turn_id, session.created_at.isoformat(),
             cls._iso(session.started_at), cls._iso(session.paused_at),
@@ -762,11 +780,11 @@ class SQLiteMockInterviewStore:
         return MockInterviewSession(
             id=row[0], user_id=row[1], application_id=row[2],
             interview_round_id=row[3], job_posting_id=row[4], jd_snapshot_id=row[5],
-            resume_version_id=row[6], interview_type=row[7], status=row[8],
-            max_primary_questions=row[9], max_follow_ups_per_question=row[10],
-            current_plan_item=row[11], current_turn_id=row[12], created_at=row[13],
-            started_at=row[14], paused_at=row[15], completed_at=row[16],
-            updated_at=row[17],
+            resume_version_id=row[6], interview_type=row[7], graph_version=row[8],
+            status=row[9], max_primary_questions=row[10],
+            max_follow_ups_per_question=row[11], current_plan_item=row[12],
+            current_turn_id=row[13], created_at=row[14], started_at=row[15],
+            paused_at=row[16], completed_at=row[17], updated_at=row[18],
         )
 
     @staticmethod

@@ -145,10 +145,14 @@ class Runtime:
     def __init__(self, turn):
         self.turn = turn
         self.calls = []
+        self.closed = False
 
     def run_turn(self, *, user_id, conversation_id, user_message):
         self.calls.append((user_id, conversation_id, user_message))
         return self.turn
+
+    def close(self):
+        self.closed = True
 
 
 def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
@@ -172,6 +176,7 @@ def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
     payload = json.loads(output.getvalue())
     assert code == 0
     assert runtime.calls == [("u1", "s1", "Find work")]
+    assert runtime.closed is True
     assert payload["assistant_message"] == "Select a result."
     assert payload["decision"] == {"action": "tool_call", "tool_name": "job_discovery"}
     assert payload["tool_result"]["state"] == "selection_required"
