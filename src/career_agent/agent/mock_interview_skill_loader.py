@@ -12,7 +12,14 @@ from career_agent.domain.mock_interviews import (
 
 
 MockInterviewOperation = Literal["plan", "ask", "evaluate", "report"]
-MockInterviewReferenceName = Literal["technical", "behavioral", "hr"]
+MockInterviewReferenceName = Literal[
+    "planning",
+    "company",
+    "technical",
+    "behavioral",
+    "hr",
+    "reporting",
+]
 
 
 @dataclass(frozen=True)
@@ -44,7 +51,7 @@ class MockInterviewSkillLoader:
     bundle is intended for a worker's system instructions, not Main Agent state.
     """
 
-    _REFERENCE_ORDER: tuple[MockInterviewReferenceName, ...] = (
+    _CONTENT_REFERENCE_ORDER: tuple[MockInterviewReferenceName, ...] = (
         "technical",
         "behavioral",
         "hr",
@@ -69,7 +76,7 @@ class MockInterviewSkillLoader:
         "role_specific": ("technical", "behavioral"),
         "behavioral": ("behavioral",),
         "hr": ("hr",),
-        "mixed": _REFERENCE_ORDER,
+        "mixed": _CONTENT_REFERENCE_ORDER,
     }
     _MAX_FILE_BYTES = 128_000
 
@@ -126,21 +133,31 @@ class MockInterviewSkillLoader:
         if operation == "plan":
             if interview_type is None:
                 raise ValueError("plan skill loading requires interview_type")
-            return self._INTERVIEW_REFERENCES[interview_type]
+            return (
+                "planning",
+                "company",
+                *self._INTERVIEW_REFERENCES[interview_type],
+            )
         if operation in {"ask", "evaluate"}:
             if question_type is None:
                 raise ValueError(
                     f"{operation} skill loading requires question_type"
                 )
-            return self._QUESTION_REFERENCES[question_type]
+            references = self._QUESTION_REFERENCES[question_type]
+            return ("company", *references) if operation == "ask" else references
         if operation == "report":
             selected = {
                 reference
                 for item_type in report_question_types
                 for reference in self._QUESTION_REFERENCES[item_type]
             }
-            return tuple(
-                name for name in self._REFERENCE_ORDER if name in selected
+            return (
+                "reporting",
+                *(
+                    name
+                    for name in self._CONTENT_REFERENCE_ORDER
+                    if name in selected
+                ),
             )
         raise ValueError(f"Unsupported mock interview operation: {operation}")
 
@@ -166,4 +183,3 @@ class MockInterviewSkillLoader:
         if not content.strip():
             raise ValueError(f"Mock interview skill file is empty: {resolved.name}")
         return content.strip()
-

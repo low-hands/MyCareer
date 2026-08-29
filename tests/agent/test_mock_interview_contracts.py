@@ -89,7 +89,7 @@ def test_project_skill_loader_routes_only_relevant_references() -> None:
     assert tuple(
         reference.name
         for reference in loader.load("plan", interview_type="mixed").references
-    ) == ("technical", "behavioral", "hr")
+    ) == ("planning", "company", "technical", "behavioral", "hr")
     assert tuple(
         reference.name
         for reference in loader.load(
@@ -101,14 +101,14 @@ def test_project_skill_loader_routes_only_relevant_references() -> None:
         for reference in loader.load(
             "ask", question_type="project_deep_dive"
         ).references
-    ) == ("technical", "behavioral")
+    ) == ("company", "technical", "behavioral")
     assert tuple(
         reference.name
         for reference in loader.load(
             "report",
             report_question_types=("motivation", "system_design", "motivation"),
         ).references
-    ) == ("technical", "hr")
+    ) == ("reporting", "technical", "hr")
 
 
 def test_skill_bundle_contains_base_rules_and_selected_guidance() -> None:
@@ -121,6 +121,24 @@ def test_skill_bundle_contains_base_rules_and_selected_guidance() -> None:
     assert "# Loaded reference: behavioral" in rendered
     assert "STAR/BEI" in rendered
     assert "Technical and role-specific guidance" not in rendered
+
+
+def test_skill_bundle_loads_operation_specific_methodology() -> None:
+    loader = MockInterviewSkillLoader(Path("skills"))
+
+    plan = loader.load("plan", interview_type="technical").render()
+    report = loader.load(
+        "report", report_question_types=("behavioral",)
+    ).render()
+
+    assert "# Loaded reference: planning" in plan
+    assert "Build a coverage map first" in plan
+    assert "# Loaded reference: company" in plan
+    assert "# Loaded reference: reporting" not in plan
+    assert "# Loaded reference: reporting" in report
+    assert "Distinguish four kinds of conclusion" in report
+    assert "# Loaded reference: planning" not in report
+    assert "# Loaded reference: company" not in report
 
 
 def test_skill_loader_requires_operation_routing_context() -> None:
@@ -144,4 +162,4 @@ def test_skill_loader_rejects_a_reference_symlink_outside_the_skill(tmp_path: Pa
 
     loader = MockInterviewSkillLoader(tmp_path)
     with pytest.raises(ValueError, match="escapes its root"):
-        loader.load("ask", question_type="system_design")
+        loader.load("evaluate", question_type="system_design")

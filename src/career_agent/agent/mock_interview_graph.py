@@ -34,6 +34,8 @@ from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 class MockInterviewSources:
     document: StoredResumeDocument
     jd_text: str
+    company_name: str
+    role_title: str
     confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
 
 
@@ -80,6 +82,12 @@ class StoredMockInterviewSourceProvider:
         )
         if snapshot is None or snapshot.job_posting_id != session.job_posting_id:
             raise ValueError("Mock interview JD snapshot no longer exists")
+        job = self._jobs.get_job(
+            user_id=session.user_id,
+            job_posting_id=session.job_posting_id,
+        )
+        if job is None:
+            raise ValueError("Mock interview job posting no longer exists")
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
         if self._career_history is not None:
             confirmed_facts = tuple(
@@ -98,6 +106,8 @@ class StoredMockInterviewSourceProvider:
         return MockInterviewSources(
             document=document,
             jd_text=snapshot.content,
+            company_name=job.posting.company_name,
+            role_title=job.posting.title,
             confirmed_facts=confirmed_facts,
         )
 
@@ -330,6 +340,8 @@ class MockInterviewGraph:
                 session=session,
                 document=sources.document,
                 jd_text=sources.jd_text,
+                company_name=sources.company_name,
+                role_title=sources.role_title,
                 confirmed_facts=sources.confirmed_facts,
             )
             plan = MockInterviewPlan(
@@ -377,6 +389,8 @@ class MockInterviewGraph:
                 prior_turns=turns,
                 document=sources.document,
                 jd_text=sources.jd_text,
+                company_name=sources.company_name,
+                role_title=sources.role_title,
                 confirmed_facts=sources.confirmed_facts,
             )
             question = draft.question

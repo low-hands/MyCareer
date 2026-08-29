@@ -114,6 +114,8 @@ class OpenAIMockInterviewWorker:
         session: MockInterviewSession,
         document: StoredResumeDocument,
         jd_text: str,
+        company_name: str = "",
+        role_title: str = "",
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
     ) -> MockInterviewPlanDraft:
         bundle = self._skill_loader.load(
@@ -128,6 +130,8 @@ class OpenAIMockInterviewWorker:
             payload={
                 "operation": "plan",
                 "interview_type": session.interview_type,
+                "target_company": company_name,
+                "target_role": role_title,
                 "max_primary_questions": session.max_primary_questions,
                 "max_follow_ups_per_question": session.max_follow_ups_per_question,
                 "confirmed_resume_facts": self._models(confirmed_facts),
@@ -185,6 +189,8 @@ class OpenAIMockInterviewWorker:
         prior_turns: tuple[MockInterviewTurn, ...] = (),
         document: StoredResumeDocument,
         jd_text: str,
+        company_name: str = "",
+        role_title: str = "",
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
     ) -> MockInterviewQuestionDraft:
         bundle = self._skill_loader.load(
@@ -199,6 +205,8 @@ class OpenAIMockInterviewWorker:
             payload={
                 "operation": "ask",
                 "interview_type": session.interview_type,
+                "target_company": company_name,
+                "target_role": role_title,
                 "plan_summary": plan.summary,
                 # Do not expose future plan items to the question operation.
                 "current_plan_item": plan_item.model_dump(mode="json"),

@@ -53,6 +53,8 @@ class FixedSources:
                 raw_bytes="# 简历\n负责检索系统。".encode(),
             ),
             jd_text="招 RAG 工程师。",
+            company_name="示例科技",
+            role_title="RAG 工程师",
             confirmed_facts=(),
         )
 
@@ -63,7 +65,16 @@ class OneQuestionWorker:
     def route_input(self, **kwargs):
         return MockInterviewInputDecision(action="answer")
 
-    def plan(self, *, session, document, jd_text, confirmed_facts=()):
+    def plan(
+        self,
+        *,
+        session,
+        document,
+        jd_text,
+        company_name="",
+        role_title="",
+        confirmed_facts=(),
+    ):
         return MockInterviewPlanDraft(
             summary="一题",
             items=(
@@ -89,6 +100,8 @@ class OneQuestionWorker:
         prior_turns=(),
         document,
         jd_text,
+        company_name="",
+        role_title="",
         confirmed_facts=(),
     ):
         return MockInterviewQuestionDraft(question="介绍一个你负责的检索改进。")
@@ -102,6 +115,8 @@ class OneQuestionWorker:
         prior_turns=(),
         document,
         jd_text,
+        company_name="",
+        role_title="",
         confirmed_facts=(),
     ):
         return evaluation("adequate")
@@ -115,6 +130,8 @@ class OneQuestionWorker:
         completion_reason,
         document,
         jd_text,
+        company_name="",
+        role_title="",
         confirmed_facts=(),
     ):
         return MockInterviewReportDraft(

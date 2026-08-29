@@ -170,6 +170,8 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
         session=_session(),
         document=_document(),
         jd_text="Build reliable systems.",
+        company_name="Example Corp",
+        role_title="Platform Engineer",
     )
 
     assert len(result.items) == 2
@@ -180,9 +182,12 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     assert "# Loaded reference: technical" in instructions
     assert "# Loaded reference: behavioral" in instructions
     assert "# Loaded reference: hr" in instructions
+    assert "# Loaded reference: company" in instructions
     content = call["input"][0]["content"][0]["text"]  # type: ignore[index]
     assert "<resume_document>" in content
     assert "Build reliable systems" in content
+    assert '"target_company": "Example Corp"' in content
+    assert '"target_role": "Platform Engineer"' in content
     assert "session-secret" not in content
     assert "user-secret" not in content
 
@@ -237,6 +242,7 @@ def test_ask_receives_only_the_current_plan_item_not_future_questions() -> None:
     assert "Failure recovery" not in content
     assert "# Loaded reference: technical" in call["instructions"]
     assert "# Loaded reference: behavioral" in call["instructions"]
+    assert "# Loaded reference: company" in call["instructions"]
     assert "# Loaded reference: hr" not in call["instructions"]
 
 

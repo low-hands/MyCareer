@@ -43,6 +43,8 @@ class Sources:
                 raw_bytes=b"Built retrieval systems.",
             ),
             jd_text="Design reliable retrieval and explain technical trade-offs.",
+            company_name="Example Corp",
+            role_title="Retrieval Engineer",
         )
 
 
@@ -69,11 +71,14 @@ class Worker:
         self.evaluate_calls = 0
         self.report_calls = 0
         self.input_action = "answer"
+        self.plan_company: tuple[str, str] | None = None
+        self.ask_companies: list[tuple[str, str]] = []
 
     def route_input(self, **kwargs):
         return MockInterviewInputDecision(action=self.input_action)
 
     def plan(self, **kwargs):
+        self.plan_company = (kwargs["company_name"], kwargs["role_title"])
         return MockInterviewPlanDraft(
             summary="Test project depth then system reasoning.",
             items=(
@@ -99,6 +104,9 @@ class Worker:
 
     def ask(self, *, plan_item, **kwargs):
         self.ask_calls += 1
+        self.ask_companies.append(
+            (kwargs["company_name"], kwargs["role_title"])
+        )
         return MockInterviewQuestionDraft(
             question=(
                 "What did you personally own in the retrieval system?"
@@ -212,6 +220,11 @@ def test_graph_runs_primary_follow_up_next_question_and_report(tmp_path: Path) -
     assert worker.ask_calls == 2
     assert worker.evaluate_calls == 3
     assert worker.report_calls == 1
+    assert worker.plan_company == ("Example Corp", "Retrieval Engineer")
+    assert worker.ask_companies == [
+        ("Example Corp", "Retrieval Engineer"),
+        ("Example Corp", "Retrieval Engineer"),
+    ]
     assert len(sources.calls) >= 4
 
     session = store.get_session(user_id="u1", session_id=first.session_id)
