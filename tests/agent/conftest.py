@@ -10,6 +10,7 @@ by path and stays importable.
 from __future__ import annotations
 
 from career_agent.agent.mock_interview_contracts import (
+    MockInterviewInputDecision,
     MockInterviewPlanDraft,
     MockInterviewQuestionDraft,
     MockInterviewReportDraft,
@@ -58,6 +59,9 @@ class FixedSources:
 
 class OneQuestionWorker:
     """One question, one evaluation, one report: enough to reach completion."""
+
+    def route_input(self, **kwargs):
+        return MockInterviewInputDecision(action="answer")
 
     def plan(self, *, session, document, jd_text, confirmed_facts=()):
         return MockInterviewPlanDraft(

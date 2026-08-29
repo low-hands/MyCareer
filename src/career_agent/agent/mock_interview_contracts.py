@@ -59,6 +59,12 @@ class MockInterviewGraphResult(MockInterviewWorkerContract):
     report: MockInterviewReport | None = None
 
 
+class MockInterviewInputDecision(MockInterviewWorkerContract):
+    """A local routing decision made before an answer can be persisted."""
+
+    action: Literal["answer", "cancel"]
+
+
 class MockInterviewPlanDraft(MockInterviewWorkerContract):
     """Model-authored plan content before the workflow adds identity and time."""
 
@@ -113,6 +119,16 @@ class MockInterviewPlanningWorker(Protocol):
     ) -> MockInterviewPlanDraft: ...
 
 
+class MockInterviewInputRoutingWorker(Protocol):
+    def route_input(
+        self,
+        *,
+        session: MockInterviewSession,
+        turn: MockInterviewTurn,
+        user_message: str,
+    ) -> MockInterviewInputDecision: ...
+
+
 class MockInterviewQuestionWorker(Protocol):
     def ask(
         self,
@@ -157,6 +173,7 @@ class MockInterviewReportingWorker(Protocol):
 
 class MockInterviewWorker(
     MockInterviewPlanningWorker,
+    MockInterviewInputRoutingWorker,
     MockInterviewQuestionWorker,
     MockInterviewEvaluationWorker,
     MockInterviewReportingWorker,

@@ -245,10 +245,10 @@ class MainAgentRuntime:
                 session_id=session_id,
             )
         else:
-            result = self._tools.resume_mock_interview(
+            result = self._tools.handle_mock_interview_input(
                 user_id=context.profile.user_id,
                 session_id=session_id,
-                answer=user_message,
+                message=user_message,
             )
         updated = self._update_mock_interview_task(context, result)
         updated = updated.model_copy(
