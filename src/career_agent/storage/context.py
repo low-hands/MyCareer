@@ -84,6 +84,22 @@ class CareerContextStore:
             row = connection.execute("SELECT payload FROM conversation_task_state WHERE user_id = ? AND conversation_id = ?", (user_id, conversation_id)).fetchone()
         return ConversationTaskState.model_validate_json(row[0]) if row else None
 
+    def upsert_task(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        task: ConversationTaskState,
+    ) -> None:
+        """Persist routing ownership without writing conversation messages."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO conversation_task_state(user_id, conversation_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, conversation_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at",
+                (user_id, conversation_id, task.model_dump_json(), now),
+            )
+        os.chmod(self.path, 0o600)
+
     def list_messages(self, user_id: str, conversation_id: str, *, limit: int, after_sequence: int = 0) -> tuple[ConversationMessageContext, ...]:
         with self._connect() as connection:
             rows = connection.execute(
@@ -188,7 +204,72 @@ class CareerContextStore:
                     now,
                 ),
             )
+            # Covered rows are kept. Read paths already skip them, so they cost
+            # file size and nothing else, and a summary is a model output: if it
+            # drops or distorts something, the original is the only way to tell.
+            # Reclaiming the space is a separate, explicit request.
         return True
+
+    def count_compacted_messages(
+        self, *, user_id: str, conversation_id: str | None = None
+    ) -> tuple[int, int]:
+        """How many covered rows are still stored, and how many bytes they hold.
+
+        Covered means a summary already claims the row, so deleting it changes
+        nothing the agent reads. This is what a prune would remove, which is why
+        the warning and the command count the same thing.
+        """
+        clause = "AND m.conversation_id = ?" if conversation_id else ""
+        parameters: tuple[str, ...] = (
+            (user_id, conversation_id) if conversation_id else (user_id,)
+        )
+        with self._connect() as connection:
+            row = connection.execute(
+                f"""
+                SELECT COUNT(*), COALESCE(SUM(LENGTH(m.payload)), 0)
+                FROM conversation_messages AS m
+                JOIN conversation_summaries AS s
+                  ON s.user_id = m.user_id
+                 AND s.conversation_id = m.conversation_id
+                WHERE m.user_id = ? {clause} AND m.sequence <= s.through_sequence
+                """,
+                parameters,
+            ).fetchone()
+        return int(row[0]), int(row[1])
+
+    def prune_compacted_messages(
+        self, *, user_id: str, conversation_id: str | None = None
+    ) -> int:
+        """Delete only rows a stored summary already covers.
+
+        The bound is read inside the same transaction as the delete. Passing a
+        sequence in from the caller would let a turn committed in between be
+        deleted while no summary had claimed it yet.
+        """
+        clause = "AND m.conversation_id = ?" if conversation_id else ""
+        parameters: tuple[str, ...] = (
+            (user_id, conversation_id) if conversation_id else (user_id,)
+        )
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                f"""
+                DELETE FROM conversation_messages
+                WHERE rowid IN (
+                    SELECT m.rowid
+                    FROM conversation_messages AS m
+                    JOIN conversation_summaries AS s
+                      ON s.user_id = m.user_id
+                     AND s.conversation_id = m.conversation_id
+                    WHERE m.user_id = ? {clause}
+                      AND m.sequence <= s.through_sequence
+                )
+                """,
+                parameters,
+            )
+            deleted = cursor.rowcount
+        os.chmod(self.path, 0o600)
+        return int(deleted)
 
     def commit_turn(
         self,
@@ -200,6 +281,7 @@ class CareerContextStore:
         assistant_message: ConversationMessageContext,
         message_limit: int | None,
     ) -> None:
+        messages = (user_message, assistant_message)
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -217,9 +299,17 @@ class CareerContextStore:
             ).fetchone()
             latest_summary_sequence = summary_sequence_row[0] if summary_sequence_row else 0
             next_sequence = max(latest_message_sequence, latest_summary_sequence) + 1
-            connection.execute(
-                "INSERT INTO conversation_messages(user_id, conversation_id, sequence, payload) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
-                (user_id, conversation_id, next_sequence, user_message.model_dump_json(), user_id, conversation_id, next_sequence + 1, assistant_message.model_dump_json()),
+            connection.executemany(
+                "INSERT INTO conversation_messages(user_id, conversation_id, sequence, payload) VALUES (?, ?, ?, ?)",
+                [
+                    (
+                        user_id,
+                        conversation_id,
+                        next_sequence + offset,
+                        message.model_dump_json(),
+                    )
+                    for offset, message in enumerate(messages)
+                ],
             )
             if message_limit is not None:
                 connection.execute(

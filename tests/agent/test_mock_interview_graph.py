@@ -16,6 +16,7 @@ from career_agent.agent.mock_interview_graph import (
     MockInterviewGraphVersionError,
     MockInterviewSources,
 )
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlanItem,
@@ -368,6 +369,40 @@ def test_resume_distinguishes_missing_checkpoint_from_business_state(
     assert turn.answer is None
 
 
+@pytest.mark.parametrize("finish", ["complete", "cancel"])
+def test_resume_reports_a_finished_run_rather_than_a_lost_checkpoint(
+    tmp_path: Path, finish
+) -> None:
+    """A finished run deletes its checkpoint, so its absence is not a fault.
+
+    The conversation releases the workflow slot in a separate write from the
+    one that stores the report. A crash in between leaves an answer arriving
+    for a run that already finished, and calling that a lost checkpoint would
+    bury a completed interview behind a failure message.
+    """
+    graph, store, _, _ = _graph(tmp_path)
+    started = graph.start(_request(max_follow_ups_per_question=0))
+    if finish == "complete":
+        while graph.resume(
+            user_id="u1", session_id=started.session_id, answer="An answer."
+        ).state == "awaiting_answer":
+            pass
+    else:
+        graph.cancel(user_id="u1", session_id=started.session_id)
+    assert store.get_session(user_id="u1", session_id=started.session_id).status == (
+        "completed" if finish == "complete" else "cancelled"
+    )
+
+    # The same answer arriving again, as it would after that crash.
+    replayed = graph.resume(
+        user_id="u1", session_id=started.session_id, answer="An answer."
+    )
+
+    assert replayed.state == ("completed" if finish == "complete" else "cancelled")
+    if finish == "complete":
+        assert replayed.report_id is not None
+
+
 def test_resume_rejects_an_incompatible_graph_version(tmp_path: Path) -> None:
     graph, store, _, _ = _graph(tmp_path)
     started = graph.start(_request())
@@ -420,4 +455,53 @@ def test_cancel_deletes_checkpoint_threads_without_accumulating_orphans(
     # A repeated cancellation also acts as orphan-repair and remains stable.
     repeated = graph.cancel(user_id="u1", session_id=session_ids[-1])
     assert repeated.state == "cancelled"
+    owner.close()
+
+
+def test_retry_recovers_without_the_candidate_retyping_the_answer(
+    tmp_path: Path,
+) -> None:
+    """A step failing after the answer is durable must not depend on recall.
+
+    The turn rejects a different answer for the same question, so a candidate
+    who rewords even slightly could otherwise never leave the failed phase.
+    """
+
+    class FailOnce(Worker):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fail = True
+
+        def evaluate(self, **kwargs):
+            if self.fail:
+                self.fail = False
+                raise AgentWorkerError(
+                    "worker_unavailable", "evaluate failed", retryable=True
+                )
+            return super().evaluate(**kwargs)
+
+    store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
+    owner = SQLiteCheckpointOwner(tmp_path / "checkpoints.sqlite3")
+    worker = FailOnce()
+    graph = MockInterviewGraph(
+        store=store, worker=worker, sources=Sources(), checkpointer=owner.saver
+    )
+    started = graph.start(_request(max_follow_ups_per_question=0))
+    answer = "我主导了离线评测设计"
+    with pytest.raises(AgentWorkerError):
+        graph.resume(user_id="u1", session_id=started.session_id, answer=answer)
+
+    session = store.get_session(user_id="u1", session_id=started.session_id)
+    turn = store.get_turn(user_id="u1", turn_id=session.current_turn_id)
+    assert turn.status == "answered"
+    assert turn.answer == answer
+    # The precondition that makes retry necessary rather than merely convenient.
+    with pytest.raises(ValueError, match="already has a different answer"):
+        graph.resume(
+            user_id="u1", session_id=started.session_id, answer="换个说法的答案"
+        )
+
+    recovered = graph.retry(user_id="u1", session_id=started.session_id)
+    assert recovered.state == "awaiting_answer"
+    assert worker.evaluate_calls == 1
     owner.close()

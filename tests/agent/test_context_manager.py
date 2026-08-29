@@ -12,6 +12,7 @@ def manager(
     summary_worker=None,
     summary_batch_size: int = 2,
     max_recent_context_chars: int = 16000,
+    compacted_message_warning_threshold: int = 200,
 ) -> ContextManager:
     return ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
@@ -20,6 +21,7 @@ def manager(
         summary_batch_size=summary_batch_size,
         max_message_chars=32,
         max_recent_context_chars=max_recent_context_chars,
+        compacted_message_warning_threshold=compacted_message_warning_threshold,
     )
 
 
@@ -30,6 +32,10 @@ class RecordingSummaryWorker:
     def summarize(self, *, previous, messages):
         self.calls.append((previous, messages))
         decisions = previous.confirmed_decisions if previous else ()
+        # Keep the newest few. A real worker consolidates rather than appends,
+        # and the contract caps this tuple, so an ever-growing double would fail
+        # on its own accumulation instead of on the behaviour under test.
+        decisions = decisions[-4:]
         return ConversationSummaryContent(
             user_goals=("Maintain conversation continuity",),
             confirmed_decisions=(*decisions, f"covered-through-{messages[-1].sequence}"),
@@ -52,6 +58,49 @@ def test_loads_profile_preferences_task_and_bounded_history(tmp_path) -> None:
     assert loaded.task.run_id == "run-1"
     assert [message.content for message in loaded.recent_messages] == ["First message", "First response"]
     assert loaded.user_message == "Second message"
+
+
+def test_workflow_turn_updates_routing_without_loading_or_writing_main_memory(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=2, summary_worker=worker)
+    initial = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="Main Agent message"
+    )
+    context_manager.commit_turn(
+        context=initial,
+        task=ConversationTaskState(),
+        assistant_message="Main Agent response",
+    )
+    task = ConversationTaskState(
+        active_workflow="mock_interview",
+        run_id="mock-session-1",
+        phase="mock_interview_answer_required",
+    )
+
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=task,
+    )
+    context_manager.commit_workflow_turn(
+        context=workflow_context,
+        task=task.model_copy(update={"phase": "mock_interview_running"}),
+    )
+
+    assert workflow_context.recent_messages == ()
+    assert workflow_context.conversation_summary is None
+    assert "Private interview answer" not in workflow_context.user_message
+    assert worker.calls == []
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="Back to main"
+    )
+    assert [message.content for message in loaded.recent_messages] == [
+        "Main Agent message",
+        "Main Agent response",
+    ]
+    assert loaded.task.phase == "mock_interview_running"
 
 
 def test_context_isolated_by_user_and_conversation(tmp_path) -> None:
@@ -128,14 +177,70 @@ def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
         "assistant-2",
     ]
     assert [message.sequence for message in worker.calls[0][1]] == [1, 2]
-    assert len(
-        context_manager._store.list_messages_after(
-            user_id="u1",
-            conversation_id="c1",
-            after_sequence=0,
-            limit=10,
+    # Summarised rows are skipped, not deleted. A summary is a model output, so
+    # while it is the only thing read, it must not be the only thing kept: if it
+    # loses or distorts a turn, the original is the only way to find out.
+    remaining = context_manager._store.list_messages_after(
+        user_id="u1",
+        conversation_id="c1",
+        after_sequence=0,
+        limit=10,
+    )
+    assert [message.sequence for message in remaining] == [1, 2, 3, 4, 5, 6]
+
+
+def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -> None:
+    """What the model reads is bounded; what the file stores is not.
+
+    These are separate properties now. Bounding the file too would mean deleting
+    originals on the agent's own schedule, which is what the operator has to be
+    able to decide instead.
+    """
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    window_sizes = []
+    for index in range(40):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
         )
-    ) == 6
+        window_sizes.append(len(context.recent_messages))
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    assert max(window_sizes) <= 6
+    stored = context_manager._store.list_messages_after(
+        user_id="u1", conversation_id="c1", after_sequence=0, limit=1000
+    )
+    assert len(stored) == 80
+    # Everything past the read window is reclaimable, and nothing inside it is.
+    reclaimable, byte_size = context_manager._store.count_compacted_messages(
+        user_id="u1", conversation_id="c1"
+    )
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert reclaimable == summary.through_sequence
+    assert len(stored) - reclaimable <= 6
+    assert byte_size > 0
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.through_sequence >= 70
+    # The recent window is still served from raw rows, not from the summary.
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    )
+    assert [message.content for message in loaded.recent_messages] == [
+        "user-38",
+        "assistant-38",
+        "user-39",
+        "assistant-39",
+    ]
 
 
 def test_rolling_summary_merges_previous_summary_and_is_session_scoped(tmp_path) -> None:

@@ -8,10 +8,33 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
+from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.domain.resume import ResumeArtifactDelivery
+
+# Bounds for the stored copy of a report. Chosen so the rendered message stays
+# well inside a single message's share of the recent-context budget even when
+# every field arrives at its contract maximum.
+_HISTORY_SUMMARY_CHARS = 600
+_HISTORY_ITEM_CHARS = 120
+_HISTORY_ITEMS_PER_SECTION = 5
+
+
+def _clip(text: str, limit: int) -> str:
+    """Cut to a length, marking the cut so a reader can tell it happened."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[: limit - 1] + "…"
+
+
+def _clip_items(items: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        _clip(item, _HISTORY_ITEM_CHARS)
+        for item in items[:_HISTORY_ITEMS_PER_SECTION]
+    )
 
 
 class MainAgentState(TypedDict, total=False):
@@ -44,6 +67,9 @@ class MainAgentRuntime:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
+        # Exposed for the CLI's post-turn maintenance notice, which is an
+        # operator concern and deliberately never reaches the decision model.
+        self.context_manager = context_manager
         self._decision_maker = decision_maker
         self._tools = tools
         self._career_context_projector = career_context_projector
@@ -53,7 +79,6 @@ class MainAgentRuntime:
 
         graph = StateGraph(MainAgentState)
         graph.add_node("hydrate_career_context", self._hydrate_career_context)
-        graph.add_node("resume_active_workflow", self._resume_active_workflow)
         graph.add_node("decide", self._decide)
         graph.add_node("invoke_atomic_tool", self._invoke_atomic_tool)
         graph.add_node("run_workflow", self._run_workflow)
@@ -62,15 +87,7 @@ class MainAgentRuntime:
         graph.add_node("present_workflow", self._present_workflow)
         graph.add_node("fallback", self._fallback)
         graph.add_edge(START, "hydrate_career_context")
-        graph.add_conditional_edges(
-            "hydrate_career_context",
-            self._after_hydration,
-            {
-                "resume_active_workflow": "resume_active_workflow",
-                "decide": "decide",
-            },
-        )
-        graph.add_edge("resume_active_workflow", "observe")
+        graph.add_edge("hydrate_career_context", "decide")
         graph.add_conditional_edges(
             "decide",
             self._after_decision,
@@ -103,10 +120,84 @@ class MainAgentRuntime:
         self._closed = True
 
     def run_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentTurnResult:
-        context = self._context_manager.load_for_turn(user_id=user_id, conversation_id=conversation_id, user_message=user_message)
+        routing_task = self._context_manager.get_task(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+        if self._owns_next_turn(routing_task):
+            context = self._context_manager.load_for_workflow_turn(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                task=routing_task,
+            )
+            result = self._run_active_mock_interview(
+                context=context,
+                user_message=user_message,
+            )
+            # One decision point for every way a run can end, so no exit path
+            # can forget to leave a trace. The test is whether the workflow will
+            # still be driving the next turn, not whether it still holds the
+            # slot: a dead checkpoint keeps the slot to record why it died, yet
+            # hands the conversation back, and that turn needs a trace too.
+            if self._owns_next_turn(result.context.task):
+                self._context_manager.commit_workflow_turn(
+                    context=context,
+                    task=result.context.task,
+                )
+            else:
+                self._context_manager.commit_workflow_exit(
+                    context=context,
+                    task=result.context.task,
+                    # The candidate keeps the full report on screen; only the
+                    # stored copy is condensed, because only it has to fit
+                    # alongside the rest of the conversation next turn.
+                    assistant_message=self._history_message(
+                        result.tool_result,
+                        screen=result.assistant_message,
+                    ),
+                )
+            return result
+
+        context = self._context_manager.load_for_turn(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_message=user_message,
+        )
         result = self._run_loaded_context(context)
-        self._context_manager.commit_turn(context=context, task=result.context.task, assistant_message=result.assistant_message)
+        # This input belonged to Main Agent even when its result hands future
+        # turns to a workflow. Ownership is an ingress property, not something
+        # that can be inferred from the task state after execution. The reply,
+        # however, did come from the workflow: it is the run's first question,
+        # withheld on the same grounds as every question after it.
+        if self._owns_next_turn(result.context.task):
+            held = self._context_manager.commit_workflow_entry(
+                context=context,
+                task=result.context.task,
+            )
+            # Report the state that was stored, or the next turn would resume
+            # from a task whose held request the caller never saw.
+            result.context = result.context.model_copy(update={"task": held})
+        else:
+            self._context_manager.commit_turn(
+                context=context,
+                task=result.context.task,
+                assistant_message=result.assistant_message,
+            )
         return result
+
+    @staticmethod
+    def _owns_next_turn(task: ConversationTaskState) -> bool:
+        """Whether the mock interview will consume the next user message.
+
+        Holding the workflow slot is not enough. These two phases keep it only
+        to record why the run cannot continue; the run itself is unreachable, so
+        the next message has to reach the decision model or the conversation
+        would have no way out.
+        """
+        return task.active_workflow == "mock_interview" and task.phase not in {
+            "mock_interview_checkpoint_missing",
+            "mock_interview_graph_incompatible",
+        }
 
     def _run_loaded_context(self, context: MainAgentContext) -> MainAgentTurnResult:
         state = self._graph.invoke(
@@ -138,36 +229,47 @@ class MainAgentRuntime:
     def _decide(self, state: MainAgentState) -> MainAgentState:
         return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
 
-    @staticmethod
-    def _after_hydration(
-        state: MainAgentState,
-    ) -> Literal["resume_active_workflow", "decide"]:
-        task = state["context"].task
-        if task.active_workflow == "mock_interview" and task.phase not in {
-            "mock_interview_checkpoint_missing",
-            "mock_interview_graph_incompatible",
-        }:
-            return "resume_active_workflow"
-        return "decide"
-
-    def _resume_active_workflow(self, state: MainAgentState) -> MainAgentState:
-        context = state["context"]
+    def _run_active_mock_interview(
+        self, *, context: MainAgentContext, user_message: str
+    ) -> MainAgentTurnResult:
         session_id = context.task.run_id
         if session_id is None:
             raise ValueError("Active mock interview has no resumable session")
-        result = self._tools.resume_mock_interview(
-            user_id=context.profile.user_id,
-            session_id=session_id,
-            answer=context.user_message,
+        if context.task.phase == "failed":
+            # The answer for this turn is already durable; the step after it
+            # failed. Re-drive from the store rather than treating this message
+            # as a new answer, which the turn would reject as conflicting and
+            # leave the candidate unable to leave the failed phase at all.
+            result = self._tools.retry_mock_interview(
+                user_id=context.profile.user_id,
+                session_id=session_id,
+            )
+        else:
+            result = self._tools.resume_mock_interview(
+                user_id=context.profile.user_id,
+                session_id=session_id,
+                answer=user_message,
+            )
+        updated = self._update_mock_interview_task(context, result)
+        updated = updated.model_copy(
+            update={
+                "tool_observations": (
+                    *updated.tool_observations,
+                    self._tool_observation("start_mock_interview", result),
+                )[-3:]
+            }
         )
-        return {
-            "decision": AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(name="start_mock_interview", arguments={}),
-            ),
-            "pending_capability_name": "start_mock_interview",
-            "pending_tool_result": result,
-        }
+        decision = AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="start_mock_interview", arguments={}),
+        )
+        return MainAgentTurnResult(
+            decision=decision,
+            context=updated,
+            assistant_message=self._assistant_message(result),
+            tool_result=result,
+            tool_results=(result,),
+        )
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
         if self._career_context_projector is None:
@@ -231,6 +333,10 @@ class MainAgentRuntime:
             arguments = project_mock_interview_arguments(
                 context, decision.tool_call.arguments
             )
+        elif name == "restart_mock_interview":
+            arguments = project_restart_mock_interview_arguments(
+                context, decision.tool_call.arguments
+            )
         else:
             raise ValueError(f"Unknown main-agent workflow: {name}")
         result = self._tools.invoke_workflow(name, arguments)
@@ -242,7 +348,10 @@ class MainAgentRuntime:
         capability_name = state["pending_capability_name"]
         if isinstance(result, JobDiscoveryGatewayResult):
             updated = self._update_task(context, result)
-        elif isinstance(result, ToolObservation) and result.tool_name == "start_mock_interview":
+        elif isinstance(result, ToolObservation) and result.tool_name in {
+            "start_mock_interview",
+            "restart_mock_interview",
+        }:
             updated = self._update_mock_interview_task(context, result)
         else:
             updated = self._update_atomic_task(context, result)
@@ -267,7 +376,14 @@ class MainAgentRuntime:
     def _after_observe(
         state: MainAgentState,
     ) -> Literal["decide", "present_workflow"]:
-        if state.get("pending_capability_name") == "start_mock_interview":
+        # Both entries into a run end the turn on the question they just asked.
+        # A restart is a start with a retirement in front of it, so routing it
+        # back to the decision model would put the first question of the new run
+        # behind another tool call instead of in front of the candidate.
+        if state.get("pending_capability_name") in {
+            "start_mock_interview",
+            "restart_mock_interview",
+        }:
             return "present_workflow"
         return "decide"
 
@@ -314,6 +430,36 @@ class MainAgentRuntime:
             state=result.state,
             next_action=result.next_action,
         )
+
+    @staticmethod
+    def _history_message(result: MainAgentToolOutput, *, screen: str) -> str:
+        """Render the run's outcome small enough to survive as history.
+
+        The screen copy is unbounded, but the stored copy shares a budget with
+        every other message the next turn reads, so it is cut at a fixed length
+        on the way in. A full report can exceed that, and the sections lost are
+        the ones at the end: what to work on and what to practise. Rebuilding
+        the message from bounded parts keeps every section present instead of
+        keeping the first half of the first one.
+        """
+        if not isinstance(result, ToolObservation):
+            return screen
+        if result.state != "mock_interview_completed":
+            return screen
+        report = MockInterviewGraphResult.model_validate(result.payload).report
+        if report is None:
+            return screen
+        sections = (
+            ("总结", (_clip(report.summary, _HISTORY_SUMMARY_CHARS),)),
+            ("待提升", _clip_items(report.development_areas)),
+            ("练习建议", _clip_items(report.practice_actions)),
+        )
+        blocks = [
+            f"{title}\n" + "\n".join(f"- {line}" for line in lines)
+            for title, lines in sections
+            if lines
+        ]
+        return "\n\n".join(("模拟面试完成。", *blocks))
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
@@ -376,6 +522,8 @@ class MainAgentRuntime:
             return project_interview_arguments(context, name, arguments)
         if name in {"prepare_interview", "get_interview_preparation"}:
             return project_interview_preparation_arguments(context, name, arguments)
+        if name == "get_mock_interview_result":
+            return project_mock_interview_result_arguments(context, arguments)
         if name in {
             "get_daily_brief",
             "list_action_items",
@@ -454,6 +602,8 @@ class MainAgentRuntime:
         elif result.state in {
             "mock_interview_completed",
             "mock_interview_cancelled",
+            "mock_interview_restart_failed",
+            "no_mock_interview_to_restart",
         }:
             if task.active_workflow == "mock_interview":
                 task = task.leave_workflow()

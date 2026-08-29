@@ -125,6 +125,7 @@ class ConversationTaskState(ContractModel):
     selected_result_ref: str | None = None
     manual_search_query: str | None = None
     candidates: tuple[CandidateContextItem, ...] = ()
+    workflow_entry_message: str | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed"] | None = None
     active_resume_job_match_id: str | None = None
@@ -175,7 +176,9 @@ class ConversationTaskState(ContractModel):
         """Claim the workflow slot, replacing any previous occupant's scope.
 
         Every scoped field is written in one copy so a new workflow can never
-        inherit a stale phase or selection from the one it displaced.
+        inherit a stale phase or selection from the one it displaced. The held
+        request survives re-entry by the same workflow, which is how a run
+        advances its phase, but never crosses to a different one.
         """
         return self.model_copy(
             update={
@@ -185,11 +188,31 @@ class ConversationTaskState(ContractModel):
                 "selected_result_ref": selected_result_ref,
                 "manual_search_query": manual_search_query,
                 "candidates": self.candidates if candidates is None else candidates,
+                "workflow_entry_message": (
+                    self.workflow_entry_message
+                    if self.active_workflow == workflow
+                    else None
+                ),
             }
         )
 
+    def hold_entry_message(self, message: str) -> "ConversationTaskState":
+        """Keep the request a multi-turn workflow has not answered yet.
+
+        The workflow's own turns are not written to the conversation, so the
+        reply to this request only exists once the run ends. Holding it here
+        keeps the request and its reply in one write instead of leaving the
+        conversation mid-exchange for as long as the run lasts.
+        """
+        return self.model_copy(update={"workflow_entry_message": message})
+
     def leave_workflow(self) -> "ConversationTaskState":
-        """Release the slot and clear the scoped fields together."""
+        """Release the slot and clear the scoped fields together.
+
+        The held request is scoped to the occupant too. Whoever releases the
+        slot has already paired it with a closing reply, so carrying it forward
+        would let the next workflow answer this one's opening line.
+        """
         return self.model_copy(
             update={
                 "active_workflow": "none",
@@ -197,6 +220,7 @@ class ConversationTaskState(ContractModel):
                 "phase": None,
                 "selected_result_ref": None,
                 "manual_search_query": None,
+                "workflow_entry_message": None,
             }
         )
 
@@ -673,6 +697,28 @@ class StartMockInterviewToolArguments(ContractModel):
         ):
             raise ValueError("use either an application or interview selector")
         return self
+
+
+class RestartMockInterviewToolArguments(ContractModel):
+    """No arguments: the replacement copies the stuck run's own settings.
+
+    Letting the model restate the application or the question caps would let a
+    restart quietly practise against a different resume than the run it
+    replaces.
+    """
+
+
+class GetMockInterviewResultToolArguments(ContractModel):
+    """Selectors for reading back one finished mock interview.
+
+    Defaults to the latest finished run for the active application, which is
+    what "how did I do" means in practice. A question number narrows the read
+    to one exchange, because returning every answer in full would crowd out
+    the rest of the conversation.
+    """
+
+    application_selection_index: int | None = Field(default=None, ge=1)
+    question_number: int | None = Field(default=None, ge=1, le=20)
 
 
 class GetDailyBriefToolArguments(ContractModel):
@@ -1167,6 +1213,36 @@ def project_mock_interview_arguments(
         max_primary_questions=model_arguments.max_primary_questions,
         max_follow_ups_per_question=model_arguments.max_follow_ups_per_question,
     ).model_dump()
+
+
+def project_restart_mock_interview_arguments(
+    context: MainAgentContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    _reject_internal_identifiers("restart_mock_interview", arguments)
+    RestartMockInterviewToolArguments.model_validate(arguments)
+    # The stuck run is found by user, not named by the model: there is only one
+    # unfinished run per user, and naming it would mean exposing its id.
+    return {"user_id": context.profile.user_id}
+
+
+def project_mock_interview_result_arguments(
+    context: MainAgentContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    _reject_internal_identifiers("get_mock_interview_result", arguments)
+    model_arguments = GetMockInterviewResultToolArguments.model_validate(arguments)
+    application_id = context.task.active_application_id
+    if model_arguments.application_selection_index is not None:
+        index = model_arguments.application_selection_index
+        if index > len(context.task.application_candidates):
+            raise ValueError("application selection index is out of range")
+        application_id = context.task.application_candidates[index - 1].application_id
+    if application_id is None:
+        raise ValueError("get_mock_interview_result requires an active application")
+    return {
+        "user_id": context.profile.user_id,
+        "application_id": application_id,
+        "question_number": model_arguments.question_number,
+    }
 
 
 def project_action_center_arguments(

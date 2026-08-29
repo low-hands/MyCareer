@@ -28,6 +28,8 @@ from career_agent.agent.main_agent_contracts import (
     FinalizeResumeTailoringToolArguments,
     GetApplicationToolArguments,
     GetDailyBriefToolArguments,
+    GetMockInterviewResultToolArguments,
+    RestartMockInterviewToolArguments,
     GetInterviewToolArguments,
     GetResumeMetadataToolArguments,
     GetResumeAnalysisToolArguments,
@@ -111,6 +113,11 @@ from career_agent.services.resume_export import (
     ResumeExportNotFoundError,
     ResumeExportService,
 )
+from career_agent.domain.mock_interviews import (
+    MockInterviewReport,
+    MockInterviewSession,
+    MockInterviewTurn,
+)
 from career_agent.domain.resume import ResumeArtifactDelivery
 from career_agent.services.resume_tailoring import (
     ResumeFinalReviewBlockedError,
@@ -122,6 +129,7 @@ from career_agent.services.resume_tailoring import (
     ResumeTailoringSupersededError,
 )
 from career_agent.storage.jobs import JobPostingRepository
+from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 
@@ -148,6 +156,7 @@ class MainAgentToolRegistry:
         action_center_service: ActionCenterService | None = None,
         calendar_service: CalendarService | None = None,
         mock_interview_graph: MockInterviewGraph | None = None,
+        mock_interview_store: SQLiteMockInterviewStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -167,6 +176,7 @@ class MainAgentToolRegistry:
         self._action_center_service = action_center_service
         self._calendar_service = calendar_service
         self._mock_interview_graph = mock_interview_graph
+        self._mock_interview_store = mock_interview_store
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -250,6 +260,16 @@ class MainAgentToolRegistry:
         if mock_interview_graph is not None and application_service is not None:
             self._workflow_handlers["start_mock_interview"] = (
                 self._start_mock_interview
+            )
+        if mock_interview_store is not None:
+            self._atomic_handlers["get_mock_interview_result"] = (
+                self._get_mock_interview_result
+            )
+        if mock_interview_graph is not None and mock_interview_store is not None:
+            # A workflow, not an atomic tool: it starts a run that then owns
+            # subsequent turns, exactly as start_mock_interview does.
+            self._workflow_handlers["restart_mock_interview"] = (
+                self._restart_mock_interview
             )
         if action_center_service is not None:
             self._atomic_handlers.update(
@@ -607,6 +627,43 @@ class MainAgentToolRegistry:
                     },
                 }
             )
+        if self._mock_interview_graph is not None and self._mock_interview_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "restart_mock_interview",
+                        "description": (
+                            "Retire a mock interview that reported "
+                            "mock_interview_checkpoint_missing or "
+                            "mock_interview_graph_incompatible and start a replacement "
+                            "against the same application, resume version, and JD. Call "
+                            "this only after the user agrees to abandon the stuck run: "
+                            "its answers stay readable but it can never be finished. "
+                            "Takes no arguments."
+                        ),
+                        "parameters": RestartMockInterviewToolArguments.model_json_schema(),
+                    },
+                }
+            )
+        if self._mock_interview_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_mock_interview_result",
+                        "description": (
+                            "Read back the latest finished mock interview for the active or "
+                            "numbered application. Without a question number this lists the "
+                            "questions with their ratings; with one it returns that question, "
+                            "the user's full answer, its evaluation, and any follow-ups. Use "
+                            "this whenever the user asks about a past mock interview, since "
+                            "the conversation only keeps a condensed summary of the report."
+                        ),
+                        "parameters": GetMockInterviewResultToolArguments.model_json_schema(),
+                    },
+                }
+            )
         if self._action_center_service is not None:
             schemas.extend(
                 [
@@ -850,12 +907,45 @@ class MainAgentToolRegistry:
         """Resume the active workflow through an internal, non-model-facing path."""
         if self._mock_interview_graph is None:
             raise ValueError("Mock interview workflow is not configured")
-        try:
-            result = self._mock_interview_graph.resume(
+        return self._drive_mock_interview(
+            session_id=session_id,
+            drive=lambda graph: graph.resume(
                 user_id=user_id,
                 session_id=session_id,
                 answer=answer,
-            )
+            ),
+        )
+
+    def retry_mock_interview(
+        self, *, user_id: str, session_id: str
+    ) -> ToolObservation:
+        """Re-drive a failed step from the answer the store already holds.
+
+        The failure happened after the answer was persisted, so asking the
+        candidate to retype it verbatim is both hostile and fragile: any
+        rewording is rejected as a conflicting answer for the same turn. This
+        path takes no answer argument at all, which is what makes recovery
+        independent of what the candidate can remember.
+        """
+        if self._mock_interview_graph is None:
+            raise ValueError("Mock interview workflow is not configured")
+        return self._drive_mock_interview(
+            session_id=session_id,
+            drive=lambda graph: graph.retry(
+                user_id=user_id,
+                session_id=session_id,
+            ),
+        )
+
+    def _drive_mock_interview(
+        self,
+        *,
+        session_id: str,
+        drive: Callable[[Any], MockInterviewGraphResult],
+    ) -> ToolObservation:
+        """Run one graph advance and map its failures to a closed observation."""
+        try:
+            result = drive(self._mock_interview_graph)
         except MockInterviewCheckpointMissingError:
             return ToolObservation(
                 tool_name="start_mock_interview",
@@ -880,7 +970,10 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="start_mock_interview",
                 state="failed",
-                message="这次模拟面试回答暂时无法处理，请稍后用相同回答重试。",
+                message=(
+                    "这次模拟面试回答暂时无法处理。你的回答已经保存，"
+                    "下一条消息会从保存的回答继续，不需要重新输入。"
+                ),
                 payload={
                     "session_id": session_id,
                     "error_code": (
@@ -944,6 +1037,203 @@ class MainAgentToolRegistry:
                 else None
             ),
             payload=result.model_dump(mode="json"),
+        )
+
+    def _restart_mock_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        """Retire a run that cannot continue and start a fresh one in its place.
+
+        Only reachable for the two phases that hold the slot without being able
+        to advance. The store allows one unfinished run per user, so without
+        retiring the stuck one first a new interview cannot be created at all.
+        The replacement reuses the stuck run's own application, resume version,
+        and JD snapshot, so a restart cannot silently change what is being
+        practised against.
+        """
+        if self._mock_interview_graph is None:
+            raise ValueError("Mock interview workflow is not configured")
+        if self._mock_interview_store is None:
+            raise ValueError("Mock interview store is not configured")
+        user_id = str(arguments["user_id"])
+        stuck = self._mock_interview_store.find_resumable(user_id=user_id)
+        if stuck is None:
+            return ToolObservation(
+                tool_name="restart_mock_interview",
+                state="no_mock_interview_to_restart",
+                message="没有卡住的模拟面试，直接开始一场新的即可。",
+            )
+        # Cancel through the graph, not the store: the graph also deletes the
+        # checkpoint thread, and for a version-incompatible run that thread is
+        # the only thing still holding the old graph's state.
+        self._mock_interview_graph.cancel(user_id=user_id, session_id=stuck.id)
+        try:
+            result = self._mock_interview_graph.start(
+                MockInterviewStartRequest(
+                    user_id=user_id,
+                    application_id=stuck.application_id,
+                    interview_round_id=stuck.interview_round_id,
+                    job_posting_id=stuck.job_posting_id,
+                    jd_snapshot_id=stuck.jd_snapshot_id,
+                    resume_version_id=stuck.resume_version_id,
+                    interview_type=stuck.interview_type,
+                    max_primary_questions=stuck.max_primary_questions,
+                    max_follow_ups_per_question=stuck.max_follow_ups_per_question,
+                )
+            )
+        except (AgentWorkerError, ValueError) as error:
+            # The old run is already terminal and graph.start cancels its own
+            # partially-created session on failure. There is therefore nothing
+            # resumable to retain in the conversation task: this is not the same
+            # failure as an evaluate/report step whose answer is durable.
+            return ToolObservation(
+                tool_name="restart_mock_interview",
+                state="mock_interview_restart_failed",
+                message=(
+                    "旧的模拟面试已经安全结束，但替代面试暂时启动失败。"
+                    "你可以稍后重新开始一场模拟面试。"
+                ),
+                next_action="start_mock_interview",
+                payload={
+                    "error_code": (
+                        error.code
+                        if isinstance(error, AgentWorkerError)
+                        else type(error).__name__
+                    ),
+                    "retryable": (
+                        error.retryable
+                        if isinstance(error, AgentWorkerError)
+                        else False
+                    ),
+                },
+            )
+        return self._mock_interview_observation(result)
+
+    def _get_mock_interview_result(self, arguments: dict[str, Any]) -> ToolObservation:
+        """Read back a finished run the conversation only holds in condensed form.
+
+        The run's own exchanges never enter the conversation, so without this
+        the full questions and answers are unreachable once the run ends.
+        """
+        if self._mock_interview_store is None:
+            raise ValueError("Mock interview store is not configured")
+        user_id = str(arguments["user_id"])
+        application_id = str(arguments["application_id"])
+        question_number = arguments.get("question_number")
+        # Cancelled runs keep every turn they got through, so they are readable
+        # too; only the report is missing. Runs still in progress are excluded
+        # because the workflow, not this tool, owns a turn while it is driving.
+        sessions = self._mock_interview_store.list_sessions(
+            user_id=user_id,
+            application_id=application_id,
+            statuses=("completed", "cancelled"),
+            limit=1,
+        )
+        if not sessions:
+            return ToolObservation(
+                tool_name="get_mock_interview_result",
+                state="no_mock_interview_result_found",
+                message="这个投递还没有结束过的模拟面试。",
+            )
+        session = sessions[0]
+        report = self._mock_interview_store.get_report(
+            user_id=user_id, session_id=session.id
+        )
+        turns = self._mock_interview_store.list_turns(
+            user_id=user_id, session_id=session.id
+        )
+        if question_number is not None:
+            return self._mock_interview_question_observation(
+                turns=turns, question_number=int(question_number)
+            )
+        return self._mock_interview_result_observation(
+            session=session, report=report, turns=turns
+        )
+
+    @staticmethod
+    def _mock_interview_question_observation(
+        *, turns: tuple[MockInterviewTurn, ...], question_number: int
+    ) -> ToolObservation:
+        """Return one exchange in full, follow-ups included."""
+        matching = tuple(
+            turn for turn in turns if turn.plan_item_number == question_number
+        )
+        if not matching:
+            return ToolObservation(
+                tool_name="get_mock_interview_result",
+                state="no_mock_interview_result_found",
+                message=f"这次模拟面试没有第 {question_number} 题。",
+            )
+        blocks = []
+        for turn in matching:
+            label = "追问" if turn.turn_type == "follow_up" else "主问题"
+            lines = [f"{label}\n{turn.question}"]
+            if turn.answer is not None:
+                lines.append(f"你的回答\n{turn.answer}")
+            if turn.evaluation is not None:
+                lines.append(
+                    f"评价（{turn.evaluation.rating}）\n{turn.evaluation.summary}"
+                )
+            blocks.append("\n\n".join(lines))
+        return ToolObservation(
+            tool_name="get_mock_interview_result",
+            state="mock_interview_result_found",
+            message=f"第 {question_number} 题：\n\n" + "\n\n---\n\n".join(blocks),
+        )
+
+    @staticmethod
+    def _mock_interview_result_observation(
+        *,
+        session: MockInterviewSession,
+        report: MockInterviewReport | None,
+        turns: tuple[MockInterviewTurn, ...],
+    ) -> ToolObservation:
+        """List the run's questions with ratings, without their full text.
+
+        An index rather than a transcript: the model can name a question number
+        to read that exchange in full, so a long run costs one short message
+        instead of every answer at once.
+        """
+        primary = tuple(turn for turn in turns if turn.turn_type == "primary")
+        lines = []
+        for turn in primary:
+            if turn.evaluation is not None:
+                rating = turn.evaluation.rating
+            elif turn.answer is None:
+                # Asked and abandoned, which is not the same as answered but
+                # unscored: there is nothing here to go back and read.
+                rating = "未回答"
+            else:
+                rating = "未评价"
+            follow_ups = sum(
+                1
+                for candidate in turns
+                if candidate.turn_type == "follow_up"
+                and candidate.plan_item_number == turn.plan_item_number
+            )
+            suffix = f"，追问 {follow_ups} 次" if follow_ups else ""
+            lines.append(
+                f"{turn.plan_item_number}. [{rating}{suffix}] "
+                f"{turn.question[:60]}"
+            )
+        # Asked and answered are different numbers once a run can stop early: a
+        # question the user never answered is still a row here. Reporting only
+        # the row count would present an abandoned question as an attempted one.
+        answered = sum(1 for turn in primary if turn.answer is not None)
+        header = f"模拟面试（{session.interview_type}，{len(primary)} 题"
+        if answered < len(primary):
+            header += f"，答了 {answered} 题"
+        if session.status == "cancelled":
+            header += "，中途取消"
+        blocks = [
+            header + "）",
+            "题目\n" + ("\n".join(lines) if lines else "暂无"),
+        ]
+        if report is not None:
+            blocks.append(f"总结\n{report.summary}")
+        blocks.append("要看某题的完整问答，说题号。")
+        return ToolObservation(
+            tool_name="get_mock_interview_result",
+            state="mock_interview_result_found",
+            message="\n\n".join(blocks),
         )
 
     def _list_email_events(self, arguments: dict[str, Any]) -> ToolObservation:
