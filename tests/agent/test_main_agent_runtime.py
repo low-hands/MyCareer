@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.job_discovery_contracts import JDAnalysis
 from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, ToolCall, ToolResult
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, ToolResult
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -77,7 +77,6 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
     assert set(agent._graph.get_graph().nodes) == {
         "__start__",
         "hydrate_career_context",
-        "resume_active_workflow",
         "decide",
         "invoke_atomic_tool",
         "run_workflow",
@@ -502,3 +501,101 @@ def test_unknown_capability_is_rejected_without_commit(tmp_path) -> None:
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="Do it.")
 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()
+
+
+@pytest.mark.parametrize(
+    ("phase", "expected"),
+    [
+        ("mock_interview_answer_required", "resume"),
+        # The answer for the current turn is already durable, so the next
+        # message must not be consumed as a new one.
+        ("failed", "retry"),
+    ],
+)
+def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
+    phase: str, expected: str
+) -> None:
+    class Tools:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str | None]] = []
+
+        def resume_mock_interview(self, *, user_id, session_id, answer):
+            self.calls.append(("resume", answer))
+            return ToolObservation(tool_name="start_mock_interview", state="ok", message="m")
+
+        def retry_mock_interview(self, *, user_id, session_id):
+            self.calls.append(("retry", None))
+            return ToolObservation(tool_name="start_mock_interview", state="ok", message="m")
+
+    agent = MainAgentRuntime.__new__(MainAgentRuntime)
+    agent._tools = Tools()
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_workflow="mock_interview", run_id="s1", phase=phase
+        ),
+        user_message="随便说点别的",
+    )
+
+    agent._run_active_mock_interview(
+        context=context,
+        user_message="随便说点别的",
+    )
+
+    assert [name for name, _ in agent._tools.calls] == [expected]
+    if expected == "retry":
+        # Recovery must not depend on what the candidate can retype.
+        assert agent._tools.calls[0][1] is None
+    else:
+        assert agent._tools.calls[0][1] == "随便说点别的"
+
+
+@pytest.mark.parametrize(
+    "phase",
+    [
+        "mock_interview_checkpoint_missing",
+        "mock_interview_graph_incompatible",
+    ],
+)
+def test_unresumable_mock_interview_returns_control_to_main_agent(
+    tmp_path, phase: str
+) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="seed"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-session-1",
+            phase=phase,
+        ),
+        assistant_message="The workflow cannot resume.",
+    )
+
+    class NeverResumeTools:
+        def schemas(self):
+            return ()
+
+        def resume_mock_interview(self, **kwargs):
+            raise AssertionError("an unresumable workflow must not be resumed")
+
+    decision_maker = SequenceDecisionMaker(
+        AgentDecision(action="final", message="我来处理你的新请求。")
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decision_maker,
+        tools=NeverResumeTools(),
+    )
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="那算了，帮我看看简历。",
+    )
+
+    assert len(decision_maker.contexts) == 1
+    assert result.assistant_message == "我来处理你的新请求。"

@@ -205,6 +205,13 @@ class MockInterviewGraph:
         if not normalized:
             raise ValueError("Mock interview answer must not be empty")
         session = self._require_session(user_id, session_id)
+        # Business state first, checkpoint second. A finished run deletes its
+        # checkpoint, so a crash between that deletion and the conversation
+        # releasing the slot leaves an answer arriving for a run that already
+        # has a report. Asking for the checkpoint first would call that a lost
+        # checkpoint and bury a completed interview.
+        if session.status in {"completed", "cancelled"}:
+            return self._project(user_id, session_id, {})
         self._require_resumable_checkpoint(session)
         if session.status != "active" or session.current_turn_id is None:
             raise ValueError("Mock interview is not awaiting an answer")

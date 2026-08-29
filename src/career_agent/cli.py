@@ -115,6 +115,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     context_manager = ContextManager(
         CareerContextStore(Path(args.context_store).expanduser()),
         summary_worker=OpenAIConversationSummaryWorker(main_config),
+        compacted_message_warning_threshold=args.compacted_message_warning,
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
@@ -163,10 +164,13 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     checkpoint_owner = SQLiteCheckpointOwner(
         Path(args.mock_interview_checkpoint_store).expanduser()
     )
+    # Shared with the read-back tool: one instance so the tool reads the same
+    # file the workflow writes, and one place to change the path.
+    mock_interview_store = SQLiteMockInterviewStore(
+        Path(args.mock_interview_store).expanduser()
+    )
     mock_interview_graph = MockInterviewGraph(
-        store=SQLiteMockInterviewStore(
-            Path(args.mock_interview_store).expanduser()
-        ),
+        store=mock_interview_store,
         worker=OpenAIMockInterviewWorker(
             resume_analysis_config,
             skill_loader=MockInterviewSkillLoader(
@@ -200,6 +204,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             action_center_service=action_center_service,
             calendar_service=calendar_service,
             mock_interview_graph=mock_interview_graph,
+            mock_interview_store=mock_interview_store,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
                 OpenAIResumeAnalysisWorker(resume_analysis_config),
@@ -326,6 +331,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--session-id", required=True, help="Conversation session identifier.")
     chat.add_argument("--message", required=True, help="Current user message.")
     chat.add_argument("--context-store", default="~/.career-agent/context.sqlite3", help="Local session and context store path.")
+    chat.add_argument("--compacted-message-warning", type=int, default=200, help="Warn once this many summarised originals are still stored. They are never deleted automatically; use 'context prune'.")
     chat.add_argument("--main-agent-timeout-seconds", type=float, default=60.0, help="Main Agent model timeout (default: 60).")
     _add_runtime_options(chat)
 
@@ -455,6 +461,46 @@ def build_parser() -> argparse.ArgumentParser:
     status = subparsers.add_parser("status", help="Read a durable run status and safe trace summary.", description="Read a persisted job discovery run without calling BOSS.")
     status.add_argument("--run-id", required=True, help="Run ID returned by discover.")
     _add_runtime_options(status)
+
+    context_command = subparsers.add_parser(
+        "context",
+        help="Inspect and reclaim summarised conversation history.",
+        description=(
+            "Summarising a conversation keeps the original messages. They are no "
+            "longer read, but they remain the only way to check a summary that "
+            "looks wrong. Deleting them is therefore never automatic."
+        ),
+    )
+    context_subparsers = context_command.add_subparsers(
+        dest="context_command", required=True
+    )
+    context_stat = context_subparsers.add_parser(
+        "stat", help="Report how much summarised history is still stored."
+    )
+    context_prune = context_subparsers.add_parser(
+        "prune",
+        help="Delete summarised originals for this user, permanently.",
+        description=(
+            "Deletes only messages a stored summary already covers. Irreversible: "
+            "after this the summary is the only record of those turns."
+        ),
+    )
+    context_prune.add_argument(
+        "--yes",
+        action="store_true",
+        help="Required. Confirms the deletion cannot be undone.",
+    )
+    for sub in (context_stat, context_prune):
+        sub.add_argument("--user-id", required=True, help="User whose history to act on.")
+        sub.add_argument(
+            "--session-id",
+            help="Limit to one conversation. Omit to cover every conversation.",
+        )
+        sub.add_argument(
+            "--context-store",
+            default="~/.career-agent/context.sqlite3",
+            help="Local session and context store path.",
+        )
     return parser
 
 
@@ -524,7 +570,14 @@ def _chat_tool_result_payload(result: JobDiscoveryGatewayResult | ToolObservatio
     return payload
 
 
-def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) -> int:
+def _write_chat_payload(
+    turn,
+    *,
+    user_id: str,
+    session_id: str,
+    output: TextIO,
+    notice: str | None = None,
+) -> int:
     tool_result = turn.tool_result
     tool_results = turn.tool_results or ((tool_result,) if tool_result else ())
     failed_result = next(
@@ -548,6 +601,9 @@ def _write_chat_payload(turn, *, user_id: str, session_id: str, output: TextIO) 
             artifact.reference.model_dump(mode="json")
             for artifact in turn.artifacts
         ],
+        # Addressed to whoever runs the CLI, not to the agent: it never entered
+        # the model's context, so the model cannot act on it.
+        "maintenance_notice": notice,
     }
     json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
     output.write("\n")
@@ -823,13 +879,54 @@ def main(
             )
             stdout.write("\n")
             return EXIT_ARGUMENT_ERROR
+    if args.command == "context":
+        try:
+            store = CareerContextStore(Path(args.context_store).expanduser())
+            count, byte_size = store.count_compacted_messages(
+                user_id=args.user_id, conversation_id=args.session_id
+            )
+            if args.context_command == "stat":
+                payload = {
+                    "compacted_messages": count,
+                    "compacted_bytes": byte_size,
+                    "reclaimable": count > 0,
+                }
+            elif not args.yes:
+                # Refuse rather than prompt: this path has to work the same way
+                # when it is driven by a script as when a person runs it.
+                raise ValueError(
+                    "context prune permanently deletes summarised messages; "
+                    "pass --yes to confirm."
+                )
+            else:
+                deleted = store.prune_compacted_messages(
+                    user_id=args.user_id, conversation_id=args.session_id
+                )
+                payload = {"deleted_messages": deleted, "reclaimed_bytes": byte_size}
+            json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            json.dump({"state": "failed", "error_code": "CONTEXT_STORE_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
+        except Exception as error:
+            json.dump({"state": "failed", "error_code": "CONTEXT_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_UNKNOWN_ERROR
     machine_output = args.json or not stdout.isatty()
     if args.command == "chat":
         runtime = None
         try:
             runtime = runtime_factory(args) if runtime_factory else build_main_agent_runtime(args)
             turn = runtime.run_turn(user_id=args.user_id, conversation_id=args.session_id, user_message=args.message)
-            return _write_chat_payload(turn, user_id=args.user_id, session_id=args.session_id, output=stdout)
+            manager = getattr(runtime, "context_manager", None)
+            notice = (
+                manager.compacted_message_notice(user_id=args.user_id)
+                if manager is not None
+                else None
+            )
+            return _write_chat_payload(turn, user_id=args.user_id, session_id=args.session_id, output=stdout, notice=notice)
         except AgentConfigurationError as error:
             return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_*, JOB_DISCOVERY_AGENT_*, and RESUME_ANALYSIS_AGENT_* configuration.")
         except AgentWorkerError as error:

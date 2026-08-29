@@ -17,6 +17,7 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
+from career_agent.agent.mock_interview_graph import MockInterviewCheckpointMissingError
 from career_agent.domain.applications import Application
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.domain.mock_interviews import (
@@ -228,6 +229,17 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     assert started.assistant_message == (
         "模拟面试题：\n请介绍一个你亲自负责的 RAG 可靠性改进。"
     )
+    # Mid-run the conversation has no trace of the interview at all, not even a
+    # request waiting for an answer. It is held, so the whole run can be written
+    # as one exchange when it ends and the stored history is never mid-turn.
+    after_start = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    )
+    assert [message.content for message in after_start.recent_messages] == [
+        "选择这次投递",
+        "已选择投递。",
+    ]
+    assert after_start.task.workflow_entry_message == "开始技术模拟面试"
 
     completed = MainAgentRuntime(
         context_manager=manager,
@@ -251,6 +263,20 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     assert completed.context.task.run_id is None
     assert completed.assistant_message.startswith("模拟面试完成。")
     assert "补充验证指标" in completed.assistant_message
+    # The run's own turns stay out of the main thread, but its outcome does not:
+    # the candidate's answer is absent while the report that closes the request
+    # is present, so a later turn can act on the interview without replaying it.
+    after_completion = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    )
+    contents = [message.content for message in after_completion.recent_messages]
+    assert contents[:3] == ["选择这次投递", "已选择投递。", "开始技术模拟面试"]
+    assert contents[3].startswith("模拟面试完成。")
+    assert "补充验证指标" in contents[3]
+    # One request, one reply. Neither the questions nor the answers survive.
+    assert len(contents) == 4
+    assert not any("我负责设计离线评估集" in item for item in contents)
+    assert not any("模拟面试题" in item for item in contents)
 
 
 def test_start_schema_exposes_only_selection_indexes_not_internal_ids(tmp_path) -> None:
@@ -268,3 +294,214 @@ def test_start_schema_exposes_only_selection_indexes_not_internal_ids(tmp_path) 
     assert "application_selection_index" in properties
     assert "interview_selection_index" in properties
     assert all(not key.endswith("_id") for key in properties)
+
+
+class ReplayDecisions:
+    """Answer every turn, unlike OneDecision which forbids a second call."""
+
+    def __init__(self, decision: AgentDecision) -> None:
+        self.decision = decision
+        self.calls = 0
+
+    def decide(self, context, tool_specs):
+        self.calls += 1
+        return self.decision
+
+
+class LostCheckpointGraph(FakeMockInterviewGraph):
+    """Business rows outlive the resumable thread."""
+
+    def resume(self, *, user_id, session_id, answer):
+        raise MockInterviewCheckpointMissingError("thread is gone")
+
+    def retry(self, *, user_id, session_id):
+        raise MockInterviewCheckpointMissingError("thread is gone")
+
+
+def _runtime_with_graph(tmp_path, graph, decision_maker):
+    service, application = _application_setup(tmp_path)
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seed = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="选择这次投递"
+    )
+    manager.commit_turn(
+        context=seed,
+        task=ConversationTaskState(active_application_id=application.id),
+        assistant_message="已选择投递。",
+    )
+    tools = MainAgentToolRegistry(
+        UnusedGateway(),
+        application_service=service,
+        mock_interview_graph=graph,
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decision_maker,
+        tools=tools,
+    )
+    return runtime, manager
+
+
+def _start_decision() -> AgentDecision:
+    return AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(
+            name="start_mock_interview",
+            arguments={"interview_type": "technical", "max_primary_questions": 1},
+        ),
+    )
+
+
+def test_a_dead_checkpoint_hands_the_conversation_back_with_a_trace(tmp_path) -> None:
+    decision_maker = ReplayDecisions(_start_decision())
+    runtime, manager = _runtime_with_graph(
+        tmp_path, LostCheckpointGraph(), decision_maker
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+
+    lost = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="我的回答"
+    )
+
+    assert lost.context.task.phase == "mock_interview_checkpoint_missing"
+    # The run is unreachable, so the next message must reach the decision model.
+    # Keeping the slot without this would loop on the same dead thread forever.
+    calls_before = decision_maker.calls
+    runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="那算了，帮我看看简历"
+    )
+    assert decision_maker.calls > calls_before
+
+    contents = [
+        message.content
+        for message in manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="inspect"
+        ).recent_messages
+    ]
+    # The failure is visible and the answer is not: Main Agent can explain why
+    # the interview stopped without the transcript being copied over.
+    assert any("执行断点已经丢失" in item for item in contents)
+    assert not any("我的回答" in item for item in contents)
+
+
+class CancellingGraph(FakeMockInterviewGraph):
+    """Ends the run without a report, the other way out of the loop."""
+
+    def resume(self, *, user_id, session_id, answer):
+        return MockInterviewGraphResult(
+            session_id=session_id,
+            state="cancelled",
+            message="模拟面试已取消。",
+        )
+
+
+def test_a_cancelled_run_still_leaves_its_ending_in_the_main_thread(tmp_path) -> None:
+    runtime, manager = _runtime_with_graph(
+        tmp_path, CancellingGraph(), ReplayDecisions(_start_decision())
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+
+    cancelled = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="不想练了，取消"
+    )
+
+    assert cancelled.context.task.active_workflow == "none"
+    contents = [
+        message.content
+        for message in manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="inspect"
+        ).recent_messages
+    ]
+    # Every exit writes a trace, not just the one that produces a report.
+    assert any("取消" in item for item in contents)
+    assert not any("不想练了" in item for item in contents)
+
+
+@pytest.mark.parametrize(
+    "graph_factory, closing",
+    [
+        (FakeMockInterviewGraph, "模拟面试完成。"),
+        (CancellingGraph, "模拟面试已取消。"),
+        (LostCheckpointGraph, "执行断点已经丢失"),
+    ],
+)
+def test_every_exit_pairs_the_request_and_releases_the_hold(
+    tmp_path, graph_factory, closing
+) -> None:
+    runtime, manager = _runtime_with_graph(
+        tmp_path, graph_factory(), ReplayDecisions(_start_decision())
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="我的回答")
+
+    loaded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    )
+    contents = [message.content for message in loaded.recent_messages]
+    assert contents[-2] == "开始技术模拟面试"
+    assert closing in contents[-1]
+    # The hold is released on every exit, including the one that keeps the slot
+    # to record why the run died. A leftover request would be answered by the
+    # next run's report instead of by its own.
+    assert loaded.task.workflow_entry_message is None
+
+
+class MaximalReportGraph(FakeMockInterviewGraph):
+    """A report with every field at its contract maximum."""
+
+    def resume(self, *, user_id, session_id, answer):
+        return MockInterviewGraphResult(
+            session_id=session_id,
+            state="completed",
+            message="Mock interview completed.",
+            report_id="report-1",
+            report=MockInterviewReport(
+                id="report-1",
+                session_id=session_id,
+                completion_reason="plan_completed",
+                summary="回" * 3000,
+                question_results=(
+                    MockInterviewQuestionResult(
+                        plan_item_number=1,
+                        question="q",
+                        final_rating="adequate",
+                        summary="s",
+                        follow_up_count=0,
+                    ),
+                ),
+                strengths=tuple("亮" * 200 for _ in range(10)),
+                development_areas=tuple(f"待{index}" + "提" * 200 for index in range(10)),
+                practice_actions=tuple(f"练{index}" + "习" * 200 for index in range(10)),
+                created_at=NOW,
+            ),
+        )
+
+
+def test_a_long_report_keeps_every_section_in_the_history(tmp_path) -> None:
+    """The stored copy is condensed, not cut off at a fixed length.
+
+    Truncating the screen copy would drop whole trailing sections, and those
+    are the ones the next turn needs: what to work on and what to practise.
+    """
+    runtime, manager = _runtime_with_graph(
+        tmp_path, MaximalReportGraph(), ReplayDecisions(_start_decision())
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="我的回答"
+    )
+
+    # Nothing is withheld from the candidate.
+    assert "练习建议" in result.assistant_message
+
+    loaded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    )
+    stored = loaded.recent_messages[-1].content
+    assert "总结" in stored
+    assert "待提升" in stored
+    assert "练习建议" in stored
+    assert "练0" in stored
+    # Below the per-message cap, so no section was lost on the way in.
+    assert len(stored) < 4000
