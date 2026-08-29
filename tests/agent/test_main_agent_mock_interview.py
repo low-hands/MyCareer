@@ -17,7 +17,10 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
-from career_agent.agent.mock_interview_graph import MockInterviewCheckpointMissingError
+from career_agent.agent.mock_interview_graph import (
+    MockInterviewCheckpointMissingError,
+    MockInterviewInputRoutingError,
+)
 from career_agent.domain.applications import Application
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.domain.mock_interviews import (
@@ -95,6 +98,9 @@ class FakeMockInterviewGraph:
                 created_at=NOW,
             ),
         )
+
+    def handle_input(self, *, user_id, session_id, message):
+        return self.resume(user_id=user_id, session_id=session_id, answer=message)
 
 
 def _application_setup(tmp_path):
@@ -318,6 +324,15 @@ class LostCheckpointGraph(FakeMockInterviewGraph):
         raise MockInterviewCheckpointMissingError("thread is gone")
 
 
+class RoutingFailureGraph(FakeMockInterviewGraph):
+    def handle_input(self, *, user_id, session_id, message):
+        raise MockInterviewInputRoutingError(
+            "INPUT_ROUTE_UNAVAILABLE",
+            "router unavailable",
+            retryable=True,
+        )
+
+
 def _runtime_with_graph(tmp_path, graph, decision_maker):
     service, application = _application_setup(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
@@ -383,6 +398,33 @@ def test_a_dead_checkpoint_hands_the_conversation_back_with_a_trace(tmp_path) ->
     # the interview stopped without the transcript being copied over.
     assert any("执行断点已经丢失" in item for item in contents)
     assert not any("我的回答" in item for item in contents)
+
+
+def test_input_routing_failure_keeps_the_question_and_does_not_store_the_input(
+    tmp_path,
+) -> None:
+    runtime, manager = _runtime_with_graph(
+        tmp_path, RoutingFailureGraph(), ReplayDecisions(_start_decision())
+    )
+    started = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="开始技术模拟面试"
+    )
+
+    failed = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="这条回答不要落库"
+    )
+
+    assert started.context.task.phase == "mock_interview_answer_required"
+    assert failed.context.task.phase == "mock_interview_answer_required"
+    assert failed.tool_result.state == "mock_interview_input_retry_required"
+    assert "尚未保存" in failed.assistant_message
+    contents = [
+        item.content
+        for item in manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="inspect"
+        ).recent_messages
+    ]
+    assert not any("这条回答不要落库" in item for item in contents)
 
 
 class CancellingGraph(FakeMockInterviewGraph):

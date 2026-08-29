@@ -13,6 +13,7 @@ from career_agent.agent.mock_interview_graph import (
     MockInterviewCheckpointMissingError,
     MockInterviewGraph,
     MockInterviewGraphVersionError,
+    MockInterviewInputRoutingError,
 )
 from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
@@ -916,6 +917,21 @@ class MainAgentToolRegistry:
             ),
         )
 
+    def handle_mock_interview_input(
+        self, *, user_id: str, session_id: str, message: str
+    ) -> ToolObservation:
+        """Let the isolated workflow classify and consume one local message."""
+        if self._mock_interview_graph is None:
+            raise ValueError("Mock interview workflow is not configured")
+        return self._drive_mock_interview(
+            session_id=session_id,
+            drive=lambda graph: graph.handle_input(
+                user_id=user_id,
+                session_id=session_id,
+                message=message,
+            ),
+        )
+
     def retry_mock_interview(
         self, *, user_id: str, session_id: str
     ) -> ToolObservation:
@@ -946,6 +962,21 @@ class MainAgentToolRegistry:
         """Run one graph advance and map its failures to a closed observation."""
         try:
             result = drive(self._mock_interview_graph)
+        except MockInterviewInputRoutingError as error:
+            return ToolObservation(
+                tool_name="start_mock_interview",
+                state="mock_interview_input_retry_required",
+                message=(
+                    "暂时无法判断这条消息是面试回答还是退出请求。"
+                    "这条消息尚未保存，请重新发送。"
+                ),
+                next_action="retry_mock_interview_input",
+                payload={
+                    "session_id": session_id,
+                    "error_code": error.code,
+                    "retryable": error.retryable,
+                },
+            )
         except MockInterviewCheckpointMissingError:
             return ToolObservation(
                 tool_name="start_mock_interview",

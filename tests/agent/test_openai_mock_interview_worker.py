@@ -187,6 +187,39 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     assert "user-secret" not in content
 
 
+@pytest.mark.parametrize(
+    ("model_action", "message"),
+    [
+        ("cancel", "不想练了，结束面试"),
+        ("answer", "项目最后结束于灰度上线，我负责回滚指标。"),
+    ],
+)
+def test_route_input_uses_only_the_current_question_and_local_message(
+    model_action: str, message: str
+) -> None:
+    client = FakeClient({"action": model_action})
+
+    result = _worker(client).route_input(
+        session=_session(),
+        turn=_answered_turn().model_copy(
+            update={"answer": None, "answered_at": None, "status": "awaiting_answer"}
+        ),
+        user_message=message,
+    )
+
+    assert result.action == model_action
+    call = client.responses.calls[0]
+    assert call["text"]["format"]["name"] == "mock_interview_input_route_result"  # type: ignore[index]
+    assert "ambiguous input" in call["instructions"]
+    assert "inside a substantive answer" in call["instructions"]
+    content = call["input"][0]["content"][0]["text"]  # type: ignore[index]
+    assert "What did you personally own?" in content
+    assert message in content
+    assert "Build reliable systems" not in content
+    assert "Built retrieval systems" not in content
+    assert "session-secret" not in content
+
+
 def test_ask_receives_only_the_current_plan_item_not_future_questions() -> None:
     client = FakeClient({"question": "What did you personally own?"})
     result = _worker(client).ask(

@@ -519,8 +519,8 @@ def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
         def __init__(self) -> None:
             self.calls: list[tuple[str, str | None]] = []
 
-        def resume_mock_interview(self, *, user_id, session_id, answer):
-            self.calls.append(("resume", answer))
+        def handle_mock_interview_input(self, *, user_id, session_id, message):
+            self.calls.append(("resume", message))
             return ToolObservation(tool_name="start_mock_interview", state="ok", message="m")
 
         def retry_mock_interview(self, *, user_id, session_id):
@@ -579,7 +579,7 @@ def test_unresumable_mock_interview_returns_control_to_main_agent(
         def schemas(self):
             return ()
 
-        def resume_mock_interview(self, **kwargs):
+        def handle_mock_interview_input(self, **kwargs):
             raise AssertionError("an unresumable workflow must not be resumed")
 
     decision_maker = SequenceDecisionMaker(

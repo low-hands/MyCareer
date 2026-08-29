@@ -12,9 +12,11 @@ from langgraph.types import Command, interrupt
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewCompletionReason,
     MockInterviewGraphResult,
+    MockInterviewInputDecision,
     MockInterviewStartRequest,
     MockInterviewWorker,
 )
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.resume_job_match_contracts import ConfirmedResumeFact
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
@@ -41,6 +43,10 @@ class MockInterviewCheckpointMissingError(RuntimeError):
 
 class MockInterviewGraphVersionError(RuntimeError):
     """A persisted session belongs to an incompatible graph definition."""
+
+
+class MockInterviewInputRoutingError(AgentWorkerError):
+    """The local input router failed before the candidate answer was stored."""
 
 
 class MockInterviewSourceProvider(Protocol):
@@ -232,6 +238,52 @@ class MockInterviewGraph:
         result = self._project(user_id, session_id, state)
         self._cleanup_terminal_checkpoint(result)
         return result
+
+    def handle_input(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        message: str,
+    ) -> MockInterviewGraphResult:
+        """Route one workflow-owned message before mutating the current turn."""
+        normalized = message.strip()
+        if not normalized:
+            raise ValueError("Mock interview input must not be empty")
+        session = self._require_session(user_id, session_id)
+        if session.status in {"completed", "cancelled"}:
+            return self._project(user_id, session_id, {})
+        self._require_resumable_checkpoint(session)
+        if session.status != "active" or session.current_turn_id is None:
+            raise ValueError("Mock interview is not awaiting input")
+        turn = self._store.get_turn(
+            user_id=user_id,
+            turn_id=session.current_turn_id,
+        )
+        if turn is None or turn.status != "awaiting_answer":
+            raise ValueError("Mock interview current turn is not awaiting input")
+        try:
+            decision = self._worker.route_input(
+                session=session,
+                turn=turn,
+                user_message=normalized,
+            )
+        except AgentWorkerError as error:
+            raise MockInterviewInputRoutingError(
+                error.code,
+                str(error),
+                retryable=error.retryable,
+                detail=error.detail,
+            ) from error
+        if not isinstance(decision, MockInterviewInputDecision):
+            decision = MockInterviewInputDecision.model_validate(decision)
+        if decision.action == "cancel":
+            return self.cancel(user_id=user_id, session_id=session_id)
+        return self.resume(
+            user_id=user_id,
+            session_id=session_id,
+            answer=normalized,
+        )
 
     def retry(self, *, user_id: str, session_id: str) -> MockInterviewGraphResult:
         session = self._require_session(user_id, session_id)

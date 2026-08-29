@@ -5,6 +5,7 @@ import pytest
 
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewGraphResult,
+    MockInterviewInputDecision,
     MockInterviewPlanDraft,
     MockInterviewQuestionDraft,
     MockInterviewReportDraft,
@@ -14,6 +15,7 @@ from career_agent.agent.mock_interview_graph import (
     MockInterviewCheckpointMissingError,
     MockInterviewGraph,
     MockInterviewGraphVersionError,
+    MockInterviewInputRoutingError,
     MockInterviewSources,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -66,6 +68,10 @@ class Worker:
         self.ask_calls = 0
         self.evaluate_calls = 0
         self.report_calls = 0
+        self.input_action = "answer"
+
+    def route_input(self, **kwargs):
+        return MockInterviewInputDecision(action=self.input_action)
 
     def plan(self, **kwargs):
         return MockInterviewPlanDraft(
@@ -213,6 +219,77 @@ def test_graph_runs_primary_follow_up_next_question_and_report(tmp_path: Path) -
     assert session.status == "completed"
     assert [turn.turn_type for turn in turns] == ["primary", "follow_up", "primary"]
     assert all(turn.status == "evaluated" for turn in turns)
+
+
+def test_handle_input_cancels_without_persisting_the_message_as_an_answer(
+    tmp_path: Path,
+) -> None:
+    graph, store, worker, _ = _graph(tmp_path)
+    started = graph.start(_request())
+    worker.input_action = "cancel"
+
+    result = graph.handle_input(
+        user_id="u1",
+        session_id=started.session_id,
+        message="不想练了，结束面试",
+    )
+
+    turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
+    assert result.state == "cancelled"
+    assert turn.status == "awaiting_answer"
+    assert turn.answer is None
+    assert graph.checkpointer.get_tuple(graph._config(started.session_id)) is None
+
+
+def test_handle_input_persists_a_substantive_answer_even_when_it_says_end(
+    tmp_path: Path,
+) -> None:
+    graph, store, _, _ = _graph(tmp_path)
+    started = graph.start(_request())
+    answer = "项目最后结束于灰度上线，我负责离线评测和回滚指标。"
+
+    graph.handle_input(
+        user_id="u1",
+        session_id=started.session_id,
+        message=answer,
+    )
+
+    turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
+    assert turn.answer == answer
+    assert turn.status == "evaluated"
+
+
+def test_input_routing_failure_does_not_consume_or_persist_the_message(
+    tmp_path: Path,
+) -> None:
+    class RoutingFailure(Worker):
+        def route_input(self, **kwargs):
+            raise AgentWorkerError(
+                "INPUT_ROUTE_UNAVAILABLE",
+                "router unavailable",
+                retryable=True,
+            )
+
+    store = SQLiteMockInterviewStore(tmp_path / "mock.sqlite3")
+    graph = MockInterviewGraph(
+        store=store,
+        worker=RoutingFailure(),
+        sources=Sources(),
+    )
+    started = graph.start(_request())
+
+    with pytest.raises(MockInterviewInputRoutingError) as error:
+        graph.handle_input(
+            user_id="u1",
+            session_id=started.session_id,
+            message="这是不能被保存的回答",
+        )
+
+    turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
+    assert error.value.code == "INPUT_ROUTE_UNAVAILABLE"
+    assert error.value.retryable is True
+    assert turn.status == "awaiting_answer"
+    assert turn.answer is None
 
 
 def test_graph_overrides_a_follow_up_when_the_session_limit_is_zero(
