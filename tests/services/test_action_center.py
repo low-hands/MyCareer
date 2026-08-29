@@ -154,6 +154,26 @@ def test_complete_and_snooze_survive_refresh_and_expired_snooze_reopens(tmp_path
     )] == ["created", "snoozed", "reopened"]
 
 
+def test_recording_source_work_can_complete_matching_retro_action(tmp_path) -> None:
+    service, store, _ = build_service(tmp_path)
+    retro = next(
+        item
+        for item in service.refresh(user_id="u1", now=NOW)
+        if item.action_type == "interview_retro"
+    )
+
+    completed = service.complete_source_action(
+        user_id="u1",
+        action_type="interview_retro",
+        source_id="interview-completed",
+    )
+
+    assert completed is not None
+    assert completed.id == retro.id
+    assert completed.status == "completed"
+    assert store.get(user_id="u1", action_item_id=retro.id).status == "completed"
+
+
 def test_source_resolution_marks_generated_action_obsolete_not_completed(
     tmp_path,
 ) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,8 @@ from uuid import uuid4
 
 from career_agent.domain.interviews import (
     InterviewDetails,
+    InterviewRetroQuestion,
+    InterviewRetroReport,
     InterviewRound,
     InterviewRoundEvent,
     InterviewStatus,
@@ -23,7 +26,13 @@ class SQLiteInterviewStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "interviews", 1, self._migrate)
+            apply_schema(
+                connection,
+                "interviews",
+                2,
+                self._migrate,
+                upgrades={2: self._upgrade_v2},
+            )
         os.chmod(self.path, 0o600)
 
     def create(
@@ -302,6 +311,117 @@ class SQLiteInterviewStore:
             ).fetchall()
         return tuple(self._event(row) for row in rows)
 
+    def record_retro(
+        self,
+        *,
+        round_: InterviewRound,
+        source_notes: str,
+        summary: str,
+        questions: tuple[InterviewRetroQuestion, ...] = (),
+        strengths: tuple[str, ...] = (),
+        difficulties: tuple[str, ...] = (),
+        interviewer_signals: tuple[str, ...] = (),
+        next_focus: tuple[str, ...] = (),
+        action_items: tuple[str, ...] = (),
+        limitations: tuple[str, ...] = (),
+        self_assessment: str = "uncertain",
+        created_at: datetime | None = None,
+    ) -> InterviewRetroReport:
+        timestamp = created_at or datetime.now(timezone.utc)
+        canonical = json.dumps(
+            {
+                "source_notes": source_notes,
+                "summary": summary,
+                "questions": [item.model_dump(mode="json") for item in questions],
+                "strengths": strengths,
+                "difficulties": difficulties,
+                "interviewer_signals": interviewer_signals,
+                "next_focus": next_focus,
+                "action_items": action_items,
+                "limitations": limitations,
+                "self_assessment": self_assessment,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        report = InterviewRetroReport(
+            id=f"interview_retro_{uuid4().hex}",
+            user_id=round_.user_id,
+            application_id=round_.application_id,
+            interview_round_id=round_.id,
+            source_notes=source_notes,
+            summary=summary,
+            questions=questions,
+            strengths=strengths,
+            difficulties=difficulties,
+            interviewer_signals=interviewer_signals,
+            next_focus=next_focus,
+            action_items=action_items,
+            limitations=limitations,
+            self_assessment=self_assessment,
+            content_sha256=digest,
+            created_at=timestamp,
+        )
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO interview_retro_reports(
+                    id, user_id, application_id, interview_round_id,
+                    source_notes, summary, questions_json, strengths_json,
+                    difficulties_json, interviewer_signals_json, next_focus_json,
+                    action_items_json, limitations_json, self_assessment,
+                    content_sha256, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.id,
+                    report.user_id,
+                    report.application_id,
+                    report.interview_round_id,
+                    report.source_notes,
+                    report.summary,
+                    json.dumps(
+                        [item.model_dump(mode="json") for item in report.questions],
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(report.strengths, ensure_ascii=False),
+                    json.dumps(report.difficulties, ensure_ascii=False),
+                    json.dumps(report.interviewer_signals, ensure_ascii=False),
+                    json.dumps(report.next_focus, ensure_ascii=False),
+                    json.dumps(report.action_items, ensure_ascii=False),
+                    json.dumps(report.limitations, ensure_ascii=False),
+                    report.self_assessment,
+                    report.content_sha256,
+                    report.created_at.isoformat(),
+                ),
+            )
+            row = connection.execute(
+                self._RETRO_SELECT
+                + " WHERE user_id = ? AND interview_round_id = ? AND content_sha256 = ?",
+                (round_.user_id, round_.id, digest),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("interview retro report was not persisted")
+        return self._retro(row)
+
+    def list_retros(
+        self,
+        *,
+        user_id: str,
+        interview_round_id: str,
+        limit: int = 50,
+    ) -> tuple[InterviewRetroReport, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._RETRO_SELECT
+                + " WHERE user_id = ? AND interview_round_id = ? "
+                "ORDER BY created_at, rowid LIMIT ?",
+                (user_id, interview_round_id, limit),
+            ).fetchall()
+        return tuple(self._retro(row) for row in rows)
+
     def find_by_source_thread(
         self, *, user_id: str, application_id: str, source_thread_id: str
     ) -> InterviewRound | None:
@@ -373,6 +493,13 @@ class SQLiteInterviewStore:
         "interview_rounds.updated_at, interview_rounds.completed_at "
         "FROM interview_rounds"
     )
+    _RETRO_SELECT = (
+        "SELECT id, user_id, application_id, interview_round_id, source_notes, "
+        "summary, questions_json, strengths_json, difficulties_json, "
+        "interviewer_signals_json, next_focus_json, action_items_json, "
+        "limitations_json, self_assessment, content_sha256, created_at "
+        "FROM interview_retro_reports"
+    )
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         connection.execute(
@@ -424,6 +551,43 @@ class SQLiteInterviewStore:
             """
             CREATE INDEX IF NOT EXISTS interview_round_events_thread_idx
             ON interview_round_events(user_id, application_id, source_thread_id)
+            """
+        )
+        self._create_retro_schema(connection)
+
+    @staticmethod
+    def _upgrade_v2(connection: sqlite3.Connection) -> None:
+        SQLiteInterviewStore._create_retro_schema(connection)
+
+    @staticmethod
+    def _create_retro_schema(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS interview_retro_reports (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                application_id TEXT NOT NULL,
+                interview_round_id TEXT NOT NULL REFERENCES interview_rounds(id),
+                source_notes TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                questions_json TEXT NOT NULL,
+                strengths_json TEXT NOT NULL,
+                difficulties_json TEXT NOT NULL,
+                interviewer_signals_json TEXT NOT NULL,
+                next_focus_json TEXT NOT NULL,
+                action_items_json TEXT NOT NULL,
+                limitations_json TEXT NOT NULL,
+                self_assessment TEXT NOT NULL,
+                content_sha256 TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, interview_round_id, content_sha256)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS interview_retro_reports_round_idx
+            ON interview_retro_reports(user_id, interview_round_id, created_at)
             """
         )
 
@@ -505,6 +669,30 @@ class SQLiteInterviewStore:
             interview_round_id=row[3], source=row[4], event_type=row[5],
             email_event_id=row[6], source_thread_id=row[7],
             details=json.loads(row[8]), occurred_at=row[9],
+        )
+
+    @staticmethod
+    def _retro(row: tuple[object, ...]) -> InterviewRetroReport:
+        return InterviewRetroReport(
+            id=row[0],
+            user_id=row[1],
+            application_id=row[2],
+            interview_round_id=row[3],
+            source_notes=row[4],
+            summary=row[5],
+            questions=tuple(
+                InterviewRetroQuestion.model_validate(item)
+                for item in json.loads(row[6])
+            ),
+            strengths=tuple(json.loads(row[7])),
+            difficulties=tuple(json.loads(row[8])),
+            interviewer_signals=tuple(json.loads(row[9])),
+            next_focus=tuple(json.loads(row[10])),
+            action_items=tuple(json.loads(row[11])),
+            limitations=tuple(json.loads(row[12])),
+            self_assessment=row[13],
+            content_sha256=row[14],
+            created_at=row[15],
         )
 
     @staticmethod

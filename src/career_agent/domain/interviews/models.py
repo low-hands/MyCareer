@@ -13,6 +13,7 @@ InterviewChangeType = Literal[
     "details_updated",
     "cancelled",
 ]
+InterviewSelfAssessment = Literal["strong", "mixed", "weak", "uncertain"]
 
 
 class InterviewContract(BaseModel):
@@ -104,3 +105,31 @@ class InterviewRoundEvent(InterviewContract):
     source_thread_id: str | None = Field(default=None, min_length=1)
     details: InterviewDetails
     occurred_at: datetime
+
+
+class InterviewRetroQuestion(InterviewContract):
+    question: str = Field(min_length=1, max_length=2000)
+    answer_summary: str | None = Field(default=None, min_length=1, max_length=5000)
+    self_assessment: InterviewSelfAssessment = "uncertain"
+    notes: str | None = Field(default=None, min_length=1, max_length=2000)
+
+
+class InterviewRetroReport(InterviewContract):
+    """A versioned post-interview report grounded only in the user's recollection."""
+
+    id: str = Field(min_length=1)
+    user_id: str = Field(min_length=1)
+    application_id: str = Field(min_length=1)
+    interview_round_id: str = Field(min_length=1)
+    source_notes: str = Field(min_length=1, max_length=20_000)
+    summary: str = Field(min_length=1, max_length=5000)
+    questions: tuple[InterviewRetroQuestion, ...] = Field(default=(), max_length=30)
+    strengths: tuple[str, ...] = Field(default=(), max_length=20)
+    difficulties: tuple[str, ...] = Field(default=(), max_length=20)
+    interviewer_signals: tuple[str, ...] = Field(default=(), max_length=20)
+    next_focus: tuple[str, ...] = Field(default=(), max_length=20)
+    action_items: tuple[str, ...] = Field(default=(), max_length=20)
+    limitations: tuple[str, ...] = Field(default=(), max_length=20)
+    self_assessment: InterviewSelfAssessment = "uncertain"
+    content_sha256: str = Field(min_length=64, max_length=64)
+    created_at: datetime

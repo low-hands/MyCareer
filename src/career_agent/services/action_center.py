@@ -155,6 +155,26 @@ class ActionCenterService:
             status="dismissed",
         )
 
+    def complete_source_action(
+        self,
+        *,
+        user_id: str,
+        action_type: ActionType,
+        source_id: str,
+    ) -> ActionItem | None:
+        """Close an action when the same user action fulfills its source task."""
+        for item in self._store.list(
+            user_id=user_id,
+            statuses=("open", "snoozed"),
+            limit=200,
+        ):
+            if item.action_type == action_type and item.source_id == source_id:
+                return self.complete_action(
+                    user_id=user_id,
+                    action_item_id=item.id,
+                )
+        return None
+
     def snooze_action(
         self,
         *,

@@ -518,6 +518,7 @@ class MainAgentRuntime:
             "create_interview",
             "update_interview",
             "complete_interview",
+            "record_interview_retro",
         }:
             return project_interview_arguments(context, name, arguments)
         if name in {"prepare_interview", "get_interview_preparation"}:

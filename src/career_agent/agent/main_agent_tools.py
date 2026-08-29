@@ -19,6 +19,7 @@ from career_agent.agent.main_agent_contracts import (
     AnalyzeResumeToolArguments,
     ConfirmResumeAnalysisToolArguments,
     CompleteInterviewToolArguments,
+    RecordInterviewRetroToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -249,6 +250,7 @@ class MainAgentToolRegistry:
                     "create_interview": self._create_interview,
                     "update_interview": self._update_interview,
                     "complete_interview": self._complete_interview,
+                    "record_interview_retro": self._record_interview_retro,
                 }
             )
         if interview_preparation_service is not None:
@@ -586,6 +588,22 @@ class MainAgentToolRegistry:
                             "name": "complete_interview",
                             "description": "Mark one real interview completed only after the user explicitly confirms they attended it. Time passing alone is never confirmation.",
                             "parameters": CompleteInterviewToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "record_interview_retro",
+                            "description": (
+                                "Create a versioned post-interview report for one "
+                                "user-confirmed completed real interview. Use only facts "
+                                "the user just provided: preserve their source notes, "
+                                "structure remembered questions and answers, and put "
+                                "missing information in limitations. Never invent "
+                                "interviewer feedback or present self-assessment as the "
+                                "employer's decision."
+                            ),
+                            "parameters": RecordInterviewRetroToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -1385,6 +1403,7 @@ class MainAgentToolRegistry:
                     }
                     for event in detail.events
                 ],
+                "retros": [self._interview_retro_payload(item) for item in detail.retros],
             },
         )
 
@@ -1482,6 +1501,59 @@ class MainAgentToolRegistry:
             message="已将这场面试标记为完成。",
             next_action="offer_interview_retro",
             payload=self._interview_payload(interview),
+        )
+
+    def _record_interview_retro(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._interview_service is None:
+            raise ValueError("Interview service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = RecordInterviewRetroToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.interview_round_id is None:
+            raise ValueError("record_interview_retro requires interview_round_id")
+        try:
+            report = self._interview_service.record_retro(
+                user_id=user_id,
+                interview_round_id=model_arguments.interview_round_id,
+                source_notes=model_arguments.source_notes,
+                summary=model_arguments.summary,
+                questions=model_arguments.questions,
+                strengths=model_arguments.strengths,
+                difficulties=model_arguments.difficulties,
+                interviewer_signals=model_arguments.interviewer_signals,
+                next_focus=model_arguments.next_focus,
+                action_items=model_arguments.action_items,
+                limitations=model_arguments.limitations,
+                self_assessment=model_arguments.self_assessment,
+            )
+        except InterviewNotFoundError:
+            return ToolObservation(
+                tool_name="record_interview_retro",
+                state="interview_not_found",
+                message="没有找到这场面试，或它不属于当前用户。",
+            )
+        except InterviewApplicationConflictError as error:
+            return ToolObservation(
+                tool_name="record_interview_retro",
+                state="interview_retro_conflict",
+                message="这场面试当前不能记录复盘报告。",
+                payload={"reason": str(error)},
+            )
+        if self._action_center_service is not None:
+            self._action_center_service.complete_source_action(
+                user_id=user_id,
+                action_type="interview_retro",
+                source_id=report.interview_round_id,
+            )
+        return ToolObservation(
+            tool_name="record_interview_retro",
+            state="interview_retro_recorded",
+            message="真实面试复盘报告已保存；结论仅基于你的复述。",
+            next_action="review_interview_retro",
+            payload=self._interview_retro_payload(report),
         )
 
     def _prepare_interview(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1908,6 +1980,25 @@ class MainAgentToolRegistry:
             "location": interview.location,
             "meeting_url": interview.meeting_url,
             "contact_summary": interview.contact_summary,
+        }
+
+    @staticmethod
+    def _interview_retro_payload(report) -> dict[str, Any]:
+        return {
+            "retro_report_id": report.id,
+            "interview_round_id": report.interview_round_id,
+            "application_id": report.application_id,
+            "source_notes": report.source_notes,
+            "summary": report.summary,
+            "questions": [item.model_dump(mode="json") for item in report.questions],
+            "strengths": list(report.strengths),
+            "difficulties": list(report.difficulties),
+            "interviewer_signals": list(report.interviewer_signals),
+            "next_focus": list(report.next_focus),
+            "action_items": list(report.action_items),
+            "limitations": list(report.limitations),
+            "self_assessment": report.self_assessment,
+            "created_at": report.created_at.isoformat(),
         }
 
     @staticmethod
