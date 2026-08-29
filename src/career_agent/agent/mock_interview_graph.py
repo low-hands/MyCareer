@@ -17,6 +17,7 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewWorker,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
 from career_agent.agent.resume_job_match_contracts import ConfirmedResumeFact
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
@@ -24,19 +25,34 @@ from career_agent.domain.mock_interviews import (
     MockInterviewReport,
     MockInterviewSession,
 )
-from career_agent.storage.jobs import JobPostingRepository
-from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.services.interview_context import InterviewPreparationContextFactory
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
-from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
+from career_agent.storage.resumes import StoredResumeDocument
 
 
 @dataclass(frozen=True)
 class MockInterviewSources:
     document: StoredResumeDocument
-    jd_text: str
-    company_name: str
-    role_title: str
-    confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
+    context: InterviewPreparationContext
+
+    @property
+    def jd_text(self) -> str:
+        return self.context.jd_text
+
+    @property
+    def company_name(self) -> str:
+        return self.context.company_name
+
+    @property
+    def role_title(self) -> str:
+        return self.context.role_title
+
+    @property
+    def confirmed_facts(self) -> tuple[ConfirmedResumeFact, ...]:
+        return tuple(
+            ConfirmedResumeFact.model_validate(fact.model_dump())
+            for fact in self.context.confirmed_facts
+        )
 
 
 class MockInterviewCheckpointMissingError(RuntimeError):
@@ -61,54 +77,33 @@ class StoredMockInterviewSourceProvider:
     def __init__(
         self,
         *,
-        resumes: ResumeStore,
-        jobs: JobPostingRepository,
-        career_history: CareerHistoryStore | None = None,
+        context_factory: InterviewPreparationContextFactory,
     ) -> None:
-        self._resumes = resumes
-        self._jobs = jobs
-        self._career_history = career_history
+        self._context_factory = context_factory
 
     def load(self, *, session: MockInterviewSession) -> MockInterviewSources:
-        document = self._resumes.read_version_document(
+        sources = self._context_factory.build(
             user_id=session.user_id,
-            resume_version_id=session.resume_version_id,
+            application_id=session.application_id,
+            interview_round_id=session.interview_round_id,
         )
-        if document is None:
-            raise ValueError("Mock interview resume version no longer exists")
-        snapshot = self._jobs.get_snapshot(
-            user_id=session.user_id,
-            jd_snapshot_id=session.jd_snapshot_id,
+        expected = (
+            session.application_id,
+            session.job_posting_id,
+            session.jd_snapshot_id,
+            session.resume_version_id,
         )
-        if snapshot is None or snapshot.job_posting_id != session.job_posting_id:
-            raise ValueError("Mock interview JD snapshot no longer exists")
-        job = self._jobs.get_job(
-            user_id=session.user_id,
-            job_posting_id=session.job_posting_id,
+        actual = (
+            sources.application_id,
+            sources.job_posting_id,
+            sources.jd_snapshot_id,
+            sources.resume_version_id,
         )
-        if job is None:
-            raise ValueError("Mock interview job posting no longer exists")
-        confirmed_facts: tuple[ConfirmedResumeFact, ...] = ()
-        if self._career_history is not None:
-            confirmed_facts = tuple(
-                ConfirmedResumeFact(
-                    claim=item.claim,
-                    source_locator=item.source_locator,
-                    source_quote=item.source_quote,
-                )
-                for item in self._career_history.list_evidence(
-                    user_id=session.user_id,
-                    verification_status="confirmed",
-                    source_resume_version_id=session.resume_version_id,
-                )
-                if item.source_locator is not None and item.source_quote is not None
-            )
+        if actual != expected or sources.document.resume_version_id != session.resume_version_id:
+            raise ValueError("Mock interview sources no longer match the session")
         return MockInterviewSources(
-            document=document,
-            jd_text=snapshot.content,
-            company_name=job.posting.company_name,
-            role_title=job.posting.title,
-            confirmed_facts=confirmed_facts,
+            document=sources.document,
+            context=sources.context,
         )
 
 
@@ -339,10 +334,7 @@ class MockInterviewGraph:
             draft = self._worker.plan(
                 session=session,
                 document=sources.document,
-                jd_text=sources.jd_text,
-                company_name=sources.company_name,
-                role_title=sources.role_title,
-                confirmed_facts=sources.confirmed_facts,
+                context=sources.context,
             )
             plan = MockInterviewPlan(
                 session_id=session.id,

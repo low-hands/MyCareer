@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from career_agent.agent.interview_preparation_contracts import (
+    InterviewPreparationContext,
+    PriorInterviewRetroContext,
+)
 from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
@@ -101,6 +105,21 @@ def _document(
     )
 
 
+def _context() -> InterviewPreparationContext:
+    return InterviewPreparationContext(
+        company_name="Example Corp",
+        role_title="Platform Engineer",
+        jd_text="Build reliable systems.",
+        prior_retros=(PriorInterviewRetroContext(
+            sequence_number=1,
+            summary="Recovery discussion lacked concrete targets.",
+            difficulties=("failure recovery",),
+            next_focus=("recovery objectives",),
+            self_assessment="mixed",
+        ),),
+    )
+
+
 def _worker(client: FakeClient) -> OpenAIMockInterviewWorker:
     return OpenAIMockInterviewWorker(
         OpenAICompatibleAgentConfig(
@@ -169,9 +188,7 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     result = _worker(client).plan(
         session=_session(),
         document=_document(),
-        jd_text="Build reliable systems.",
-        company_name="Example Corp",
-        role_title="Platform Engineer",
+        context=_context(),
     )
 
     assert len(result.items) == 2
@@ -188,6 +205,8 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     assert "Build reliable systems" in content
     assert '"target_company": "Example Corp"' in content
     assert '"target_role": "Platform Engineer"' in content
+    assert '"prior_real_interview_retros"' in content
+    assert "recovery objectives" in content
     assert "session-secret" not in content
     assert "user-secret" not in content
 
@@ -291,9 +310,9 @@ def test_plan_rejects_more_items_than_the_session_limit() -> None:
 
     with pytest.raises(AgentWorkerError, match="invalid structured output") as error:
         _worker(client).plan(
-            session=_session(max_primary_questions=1),
-            document=_document(),
-            jd_text="Build reliable systems.",
+                session=_session(max_primary_questions=1),
+                document=_document(),
+                context=_context(),
         )
 
     assert error.value.code == "MOCK_INTERVIEW_INVALID_RESPONSE"

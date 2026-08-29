@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from career_agent.agent.resume_job_match_contracts import ConfirmedResumeFact
+from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlan,
@@ -114,10 +115,7 @@ class MockInterviewPlanningWorker(Protocol):
         *,
         session: MockInterviewSession,
         document: StoredResumeDocument,
-        jd_text: str,
-        company_name: str = "",
-        role_title: str = "",
-        confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
+        context: InterviewPreparationContext,
     ) -> MockInterviewPlanDraft: ...
 
 

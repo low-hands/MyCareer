@@ -16,6 +16,7 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewQuestionDraft,
     MockInterviewReportDraft,
 )
+from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
 from career_agent.agent.mock_interview_skill_loader import (
     MockInterviewOperation,
     MockInterviewSkillBundle,
@@ -113,10 +114,7 @@ class OpenAIMockInterviewWorker:
         *,
         session: MockInterviewSession,
         document: StoredResumeDocument,
-        jd_text: str,
-        company_name: str = "",
-        role_title: str = "",
-        confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
+        context: InterviewPreparationContext,
     ) -> MockInterviewPlanDraft:
         bundle = self._skill_loader.load(
             "plan", interview_type=session.interview_type
@@ -126,15 +124,16 @@ class OpenAIMockInterviewWorker:
             bundle=bundle,
             output_type=MockInterviewPlanDraft,
             document=document,
-            jd_text=jd_text,
+            jd_text=context.jd_text,
             payload={
                 "operation": "plan",
                 "interview_type": session.interview_type,
-                "target_company": company_name,
-                "target_role": role_title,
+                "target_company": context.company_name,
+                "target_role": context.role_title,
                 "max_primary_questions": session.max_primary_questions,
                 "max_follow_ups_per_question": session.max_follow_ups_per_question,
-                "confirmed_resume_facts": self._models(confirmed_facts),
+                "confirmed_resume_facts": self._models(context.confirmed_facts),
+                "prior_real_interview_retros": self._models(context.prior_retros),
             },
         )
         if len(result.items) > session.max_primary_questions:

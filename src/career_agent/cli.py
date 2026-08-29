@@ -47,6 +47,7 @@ from career_agent.services.calendar import CalendarService
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.services.interview_preparation import InterviewPreparationService
+from career_agent.services.interview_context import InterviewPreparationContextFactory
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -153,6 +154,12 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         application_service,
         EnvironmentCalendarConnectorResolver(),
     )
+    interview_context_factory = InterviewPreparationContextFactory(
+        interviews=interview_service,
+        applications=application_service,
+        resumes=resume_store,
+        career_history=career_history_store,
+    )
     interview_preparation_service = InterviewPreparationService(
         interview_service,
         application_service,
@@ -160,6 +167,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         career_history_store,
         OpenAIInterviewPreparationWorker(resume_analysis_config),
         SQLiteInterviewPreparationStore(Path(args.resume_store).expanduser()),
+        context_factory=interview_context_factory,
     )
     checkpoint_owner = SQLiteCheckpointOwner(
         Path(args.mock_interview_checkpoint_store).expanduser()
@@ -178,9 +186,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
         ),
         sources=StoredMockInterviewSourceProvider(
-            resumes=resume_store,
-            jobs=job_repository,
-            career_history=career_history_store,
+            context_factory=interview_context_factory,
         ),
         checkpointer=checkpoint_owner.saver,
     )

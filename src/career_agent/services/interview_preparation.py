@@ -6,10 +6,13 @@ import json
 from career_agent.agent.interview_preparation_contracts import (
     InterviewPreparationContext,
     InterviewPreparationWorker,
-    PreparationConfirmedFact,
 )
 from career_agent.services.applications import ApplicationService
 from career_agent.services.interviews import InterviewNotFoundError, InterviewService
+from career_agent.services.interview_context import (
+    InterviewContextInputNotFoundError,
+    InterviewPreparationContextFactory,
+)
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.interview_preparations import (
     SQLiteInterviewPreparationStore,
@@ -37,14 +40,19 @@ class InterviewPreparationService:
         store: SQLiteInterviewPreparationStore,
         *,
         worker_version: str = "interview-preparation-v1",
+        context_factory: InterviewPreparationContextFactory | None = None,
     ) -> None:
         self._interview_service = interview_service
         self._application_service = application_service
-        self._resume_store = resume_store
-        self._career_history_store = career_history_store
         self._worker = worker
         self._store = store
         self._worker_version = worker_version
+        self._context_factory = context_factory or InterviewPreparationContextFactory(
+            interviews=interview_service,
+            applications=application_service,
+            resumes=resume_store,
+            career_history=career_history_store,
+        )
 
     def prepare(
         self, *, user_id: str, interview_round_id: str
@@ -62,38 +70,16 @@ class InterviewPreparationService:
         application = self._application_service.get_application(
             user_id=user_id, application_id=interview.application_id
         )
-        document = self._resume_store.read_version_document(
-            user_id=user_id,
-            resume_version_id=application.application.resume_version_id,
-        )
-        if document is None:
-            raise InterviewPreparationInputNotFoundError("resume_version")
-        facts = tuple(
-            PreparationConfirmedFact(
-                claim=evidence.claim,
-                source_locator=evidence.source_locator,
-                source_quote=evidence.source_quote,
-            )
-            for evidence in self._career_history_store.list_evidence(
+        try:
+            sources = self._context_factory.build(
                 user_id=user_id,
-                verification_status="confirmed",
-                source_resume_version_id=application.application.resume_version_id,
+                application_id=interview.application_id,
+                interview_round_id=interview.id,
             )
-            if evidence.source_locator is not None
-            and evidence.source_quote is not None
-        )
-        interview_context = InterviewPreparationContext(
-            employer_label=interview.employer_label,
-            scheduled_start=interview.scheduled_start,
-            scheduled_end=interview.scheduled_end,
-            timezone=interview.timezone,
-            interview_format=interview.interview_format,
-            location=interview.location,
-            meeting_url=interview.meeting_url,
-        )
+        except InterviewContextInputNotFoundError as error:
+            raise InterviewPreparationInputNotFoundError(str(error)) from error
         fingerprint = self._fingerprint(
-            interview=interview_context,
-            facts=facts,
+            context=sources.context,
             jd_snapshot_id=application.application.jd_snapshot_id,
             resume_version_id=application.application.resume_version_id,
         )
@@ -106,10 +92,8 @@ class InterviewPreparationService:
         if cached is not None:
             return cached
         result = self._worker.prepare(
-            document=document,
-            jd_text=application.job.snapshot.content,
-            interview=interview_context,
-            confirmed_facts=facts,
+            document=sources.document,
+            context=sources.context,
         )
         return self._store.save(
             user_id=user_id,
@@ -136,15 +120,13 @@ class InterviewPreparationService:
     @staticmethod
     def _fingerprint(
         *,
-        interview: InterviewPreparationContext,
-        facts: tuple[PreparationConfirmedFact, ...],
+        context: InterviewPreparationContext,
         jd_snapshot_id: str,
         resume_version_id: str,
     ) -> str:
         canonical = json.dumps(
             {
-                "interview": interview.model_dump(mode="json"),
-                "confirmed_facts": [fact.model_dump() for fact in facts],
+                "context": context.model_dump(mode="json"),
                 "jd_snapshot_id": jd_snapshot_id,
                 "resume_version_id": resume_version_id,
             },

@@ -18,6 +18,14 @@ Rank candidates for inclusion by role relevance, evidence quality, and how much
 the answer could change the practice assessment. Do not plan separate questions
 that test the same fact with different wording.
 
+When structured retros from earlier real interview rounds are supplied, use
+their unresolved `difficulties` and `next_focus` as additional prioritization
+signals only when they remain relevant to the current JD. They are the
+candidate's recollection and self-assessment, not employer feedback. Do not
+mechanically repeat remembered questions, infer an employer decision, or assume
+the next interviewer will cover the same material. Do not expose the retro or
+its hidden planning influence in question wording.
+
 ## Allocate a bounded plan
 
 - There is no fixed ten-question requirement. Fill exactly the supplied
