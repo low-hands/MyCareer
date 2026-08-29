@@ -115,6 +115,8 @@ class MockInterviewPlanningWorker(Protocol):
         session: MockInterviewSession,
         document: StoredResumeDocument,
         jd_text: str,
+        company_name: str = "",
+        role_title: str = "",
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
     ) -> MockInterviewPlanDraft: ...
 
@@ -139,6 +141,8 @@ class MockInterviewQuestionWorker(Protocol):
         prior_turns: tuple[MockInterviewTurn, ...] = (),
         document: StoredResumeDocument,
         jd_text: str,
+        company_name: str = "",
+        role_title: str = "",
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
     ) -> MockInterviewQuestionDraft: ...
 
