@@ -36,6 +36,9 @@ class Interviews:
     def get_interview(self, **kwargs):
         return InterviewDetail(interview=self.interview, events=())
 
+    def list_interviews(self, **kwargs):
+        return ()
+
 
 class Applications:
     def get_application(self, **kwargs):
@@ -44,7 +47,11 @@ class Applications:
             resume_version_id="resume-version-1",
         )
         snapshot = SimpleNamespace(id="jd-1", content="Build reliable RAG systems.")
-        return SimpleNamespace(application=application, job=SimpleNamespace(snapshot=snapshot))
+        posting = SimpleNamespace(company_name="Example Corp", title="RAG Engineer")
+        return SimpleNamespace(
+            application=application,
+            job=SimpleNamespace(snapshot=snapshot, posting=posting),
+        )
 
 
 class Resumes:
@@ -104,7 +111,8 @@ def test_preparation_uses_exact_documents_and_is_idempotent(tmp_path) -> None:
 
     assert repeated.id == first.id
     assert len(worker.calls) == 1
-    assert worker.calls[0]["jd_text"] == "Build reliable RAG systems."
+    assert worker.calls[0]["context"].jd_text == "Build reliable RAG systems."
+    assert worker.calls[0]["context"].company_name == "Example Corp"
     assert worker.calls[0]["document"].resume_version_id == "resume-version-1"
     assert first.jd_snapshot_id == "jd-1"
     assert first.resume_version_id == "resume-version-1"

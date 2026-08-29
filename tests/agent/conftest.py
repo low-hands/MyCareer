@@ -16,6 +16,7 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewReportDraft,
 )
 from career_agent.agent.mock_interview_graph import MockInterviewSources
+from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlanItem,
@@ -52,10 +53,11 @@ class FixedSources:
                 document_format="markdown",
                 raw_bytes="# 简历\n负责检索系统。".encode(),
             ),
-            jd_text="招 RAG 工程师。",
-            company_name="示例科技",
-            role_title="RAG 工程师",
-            confirmed_facts=(),
+            context=InterviewPreparationContext(
+                jd_text="招 RAG 工程师。",
+                company_name="示例科技",
+                role_title="RAG 工程师",
+            ),
         )
 
 
@@ -70,10 +72,7 @@ class OneQuestionWorker:
         *,
         session,
         document,
-        jd_text,
-        company_name="",
-        role_title="",
-        confirmed_facts=(),
+        context,
     ):
         return MockInterviewPlanDraft(
             summary="一题",

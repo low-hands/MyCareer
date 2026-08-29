@@ -2,7 +2,11 @@ import base64
 import json
 from datetime import datetime, timezone
 
-from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
+from career_agent.agent.interview_preparation_contracts import (
+    InterviewLogisticsContext,
+    InterviewPreparationContext,
+    PriorInterviewRetroContext,
+)
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
 from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
 from career_agent.storage.resumes import StoredResumeDocument
@@ -41,8 +45,20 @@ def worker(client):
 
 def context():
     return InterviewPreparationContext(
-        scheduled_start=datetime(2026, 8, 28, tzinfo=timezone.utc),
-        timezone="Asia/Shanghai", interview_format="video",
+        company_name="Example Corp",
+        role_title="RAG Engineer",
+        jd_text="Build reliable RAG systems.",
+        logistics=InterviewLogisticsContext(
+            scheduled_start=datetime(2026, 8, 28, tzinfo=timezone.utc),
+            timezone="Asia/Shanghai", interview_format="video",
+        ),
+        prior_retros=(PriorInterviewRetroContext(
+            sequence_number=1,
+            summary="系统设计回答不够具体。",
+            difficulties=("故障恢复",),
+            next_focus=("量化恢复目标",),
+            self_assessment="mixed",
+        ),),
     )
 
 
@@ -53,13 +69,15 @@ def test_text_preparation_marks_resume_jd_and_interview_as_untrusted_data() -> N
             resume_version_id="v1", document_format="markdown",
             raw_bytes=b"Built a RAG evaluation suite.",
         ),
-        jd_text="Build reliable RAG systems.", interview=context(),
+        context=context(),
     )
 
     text = client.responses.kwargs["input"][0]["content"][0]["text"]
     assert "<resume_document>" in text
     assert "<job_description>" in text
-    assert "<interview_context>" in text
+    assert "<interview_logistics>" in text
+    assert "<prior_real_interview_retros>" in text
+    assert "量化恢复目标" in text
     assert "never invent achievements" in client.responses.kwargs["instructions"]
 
 
@@ -70,7 +88,7 @@ def test_pdf_preparation_sends_original_file_without_main_agent_extraction() -> 
         document=StoredResumeDocument(
             resume_version_id="pdf-v1", document_format="pdf", raw_bytes=raw_pdf,
         ),
-        jd_text="Build reliable RAG systems.", interview=context(),
+        context=context(),
     )
 
     content = client.responses.kwargs["input"][0]["content"]

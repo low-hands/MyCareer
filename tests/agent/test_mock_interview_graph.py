@@ -11,6 +11,7 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewReportDraft,
     MockInterviewStartRequest,
 )
+from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
 from career_agent.agent.mock_interview_graph import (
     MockInterviewCheckpointMissingError,
     MockInterviewGraph,
@@ -42,9 +43,11 @@ class Sources:
                 document_format="markdown",
                 raw_bytes=b"Built retrieval systems.",
             ),
-            jd_text="Design reliable retrieval and explain technical trade-offs.",
-            company_name="Example Corp",
-            role_title="Retrieval Engineer",
+            context=InterviewPreparationContext(
+                jd_text="Design reliable retrieval and explain technical trade-offs.",
+                company_name="Example Corp",
+                role_title="Retrieval Engineer",
+            ),
         )
 
 
@@ -78,7 +81,8 @@ class Worker:
         return MockInterviewInputDecision(action=self.input_action)
 
     def plan(self, **kwargs):
-        self.plan_company = (kwargs["company_name"], kwargs["role_title"])
+        context = kwargs["context"]
+        self.plan_company = (context.company_name, context.role_title)
         return MockInterviewPlanDraft(
             summary="Test project depth then system reasoning.",
             items=(
