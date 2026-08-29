@@ -3,9 +3,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from career_agent.domain.interviews import InterviewDetails
+from career_agent.domain.interviews import InterviewDetails, InterviewRetroQuestion
 from career_agent.services.interviews import (
     AmbiguousInterviewMatchError,
+    InterviewApplicationConflictError,
     InterviewService,
 )
 from career_agent.storage.interviews import SQLiteInterviewStore
@@ -145,6 +146,77 @@ def test_email_event_is_idempotent_and_completion_requires_user_action(tmp_path)
     assert repeated.interview.id == first.interview.id
     assert completed.status == "completed"
     assert completed.completed_at == NOW + timedelta(hours=1)
+
+
+def test_real_interview_retro_requires_completion_and_is_versioned(tmp_path) -> None:
+    store = SQLiteInterviewStore(tmp_path / "applications.sqlite3")
+    service = InterviewService(store, Applications())
+    interview = service.create_manual(
+        user_id="u1",
+        application_id="app-1",
+        details=details(),
+    )
+
+    with pytest.raises(InterviewApplicationConflictError, match="completed"):
+        service.record_retro(
+            user_id="u1",
+            interview_round_id=interview.id,
+            source_notes="问了检索评测。",
+            summary="需要补充评测方法。",
+        )
+
+    service.complete_interview(
+        user_id="u1",
+        interview_round_id=interview.id,
+        completed_at=NOW + timedelta(hours=1),
+    )
+    first = service.record_retro(
+        user_id="u1",
+        interview_round_id=interview.id,
+        source_notes="问了检索评测；数据集构造没答完整。",
+        summary="评测框架基本清楚，数据集构造需要补强。",
+        questions=(
+            InterviewRetroQuestion(
+                question="如何评估 RAG 检索效果？",
+                answer_summary="回答了 Recall，但没讲数据集构造。",
+                self_assessment="mixed",
+            ),
+        ),
+        strengths=("知道核心检索指标",),
+        difficulties=("没有说明评测集构造",),
+        next_focus=("补充离线评测数据集设计",),
+        action_items=("整理一版 RAG 评测回答",),
+        limitations=("没有面试官书面反馈",),
+        self_assessment="mixed",
+    )
+    duplicate = service.record_retro(
+        user_id="u1",
+        interview_round_id=interview.id,
+        source_notes="问了检索评测；数据集构造没答完整。",
+        summary="评测框架基本清楚，数据集构造需要补强。",
+        questions=first.questions,
+        strengths=first.strengths,
+        difficulties=first.difficulties,
+        next_focus=first.next_focus,
+        action_items=first.action_items,
+        limitations=first.limitations,
+        self_assessment="mixed",
+    )
+    revised = service.record_retro(
+        user_id="u1",
+        interview_round_id=interview.id,
+        source_notes="补充：面试官还追问了线上稳定性。",
+        summary="需要同时准备评测与稳定性。",
+        next_focus=("线上降级与监控",),
+    )
+
+    detail = service.get_interview(
+        user_id="u1", interview_round_id=interview.id
+    )
+    assert duplicate.id == first.id
+    assert revised.id != first.id
+    assert [item.id for item in detail.retros] == [first.id, revised.id]
+    assert detail.retros[0].questions[0].self_assessment == "mixed"
 
 
 def test_new_invitation_after_completed_round_gets_new_internal_sequence(tmp_path) -> None:

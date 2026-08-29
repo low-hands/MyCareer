@@ -5,8 +5,11 @@ from datetime import datetime, timezone
 
 from career_agent.domain.interviews import (
     InterviewDetails,
+    InterviewRetroQuestion,
+    InterviewRetroReport,
     InterviewRound,
     InterviewRoundEvent,
+    InterviewSelfAssessment,
     InterviewStatus,
 )
 from career_agent.services.applications import (
@@ -32,6 +35,7 @@ class AmbiguousInterviewMatchError(ValueError):
 class InterviewDetail:
     interview: InterviewRound
     events: tuple[InterviewRoundEvent, ...]
+    retros: tuple[InterviewRetroReport, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -201,6 +205,69 @@ class InterviewService:
                 user_id=user_id,
                 interview_round_id=interview.id,
             ),
+            retros=self._store.list_retros(
+                user_id=user_id,
+                interview_round_id=interview.id,
+            ),
+        )
+
+    def record_retro(
+        self,
+        *,
+        user_id: str,
+        interview_round_id: str,
+        source_notes: str,
+        summary: str,
+        questions: tuple[InterviewRetroQuestion, ...] = (),
+        strengths: tuple[str, ...] = (),
+        difficulties: tuple[str, ...] = (),
+        interviewer_signals: tuple[str, ...] = (),
+        next_focus: tuple[str, ...] = (),
+        action_items: tuple[str, ...] = (),
+        limitations: tuple[str, ...] = (),
+        self_assessment: InterviewSelfAssessment = "uncertain",
+    ) -> InterviewRetroReport:
+        interview = self._store.get(
+            user_id=user_id,
+            interview_round_id=interview_round_id,
+        )
+        if interview is None:
+            raise InterviewNotFoundError(interview_round_id)
+        if interview.status != "completed":
+            raise InterviewApplicationConflictError(
+                "a real interview retro requires a user-confirmed completed interview"
+            )
+        return self._store.record_retro(
+            round_=interview,
+            source_notes=source_notes,
+            summary=summary,
+            questions=questions,
+            strengths=strengths,
+            difficulties=difficulties,
+            interviewer_signals=interviewer_signals,
+            next_focus=next_focus,
+            action_items=action_items,
+            limitations=limitations,
+            self_assessment=self_assessment,
+        )
+
+    def list_retros(
+        self,
+        *,
+        user_id: str,
+        interview_round_id: str,
+        limit: int = 50,
+    ) -> tuple[InterviewRetroReport, ...]:
+        interview = self._store.get(
+            user_id=user_id,
+            interview_round_id=interview_round_id,
+        )
+        if interview is None:
+            raise InterviewNotFoundError(interview_round_id)
+        return self._store.list_retros(
+            user_id=user_id,
+            interview_round_id=interview_round_id,
+            limit=limit,
         )
 
     def _match_round(

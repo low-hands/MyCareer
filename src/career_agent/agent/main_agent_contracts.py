@@ -10,7 +10,12 @@ from career_agent.agent.conversation_memory_contracts import ConversationSummary
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
-from career_agent.domain.interviews import InterviewDetails, InterviewStatus
+from career_agent.domain.interviews import (
+    InterviewDetails,
+    InterviewRetroQuestion,
+    InterviewSelfAssessment,
+    InterviewStatus,
+)
 from career_agent.domain.job_discovery import ContractModel
 from career_agent.domain.mock_interviews import MockInterviewType
 
@@ -661,6 +666,27 @@ class CompleteInterviewToolArguments(ContractModel):
         return self
 
 
+class RecordInterviewRetroToolArguments(ContractModel):
+    interview_round_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    source_notes: str = Field(min_length=1, max_length=20_000)
+    summary: str = Field(min_length=1, max_length=5000)
+    questions: tuple[InterviewRetroQuestion, ...] = Field(default=(), max_length=30)
+    strengths: tuple[str, ...] = Field(default=(), max_length=20)
+    difficulties: tuple[str, ...] = Field(default=(), max_length=20)
+    interviewer_signals: tuple[str, ...] = Field(default=(), max_length=20)
+    next_focus: tuple[str, ...] = Field(default=(), max_length=20)
+    action_items: tuple[str, ...] = Field(default=(), max_length=20)
+    limitations: tuple[str, ...] = Field(default=(), max_length=20)
+    self_assessment: InterviewSelfAssessment = "uncertain"
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "RecordInterviewRetroToolArguments":
+        if self.interview_round_id is not None and self.selection_index is not None:
+            raise ValueError("use either interview_round_id or selection_index")
+        return self
+
+
 class PrepareInterviewToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
     selection_index: int | None = Field(default=None, ge=1)
@@ -1099,6 +1125,8 @@ def project_interview_arguments(
         model_arguments = UpdateInterviewToolArguments.model_validate(arguments)
     elif name == "complete_interview":
         model_arguments = CompleteInterviewToolArguments.model_validate(arguments)
+    elif name == "record_interview_retro":
+        model_arguments = RecordInterviewRetroToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown interview tool: {name}")
     payload = model_arguments.model_dump()
@@ -1107,7 +1135,12 @@ def project_interview_arguments(
         if application_id is None:
             raise ValueError("create_interview requires an active application")
         payload["application_id"] = application_id
-    if name in {"get_interview", "update_interview", "complete_interview"}:
+    if name in {
+        "get_interview",
+        "update_interview",
+        "complete_interview",
+        "record_interview_retro",
+    }:
         interview_round_id = payload.get("interview_round_id")
         selection_index = payload.pop("selection_index", None)
         if interview_round_id is None and selection_index is not None:

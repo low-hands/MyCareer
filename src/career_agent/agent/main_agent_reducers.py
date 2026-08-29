@@ -499,8 +499,14 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
         _resolve_action_item,
     ),
     **_fanout(
-        ("get_interview", "create_interview", "update_interview", "complete_interview"),
-        ("interview_ready",),
+        (
+            "get_interview",
+            "create_interview",
+            "update_interview",
+            "complete_interview",
+            "record_interview_retro",
+        ),
+        ("interview_ready", "interview_retro_recorded"),
         _interview_ready,
     ),
     **_fanout(

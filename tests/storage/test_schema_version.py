@@ -64,7 +64,7 @@ DECLARED_VERSIONS = {
     "career_history": 2,
     "action_center": 2,
     "applications": 1,
-    "interviews": 1,
+    "interviews": 2,
     "calendar": 1,
     "email_tracking": 1,
     "mock_interviews": 3,
