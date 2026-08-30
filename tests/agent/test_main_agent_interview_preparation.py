@@ -12,7 +12,12 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.domain.interview_preparation import InterviewPreparationResult
+from career_agent.domain.interview_preparation import (
+    GapPreparation,
+    InterviewFocusArea,
+    InterviewPreparationResult,
+    LikelyQuestion,
+)
 from career_agent.domain.interviews import InterviewRound
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.interview_preparations import StoredInterviewPreparation
@@ -51,7 +56,24 @@ class Preparations:
             jd_snapshot_id="jd-1", resume_version_id="resume-version-1",
             input_fingerprint="a" * 64, worker_version="v1",
             result=InterviewPreparationResult(
-                summary="重点准备 RAG 可靠性。", checklist=("确认会议链接",)
+                summary="重点准备 RAG 可靠性。",
+                focus_areas=(InterviewFocusArea(
+                    topic="检索故障恢复",
+                    priority="high",
+                    rationale="岗位要求建设可靠系统。",
+                    jd_quote="Build reliable RAG systems.",
+                ),),
+                likely_questions=(LikelyQuestion(
+                    question="如何设计检索降级？",
+                    rationale="验证故障处理能力。",
+                    answer_outline=("说明故障检测", "说明恢复目标"),
+                ),),
+                gaps=(GapPreparation(
+                    gap="缺少大规模线上经验",
+                    jd_quote="Operate at scale.",
+                    honest_response_strategy="说明可迁移经验，不虚构规模。",
+                ),),
+                checklist=("确认会议链接",),
             ),
             created_at=NOW,
         )
@@ -96,6 +118,22 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
     assert result.context.task.active_interview_preparation_id == "preparation-1"
     assert result.context.task.active_resume_version_id == "resume-version-1"
     assert tools.capability_kind("prepare_interview") == "atomic_tool"
+    assert result.assistant_message.startswith("# 面试准备\n\n重点准备 RAG 可靠性。")
+    assert "## 可能的问题" in result.assistant_message
+    assert "确认会议链接" in result.assistant_message
+    assert "preparation-1" not in result.assistant_message
+    assert "jd-1" not in result.assistant_message
+
+    loaded = manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续",
+    )
+    stored_reply = loaded.recent_messages[-1].content
+    assert stored_reply.startswith("面试准备材料已生成。")
+    assert "检索故障恢复" in stored_reply
+    assert "缺少大规模线上经验" in stored_reply
+    assert "确认会议链接" not in stored_reply
 
 
 def test_preparation_can_resolve_interview_from_action_center_selection() -> None:

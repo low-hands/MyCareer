@@ -11,7 +11,9 @@ from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
+from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
+from career_agent.domain.interview_preparation import InterviewPreparationResult
 from career_agent.domain.resume import ResumeArtifactDelivery
 
 # Bounds for the stored copy of a report. Chosen so the rendered message stays
@@ -181,7 +183,10 @@ class MainAgentRuntime:
             self._context_manager.commit_turn(
                 context=context,
                 task=result.context.task,
-                assistant_message=result.assistant_message,
+                assistant_message=self._history_message(
+                    result.tool_result,
+                    screen=result.assistant_message,
+                ),
             )
         return result
 
@@ -444,26 +449,48 @@ class MainAgentRuntime:
         """
         if not isinstance(result, ToolObservation):
             return screen
-        if result.state != "mock_interview_completed":
+        if result.state == "mock_interview_completed":
+            report = MockInterviewGraphResult.model_validate(result.payload).report
+            if report is None:
+                return screen
+            sections = (
+                ("总结", (_clip(report.summary, _HISTORY_SUMMARY_CHARS),)),
+                ("待提升", _clip_items(report.development_areas)),
+                ("练习建议", _clip_items(report.practice_actions)),
+            )
+            heading = "模拟面试完成。"
+        elif result.state == "interview_preparation_ready":
+            preparation = MainAgentRuntime._interview_preparation_result(result)
+            if preparation is None:
+                return screen
+            sections = (
+                ("总结", (_clip(preparation.summary, _HISTORY_SUMMARY_CHARS),)),
+                (
+                    "准备重点",
+                    _clip_items(tuple(item.topic for item in preparation.focus_areas)),
+                ),
+                (
+                    "待补差距",
+                    _clip_items(tuple(item.gap for item in preparation.gaps)),
+                ),
+            )
+            heading = "面试准备材料已生成。"
+        else:
             return screen
-        report = MockInterviewGraphResult.model_validate(result.payload).report
-        if report is None:
-            return screen
-        sections = (
-            ("总结", (_clip(report.summary, _HISTORY_SUMMARY_CHARS),)),
-            ("待提升", _clip_items(report.development_areas)),
-            ("练习建议", _clip_items(report.practice_actions)),
-        )
         blocks = [
             f"{title}\n" + "\n".join(f"- {line}" for line in lines)
             for title, lines in sections
             if lines
         ]
-        return "\n\n".join(("模拟面试完成。", *blocks))
+        return "\n\n".join((heading, *blocks))
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
         if isinstance(result, ToolObservation):
+            if result.state == "interview_preparation_ready":
+                preparation = MainAgentRuntime._interview_preparation_result(result)
+                if preparation is not None:
+                    return render_interview_preparation(preparation)
             if result.state == "calendar_approval_required":
                 payload = result.payload.get("payload")
                 if isinstance(payload, dict):
@@ -505,6 +532,18 @@ class MainAgentRuntime:
             )
             blocks.append((heading.strip() + "\n\n" if heading else "") + "\n\n".join(sections))
         return "\n\n".join(blocks)
+
+    @staticmethod
+    def _interview_preparation_result(
+        result: ToolObservation,
+    ) -> InterviewPreparationResult | None:
+        raw = result.payload.get("preparation")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return InterviewPreparationResult.model_validate(raw)
+        except ValueError:
+            return None
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
