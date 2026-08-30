@@ -12,6 +12,7 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
+from career_agent.harness.streaming import InteractionRequiredEvent
 
 
 class Gateway:
@@ -147,6 +148,85 @@ def test_initial_workflow_call_projects_profile_defaults(tmp_path) -> None:
     assert result.context.task.run_id == "run-1"
     assert result.context.task.candidates[0].result_ref == "r1"
     assert len(gateway.calls) == 1
+
+
+def test_runtime_streams_real_progress_and_fake_final_content(tmp_path) -> None:
+    agent, _, _ = build_runtime(
+        tmp_path,
+        AgentDecision(
+            action="final",
+            message="第一段回答。\n\n第二段回答用于验证分块。",
+        ),
+    )
+    events = []
+
+    result = agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="请直接回答",
+        event_sink=events.append,
+    )
+
+    event_types = [event.type for event in events]
+    assert event_types[0] == "turn_started"
+    assert "progress" in event_types
+    assert event_types[-1] == "turn_completed"
+    assert "".join(
+        event.delta for event in events if event.type == "content_delta"
+    ) == result.assistant_message
+
+
+def test_selection_streams_public_interaction_then_suspends(tmp_path) -> None:
+    agent, _, _ = build_runtime(
+        tmp_path,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="job_discovery", arguments={}),
+        ),
+    )
+    events = []
+
+    agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我找工作",
+        event_sink=events.append,
+    )
+
+    interaction = next(
+        event for event in events if isinstance(event, InteractionRequiredEvent)
+    )
+    assert interaction.kind == "multiple_selection"
+    assert interaction.options[0].selection_index == 1
+    serialized = interaction.model_dump_json()
+    assert "run-1" not in serialized
+    assert "r1" not in serialized
+    assert [event.type for event in events][-1] == "turn_suspended"
+    assert not any(event.type == "content_delta" for event in events)
+    assert not any(event.type == "turn_completed" for event in events)
+
+
+def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:
+    agent, _, manager = build_runtime(
+        tmp_path,
+        AgentDecision(action="final", message="仍然完成。"),
+    )
+
+    def broken_sink(_event) -> None:
+        raise RuntimeError("client disconnected")
+
+    result = agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续执行",
+        event_sink=broken_sink,
+    )
+
+    assert result.assistant_message == "仍然完成。"
+    history = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="下一轮"
+    ).recent_messages
+    assert history[-1].content == "仍然完成。"
 
 
 def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:
@@ -437,6 +517,42 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
     assert result.context.model_context()["task"]["saved_jobs"][0]["selection_index"] == 1
     assert "PRIVATE SAVED JD" not in observation.model_dump_json()
     assert result.assistant_message == "找到 1 个已保存职位。"
+
+
+def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    internal_job_id = _seed_saved_job(repository)
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"}),
+        ),
+        AgentDecision(action="ask_user", message="你想打开哪一个岗位？"),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+    )
+    events = []
+
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="找一下之前的岗位",
+        event_sink=events.append,
+    )
+
+    interaction = next(
+        event for event in events if isinstance(event, InteractionRequiredEvent)
+    )
+    assert interaction.kind == "single_selection"
+    assert interaction.options[0].label == "RAG Engineer｜Acme"
+    assert interaction.options[0].selection_index == 1
+    assert internal_job_id not in interaction.model_dump_json()
+    assert events[-1].type == "turn_suspended"
 
 
 def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:

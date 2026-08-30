@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.answer_writer import OpenAIStreamingAnswerWriter
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
@@ -210,6 +211,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
+        answer_writer=OpenAIStreamingAnswerWriter(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(

@@ -16,13 +16,16 @@ dependencies = [
     "pypdf>=6.0",
     "deepagents>=0.7.6,<0.8",
     "langchain-openai>=1.1,<2",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
 ]
 
 [project.scripts]
 career-agent = "career_agent.cli:main"
+career-agent-api = "career_agent.api.app:run"
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = ["pytest>=8", "httpx>=0.28,<1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
