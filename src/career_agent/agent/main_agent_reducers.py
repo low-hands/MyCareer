@@ -15,7 +15,7 @@ from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
-    CareerProfileUpdate,
+    JobIntentUpdate,
     ConversationTaskState,
     EmailEventCandidateContextItem,
     InterviewCandidateContextItem,
@@ -143,6 +143,10 @@ def _list_target_roles(
                     title=item["title"],
                     priority=item["priority"],
                     status=item["status"],
+                    city=item.get("city"),
+                    salary_expectation=item.get("salary_expectation"),
+                    experience=item.get("experience"),
+                    education=item.get("education"),
                 )
                 for item in _items(result)
             )
@@ -475,7 +479,7 @@ def _fanout(
     return {name: entry for name in names}
 
 
-def _propose_career_profile_update(
+def _propose_job_intent(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     raw = result.payload.get("update")
@@ -483,25 +487,25 @@ def _propose_career_profile_update(
         return task
     return task.model_copy(
         update={
-            "pending_career_profile_update": CareerProfileUpdate.model_validate(raw)
+            "pending_job_intent_update": JobIntentUpdate.model_validate(raw)
         }
     )
 
 
-def _confirm_career_profile_update(
+def _confirm_job_intent(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     # Clearing on success is what stops one confirmation from being reusable by
     # a later turn that the user never saw a readback for.
-    return task.model_copy(update={"pending_career_profile_update": None})
+    return task.model_copy(update={"pending_job_intent_update": None})
 
 
 ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
-    "propose_career_profile_update": _entry(
-        ("career_profile_update_proposed",), _propose_career_profile_update
+    "propose_job_intent": _entry(
+        ("job_intent_proposed",), _propose_job_intent
     ),
-    "confirm_career_profile_update": _entry(
-        ("career_profile_updated",), _confirm_career_profile_update
+    "confirm_job_intent": _entry(
+        ("job_intent_recorded",), _confirm_job_intent
     ),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(

@@ -46,7 +46,7 @@ class RecordingSummaryWorker:
 
 def test_loads_profile_preferences_task_and_bounded_history(tmp_path) -> None:
     context_manager = manager(tmp_path)
-    context_manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai"))
+    context_manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     context_manager.upsert_preferences(user_id="u1", preferences=AgentPreferencesContext(boss_search="allowed"))
     initial = context_manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="First message")
     context_manager.commit_turn(context=initial, task=ConversationTaskState(active_workflow="job_discovery", run_id="run-1", phase="selection_required"), assistant_message="First response")
@@ -105,14 +105,14 @@ def test_workflow_turn_updates_routing_without_loading_or_writing_main_memory(
 
 def test_context_isolated_by_user_and_conversation(tmp_path) -> None:
     context_manager = manager(tmp_path)
-    context_manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",)))
+    context_manager.upsert_profile(CareerProfileContext(user_id="u1"))
     first = context_manager.load_for_turn(user_id="u1", conversation_id="same", user_message="u1")
     context_manager.commit_turn(context=first, task=ConversationTaskState(active_workflow="job_discovery", run_id="run-u1"), assistant_message="done")
 
     other_user = context_manager.load_for_turn(user_id="u2", conversation_id="same", user_message="u2")
     other_conversation = context_manager.load_for_turn(user_id="u1", conversation_id="other", user_message="other")
 
-    assert other_user.profile.target_roles == ()
+    assert other_user.profile.default_city is None
     assert other_user.task.run_id is None
     assert other_user.recent_messages == ()
     assert other_conversation.task.run_id is None
@@ -133,7 +133,7 @@ def test_commit_trims_messages_and_survives_manager_rebuild(tmp_path) -> None:
 
 def test_messages_are_truncated_without_profile_mutation(tmp_path) -> None:
     context_manager = manager(tmp_path)
-    context_manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai"))
+    context_manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     context = context_manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="x" * 100)
     context_manager.commit_turn(context=context, task=ConversationTaskState(), assistant_message="y" * 100)
 

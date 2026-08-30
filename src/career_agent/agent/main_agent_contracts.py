@@ -20,53 +20,65 @@ from career_agent.domain.mock_interviews import MockInterviewType
 
 
 class CareerProfileContext(ContractModel):
-    user_id: str
-    target_roles: tuple[str, ...] = ()
-    default_city: str | None = None
-    salary_preference: str | None = None
-    experience: str | None = None
-    education: str | None = None
+    """Person-level job intent only.
 
-
-class CareerProfileUpdate(ContractModel):
-    """A proposed change to the user's stated job intent, not yet applied.
-
-    Every field is optional because the user states intent a piece at a time.
-    Only what the user actually said is carried; an omitted field leaves the
-    stored value alone rather than clearing it, so mentioning a city cannot
-    silently erase a salary expectation stated three turns ago.
+    Everything that varies between the roles a user is pursuing — salary band,
+    the experience and education brackets they are searching within, and a city
+    they would accept for one role but not another — lives on TargetRole, which
+    already has identity, priority, and the resume families hanging off it.
+    Keeping a second free-text role list here only guaranteed that one of the
+    two would eventually be written to and the other read.
     """
 
-    target_roles: tuple[str, ...] | None = Field(default=None, max_length=5)
-    default_city: str | None = Field(default=None, min_length=1, max_length=40)
-    salary_preference: str | None = Field(default=None, min_length=1, max_length=100)
+    user_id: str
+    default_city: str | None = None
+
+
+class JobIntentUpdate(ContractModel):
+    """A proposed change to stated job intent, not yet applied.
+
+    ``target_role_id`` decides the scope. Unset, the update is about the person
+    and may only carry ``city``. Set, it is about that one career track, where a
+    city is an override of the person-level default.
+
+    The scoping is a validator rather than a prompt instruction because a salary
+    recorded against the person cannot be un-mixed later: the two roles it was
+    meant to distinguish would already have collapsed into one number.
+
+    Every field is optional because intent is stated a piece at a time, and an
+    omitted field leaves the stored value alone rather than clearing it.
+    """
+
+    target_role_id: str | None = Field(default=None, min_length=1)
+    city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
 
     @model_validator(mode="after")
-    def require_at_least_one_field(self) -> "CareerProfileUpdate":
-        if not any(
-            value is not None
-            for value in (
-                self.target_roles,
-                self.default_city,
-                self.salary_preference,
-                self.experience,
-                self.education,
-            )
+    def scope_must_match_the_fields(self) -> "JobIntentUpdate":
+        role_scoped = (self.salary_expectation, self.experience, self.education)
+        if self.target_role_id is None and any(
+            value is not None for value in role_scoped
         ):
-            raise ValueError("a career profile update must change at least one field")
-        if self.target_roles is not None and not self.target_roles:
-            raise ValueError("target_roles cannot be set to an empty list")
+            raise ValueError(
+                "salary, experience, and education belong to a target role and "
+                "need one to be selected"
+            )
+        if not any(
+            value is not None for value in (self.city, *role_scoped)
+        ):
+            raise ValueError("a job intent update must change at least one field")
         return self
 
-    def apply_to(self, profile: CareerProfileContext) -> CareerProfileContext:
-        changes = {
-            key: value
-            for key, value in self.model_dump().items()
-            if value is not None
-        }
-        return profile.model_copy(update=changes)
+    @property
+    def is_role_scoped(self) -> bool:
+        return self.target_role_id is not None
+
+    def apply_to_profile(self, profile: CareerProfileContext) -> CareerProfileContext:
+        if self.is_role_scoped or self.city is None:
+            return profile
+        return profile.model_copy(update={"default_city": self.city})
 
 
 class AgentPreferencesContext(ContractModel):
@@ -127,6 +139,13 @@ class TargetRoleCandidateContextItem(ContractModel):
     title: str
     priority: int
     status: str
+    # The intent recorded against this track. It rides along here rather than
+    # being flattened into career_profile so the model sees which numbers belong
+    # to which role instead of one blended set.
+    city: str | None = None
+    salary_expectation: str | None = None
+    experience: str | None = None
+    education: str | None = None
 
 
 class ResumeCandidateContextItem(ContractModel):
@@ -171,7 +190,7 @@ class ConversationTaskState(ContractModel):
     manual_search_query: str | None = None
     candidates: tuple[CandidateContextItem, ...] = ()
     workflow_entry_message: str | None = None
-    pending_career_profile_update: CareerProfileUpdate | None = None
+    pending_job_intent_update: JobIntentUpdate | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed"] | None = None
     active_resume_job_match_id: str | None = None
@@ -347,11 +366,11 @@ class MainAgentContext(ContractModel):
     def model_context(self) -> dict[str, Any]:
         return {
             "career_profile": {
-                "target_roles": self.profile.target_roles,
                 "default_city": self.profile.default_city,
-                "salary_preference": self.profile.salary_preference,
-                "experience": self.profile.experience,
-                "education": self.profile.education,
+                # Role-scoped intent reaches the model through
+                # target_role_candidates, which carry it per track. Flattening
+                # it here would hand back the single blended profile this split
+                # exists to prevent.
                 "records": [
                     record.model_dump(mode="json")
                     for record in self.career_memory.records
@@ -573,15 +592,15 @@ class MatchResumeToJobToolArguments(ContractModel):
     job_selection_index: int | None = Field(default=None, ge=1)
 
 
-class ProposeCareerProfileUpdateToolArguments(ContractModel):
-    target_roles: tuple[str, ...] | None = Field(default=None, max_length=5)
-    default_city: str | None = Field(default=None, min_length=1, max_length=40)
-    salary_preference: str | None = Field(default=None, min_length=1, max_length=100)
+class ProposeJobIntentToolArguments(ContractModel):
+    target_role_selection_index: int | None = Field(default=None, ge=1)
+    city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
 
 
-class ConfirmCareerProfileUpdateToolArguments(ContractModel):
+class ConfirmJobIntentToolArguments(ContractModel):
     pass
 
 
@@ -958,30 +977,33 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
     return {"user_id": context.profile.user_id, **payload}
 
 
-def project_career_profile_arguments(
+def project_job_intent_arguments(
     context: MainAgentContext,
     name: str,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
     _reject_internal_identifiers(name, arguments)
-    if name == "propose_career_profile_update":
-        model_arguments = ProposeCareerProfileUpdateToolArguments.model_validate(
-            arguments
-        )
-        update = CareerProfileUpdate.model_validate(
-            model_arguments.model_dump(exclude_none=True)
-        )
+    if name == "propose_job_intent":
+        model_arguments = ProposeJobIntentToolArguments.model_validate(arguments)
+        payload = model_arguments.model_dump(exclude_none=True)
+        selection_index = payload.pop("target_role_selection_index", None)
+        if selection_index is not None:
+            candidates = context.task.target_role_candidates
+            if selection_index > len(candidates):
+                raise ValueError("target-role selection index is out of range")
+            payload["target_role_id"] = candidates[selection_index - 1].target_role_id
+        update = JobIntentUpdate.model_validate(payload)
         return {
             "user_id": context.profile.user_id,
             "update": update,
             "current": context.profile,
         }
-    ConfirmCareerProfileUpdateToolArguments.model_validate(arguments)
-    pending = context.task.pending_career_profile_update
+    ConfirmJobIntentToolArguments.model_validate(arguments)
+    pending = context.task.pending_job_intent_update
     if pending is None:
         # Confirmation has to point at something the user was actually shown.
         raise ValueError(
-            "confirm_career_profile_update requires a proposed update the user has seen"
+            "confirm_job_intent requires a proposed update the user has seen"
         )
     return {
         "user_id": context.profile.user_id,
@@ -995,6 +1017,11 @@ def project_open_job_search_arguments(
 ) -> dict[str, Any]:
     _reject_internal_identifiers("open_job_search", arguments)
     model_arguments = OpenJobSearchToolArguments.model_validate(arguments)
+    # Falls back to the person-level default only. A target role's city override
+    # is deliberately not consulted here: task state has no notion of which role
+    # the conversation is working in, so the only available rule would be "any
+    # role that happens to have a city", which would silently search the wrong
+    # place. Resolving it properly needs an active target role first.
     return model_arguments.model_copy(
         update={"city": model_arguments.city or context.profile.default_city}
     ).model_dump()

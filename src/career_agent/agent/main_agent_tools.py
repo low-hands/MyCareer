@@ -42,10 +42,10 @@ from career_agent.agent.main_agent_contracts import (
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
     CareerProfileContext,
-    CareerProfileUpdate,
+    JobIntentUpdate,
     CompareSavedJobsToolArguments,
-    ConfirmCareerProfileUpdateToolArguments,
-    ProposeCareerProfileUpdateToolArguments,
+    ConfirmJobIntentToolArguments,
+    ProposeJobIntentToolArguments,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListActionItemsToolArguments,
@@ -215,11 +215,11 @@ class MainAgentToolRegistry:
         if career_profile_store is not None:
             self._atomic_handlers.update(
                 {
-                    "propose_career_profile_update": (
-                        self._propose_career_profile_update
+                    "propose_job_intent": (
+                        self._propose_job_intent
                     ),
-                    "confirm_career_profile_update": (
-                        self._confirm_career_profile_update
+                    "confirm_job_intent": (
+                        self._confirm_job_intent
                     ),
                 }
             )
@@ -410,33 +410,39 @@ class MainAgentToolRegistry:
                     {
                         "type": "function",
                         "function": {
-                            "name": "propose_career_profile_update",
+                            "name": "propose_job_intent",
                             "description": (
                                 "Show the user what would be recorded as their stated "
-                                "job intent, without saving anything. Call it only "
-                                "with what the user has actually said in their own "
-                                "words; never infer a city, role, or salary from a job "
-                                "they looked at or from anything you concluded. Send "
-                                "only the fields they just stated. This tool covers "
-                                "intent only: skills and experience claims come from "
-                                "their resume, never from being told."
+                                "job intent, without saving anything. Send only the "
+                                "fields they just stated in their own words; never "
+                                "infer a city, salary, or bracket from a job they "
+                                "looked at or from anything you concluded. Salary, "
+                                "experience, and education belong to one target role "
+                                "and require target_role_selection_index from "
+                                "list_target_roles, because a candidate pursuing two "
+                                "tracks wants different numbers for each. A city sent "
+                                "without a selection index is the person's default; "
+                                "sent with one it overrides that default for that role "
+                                "alone. This tool records intent only: skill and "
+                                "experience claims come from the resume, never from "
+                                "being told."
                             ),
                             "parameters": (
-                                ProposeCareerProfileUpdateToolArguments.model_json_schema()
+                                ProposeJobIntentToolArguments.model_json_schema()
                             ),
                         },
                     },
                     {
                         "type": "function",
                         "function": {
-                            "name": "confirm_career_profile_update",
+                            "name": "confirm_job_intent",
                             "description": (
                                 "Save the update the user was just shown. Call it only "
                                 "after they explicitly agree to that specific readback; "
                                 "continuing the conversation is not agreement."
                             ),
                             "parameters": (
-                                ConfirmCareerProfileUpdateToolArguments.model_json_schema()
+                                ConfirmJobIntentToolArguments.model_json_schema()
                             ),
                         },
                     },
@@ -2534,6 +2540,10 @@ class MainAgentToolRegistry:
                         "title": role.title,
                         "priority": role.priority,
                         "status": role.status,
+                        "city": role.city,
+                        "salary_expectation": role.salary_expectation,
+                        "experience": role.experience,
+                        "education": role.education,
                     }
                     for index, role in enumerate(roles, start=1)
                 ]
@@ -2737,79 +2747,95 @@ class MainAgentToolRegistry:
             },
         )
 
-    def _propose_career_profile_update(
-        self, arguments: dict[str, Any]
-    ) -> ToolObservation:
-        update: CareerProfileUpdate = arguments["update"]
-        current: CareerProfileContext = arguments["current"]
+    def _propose_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:
+        update: JobIntentUpdate = arguments["update"]
+        scope = None
+        if update.is_role_scoped and self._resume_store is not None:
+            role = self._resume_store.get_target_role(
+                user_id=str(arguments["user_id"]),
+                target_role_id=str(update.target_role_id),
+            )
+            if role is None:
+                return ToolObservation(
+                    tool_name="propose_job_intent",
+                    state="target_role_not_found",
+                    message="没有找到这个目标岗位，或它不属于当前用户。",
+                    payload={},
+                )
+            scope = role.title
         return ToolObservation(
-            tool_name="propose_career_profile_update",
-            state="career_profile_update_proposed",
-            message=self._career_profile_readback(update, current),
+            tool_name="propose_job_intent",
+            state="job_intent_proposed",
+            message=self._job_intent_readback(update, scope=scope),
             next_action="await_user_confirmation",
-            payload={
-                "update": update.model_dump(mode="json", exclude_none=True),
-                "current": current.model_dump(mode="json"),
-            },
+            payload={"update": update.model_dump(mode="json", exclude_none=True)},
         )
 
-    def _confirm_career_profile_update(
-        self, arguments: dict[str, Any]
-    ) -> ToolObservation:
+    def _confirm_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._career_profile_store is None:
             raise ValueError("Career profile store is not configured")
         user_id = str(arguments["user_id"])
-        update: CareerProfileUpdate = arguments["update"]
+        update: JobIntentUpdate = arguments["update"]
+        if update.is_role_scoped:
+            if self._resume_store is None:
+                raise ValueError("Resume store is not configured")
+            role = self._resume_store.update_target_role_intent(
+                user_id=user_id,
+                target_role_id=str(update.target_role_id),
+                city=update.city,
+                salary_expectation=update.salary_expectation,
+                experience=update.experience,
+                education=update.education,
+            )
+            return ToolObservation(
+                tool_name="confirm_job_intent",
+                state="job_intent_recorded",
+                message=self._job_intent_readback(update, scope=role.title, saved=True),
+                next_action="continue_requested_task",
+                payload={"target_role": role.model_dump(mode="json")},
+            )
         # Re-read rather than trusting the projected copy: the stored profile is
         # the thing being changed, and it may have moved since the readback.
         stored = self._career_profile_store.get_profile(user_id) or (
             CareerProfileContext(user_id=user_id)
         )
-        updated = update.apply_to(stored)
+        updated = update.apply_to_profile(stored)
         self._career_profile_store.upsert_profile(updated)
         return ToolObservation(
-            tool_name="confirm_career_profile_update",
-            state="career_profile_updated",
-            message=self._career_profile_readback(update, stored, saved=True),
+            tool_name="confirm_job_intent",
+            state="job_intent_recorded",
+            message=self._job_intent_readback(update, scope=None, saved=True),
             next_action="continue_requested_task",
             payload={"profile": updated.model_dump(mode="json")},
         )
 
-    _CAREER_PROFILE_LABELS = {
-        "target_roles": "目标岗位",
-        "default_city": "默认城市",
-        "salary_preference": "薪资期望",
+    _JOB_INTENT_LABELS = {
+        "city": "城市",
+        "salary_expectation": "薪资期望",
         "experience": "经验",
         "education": "学历",
     }
 
     @classmethod
-    def _career_profile_readback(
+    def _job_intent_readback(
         cls,
-        update: CareerProfileUpdate,
-        current: CareerProfileContext,
+        update: JobIntentUpdate,
         *,
+        scope: str | None,
         saved: bool = False,
     ) -> str:
-        lines = []
-        for field, value in update.model_dump(exclude_none=True).items():
-            label = cls._CAREER_PROFILE_LABELS[field]
-            new = "、".join(value) if isinstance(value, tuple) else str(value)
-            previous = getattr(current, field)
-            shown_previous = (
-                "、".join(previous)
-                if isinstance(previous, tuple)
-                else (previous or "")
-            )
-            if shown_previous and shown_previous != new:
-                lines.append(f"- {label}：{shown_previous} → {new}")
-            else:
-                lines.append(f"- {label}：{new}")
+        fields = update.model_dump(exclude_none=True)
+        fields.pop("target_role_id", None)
+        lines = [
+            f"- {cls._JOB_INTENT_LABELS[field]}：{value}"
+            for field, value in fields.items()
+        ]
         body = "\n".join(lines)
+        where = f"目标岗位「{scope}」" if scope else "整体求职意向"
         if saved:
-            return f"已记录你的求职意向：\n{body}"
+            return f"已记录{where}：\n{body}"
         return (
-            f"我准备记录这些求职意向：\n{body}\n"
+            f"我准备把这些记到{where}上：\n{body}\n"
             "确认后才会保存；这只是你告诉我的意向，不是对你能力的判断。"
         )
 

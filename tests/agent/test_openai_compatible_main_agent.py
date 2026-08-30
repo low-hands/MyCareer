@@ -34,7 +34,7 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
     )
     context = MainAgentContext(
         conversation_id="c1",
-        profile=CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai"),
+        profile=CareerProfileContext(user_id="u1", default_city="Shanghai"),
         task=ConversationTaskState(
             active_workflow="mock_interview",
             run_id="internal-run-do-not-leak",
@@ -53,7 +53,10 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
 
     payload = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert decision.action == "ask_user"
-    assert payload["career_profile"]["target_roles"] == ["AI Engineer"]
+    # Role-scoped intent reaches the model per track, not blended into one
+    # profile, so the person-level block carries only the person-level city.
+    assert set(payload["career_profile"]) == {"default_city", "records"}
+    assert payload["career_profile"]["default_city"] == "Shanghai"
     assert "resume_text" not in payload
     assert "open_job_search" in client.completions.kwargs["messages"][0]["content"]
     assert "job_discovery" not in client.completions.kwargs["messages"][0]["content"]
