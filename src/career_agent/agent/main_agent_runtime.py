@@ -13,7 +13,7 @@ from career_agent.agent.answer_writer import (
     AnswerCompositionRequest,
     AnswerWriter,
 )
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_career_profile_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
@@ -1114,6 +1114,11 @@ class MainAgentRuntime:
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name == "open_job_search":
             return project_open_job_search_arguments(context, arguments)
+        if name in {
+            "propose_career_profile_update",
+            "confirm_career_profile_update",
+        }:
+            return project_career_profile_arguments(context, name, arguments)
         if name in {"find_saved_jobs", "get_saved_job", "compare_saved_jobs"}:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":
