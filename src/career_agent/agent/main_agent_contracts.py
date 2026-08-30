@@ -28,6 +28,47 @@ class CareerProfileContext(ContractModel):
     education: str | None = None
 
 
+class CareerProfileUpdate(ContractModel):
+    """A proposed change to the user's stated job intent, not yet applied.
+
+    Every field is optional because the user states intent a piece at a time.
+    Only what the user actually said is carried; an omitted field leaves the
+    stored value alone rather than clearing it, so mentioning a city cannot
+    silently erase a salary expectation stated three turns ago.
+    """
+
+    target_roles: tuple[str, ...] | None = Field(default=None, max_length=5)
+    default_city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_preference: str | None = Field(default=None, min_length=1, max_length=100)
+    experience: str | None = Field(default=None, min_length=1, max_length=100)
+    education: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self) -> "CareerProfileUpdate":
+        if not any(
+            value is not None
+            for value in (
+                self.target_roles,
+                self.default_city,
+                self.salary_preference,
+                self.experience,
+                self.education,
+            )
+        ):
+            raise ValueError("a career profile update must change at least one field")
+        if self.target_roles is not None and not self.target_roles:
+            raise ValueError("target_roles cannot be set to an empty list")
+        return self
+
+    def apply_to(self, profile: CareerProfileContext) -> CareerProfileContext:
+        changes = {
+            key: value
+            for key, value in self.model_dump().items()
+            if value is not None
+        }
+        return profile.model_copy(update=changes)
+
+
 class AgentPreferencesContext(ContractModel):
     boss_search: Literal["explicit_request_only", "allowed"] = "explicit_request_only"
 
@@ -130,6 +171,7 @@ class ConversationTaskState(ContractModel):
     manual_search_query: str | None = None
     candidates: tuple[CandidateContextItem, ...] = ()
     workflow_entry_message: str | None = None
+    pending_career_profile_update: CareerProfileUpdate | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed"] | None = None
     active_resume_job_match_id: str | None = None
@@ -531,6 +573,18 @@ class MatchResumeToJobToolArguments(ContractModel):
     job_selection_index: int | None = Field(default=None, ge=1)
 
 
+class ProposeCareerProfileUpdateToolArguments(ContractModel):
+    target_roles: tuple[str, ...] | None = Field(default=None, max_length=5)
+    default_city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_preference: str | None = Field(default=None, min_length=1, max_length=100)
+    experience: str | None = Field(default=None, min_length=1, max_length=100)
+    education: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class ConfirmCareerProfileUpdateToolArguments(ContractModel):
+    pass
+
+
 class CompareSavedJobsToolArguments(ContractModel):
     job_selection_indices: tuple[int, ...] = Field(min_length=2, max_length=10)
 
@@ -902,6 +956,38 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
             raise ValueError("get_saved_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
     return {"user_id": context.profile.user_id, **payload}
+
+
+def project_career_profile_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "propose_career_profile_update":
+        model_arguments = ProposeCareerProfileUpdateToolArguments.model_validate(
+            arguments
+        )
+        update = CareerProfileUpdate.model_validate(
+            model_arguments.model_dump(exclude_none=True)
+        )
+        return {
+            "user_id": context.profile.user_id,
+            "update": update,
+            "current": context.profile,
+        }
+    ConfirmCareerProfileUpdateToolArguments.model_validate(arguments)
+    pending = context.task.pending_career_profile_update
+    if pending is None:
+        # Confirmation has to point at something the user was actually shown.
+        raise ValueError(
+            "confirm_career_profile_update requires a proposed update the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "update": pending,
+        "current": context.profile,
+    }
 
 
 def project_open_job_search_arguments(

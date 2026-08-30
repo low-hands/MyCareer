@@ -82,8 +82,9 @@ MAX_RESUME_IMPORT_BYTES = 1_048_576
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
+    context_store = CareerContextStore(Path(args.context_store).expanduser())
     context_manager = ContextManager(
-        CareerContextStore(Path(args.context_store).expanduser()),
+        context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
         compacted_message_warning_threshold=args.compacted_message_warning,
     )
@@ -200,6 +201,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
             ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
+            career_profile_store=context_store,
             resume_job_match_service=ResumeJobMatchService(
                 resume_store,
                 job_repository,

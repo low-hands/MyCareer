@@ -15,6 +15,7 @@ from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
+    CareerProfileUpdate,
     ConversationTaskState,
     EmailEventCandidateContextItem,
     InterviewCandidateContextItem,
@@ -474,7 +475,34 @@ def _fanout(
     return {name: entry for name in names}
 
 
+def _propose_career_profile_update(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("update")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_career_profile_update": CareerProfileUpdate.model_validate(raw)
+        }
+    )
+
+
+def _confirm_career_profile_update(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    # Clearing on success is what stops one confirmation from being reusable by
+    # a later turn that the user never saw a readback for.
+    return task.model_copy(update={"pending_career_profile_update": None})
+
+
 ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
+    "propose_career_profile_update": _entry(
+        ("career_profile_update_proposed",), _propose_career_profile_update
+    ),
+    "confirm_career_profile_update": _entry(
+        ("career_profile_updated",), _confirm_career_profile_update
+    ),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(
         ("saved_jobs_found", "no_saved_jobs_found"), _find_saved_jobs

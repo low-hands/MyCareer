@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import sqlite3
+from typing import Protocol
 
 from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
 from career_agent.agent.conversation_memory_contracts import (
@@ -13,6 +14,18 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.session_contracts import AgentSession
 from career_agent.storage.schema import apply_schema
+
+
+class CareerProfileStore(Protocol):
+    """The narrow slice of context storage that may change stated job intent.
+
+    Tools receive this instead of the whole context store so that recording an
+    intent cannot reach conversation history, task state, or summaries.
+    """
+
+    def get_profile(self, user_id: str) -> CareerProfileContext | None: ...
+
+    def upsert_profile(self, profile: CareerProfileContext) -> None: ...
 
 
 class CareerContextStore:

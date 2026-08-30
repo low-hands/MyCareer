@@ -41,7 +41,11 @@ from career_agent.agent.main_agent_contracts import (
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
+    CareerProfileContext,
+    CareerProfileUpdate,
     CompareSavedJobsToolArguments,
+    ConfirmCareerProfileUpdateToolArguments,
+    ProposeCareerProfileUpdateToolArguments,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListActionItemsToolArguments,
@@ -141,6 +145,7 @@ from career_agent.services.resume_tailoring import (
 )
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
+from career_agent.storage.context import CareerProfileStore
 from career_agent.services.job_comparison import (
     JobComparisonInputNotFoundError,
     JobComparisonService,
@@ -187,6 +192,7 @@ class MainAgentToolRegistry:
         *,
         job_repository: JobPostingRepository | None = None,
         job_comparison_service: JobComparisonService | None = None,
+        career_profile_store: CareerProfileStore | None = None,
         resume_store: ResumeStore | None = None,
         resume_analysis_service: ResumeAnalysisService | None = None,
         resume_job_match_service: ResumeJobMatchService | None = None,
@@ -206,8 +212,20 @@ class MainAgentToolRegistry:
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
             "open_job_search": self._open_job_search,
         }
+        if career_profile_store is not None:
+            self._atomic_handlers.update(
+                {
+                    "propose_career_profile_update": (
+                        self._propose_career_profile_update
+                    ),
+                    "confirm_career_profile_update": (
+                        self._confirm_career_profile_update
+                    ),
+                }
+            )
         self._job_repository = job_repository
         self._job_comparison_service = job_comparison_service
+        self._career_profile_store = career_profile_store
         self._resume_store = resume_store
         self._resume_analysis_service = resume_analysis_service
         self._resume_job_match_service = resume_job_match_service
@@ -385,6 +403,44 @@ class MainAgentToolRegistry:
                         "parameters": OpenJobSearchToolArguments.model_json_schema(),
                     },
                 }
+            )
+        if self._career_profile_store is not None:
+            schemas.extend(
+                (
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_career_profile_update",
+                            "description": (
+                                "Show the user what would be recorded as their stated "
+                                "job intent, without saving anything. Call it only "
+                                "with what the user has actually said in their own "
+                                "words; never infer a city, role, or salary from a job "
+                                "they looked at or from anything you concluded. Send "
+                                "only the fields they just stated. This tool covers "
+                                "intent only: skills and experience claims come from "
+                                "their resume, never from being told."
+                            ),
+                            "parameters": (
+                                ProposeCareerProfileUpdateToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_career_profile_update",
+                            "description": (
+                                "Save the update the user was just shown. Call it only "
+                                "after they explicitly agree to that specific readback; "
+                                "continuing the conversation is not agreement."
+                            ),
+                            "parameters": (
+                                ConfirmCareerProfileUpdateToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                )
             )
         if self._job_comparison_service is not None:
             schemas.append(
@@ -2679,6 +2735,82 @@ class MainAgentToolRegistry:
                 "career_record_ids": [record.id for record in imported.records],
                 "career_evidence_ids": [evidence.id for evidence in imported.evidence],
             },
+        )
+
+    def _propose_career_profile_update(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        update: CareerProfileUpdate = arguments["update"]
+        current: CareerProfileContext = arguments["current"]
+        return ToolObservation(
+            tool_name="propose_career_profile_update",
+            state="career_profile_update_proposed",
+            message=self._career_profile_readback(update, current),
+            next_action="await_user_confirmation",
+            payload={
+                "update": update.model_dump(mode="json", exclude_none=True),
+                "current": current.model_dump(mode="json"),
+            },
+        )
+
+    def _confirm_career_profile_update(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_profile_store is None:
+            raise ValueError("Career profile store is not configured")
+        user_id = str(arguments["user_id"])
+        update: CareerProfileUpdate = arguments["update"]
+        # Re-read rather than trusting the projected copy: the stored profile is
+        # the thing being changed, and it may have moved since the readback.
+        stored = self._career_profile_store.get_profile(user_id) or (
+            CareerProfileContext(user_id=user_id)
+        )
+        updated = update.apply_to(stored)
+        self._career_profile_store.upsert_profile(updated)
+        return ToolObservation(
+            tool_name="confirm_career_profile_update",
+            state="career_profile_updated",
+            message=self._career_profile_readback(update, stored, saved=True),
+            next_action="continue_requested_task",
+            payload={"profile": updated.model_dump(mode="json")},
+        )
+
+    _CAREER_PROFILE_LABELS = {
+        "target_roles": "目标岗位",
+        "default_city": "默认城市",
+        "salary_preference": "薪资期望",
+        "experience": "经验",
+        "education": "学历",
+    }
+
+    @classmethod
+    def _career_profile_readback(
+        cls,
+        update: CareerProfileUpdate,
+        current: CareerProfileContext,
+        *,
+        saved: bool = False,
+    ) -> str:
+        lines = []
+        for field, value in update.model_dump(exclude_none=True).items():
+            label = cls._CAREER_PROFILE_LABELS[field]
+            new = "、".join(value) if isinstance(value, tuple) else str(value)
+            previous = getattr(current, field)
+            shown_previous = (
+                "、".join(previous)
+                if isinstance(previous, tuple)
+                else (previous or "")
+            )
+            if shown_previous and shown_previous != new:
+                lines.append(f"- {label}：{shown_previous} → {new}")
+            else:
+                lines.append(f"- {label}：{new}")
+        body = "\n".join(lines)
+        if saved:
+            return f"已记录你的求职意向：\n{body}"
+        return (
+            f"我准备记录这些求职意向：\n{body}\n"
+            "确认后才会保存；这只是你告诉我的意向，不是对你能力的判断。"
         )
 
     def _compare_saved_jobs(self, arguments: dict[str, Any]) -> ToolObservation:
