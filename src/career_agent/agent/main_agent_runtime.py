@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from typing import Any, Literal, TypedDict
+from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
+from career_agent.agent.answer_writer import (
+    AnswerCompositionRequest,
+    AnswerWriter,
+)
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
@@ -14,6 +20,7 @@ from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentTo
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.interview_preparation import InterviewPreparationResult
 from career_agent.domain.job_research import (
     JobResearchDraft,
@@ -21,6 +28,23 @@ from career_agent.domain.job_research import (
     JobResearchSourceDraft,
 )
 from career_agent.domain.resume import ResumeArtifactDelivery
+from career_agent.harness.streaming import (
+    ArtifactReadyEvent,
+    CapabilityCompletedEvent,
+    CapabilityStartedEvent,
+    ContentDeltaEvent,
+    InteractionOption,
+    InteractionRequiredEvent,
+    ProgressEvent,
+    PublicStreamEvent,
+    StreamEventSink,
+    TurnCompletedEvent,
+    TurnFailedEvent,
+    TurnStartedEvent,
+    TurnSuspendedEvent,
+    interaction_id,
+    iter_content_deltas,
+)
 
 # Bounds for the stored copy of a report. Chosen so the rendered message stays
 # well inside a single message's share of the recent-context budget even when
@@ -28,6 +52,11 @@ from career_agent.domain.resume import ResumeArtifactDelivery
 _HISTORY_SUMMARY_CHARS = 600
 _HISTORY_ITEM_CHARS = 120
 _HISTORY_ITEMS_PER_SECTION = 5
+
+_STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
+    "main_agent_stream_sink",
+    default=None,
+)
 
 
 def _clip(text: str, limit: int) -> str:
@@ -59,19 +88,20 @@ class MainAgentState(TypedDict, total=False):
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = ()) -> None:
+    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False) -> None:
         self.decision = decision
         self.context = context
         self.assistant_message = assistant_message
         self.tool_result = tool_result
         self.tool_results = tool_results
         self.artifacts = artifacts
+        self.content_streamed = content_streamed
 
 
 class MainAgentRuntime:
     _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "resume_tailoring_review_blocked", "resume_final_review_blocked", "resume_tailoring_superseded", "failed"})
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = ()) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = ()) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
@@ -81,6 +111,7 @@ class MainAgentRuntime:
         self._decision_maker = decision_maker
         self._tools = tools
         self._career_context_projector = career_context_projector
+        self._answer_writer = answer_writer
         self._max_tool_calls = max_tool_calls
         self._owned_resources = owned_resources
         self._closed = False
@@ -127,7 +158,128 @@ class MainAgentRuntime:
                 close()
         self._closed = True
 
-    def run_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentTurnResult:
+    @staticmethod
+    def _emit(event: PublicStreamEvent) -> None:
+        sink = _STREAM_SINK.get()
+        if sink is None:
+            return
+        try:
+            sink(event)
+        except Exception:
+            # Streaming is an observer. Losing a client or a faulty UI adapter
+            # must not roll back a capability that may already have external or
+            # durable effects.
+            return
+
+    @staticmethod
+    def _public_capability(name: str) -> str:
+        if name in {"job_discovery", "find_saved_jobs", "get_saved_job"}:
+            return "job_search"
+        if "job_research" in name or name in {"research_job", "retry_job_research"}:
+            return "job_research"
+        if "resume" in name:
+            return "resume"
+        if "calendar" in name:
+            return "calendar"
+        if "interview" in name:
+            return "interview"
+        if "application" in name or "email" in name:
+            return "application_tracking"
+        if "action" in name or "daily_brief" in name:
+            return "action_center"
+        return "career_task"
+
+    @classmethod
+    def _emit_capability_started(cls, name: str) -> None:
+        capability = cls._public_capability(name)
+        labels = {
+            "job_search": "正在处理岗位检索……",
+            "job_research": "正在调研岗位相关业务信息……",
+            "resume": "正在处理简历……",
+            "application_tracking": "正在处理投递进展……",
+            "interview": "正在处理面试任务……",
+            "calendar": "正在准备日历操作……",
+            "action_center": "正在整理待办事项……",
+            "career_task": "正在执行职业任务……",
+        }
+        cls._emit(
+            CapabilityStartedEvent(
+                capability=capability,
+                message=labels[capability],
+            )
+        )
+
+    @classmethod
+    def _emit_capability_completed(cls, name: str, state: str) -> None:
+        capability = cls._public_capability(name)
+        labels = {
+            "job_search": "岗位检索步骤已完成。",
+            "job_research": "岗位调研步骤已完成。",
+            "resume": "简历处理步骤已完成。",
+            "application_tracking": "投递进展处理已完成。",
+            "interview": "面试处理步骤已完成。",
+            "calendar": "日历准备步骤已完成。",
+            "action_center": "待办整理步骤已完成。",
+            "career_task": "职业任务步骤已完成。",
+        }
+        cls._emit(
+            CapabilityCompletedEvent(
+                capability=capability,
+                state=state,
+                message=labels[capability],
+            )
+        )
+
+    def run_turn(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        user_message: str,
+        event_sink: StreamEventSink | None = None,
+    ) -> MainAgentTurnResult:
+        """Run one committed turn and optionally publish presentation-only events.
+
+        The sink is held outside graph state and checkpoints. A broken observer
+        never gets authority to fail or mutate the business turn.
+        """
+
+        turn_id = uuid4().hex
+        sink_token = _STREAM_SINK.set(event_sink)
+        self._emit(TurnStartedEvent(turn_id=turn_id))
+        self._emit(
+            ProgressEvent(
+                stage="loading_context",
+                message="正在读取对话和职业上下文……",
+            )
+        )
+        try:
+            result = self._run_and_commit_turn(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_message=user_message,
+            )
+            self._deliver_stream_events(
+                result=result,
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+            )
+            return result
+        except Exception:
+            self._emit(
+                TurnFailedEvent(
+                    turn_id=turn_id,
+                    code="TURN_EXECUTION_FAILED",
+                    message="本轮处理失败，请稍后重试。",
+                )
+            )
+            raise
+        finally:
+            _STREAM_SINK.reset(sink_token)
+
+    def _run_and_commit_turn(
+        self, *, user_id: str, conversation_id: str, user_message: str
+    ) -> MainAgentTurnResult:
         routing_task = self._context_manager.get_task(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -138,15 +290,26 @@ class MainAgentRuntime:
                 conversation_id=conversation_id,
                 task=routing_task,
             )
+            self._emit_capability_started("start_mock_interview")
             result = self._run_active_mock_interview(
                 context=context,
                 user_message=user_message,
+            )
+            if result.tool_result is not None:
+                self._emit_capability_completed(
+                    "start_mock_interview", result.tool_result.state
+                )
+            self._stream_answer_if_eligible(
+                result=result,
+                conversation_id=conversation_id,
+                user_request=user_message,
             )
             # One decision point for every way a run can end, so no exit path
             # can forget to leave a trace. The test is whether the workflow will
             # still be driving the next turn, not whether it still holds the
             # slot: a dead checkpoint keeps the slot to record why it died, yet
             # hands the conversation back, and that turn needs a trace too.
+            self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
             if self._owns_next_turn(result.context.task):
                 self._context_manager.commit_workflow_turn(
                     context=context,
@@ -172,11 +335,17 @@ class MainAgentRuntime:
             user_message=user_message,
         )
         result = self._run_loaded_context(context)
+        self._stream_answer_if_eligible(
+            result=result,
+            conversation_id=conversation_id,
+            user_request=user_message,
+        )
         # This input belonged to Main Agent even when its result hands future
         # turns to a workflow. Ownership is an ingress property, not something
         # that can be inferred from the task state after execution. The reply,
         # however, did come from the workflow: it is the run's first question,
         # withheld on the same grounds as every question after it.
+        self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
         if self._owns_next_turn(result.context.task):
             held = self._context_manager.commit_workflow_entry(
                 context=context,
@@ -195,6 +364,343 @@ class MainAgentRuntime:
                 ),
             )
         return result
+
+    def _deliver_stream_events(
+        self,
+        *,
+        result: MainAgentTurnResult,
+        turn_id: str,
+        conversation_id: str,
+    ) -> None:
+        interaction = self._interaction_event(
+            result=result,
+            conversation_id=conversation_id,
+        )
+        if interaction is not None:
+            self._emit(interaction)
+            self._emit(
+                TurnSuspendedEvent(
+                    turn_id=turn_id,
+                    interaction_id=interaction.interaction_id,
+                )
+            )
+            return
+
+        if not result.content_streamed:
+            self._emit(
+                ProgressEvent(stage="presenting", message="正在整理交付内容……")
+            )
+            for delta in iter_content_deltas(result.assistant_message):
+                self._emit(ContentDeltaEvent(delta=delta))
+        for artifact in result.artifacts:
+            reference = artifact.reference
+            self._emit(
+                ArtifactReadyEvent(
+                    artifact_id=reference.id,
+                    filename=reference.filename,
+                    media_type=reference.media_type,
+                    byte_size=reference.byte_size,
+                )
+            )
+        self._emit(TurnCompletedEvent(turn_id=turn_id))
+
+    def _stream_answer_if_eligible(
+        self,
+        *,
+        result: MainAgentTurnResult,
+        conversation_id: str,
+        user_request: str,
+    ) -> None:
+        if self._answer_writer is None or not self._should_use_answer_writer(result):
+            return
+        if self._interaction_event(result=result, conversation_id=conversation_id):
+            return
+
+        request = AnswerCompositionRequest(
+            response_type=self._answer_response_type(result),
+            user_request=user_request,
+            grounded_draft=result.assistant_message,
+            required_rules=(
+                "Preserve every factual value and all explicit uncertainty from grounded_draft.",
+                "Do not add facts that are absent from grounded_draft.",
+            ),
+        )
+        self._emit(
+            ProgressEvent(stage="presenting", message="正在生成最终回答……")
+        )
+        chunks: list[str] = []
+        try:
+            for delta in self._answer_writer.stream(request):
+                if not delta:
+                    continue
+                chunks.append(delta)
+                self._emit(ContentDeltaEvent(delta=delta))
+        except AgentWorkerError:
+            if chunks:
+                # Some text has already reached the user. Falling back now
+                # would append a second, contradictory answer to that prefix.
+                raise
+            return
+        if not chunks:
+            return
+        result.assistant_message = "".join(chunks)
+        result.content_streamed = True
+
+    @staticmethod
+    def _should_use_answer_writer(result: MainAgentTurnResult) -> bool:
+        if result.artifacts or result.decision.action == "ask_user":
+            return False
+        tool_result = result.tool_result
+        if tool_result is None:
+            return result.decision.action == "final" and bool(result.assistant_message)
+        if isinstance(tool_result, JobDiscoveryGatewayResult):
+            return tool_result.state in {"analysis_ready", "partial_analysis_ready"}
+        return tool_result.state in {
+            "daily_brief_ready",
+            "interview_preparation_ready",
+            "interview_retro_recorded",
+            "job_research_ready",
+            "mock_interview_completed",
+            "mock_interview_result_found",
+            "resume_analysis_ready",
+            "resume_job_match_ready",
+            "resume_tailoring_draft_ready",
+        }
+
+    @staticmethod
+    def _answer_response_type(result: MainAgentTurnResult) -> str:
+        tool_result = result.tool_result
+        if tool_result is None:
+            return "general"
+        if isinstance(tool_result, JobDiscoveryGatewayResult):
+            return "job_analysis"
+        state = tool_result.state
+        if state == "job_research_ready":
+            return "job_research"
+        if state == "resume_analysis_ready":
+            return "resume_analysis"
+        if state == "resume_job_match_ready":
+            return "resume_match"
+        if state == "resume_tailoring_draft_ready":
+            return "resume_tailoring"
+        if state == "interview_preparation_ready":
+            return "interview_preparation"
+        if state in {
+            "interview_retro_recorded",
+            "mock_interview_completed",
+            "mock_interview_result_found",
+        }:
+            return "interview_report"
+        if state == "daily_brief_ready":
+            return "daily_brief"
+        return "general"
+
+    @staticmethod
+    def _interaction_event(
+        *,
+        result: MainAgentTurnResult,
+        conversation_id: str,
+    ) -> InteractionRequiredEvent | None:
+        tool_result = result.tool_result
+        prompt = result.assistant_message
+        task = result.context.task
+        stable_parts = (
+            conversation_id,
+            task.active_workflow,
+            task.run_id or "",
+            task.phase or "",
+            tool_result.state if tool_result is not None else result.decision.action,
+        )
+
+        if isinstance(tool_result, JobDiscoveryGatewayResult) and tool_result.state == "selection_required":
+            options = tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=f"{item.title}｜{item.company_name}",
+                    description="，".join(
+                        value for value in (item.city, item.salary) if value
+                    )
+                    or None,
+                )
+                for index, item in enumerate(tool_result.items, start=1)
+            )
+            if options:
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts),
+                    kind="multiple_selection",
+                    prompt=prompt,
+                    options=options,
+                    allow_free_text=True,
+                )
+
+        if isinstance(tool_result, ToolObservation):
+            if tool_result.state == "calendar_approval_required":
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts),
+                    kind="approval",
+                    prompt=prompt,
+                    options=(
+                        InteractionOption(value="confirm", label="确认执行"),
+                        InteractionOption(value="cancel", label="暂不执行"),
+                    ),
+                )
+            if tool_result.state == "email_events_pending":
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts),
+                    kind="confirmation",
+                    prompt=prompt,
+                    options=(
+                        InteractionOption(value="review", label="查看并确认"),
+                        InteractionOption(value="later", label="稍后处理"),
+                    ),
+                    allow_free_text=True,
+                )
+            if tool_result.state in {
+                "mock_interview_answer_required",
+                "mock_interview_running",
+                "resume_tailoring_review_blocked",
+                "resume_final_review_blocked",
+                "resume_tailoring_superseded",
+                "waiting_user",
+            }:
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts),
+                    kind="free_text",
+                    prompt=prompt,
+                    allow_free_text=True,
+                )
+
+        if result.decision.action == "ask_user":
+            options = MainAgentRuntime._selection_options(tool_result, task)
+            if options:
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts, prompt),
+                    kind="single_selection",
+                    prompt=prompt,
+                    options=options,
+                    allow_free_text=True,
+                )
+            return InteractionRequiredEvent(
+                interaction_id=interaction_id(*stable_parts, prompt),
+                kind="free_text",
+                prompt=prompt,
+                allow_free_text=True,
+            )
+        return None
+
+    @staticmethod
+    def _selection_options(
+        tool_result: MainAgentToolOutput | None,
+        task: ConversationTaskState,
+    ) -> tuple[InteractionOption, ...]:
+        if not isinstance(tool_result, ToolObservation):
+            return ()
+        name = tool_result.tool_name
+        if name == "find_saved_jobs":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=f"{item.title}｜{item.company_name}",
+                    description="，".join(
+                        value for value in (item.city, item.salary) if value
+                    )
+                    or None,
+                )
+                for index, item in enumerate(task.saved_job_candidates, start=1)
+            )
+        if name == "list_target_roles":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=item.title,
+                    description=f"优先级 {item.priority}，状态 {item.status}",
+                )
+                for index, item in enumerate(task.target_role_candidates, start=1)
+            )
+        if name == "list_resumes":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=item.name,
+                    description=f"状态：{item.status}",
+                )
+                for index, item in enumerate(task.resume_candidates, start=1)
+            )
+        if name == "get_resume_metadata":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=f"版本 {item.version_number}",
+                    description=(
+                        f"{item.document_format}，{item.source_type}，"
+                        f"{item.byte_size} bytes"
+                    ),
+                )
+                for index, item in enumerate(
+                    task.resume_version_candidates, start=1
+                )
+            )
+        if name == "list_applications":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=f"{item.title}｜{item.company_name}",
+                    description=f"状态：{item.status}",
+                )
+                for index, item in enumerate(task.application_candidates, start=1)
+            )
+        if name == "list_interviews":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=(
+                        f"{item.employer_label or '面试'}｜第 {item.sequence_number} 轮"
+                    ),
+                    description="，".join(
+                        value
+                        for value in (
+                            f"状态 {item.status}",
+                            (
+                                item.scheduled_start.isoformat()
+                                if item.scheduled_start is not None
+                                else None
+                            ),
+                        )
+                        if value
+                    ),
+                )
+                for index, item in enumerate(task.interview_candidates, start=1)
+            )
+        if name == "list_action_items":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=item.title,
+                    description=f"{item.action_type}，状态 {item.status}",
+                )
+                for index, item in enumerate(task.action_candidates, start=1)
+            )
+        if name == "list_calendar_accounts":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=item.email_address,
+                    description=f"{item.provider} Calendar",
+                )
+                for index, item in enumerate(
+                    task.calendar_account_candidates, start=1
+                )
+            )
+        if name == "list_email_events":
+            return tuple(
+                InteractionOption(
+                    selection_index=index,
+                    label=item.summary,
+                    description=f"{item.event_type}，状态 {item.status}",
+                )
+                for index, item in enumerate(task.email_event_candidates, start=1)
+            )
+        return ()
 
     @staticmethod
     def _owns_next_turn(task: ConversationTaskState) -> bool:
@@ -238,6 +744,7 @@ class MainAgentRuntime:
         )
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
+        self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
         return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
 
     def _run_active_mock_interview(
@@ -327,7 +834,9 @@ class MainAgentRuntime:
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         arguments = self._project_atomic_tool_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
+        self._emit_capability_started(decision.tool_call.name)
         result = self._tools.invoke_atomic_tool(decision.tool_call.name, arguments)
+        self._emit_capability_completed(decision.tool_call.name, result.state)
         return {"pending_capability_name": decision.tool_call.name, "pending_tool_result": result}
 
     def _run_workflow(self, state: MainAgentState) -> MainAgentState:
@@ -356,7 +865,9 @@ class MainAgentRuntime:
             )
         else:
             raise ValueError(f"Unknown main-agent workflow: {name}")
+        self._emit_capability_started(name)
         result = self._tools.invoke_workflow(name, arguments)
+        self._emit_capability_completed(name, result.state)
         return {"pending_capability_name": name, "pending_tool_result": result}
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
