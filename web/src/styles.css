@@ -137,3 +137,157 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; }
 }
+
+/* Daily brief -------------------------------------------------------------- */
+
+.view-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 12px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.view-nav button {
+  border: 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.view-nav button.is-active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.brief-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px clamp(16px, 5vw, 64px) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.brief-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brief-header h1 {
+  margin: 4px 0 0;
+  font-size: clamp(22px, 3vw, 30px);
+}
+
+.brief-header button {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.brief-header button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.brief-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.brief-empty p {
+  margin: 8px 0 0;
+  opacity: 0.75;
+  line-height: 1.6;
+}
+
+.brief-bucket h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.brief-bucket h2 span {
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.brief-overdue h2 { color: #f87171; }
+.brief-today h2 { color: #38bdf8; }
+
+.brief-bucket ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.brief-bucket li {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.brief-overdue li { border-color: rgba(248, 113, 113, 0.45); }
+
+.brief-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brief-item-head time {
+  font-size: 12px;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.brief-bucket li p {
+  margin: 6px 0 0;
+  opacity: 0.78;
+  line-height: 1.55;
+}
+
+.brief-footnote {
+  margin-top: auto;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+/* A view that is switched off must actually be gone. The panels set their own
+   display, which silently wins over the hidden attribute's default rule. */
+[hidden] {
+  display: none !important;
+}

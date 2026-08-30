@@ -18,7 +18,9 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
 from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.api.reads import build_action_center_service, build_read_router
 from career_agent.harness.streaming import PublicStreamEvent, astream_turn_events
+from career_agent.services.action_center import ActionCenterService
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
@@ -194,12 +196,22 @@ def create_app(
     *,
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
+    action_center_factory: Callable[[], ActionCenterService] | None = None,
     heartbeat_seconds: float = 15.0,
 ) -> FastAPI:
     if heartbeat_seconds <= 0:
         raise ValueError("heartbeat_seconds must be positive")
     factory = runtime_factory or build_api_runtime
     capture_factory = capture_repository_factory or build_capture_repository
+    # Read endpoints are built eagerly and separately from the agent runtime:
+    # they need no model configuration, so a dashboard stays usable on a machine
+    # where the worker keys are missing and /ready is reporting a failure.
+    read_factory = action_center_factory or (
+        lambda: build_action_center_service(_runtime_args_from_env())
+    )
+    # Built on first use, not at import: constructing it opens the local
+    # databases, and creating an app must not touch the real store paths.
+    application_router = build_read_router(read_factory)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -219,6 +231,7 @@ def create_app(
         app.state.startup_error = startup_error
         app.state.run_gate = ConversationRunGate()
         app.state.capture_repository = None
+        app.state.action_center = None
         try:
             yield
         finally:
@@ -231,6 +244,9 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+
+
+    application.include_router(application_router)
 
     @application.get("/health")
     async def health() -> dict[str, str]:
