@@ -22,11 +22,6 @@ from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.resumes import ResumeStore
 
 
-class UnusedGateway:
-    def advance(self, **kwargs):
-        raise AssertionError("Application tools must not enter Job Discovery")
-
-
 class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
@@ -78,7 +73,6 @@ def build_application_agent(tmp_path, decisions):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         job_repository=jobs,
         resume_store=resumes,
         application_service=service,

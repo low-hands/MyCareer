@@ -5,7 +5,6 @@ from typing import Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
-from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -463,21 +462,10 @@ class MainAgentContext(ContractModel):
         }
 
 
-class JobDiscoveryToolArguments(ContractModel):
-    target_role: str | None = Field(default=None, min_length=1)
-    city: str | None = Field(default=None, min_length=1)
-    salary: str | None = Field(default=None, min_length=1)
-    experience: str | None = Field(default=None, min_length=1)
-    education: str | None = Field(default=None, min_length=1)
-    selection_indices: tuple[int, ...] = ()
-    selection_index: int | None = Field(default=None, ge=1)
-    jd_selection_index: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def validate_selection_indices(self) -> "JobDiscoveryToolArguments":
-        if len(self.selection_indices) > 3 or len(set(self.selection_indices)) != len(self.selection_indices):
-            raise ValueError("select at most three unique candidate indexes")
-        return self
+class OpenJobSearchToolArguments(ContractModel):
+    platform: Literal["boss"] = "boss"
+    keyword: str = Field(min_length=1, max_length=100)
+    city: str | None = Field(default=None, min_length=1, max_length=40)
 
 
 class FindSavedJobsToolArguments(ContractModel):
@@ -844,17 +832,6 @@ class ConfirmResumeAnalysisToolArguments(ContractModel):
     analysis_id: str | None = Field(default=None, min_length=1)
 
 
-class JobDiscoveryWorkflowInput(ContractModel):
-    user_id: str
-    conversation_id: str
-    task: ConversationTaskState
-    user_message: str = Field(min_length=1)
-    selection_indices: tuple[int, ...] = ()
-    selection_index: int | None = Field(default=None, ge=1)
-    jd_selection_index: int | None = Field(default=None, ge=1)
-    research_request: JobDiscoveryRequest | None = None
-
-
 class StartMockInterviewWorkflowInput(ContractModel):
     user_id: str = Field(min_length=1)
     application_id: str = Field(min_length=1)
@@ -887,38 +864,6 @@ def _reject_internal_identifiers(name: str, arguments: dict[str, Any]) -> None:
         )
 
 
-def project_job_discovery_arguments(context: MainAgentContext, arguments: dict[str, Any]) -> dict[str, Any]:
-    _reject_internal_identifiers("job_discovery", arguments)
-    forbidden = {"user_id", "conversation_id", "run_id", "result_ref", "security_id", "job_id", "jd_text"}.intersection(arguments)
-    if forbidden:
-        raise ValueError(f"Job Discovery tool cannot accept internal arguments: {', '.join(sorted(forbidden))}")
-    model_arguments = JobDiscoveryToolArguments.model_validate(arguments)
-    target_role = model_arguments.target_role
-    if target_role is None and len(context.profile.target_roles) == 1:
-        target_role = context.profile.target_roles[0]
-    request = None
-    if target_role is not None:
-        request = JobDiscoveryRequest(
-            user_id=context.profile.user_id,
-            conversation_id=context.conversation_id,
-            target_role=target_role,
-            city=model_arguments.city or context.profile.default_city,
-            salary=model_arguments.salary or context.profile.salary_preference,
-            experience=model_arguments.experience or context.profile.experience,
-            education=model_arguments.education or context.profile.education,
-        )
-    return JobDiscoveryWorkflowInput(
-        user_id=context.profile.user_id,
-        conversation_id=context.conversation_id,
-        task=context.task,
-        user_message=context.user_message,
-        selection_indices=model_arguments.selection_indices or ((model_arguments.selection_index,) if model_arguments.selection_index else ()),
-        selection_index=model_arguments.selection_index,
-        jd_selection_index=model_arguments.jd_selection_index,
-        research_request=request,
-    ).model_dump()
-
-
 def project_saved_job_arguments(context: MainAgentContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     _reject_internal_identifiers(name, arguments)
     if name == "find_saved_jobs":
@@ -941,6 +886,16 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
             raise ValueError("get_saved_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
     return {"user_id": context.profile.user_id, **payload}
+
+
+def project_open_job_search_arguments(
+    context: MainAgentContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    _reject_internal_identifiers("open_job_search", arguments)
+    model_arguments = OpenJobSearchToolArguments.model_validate(arguments)
+    return model_arguments.model_copy(
+        update={"city": model_arguments.city or context.profile.default_city}
+    ).model_dump()
 
 
 def project_job_research_arguments(

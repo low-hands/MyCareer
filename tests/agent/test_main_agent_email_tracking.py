@@ -14,11 +14,6 @@ from career_agent.services.email_tracking import EmailSyncResult
 from career_agent.storage.context import CareerContextStore
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class EmailService:
     def __init__(self):
         self.calls = []
@@ -61,7 +56,7 @@ def test_email_sync_is_registered_as_workflow_and_updates_task_state(tmp_path) -
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     email_service = EmailService()
     tools = MainAgentToolRegistry(
-        Gateway(), email_tracking_service=email_service
+        email_tracking_service=email_service,
     )
     runtime = MainAgentRuntime(
         context_manager=manager,
@@ -106,7 +101,7 @@ def test_email_sync_does_not_evict_a_suspended_job_discovery_run(tmp_path) -> No
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(),
-        tools=MainAgentToolRegistry(Gateway(), email_tracking_service=EmailService()),
+        tools=MainAgentToolRegistry(email_tracking_service=EmailService()),
     )
 
     result = runtime.run_turn(

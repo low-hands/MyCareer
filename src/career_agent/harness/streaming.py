@@ -128,6 +128,13 @@ class ArtifactReadyEvent(StreamContract):
     byte_size: int = Field(ge=1)
 
 
+class ClientActionEvent(StreamContract):
+    type: Literal["client_action"] = "client_action"
+    action: Literal["open_url"]
+    url: str = Field(pattern=r"^https://", max_length=2000)
+    label: str = Field(min_length=1, max_length=240)
+
+
 class TurnSuspendedEvent(StreamContract):
     type: Literal["turn_suspended"] = "turn_suspended"
     turn_id: str = Field(min_length=1)
@@ -155,6 +162,7 @@ PublicStreamEvent: TypeAlias = Annotated[
     | InteractionRequiredEvent
     | ContentDeltaEvent
     | ArtifactReadyEvent
+    | ClientActionEvent
     | TurnSuspendedEvent
     | TurnCompletedEvent
     | TurnFailedEvent,

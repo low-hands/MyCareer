@@ -17,11 +17,6 @@ from career_agent.services.interviews import InterviewDetail
 from career_agent.storage.context import CareerContextStore
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class Interviews:
     def __init__(self):
         now = datetime(2026, 8, 26, tzinfo=timezone.utc)
@@ -76,7 +71,7 @@ def test_main_agent_selects_interview_without_treating_sequence_as_employer_labe
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     interviews = Interviews()
-    tools = MainAgentToolRegistry(Gateway(), interview_service=interviews)
+    tools = MainAgentToolRegistry(interview_service=interviews)
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(),
@@ -179,7 +174,6 @@ def test_main_agent_records_user_grounded_real_interview_retro(tmp_path) -> None
     interviews = RetroInterviews()
     actions = Actions()
     tools = MainAgentToolRegistry(
-        Gateway(),
         interview_service=interviews,
         action_center_service=actions,
     )

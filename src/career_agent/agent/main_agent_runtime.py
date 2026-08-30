@@ -13,8 +13,7 @@ from career_agent.agent.answer_writer import (
     AnswerCompositionRequest,
     AnswerWriter,
 )
-from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
@@ -32,6 +31,7 @@ from career_agent.harness.streaming import (
     ArtifactReadyEvent,
     CapabilityCompletedEvent,
     CapabilityStartedEvent,
+    ClientActionEvent,
     ContentDeltaEvent,
     InteractionOption,
     InteractionRequiredEvent,
@@ -173,7 +173,11 @@ class MainAgentRuntime:
 
     @staticmethod
     def _public_capability(name: str) -> str:
-        if name in {"job_discovery", "find_saved_jobs", "get_saved_job"}:
+        if name in {
+            "open_job_search",
+            "find_saved_jobs",
+            "get_saved_job",
+        }:
             return "job_search"
         if "job_research" in name or name in {"research_job", "retry_job_research"}:
             return "job_research"
@@ -372,6 +376,20 @@ class MainAgentRuntime:
         turn_id: str,
         conversation_id: str,
     ) -> None:
+        for tool_result in result.tool_results:
+            if not isinstance(tool_result, ToolObservation):
+                continue
+            action = tool_result.payload.get("client_action")
+            if not isinstance(action, dict) or action.get("type") != "open_url":
+                continue
+            self._emit(
+                ClientActionEvent(
+                    action="open_url",
+                    url=str(action.get("url", "")),
+                    label=str(action.get("label", "打开岗位搜索页")),
+                )
+            )
+
         interaction = self._interaction_event(
             result=result,
             conversation_id=conversation_id,
@@ -453,8 +471,6 @@ class MainAgentRuntime:
         tool_result = result.tool_result
         if tool_result is None:
             return result.decision.action == "final" and bool(result.assistant_message)
-        if isinstance(tool_result, JobDiscoveryGatewayResult):
-            return tool_result.state in {"analysis_ready", "partial_analysis_ready"}
         return tool_result.state in {
             "daily_brief_ready",
             "interview_preparation_ready",
@@ -472,8 +488,6 @@ class MainAgentRuntime:
         tool_result = result.tool_result
         if tool_result is None:
             return "general"
-        if isinstance(tool_result, JobDiscoveryGatewayResult):
-            return "job_analysis"
         state = tool_result.state
         if state == "job_research_ready":
             return "job_research"
@@ -512,28 +526,7 @@ class MainAgentRuntime:
             tool_result.state if tool_result is not None else result.decision.action,
         )
 
-        if isinstance(tool_result, JobDiscoveryGatewayResult) and tool_result.state == "selection_required":
-            options = tuple(
-                InteractionOption(
-                    selection_index=index,
-                    label=f"{item.title}｜{item.company_name}",
-                    description="，".join(
-                        value for value in (item.city, item.salary) if value
-                    )
-                    or None,
-                )
-                for index, item in enumerate(tool_result.items, start=1)
-            )
-            if options:
-                return InteractionRequiredEvent(
-                    interaction_id=interaction_id(*stable_parts),
-                    kind="multiple_selection",
-                    prompt=prompt,
-                    options=options,
-                    allow_free_text=True,
-                )
-
-        if isinstance(tool_result, ToolObservation):
+        if tool_result is not None:
             if tool_result.state == "calendar_approval_required":
                 return InteractionRequiredEvent(
                     interaction_id=interaction_id(*stable_parts),
@@ -845,9 +838,7 @@ class MainAgentRuntime:
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
-        if name == "job_discovery":
-            arguments = project_job_discovery_arguments(context, decision.tool_call.arguments)
-        elif name == "sync_application_emails":
+        if name == "sync_application_emails":
             arguments = project_email_arguments(context, name, decision.tool_call.arguments)
         elif name in {"research_job", "retry_job_research"}:
             arguments = project_job_research_arguments(
@@ -874,9 +865,7 @@ class MainAgentRuntime:
         context = state["context"]
         result = state["pending_tool_result"]
         capability_name = state["pending_capability_name"]
-        if isinstance(result, JobDiscoveryGatewayResult):
-            updated = self._update_task(context, result)
-        elif isinstance(result, ToolObservation) and result.tool_name in {
+        if result.tool_name in {
             "start_mock_interview",
             "restart_mock_interview",
         }:
@@ -887,7 +876,7 @@ class MainAgentRuntime:
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
         fingerprint = self._tool_call_fingerprint(state["decision"])
         artifact_ids = state.get("artifact_ids", ())
-        if isinstance(result, ToolObservation) and result.state == "resume_artifact_ready":
+        if result.state == "resume_artifact_ready":
             artifact_id = result.payload.get("artifact_id")
             if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
                 artifact_ids = (*artifact_ids, artifact_id)
@@ -960,7 +949,7 @@ class MainAgentRuntime:
         )
 
     @staticmethod
-    def _history_message(result: MainAgentToolOutput, *, screen: str) -> str:
+    def _history_message(result: MainAgentToolOutput | None, *, screen: str) -> str:
         """Render the run's outcome small enough to survive as history.
 
         The screen copy is unbounded, but the stored copy shares a budget with
@@ -970,7 +959,7 @@ class MainAgentRuntime:
         the message from bounded parts keeps every section present instead of
         keeping the first half of the first one.
         """
-        if not isinstance(result, ToolObservation):
+        if result is None:
             return screen
         if result.state == "mock_interview_completed":
             report = MockInterviewGraphResult.model_validate(result.payload).report
@@ -1024,64 +1013,41 @@ class MainAgentRuntime:
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
-        if isinstance(result, ToolObservation):
-            if result.state == "job_research_ready":
-                research = MainAgentRuntime._job_research_draft(result)
-                if research is not None:
-                    return render_job_research(
-                        research,
-                        status=str(result.payload.get("status") or "current"),
-                        user_provided_context=(
-                            str(result.payload["user_provided_context"])
-                            if result.payload.get("user_provided_context") is not None
-                            else None
-                        ),
-                    )
-            if result.state == "interview_preparation_ready":
-                preparation = MainAgentRuntime._interview_preparation_result(result)
-                if preparation is not None:
-                    return render_interview_preparation(preparation)
-            if result.state == "calendar_approval_required":
-                payload = result.payload.get("payload")
-                if isinstance(payload, dict):
-                    return (
-                        "请确认是否执行以下 Calendar 变更：\n"
-                        f"- 操作：{result.payload.get('operation')}\n"
-                        f"- 标题：{payload.get('title')}\n"
-                        f"- 开始：{payload.get('start_at')}\n"
-                        f"- 结束：{payload.get('end_at')}\n"
-                        f"- 时区：{payload.get('timezone')}\n"
-                        f"- 地点：{payload.get('location') or '未提供'}\n"
-                        f"- 预览失效时间：{result.payload.get('expires_at')}\n"
-                        "只有你明确确认后才会写入外部 Calendar。"
-                    )
-                return (
-                    "请确认是否取消这条 Calendar 事件。"
-                    f"预览失效时间：{result.payload.get('expires_at')}。"
+        if result.state == "job_research_ready":
+            research = MainAgentRuntime._job_research_draft(result)
+            if research is not None:
+                return render_job_research(
+                    research,
+                    status=str(result.payload.get("status") or "current"),
+                    user_provided_context=(
+                        str(result.payload["user_provided_context"])
+                        if result.payload.get("user_provided_context") is not None
+                        else None
+                    ),
                 )
-            return result.message
-        analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
-        if result.state not in {"analysis_ready", "partial_analysis_ready"} or not analyses:
-            return result.message
-
-        def section(title: str, items: tuple[str, ...]) -> str:
-            content = "\n".join(f"- {item}" for item in items) if items else "- 暂无明确说明"
-            return f"{title}\n{content}"
-
-        blocks = []
-        analysis_indices = result.analysis_selection_indices or tuple(range(1, len(analyses) + 1))
-        for selection_index, analysis in zip(analysis_indices, analyses):
-            item = result.items[selection_index - 1] if selection_index <= len(result.items) else None
-            heading = f"岗位 {selection_index}\n" + (f"{item.title} — {item.company_name}\n" if item else "") if len(analyses) > 1 else ""
-            sections = (
-                f"岗位摘要\n{analysis.job_summary}",
-                section("工作职责", analysis.responsibilities),
-                section("必备技能", analysis.required_skills),
-                section("加分项", analysis.preferred_qualifications),
-                section("待确认问题", analysis.clarification_questions),
+        if result.state == "interview_preparation_ready":
+            preparation = MainAgentRuntime._interview_preparation_result(result)
+            if preparation is not None:
+                return render_interview_preparation(preparation)
+        if result.state == "calendar_approval_required":
+            payload = result.payload.get("payload")
+            if isinstance(payload, dict):
+                return (
+                    "请确认是否执行以下 Calendar 变更：\n"
+                    f"- 操作：{result.payload.get('operation')}\n"
+                    f"- 标题：{payload.get('title')}\n"
+                    f"- 开始：{payload.get('start_at')}\n"
+                    f"- 结束：{payload.get('end_at')}\n"
+                    f"- 时区：{payload.get('timezone')}\n"
+                    f"- 地点：{payload.get('location') or '未提供'}\n"
+                    f"- 预览失效时间：{result.payload.get('expires_at')}\n"
+                    "只有你明确确认后才会写入外部 Calendar。"
+                )
+            return (
+                "请确认是否取消这条 Calendar 事件。"
+                f"预览失效时间：{result.payload.get('expires_at')}。"
             )
-            blocks.append((heading.strip() + "\n\n" if heading else "") + "\n\n".join(sections))
-        return "\n\n".join(blocks)
+        return result.message
 
     @staticmethod
     def _interview_preparation_result(
@@ -1130,6 +1096,8 @@ class MainAgentRuntime:
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        if name == "open_job_search":
+            return project_open_job_search_arguments(context, arguments)
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":
@@ -1187,24 +1155,6 @@ class MainAgentRuntime:
         }:
             return project_resume_arguments(context, name, arguments)
         return arguments
-
-    @staticmethod
-    def _update_task(context: MainAgentContext, result: JobDiscoveryGatewayResult) -> MainAgentContext:
-        task = context.task
-        # A run-less result never claims the slot: the gateway returns one when it
-        # refuses to start, and overwriting a live run with it would strand it.
-        if not result.run_id:
-            return context.model_copy(update={"task": task})
-        if result.state == "selection_required":
-            candidates = tuple(CandidateContextItem(result_ref=item.result_ref, title=item.title, company_name=item.company_name, city=item.city, salary=item.salary) for item in result.items)
-            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, candidates=candidates)
-        elif result.state == "analysis_ready":
-            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, selected_result_ref=result.selected_result_ref)
-        elif result.state == "detail_unavailable":
-            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state, selected_result_ref=result.selected_result_ref, manual_search_query=result.manual_search_query)
-        elif result.state in {"failed", "waiting_user"}:
-            task = task.enter_workflow("job_discovery", run_id=result.run_id, phase=result.state)
-        return context.model_copy(update={"task": task})
 
     @staticmethod
     def _update_mock_interview_task(

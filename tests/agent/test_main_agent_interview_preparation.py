@@ -26,11 +26,6 @@ from career_agent.storage.interview_preparations import StoredInterviewPreparati
 NOW = datetime(2026, 8, 26, tzinfo=timezone.utc)
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class Interviews:
     def __init__(self):
         self.interview = InterviewRound(
@@ -101,7 +96,7 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     preparations = Preparations()
     tools = MainAgentToolRegistry(
-        Gateway(), interview_service=Interviews(),
+        interview_service=Interviews(),
         interview_preparation_service=preparations,
     )
     runtime = MainAgentRuntime(

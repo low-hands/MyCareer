@@ -1,47 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.job_discovery_contracts import JDAnalysis
-from career_agent.agent.job_discovery_gateway import GatewayJobItem, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, ToolResult
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
-from career_agent.harness.streaming import InteractionRequiredEvent
-
-
-class Gateway:
-    def __init__(self) -> None:
-        self.calls = []
-
-    def advance(self, **kwargs):
-        self.calls.append(kwargs)
-        task = kwargs["task"]
-        if task.phase == "selection_required":
-            return JobDiscoveryGatewayResult(run_id=task.run_id or "run-1", state="analysis_ready", message="Analysis ready.", selected_result_ref="r1", analysis=JDAnalysis(result_ref="r1", job_summary="LLM 应用落地。", responsibilities=("建设 LLM 应用",), required_skills=("Python",), preferred_qualifications=("RAG 经验",), clarification_questions=("经验年限不明确",)))
-        if task.phase == "detail_unavailable":
-            return JobDiscoveryGatewayResult(run_id=task.run_id or "run-1", state="analysis_ready", message="Analysis ready.", selected_result_ref="r1", analysis=JDAnalysis(result_ref="r1", job_summary="LLM 应用落地。", responsibilities=("建设 LLM 应用",), required_skills=("Python",), preferred_qualifications=("RAG 经验",), clarification_questions=("经验年限不明确",)))
-        return JobDiscoveryGatewayResult(run_id="run-1", state="selection_required", message="Select a result.", items=(GatewayJobItem(result_ref="r1", title="AI Engineer", company_name="Acme"),), next_action="select_result")
-
-
-class AlwaysReadyGateway:
-    def __init__(self) -> None:
-        self.calls = []
-
-    def advance(self, **kwargs):
-        self.calls.append(kwargs)
-        return JobDiscoveryGatewayResult(
-            run_id="run-1",
-            state="analysis_ready",
-            message="Analysis ready.",
-            selected_result_ref="r1",
-            analysis=JDAnalysis(result_ref="r1", job_summary="Summary"),
-        )
+from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent
 
 
 class DecisionMaker:
@@ -49,7 +21,7 @@ class DecisionMaker:
         self.decision = decision
 
     def decide(self, context, tool_names):
-        assert tuple(spec["function"]["name"] for spec in tool_names) == ("job_discovery",)
+        assert tuple(spec["function"]["name"] for spec in tool_names) == ("open_job_search",)
         return self.decision
 
 
@@ -65,11 +37,23 @@ class SequenceDecisionMaker:
         return self.decisions.pop(0)
 
 
-def build_runtime(tmp_path, decision: AgentDecision, gateway: Gateway | None = None):
+class CountingRegistry(MainAgentToolRegistry):
+    """Records atomic-tool invocations so loop and de-duplication rules stay testable."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.calls: list[tuple[str, dict]] = []
+
+    def invoke_atomic_tool(self, name, arguments):
+        self.calls.append((name, dict(arguments)))
+        return super().invoke_atomic_tool(name, arguments)
+
+
+def build_runtime(tmp_path, decision: AgentDecision):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai", salary_preference="25K以上"))
-    gateway = gateway or Gateway()
-    return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=MainAgentToolRegistry(gateway)), gateway, manager
+    tools = CountingRegistry()
+    return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
 
 
 def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
@@ -87,6 +71,53 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
         "fallback",
         "__end__",
     }
+
+
+def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
+    tmp_path,
+) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="上海")
+    )
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="open_job_search", arguments={"keyword": "AI 产品经理"}
+            ),
+        ),
+        AgentDecision(action="final", message=""),
+    )
+    tools = MainAgentToolRegistry()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=tools,
+    )
+    events = []
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我找上海的 AI 产品经理岗位",
+        event_sink=events.append,
+    )
+
+    assert tools.workflow_names == ()
+    assert tools.atomic_tool_names == ("open_job_search",)
+    assert [spec["function"]["name"] for spec in tools.schemas()] == [
+        "open_job_search"
+    ]
+    assert result.tool_results[0].state == "job_search_page_ready"
+    action = next(event for event in events if isinstance(event, ClientActionEvent))
+    parsed = urlparse(action.url)
+    assert parsed.hostname == "www.zhipin.com"
+    assert parse_qs(parsed.query) == {
+        "query": ["AI 产品经理"],
+        "city": ["101020100"],
+    }
+    assert result.context.task.active_workflow == "none"
 
 
 def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
@@ -112,7 +143,7 @@ def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
-        tools=MainAgentToolRegistry(Gateway()),
+        tools=MainAgentToolRegistry(),
         career_context_projector=Projector(),
     )
 
@@ -127,27 +158,12 @@ def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
 
 def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
-    tools = MainAgentToolRegistry(Gateway(), job_repository=repository)
+    tools = MainAgentToolRegistry(job_repository=repository)
 
-    assert tools.workflow_names == ("job_discovery",)
-    assert tools.atomic_tool_names == ("find_saved_jobs", "get_saved_job")
-    assert tools.capability_kind("job_discovery") == "workflow"
+    assert tools.workflow_names == ()
+    assert tools.atomic_tool_names == ("open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tools.capability_kind("open_job_search") == "atomic_tool"
     assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
-
-
-def test_initial_workflow_call_projects_profile_defaults(tmp_path) -> None:
-    agent, gateway, _ = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})))
-
-    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Find jobs.")
-
-    call = gateway.calls[0]
-    assert call["research_request"].conversation_id == "c1"
-    assert call["research_request"].city == "Shanghai"
-    assert call["research_request"].salary == "25K以上"
-    assert call["user_message"] == "Find jobs."
-    assert result.context.task.run_id == "run-1"
-    assert result.context.task.candidates[0].result_ref == "r1"
-    assert len(gateway.calls) == 1
 
 
 def test_runtime_streams_real_progress_and_fake_final_content(tmp_path) -> None:
@@ -176,36 +192,6 @@ def test_runtime_streams_real_progress_and_fake_final_content(tmp_path) -> None:
     ) == result.assistant_message
 
 
-def test_selection_streams_public_interaction_then_suspends(tmp_path) -> None:
-    agent, _, _ = build_runtime(
-        tmp_path,
-        AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(name="job_discovery", arguments={}),
-        ),
-    )
-    events = []
-
-    agent.run_turn(
-        user_id="u1",
-        conversation_id="c1",
-        user_message="帮我找工作",
-        event_sink=events.append,
-    )
-
-    interaction = next(
-        event for event in events if isinstance(event, InteractionRequiredEvent)
-    )
-    assert interaction.kind == "multiple_selection"
-    assert interaction.options[0].selection_index == 1
-    serialized = interaction.model_dump_json()
-    assert "run-1" not in serialized
-    assert "r1" not in serialized
-    assert [event.type for event in events][-1] == "turn_suspended"
-    assert not any(event.type == "content_delta" for event in events)
-    assert not any(event.type == "turn_completed" for event in events)
-
-
 def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:
     agent, _, manager = build_runtime(
         tmp_path,
@@ -232,141 +218,74 @@ def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:
 def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",)))
-    gateway = Gateway()
+    tools = CountingRegistry()
     decisions = SequenceDecisionMaker(
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})),
-        AgentDecision(action="ask_user", message="我找到了一个岗位，要查看第 1 个吗？"),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
+        AgentDecision(action="ask_user", message="搜索页已经打开，你想先看哪一个岗位？"),
     )
-    agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=MainAgentToolRegistry(gateway))
+    agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="帮我找工作")
 
     assert result.decision.action == "ask_user"
-    assert result.assistant_message == "我找到了一个岗位，要查看第 1 个吗？"
-    assert len(gateway.calls) == 1
+    assert result.assistant_message == "搜索页已经打开，你想先看哪一个岗位？"
+    assert len(tools.calls) == 1
     assert len(decisions.contexts) == 2
     observation = decisions.contexts[1].model_context()["tool_observations"][0]
     assert observation == {
-        "tool_name": "job_discovery",
-        "state": "selection_required",
-        "next_action": "select_result",
+        "tool_name": "open_job_search",
+        "state": "job_search_page_ready",
+        "next_action": "browse_and_save_job",
     }
-    assert decisions.contexts[1].model_context()["task"]["candidates"][0][
-        "selection_index"
-    ] == 1
     serialized = str(observation)
-    assert "run-1" not in serialized
-    assert "r1" not in serialized
+    assert "zhipin.com" not in serialized
 
 
 def test_repeated_tool_call_is_stopped_without_duplicate_execution(tmp_path) -> None:
-    agent, gateway, _ = build_runtime(
+    agent, tools, _ = build_runtime(
         tmp_path,
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
     )
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Find work.")
 
-    assert len(gateway.calls) == 1
-    assert result.assistant_message == "Select a result."
+    assert len(tools.calls) == 1
+    assert result.assistant_message.startswith("已准备打开 BOSS 搜索“AI Engineer”")
 
 
 def test_tool_loop_stops_at_configured_limit(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    gateway = AlwaysReadyGateway()
+    tools = CountingRegistry()
     decisions = SequenceDecisionMaker(
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role A"})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role B"})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Role C"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role A"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role B"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role C"})),
     )
     agent = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
-        tools=MainAgentToolRegistry(gateway),
+        tools=tools,
         max_tool_calls=2,
     )
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Research several roles.")
 
-    assert len(gateway.calls) == 2
-    assert result.assistant_message.startswith("岗位摘要\nSummary")
-
-
-def test_workflow_selection_uses_index_not_internal_result_ref(tmp_path) -> None:
-    first, gateway, _ = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})))
-    first.run_turn(user_id="u1", conversation_id="c1", user_message="Find work.")
-    second, _, _ = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"selection_index": 1})), gateway)
-
-    result = second.run_turn(user_id="u1", conversation_id="c1", user_message="Show the first one.")
-
-    assert gateway.calls[1]["selection_index"] == 1
-    assert gateway.calls[1]["task"].run_id == "run-1"
-    assert result.context.task.phase == "analysis_ready"
-    assert result.assistant_message == "岗位摘要\nLLM 应用落地。\n\n工作职责\n- 建设 LLM 应用\n\n必备技能\n- Python\n\n加分项\n- RAG 经验\n\n待确认问题\n- 经验年限不明确"
+    assert [arguments["keyword"] for _, arguments in tools.calls] == ["Role A", "Role B"]
+    assert result.assistant_message.startswith("已准备打开 BOSS 搜索“Role B”")
 
 
 def test_target_and_search_overrides_do_not_mutate_profile(tmp_path) -> None:
-    agent, gateway, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={"target_role": "Backend Engineer", "city": "Hangzhou", "salary": "30K以上", "experience": "3-5年", "education": "本科"})))
+    agent, tools, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Backend Engineer", "city": "杭州"})))
 
-    agent.run_turn(user_id="u1", conversation_id="c1", user_message="Search backend roles in Hangzhou this time.")
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Search backend roles in Hangzhou this time.")
 
-    request = gateway.calls[0]["research_request"]
-    assert request.target_role == "Backend Engineer"
-    assert request.city == "Hangzhou"
-    assert request.salary == "30K以上"
-    assert request.experience == "3-5年"
-    assert request.education == "本科"
+    action = result.tool_results[0].payload["client_action"]
+    parsed = urlparse(action["url"])
+    assert parse_qs(parsed.query) == {"query": ["Backend Engineer"], "city": ["101210100"]}
     profile = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").profile
     assert profile.target_roles == ("AI Engineer",)
     assert profile.default_city == "Shanghai"
-
-
-def test_detail_unavailable_injects_current_user_message_as_jd(tmp_path) -> None:
-    agent, gateway, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={})))
-    seed = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="seed")
-    manager.commit_turn(context=seed, task=ConversationTaskState(active_workflow="job_discovery", run_id="run-1", phase="detail_unavailable", selected_result_ref="r1"), assistant_message="Detail unavailable.")
-    jd = "Build reliable LLM systems and operate agent workflows in production."
-
-    agent.run_turn(user_id="u1", conversation_id="c1", user_message=jd)
-
-    call = gateway.calls[0]
-    assert call["user_id"] == "u1"
-    assert call["conversation_id"] == "c1"
-    assert call["task"].phase == "detail_unavailable"
-    assert call["task"].selected_result_ref == "r1"
-    assert call["user_message"] == jd
-    assert call["selection_index"] is None
-
-
-def test_analysis_formatter_uses_placeholder_for_empty_sections():
-    result = JobDiscoveryGatewayResult(run_id="run-1", state="analysis_ready", message="Analysis ready.", analysis=JDAnalysis(result_ref="r1", job_summary="摘要"))
-
-    assert MainAgentRuntime._assistant_message(result) == "岗位摘要\n摘要\n\n工作职责\n- 暂无明确说明\n\n必备技能\n- 暂无明确说明\n\n加分项\n- 暂无明确说明\n\n待确认问题\n- 暂无明确说明"
-
-
-def test_complete_jd_is_not_projected_into_main_agent_observation() -> None:
-    from datetime import datetime, timezone
-
-    now = datetime(2026, 8, 23, tzinfo=timezone.utc)
-    detail = JobDetail(
-        source_name="boss",
-        source_job_id="job-1",
-        title="AI Engineer",
-        company_name="Acme",
-        description="PRIVATE COMPLETE JD CONTENT",
-        captured_at=now,
-        provenance=Provenance(source_name="boss", source_job_id="job-1", captured_at=now, operation="detail", adapter_version="test-v1"),
-    )
-    result = JobDiscoveryGatewayResult(run_id="run-private", state="analysis_ready", message="Ready", detail=detail, analysis=JDAnalysis(result_ref="r1", job_summary="Safe summary"))
-
-    observation = MainAgentRuntime._tool_observation("job_discovery", result)
-
-    serialized = observation.model_dump_json()
-    assert "PRIVATE COMPLETE JD CONTENT" not in serialized
-    assert "run-private" not in serialized
-    assert "Safe summary" not in serialized
-    assert set(observation.model_dump()) == {"tool_name", "state", "next_action"}
 
 
 def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
@@ -448,13 +367,13 @@ def test_decision_tool_schema_recursively_removes_internal_ids() -> None:
 
 
 def test_normal_answer_commits_history_without_tool(tmp_path) -> None:
-    agent, gateway, manager = build_runtime(tmp_path, AgentDecision(action="final", message="AI Engineers build AI products."))
+    agent, tools, manager = build_runtime(tmp_path, AgentDecision(action="final", message="AI Engineers build AI products."))
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="What is an AI Engineer?")
     loaded = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next")
 
     assert result.tool_result is None
-    assert gateway.calls == []
+    assert tools.calls == []
     assert [message.content for message in loaded.recent_messages] == ["What is an AI Engineer?", "AI Engineers build AI products."]
 
 
@@ -501,12 +420,12 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
         AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
         AgentDecision(action="final", message="找到了以前看过的岗位。"),
     )
-    tools = MainAgentToolRegistry(Gateway(), job_repository=repository)
+    tools = MainAgentToolRegistry(job_repository=repository)
     agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
 
-    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("job_discovery", "find_saved_jobs", "get_saved_job")
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("open_job_search", "find_saved_jobs", "get_saved_job")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
     tool_result = result.tool_results[0]
@@ -534,7 +453,7 @@ def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> Non
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
-        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+        tools=MainAgentToolRegistry(job_repository=repository),
     )
     events = []
 
@@ -568,7 +487,7 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     agent = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
-        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+        tools=MainAgentToolRegistry(job_repository=repository),
     )
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位")
@@ -593,7 +512,7 @@ def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, argu
     agent = MainAgentRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(AgentDecision(action="tool_call", tool_call=ToolCall(name=tool_name, arguments=arguments))),
-        tools=MainAgentToolRegistry(Gateway(), job_repository=repository),
+        tools=MainAgentToolRegistry(job_repository=repository),
     )
 
     with pytest.raises(ValueError, match="cannot accept internal identifier"):
@@ -602,9 +521,12 @@ def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, argu
 
 @pytest.mark.parametrize("forbidden", ["user_id", "conversation_id", "run_id", "result_ref", "security_id", "job_id", "jd_text"])
 def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> None:
-    agent, _, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="job_discovery", arguments={forbidden: "hidden"})))
+    agent, _, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer", forbidden: "hidden"})))
 
-    with pytest.raises(ValueError, match="internal (arguments|identifiers)"):
+    # Identifier-shaped keys are refused by the shared guard; anything else the
+    # model invents is refused by the tool contract itself. Either way the turn
+    # must die before it commits.
+    with pytest.raises(ValueError, match="internal identifiers|Extra inputs are not permitted"):
         agent.run_turn(user_id="u1", conversation_id="c1", user_message="Do it.")
 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()

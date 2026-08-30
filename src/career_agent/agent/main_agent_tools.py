@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any, Literal
+from urllib.parse import urlencode
 
-from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewGraphResult,
     MockInterviewStartRequest,
@@ -41,8 +41,6 @@ from career_agent.agent.main_agent_contracts import (
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
-    JobDiscoveryToolArguments,
-    JobDiscoveryWorkflowInput,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListActionItemsToolArguments,
@@ -52,6 +50,7 @@ from career_agent.agent.main_agent_contracts import (
     ListEmailEventsToolArguments,
     ListInterviewsToolArguments,
     MatchResumeToJobToolArguments,
+    OpenJobSearchToolArguments,
     ReviewResumeTailoringToolArguments,
     ReviseResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
@@ -145,14 +144,41 @@ from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 
 
-MainAgentToolOutput = JobDiscoveryGatewayResult | ToolObservation
+MainAgentToolOutput = ToolObservation
 CapabilityKind = Literal["atomic_tool", "workflow"]
 
 
 class MainAgentToolRegistry:
+    _BOSS_CITY_CODES = {
+        "全国": "100010000",
+        "北京": "101010100",
+        "上海": "101020100",
+        "广州": "101280100",
+        "深圳": "101280600",
+        "杭州": "101210100",
+        "成都": "101270100",
+        "南京": "101190100",
+        "武汉": "101200100",
+        "西安": "101110100",
+        "苏州": "101190400",
+        "天津": "101030100",
+        "重庆": "101040100",
+        "长沙": "101250100",
+        "厦门": "101230200",
+        "beijing": "101010100",
+        "shanghai": "101020100",
+        "guangzhou": "101280100",
+        "shenzhen": "101280600",
+        "hangzhou": "101210100",
+        "chengdu": "101270100",
+        "nanjing": "101190100",
+        "wuhan": "101200100",
+        "xian": "101110100",
+        "xi'an": "101110100",
+    }
+
     def __init__(
         self,
-        gateway: JobDiscoveryGateway,
         *,
         job_repository: JobPostingRepository | None = None,
         resume_store: ResumeStore | None = None,
@@ -170,11 +196,10 @@ class MainAgentToolRegistry:
         mock_interview_store: SQLiteMockInterviewStore | None = None,
         job_research_service: JobResearchService | None = None,
     ) -> None:
-        self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
-            "job_discovery": self._job_discovery,
+        self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
+        self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
+            "open_job_search": self._open_job_search,
         }
-        self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {}
-        self._gateway = gateway
         self._job_repository = job_repository
         self._resume_store = resume_store
         self._resume_analysis_service = resume_analysis_service
@@ -334,16 +359,24 @@ class MainAgentToolRegistry:
         raise ValueError(f"Unknown main-agent capability: {name}")
 
     def schemas(self) -> tuple[dict[str, Any], ...]:
-        schemas = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "job_discovery",
-                    "description": "Enter or continue the user's read-only job discovery workflow. The workflow decides whether to search, wait for selection, fetch one JD, or accept user-provided JD based on its persisted state.",
-                    "parameters": JobDiscoveryToolArguments.model_json_schema(),
-                },
-            },
-        ]
+        schemas = []
+        if "open_job_search" in self._atomic_handlers:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "open_job_search",
+                        "description": (
+                            "Open a BOSS recruitment search page when the user asks to "
+                            "find new jobs. This only constructs a safe search URL for the "
+                            "client; it never reads results, automates browsing, calls BOSS "
+                            "APIs, or saves a job. The user browses normally and explicitly "
+                            "chooses which JD to save."
+                        ),
+                        "parameters": OpenJobSearchToolArguments.model_json_schema(),
+                    },
+                }
+            )
         if self._job_repository is not None:
             schemas.extend(
                 [
@@ -2140,17 +2173,41 @@ class MainAgentToolRegistry:
             artifact_id=artifact_id,
         )
 
-    def _job_discovery(self, arguments: dict[str, Any]) -> JobDiscoveryGatewayResult:
-        workflow_input = JobDiscoveryWorkflowInput.model_validate(arguments)
-        return self._gateway.advance(
-            user_id=workflow_input.user_id,
-            conversation_id=workflow_input.conversation_id,
-            task=workflow_input.task,
-            user_message=workflow_input.user_message,
-            selection_indices=workflow_input.selection_indices,
-            selection_index=workflow_input.selection_index,
-            jd_selection_index=workflow_input.jd_selection_index,
-            research_request=workflow_input.research_request,
+    def _open_job_search(self, arguments: dict[str, Any]) -> ToolObservation:
+        model_arguments = OpenJobSearchToolArguments.model_validate(arguments)
+        keyword = model_arguments.keyword.strip()
+        city = model_arguments.city.strip() if model_arguments.city else None
+        query = keyword
+        params = {"query": query}
+        city_code = self._BOSS_CITY_CODES.get(city or "") or self._BOSS_CITY_CODES.get(
+            (city or "").casefold()
+        )
+        if city_code:
+            params["city"] = city_code
+        elif city:
+            # Unknown city names stay visible in the search terms rather than
+            # being translated into a guessed internal BOSS code.
+            params["query"] = f"{city} {keyword}"
+        search_url = f"https://www.zhipin.com/web/geek/job?{urlencode(params)}"
+        scope = f"（{city}）" if city else ""
+        return ToolObservation(
+            tool_name="open_job_search",
+            state="job_search_page_ready",
+            message=(
+                f"已准备打开 BOSS 搜索“{keyword}”{scope}。"
+                "请正常浏览，并只保存你感兴趣的岗位。"
+            ),
+            next_action="browse_and_save_job",
+            payload={
+                "platform": "boss",
+                "keyword": keyword,
+                "city": city,
+                "client_action": {
+                    "type": "open_url",
+                    "url": search_url,
+                    "label": f"在 BOSS 搜索 {keyword}",
+                },
+            },
         )
 
     def _research_job(self, arguments: dict[str, Any]) -> ToolObservation:

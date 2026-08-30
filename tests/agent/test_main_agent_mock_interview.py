@@ -37,11 +37,6 @@ from career_agent.storage.resumes import ResumeStore
 NOW = datetime(2026, 8, 27, tzinfo=timezone.utc)
 
 
-class UnusedGateway:
-    def advance(self, **kwargs):
-        raise AssertionError("Mock interview must not enter Job Discovery")
-
-
 class OneDecision:
     def __init__(self, decision: AgentDecision) -> None:
         self.decision = decision
@@ -211,7 +206,6 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
         )
     )
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         application_service=service,
         mock_interview_graph=graph,
     )
@@ -288,7 +282,6 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
 def test_start_schema_exposes_only_selection_indexes_not_internal_ids(tmp_path) -> None:
     service, _ = _application_setup(tmp_path)
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         application_service=service,
         mock_interview_graph=FakeMockInterviewGraph(),
     )
@@ -346,7 +339,6 @@ def _runtime_with_graph(tmp_path, graph, decision_maker):
         assistant_message="已选择投递。",
     )
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         application_service=service,
         mock_interview_graph=graph,
     )

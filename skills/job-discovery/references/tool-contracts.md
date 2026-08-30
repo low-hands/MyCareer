@@ -1,58 +1,57 @@
-# Job Discovery Workflow Tool Contract
+# Job Search Navigation Tool Contract
 
-The Main Agent exposes one model-visible tool:
+The production Main Agent exposes one model-visible tool for finding new jobs:
 
 ```text
-job_discovery
+open_job_search
 ```
 
-It advances a stateful Job Discovery workflow. The model must not call BOSS, LangGraph nodes, or internal Gateway methods.
+It prepares a client-side browser navigation. It is an atomic tool, not a
+stateful Job Discovery workflow, and it never reads BOSS results or JD content.
 
 ## Model-visible arguments
 
 ```json
 {
-  "target_role": "optional target-role override for a new search",
-  "selection_index": 1
+  "platform": "boss",
+  "keyword": "AI 产品经理",
+  "city": "上海"
 }
 ```
 
-- `target_role` is optional. When omitted, Runtime uses the only confirmed target role from the Profile; otherwise the Gateway asks the user to choose one.
-- `selection_index` is a 1-based index and is meaningful only when state is `selection_required`.
+- `platform` currently accepts only `boss`.
+- `keyword` is required and must describe the role the user requested.
+- `city` is optional. Runtime may use the user's confirmed default city.
+- Internal identifiers, raw URLs, cookies, tokens, JD text, and BOSS request
+  parameters are not accepted.
 
-The model must not provide:
-
-```text
-user_id
-conversation_id
-run_id
-result_ref
-security_id
-job_id
-jd_text
-```
-
-Runtime injects the user identity, session, task cursor, and current user message. Gateway maps a valid selection index to an opaque result reference and validates ownership and current workflow phase.
-
-## Gateway state results
+## Result
 
 ```text
-selection_required
-→ return at most 15 candidate summaries; wait for a user selection
-
-analysis_ready
-→ return selected job summary and compact JD analysis
-
-detail_unavailable
-→ return manual_search_query; the next user JD text continues the same workflow without BOSS detail retrieval
-
-waiting_user
-→ return provider recovery instructions
-
-failed
-→ return safe error information
+state       = job_search_page_ready
+next_action = browse_and_save_job
 ```
 
-## Internal implementation
+The complete tool payload contains a bounded client action:
 
-`JobDiscoveryGateway.advance()` is the Main Agent entry point. It may invoke existing internal Gateway methods (`research`, `select`, or `analyze_provided_jd`) only after validating the current run state. Those methods remain available to the CLI but are not model-visible tools.
+```json
+{
+  "client_action": {
+    "type": "open_url",
+    "url": "https://www.zhipin.com/web/geek/job?...",
+    "label": "在 BOSS 搜索 AI 产品经理"
+  }
+}
+```
+
+The decision model sees only the safe observation state and next action. The
+runtime emits the URL as a typed SSE `client_action`; the React client attempts
+to open it and retains a clickable fallback in case the browser blocks the
+popup.
+
+## Boundary
+
+Opening the page does not mean jobs were found, viewed, captured, or saved. The
+user operates BOSS normally. A separate browser-side, explicit save action
+imports a selected JD into `JobPosting + JDSnapshot`. There is no legacy online
+discovery workflow or BOSS connector behind this tool.

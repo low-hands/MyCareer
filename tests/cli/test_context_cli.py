@@ -191,8 +191,6 @@ def test_chat_warns_the_operator_once_the_threshold_is_crossed(tmp_path) -> None
             "c1",
             "--message",
             "继续",
-            "--boss-data-dir",
-            "/tmp/boss",
         ],
         runtime_factory=lambda args: _Runtime(context_manager),
         stdout=output,

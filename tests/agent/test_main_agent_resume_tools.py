@@ -18,11 +18,6 @@ from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.career_history import CareerHistoryStore
 
 
-class UnusedGateway:
-    def advance(self, **kwargs):
-        raise AssertionError("Resume metadata tools must not enter Job Discovery")
-
-
 class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
@@ -64,7 +59,6 @@ def build_agent(
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         resume_store=store,
         resume_analysis_service=resume_analysis_service,
     )
@@ -85,7 +79,7 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="我有哪些 AI Engineer 简历和版本？")
 
-    assert tools.names == ("job_discovery", "list_target_roles", "list_resumes", "get_resume_metadata")
+    assert tools.names == ("open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     role_observation = result.tool_results[0]
     assert role_observation.payload["items"] == [{"selection_index": 1, "target_role_id": role.id, "title": "AI Engineer", "priority": 1, "status": "active"}]

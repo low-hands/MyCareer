@@ -52,6 +52,20 @@ def test_persists_full_jd_and_restores_after_repository_rebuild(tmp_path) -> Non
     assert restored.snapshot.content_hash == saved.snapshot.content_hash
 
 
+def test_browser_capture_persists_without_creating_a_discovery_run_link(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite3"
+    repository = SQLiteJobPostingRepository(path)
+
+    saved = repository.save_captured_detail(user_id="u1", detail=detail())
+
+    assert repository.get_job(
+        user_id="u1",
+        job_posting_id=saved.posting.id,
+    ) == saved
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM job_run_links").fetchone()[0] == 0
+
+
 def test_same_jd_is_idempotent_and_changed_content_creates_new_snapshot(tmp_path) -> None:
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
 

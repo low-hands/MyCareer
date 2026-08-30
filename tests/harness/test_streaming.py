@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from career_agent.harness.streaming import (
+    ClientActionEvent,
     ContentDeltaEvent,
     InteractionOption,
     InteractionRequiredEvent,
@@ -76,4 +77,13 @@ def test_selection_interaction_requires_options() -> None:
             interaction_id=interaction_id("c1", "selection"),
             kind="single_selection",
             prompt="请选择。",
+        )
+
+
+def test_client_action_requires_https_url() -> None:
+    with pytest.raises(ValidationError):
+        ClientActionEvent(
+            action="open_url",
+            url="javascript:alert(1)",
+            label="打开",
         )

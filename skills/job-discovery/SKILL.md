@@ -1,89 +1,65 @@
 ---
 name: job-discovery
-description: Use when the user explicitly asks to search for jobs, continue a selected job, or provide a JD after BOSS job-detail retrieval fails.
+description: Use when the user explicitly asks to find new jobs or open a recruitment-platform search page.
 ---
 
 # Job Discovery
 
 ## Purpose
 
-Find jobs through the read-only Job Discovery workflow, let the user select one candidate, and return a structured JD analysis. The main Agent invokes one `job_discovery` workflow tool; the Gateway and LangGraph own phase transitions.
+Open a recruitment search page for the user's requested role and city without automating the platform. The Main Agent invokes `open_job_search`; the user browses normally and explicitly saves only jobs they care about. The Main Agent does not receive search results or JD content merely because it opened the page.
 
 ## When to use
 
 Use when the user explicitly asks to:
 
-- search for jobs;
-- inspect a candidate from an existing Job Discovery run;
-- analyze JD text after detail retrieval was unavailable.
+- find new jobs;
+- open BOSS with a specific keyword and city.
 
-Do not use for resume rewriting, interview preparation, or general career advice unless the user also asks to search or inspect a specific job.
+Use `find_saved_jobs` and `get_saved_job`, not this skill, when the user wants to recall a previously saved job. Do not use it for resume rewriting, interview preparation, or general career advice.
 
 ## Required context
 
-Build a one-time `JobDiscoveryRequest` from:
-
-- `user_id`;
-- confirmed target role;
-- the resume associated with that role, when relevant;
-- confirmed defaults or this-turn overrides for city, salary, experience, and education.
-
-This-turn overrides take priority for the current request. Do not silently write them to long-term memory. If a required search field is missing, ask the user; do not invent it.
-
-Keep only this compact cursor in conversation state:
-
-```json
-{
-  "job_discovery_run_id": "job_discovery_...",
-  "phase": "selection_required",
-  "selected_result_ref": null
-}
-```
-
-Do not put full JD text, BOSS responses, credentials, raw trace events, or unrelated candidate data in conversation state.
+Use the explicit keyword and city from the current request. If city is omitted, a confirmed profile default may be used. Do not add salary, experience, education, company, or other filters the user did not request. Opening a page creates no workflow cursor.
 
 ## Workflow interface
 
-The only model-visible tool is `job_discovery`. The main Agent decides whether to enter the workflow; it must not choose or name internal Gateway actions.
+The model-visible new-job tool is `open_job_search`.
 
-- The model may provide an explicit `target_role` override for a new search.
-- During `selection_required`, the model may provide a 1-based candidate index from the compact conversation cursor.
-- Runtime injects the trusted user message, user identity, conversation identity, and task cursor.
-- The Gateway validates the run and advances the LangGraph workflow; it owns search, candidate mapping, detail retrieval, retry limits, and fallback analysis.
+- The model supplies `keyword`, optional `city`, and `platform="boss"`.
+- Runtime may fill a missing city from the confirmed profile default.
+- The tool returns a bounded HTTPS client action for an allowlisted BOSS search URL.
+- The browser client attempts to open the URL and always renders a clickable fallback.
+- The tool never reads page content, results, cookies, or login state.
 
 ## Workflow state handling
 
-1. Confirm the user has authorized an external BOSS search, then invoke `job_discovery`.
-2. `selection_required`: show at most 15 candidate summaries and wait for the user. On the next relevant turn, invoke the same tool with a candidate index.
-3. `analysis_ready`: return a concise JD analysis and update the conversation cursor.
-4. `detail_unavailable`: show `manual_search_query` and ask the user to paste the JD text. On the next turn, invoke the same tool; the Gateway uses the trusted user message and must not call BOSS again.
-5. `waiting_user`: explain provider recovery. The Gateway alone decides whether a resume action is valid.
-6. End when the user receives analysis, declines to continue, or receives an actionable failure.
+1. Extract the requested role keyword and optional city.
+2. Invoke `open_job_search` once.
+3. Tell the user that the page was opened and that browsing and saving remain under their control.
+4. End the turn. Do not wait for search results or claim that jobs were found.
 
-Read [tool contracts](references/tool-contracts.md) before exposing this workflow. Read [failure and recovery](references/failure-and-recovery.md) only for non-success states.
+Read [tool contracts](references/tool-contracts.md) before exposing this action.
 
 ## User decisions and confirmation
 
-- Wait for a user-selected `result_ref` after `selection_required`.
-- Ask before any separate waitlist, recruiter-contact, or application action.
-- Treat “search jobs” as authorization only for the read-only BOSS search/detail workflow; it never authorizes applying, greeting, contacting, or saving a job.
+- Treat “search jobs” as authorization only to open the search page.
+- Saving a JD must remain an explicit browser-side user action.
+- Searching never authorizes applying, greeting, contacting, or messaging a recruiter.
 
 ## Safety boundaries
 
-- Never invent `result_ref`, BOSS security IDs, job IDs, or URLs.
-- Never bypass BOSS controls or retry outside the Gateway policy.
-- Never expose credentials, cookies, raw BOSS envelopes, hidden prompts, or full trace by default.
+- Construct URLs only through the allowlisted tool; never invent or follow a model-provided BOSS internal API URL.
+- Never automate scrolling, opening details, reading results, applying, or messaging.
+- Never expose or collect credentials, cookies, tokens, browser storage, or raw BOSS envelopes.
 - Never silently promote model/external inferences into CareerProfile or AgentPreferences.
-- Return only compact candidate summaries and analysis summaries to the main Agent.
+- Never claim a job or JD was captured until a separate user-confirmed save succeeds.
 
 ## Output
 
-Return the Gateway state, `run_id`, candidate summaries or selected analysis, and `next_action`. Preserve the user-facing state exactly:
+Return `job_search_page_ready` with the requested platform, keyword, city, and an HTTPS `open_url` client action. The public client action is delivered outside the model-visible observation:
 
 ```text
-selection_required → wait for selection
-analysis_ready     → present analysis
-waiting_user       → explain required provider recovery
- detail_unavailable → request user-provided JD
-failed             → explain the actionable error
+job_search_page_ready → browser attempts to open; user browses and saves explicitly
+failed                → provide a clickable or manual-search fallback
 ```

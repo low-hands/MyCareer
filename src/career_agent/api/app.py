@@ -4,15 +4,22 @@ import argparse
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import os
+from pathlib import Path
+import re
+from urllib.parse import urlsplit, urlunsplit
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
+from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.harness.streaming import PublicStreamEvent, astream_turn_events
+from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
 class ChatStreamRequest(BaseModel):
@@ -24,6 +31,33 @@ class ChatStreamRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=200)
     conversation_id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=100_000)
+
+
+class BrowserJobCaptureRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    user_id: str = Field(min_length=1, max_length=200)
+    source_url: str = Field(min_length=1, max_length=2_000)
+    title: str = Field(min_length=1, max_length=500)
+    company_name: str = Field(min_length=1, max_length=500)
+    description: str = Field(min_length=1, max_length=100_000)
+    city: str | None = Field(default=None, max_length=200)
+    salary: str | None = Field(default=None, max_length=200)
+    experience: str | None = Field(default=None, max_length=200)
+    education: str | None = Field(default=None, max_length=200)
+
+
+class BrowserJobCaptureResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_posting_id: str
+    jd_snapshot_id: str
+    snapshot_version: int
+    title: str
+    company_name: str
 
 
 class ConversationBusyError(Exception):
@@ -50,11 +84,6 @@ class ConversationRunGate:
 
 
 def _runtime_args_from_env() -> argparse.Namespace:
-    boss_data_dir = os.environ.get("CAREER_AGENT_BOSS_DATA_DIR", "").strip()
-    if not boss_data_dir:
-        raise RuntimeError(
-            "CAREER_AGENT_BOSS_DATA_DIR is required to start the API runtime"
-        )
     return build_parser().parse_args(
         [
             "chat",
@@ -64,14 +93,34 @@ def _runtime_args_from_env() -> argparse.Namespace:
             "api-runtime",
             "--message",
             "runtime-bootstrap",
-            "--boss-data-dir",
-            boss_data_dir,
         ]
     )
 
 
 def build_api_runtime() -> MainAgentRuntime:
     return build_main_agent_runtime(_runtime_args_from_env())
+
+
+def build_capture_repository() -> JobPostingRepository:
+    args = _runtime_args_from_env()
+    return SQLiteJobPostingRepository(Path(args.job_store).expanduser())
+
+
+def _canonical_boss_job_url(raw_url: str) -> tuple[str, str | None]:
+    try:
+        parsed = urlsplit(raw_url)
+    except ValueError as error:
+        raise ValueError("Invalid BOSS job URL") from error
+    hostname = (parsed.hostname or "").casefold()
+    if parsed.scheme != "https" or not (
+        hostname == "zhipin.com" or hostname.endswith(".zhipin.com")
+    ):
+        raise ValueError("Only HTTPS BOSS job URLs are accepted")
+    path = re.sub(r"/{2,}", "/", parsed.path or "/")
+    canonical = urlunsplit(("https", hostname, path, "", ""))
+    match = re.search(r"/job_detail/([^/?#]+?)(?:\.html)?$", path, re.IGNORECASE)
+    source_job_id = match.group(1) if match else None
+    return canonical, source_job_id
 
 
 def _encode_sse(event: PublicStreamEvent) -> str:
@@ -144,21 +193,36 @@ async def _sse_stream(
 def create_app(
     *,
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
+    capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
     heartbeat_seconds: float = 15.0,
 ) -> FastAPI:
     if heartbeat_seconds <= 0:
         raise ValueError("heartbeat_seconds must be positive")
     factory = runtime_factory or build_api_runtime
+    capture_factory = capture_repository_factory or build_capture_repository
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        runtime = factory()
+        runtime: MainAgentRuntime | None = None
+        startup_error: dict[str, str] | None = None
+        try:
+            runtime = factory()
+        except AgentConfigurationError as error:
+            startup_error = {
+                "code": error.code,
+                "message": (
+                    f"服务尚未配置完成：{error} "
+                    "请在 .env 补齐这些配置后重启 FastAPI。"
+                ),
+            }
         app.state.runtime = runtime
+        app.state.startup_error = startup_error
         app.state.run_gate = ConversationRunGate()
+        app.state.capture_repository = None
         try:
             yield
         finally:
-            close = getattr(runtime, "close", None)
+            close = getattr(runtime, "close", None) if runtime is not None else None
             if close is not None:
                 close()
 
@@ -172,8 +236,22 @@ def create_app(
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @application.get("/ready")
+    async def ready() -> dict[str, str]:
+        startup_error: dict[str, str] | None = application.state.startup_error
+        if startup_error is not None:
+            raise HTTPException(status_code=503, detail=startup_error)
+        return {"status": "ready"}
+
     @application.post("/v1/chat/stream")
     async def chat_stream(request: ChatStreamRequest) -> StreamingResponse:
+        runtime: MainAgentRuntime | None = application.state.runtime
+        if runtime is None:
+            raise HTTPException(
+                status_code=503,
+                detail=application.state.startup_error,
+            )
+
         gate: ConversationRunGate = application.state.run_gate
         try:
             await gate.acquire(request.user_id, request.conversation_id)
@@ -185,8 +263,6 @@ def create_app(
                     "message": "This conversation already has a running turn.",
                 },
             ) from error
-
-        runtime: MainAgentRuntime = application.state.runtime
 
         async def release_gate() -> None:
             await gate.release(request.user_id, request.conversation_id)
@@ -208,6 +284,66 @@ def create_app(
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },
+        )
+
+    @application.post(
+        "/v1/browser-captures/jobs",
+        response_model=BrowserJobCaptureResponse,
+    )
+    async def capture_job(
+        request: BrowserJobCaptureRequest,
+        capture_version: str | None = Header(
+            default=None,
+            alias="X-Career-Agent-Capture",
+        ),
+    ) -> BrowserJobCaptureResponse:
+        if capture_version != "v1":
+            raise HTTPException(status_code=403, detail="Browser capture header is required")
+        try:
+            source_url, source_job_id = _canonical_boss_job_url(request.source_url)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+        repository: JobPostingRepository | None = application.state.capture_repository
+        if repository is None:
+            repository = capture_factory()
+            application.state.capture_repository = repository
+        captured_at = datetime.now(timezone.utc)
+        provenance = Provenance(
+            source_name="boss",
+            source_job_id=source_job_id,
+            source_url=source_url,
+            captured_at=captured_at,
+            operation="browser_explicit_save",
+            adapter_version="career-agent-browser-capture-v1",
+        )
+        detail = JobDetail(
+            source_name="boss",
+            source_job_id=source_job_id,
+            source_url=source_url,
+            title=request.title,
+            company_name=request.company_name,
+            description=request.description,
+            city=request.city,
+            salary=request.salary,
+            experience=request.experience,
+            education=request.education,
+            captured_at=captured_at,
+            provenance=provenance,
+        )
+        try:
+            saved = repository.save_captured_detail(
+                user_id=request.user_id,
+                detail=detail,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return BrowserJobCaptureResponse(
+            job_posting_id=saved.posting.id,
+            jd_snapshot_id=saved.snapshot.id,
+            snapshot_version=saved.snapshot.version,
+            title=saved.posting.title,
+            company_name=saved.posting.company_name,
         )
 
     return application

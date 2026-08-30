@@ -64,7 +64,7 @@ def _stuck_run(tmp_path: Path, *, break_checkpoint: bool = True):
 
 def _registry(store, graph) -> MainAgentToolRegistry:
     return MainAgentToolRegistry(
-        _UnusedGateway(), mock_interview_graph=graph, mock_interview_store=store
+        mock_interview_graph=graph, mock_interview_store=store,
     )
 
 
@@ -224,8 +224,8 @@ def test_the_tool_needs_both_the_graph_and_the_store(tmp_path) -> None:
     """Retiring reads the stuck run's settings, so a graph alone is not enough."""
     store, graph, _ = _stuck_run(tmp_path)
 
-    graph_only = MainAgentToolRegistry(_UnusedGateway(), mock_interview_graph=graph)
-    store_only = MainAgentToolRegistry(_UnusedGateway(), mock_interview_store=store)
+    graph_only = MainAgentToolRegistry(mock_interview_graph=graph)
+    store_only = MainAgentToolRegistry(mock_interview_store=store)
 
     for registry in (graph_only, store_only):
         names = {

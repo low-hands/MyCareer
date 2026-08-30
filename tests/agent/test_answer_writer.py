@@ -9,10 +9,6 @@ from career_agent.agent.answer_writer import (
     OpenAIStreamingAnswerWriter,
 )
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.job_discovery_gateway import (
-    GatewayJobItem,
-    JobDiscoveryGatewayResult,
-)
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
@@ -33,23 +29,6 @@ class Decisions:
 
     def decide(self, context, tool_specs):
         return self.items.pop(0)
-
-
-class Gateway:
-    def advance(self, **kwargs):
-        return JobDiscoveryGatewayResult(
-            run_id="private-run",
-            state="selection_required",
-            message="请选择岗位。",
-            items=(
-                GatewayJobItem(
-                    result_ref="private-ref",
-                    title="AI Engineer",
-                    company_name="Acme",
-                ),
-            ),
-            next_action="select_result",
-        )
 
 
 class RecordingWriter:
@@ -76,7 +55,7 @@ def test_runtime_streams_writer_tokens_and_commits_the_same_answer(tmp_path) -> 
         decision_maker=Decisions(
             AgentDecision(action="final", message="结构化阶段形成的展示草稿。")
         ),
-        tools=MainAgentToolRegistry(Gateway()),
+        tools=MainAgentToolRegistry(),
         answer_writer=writer,
     )
     events = []
@@ -110,11 +89,11 @@ def test_interaction_bypasses_writer(tmp_path) -> None:
         decision_maker=Decisions(
             AgentDecision(
                 action="tool_call",
-                tool_call=ToolCall(name="job_discovery", arguments={}),
+                tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"}),
             ),
             AgentDecision(action="ask_user", message="请选择岗位。"),
         ),
-        tools=MainAgentToolRegistry(Gateway()),
+        tools=MainAgentToolRegistry(),
         answer_writer=writer,
     )
     events = []
@@ -147,7 +126,7 @@ def test_writer_failure_before_first_token_falls_back_to_grounded_draft(
         decision_maker=Decisions(
             AgentDecision(action="final", message="可靠的确定性回答。")
         ),
-        tools=MainAgentToolRegistry(Gateway()),
+        tools=MainAgentToolRegistry(),
         answer_writer=FailingWriter(),
     )
     events = []
@@ -184,7 +163,7 @@ def test_writer_failure_after_partial_stream_does_not_commit_or_append_fallback(
         decision_maker=Decisions(
             AgentDecision(action="final", message="不应追加的回退回答。")
         ),
-        tools=MainAgentToolRegistry(Gateway()),
+        tools=MainAgentToolRegistry(),
         answer_writer=PartialWriter(),
     )
     events = []

@@ -8,11 +8,6 @@ from career_agent.domain.action_center import ActionItem, DailyBrief
 from career_agent.storage.context import CareerContextStore
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class ActionCenter:
     def __init__(self):
         now = datetime(2026, 8, 26, tzinfo=timezone.utc)
@@ -63,7 +58,7 @@ def test_daily_brief_selection_projects_internal_action_id(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     action_center = ActionCenter()
-    tools = MainAgentToolRegistry(Gateway(), action_center_service=action_center)
+    tools = MainAgentToolRegistry(action_center_service=action_center)
     runtime = MainAgentRuntime(
         context_manager=manager, decision_maker=Decisions(), tools=tools,
     )

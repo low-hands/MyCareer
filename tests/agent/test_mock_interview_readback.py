@@ -157,7 +157,7 @@ def _complete(store, session):
 
 
 def _invoke(store, **arguments):
-    tools = MainAgentToolRegistry(None, mock_interview_store=store)
+    tools = MainAgentToolRegistry(mock_interview_store=store)
     return tools.invoke_atomic_tool(
         "get_mock_interview_result",
         {"user_id": "u1", "application_id": "app-1", **arguments},
@@ -168,9 +168,9 @@ def test_the_tool_is_offered_only_when_a_store_is_configured(tmp_path) -> None:
     def names(registry):
         return {schema["function"]["name"] for schema in registry.schemas()}
 
-    assert "get_mock_interview_result" not in names(MainAgentToolRegistry(None))
+    assert "get_mock_interview_result" not in names(MainAgentToolRegistry())
     assert "get_mock_interview_result" in names(
-        MainAgentToolRegistry(None, mock_interview_store=_completed_store(tmp_path))
+        MainAgentToolRegistry(mock_interview_store=_completed_store(tmp_path))
     )
 
 
@@ -317,7 +317,7 @@ def test_a_run_the_real_graph_finished_is_readable_through_the_tool(tmp_path) ->
     assert result.state == "completed"
 
     session = store.get_session(user_id="u1", session_id=first.session_id)
-    tools = MainAgentToolRegistry(None, mock_interview_store=store)
+    tools = MainAgentToolRegistry(mock_interview_store=store)
 
     def read(question_number):
         return tools.invoke_atomic_tool(

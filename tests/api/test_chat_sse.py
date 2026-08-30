@@ -11,15 +11,18 @@ from career_agent.api.app import (
     ChatStreamRequest,
     ConversationBusyError,
     ConversationRunGate,
+    _runtime_args_from_env,
     _sse_stream,
     create_app,
 )
+from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.harness.streaming import (
     ContentDeltaEvent,
     TurnCompletedEvent,
     TurnFailedEvent,
     TurnStartedEvent,
 )
+from career_agent.storage.jobs import SQLiteJobPostingRepository
 
 
 class Runtime:
@@ -58,6 +61,19 @@ class Runtime:
 
     def close(self) -> None:
         self.closed = True
+
+
+def test_api_runtime_bootstrap_no_longer_requires_boss_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CAREER_AGENT_BOSS_DATA_DIR", raising=False)
+
+    args = _runtime_args_from_env()
+
+    assert args.command == "chat"
+    # The option is gone, not merely unset: nothing in the API path can ask for
+    # a BOSS data directory any more.
+    assert not hasattr(args, "boss_data_dir")
 
 
 def _events(body: str) -> list[tuple[str, dict]]:
@@ -211,3 +227,111 @@ def test_request_contract_rejects_unknown_fields() -> None:
 
     assert response.status_code == 422
     assert runtime.calls == []
+
+
+def test_configuration_failure_keeps_api_alive_and_reports_exact_missing_keys() -> None:
+    def unavailable_runtime():
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_MISSING",
+            (
+                "RESUME_ANALYSIS_AGENT_BASE_URL, RESUME_ANALYSIS_AGENT_API_KEY, "
+                "and RESUME_ANALYSIS_AGENT_MODEL are required."
+            ),
+        )
+
+    app = create_app(runtime_factory=unavailable_runtime)
+    with TestClient(app) as client:
+        health = client.get("/health")
+        ready = client.get("/ready")
+        stream = client.post(
+            "/v1/chat/stream",
+            json={
+                "user_id": "u1",
+                "conversation_id": "c1",
+                "message": "你好",
+            },
+        )
+
+    assert health.status_code == 200
+    assert ready.status_code == 503
+    assert stream.status_code == 503
+    assert ready.json()["detail"]["code"] == "AGENT_CONFIGURATION_MISSING"
+    assert "RESUME_ANALYSIS_AGENT_API_KEY" in ready.json()["detail"]["message"]
+
+
+def test_ready_reports_runtime_is_available() -> None:
+    runtime = Runtime()
+    app = create_app(runtime_factory=lambda: runtime)
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path) -> None:
+    runtime = Runtime()
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    app = create_app(
+        runtime_factory=lambda: runtime,
+        capture_repository_factory=lambda: repository,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/browser-captures/jobs",
+            headers={"X-Career-Agent-Capture": "v1"},
+            json={
+                "user_id": "u1",
+                "source_url": (
+                    "https://www.zhipin.com/job_detail/boss-123.html"
+                    "?securityId=must-not-be-stored#detail"
+                ),
+                "title": "AI 产品经理",
+                "company_name": "示例科技",
+                "description": "负责 AI 产品规划和交付。",
+                "city": "上海",
+                "salary": "25-35K",
+                "experience": "3-5年",
+                "education": "本科",
+            },
+        )
+
+    assert response.status_code == 200
+    saved = repository.get_job(
+        user_id="u1",
+        job_posting_id=response.json()["job_posting_id"],
+    )
+    assert saved is not None
+    assert saved.posting.source_job_id == "boss-123"
+    assert saved.posting.source_url == "https://www.zhipin.com/job_detail/boss-123.html"
+    assert saved.snapshot.content == "负责 AI 产品规划和交付。"
+
+
+def test_browser_capture_rejects_cross_site_urls_and_missing_capture_header(tmp_path) -> None:
+    runtime = Runtime()
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    app = create_app(
+        runtime_factory=lambda: runtime,
+        capture_repository_factory=lambda: repository,
+    )
+    payload = {
+        "user_id": "u1",
+        "source_url": "https://example.com/job_detail/123.html",
+        "title": "AI 产品经理",
+        "company_name": "示例科技",
+        "description": "负责 AI 产品规划和交付。",
+    }
+
+    with TestClient(app) as client:
+        missing_header = client.post("/v1/browser-captures/jobs", json=payload)
+        cross_site = client.post(
+            "/v1/browser-captures/jobs",
+            headers={"X-Career-Agent-Capture": "v1"},
+            json=payload,
+        )
+
+    assert missing_header.status_code == 403
+    assert cross_site.status_code == 422
+    assert repository.list_jobs(user_id="u1") == ()

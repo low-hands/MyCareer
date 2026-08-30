@@ -1,52 +1,44 @@
-# Job Discovery Skill Example
-
-Use this example as a reference when adding `skills/job-discovery/` after the main Agent tool registry exists.
+# Job Search Navigation Skill Example
 
 ```markdown
 ---
 name: job-discovery
-description: Use when the user explicitly asks to search for jobs, inspect a selected job, or analyze a JD they provide after job-detail retrieval fails.
+description: Use when the user explicitly asks to open a recruitment-platform job search.
 ---
 
 # Job Discovery
 
 ## When to use
 
-Use only when the user explicitly authorizes a job search or asks to continue an existing Job Discovery run.
+Use only when the user explicitly asks to search for new jobs. Use saved-job tools for jobs the user previously saved.
 
 ## Required context
 
-- `user_id`
-- task-relevant CareerProfile projection
-- current conversation cursor, if one exists
-- temporary search overrides from the latest user message
+- task-relevant CareerProfile projection;
+- explicit keyword and optional city from the current request.
 
 ## Workflow
 
-1. Build a `JobDiscoveryRequest` from confirmed CareerProfile defaults plus this-turn overrides.
-2. Call `job_discovery.research`.
-3. Return at most 15 summaries and save only `run_id`, state, and candidate references in the conversation cursor.
-4. Wait for the user to choose a result.
-5. Call `job_discovery.select(run_id, result_ref)`.
-6. If state is `analysis_ready`, return the compact JD analysis and offer the next explicitly requested capability.
-7. If state is `detail_unavailable`, show `manual_search_query` and request pasted JD text.
-8. Call `job_discovery.analyze_provided_jd` only after the user provides text.
+1. Build `keyword` and optional `city` from explicit user input and confirmed defaults.
+2. Call `open_job_search` once.
+3. Deliver the typed `open_url` client action.
+4. Tell the user that browsing and saving remain under their control, then end the turn.
+5. A browser extension may preview the current detail page, but persists it only after the user clicks save.
 
 ## Tool contracts
 
-- `job_discovery.research(request)`
-- `job_discovery.select(run_id, result_ref)`
-- `job_discovery.analyze_provided_jd(run_id, result_ref, jd_text)`
+- `open_job_search(keyword, city?)`;
+- `find_saved_jobs(query)` for historical recall only;
+- `get_saved_job(selection_index)` after a saved-job search.
 
 ## Rules
 
-- Never search BOSS without explicit user authorization.
-- Never invent a `result_ref` or BOSS identifier.
-- Never apply, contact a recruiter, or add a job to a waitlist without a separate confirmation.
-- Do not retry BOSS detail beyond the Gateway policy.
-- Do not place raw JD text, provider payloads, credentials, or traces in conversation state.
+- Never automate scrolling, opening details, result extraction, applying, or messaging.
+- Never call recruitment-platform internal APIs or read credentials, cookies, tokens, or browser storage.
+- Never claim results were found merely because a search page opened.
+- Never save a JD without an explicit browser-side user action.
 
 ## Completion
 
-Complete when the user has either received a JD analysis, declined to continue, or the workflow returned an actionable failure.
+Complete when the search page action has been delivered or a safe navigation failure has been reported.
 ```

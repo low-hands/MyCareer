@@ -899,11 +899,6 @@ def test_final_reviewer_blocks_version_creation_after_user_approval(tmp_path) ->
     ) is None
 
 
-class UnusedGateway:
-    def advance(self, **kwargs):
-        raise AssertionError("Tailoring must not enter Job Discovery")
-
-
 class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
@@ -930,7 +925,6 @@ def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> Non
         assistant_message="seeded",
     )
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         resume_tailoring_service=service,
     )
     revise_schema = next(
@@ -1023,7 +1017,6 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         AgentDecision(action="final", message="我生成了一份待审阅的修改草稿。"),
     )
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         resume_tailoring_service=service,
         resume_export_service=ResumeExportService(
             service._resume_store,
