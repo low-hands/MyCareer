@@ -78,6 +78,13 @@ class StoredJobSummary(BaseModel):
 
 
 class JobPostingRepository(Protocol):
+    def save_captured_detail(
+        self,
+        *,
+        user_id: str,
+        detail: JobDetail,
+    ) -> StoredJobRecord: ...
+
     def save_detail(
         self,
         *,
@@ -222,6 +229,29 @@ class SQLiteJobPostingRepository:
     ) -> StoredJobRecord:
         if not user_id or not run_id or not result_ref or selection_index < 1:
             raise ValueError("user_id, run_id, result_ref, and a positive selection_index are required")
+        return self._persist_detail(
+            user_id=user_id,
+            detail=detail,
+            run_link=(run_id, result_ref, selection_index),
+        )
+
+    def save_captured_detail(
+        self,
+        *,
+        user_id: str,
+        detail: JobDetail,
+    ) -> StoredJobRecord:
+        if not user_id:
+            raise ValueError("user_id is required")
+        return self._persist_detail(user_id=user_id, detail=detail, run_link=None)
+
+    def _persist_detail(
+        self,
+        *,
+        user_id: str,
+        detail: JobDetail,
+        run_link: tuple[str, str, int] | None,
+    ) -> StoredJobRecord:
         normalized = validate_job_detail(detail)
         now = datetime.now(timezone.utc)
         source_identity = self._source_identity(detail, normalized)
@@ -310,10 +340,12 @@ class SQLiteJobPostingRepository:
                         snapshot.captured_at.isoformat(), snapshot.provenance.model_dump_json(), snapshot.normalizer_version,
                     ),
                 )
-            connection.execute(
-                "INSERT INTO job_run_links(user_id, run_id, result_ref, selection_index, job_posting_id, jd_snapshot_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, run_id, result_ref) DO UPDATE SET selection_index=excluded.selection_index, job_posting_id=excluded.job_posting_id, jd_snapshot_id=excluded.jd_snapshot_id",
-                (user_id, run_id, result_ref, selection_index, posting_id, snapshot.id),
-            )
+            if run_link is not None:
+                run_id, result_ref, selection_index = run_link
+                connection.execute(
+                    "INSERT INTO job_run_links(user_id, run_id, result_ref, selection_index, job_posting_id, jd_snapshot_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, run_id, result_ref) DO UPDATE SET selection_index=excluded.selection_index, job_posting_id=excluded.job_posting_id, jd_snapshot_id=excluded.jd_snapshot_id",
+                    (user_id, run_id, result_ref, selection_index, posting_id, snapshot.id),
+                )
             connection.execute("DELETE FROM job_posting_fts WHERE job_posting_id = ?", (posting_id,))
             connection.execute(
                 "INSERT INTO job_posting_fts(job_posting_id, user_id, title, company_name, city, jd_content) VALUES (?, ?, ?, ?, ?, ?)",

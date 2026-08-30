@@ -78,12 +78,11 @@ Example:
 
 ```markdown
 1. Read the task-relevant CareerProfile projection.
-2. Build and validate the request with the request schema.
-3. Call `job_discovery.research`.
-4. Display at most 15 candidate summaries and wait for a user selection.
-5. Call `job_discovery.select` with the existing `run_id` and `result_ref`.
-6. If detail is unavailable, show the manual search query and request pasted JD text.
-7. Call `job_discovery.analyze_provided_jd` without requesting BOSS again.
+2. Build the explicit keyword and optional city.
+3. Call `open_job_search` once.
+4. Deliver the browser navigation action and end the turn.
+5. Let the user browse normally and explicitly save a JD with the browser extension.
+6. Use saved-job tools only after that separate save succeeds.
 ```
 
 Do not describe a workflow without stating its stop conditions. A Skill must say when it is complete, when it waits for the user, and when it returns a failure.
@@ -95,8 +94,9 @@ A Tool is one structured action. A Skill may coordinate multiple tools or MCP se
 ```text
 Skill
 ├── profile.get_projection
-├── job_discovery.research
-├── job_discovery.select
+├── open_job_search
+├── find_saved_jobs
+├── get_saved_job
 ├── resume.match
 └── resume.save_after_confirmation
 ```
@@ -191,7 +191,7 @@ Subagent
 └── returns a structured result, not hidden global state
 ```
 
-A Skill does not automatically require a subagent. A deterministic BOSS search should remain a Tool/connector. A long JD analysis, resume tailoring, OCR pass, or independent review may use a subagent.
+A Skill does not automatically require a subagent. Opening a recruitment search page remains an atomic client-navigation Tool. A long JD analysis, resume tailoring, OCR pass, or independent review may use a subagent.
 
 ## Context boundaries
 

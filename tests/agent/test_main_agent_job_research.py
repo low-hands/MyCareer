@@ -34,11 +34,6 @@ from career_agent.storage.jobs import StoredJobSummary
 NOW = datetime(2026, 8, 30, tzinfo=timezone.utc)
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class Jobs:
     def search_saved_jobs(self, **kwargs):
         return (
@@ -146,7 +141,6 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     research = Research()
     tools = MainAgentToolRegistry(
-        Gateway(),
         job_repository=Jobs(),
         job_research_service=research,
     )
@@ -221,7 +215,6 @@ def test_job_research_projection_uses_indexes_and_hides_internal_ids() -> None:
 
 def test_job_research_is_described_as_an_explicit_optional_capability() -> None:
     tools = MainAgentToolRegistry(
-        Gateway(),
         job_repository=Jobs(),
         job_research_service=Research(),
     )

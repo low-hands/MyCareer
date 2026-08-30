@@ -13,11 +13,6 @@ from career_agent.domain.calendar import (
 from career_agent.storage.context import CareerContextStore
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 class Calendar:
     def __init__(self):
         now = datetime(2026, 8, 26, tzinfo=timezone.utc)
@@ -77,7 +72,7 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
         assistant_message="seeded",
     )
     calendar = Calendar()
-    tools = MainAgentToolRegistry(Gateway(), calendar_service=calendar)
+    tools = MainAgentToolRegistry(calendar_service=calendar)
     first_runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(

@@ -12,8 +12,6 @@ from typing import Callable, Sequence, TextIO
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.answer_writer import OpenAIStreamingAnswerWriter
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.job_discovery_contracts import JobDiscoveryRequest
-from career_agent.agent.job_discovery_gateway import JobDiscoveryGateway, JobDiscoveryGatewayResult
 from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -22,7 +20,6 @@ from career_agent.agent.mock_interview_graph import (
     StoredMockInterviewSourceProvider,
 )
 from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
-from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
@@ -41,10 +38,8 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
 from career_agent.agent.deepagent_job_research_worker import (
     DeepAgentJobResearchWorker,
 )
-from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
 from career_agent.connectors.calendar import EnvironmentCalendarConnectorResolver
-from career_agent.services.job_discovery import JobDiscoveryService
 from career_agent.services.applications import ApplicationService
 from career_agent.services.action_center import ActionCenterService
 from career_agent.services.calendar import CalendarService
@@ -69,52 +64,19 @@ from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
-from career_agent.storage.memory import InMemoryJobRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
-from career_agent.storage.runs import JobDiscoveryRunStore
 
 
 EXIT_OK = 0
 EXIT_ARGUMENT_ERROR = 2
 EXIT_CONFIGURATION_ERROR = 3
-EXIT_CONNECTOR_ERROR = 4
 EXIT_WORKFLOW_ERROR = 5
 EXIT_UNKNOWN_ERROR = 6
 MAX_RESUME_IMPORT_BYTES = 1_048_576
-
-
-def build_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
-    config = replace(OpenAICompatibleAgentConfig.from_env(), timeout_seconds=args.agent_timeout_seconds)
-    worker = OpenAICompatibleAgentWorker(config)
-    transport = SubprocessBossTransport(
-        Path(args.boss_data_dir).expanduser(),
-        executable=args.boss_executable,
-        timeout_seconds=args.boss_timeout_seconds,
-    )
-    adapter = BossReadOnlyAdapter(transport)
-    run_store = JobDiscoveryRunStore(Path(args.run_store).expanduser())
-    return JobDiscoveryGateway(
-        adapter,
-        worker,
-        JobDiscoveryService(InMemoryJobRepository()),
-        run_store=run_store,
-        job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
-    )
-
-
-def build_analysis_gateway(args: argparse.Namespace) -> JobDiscoveryGateway:
-    config = replace(OpenAICompatibleAgentConfig.from_env(), timeout_seconds=args.agent_timeout_seconds)
-    return JobDiscoveryGateway(
-        None,
-        OpenAICompatibleAgentWorker(config),
-        JobDiscoveryService(InMemoryJobRepository()),
-        run_store=JobDiscoveryRunStore(Path(args.run_store).expanduser()),
-        job_repository=SQLiteJobPostingRepository(Path(args.job_store).expanduser()),
-    )
 
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
@@ -215,7 +177,6 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         career_context_projector=CareerContextProjector(career_history_store),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
-            build_gateway(args),
             job_repository=job_repository,
             job_research_service=job_research_service,
             resume_store=resume_store,
@@ -312,11 +273,7 @@ def _resume_payload(resume, versions=()) -> dict[str, object]:
 
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--boss-data-dir", required=True, help="BOSS CLI data directory.")
-    parser.add_argument("--boss-executable", default="boss", help="BOSS executable name or path (default: boss).")
-    parser.add_argument("--boss-timeout-seconds", type=float, default=300.0, help="Read-only BOSS call timeout (default: 300).")
     parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
-    parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument(
         "--job-research-store",
@@ -364,10 +321,10 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="career-agent", description="Run a read-only career job discovery workflow.")
+    parser = argparse.ArgumentParser(prog="career-agent", description="Run the local Career Agent application.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    chat = subparsers.add_parser("chat", help="Send one natural-language turn to the Main Agent.", description="Run one non-interactive Main Agent turn. The agent decides whether to enter a registered workflow.", epilog="Example: career-agent chat --user-id u1 --session-id s1 --message 'Help me find AI Engineer jobs' --boss-data-dir ~/.boss-agent")
+    chat = subparsers.add_parser("chat", help="Send one natural-language turn to the Main Agent.", description="Run one non-interactive Main Agent turn. The agent decides whether to enter a registered workflow.", epilog="Example: career-agent chat --user-id u1 --session-id s1 --message 'Help me find AI Engineer jobs'")
     chat.add_argument("--user-id", required=True, help="Stable user identifier.")
     chat.add_argument("--session-id", required=True, help="Conversation session identifier.")
     chat.add_argument("--message", required=True, help="Current user message.")
@@ -375,37 +332,6 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--compacted-message-warning", type=int, default=200, help="Warn once this many summarised originals are still stored. They are never deleted automatically; use 'context prune'.")
     chat.add_argument("--main-agent-timeout-seconds", type=float, default=60.0, help="Main Agent model timeout (default: 60).")
     _add_runtime_options(chat)
-
-    discover = subparsers.add_parser("discover", help="Search jobs and return candidates for user selection.", description="Search BOSS in read-only mode and return up to 15 candidates.", epilog="Example: career-agent discover --user-id u1 --target-role 'AI Engineer' --boss-data-dir ~/.boss-agent --json")
-    discover.add_argument("--user-id", required=True, help="Stable user identifier.")
-    discover.add_argument("--target-role", required=True, help="Target role to search for.")
-    discover.add_argument("--conversation-id", help="Conversation correlation identifier; generated when omitted.")
-    discover.add_argument("--resume-file", type=Path, help="Read resume text from a local file; it is not persisted in the run store.")
-    discover.add_argument("--city", help="Optional city filter.")
-    discover.add_argument("--salary", help="Optional salary filter.")
-    discover.add_argument("--experience", help="Optional experience filter.")
-    discover.add_argument("--education", help="Optional education filter.")
-    _add_runtime_options(discover)
-
-    select = subparsers.add_parser("select", help="Fetch and analyze one candidate from a durable run.", description="Select one result_ref from a previous discover run and fetch its JD.", epilog="Example: career-agent select --user-id u1 --run-id RUN_ID --result-ref RESULT_REF --boss-data-dir ~/.boss-agent --json")
-    select.add_argument("--user-id", required=True, help="User identifier that created the run.")
-    select.add_argument("--run-id", required=True, help="Run ID returned by discover.")
-    select.add_argument("--result-ref", required=True, help="Opaque result_ref returned by discover.")
-    _add_runtime_options(select)
-
-    analyze = subparsers.add_parser("analyze-jd", help="Analyze JD text the user copied after BOSS detail failed.", description="Analyze user-provided JD text without calling BOSS.")
-    analyze.add_argument("--user-id", required=True, help="User identifier that created the run.")
-    analyze.add_argument("--run-id", required=True, help="Run ID returned by discover.")
-    analyze.add_argument("--result-ref", required=True, help="Selected result_ref whose detail is unavailable.")
-    source = analyze.add_mutually_exclusive_group(required=True)
-    source.add_argument("--jd-file", type=Path, help="UTF-8 text file containing the JD.")
-    source.add_argument("--jd-stdin", action="store_true", help="Read JD text once from standard input.")
-    analyze.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
-    analyze.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
-    analyze.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
-    analyze.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
-    analyze.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")
-    analyze.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")
 
     target_role = subparsers.add_parser("target-role", help="Manage resume target-role categories.", description="Create and list user-scoped resume categories.")
     target_role_subparsers = target_role.add_subparsers(dest="target_role_command", required=True)
@@ -499,10 +425,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--calendar-store", default="~/.career-agent/calendar.sqlite3"
     )
 
-    status = subparsers.add_parser("status", help="Read a durable run status and safe trace summary.", description="Read a persisted job discovery run without calling BOSS.")
-    status.add_argument("--run-id", required=True, help="Run ID returned by discover.")
-    _add_runtime_options(status)
-
     context_command = subparsers.add_parser(
         "context",
         help="Inspect and reclaim summarised conversation history.",
@@ -564,51 +486,8 @@ def _stored_job_payload(record: StoredJobRecord) -> dict[str, object]:
     }
 
 
-def _chat_tool_result_payload(result: JobDiscoveryGatewayResult | ToolObservation) -> dict[str, object]:
-    if isinstance(result, ToolObservation):
-        return result.model_dump(mode="json")
-    payload: dict[str, object] = {
-        "state": result.state,
-        "message": result.message,
-        "next_action": result.next_action,
-        "recovery_action": result.recovery_action,
-        "error_code": result.error_code,
-        "error_stage": result.error_stage,
-        "error_detail": result.error_detail,
-        "fallback_url": result.fallback_url,
-        "manual_search_query": result.manual_search_query,
-        "items": [
-            {
-                "selection_index": index,
-                "title": item.title,
-                "company_name": item.company_name,
-                "city": item.city,
-                "salary": item.salary,
-                "rationale": item.rationale,
-                "cautions": item.cautions,
-            }
-            for index, item in enumerate(result.items, start=1)
-        ],
-    }
-    analyses = result.analysis_items or ((result.analysis,) if result.analysis else ())
-    if analyses:
-        rendered = [
-            {
-                "selection_index": index,
-                "job_summary": analysis.job_summary,
-                "responsibilities": analysis.responsibilities,
-                "required_skills": analysis.required_skills,
-                "preferred_qualifications": analysis.preferred_qualifications,
-                "clarification_questions": analysis.clarification_questions,
-            }
-            for index, analysis in enumerate(analyses, start=1)
-        ]
-        payload["analyses"] = rendered
-        if len(rendered) == 1:
-            payload["analysis"] = {key: value for key, value in rendered[0].items() if key != "selection_index"}
-    if result.comparison:
-        payload["comparison"] = result.comparison.model_dump(mode="json")
-    return payload
+def _chat_tool_result_payload(result: ToolObservation) -> dict[str, object]:
+    return result.model_dump(mode="json")
 
 
 def _write_chat_payload(
@@ -658,92 +537,20 @@ def _write_chat_error(error: Exception, output: TextIO, *, code: int, next_actio
     return code
 
 
-def _result_payload(result: JobDiscoveryGatewayResult, *, show_trace: bool) -> dict[str, object]:
-    payload = result.model_dump(mode="json", exclude_none=False)
-    trace = payload.get("trace")
-    if isinstance(trace, dict) and not show_trace:
-        events = trace.get("events")
-        payload["trace"] = {"run_id": trace.get("run_id"), "event_count": len(events) if isinstance(events, list) else 0, "last_event": events[-1] if isinstance(events, list) and events else None}
-    return payload
-
-
-def _write_json(result: JobDiscoveryGatewayResult, output: TextIO, *, show_trace: bool) -> None:
-    json.dump(_result_payload(result, show_trace=show_trace), output, ensure_ascii=False, separators=(",", ":"))
-    output.write("\n")
-
-
-def _write_human(result: JobDiscoveryGatewayResult, output: TextIO, *, show_trace: bool) -> None:
-    output.write(f"State: {result.state}\nRun ID: {result.run_id}\n{result.message}\n")
-    for index, item in enumerate(result.items, start=1):
-        salary = f" | {item.salary}" if item.salary else ""
-        city = f" | {item.city}" if item.city else ""
-        output.write(f"{index}. {item.title} — {item.company_name}{city}{salary}\n")
-        if item.rationale:
-            output.write(f"   Why: {item.rationale}\n")
-    if result.detail:
-        output.write(f"JD: {result.detail.title} at {result.detail.company_name}\n")
-    if result.analysis:
-        output.write(f"岗位摘要: {result.analysis.job_summary}\n")
-    if result.error_code:
-        output.write(f"Error: {result.error_code} at {result.error_stage or 'unknown stage'}\n")
-        if result.error_detail:
-            output.write(f"Detail: {result.error_detail}\n")
-    if result.fallback_url:
-        output.write(f"Open manually: {result.fallback_url}\n")
-    if result.manual_search_query:
-        output.write(f"Search BOSS manually: {result.manual_search_query}\n")
-        output.write(f"Then: career-agent analyze-jd --user-id <user-id> --run-id {result.run_id} --result-ref {result.selected_result_ref} --jd-stdin --json\n")
-    if result.next_action:
-        output.write(f"Next action: {result.next_action}\n")
-    if show_trace and result.trace:
-        output.write("Trace:\n")
-        for event in result.trace.events:
-            output.write(f"  [{event.sequence}] {event.event_type} {event.stage} outcome={event.outcome}\n")
-
-
-def _failure_exit_code(result: JobDiscoveryGatewayResult | ToolObservation) -> int:
+def _failure_exit_code(result: ToolObservation) -> int:
     if result.state != "failed":
         return EXIT_OK
-    if isinstance(result, ToolObservation):
-        return EXIT_WORKFLOW_ERROR
-    code = result.error_code or ""
-    if code.startswith("AGENT_"):
-        return EXIT_WORKFLOW_ERROR
-    if code.startswith(("AUTH_", "BOSS_", "NETWORK_", "RATE_LIMITED", "TIMEOUT", "CLI_")):
-        return EXIT_CONNECTOR_ERROR
     return EXIT_WORKFLOW_ERROR
-
-
-def _write_exception(error: Exception, stdout: TextIO, stderr: TextIO, *, machine_output: bool) -> None:
-    if machine_output:
-        json.dump({"state": "failed", "error_code": "CLI_INPUT_ERROR", "error_detail": str(error), "next_action": "Check the command help and supplied run/user identifiers."}, stdout, ensure_ascii=False, separators=(",", ":"))
-        stdout.write("\n")
-    else:
-        stderr.write(f"Input/configuration error: {error}\n")
-
-
-def _read_provided_jd(args: argparse.Namespace, stdin: TextIO) -> str:
-    if args.jd_file:
-        if not args.jd_file.is_file():
-            raise ValueError("--jd-file must be a regular file.")
-        return args.jd_file.read_text(encoding="utf-8")
-    value = stdin.read()
-    if not value:
-        raise ValueError("--jd-stdin received no JD text.")
-    return value
 
 
 def main(
     argv: Sequence[str] | None = None,
     *,
-    gateway_factory: Callable[[argparse.Namespace], JobDiscoveryGateway] | None = None,
     runtime_factory: Callable[[argparse.Namespace], MainAgentRuntime] | None = None,
     resume_store_factory: Callable[[argparse.Namespace], ResumeStore] | None = None,
-    stdin: TextIO | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
-    stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
     parser = build_parser()
@@ -955,7 +762,6 @@ def main(
             json.dump({"state": "failed", "error_code": "CONTEXT_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
             stdout.write("\n")
             return EXIT_UNKNOWN_ERROR
-    machine_output = args.json or not stdout.isatty()
     if args.command == "chat":
         runtime = None
         try:
@@ -969,7 +775,7 @@ def main(
             )
             return _write_chat_payload(turn, user_id=args.user_id, session_id=args.session_id, output=stdout, notice=notice)
         except AgentConfigurationError as error:
-            return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_*, JOB_DISCOVERY_AGENT_*, and RESUME_ANALYSIS_AGENT_* configuration.")
+            return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_* and the configured specialist-agent environment variables.")
         except AgentWorkerError as error:
             return _write_chat_error(error, stdout, code=EXIT_WORKFLOW_ERROR, next_action="Retry later or inspect the model configuration.")
         except (OSError, ValueError) as error:
@@ -980,48 +786,7 @@ def main(
             close = getattr(runtime, "close", None)
             if close is not None:
                 close()
-    try:
-        gateway = gateway_factory(args) if gateway_factory else (build_analysis_gateway(args) if args.command == "analyze-jd" else build_gateway(args))
-        if args.command == "discover":
-            resume_text = args.resume_file.read_text(encoding="utf-8") if args.resume_file else None
-            request = JobDiscoveryRequest(
-                user_id=args.user_id,
-                conversation_id=args.conversation_id or f"cli-{args.user_id}-{args.target_role.casefold().replace(' ', '-')}",
-                target_role=args.target_role,
-                resume_text=resume_text,
-                city=args.city,
-                salary=args.salary,
-                experience=args.experience,
-                education=args.education,
-            )
-            result = (gateway.research(request) if hasattr(gateway, "research") else gateway.start(request))
-        elif args.command == "select":
-            result = gateway.select(run_id=args.run_id, result_ref=args.result_ref, user_id=args.user_id)
-        elif args.command == "analyze-jd":
-            result = gateway.analyze_provided_jd(run_id=args.run_id, result_ref=args.result_ref, jd_text=_read_provided_jd(args, stdin), user_id=args.user_id)
-        else:
-            result = gateway.status(run_id=args.run_id)
-    except AgentConfigurationError as error:
-        payload = {"state": "failed", "error_code": error.code, "error_detail": str(error), "next_action": "Set JOB_DISCOVERY_AGENT_BASE_URL, JOB_DISCOVERY_AGENT_API_KEY, and JOB_DISCOVERY_AGENT_MODEL."}
-        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
-        stdout.write("\n")
-        return EXIT_CONFIGURATION_ERROR
-    except (OSError, ValueError) as error:
-        _write_exception(error, stdout, stderr, machine_output=machine_output)
-        return EXIT_ARGUMENT_ERROR
-    except Exception as error:
-        if machine_output:
-            json.dump({"state": "failed", "error_code": "CLI_UNKNOWN_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
-            stdout.write("\n")
-        else:
-            stderr.write(f"Unexpected error: {type(error).__name__}: {error}\n")
-        return EXIT_UNKNOWN_ERROR
-
-    if machine_output:
-        _write_json(result, stdout, show_trace=args.show_trace)
-    else:
-        _write_human(result, stdout, show_trace=args.show_trace)
-    return _failure_exit_code(result)
+    parser.error(f"Unsupported command: {args.command}")
 
 
 if __name__ == "__main__":

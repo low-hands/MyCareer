@@ -13,16 +13,10 @@ from career_agent.agent.main_agent_reducers import (
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 
 
-class Gateway:
-    def advance(self, **kwargs):
-        raise AssertionError("job discovery should not run")
-
-
 def _fully_wired_registry() -> MainAgentToolRegistry:
     """Registration only checks for None, so sentinels expose every tool name."""
     sentinel = object()
     return MainAgentToolRegistry(
-        Gateway(),
         **{
             name: sentinel
             for name in inspect.signature(

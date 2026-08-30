@@ -1,8 +1,11 @@
 import json
 
-from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationTaskState, JobDiscoveryToolArguments, MainAgentContext
+import pytest
+
+from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationTaskState, MainAgentContext, OpenJobSearchToolArguments
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 
 
@@ -33,7 +36,7 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai"),
         task=ConversationTaskState(
-            active_workflow="job_discovery",
+            active_workflow="mock_interview",
             run_id="internal-run-do-not-leak",
             selected_result_ref="opaque-selected-ref-do-not-leak",
             candidates=(CandidateContextItem(result_ref="opaque-candidate-ref-do-not-leak", title="AI Engineer", company_name="Acme", city="Shanghai"),),
@@ -46,16 +49,16 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
         user_message="Help me find work.",
     )
 
-    decision = maker.decide(context, ({"type": "function", "function": {"name": "job_discovery", "description": "test", "parameters": JobDiscoveryToolArguments.model_json_schema()}},))
+    decision = maker.decide(context, ({"type": "function", "function": {"name": "open_job_search", "description": "test", "parameters": OpenJobSearchToolArguments.model_json_schema()}},))
 
     payload = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert decision.action == "ask_user"
     assert payload["career_profile"]["target_roles"] == ["AI Engineer"]
     assert "resume_text" not in payload
-    assert "job_discovery" in client.completions.kwargs["messages"][0]["content"]
-    assert "job_discovery.research" not in client.completions.kwargs["messages"][0]["content"]
-    assert client.completions.kwargs["tools"][0]["function"]["name"] == "job_discovery"
-    assert set(client.completions.kwargs["tools"][0]["function"]["parameters"]["properties"]) == {"target_role", "city", "salary", "experience", "education", "selection_index", "selection_indices", "jd_selection_index"}
+    assert "open_job_search" in client.completions.kwargs["messages"][0]["content"]
+    assert "job_discovery" not in client.completions.kwargs["messages"][0]["content"]
+    assert client.completions.kwargs["tools"][0]["function"]["name"] == "open_job_search"
+    assert set(client.completions.kwargs["tools"][0]["function"]["parameters"]["properties"]) == {"platform", "keyword", "city"}
     raw_context = client.completions.kwargs["messages"][1]["content"]
     assert "internal-run-do-not-leak" not in raw_context
     assert "opaque-selected-ref-do-not-leak" not in raw_context
@@ -68,7 +71,7 @@ def test_main_agent_decision_maker_receives_only_structured_context() -> None:
 
 def test_main_agent_parses_native_tool_call() -> None:
     client = Client()
-    function = type("Function", (), {"name": "job_discovery", "arguments": '{"target_role":"AI Engineer"}'})()
+    function = type("Function", (), {"name": "open_job_search", "arguments": '{"keyword":"AI Engineer"}'})()
     tool_call = type("ToolCall", (), {"function": function})()
     message = type("Message", (), {"content": None, "tool_calls": [tool_call]})()
     choice = type("Choice", (), {"message": message})()
@@ -78,8 +81,74 @@ def test_main_agent_parses_native_tool_call() -> None:
         client=client,
     )
 
-    decision = maker.decide(MainAgentContext(conversation_id="c1", profile=CareerProfileContext(user_id="u1"), user_message="Find work."), ("job_discovery",))
+    decision = maker.decide(MainAgentContext(conversation_id="c1", profile=CareerProfileContext(user_id="u1"), user_message="Find work."), ("open_job_search",))
 
     assert decision.action == "tool_call"
-    assert decision.tool_call.name == "job_discovery"
-    assert decision.tool_call.arguments == {"target_role": "AI Engineer"}
+    assert decision.tool_call.name == "open_job_search"
+    assert decision.tool_call.arguments == {"keyword": "AI Engineer"}
+
+
+def test_main_agent_treats_plain_prose_without_tool_call_as_final() -> None:
+    client = Client()
+    message = type(
+        "Message",
+        (),
+        {"content": "Hi! What would you like help with today?", "tool_calls": []},
+    )()
+    choice = type("Choice", (), {"message": message})()
+    client.completions.create = lambda **kwargs: type(
+        "Response", (), {"choices": [choice]}
+    )()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+
+    decision = maker.decide(
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="hi",
+        ),
+        (),
+    )
+
+    assert decision.action == "final"
+    assert decision.message == "Hi! What would you like help with today?"
+
+
+def test_main_agent_rejects_malformed_json_instead_of_showing_it_as_prose() -> None:
+    client = Client()
+    message = type(
+        "Message",
+        (),
+        {"content": '{"action":"tool_call"', "tool_calls": []},
+    )()
+    choice = type("Choice", (), {"message": message})()
+    client.completions.create = lambda **kwargs: type(
+        "Response", (), {"choices": [choice]}
+    )()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+
+    with pytest.raises(AgentWorkerError) as captured:
+        maker.decide(
+            MainAgentContext(
+                conversation_id="c1",
+                profile=CareerProfileContext(user_id="u1"),
+                user_message="hi",
+            ),
+            (),
+        )
+
+    assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"

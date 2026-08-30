@@ -293,11 +293,6 @@ def test_service_hides_foreign_inputs_before_calling_worker(tmp_path) -> None:
     assert worker_stub.calls == []
 
 
-class UnusedGateway:
-    def advance(self, **kwargs):
-        raise AssertionError("Matching must not enter Job Discovery")
-
-
 class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
@@ -362,7 +357,6 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
         AgentDecision(action="final", message="这份简历与岗位整体中等匹配。"),
     )
     tools = MainAgentToolRegistry(
-        UnusedGateway(),
         resume_job_match_service=service,
     )
     runtime = MainAgentRuntime(
@@ -439,15 +433,14 @@ def test_main_agent_match_tool_rejects_model_supplied_user_id(tmp_path) -> None:
         context_manager=manager,
         decision_maker=decisions,
         tools=MainAgentToolRegistry(
-            UnusedGateway(),
-            resume_job_match_service=ResumeJobMatchService(
+        resume_job_match_service=ResumeJobMatchService(
                 resumes,
                 jobs,
                 history,
                 RecordingMatchWorker(),
                 SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
             ),
-        ),
+    ),
     )
 
     with pytest.raises(ValueError, match="cannot accept internal identifier"):
