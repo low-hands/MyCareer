@@ -17,7 +17,9 @@ from career_agent.agent.main_agent_contracts import AgentDecision, ConversationT
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
+from career_agent.agent.job_comparison_presenter import render_job_comparison
 from career_agent.agent.job_research_presenter import render_job_research
+from career_agent.domain.job_comparison import JobComparison
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.interview_preparation import InterviewPreparationResult
@@ -1025,6 +1027,10 @@ class MainAgentRuntime:
                         else None
                     ),
                 )
+        if result.state == "saved_jobs_compared":
+            comparison = MainAgentRuntime._job_comparison(result)
+            if comparison is not None:
+                return render_job_comparison(comparison)
         if result.state == "interview_preparation_ready":
             preparation = MainAgentRuntime._interview_preparation_result(result)
             if preparation is not None:
@@ -1048,6 +1054,16 @@ class MainAgentRuntime:
                 f"预览失效时间：{result.payload.get('expires_at')}。"
             )
         return result.message
+
+    @staticmethod
+    def _job_comparison(result: ToolObservation) -> JobComparison | None:
+        raw = result.payload.get("comparison")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return JobComparison.model_validate(raw)
+        except ValueError:
+            return None
 
     @staticmethod
     def _interview_preparation_result(
@@ -1098,7 +1114,7 @@ class MainAgentRuntime:
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name == "open_job_search":
             return project_open_job_search_arguments(context, arguments)
-        if name in {"find_saved_jobs", "get_saved_job"}:
+        if name in {"find_saved_jobs", "get_saved_job", "compare_saved_jobs"}:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":
             return project_job_research_arguments(context, name, arguments)

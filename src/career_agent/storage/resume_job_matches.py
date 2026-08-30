@@ -68,6 +68,12 @@ class SQLiteResumeJobMatchStore:
                 ON resume_job_matches(user_id, created_at DESC)
                 """
         )
+        connection.execute(
+            """
+                CREATE INDEX IF NOT EXISTS resume_job_matches_user_job_idx
+                ON resume_job_matches(user_id, job_posting_id, created_at DESC)
+                """
+        )
 
     def find(
         self,
@@ -96,6 +102,33 @@ class SQLiteResumeJobMatchStore:
                     matcher_version,
                     evidence_fingerprint,
                 ),
+            ).fetchone()
+        return self._record(row) if row else None
+
+    def find_latest_for_job(
+        self,
+        *,
+        user_id: str,
+        job_posting_id: str,
+    ) -> StoredResumeJobMatch | None:
+        """The most recent match recorded for a job, whatever resume produced it.
+
+        Comparison reads what already exists rather than matching again, so a
+        job the user never matched simply has no row here and is reported as
+        unknown instead of silently triggering a worker call.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, resume_version_id, job_posting_id,
+                       jd_snapshot_id, matcher_version, evidence_fingerprint,
+                       result_json, created_at
+                FROM resume_job_matches
+                WHERE user_id = ? AND job_posting_id = ?
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (user_id, job_posting_id),
             ).fetchone()
         return self._record(row) if row else None
 

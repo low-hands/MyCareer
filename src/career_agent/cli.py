@@ -67,6 +67,7 @@ from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecor
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
+from career_agent.services.job_comparison import JobComparisonService
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
@@ -198,6 +199,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
                 career_history_store,
             ),
+            job_comparison_service=JobComparisonService(job_repository, match_store),
             resume_job_match_service=ResumeJobMatchService(
                 resume_store,
                 job_repository,

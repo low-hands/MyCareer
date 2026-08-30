@@ -531,6 +531,10 @@ class MatchResumeToJobToolArguments(ContractModel):
     job_selection_index: int | None = Field(default=None, ge=1)
 
 
+class CompareSavedJobsToolArguments(ContractModel):
+    job_selection_indices: tuple[int, ...] = Field(min_length=2, max_length=10)
+
+
 class GetResumeJobMatchToolArguments(ContractModel):
     match_id: str | None = Field(default=None, min_length=1)
 
@@ -870,9 +874,21 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         model_arguments = FindSavedJobsToolArguments.model_validate(arguments)
     elif name == "get_saved_job":
         model_arguments = GetSavedJobToolArguments.model_validate(arguments)
+    elif name == "compare_saved_jobs":
+        model_arguments = CompareSavedJobsToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown saved-job tool: {name}")
     payload = model_arguments.model_dump()
+    if name == "compare_saved_jobs":
+        indices = payload.pop("job_selection_indices", ())
+        candidates = context.task.saved_job_candidates
+        job_posting_ids = []
+        for index in indices:
+            if index > len(candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_ids.append(candidates[index - 1].job_posting_id)
+        payload["job_posting_ids"] = tuple(job_posting_ids)
+        payload["preferred_city"] = context.profile.default_city
     if name == "get_saved_job":
         selection_index = payload.pop("selection_index", None)
         job_posting_id = context.task.active_job_posting_id

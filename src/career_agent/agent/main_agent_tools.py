@@ -41,6 +41,7 @@ from career_agent.agent.main_agent_contracts import (
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
+    CompareSavedJobsToolArguments,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
     ListActionItemsToolArguments,
@@ -140,6 +141,10 @@ from career_agent.services.resume_tailoring import (
 )
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
+from career_agent.services.job_comparison import (
+    JobComparisonInputNotFoundError,
+    JobComparisonService,
+)
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 
@@ -181,6 +186,7 @@ class MainAgentToolRegistry:
         self,
         *,
         job_repository: JobPostingRepository | None = None,
+        job_comparison_service: JobComparisonService | None = None,
         resume_store: ResumeStore | None = None,
         resume_analysis_service: ResumeAnalysisService | None = None,
         resume_job_match_service: ResumeJobMatchService | None = None,
@@ -201,6 +207,7 @@ class MainAgentToolRegistry:
             "open_job_search": self._open_job_search,
         }
         self._job_repository = job_repository
+        self._job_comparison_service = job_comparison_service
         self._resume_store = resume_store
         self._resume_analysis_service = resume_analysis_service
         self._resume_job_match_service = resume_job_match_service
@@ -222,6 +229,8 @@ class MainAgentToolRegistry:
                     "get_saved_job": self._get_saved_job,
                 }
             )
+        if job_comparison_service is not None:
+            self._atomic_handlers["compare_saved_jobs"] = self._compare_saved_jobs
         if job_research_service is not None:
             self._workflow_handlers.update(
                 {
@@ -374,6 +383,25 @@ class MainAgentToolRegistry:
                             "chooses which JD to save."
                         ),
                         "parameters": OpenJobSearchToolArguments.model_json_schema(),
+                    },
+                }
+            )
+        if self._job_comparison_service is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "compare_saved_jobs",
+                        "description": (
+                            "Lay two or more saved jobs out side by side on fixed "
+                            "dimensions, using only what is already on record. It "
+                            "never runs a new resume match and never scores, "
+                            "weights, or ranks the jobs: a dimension the data does "
+                            "not answer is reported as unknown rather than filled "
+                            "in. Use it when the user asks which saved jobs to "
+                            "pursue or how they differ."
+                        ),
+                        "parameters": CompareSavedJobsToolArguments.model_json_schema(),
                     },
                 }
             )
@@ -2651,6 +2679,33 @@ class MainAgentToolRegistry:
                 "career_record_ids": [record.id for record in imported.records],
                 "career_evidence_ids": [evidence.id for evidence in imported.evidence],
             },
+        )
+
+    def _compare_saved_jobs(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_comparison_service is None:
+            raise ValueError("Job comparison service is not configured")
+        user_id = str(arguments["user_id"])
+        job_posting_ids = tuple(arguments.get("job_posting_ids", ()))
+        preferred_city = arguments.get("preferred_city")
+        try:
+            comparison = self._job_comparison_service.compare(
+                user_id=user_id,
+                job_posting_ids=job_posting_ids,
+                preferred_city=str(preferred_city) if preferred_city else None,
+            )
+        except JobComparisonInputNotFoundError:
+            return ToolObservation(
+                tool_name="compare_saved_jobs",
+                state="compare_input_not_found",
+                message="其中有岗位没有找到，或它不属于当前用户。",
+                payload={},
+            )
+        return ToolObservation(
+            tool_name="compare_saved_jobs",
+            state="saved_jobs_compared",
+            message=f"已对比 {len(comparison.rows)} 个已保存岗位。",
+            next_action="discuss_comparison_or_match_missing_jobs",
+            payload={"comparison": comparison.model_dump(mode="json")},
         )
 
     def _match_resume_to_job(self, arguments: dict[str, Any]) -> ToolObservation:
