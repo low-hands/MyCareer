@@ -97,6 +97,40 @@ def _get_saved_job(
     )
 
 
+def _job_research_ready(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(
+        update={
+            "active_job_posting_id": result.payload.get("job_posting_id"),
+            "active_job_research_run_id": result.payload.get("run_id"),
+            "active_job_research_report_id": result.payload.get("report_id"),
+            "job_research_status": result.payload.get("status") or "current",
+        }
+    )
+
+
+def _job_research_failed(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(
+        update={
+            "active_job_posting_id": result.payload.get("job_posting_id")
+            or task.active_job_posting_id,
+            "active_job_research_run_id": result.payload.get("run_id"),
+            "job_research_status": "failed",
+        }
+    )
+
+
+def _job_research_result(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    if result.state == "job_research_failed":
+        return _job_research_failed(task, result)
+    return _job_research_ready(task, result)
+
+
 def _list_target_roles(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -446,6 +480,11 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
         ("saved_jobs_found", "no_saved_jobs_found"), _find_saved_jobs
     ),
     "get_saved_job": _entry(("saved_job_ready",), _get_saved_job),
+    **_fanout(
+        ("research_job", "retry_job_research", "get_job_research"),
+        ("job_research_ready", "job_research_failed"),
+        _job_research_result,
+    ),
     "list_target_roles": _entry(
         ("target_roles_found", "no_target_roles_found"), _list_target_roles
     ),

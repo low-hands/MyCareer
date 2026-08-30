@@ -38,6 +38,9 @@ from career_agent.agent.main_agent_contracts import (
     GetResumeJobMatchToolArguments,
     GetResumeTailoringDraftToolArguments,
     GetSavedJobToolArguments,
+    ResearchJobToolArguments,
+    RetryJobResearchToolArguments,
+    GetJobResearchToolArguments,
     JobDiscoveryToolArguments,
     JobDiscoveryWorkflowInput,
     ListResumesToolArguments,
@@ -107,6 +110,12 @@ from career_agent.services.interview_preparation import (
     InterviewPreparationNotAvailableError,
     InterviewPreparationService,
 )
+from career_agent.services.job_research import (
+    JobResearchExecutionError,
+    JobResearchInputNotFoundError,
+    JobResearchRunNotRetryableError,
+    JobResearchService,
+)
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
@@ -159,6 +168,7 @@ class MainAgentToolRegistry:
         calendar_service: CalendarService | None = None,
         mock_interview_graph: MockInterviewGraph | None = None,
         mock_interview_store: SQLiteMockInterviewStore | None = None,
+        job_research_service: JobResearchService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {
             "job_discovery": self._job_discovery,
@@ -179,6 +189,7 @@ class MainAgentToolRegistry:
         self._calendar_service = calendar_service
         self._mock_interview_graph = mock_interview_graph
         self._mock_interview_store = mock_interview_store
+        self._job_research_service = job_research_service
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -186,6 +197,14 @@ class MainAgentToolRegistry:
                     "get_saved_job": self._get_saved_job,
                 }
             )
+        if job_research_service is not None:
+            self._workflow_handlers.update(
+                {
+                    "research_job": self._research_job,
+                    "retry_job_research": self._retry_job_research,
+                }
+            )
+            self._atomic_handlers["get_job_research"] = self._get_job_research
         if resume_store is not None:
             self._atomic_handlers.update(
                 {
@@ -342,6 +361,54 @@ class MainAgentToolRegistry:
                             "name": "get_saved_job",
                             "description": "Read the selected or active saved job. Pass selection_index after find_saved_jobs, or omit it to use the active job. The complete JD is delivered outside the decision context.",
                             "parameters": GetSavedJobToolArguments.model_json_schema(),
+                        },
+                    },
+                ]
+            )
+        if self._job_research_service is not None:
+            schemas.extend(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "research_job",
+                            "description": (
+                                "Optional current public-web research for the selected or "
+                                "active saved job. Call only when the user explicitly asks "
+                                "to research company, product-line, business, market, "
+                                "competitor, or related public context; never start it "
+                                "automatically during matching, tailoring, application, or "
+                                "interview workflows. A generic JD cannot establish what a "
+                                "specific private team works on. Results are source-grounded "
+                                "and persisted. If the user explicitly agrees to investigate "
+                                "business clues they reported after an interview, pass only "
+                                "those relevant clues as user_provided_context; they remain "
+                                "unverified until supported by public sources."
+                            ),
+                            "parameters": ResearchJobToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "retry_job_research",
+                            "description": (
+                                "Resume the active failed job-research run from its "
+                                "checkpoint. Use only after a retryable research failure "
+                                "and an explicit user request to retry."
+                            ),
+                            "parameters": RetryJobResearchToolArguments.model_json_schema(),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_job_research",
+                            "description": (
+                                "Read a persisted job-research report for the active or "
+                                "numbered saved job without running web research again."
+                            ),
+                            "parameters": GetJobResearchToolArguments.model_json_schema(),
                         },
                     },
                 ]
@@ -2085,6 +2152,162 @@ class MainAgentToolRegistry:
             jd_selection_index=workflow_input.jd_selection_index,
             research_request=workflow_input.research_request,
         )
+
+    def _research_job(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_research_service is None:
+            raise ValueError("Job research service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ResearchJobToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.job_posting_id is None:
+            raise ValueError("research_job requires job_posting_id")
+        try:
+            result = self._job_research_service.research(
+                user_id=user_id,
+                job_posting_id=model_arguments.job_posting_id,
+                focus=model_arguments.focus,
+                user_provided_context=model_arguments.user_provided_context,
+                max_sources=model_arguments.max_sources,
+            )
+        except JobResearchInputNotFoundError:
+            return ToolObservation(
+                tool_name="research_job",
+                state="job_research_not_found",
+                message="没有找到要研究的已保存岗位。",
+            )
+        except JobResearchExecutionError as error:
+            return self._job_research_failure(
+                tool_name="research_job",
+                error=error,
+                job_posting_id=model_arguments.job_posting_id,
+            )
+        return ToolObservation(
+            tool_name="research_job",
+            state="job_research_ready",
+            message=(
+                "已复用仍在有效期内的岗位研究报告。"
+                if result.cached
+                else "岗位研究已完成。"
+            ),
+            next_action="review_job_research",
+            payload=self._job_research_payload(result),
+        )
+
+    def _retry_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_research_service is None:
+            raise ValueError("Job research service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = RetryJobResearchToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        if model_arguments.run_id is None:
+            raise ValueError("retry_job_research requires run_id")
+        try:
+            result = self._job_research_service.retry(
+                user_id=user_id,
+                run_id=model_arguments.run_id,
+            )
+        except (JobResearchInputNotFoundError, JobResearchRunNotRetryableError):
+            return ToolObservation(
+                tool_name="retry_job_research",
+                state="job_research_not_retryable",
+                message="当前没有可以恢复的岗位研究任务。",
+            )
+        except JobResearchExecutionError as error:
+            return self._job_research_failure(
+                tool_name="retry_job_research",
+                error=error,
+            )
+        return ToolObservation(
+            tool_name="retry_job_research",
+            state="job_research_ready",
+            message="岗位研究已从断点恢复并完成。",
+            next_action="review_job_research",
+            payload=self._job_research_payload(result),
+        )
+
+    def _get_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_research_service is None:
+            raise ValueError("Job research service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetJobResearchToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            result = self._job_research_service.get_report(
+                user_id=user_id,
+                report_id=model_arguments.report_id,
+                job_posting_id=model_arguments.job_posting_id,
+            )
+        except JobResearchInputNotFoundError:
+            return ToolObservation(
+                tool_name="get_job_research",
+                state="job_research_not_found",
+                message="没有找到该岗位的研究报告。",
+            )
+        return ToolObservation(
+            tool_name="get_job_research",
+            state="job_research_ready",
+            message="已读取岗位研究报告。",
+            payload=self._job_research_payload(result),
+        )
+
+    @staticmethod
+    def _job_research_failure(
+        *,
+        tool_name: str,
+        error: JobResearchExecutionError,
+        job_posting_id: str | None = None,
+    ) -> ToolObservation:
+        return ToolObservation(
+            tool_name=tool_name,
+            state="job_research_failed",
+            message="岗位研究暂未完成，可以从已保存的断点重试。",
+            next_action=("retry_job_research" if error.retryable else None),
+            payload={
+                "run_id": error.run_id,
+                "job_posting_id": job_posting_id,
+                "error_code": error.code,
+                "retryable": error.retryable,
+            },
+        )
+
+    @staticmethod
+    def _job_research_payload(result) -> dict[str, Any]:
+        report = result.report
+        return {
+            "run_id": result.run.id,
+            "report_id": report.id,
+            "job_posting_id": report.job_posting_id,
+            "status": report.status,
+            "cached": result.cached,
+            "user_provided_context": report.scope.user_provided_context,
+            "research": {
+                "summary": report.summary,
+                "findings": [
+                    finding.model_dump(mode="json") for finding in report.findings
+                ],
+                "open_questions": list(report.open_questions),
+                "limitations": list(report.limitations),
+            },
+            "sources": [
+                {
+                    "source_key": source.source_key,
+                    "url": source.url,
+                    "title": source.title,
+                    "publisher": source.publisher,
+                    "published_at": (
+                        source.published_at.isoformat()
+                        if source.published_at is not None
+                        else None
+                    ),
+                    "retrieved_at": source.retrieved_at.isoformat(),
+                    "relevant_excerpt": source.relevant_excerpt,
+                }
+                for source in result.sources
+            ],
+        }
 
     def _find_saved_jobs(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._job_repository is None:

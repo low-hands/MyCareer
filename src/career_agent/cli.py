@@ -37,6 +37,9 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
+from career_agent.agent.deepagent_job_research_worker import (
+    DeepAgentJobResearchWorker,
+)
 from career_agent.connectors.boss_readonly import BossReadOnlyAdapter, SubprocessBossTransport
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
 from career_agent.connectors.calendar import EnvironmentCalendarConnectorResolver
@@ -48,6 +51,7 @@ from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.services.interview_preparation import InterviewPreparationService
 from career_agent.services.interview_context import InterviewPreparationContextFactory
+from career_agent.services.job_research import JobResearchService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -60,6 +64,7 @@ from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
+from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
@@ -169,7 +174,19 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         SQLiteInterviewPreparationStore(Path(args.resume_store).expanduser()),
         context_factory=interview_context_factory,
     )
-    checkpoint_owner = SQLiteCheckpointOwner(
+    job_research_checkpoint_owner = SQLiteCheckpointOwner(
+        Path(args.job_research_checkpoint_store).expanduser()
+    )
+    job_research_service = JobResearchService(
+        jobs=job_repository,
+        store=SQLiteJobResearchStore(Path(args.job_research_store).expanduser()),
+        worker=DeepAgentJobResearchWorker(
+            resume_analysis_config,
+            skills_root=Path(args.job_research_skills_dir),
+            checkpointer=job_research_checkpoint_owner.saver,
+        ),
+    )
+    mock_checkpoint_owner = SQLiteCheckpointOwner(
         Path(args.mock_interview_checkpoint_store).expanduser()
     )
     # Shared with the read-back tool: one instance so the tool reads the same
@@ -188,16 +205,17 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         sources=StoredMockInterviewSourceProvider(
             context_factory=interview_context_factory,
         ),
-        checkpointer=checkpoint_owner.saver,
+        checkpointer=mock_checkpoint_owner.saver,
     )
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
-        owned_resources=(checkpoint_owner,),
+        owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
             build_gateway(args),
             job_repository=job_repository,
+            job_research_service=job_research_service,
             resume_store=resume_store,
             resume_export_service=ResumeExportService(
                 resume_store,
@@ -298,6 +316,16 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
     parser.add_argument("--run-store", default="~/.career-agent/runs.sqlite3", help="Local durable run store path.")
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
+    parser.add_argument(
+        "--job-research-store",
+        default="~/.career-agent/job-research.sqlite3",
+        help="Local durable job-research run, source, and report store path.",
+    )
+    parser.add_argument(
+        "--job-research-checkpoint-store",
+        default="~/.career-agent/job-research-checkpoints.sqlite3",
+        help="Local durable DeepAgent checkpoint store for job research.",
+    )
     parser.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume metadata and artifact store path.")
     parser.add_argument("--application-store", default="~/.career-agent/applications.sqlite3", help="Local application tracking and event store path.")
     parser.add_argument("--email-store", default="~/.career-agent/email.sqlite3", help="Local email-account metadata, cursor, and event store path.")
@@ -322,6 +350,11 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
         "--mock-interview-skills-dir",
         default=os.environ.get("MOCK_INTERVIEW_SKILLS_DIR", "skills"),
         help="Local skill source directory containing mock-interview/SKILL.md (default: MOCK_INTERVIEW_SKILLS_DIR or skills).",
+    )
+    parser.add_argument(
+        "--job-research-skills-dir",
+        default=os.environ.get("JOB_RESEARCH_SKILLS_DIR", "skills"),
+        help="Local skill source directory containing job-research/SKILL.md (default: JOB_RESEARCH_SKILLS_DIR or skills).",
     )
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON object.")
     parser.add_argument("--show-trace", action="store_true", help="Include the complete safe run trace in output.")

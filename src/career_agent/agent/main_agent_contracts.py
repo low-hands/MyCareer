@@ -142,6 +142,9 @@ class ConversationTaskState(ContractModel):
     active_resume_version_id: str | None = None
     active_resume_artifact_id: str | None = None
     active_job_posting_id: str | None = None
+    active_job_research_run_id: str | None = None
+    active_job_research_report_id: str | None = None
+    job_research_status: Literal["current", "outdated", "failed"] | None = None
     active_application_id: str | None = None
     active_application_status: ApplicationStatus | None = None
     application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
@@ -363,6 +366,7 @@ class MainAgentContext(ContractModel):
                 "interview_preparation_ready": (
                     self.task.active_interview_preparation_id is not None
                 ),
+                "job_research_status": self.task.job_research_status,
                 "action_candidates": [
                     {
                         "selection_index": index,
@@ -482,6 +486,33 @@ class FindSavedJobsToolArguments(ContractModel):
 
 
 class GetSavedJobToolArguments(ContractModel):
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+
+
+class ResearchJobToolArguments(ContractModel):
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    selection_index: int | None = Field(default=None, ge=1)
+    focus: str | None = Field(default=None, min_length=1, max_length=1000)
+    user_provided_context: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=4000,
+        description=(
+            "Relevant business or product clues the user explicitly chose to use, "
+            "for example something they heard in an interview. This is unverified "
+            "user-reported context, not a public fact."
+        ),
+    )
+    max_sources: int = Field(default=8, ge=2, le=15)
+
+
+class RetryJobResearchToolArguments(ContractModel):
+    run_id: str | None = Field(default=None, min_length=1)
+
+
+class GetJobResearchToolArguments(ContractModel):
+    report_id: str | None = Field(default=None, min_length=1)
     job_posting_id: str | None = Field(default=None, min_length=1)
     selection_index: int | None = Field(default=None, ge=1)
 
@@ -909,6 +940,53 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         if job_posting_id is None:
             raise ValueError("get_saved_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
+    return {"user_id": context.profile.user_id, **payload}
+
+
+def project_job_research_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "research_job":
+        model_arguments = ResearchJobToolArguments.model_validate(arguments)
+        payload = model_arguments.model_dump()
+        selection_index = payload.pop("selection_index", None)
+        job_posting_id = context.task.active_job_posting_id
+        if selection_index is not None:
+            if selection_index > len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_id = context.task.saved_job_candidates[
+                selection_index - 1
+            ].job_posting_id
+        if job_posting_id is None:
+            raise ValueError("research_job requires a selected or active saved job")
+        payload["job_posting_id"] = job_posting_id
+    elif name == "retry_job_research":
+        RetryJobResearchToolArguments.model_validate(arguments)
+        if context.task.active_job_research_run_id is None:
+            raise ValueError("retry_job_research requires an active failed run")
+        payload = {"run_id": context.task.active_job_research_run_id}
+    elif name == "get_job_research":
+        model_arguments = GetJobResearchToolArguments.model_validate(arguments)
+        selection_index = model_arguments.selection_index
+        if selection_index is not None:
+            if selection_index > len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            payload = {
+                "job_posting_id": context.task.saved_job_candidates[
+                    selection_index - 1
+                ].job_posting_id
+            }
+        elif context.task.active_job_research_report_id is not None:
+            payload = {"report_id": context.task.active_job_research_report_id}
+        elif context.task.active_job_posting_id is not None:
+            payload = {"job_posting_id": context.task.active_job_posting_id}
+        else:
+            raise ValueError("get_job_research requires an active research report or job")
+    else:
+        raise ValueError(f"Unknown job research tool: {name}")
     return {"user_id": context.profile.user_id, **payload}
 
 
