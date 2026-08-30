@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -25,6 +26,21 @@ class InvalidActionTransitionError(ValueError):
 
 
 class ActionCenterService:
+    # 每个非终态投递状态的跟进节奏：(两次提醒的间隔天数, 最多提醒次数)。
+    #
+    # 上限不是可有可无的调参。跟进提醒是按"距上次进展的时长"周期性生成的，
+    # 没有上限就意味着一条石沉大海的投递会每隔一个周期永远生成一条新提醒，
+    # 而且每条的 stable_key 都不同，去重也拦不住。投出去几十个岗位之后，
+    # 每日简报会被沉默的投递挤满，真正要做的事反而被埋掉。
+    #
+    # 间隔按状态区分，因为"投出去没回音"和"对方已经回过话"该等的时间不一样：
+    # 后者处在活跃对话里，等一周才跟进已经太晚。
+    _FOLLOW_UP_CADENCE: dict[str, tuple[int, int]] = {
+        "submitted": (7, 2),
+        "acknowledged": (3, 2),
+        "interviewing": (5, 2),
+    }
+
     _MANAGED_TYPES: tuple[ActionType, ...] = (
         "application_follow_up",
         "email_event_confirmation",
@@ -41,14 +57,16 @@ class ActionCenterService:
         email_tracking_service: EmailTrackingService,
         interview_service: InterviewService,
         *,
-        follow_up_days: int = 7,
+        follow_up_cadence: Mapping[str, tuple[int, int]] | None = None,
         interview_window_days: int = 7,
     ) -> None:
         self._store = store
         self._application_service = application_service
         self._email_tracking_service = email_tracking_service
         self._interview_service = interview_service
-        self._follow_up_days = follow_up_days
+        self._follow_up_cadence = dict(
+            self._FOLLOW_UP_CADENCE if follow_up_cadence is None else follow_up_cadence
+        )
         self._interview_window_days = interview_window_days
 
     def refresh(
@@ -313,10 +331,24 @@ class ActionCenterService:
                 continue
             if application.id in future_interview_apps:
                 continue
-            age = now - self._aware(application.updated_at, local_zone)
-            if age < timedelta(days=self._follow_up_days):
+            cadence = self._follow_up_cadence.get(application.status)
+            if cadence is None:
                 continue
-            cycle = max(1, int(age // timedelta(days=self._follow_up_days)))
+            interval_days, max_follow_ups = cadence
+            interval = timedelta(days=interval_days)
+            age = now - self._aware(application.updated_at, local_zone)
+            if age < interval:
+                continue
+            cycle = int(age // interval)
+            if cycle > max_follow_ups:
+                # 连续提醒到上限仍然没有任何新进展，这条投递转为沉寂：停止生成
+                # 提醒，已有的条目由 resolve_missing 关掉。投递本身不受影响，
+                # 仍然留在投递列表里，只是不再每个周期打扰一次。
+                continue
+            summary = f"{item.job.posting.title} 已有 {age.days} 天没有记录新进展。"
+            if cycle == max_follow_ups:
+                # 说明这是最后一次，否则提醒静默消失会让人以为投递被丢了。
+                summary += "这是最后一次自动跟进提醒，之后需要你主动更新状态。"
             candidates.append(
                 ActionCandidate(
                     stable_key=(
@@ -328,7 +360,7 @@ class ActionCenterService:
                     source_id=application.id,
                     application_id=application.id,
                     title=f"跟进投递：{item.job.posting.company_name}",
-                    summary=f"{item.job.posting.title} 已有 {age.days} 天没有记录新进展。",
+                    summary=summary,
                     due_at=now,
                 )
             )

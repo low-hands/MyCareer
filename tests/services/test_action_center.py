@@ -248,3 +248,124 @@ def test_snooze_rejects_timestamp_without_timezone(tmp_path) -> None:
             snoozed_until=datetime(2026, 8, 27),
             now=NOW,
         )
+
+
+class OneApplication:
+    """A single application whose status and last-progress time the test owns."""
+
+    def __init__(self, *, status: str, updated_at: datetime) -> None:
+        self.application = SimpleNamespace(
+            id="app-1", status=status, updated_at=updated_at
+        )
+        self.job = SimpleNamespace(
+            posting=SimpleNamespace(company_name="Acme", title="AI Engineer")
+        )
+
+    def list_applications(self, **kwargs):
+        return (self,)
+
+
+class NoInterviews:
+    def list_interviews(self, **kwargs):
+        return ()
+
+
+class NoEmails:
+    def list_events(self, **kwargs):
+        return ()
+
+
+def build_follow_up_service(tmp_path, *, status: str, quiet_days: float):
+    store = SQLiteActionItemStore(tmp_path / "actions.sqlite3")
+    applications = OneApplication(
+        status=status, updated_at=NOW - timedelta(days=quiet_days)
+    )
+    service = ActionCenterService(
+        store, applications, NoEmails(), NoInterviews()
+    )
+    return service
+
+
+def follow_ups(service, *, now):
+    return [
+        item
+        for item in service.refresh(user_id="u1", now=now)
+        if item.action_type == "application_follow_up"
+    ]
+
+
+@pytest.mark.parametrize(
+    "status, quiet_days, expected",
+    [
+        # Silence shorter than the status's own interval is not yet a follow-up.
+        ("submitted", 6, 0),
+        ("submitted", 7, 1),
+        # A reply puts the application in an active conversation, where waiting
+        # a full week before following up is already too late.
+        ("acknowledged", 2, 0),
+        ("acknowledged", 3, 1),
+        ("interviewing", 4, 0),
+        ("interviewing", 5, 1),
+    ],
+)
+def test_each_status_waits_its_own_interval(
+    tmp_path, status, quiet_days, expected
+) -> None:
+    service = build_follow_up_service(tmp_path, status=status, quiet_days=quiet_days)
+
+    assert len(follow_ups(service, now=NOW)) == expected
+
+
+def test_a_silent_application_stops_nagging_after_the_cap(tmp_path) -> None:
+    """The whole point of the cap: dead applications leave the daily brief.
+
+    Without it every quiet application generates one more reminder per cycle
+    forever, each under a different stable key, until the brief is nothing but
+    applications that already went nowhere.
+    """
+    service = build_follow_up_service(tmp_path, status="submitted", quiet_days=7)
+
+    first = follow_ups(service, now=NOW)
+    second = follow_ups(service, now=NOW + timedelta(days=7))
+    third = follow_ups(service, now=NOW + timedelta(days=14))
+    much_later = follow_ups(service, now=NOW + timedelta(days=365))
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert first[0].id != second[0].id
+    assert "最后一次" in second[0].summary
+    assert third == []
+    assert much_later == []
+
+
+def test_the_last_reminder_says_it_is_the_last(tmp_path) -> None:
+    """A reminder that simply stops appearing reads like a lost application."""
+    service = build_follow_up_service(tmp_path, status="submitted", quiet_days=7)
+
+    first = follow_ups(service, now=NOW)
+
+    assert "最后一次" not in first[0].summary
+
+
+def test_new_progress_restarts_the_cadence(tmp_path) -> None:
+    """The cap counts silence, not the application's whole lifetime."""
+    store = SQLiteActionItemStore(tmp_path / "actions.sqlite3")
+    applications = OneApplication(
+        status="submitted", updated_at=NOW - timedelta(days=30)
+    )
+    service = ActionCenterService(store, applications, NoEmails(), NoInterviews())
+    assert follow_ups(service, now=NOW) == []
+
+    applications.application = SimpleNamespace(
+        id="app-1", status="acknowledged", updated_at=NOW
+    )
+
+    assert len(follow_ups(service, now=NOW + timedelta(days=3))) == 1
+
+
+def test_a_terminal_application_is_never_followed_up(tmp_path) -> None:
+    for status in ("offer", "rejected", "withdrawn"):
+        service = build_follow_up_service(
+            tmp_path / status, status=status, quiet_days=90
+        )
+        assert follow_ups(service, now=NOW) == []
