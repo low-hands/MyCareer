@@ -82,7 +82,12 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
     assert tools.names == ("open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     role_observation = result.tool_results[0]
-    assert role_observation.payload["items"] == [{"selection_index": 1, "target_role_id": role.id, "title": "AI Engineer", "priority": 1, "status": "active"}]
+    assert role_observation.payload["items"] == [{
+        "selection_index": 1, "target_role_id": role.id, "title": "AI Engineer",
+        "priority": 1, "status": "active",
+        # Intent scoped to this track, unset until the user states it.
+        "city": None, "salary_expectation": None, "experience": None, "education": None,
+    }]
     resume_observation = result.tool_results[1]
     assert resume_observation.payload["items"][0]["resume_id"] == resume.id
     assert "Other Private Resume" not in resume_observation.model_dump_json()

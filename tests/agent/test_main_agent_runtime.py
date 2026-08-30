@@ -51,7 +51,7 @@ class CountingRegistry(MainAgentToolRegistry):
 
 def build_runtime(tmp_path, decision: AgentDecision):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
-    manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",), default_city="Shanghai", salary_preference="25K以上"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     tools = CountingRegistry()
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
 
@@ -217,7 +217,7 @@ def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:
 
 def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
-    manager.upsert_profile(CareerProfileContext(user_id="u1", target_roles=("AI Engineer",)))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
     tools = CountingRegistry()
     decisions = SequenceDecisionMaker(
         AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
@@ -284,7 +284,6 @@ def test_target_and_search_overrides_do_not_mutate_profile(tmp_path) -> None:
     parsed = urlparse(action["url"])
     assert parse_qs(parsed.query) == {"query": ["Backend Engineer"], "city": ["101210100"]}
     profile = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").profile
-    assert profile.target_roles == ("AI Engineer",)
     assert profile.default_city == "Shanghai"
 
 

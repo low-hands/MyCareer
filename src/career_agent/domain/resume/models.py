@@ -11,11 +11,24 @@ class ResumeContract(BaseModel):
 
 
 class TargetRole(ResumeContract):
+    """One career track the user is pursuing, and the intent scoped to it.
+
+    Intent that varies by role lives here rather than on the person: the salary
+    band for an architecture role and for an application role are different
+    numbers, and a candidate may accept a different city for one of them. The
+    person-level default city stays on CareerProfileContext; ``city`` here is an
+    override and is normally unset.
+    """
+
     id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
     priority: int = Field(ge=0)
     status: Literal["active"] = "active"
+    city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
+    experience: str | None = Field(default=None, min_length=1, max_length=100)
+    education: str | None = Field(default=None, min_length=1, max_length=100)
     created_at: datetime
     updated_at: datetime
 

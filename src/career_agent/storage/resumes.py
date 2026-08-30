@@ -28,7 +28,7 @@ class ResumeStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            apply_schema(connection, "resumes", 3, self._migrate)
+            apply_schema(connection, "resumes", 4, self._migrate)
         os.chmod(self.path, 0o600)
 
     def create_target_role(self, *, user_id: str, title: str, priority: int) -> TargetRole:
@@ -42,13 +42,54 @@ class ResumeStore:
 
     def list_target_roles(self, *, user_id: str) -> tuple[TargetRole, ...]:
         with self._connect() as connection:
-            rows = connection.execute("SELECT id, user_id, title, priority, status, created_at, updated_at FROM target_roles WHERE user_id = ? ORDER BY priority, created_at", (user_id,)).fetchall()
+            rows = connection.execute("SELECT id, user_id, title, priority, status, city, salary_expectation, experience, education, created_at, updated_at FROM target_roles WHERE user_id = ? ORDER BY priority, created_at", (user_id,)).fetchall()
         return tuple(self._role(row) for row in rows)
 
     def get_target_role(self, *, user_id: str, target_role_id: str) -> TargetRole | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT id, user_id, title, priority, status, created_at, updated_at FROM target_roles WHERE id = ? AND user_id = ?", (target_role_id, user_id)).fetchone()
+            row = connection.execute("SELECT id, user_id, title, priority, status, city, salary_expectation, experience, education, created_at, updated_at FROM target_roles WHERE id = ? AND user_id = ?", (target_role_id, user_id)).fetchone()
         return self._role(row) if row else None
+
+    def update_target_role_intent(
+        self,
+        *,
+        user_id: str,
+        target_role_id: str,
+        city: str | None = None,
+        salary_expectation: str | None = None,
+        experience: str | None = None,
+        education: str | None = None,
+    ) -> TargetRole:
+        """Overwrite only the intent fields that were given.
+
+        A user naming a salary this turn has not withdrawn the city they named
+        last week, so None means "leave alone" rather than "clear".
+        """
+        role = self.get_target_role(user_id=user_id, target_role_id=target_role_id)
+        if role is None:
+            raise ValueError("target role not found or does not belong to the user")
+        changes = {
+            key: value
+            for key, value in (
+                ("city", city),
+                ("salary_expectation", salary_expectation),
+                ("experience", experience),
+                ("education", education),
+            )
+            if value is not None
+        }
+        if not changes:
+            return role
+        updated = role.model_copy(
+            update={**changes, "updated_at": datetime.now(timezone.utc)}
+        )
+        assignments = ", ".join(f"{key} = ?" for key in changes)
+        with self._connect() as connection:
+            connection.execute(
+                f"UPDATE target_roles SET {assignments}, updated_at = ? WHERE id = ? AND user_id = ?",
+                (*changes.values(), updated.updated_at.isoformat(), target_role_id, user_id),
+            )
+        return updated
 
     def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:
         if bool(name) == bool(resume_id):
@@ -330,6 +371,10 @@ class ResumeStore:
             connection.execute("UPDATE resumes SET target_role_id = ? WHERE user_id = ? AND target_role_id IS NULL", (role_id, user_id))
         connection.execute("CREATE INDEX IF NOT EXISTS resumes_user_role_updated_idx ON resumes(user_id, target_role_id, updated_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS target_roles_user_priority_idx ON target_roles(user_id, priority, created_at)")
+        role_columns = {row[1] for row in connection.execute("PRAGMA table_info(target_roles)").fetchall()}
+        for column in ("city", "salary_expectation", "experience", "education"):
+            if column not in role_columns:
+                connection.execute(f"ALTER TABLE target_roles ADD COLUMN {column} TEXT")
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS resume_tailoring_version_links (
@@ -355,7 +400,11 @@ class ResumeStore:
 
     @staticmethod
     def _role(row: tuple) -> TargetRole:
-        return TargetRole(id=row[0], user_id=row[1], title=row[2], priority=row[3], status=row[4], created_at=row[5], updated_at=row[6])
+        return TargetRole(
+            id=row[0], user_id=row[1], title=row[2], priority=row[3], status=row[4],
+            city=row[5], salary_expectation=row[6], experience=row[7],
+            education=row[8], created_at=row[9], updated_at=row[10],
+        )
 
     @staticmethod
     def _resume(row: tuple) -> Resume:
