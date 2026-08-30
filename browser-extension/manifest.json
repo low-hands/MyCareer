@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Career Agent 岗位收藏",
+  "version": "0.1.0",
+  "description": "在你主动浏览 BOSS 直聘时预览当前 JD，并在确认后保存到本地 Career Agent。",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.zhipin.com/*", "https://*.zhipin.com/*"],
+      "js": ["boss-parser.js", "boss-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://127.0.0.1:5173/*", "http://localhost:5173/*"],
+      "js": ["app-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
