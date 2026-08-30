@@ -8,12 +8,18 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.job_discovery_gateway import JobDiscoveryGatewayResult
-from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, CandidateContextItem, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_discovery_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
+from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.domain.interview_preparation import InterviewPreparationResult
+from career_agent.domain.job_research import (
+    JobResearchDraft,
+    JobResearchFindingDraft,
+    JobResearchSourceDraft,
+)
 from career_agent.domain.resume import ResumeArtifactDelivery
 
 # Bounds for the stored copy of a report. Chosen so the rendered message stays
@@ -334,6 +340,12 @@ class MainAgentRuntime:
             arguments = project_job_discovery_arguments(context, decision.tool_call.arguments)
         elif name == "sync_application_emails":
             arguments = project_email_arguments(context, name, decision.tool_call.arguments)
+        elif name in {"research_job", "retry_job_research"}:
+            arguments = project_job_research_arguments(
+                context,
+                name,
+                decision.tool_call.arguments,
+            )
         elif name == "start_mock_interview":
             arguments = project_mock_interview_arguments(
                 context, decision.tool_call.arguments
@@ -475,6 +487,21 @@ class MainAgentRuntime:
                 ),
             )
             heading = "面试准备材料已生成。"
+        elif result.state == "job_research_ready":
+            research = MainAgentRuntime._job_research_draft(result)
+            if research is None:
+                return screen
+            sections = (
+                ("总结", (_clip(research.summary, _HISTORY_SUMMARY_CHARS),)),
+                (
+                    "关键结论",
+                    _clip_items(
+                        tuple(item.statement for item in research.findings)
+                    ),
+                ),
+                ("待确认", _clip_items(research.open_questions)),
+            )
+            heading = "岗位研究已完成。"
         else:
             return screen
         blocks = [
@@ -487,6 +514,18 @@ class MainAgentRuntime:
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
         if isinstance(result, ToolObservation):
+            if result.state == "job_research_ready":
+                research = MainAgentRuntime._job_research_draft(result)
+                if research is not None:
+                    return render_job_research(
+                        research,
+                        status=str(result.payload.get("status") or "current"),
+                        user_provided_context=(
+                            str(result.payload["user_provided_context"])
+                            if result.payload.get("user_provided_context") is not None
+                            else None
+                        ),
+                    )
             if result.state == "interview_preparation_ready":
                 preparation = MainAgentRuntime._interview_preparation_result(result)
                 if preparation is not None:
@@ -546,9 +585,44 @@ class MainAgentRuntime:
             return None
 
     @staticmethod
+    def _job_research_draft(result: ToolObservation) -> JobResearchDraft | None:
+        raw = result.payload.get("research")
+        raw_sources = result.payload.get("sources")
+        if not isinstance(raw, dict) or not isinstance(raw_sources, list):
+            return None
+        try:
+            sources = tuple(
+                JobResearchSourceDraft(
+                    source_key=item["source_key"],
+                    url=item["url"],
+                    title=item["title"],
+                    publisher=item.get("publisher"),
+                    published_at=item.get("published_at"),
+                    relevant_excerpt=item["relevant_excerpt"],
+                )
+                for item in raw_sources
+                if isinstance(item, dict)
+            )
+            findings = tuple(
+                JobResearchFindingDraft.model_validate(item)
+                for item in raw.get("findings", ())
+            )
+            return JobResearchDraft(
+                summary=raw["summary"],
+                sources=sources,
+                findings=findings,
+                open_questions=tuple(raw.get("open_questions", ())),
+                limitations=tuple(raw.get("limitations", ())),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
         if name in {"find_saved_jobs", "get_saved_job"}:
             return project_saved_job_arguments(context, name, arguments)
+        if name == "get_job_research":
+            return project_job_research_arguments(context, name, arguments)
         if name in {"list_email_events", "resolve_email_event"}:
             return project_email_arguments(context, name, arguments)
         if name in {
