@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 import json
 import time
 
@@ -335,3 +336,121 @@ def test_browser_capture_rejects_cross_site_urls_and_missing_capture_header(tmp_
     assert missing_header.status_code == 403
     assert cross_site.status_code == 422
     assert repository.list_jobs(user_id="u1") == ()
+
+
+def _brief_app(tmp_path, *, applications=(), interviews=(), events=()):
+    from career_agent.api.app import create_app
+    from career_agent.services.action_center import ActionCenterService
+    from career_agent.storage.action_center import SQLiteActionItemStore
+
+    class Applications:
+        def list_applications(self, *, user_id, **kwargs):
+            # Scoping lives in the real services; the fake has to honour it or
+            # the isolation test would pass for the wrong reason.
+            return applications if user_id == "u1" else ()
+
+    class Interviews:
+        def list_interviews(self, **kwargs):
+            return interviews
+
+    class Emails:
+        def list_events(self, **kwargs):
+            return events
+
+    service = ActionCenterService(
+        SQLiteActionItemStore(tmp_path / "actions.sqlite3"),
+        Applications(),
+        Emails(),
+        Interviews(),
+    )
+    return create_app(
+        runtime_factory=Runtime,
+        capture_repository_factory=lambda: None,
+        action_center_factory=lambda: service,
+    )
+
+
+def _stale_application(application_id: str, *, days: int):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        application=SimpleNamespace(
+            id=application_id,
+            status="submitted",
+            updated_at=datetime.now(timezone.utc) - timedelta(days=days),
+        ),
+        job=SimpleNamespace(
+            posting=SimpleNamespace(company_name="Acme", title="AI Engineer")
+        ),
+    )
+
+
+def test_daily_brief_groups_actions_for_the_dashboard(tmp_path) -> None:
+    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+
+    with TestClient(app) as client:
+        response = client.get("/v1/daily-brief", params={"user_id": "u1"})
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["timezone"] == "Asia/Shanghai"
+    # A follow-up becomes due the moment it is generated, so it lands in
+    # today's bucket rather than in the overdue one.
+    assert [item["title"] for item in payload["due_today"]] == ["跟进投递：Acme"]
+    assert payload["overdue"] == []
+
+
+def test_the_brief_never_returns_derivation_plumbing(tmp_path) -> None:
+    """The client must not be able to key its own state on internal fields."""
+    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+
+    with TestClient(app) as client:
+        payload = client.get("/v1/daily-brief", params={"user_id": "u1"}).json()
+
+    item = payload["due_today"][0]
+    assert set(item) == {
+        "id",
+        "action_type",
+        "source_type",
+        "application_id",
+        "title",
+        "summary",
+        "due_at",
+        "status",
+        "snoozed_until",
+    }
+    assert "stable_key" not in item
+    assert "user_id" not in item
+
+
+def test_the_brief_is_scoped_to_the_asserted_user(tmp_path) -> None:
+    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+
+    with TestClient(app) as client:
+        mine = client.get("/v1/daily-brief", params={"user_id": "u1"}).json()
+        theirs = client.get("/v1/daily-brief", params={"user_id": "u2"}).json()
+
+    assert mine["due_today"]
+    assert theirs["due_today"] == []
+
+
+def test_the_brief_requires_a_user(tmp_path) -> None:
+    app = _brief_app(tmp_path)
+
+    with TestClient(app) as client:
+        assert client.get("/v1/daily-brief").status_code == 422
+        assert client.get(
+            "/v1/daily-brief", params={"user_id": ""}
+        ).status_code == 422
+
+
+def test_reading_the_brief_needs_no_model_configuration(
+    tmp_path, monkeypatch
+) -> None:
+    """A dashboard must survive a machine where the worker keys are missing."""
+    for name in ("MAIN_AGENT_BASE_URL", "MAIN_AGENT_API_KEY", "MAIN_AGENT_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+
+    with TestClient(app) as client:
+        assert client.get("/v1/daily-brief", params={"user_id": "u1"}).status_code == 200

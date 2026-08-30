@@ -3,6 +3,14 @@ import { FormEvent, useEffect, useMemo, useReducer, useRef, useState } from "rea
 import { streamChat } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import { InteractionCard } from "./components/InteractionCard";
+import { DailyBriefPanel } from "./pages/DailyBrief";
+
+type View = "chat" | "brief";
+
+const VIEWS: { id: View; label: string }[] = [
+  { id: "chat", label: "对话" },
+  { id: "brief", label: "日报" },
+];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -37,6 +45,10 @@ export default function App() {
   const [conversationId, setConversationId] = useState(() =>
     localId("career-agent:conversation-id", "conversation"),
   );
+  const [view, setView] = useState<View>("chat");
+  // Bumped when a turn ends so panels refetch: acting in chat has to show up on
+  // the board without the user reloading the page.
+  const [completedTurns, setCompletedTurns] = useState(0);
   const controller = useRef<AbortController | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
   const busy = state.phase === "running";
@@ -78,6 +90,13 @@ export default function App() {
         ) {
           window.open(event.url, "_blank", "noopener,noreferrer");
         }
+        if (
+          event.type === "turn_completed" ||
+          event.type === "turn_suspended" ||
+          event.type === "turn_failed"
+        ) {
+          setCompletedTurns((count) => count + 1);
+        }
         dispatch({ type: "stream_event", event });
       }
     } catch (error) {
@@ -115,12 +134,32 @@ export default function App() {
             <span>你的职业行动工作台</span>
           </div>
         </div>
+        <nav className="view-nav" aria-label="视图">
+          {VIEWS.map((entry) => (
+            <button
+              type="button"
+              key={entry.id}
+              className={view === entry.id ? "is-active" : ""}
+              aria-current={view === entry.id}
+              onClick={() => setView(entry.id)}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </nav>
         <button className="new-chat" type="button" onClick={newConversation} disabled={busy}>
           新对话
         </button>
       </header>
 
-      <section className="workspace">
+      <DailyBriefPanel
+        userId={userId}
+        apiBaseUrl={API_BASE_URL}
+        refreshToken={completedTurns}
+        hidden={view !== "brief"}
+      />
+
+      <section className="workspace" hidden={view !== "chat"}>
         <aside className="context-panel">
           <p className="eyebrow">CURRENT FOCUS</p>
           <h1>把复杂求职任务，变成下一步行动。</h1>

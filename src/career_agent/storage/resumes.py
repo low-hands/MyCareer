@@ -28,7 +28,13 @@ class ResumeStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            apply_schema(connection, "resumes", 4, self._migrate)
+            apply_schema(
+                connection,
+                "resumes",
+                4,
+                self._migrate,
+                upgrades={4: self._add_target_role_intent_columns},
+            )
         os.chmod(self.path, 0o600)
 
     def create_target_role(self, *, user_id: str, title: str, priority: int) -> TargetRole:
@@ -353,13 +359,30 @@ class ResumeStore:
             raw_bytes=bytes(row[2]),
         )
 
+    @staticmethod
+    def _add_target_role_intent_columns(connection: sqlite3.Connection) -> None:
+        """Version 4: job intent moved from the person onto each target role.
+
+        The baseline creates these columns for a fresh file; a database already
+        registered at version 3 has the table without them and needs the ALTER.
+        """
+        existing = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(target_roles)").fetchall()
+        }
+        for column in ("city", "salary_expectation", "experience", "education"):
+            if column not in existing:
+                connection.execute(
+                    f"ALTER TABLE target_roles ADD COLUMN {column} TEXT"
+                )
+
     def _migrate(self, connection: sqlite3.Connection) -> None:
         has_resumes = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resumes'").fetchone() is not None
         if not has_resumes:
             connection.execute("CREATE TABLE resumes (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, target_role_id TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL, latest_version_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
             connection.execute("CREATE TABLE resume_versions (id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id), version_number INTEGER NOT NULL, source_type TEXT NOT NULL, document_format TEXT NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(resume_id, version_number))")
             connection.execute("CREATE TABLE resume_version_documents (resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id), content BLOB NOT NULL)")
-        connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
+        connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, city TEXT, salary_expectation TEXT, experience TEXT, education TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
         columns = {row[1] for row in connection.execute("PRAGMA table_info(resumes)").fetchall()}
         if "target_role_id" not in columns:
             connection.execute("ALTER TABLE resumes ADD COLUMN target_role_id TEXT")
@@ -371,10 +394,6 @@ class ResumeStore:
             connection.execute("UPDATE resumes SET target_role_id = ? WHERE user_id = ? AND target_role_id IS NULL", (role_id, user_id))
         connection.execute("CREATE INDEX IF NOT EXISTS resumes_user_role_updated_idx ON resumes(user_id, target_role_id, updated_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS target_roles_user_priority_idx ON target_roles(user_id, priority, created_at)")
-        role_columns = {row[1] for row in connection.execute("PRAGMA table_info(target_roles)").fetchall()}
-        for column in ("city", "salary_expectation", "experience", "education"):
-            if column not in role_columns:
-                connection.execute(f"ALTER TABLE target_roles ADD COLUMN {column} TEXT")
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS resume_tailoring_version_links (
