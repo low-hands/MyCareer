@@ -9,6 +9,8 @@ runs when the result state is one the entry accepts, which keeps the
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from typing import Any, Callable
 
 from career_agent.agent.main_agent_contracts import (
@@ -247,14 +249,53 @@ def _list_calendar_accounts(
     )
 
 
+_PENDING_CALENDAR_PROPOSAL_STATES = frozenset(
+    {"calendar_approval_required", "calendar_proposal_ready"}
+)
+"""The only states that leave a preview waiting for the user."""
+
+
 def _calendar_proposal(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
+    """Track the one Calendar preview that is still waiting for approval.
+
+    Set on the states that produce or re-read a pending preview, cleared on
+    every state that ends one. The distinction only started to matter once the
+    existence flag reached the model: before that a stale id was invisible, and
+    now it would tell the model a preview is pending when the store will refuse
+    to execute it.
+
+    ``calendar_write_failed`` clears too. The service marks the proposal
+    ``failed`` before raising, and ``execute_proposal`` requires ``pending``, so
+    a retry cannot succeed — leaving the flag up would send the model back at a
+    door that is already locked instead of preparing a new preview.
+    """
+    interview_round_id = (
+        result.payload.get("interview_round_id") or task.active_interview_round_id
+    )
+    if result.state not in _PENDING_CALENDAR_PROPOSAL_STATES:
+        return task.model_copy(
+            update={
+                "active_calendar_proposal_id": None,
+                "active_calendar_proposal_expires_at": None,
+                "active_interview_round_id": interview_round_id,
+            }
+        )
+    expires_at = result.payload.get("expires_at")
     return task.model_copy(
         update={
             "active_calendar_proposal_id": result.payload.get("proposal_id"),
-            "active_interview_round_id": result.payload.get("interview_round_id")
-            or task.active_interview_round_id,
+            # Carried alongside the id because the model is shown the expiry and
+            # not the id: a lapsed preview has to be prepared again rather than
+            # executed, and without this the flag would read as "pending" long
+            # after the preview stopped being executable.
+            "active_calendar_proposal_expires_at": (
+                datetime.fromisoformat(expires_at)
+                if isinstance(expires_at, str)
+                else None
+            ),
+            "active_interview_round_id": interview_round_id,
         }
     )
 
@@ -561,6 +602,11 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
             "calendar_approval_required",
             "calendar_proposal_ready",
             "calendar_sync_complete",
+            # Registered so the slot is released: these were unhandled, which
+            # was harmless while nothing was projected and is not now.
+            "calendar_proposal_not_found",
+            "calendar_approval_invalid",
+            "calendar_write_failed",
         ),
         _calendar_proposal,
     ),

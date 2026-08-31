@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from career_agent.agent.summary_text import condense
 from career_agent.domain.interview_preparation import InterviewPreparationResult
 
 
@@ -91,3 +92,20 @@ def render_interview_preparation(result: InterviewPreparationResult) -> str:
         sections.append(_section("信息限制", _bullets(result.limitations)))
 
     return "\n\n".join(sections)
+
+
+def summarize_interview_preparation(result: InterviewPreparationResult) -> str:
+    """State the brief's outcome in the one line the transcript keeps.
+
+    Deterministic on purpose: this is the copy the durable row falls back to
+    when the answer writer did not run, and the writer cannot cover its own
+    failure.
+    """
+    headline = condense(result.summary)
+    counts = (
+        f"（{len(result.likely_questions)} 个可能问题，"
+        f"{len(result.focus_areas)} 个准备重点）"
+    )
+    return f"面试准备材料已生成。{headline}{counts}" if headline else (
+        f"面试准备材料已生成。{counts}"
+    )

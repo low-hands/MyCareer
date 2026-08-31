@@ -1051,6 +1051,23 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     serialized = observation.model_dump_json()
     assert "PRIVATE RESUME" not in serialized
     assert "PRIVATE JD" not in serialized
+    assert result.assistant_message.startswith("# 简历定制草稿 · 修订 1")
+    assert "Built production RAG systems for knowledge retrieval." in result.assistant_message
+    assert observation.resource_ref is not None
+    assert observation.resource_ref.kind == "resume_tailoring_draft"
+
+    stored = service._draft_store.get_for_display(
+        user_id="u1", draft_id=observation.payload["draft_id"]
+    )
+    assert stored is not None
+    assert service._draft_store.get(
+        user_id="u1",
+        draft_id=stored.id,
+        now=stored.expires_at,
+    ) is None
+    assert service._draft_store.get_for_display(
+        user_id="u1", draft_id=stored.id
+    ) is not None
 
     review_decisions = SequenceDecisionMaker(
         AgentDecision(

@@ -74,12 +74,52 @@ describe("chatReducer", () => {
     expect(state.clientActions[0]?.action).toBe("open_url");
   });
 
+  it("attaches a report reference to the reply that produced it", () => {
+    /*
+     * On the message, not on the turn: the reply keeps a short summary and the
+     * report is reachable only through this reference, so a conversation with
+     * two reports has to keep each next to its own reply.
+     */
+    const submitted = chatReducer(initialChatState, {
+      type: "submit",
+      messageId: "u-1",
+      assistantMessageId: "a-1",
+      content: "帮我复盘刚才的模拟面试",
+    });
+    const streamed = chatReducer(submitted, {
+      type: "stream_event",
+      event: { type: "content_delta", delta: "项目深度可以，系统设计偏弱。" },
+    });
+    const state = chatReducer(streamed, {
+      type: "stream_event",
+      event: {
+        type: "report_ready",
+        kind: "mock_interview_report",
+        resource_id: "rep-1",
+      },
+    });
+
+    const assistant = state.messages.find((item) => item.id === "a-1");
+    expect(assistant?.resource).toEqual({
+      kind: "mock_interview_report",
+      resourceId: "rep-1",
+    });
+    // The summary is what stays in the bubble; the report is behind the card.
+    expect(assistant?.content).toBe("项目深度可以，系统设计偏弱。");
+    expect(state.messages.find((item) => item.id === "u-1")?.resource).toBeUndefined();
+  });
+
   it("hydrates a persisted conversation without inventing a running turn", () => {
     const state = chatReducer(initialChatState, {
       type: "hydrate",
       messages: [
         { id: "history-1", role: "user", content: "分析这份岗位" },
-        { id: "history-2", role: "assistant", content: "这是岗位分析。" },
+        {
+          id: "history-2",
+          role: "assistant",
+          content: "这是岗位分析。",
+          resource: { kind: "job_research_report", resourceId: "report-1" },
+        },
       ],
     });
 
@@ -89,5 +129,8 @@ describe("chatReducer", () => {
       "这是岗位分析。",
     ]);
     expect(state.activeAssistantMessageId).toBeNull();
+    // A reload has to leave the report reachable, or the transcript keeps a
+    // summary of something the user can no longer open.
+    expect(state.messages[1]?.resource?.resourceId).toBe("report-1");
   });
 });

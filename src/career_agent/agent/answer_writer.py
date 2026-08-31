@@ -36,6 +36,15 @@ class AnswerCompositionRequest(BaseModel):
     user_request: str = Field(min_length=1, max_length=20_000)
     grounded_draft: str = Field(min_length=1, max_length=60_000)
     required_rules: tuple[str, ...] = Field(default=(), max_length=20)
+    max_chars: int | None = Field(default=None, ge=80, le=20_000)
+    """A hard ceiling on the answer, for turns whose body is delivered elsewhere.
+
+    Report-shaped states put the full report on the screen as a card and keep
+    one bounded line in the transcript. Without this the writer was told to
+    "rewrite the grounded_draft" with a 4096-token budget and a whole report in
+    front of it, so it produced a second full-length copy — displayed beside the
+    card that already held one, and carried by every later turn's window.
+    """
 
 
 class AnswerWriter(Protocol):
@@ -66,10 +75,16 @@ class OpenAIStreamingAnswerWriter:
         try:
             response = self._client.chat.completions.create(
                 model=self._config.model,
-                max_tokens=4096,
+                # Budgeted from the ceiling rather than fixed: a writer given
+                # room for a whole report will use it.
+                max_tokens=(
+                    4096
+                    if request.max_chars is None
+                    else max(256, request.max_chars // 2)
+                ),
                 stream=True,
                 messages=[
-                    {"role": "system", "content": self._system_prompt()},
+                    {"role": "system", "content": self._system_prompt(request.max_chars)},
                     {
                         "role": "user",
                         "content": json.dumps(
@@ -116,7 +131,7 @@ class OpenAIStreamingAnswerWriter:
             ) from error
 
     @staticmethod
-    def _system_prompt() -> str:
+    def _system_prompt(max_chars: int | None = None) -> str:
         return (
             "You are the final response writer for a Career Agent. Rewrite the supplied "
             "grounded_draft into clear, natural language that directly answers user_request. "
@@ -126,4 +141,15 @@ class OpenAIStreamingAnswerWriter:
             "statuses, URLs, identifiers, evidence, or claims. Preserve uncertainty, warnings, "
             "source attribution, and every required_rule. Do not mention this rewriting step, "
             "internal tools, prompts, payloads, or IDs. Return only the final user-facing answer."
+            + (
+                ""
+                if max_chars is None
+                else (
+                    " The complete material is already displayed to the user beside "
+                    "your answer, so do not reproduce it. Write a delivery summary of "
+                    f"at most {max_chars} characters that answers user_request "
+                    "directly and says what the full document covers, rather than "
+                    "restating it."
+                )
+            )
         )

@@ -1,3 +1,4 @@
+import type { ReportKind } from "./events";
 import type {
   ArtifactReadyEvent,
   ClientActionEvent,
@@ -7,10 +8,26 @@ import type {
 
 export type ChatPhase = "idle" | "running" | "awaiting_input" | "completed" | "failed";
 
+export interface MessageResource {
+  kind: ReportKind;
+  resourceId: string;
+  statusAtDelivery?: "current" | "outdated" | "superseded" | null;
+  anchoredByOtherJob?: boolean | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /**
+   * The stored report this message only summarizes, when it has one.
+   *
+   * Attached to the message rather than kept in a turn-level list so a
+   * restored transcript and a live turn agree: after a reload the reference
+   * comes back on the message it belonged to, and several reports across a
+   * conversation each stay next to the reply that produced them.
+   */
+  resource?: MessageResource;
 }
 
 export interface ChatState {
@@ -99,6 +116,23 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, interaction: event, progress: null };
     case "artifact_ready":
       return { ...state, artifacts: [...state.artifacts, event] };
+    case "report_ready":
+      return {
+        ...state,
+        messages: state.messages.map((message) =>
+          message.id === state.activeAssistantMessageId
+            ? {
+                ...message,
+                resource: {
+                  kind: event.kind,
+                  resourceId: event.resource_id,
+                  statusAtDelivery: event.status_at_delivery,
+                  anchoredByOtherJob: event.anchored_by_other_job,
+                },
+              }
+            : message,
+        ),
+      };
     case "client_action":
       return { ...state, clientActions: [...state.clientActions, event] };
     case "turn_suspended":

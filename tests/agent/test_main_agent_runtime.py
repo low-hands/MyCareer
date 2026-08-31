@@ -67,10 +67,27 @@ def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
         "run_workflow",
         "observe",
         "finish",
-        "present_workflow",
-        "fallback",
+        "present",
         "__end__",
     }
+
+
+def test_every_exit_that_renders_a_tool_result_is_one_node(tmp_path) -> None:
+    """One presenter exit, not three.
+
+    ``present_workflow`` and ``fallback`` were separate nodes with near-identical
+    bodies, and ``finish`` calls the same presenter for a tool-backed final
+    answer, so the names implied a division of labour that did not exist. Both
+    conditional edges now name the same landing spot, which is the only reason
+    it has to be a node at all.
+    """
+    agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
+    graph = agent._graph.get_graph()
+
+    assert "fallback" not in graph.nodes
+    assert "present_workflow" not in graph.nodes
+    ends = {edge.source for edge in graph.edges if edge.target == "__end__"}
+    assert ends == {"finish", "present"}
 
 
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
@@ -309,6 +326,16 @@ def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
     with pytest.raises(ValidationError):
         DecisionObservation.model_validate(
             {**observation.model_dump(), "payload": {"content": sentinel}}
+        )
+
+
+def test_internal_tool_result_requires_a_durable_receipt() -> None:
+    """Summary/message delivery must never commit an invisible empty row."""
+    with pytest.raises(ValidationError):
+        ToolResult(
+            tool_name="get_daily_brief",
+            state="daily_brief_ready",
+            message="",
         )
 
 

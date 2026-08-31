@@ -217,7 +217,10 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     assert "raw_bytes" not in serialized
     assert result.context.task.resume_analysis_status == "pending"
     assert result.context.task.active_resume_analysis_id == observation.payload["analysis_id"]
-    assert result.assistant_message == "已分析该简历版本，提取出 1 段候选经历。"
+    assert result.assistant_message.startswith("# 简历分析结果")
+    assert "Product Manager · Example Inc. · 工作经历" in result.assistant_message
+    assert "What was the start month?" in result.assistant_message
+    assert "尚未写入职业事实库" in result.assistant_message
 
 
 def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:

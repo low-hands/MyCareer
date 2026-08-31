@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
+    SUMMARY_SOURCE_MAX_CHARS,
     StoredConversationSummary,
     SummaryMessage,
 )
@@ -194,6 +195,41 @@ class CareerContextStore:
             ).fetchall()
         return tuple(ConversationMessageContext.model_validate_json(row[0]) for row in reversed(rows))
 
+    def list_archived_resource_messages(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        through_sequence: int,
+        limit: int,
+    ) -> tuple[ConversationMessageContext, ...]:
+        """Resource-backed messages the recent window has already scrolled past.
+
+        The catalogue of past reports is these rows, not a second copy of them.
+        A stored catalogue would be durable state that has to be kept in step
+        with the messages it describes; this cannot drift, because it is the
+        messages.
+
+        Filtered in SQL on the stored payload rather than in Python so a long
+        conversation does not have to be read back to find the few turns that
+        delivered something. Newest first, capped, then reversed so the caller
+        gets chronological order.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload FROM conversation_messages
+                WHERE user_id = ? AND conversation_id = ? AND sequence <= ?
+                  AND json_extract(payload, '$.resource_ref') IS NOT NULL
+                ORDER BY sequence DESC LIMIT ?
+                """,
+                (user_id, conversation_id, through_sequence, limit),
+            ).fetchall()
+        return tuple(
+            ConversationMessageContext.model_validate_json(row[0])
+            for row in reversed(rows)
+        )
+
     def get_conversation_summary(
         self, *, user_id: str, conversation_id: str
     ) -> StoredConversationSummary | None:
@@ -242,7 +278,11 @@ class CareerContextStore:
                 SummaryMessage(
                     sequence=row[0],
                     role=message.role,
-                    content=message.content,
+                    # Stored conversation text has a much larger abuse limit
+                    # than a summary request. Keep those two policies
+                    # independent so one long message can never make every
+                    # future load of this conversation fail validation.
+                    content=message.content[:SUMMARY_SOURCE_MAX_CHARS],
                 )
             )
         return tuple(messages)
@@ -301,9 +341,15 @@ class CareerContextStore:
     ) -> tuple[int, int]:
         """How many covered rows are still stored, and how many bytes they hold.
 
-        Covered means a summary already claims the row, so deleting it changes
-        nothing the agent reads. This is what a prune would remove, which is why
-        the warning and the command count the same thing.
+        Covered means a summary already claims the row and the prune would
+        delete it. The two have to apply the same filter: counting rows the
+        command keeps would leave the notice standing after every prune, telling
+        the operator there is disk to reclaim and then reclaiming none of it.
+
+        Delivering turns are what the filter excludes. Their rows are kept
+        deliberately — they are the only handle the agent has on a report once
+        the recent window scrolls past — so they are not reclaimable and must
+        not be counted as such.
         """
         clause = "AND m.conversation_id = ?" if conversation_id else ""
         parameters: tuple[str, ...] = (
@@ -318,6 +364,7 @@ class CareerContextStore:
                   ON s.user_id = m.user_id
                  AND s.conversation_id = m.conversation_id
                 WHERE m.user_id = ? {clause} AND m.sequence <= s.through_sequence
+                  AND json_extract(m.payload, '$.resource_ref') IS NULL
                 """,
                 parameters,
             ).fetchone()
@@ -349,6 +396,13 @@ class CareerContextStore:
                      AND s.conversation_id = m.conversation_id
                     WHERE m.user_id = ? {clause}
                       AND m.sequence <= s.through_sequence
+                      -- A delivered report's row is the only handle the agent
+                      -- has on it once the recent window scrolls past. Its
+                      -- content is a bounded line by construction, so keeping
+                      -- it costs almost nothing, while dropping it would make
+                      -- the report unreachable to the agent while the UI still
+                      -- shows the card.
+                      AND json_extract(m.payload, '$.resource_ref') IS NULL
                 )
                 """,
                 parameters,

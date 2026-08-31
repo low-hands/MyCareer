@@ -264,15 +264,22 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     assert completed.assistant_message.startswith("模拟面试完成。")
     assert "补充验证指标" in completed.assistant_message
     # The run's own turns stay out of the main thread, but its outcome does not:
-    # the candidate's answer is absent while the report that closes the request
-    # is present, so a later turn can act on the interview without replaying it.
+    # the candidate's answer is absent while the reply that closes the request is
+    # present, carrying a reference to the report rather than a copy of it, so a
+    # later turn can act on the interview without replaying it.
     after_completion = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="inspect"
     )
     contents = [message.content for message in after_completion.recent_messages]
     assert contents[:3] == ["选择这次投递", "已选择投递。", "开始技术模拟面试"]
     assert contents[3].startswith("模拟面试完成。")
-    assert "补充验证指标" in contents[3]
+    # A headline, not the report: bounded, and produced without a model call so
+    # it is the same line whether or not the answer writer ran.
+    assert len(contents[3]) <= 240
+    assert "待提升" not in contents[3]
+    reference = after_completion.recent_messages[3].resource_ref
+    assert reference is not None
+    assert reference.kind == "mock_interview_report"
     # One request, one reply. Neither the questions nor the answers survive.
     assert len(contents) == 4
     assert not any("我负责设计离线评估集" in item for item in contents)
@@ -512,11 +519,15 @@ class MaximalReportGraph(FakeMockInterviewGraph):
         )
 
 
-def test_a_long_report_keeps_every_section_in_the_history(tmp_path) -> None:
-    """The stored copy is condensed, not cut off at a fixed length.
+def test_a_long_report_reaches_the_screen_and_is_referenced_in_history(
+    tmp_path,
+) -> None:
+    """The screen gets the whole report; history gets a reference to it.
 
-    Truncating the screen copy would drop whole trailing sections, and those
-    are the ones the next turn needs: what to work on and what to practise.
+    Storing the rendered report would put a section-shaped blob in the recent
+    window, where a per-message cap could drop exactly the trailing sections the
+    next turn needs. The durable row instead names the outcome and points at the
+    report entity, so nothing has to be condensed to fit.
     """
     runtime, manager = _runtime_with_graph(
         tmp_path, MaximalReportGraph(), ReplayDecisions(_start_decision())
@@ -527,15 +538,81 @@ def test_a_long_report_keeps_every_section_in_the_history(tmp_path) -> None:
     )
 
     # Nothing is withheld from the candidate.
+    assert "总结" in result.assistant_message
+    assert "待提升" in result.assistant_message
     assert "练习建议" in result.assistant_message
+    assert "练0" in result.assistant_message
 
     loaded = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="inspect"
     )
-    stored = loaded.recent_messages[-1].content
-    assert "总结" in stored
-    assert "待提升" in stored
-    assert "练习建议" in stored
-    assert "练0" in stored
-    # Below the per-message cap, so no section was lost on the way in.
-    assert len(stored) < 4000
+    stored = loaded.recent_messages[-1]
+    # The report's own summary is at its 3000-character limit here, so this
+    # pins the condensing: the durable row stays bounded no matter how long the
+    # report is, which is the property the recent window depends on.
+    assert stored.content.startswith("模拟面试完成。")
+    assert len(stored.content) <= 240
+    assert "待提升" not in stored.content
+    assert stored.resource_ref is not None
+    assert stored.resource_ref.kind == "mock_interview_report"
+    assert stored.resource_ref.resource_id == "report-1"
+    # The model sees that a report exists without ever seeing its id.
+    projected = loaded.model_context()["recent_messages"][-1]
+    assert projected["resource"] == {
+        "kind": "mock_interview_report",
+        "reference_index": 1,
+    }
+
+
+
+def test_the_live_turn_streams_the_reference_the_transcript_will_carry(
+    tmp_path,
+) -> None:
+    """The card must appear during the turn, not only after a reload.
+
+    The stream is the only path to it mid-turn: the reply the user reads is a
+    summary, and without this event the report would be reachable only by
+    refreshing the page. Emitting the same reference the row stores is what
+    keeps the live card and the restored one pointing at one report.
+    """
+    runtime, _ = _runtime_with_graph(
+        tmp_path, MaximalReportGraph(), ReplayDecisions(_start_decision())
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+    events: list[object] = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我的回答",
+        event_sink=events.append,
+    )
+
+    references = [event for event in events if event.type == "report_ready"]
+    assert [(item.kind, item.resource_id) for item in references] == [
+        ("mock_interview_report", "report-1")
+    ]
+    streamed = "".join(
+        event.delta for event in events if event.type == "content_delta"
+    )
+    stored = runtime.context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    ).recent_messages[-1]
+    assert streamed == stored.content
+    assert "待提升" not in streamed
+    assert events[-1].type == "turn_completed"
+
+
+def test_a_turn_with_no_report_streams_no_reference(tmp_path) -> None:
+    """A card with nothing behind it is worse than none, so the turn is checked."""
+    runtime, _ = _runtime_with_graph(
+        tmp_path, FakeMockInterviewGraph(), ReplayDecisions(_start_decision())
+    )
+    events: list[object] = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="开始技术模拟面试",
+        event_sink=events.append,
+    )
+
+    assert not [event for event in events if event.type == "report_ready"]

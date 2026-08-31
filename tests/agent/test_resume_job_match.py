@@ -388,7 +388,11 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     assert "PRIVATE JD" not in serialized
     assert result.context.task.active_resume_job_match_id == observation.payload["match_id"]
     assert result.context.task.resume_job_match_status == "ready"
-    assert result.assistant_message == "已完成逐项匹配，整体匹配度为 moderate。"
+    assert result.assistant_message.startswith("# 简历与岗位匹配")
+    assert "整体判断：中等匹配" in result.assistant_message
+    assert "The resume demonstrates relevant RAG experience." in result.assistant_message
+    assert observation.resource_ref is not None
+    assert observation.resource_ref.kind == "resume_job_match"
 
     review_decisions = SequenceDecisionMaker(
         AgentDecision(

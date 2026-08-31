@@ -60,6 +60,50 @@ class MockInterviewGraphResult(MockInterviewWorkerContract):
     report: MockInterviewReport | None = None
 
 
+class MockInterviewQuestionSummary(MockInterviewWorkerContract):
+    """One primary question's row in a finished run's index."""
+
+    plan_item_number: int = Field(ge=1)
+    question: str = Field(min_length=1)
+    rating: str = Field(min_length=1)
+    follow_up_count: int = Field(default=0, ge=0)
+
+
+class MockInterviewResultView(MockInterviewWorkerContract):
+    """A finished run as the readback tool found it in the store.
+
+    Carried in the observation payload so the runtime can render the index
+    without the tool layer composing prose, the same way job research and
+    interview preparation already travel. The report's own summary rides along
+    because the index is read to decide what to re-open, and the summary is
+    what makes that decision.
+    """
+
+    interview_type: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    questions: tuple[MockInterviewQuestionSummary, ...] = ()
+    answered_count: int = Field(default=0, ge=0)
+    report_id: str | None = Field(default=None, min_length=1)
+    report_summary: str | None = Field(default=None, min_length=1)
+
+
+class MockInterviewExchange(MockInterviewWorkerContract):
+    """One question and what came back for it, verbatim."""
+
+    turn_type: Literal["primary", "follow_up"]
+    question: str = Field(min_length=1)
+    answer: str | None = Field(default=None, min_length=1)
+    rating: str | None = Field(default=None, min_length=1)
+    evaluation_summary: str | None = Field(default=None, min_length=1)
+
+
+class MockInterviewQuestionView(MockInterviewWorkerContract):
+    """One plan item read back in full, its follow-ups included."""
+
+    question_number: int = Field(ge=1)
+    exchanges: tuple[MockInterviewExchange, ...] = Field(min_length=1)
+
+
 class MockInterviewInputDecision(MockInterviewWorkerContract):
     """A local routing decision made before an answer can be persisted."""
 

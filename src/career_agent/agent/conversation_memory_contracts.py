@@ -5,6 +5,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+SUMMARY_SOURCE_MAX_CHARS = 4000
+
 
 class ConversationMemoryContract(BaseModel):
     model_config = ConfigDict(
@@ -17,7 +19,7 @@ class ConversationMemoryContract(BaseModel):
 class SummaryMessage(ConversationMemoryContract):
     sequence: int = Field(ge=1)
     role: Literal["user", "assistant"]
-    content: str = Field(max_length=4000)
+    content: str = Field(max_length=SUMMARY_SOURCE_MAX_CHARS)
 
 
 class ConversationSummaryContent(ConversationMemoryContract):

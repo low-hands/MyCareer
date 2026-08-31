@@ -42,7 +42,12 @@ def test_unregistered_tool_leaves_task_state_untouched() -> None:
     )
 
     reduced = reduce_task_state(
-        task, ToolResult(tool_name="get_job_analysis", state="analysis_ready", message="")
+        task,
+        ToolResult(
+            tool_name="get_job_analysis",
+            state="analysis_ready",
+            message="analysis ready",
+        ),
     )
 
     assert reduced == task
@@ -65,7 +70,7 @@ def test_reducer_skips_states_it_does_not_accept() -> None:
         ToolResult(
             tool_name="find_saved_jobs",
             state="saved_jobs_found",
-            message="",
+            message="saved jobs found",
             payload={
                 "items": [
                     {
@@ -103,7 +108,7 @@ def test_resolved_email_event_leaves_the_selectable_list() -> None:
         ToolResult(
             tool_name="resolve_email_event",
             state="email_event_resolved",
-            message="",
+            message="email event resolved",
             payload={"email_event_id": "e1", "status": "applied"},
         ),
     )
@@ -130,7 +135,8 @@ def test_reducers_never_touch_the_workflow_slot() -> None:
     for name, entry in ATOMIC_TASK_REDUCERS.items():
         state = next(iter(entry.states), "ok")
         reduced = reduce_task_state(
-            suspended, ToolResult(tool_name=name, state=state, message="")
+            suspended,
+            ToolResult(tool_name=name, state=state, message="state transition recorded"),
         )
         slot = (reduced.active_workflow, reduced.run_id, reduced.phase)
         assert slot == ("job_discovery", "run-1", "selection_required"), name

@@ -15,6 +15,23 @@ export type Capability =
   | "action_center"
   | "career_task";
 
+export type ReportKind =
+  | "job_research_report"
+  | "mock_interview_report"
+  | "interview_preparation"
+  | "interview_retro_report"
+  | "resume_job_match"
+  | "resume_tailoring_draft";
+
+export const REPORT_KINDS = new Set<ReportKind>([
+  "job_research_report",
+  "mock_interview_report",
+  "interview_preparation",
+  "interview_retro_report",
+  "resume_job_match",
+  "resume_tailoring_draft",
+]);
+
 export interface InteractionOption {
   label: string;
   description?: string;
@@ -59,6 +76,13 @@ export type PublicStreamEvent =
       byte_size: number;
     }
   | {
+      type: "report_ready";
+      kind: ReportKind;
+      resource_id: string;
+      status_at_delivery?: "current" | "outdated" | "superseded" | null;
+      anchored_by_other_job?: boolean | null;
+    }
+  | {
       type: "client_action";
       action: "open_url";
       url: string;
@@ -86,6 +110,7 @@ const EVENT_TYPES = new Set<PublicStreamEvent["type"]>([
   "interaction_required",
   "content_delta",
   "artifact_ready",
+  "report_ready",
   "client_action",
   "turn_suspended",
   "turn_completed",
@@ -140,6 +165,24 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
         typeof value.filename !== "string" ||
         typeof value.media_type !== "string" ||
         typeof value.byte_size !== "number"
+      ) {
+        throw new Error("SSE_EVENT_INVALID");
+      }
+      break;
+    case "report_ready":
+      // The kind is checked against the closed set rather than accepted as any
+      // string: it selects which read endpoint the card fetches, so an unknown
+      // one would produce a card that can never resolve.
+      if (
+        typeof value.resource_id !== "string" ||
+        typeof value.kind !== "string" ||
+        !REPORT_KINDS.has(value.kind as ReportKind) ||
+        (value.status_at_delivery != null &&
+          !["current", "outdated", "superseded"].includes(
+            String(value.status_at_delivery),
+          )) ||
+        (value.anchored_by_other_job != null &&
+          typeof value.anchored_by_other_job !== "boolean")
       ) {
         throw new Error("SSE_EVENT_INVALID");
       }

@@ -1,0 +1,11 @@
+{
+  "scenario": "planning_to_apply_does_not_create_an_application",
+  "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
+  "model": "gpt-5.6-luna",
+  "recorded_at": "2026-08-31T07:58:26.914658+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"如果你已经在外部平台实际提交了申请，请告诉我“已投递”，我可以为这个岗位记录申请。若还在准备阶段，我也可以先帮你做简历匹配或定制。\"}"
+    }
+  ]
+}

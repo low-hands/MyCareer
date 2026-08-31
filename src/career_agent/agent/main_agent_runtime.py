@@ -14,13 +14,44 @@ from career_agent.agent.answer_writer import (
     AnswerWriter,
 )
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
+from career_agent.agent.delivery_policy import (
+    condenses_message,
+    delivers_body_elsewhere,
+    is_waiting,
+    response_type_for,
+    uses_answer_writer,
+)
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
+from career_agent.agent.interview_retro_presenter import (
+    InterviewRetroView,
+    render_interview_retro,
+)
+from career_agent.agent.daily_brief_presenter import render_daily_brief
 from career_agent.agent.job_comparison_presenter import render_job_comparison
 from career_agent.agent.job_research_presenter import render_job_research
+from career_agent.agent.mock_interview_presenter import (
+    render_mock_interview_question,
+    render_mock_interview_result,
+    render_mock_interview_turn,
+)
+from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
+from career_agent.agent.resume_analysis_presenter import render_resume_analysis
+from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.resume_job_match_presenter import render_resume_job_match
+from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.resume_tailoring_presenter import (
+    TailoringChangeReviewView,
+    render_resume_tailoring,
+)
 from career_agent.domain.job_comparison import JobComparison
-from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
+from career_agent.agent.mock_interview_contracts import (
+    MockInterviewGraphResult,
+    MockInterviewQuestionView,
+    MockInterviewResultView,
+)
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.interview_preparation import InterviewPreparationResult
 from career_agent.domain.job_research import (
@@ -39,6 +70,7 @@ from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     ProgressEvent,
     PublicStreamEvent,
+    ReportReadyEvent,
     StreamEventSink,
     TurnCompletedEvent,
     TurnFailedEvent,
@@ -48,32 +80,10 @@ from career_agent.harness.streaming import (
     iter_content_deltas,
 )
 
-# Bounds for the stored copy of a report. Chosen so the rendered message stays
-# well inside a single message's share of the recent-context budget even when
-# every field arrives at its contract maximum.
-_HISTORY_SUMMARY_CHARS = 600
-_HISTORY_ITEM_CHARS = 120
-_HISTORY_ITEMS_PER_SECTION = 5
-
 _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
     "main_agent_stream_sink",
     default=None,
 )
-
-
-def _clip(text: str, limit: int) -> str:
-    """Cut to a length, marking the cut so a reader can tell it happened."""
-    collapsed = " ".join(text.split())
-    if len(collapsed) <= limit:
-        return collapsed
-    return collapsed[: limit - 1] + "…"
-
-
-def _clip_items(items: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        _clip(item, _HISTORY_ITEM_CHARS)
-        for item in items[:_HISTORY_ITEMS_PER_SECTION]
-    )
 
 
 class MainAgentState(TypedDict, total=False):
@@ -101,7 +111,14 @@ class MainAgentTurnResult:
 
 
 class MainAgentRuntime:
-    _WAITING_STATES = frozenset({"selection_required", "waiting_user", "detail_unavailable", "email_events_pending", "calendar_approval_required", "resume_tailoring_review_blocked", "resume_final_review_blocked", "resume_tailoring_superseded", "failed"})
+    _MOCK_INTERVIEW_GRAPH_STATES = frozenset(
+        {
+            "mock_interview_answer_required",
+            "mock_interview_running",
+            "mock_interview_completed",
+            "mock_interview_cancelled",
+        }
+    )
 
     def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = ()) -> None:
         if max_tool_calls < 1:
@@ -125,8 +142,11 @@ class MainAgentRuntime:
         graph.add_node("run_workflow", self._run_workflow)
         graph.add_node("observe", self._observe)
         graph.add_node("finish", self._finish)
-        graph.add_node("present_workflow", self._present_workflow)
-        graph.add_node("fallback", self._fallback)
+        # One exit for every path that renders the last tool result instead of
+        # model prose. It is a node, rather than the plain function the three
+        # exits already shared, only because ``_after_observe`` is a conditional
+        # edge whose return value has to name a node.
+        graph.add_node("present", self._present)
         graph.add_edge(START, "hydrate_career_context")
         graph.add_edge("hydrate_career_context", "decide")
         graph.add_conditional_edges(
@@ -136,7 +156,7 @@ class MainAgentRuntime:
                 "invoke_atomic_tool": "invoke_atomic_tool",
                 "run_workflow": "run_workflow",
                 "finish": "finish",
-                "fallback": "fallback",
+                "present": "present",
             },
         )
         graph.add_edge("invoke_atomic_tool", "observe")
@@ -144,11 +164,10 @@ class MainAgentRuntime:
         graph.add_conditional_edges(
             "observe",
             self._after_observe,
-            {"decide": "decide", "present_workflow": "present_workflow"},
+            {"decide": "decide", "present": "present"},
         )
         graph.add_edge("finish", END)
-        graph.add_edge("present_workflow", END)
-        graph.add_edge("fallback", END)
+        graph.add_edge("present", END)
         self._graph = graph.compile()
 
     def close(self) -> None:
@@ -325,12 +344,18 @@ class MainAgentRuntime:
                 self._context_manager.commit_workflow_exit(
                     context=context,
                     task=result.context.task,
-                    # The candidate keeps the full report on screen; only the
-                    # stored copy is condensed, because only it has to fit
-                    # alongside the rest of the conversation next turn.
-                    assistant_message=self._history_message(
+                    # The candidate keeps the full report on screen; the stored
+                    # copy is the writer's summary of it, because only that has
+                    # to fit alongside the rest of the conversation next turn.
+                    assistant_message=self._conversation_content(
                         result.tool_result,
                         screen=result.assistant_message,
+                        composed=result.content_streamed,
+                    ),
+                    assistant_resource_ref=(
+                        result.tool_result.resource_ref
+                        if result.tool_result is not None
+                        else None
                     ),
                 )
             return result
@@ -364,9 +389,15 @@ class MainAgentRuntime:
             self._context_manager.commit_turn(
                 context=context,
                 task=result.context.task,
-                assistant_message=self._history_message(
+                assistant_message=self._conversation_content(
                     result.tool_result,
                     screen=result.assistant_message,
+                    composed=result.content_streamed,
+                ),
+                assistant_resource_ref=(
+                    result.tool_result.resource_ref
+                    if result.tool_result is not None
+                    else None
                 ),
             )
         return result
@@ -410,7 +441,26 @@ class MainAgentRuntime:
             self._emit(
                 ProgressEvent(stage="presenting", message="正在整理交付内容……")
             )
-            for delta in iter_content_deltas(result.assistant_message):
+            # Compressed only when a card will render the body. For every
+            # other state the message *is* the delivery, so shortening it here
+            # would lose the content outright rather than move it — which is
+            # what happened to the single-question mock interview readback: four
+            # thousand characters the candidate had just asked for, replaced by
+            # a one-line receipt with nowhere to read the rest.
+            #
+            # Where a card does exist this asks the same function the commit
+            # asks, so the live message and the stored one stay identical.
+            streamed_message = (
+                self._conversation_content(
+                    result.tool_result,
+                    screen=result.assistant_message,
+                    composed=False,
+                )
+                if result.tool_result is not None
+                and self._has_backed_card(result.tool_result)
+                else result.assistant_message
+            )
+            for delta in iter_content_deltas(streamed_message):
                 self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
         for artifact in result.artifacts:
             reference = artifact.reference
@@ -420,6 +470,22 @@ class MainAgentRuntime:
                     filename=reference.filename,
                     media_type=reference.media_type,
                     byte_size=reference.byte_size,
+                )
+            )
+        # The card is the only full-report delivery path both live and after a
+        # reload. The accompanying message is the same short prose in both
+        # cases; no full report is duplicated into content_delta.
+        if result.tool_result is not None and result.tool_result.resource_ref is not None:
+            self._emit(
+                ReportReadyEvent(
+                    kind=result.tool_result.resource_ref.kind,
+                    resource_id=result.tool_result.resource_ref.resource_id,
+                    status_at_delivery=(
+                        result.tool_result.resource_ref.status_at_delivery
+                    ),
+                    anchored_by_other_job=(
+                        result.tool_result.resource_ref.anchored_by_other_job
+                    ),
                 )
             )
         self._emit(TurnCompletedEvent(turn_id=turn_id))
@@ -436,24 +502,63 @@ class MainAgentRuntime:
         if self._interaction_event(result=result, conversation_id=conversation_id):
             return
 
+        # Report-shaped turns deliver their body through the card, so the
+        # writer is asked for a bounded delivery summary instead of a rewrite.
+        # The instruction alone is not enough — it is a request to a model about
+        # its own output length — so the stream is cut at the same number below.
+        limit = (
+            DELIVERY_SUMMARY_LIMIT
+            if result.tool_result is not None
+            and self._has_backed_card(result.tool_result)
+            else None
+        )
         request = AnswerCompositionRequest(
             response_type=self._answer_response_type(result),
             user_request=user_request,
             grounded_draft=result.assistant_message,
+            max_chars=limit,
+            # "Preserve every factual value" cannot be obeyed alongside a
+            # character ceiling when grounded_draft is a whole report. Asking
+            # for both left the writer to choose which instruction to break.
             required_rules=(
-                "Preserve every factual value and all explicit uncertainty from grounded_draft.",
-                "Do not add facts that are absent from grounded_draft.",
+                (
+                    "Do not add facts that are absent from grounded_draft.",
+                    "Every fact you do state must be accurate and keep the "
+                    "uncertainty grounded_draft gave it.",
+                    "Keep any warning, limitation, or staleness notice.",
+                )
+                if limit is not None
+                else (
+                    "Preserve every factual value and all explicit uncertainty from grounded_draft.",
+                    "Do not add facts that are absent from grounded_draft.",
+                )
             ),
         )
         self._emit(
             ProgressEvent(stage="presenting", message="正在生成最终回答……")
         )
         chunks: list[str] = []
+        written = 0
         try:
             for delta in self._answer_writer.stream(request):
                 if not delta:
                     continue
+                # The ellipsis is part of the budget, not an addition to it:
+                # counting only the content let an answer that landed exactly
+                # on the limit overflow it by the marker's own character.
+                if limit is not None and written + len(delta) + 1 > limit:
+                    # Cut on the delta that would cross, and mark the cut in the
+                    # stream rather than only in storage: the reader has to see
+                    # the same text the transcript will keep.
+                    remainder = delta[: max(0, limit - written - 1)]
+                    if remainder:
+                        chunks.append(remainder)
+                        self._emit(ContentDeltaEvent(delta=remainder))
+                    chunks.append("…")
+                    self._emit(ContentDeltaEvent(delta="…"))
+                    break
                 chunks.append(delta)
+                written += len(delta)
                 self._emit(ContentDeltaEvent(delta=delta))
         except AgentWorkerError:
             if chunks:
@@ -468,48 +573,27 @@ class MainAgentRuntime:
 
     @staticmethod
     def _should_use_answer_writer(result: MainAgentTurnResult) -> bool:
+        """Whether this turn's deliverable is one the writer should restate.
+
+        Artifacts and questions are excluded here rather than in the registry:
+        both are properties of the turn, not of the state it ended in. What the
+        state decides — is this report-shaped — is a single registry lookup, so
+        it can no longer diverge from the response type or from the durable-row
+        rule that assumes the same answer.
+        """
         if result.artifacts or result.decision.action == "ask_user":
             return False
         tool_result = result.tool_result
         if tool_result is None:
             return result.decision.action == "final" and bool(result.assistant_message)
-        return tool_result.state in {
-            "daily_brief_ready",
-            "interview_preparation_ready",
-            "interview_retro_recorded",
-            "job_research_ready",
-            "mock_interview_completed",
-            "mock_interview_result_found",
-            "resume_analysis_ready",
-            "resume_job_match_ready",
-            "resume_tailoring_draft_ready",
-        }
+        return uses_answer_writer(tool_result.state)
 
     @staticmethod
     def _answer_response_type(result: MainAgentTurnResult) -> str:
         tool_result = result.tool_result
         if tool_result is None:
             return "general"
-        state = tool_result.state
-        if state == "job_research_ready":
-            return "job_research"
-        if state == "resume_analysis_ready":
-            return "resume_analysis"
-        if state == "resume_job_match_ready":
-            return "resume_match"
-        if state == "resume_tailoring_draft_ready":
-            return "resume_tailoring"
-        if state == "interview_preparation_ready":
-            return "interview_preparation"
-        if state in {
-            "interview_retro_recorded",
-            "mock_interview_completed",
-            "mock_interview_result_found",
-        }:
-            return "interview_report"
-        if state == "daily_brief_ready":
-            return "daily_brief"
-        return "general"
+        return response_type_for(tool_result.state)
 
     @staticmethod
     def _interaction_event(
@@ -805,19 +889,22 @@ class MainAgentRuntime:
             separators=(",", ":"),
         )
 
-    def _after_decision(self, state: MainAgentState) -> Literal["invoke_atomic_tool", "run_workflow", "finish", "fallback"]:
+    def _after_decision(self, state: MainAgentState) -> Literal["invoke_atomic_tool", "run_workflow", "finish", "present"]:
         decision = state["decision"]
         if decision.action != "tool_call":
             return "finish"
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
+        # Three ways a requested call is refused: the budget is spent, it
+        # repeats a call already made this turn, or the last result is waiting
+        # on the user. All three end the turn on what is already in hand.
         if state.get("tool_call_count", 0) >= self._max_tool_calls:
-            return "fallback"
+            return "present"
         if self._tool_call_fingerprint(decision) in state.get("tool_call_fingerprints", ()):
-            return "fallback"
+            return "present"
         last_result = state.get("last_tool_result")
-        if last_result is not None and last_result.state in self._WAITING_STATES:
-            return "fallback"
+        if last_result is not None and is_waiting(last_result.state):
+            return "present"
         kind = self._tools.capability_kind(decision.tool_call.name)
         if kind == "atomic_tool":
             return "invoke_atomic_tool"
@@ -892,9 +979,7 @@ class MainAgentRuntime:
         }
 
     @staticmethod
-    def _after_observe(
-        state: MainAgentState,
-    ) -> Literal["decide", "present_workflow"]:
+    def _after_observe(state: MainAgentState) -> Literal["decide", "present"]:
         # Both entries into a run end the turn on the question they just asked.
         # A restart is a start with a retirement in front of it, so routing it
         # back to the decision model would put the first question of the new run
@@ -903,16 +988,8 @@ class MainAgentRuntime:
             "start_mock_interview",
             "restart_mock_interview",
         }:
-            return "present_workflow"
+            return "present"
         return "decide"
-
-    @staticmethod
-    def _present_workflow(state: MainAgentState) -> MainAgentState:
-        return {
-            "assistant_message": MainAgentRuntime._assistant_message(
-                state["last_tool_result"]
-            )
-        }
 
     @staticmethod
     def _finish(state: MainAgentState) -> MainAgentState:
@@ -930,7 +1007,21 @@ class MainAgentRuntime:
         return {"assistant_message": message}
 
     @staticmethod
-    def _fallback(state: MainAgentState) -> MainAgentState:
+    def _present(state: MainAgentState) -> MainAgentState:
+        """Render the last tool result and end the turn.
+
+        One node for every exit that has no model prose of its own: a workflow
+        that must show its own question, a tool-call budget that ran out, a
+        repeated call, and a waiting state the model tried to act on. These were
+        three nodes (``present_workflow`` and ``fallback``, alongside
+        ``finish``); the first two had near-identical bodies and the names
+        implied a division of labour that did not exist, since ``finish`` calls
+        the same presenter for a tool-backed final answer.
+
+        The ``None`` guard is what remains genuinely distinct: reached from
+        ``observe`` there is always a result, but reached straight from
+        ``decide`` — budget exhausted on the first call — there is none.
+        """
         result = state.get("last_tool_result")
         if result is not None:
             return {"assistant_message": MainAgentRuntime._assistant_message(result)}
@@ -951,70 +1042,119 @@ class MainAgentRuntime:
         )
 
     @staticmethod
-    def _history_message(result: MainAgentToolOutput | None, *, screen: str) -> str:
-        """Render the run's outcome small enough to survive as history.
+    def _conversation_content(
+        result: MainAgentToolOutput | None,
+        *,
+        screen: str,
+        composed: bool,
+    ) -> str:
+        """Choose the durable row for each of the three delivery shapes.
 
-        The screen copy is unbounded, but the stored copy shares a budget with
-        every other message the next turn reads, so it is cut at a fixed length
-        on the way in. A full report can exceed that, and the sections lost are
-        the ones at the end: what to work on and what to practise. Rebuilding
-        the message from bounded parts keeps every section present instead of
-        keeping the first half of the first one.
+        * Full row: screen and transcript keep the same text.
+        * Summary row + resource card: the message is the same bounded prose
+          live and after refresh; the entity-backed card owns the full body.
+        * Summary row + message body: the full text is deliberately live-only,
+          while the transcript always keeps the tool's deterministic receipt.
+          Daily Brief and Resume Analysis use this shape because their bodies
+          have nowhere else to go but should not occupy the recent window
+          indefinitely. Keeping a prefix of the body would look complete while
+          silently favouring whichever sections happened to come first.
+
+        Therefore live equality is an invariant only for the first two shapes,
+        not for every call to this function. In the third shape, refreshing is
+        expected to replace the ephemeral body with its bounded historical row.
+
+        Normally keyed on the state's declared policy. A missing reference is
+        treated as a broken instance of a card policy and fails open to the
+        full screen body, because there is then nowhere else to retrieve it.
         """
-        if result is None:
+        if result is None or not condenses_message(result.state):
             return screen
-        if result.state == "mock_interview_completed":
-            report = MockInterviewGraphResult.model_validate(result.payload).report
-            if report is None:
+        # A policy may claim a card only if this particular observation carries
+        # the reference that makes the body retrievable. Durable effects may
+        # already have happened, so fail open to the full message rather than
+        # raising after the fact or silently replacing it with a receipt.
+        if delivers_body_elsewhere(result.state):
+            if result.resource_ref is None:
                 return screen
-            sections = (
-                ("总结", (_clip(report.summary, _HISTORY_SUMMARY_CHARS),)),
-                ("待提升", _clip_items(report.development_areas)),
-                ("练习建议", _clip_items(report.practice_actions)),
-            )
-            heading = "模拟面试完成。"
-        elif result.state == "interview_preparation_ready":
-            preparation = MainAgentRuntime._interview_preparation_result(result)
-            if preparation is None:
-                return screen
-            sections = (
-                ("总结", (_clip(preparation.summary, _HISTORY_SUMMARY_CHARS),)),
-                (
-                    "准备重点",
-                    _clip_items(tuple(item.topic for item in preparation.focus_areas)),
-                ),
-                (
-                    "待补差距",
-                    _clip_items(tuple(item.gap for item in preparation.gaps)),
-                ),
-            )
-            heading = "面试准备材料已生成。"
-        elif result.state == "job_research_ready":
-            research = MainAgentRuntime._job_research_draft(result)
-            if research is None:
-                return screen
-            sections = (
-                ("总结", (_clip(research.summary, _HISTORY_SUMMARY_CHARS),)),
-                (
-                    "关键结论",
-                    _clip_items(
-                        tuple(item.statement for item in research.findings)
-                    ),
-                ),
-                ("待确认", _clip_items(research.open_questions)),
-            )
-            heading = "岗位研究已完成。"
-        else:
-            return screen
-        blocks = [
-            f"{title}\n" + "\n".join(f"- {line}" for line in lines)
-            for title, lines in sections
-            if lines
-        ]
-        return "\n\n".join((heading, *blocks))
+            # The stream is already cut at this number. This is a pure second
+            # boundary for card-backed prose, never the summarisation strategy
+            # for an ephemeral message body.
+            return clamp(screen) if composed else result.message
+        return result.message
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
+        if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
+            # The workflow's own presenter handles every state a run can be
+            # left in, including the terminal ones, so the payload is parsed
+            # back into the graph's result type once and handed over whole
+            # rather than picked apart here.
+            graph_result = MainAgentRuntime._mock_interview_result(result)
+            if graph_result is not None:
+                return render_mock_interview_turn(graph_result)
+        if result.state == "mock_interview_result_found":
+            view = MainAgentRuntime._validated(MockInterviewResultView, result.payload)
+            if view is not None:
+                return render_mock_interview_result(view)
+        if result.state == "mock_interview_question_found":
+            view = MainAgentRuntime._validated(MockInterviewQuestionView, result.payload)
+            if view is not None:
+                return render_mock_interview_question(view)
+        if result.state == "daily_brief_ready":
+            return render_daily_brief(result.payload)
+        if result.state == "resume_analysis_ready":
+            analysis = MainAgentRuntime._resume_analysis_result(result)
+            if analysis is not None:
+                return render_resume_analysis(analysis)
+        if result.state == "interview_retro_recorded":
+            view = MainAgentRuntime._validated(InterviewRetroView, result.payload)
+            if view is not None:
+                return render_interview_retro(view)
+        if result.state == "resume_job_match_ready":
+            match = MainAgentRuntime._resume_job_match_result(result)
+            if match is not None:
+                return render_resume_job_match(match)
+        if result.state == "resume_tailoring_draft_ready":
+            tailoring = MainAgentRuntime._resume_tailoring_result(result)
+            if tailoring is not None:
+                reviews = tuple(
+                    review
+                    for raw in result.payload.get("change_reviews", ())
+                    if isinstance(raw, dict)
+                    and (
+                        review := MainAgentRuntime._validated(
+                            TailoringChangeReviewView, raw
+                        )
+                    )
+                    is not None
+                )
+                raw_status = str(result.payload.get("status") or "pending")
+                status = (
+                    raw_status
+                    if raw_status
+                    in {
+                        "pending",
+                        "in_review",
+                        "reviewed",
+                        "finalized",
+                        "superseded",
+                        "expired",
+                    }
+                    else "pending"
+                )
+                raw_revision = result.payload.get("revision_number", 1)
+                revision_number = (
+                    raw_revision
+                    if isinstance(raw_revision, int) and raw_revision >= 1
+                    else 1
+                )
+                return render_resume_tailoring(
+                    tailoring,
+                    status=status,
+                    revision_number=revision_number,
+                    change_reviews=reviews,
+                )
         if result.state == "job_research_ready":
             research = MainAgentRuntime._job_research_draft(result)
             if research is not None:
@@ -1057,6 +1197,82 @@ class MainAgentRuntime:
                 f"预览失效时间：{result.payload.get('expires_at')}。"
             )
         return result.message
+
+    @staticmethod
+    def _validated(model, payload: object):
+        """Parse a payload back into the type its presenter takes, or give up.
+
+        A payload that will not validate means the presenter cannot be reached,
+        and the caller falls back to the tool's own ``message``. Presenting
+        something is always better than failing a turn whose work is already
+        durable.
+        """
+        try:
+            return model.model_validate(payload)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _mock_interview_result(
+        result: MainAgentToolOutput,
+    ) -> MockInterviewGraphResult | None:
+        return MainAgentRuntime._validated(MockInterviewGraphResult, result.payload)
+
+    @staticmethod
+    def _has_backed_card(result: MainAgentToolOutput) -> bool:
+        return delivers_body_elsewhere(result.state) and result.resource_ref is not None
+
+    @staticmethod
+    def _resume_analysis_result(
+        result: MainAgentToolOutput,
+    ) -> ResumeAnalysisResult | None:
+        return MainAgentRuntime._validated(
+            ResumeAnalysisResult,
+            {
+                "records": result.payload.get("records", ()),
+                "clarification_questions": result.payload.get(
+                    "clarification_questions", ()
+                ),
+                "warnings": result.payload.get("warnings", ()),
+            },
+        )
+
+    @staticmethod
+    def _resume_job_match_result(
+        result: MainAgentToolOutput,
+    ) -> ResumeJobMatchResult | None:
+        return MainAgentRuntime._validated(
+            ResumeJobMatchResult,
+            {
+                key: result.payload.get(key)
+                for key in ResumeJobMatchResult.model_fields
+            },
+        )
+
+    @staticmethod
+    def _resume_tailoring_result(
+        result: MainAgentToolOutput,
+    ) -> ResumeTailoringResult | None:
+        changes = []
+        for raw in result.payload.get("changes", ()):
+            if not isinstance(raw, dict):
+                continue
+            changes.append(
+                {key: value for key, value in raw.items() if key != "change_index"}
+            )
+        return MainAgentRuntime._validated(
+            ResumeTailoringResult,
+            {
+                "strategy_summary": result.payload.get("strategy_summary"),
+                "changes": changes,
+                "preserved_strengths": result.payload.get("preserved_strengths", ()),
+                "unresolved_gaps": result.payload.get("unresolved_gaps", ()),
+                "clarification_questions": result.payload.get(
+                    "clarification_questions", ()
+                ),
+                "warnings": result.payload.get("warnings", ()),
+            },
+        )
 
     @staticmethod
     def _job_comparison(result: ToolObservation) -> JobComparison | None:

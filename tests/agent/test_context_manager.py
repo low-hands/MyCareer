@@ -328,4 +328,42 @@ def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> Non
         user_id="u1", conversation_id="c1", user_message="next"
     )
     assert sum(len(message.content) for message in loaded.recent_messages) == 40
-    assert loaded.recent_messages[-1].content == "y" * 32
+    assert loaded.recent_messages[-1].content == "y" * 20
+
+
+def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=worker,
+        recent_message_limit=2,
+        summary_batch_size=2,
+        max_message_chars=32000,
+        max_recent_context_chars=32000,
+    )
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="u" * 8000
+    )
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="a" * 8000,
+    )
+    second = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="second"
+    )
+    context_manager.commit_turn(
+        context=second,
+        task=ConversationTaskState(),
+        assistant_message="second answer",
+    )
+
+    # Triggering and retrying summary must not fail the conversation load.
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    )
+    stored = context_manager._store.list_messages(
+        "u1", "c1", limit=10
+    )
+    assert len(stored[0].content) == 8000
+    assert [len(item.content) for item in worker.calls[0][1]] == [4000, 4000]

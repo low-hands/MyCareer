@@ -422,6 +422,17 @@ class SQLiteInterviewStore:
             ).fetchall()
         return tuple(self._retro(row) for row in rows)
 
+    def get_retro(
+        self, *, user_id: str, retro_report_id: str
+    ) -> InterviewRetroReport | None:
+        """Read one immutable retrospective for historical presentation."""
+        with self._connect() as connection:
+            row = connection.execute(
+                self._RETRO_SELECT + " WHERE id = ? AND user_id = ?",
+                (retro_report_id, user_id),
+            ).fetchone()
+        return self._retro(row) if row else None
+
     def find_by_source_thread(
         self, *, user_id: str, application_id: str, source_thread_id: str
     ) -> InterviewRound | None:

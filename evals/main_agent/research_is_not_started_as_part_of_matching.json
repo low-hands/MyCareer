@@ -1,0 +1,14 @@
+{
+  "scenario": "research_is_not_started_as_part_of_matching",
+  "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
+  "model": "gpt-5.6-luna",
+  "recorded_at": "2026-08-31T08:29:38.793937+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "match_resume_to_job",
+        "arguments": {}
+      }
+    }
+  ]
+}
