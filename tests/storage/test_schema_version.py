@@ -75,7 +75,7 @@ DECLARED_VERSIONS = {
     "interview_preparations": 1,
     "agent_context": 1,
     "job_postings": 1,
-    "job_research": 1,
+    "job_research": 2,
 }
 
 

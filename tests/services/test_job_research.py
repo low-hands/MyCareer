@@ -187,3 +187,119 @@ def test_unknown_or_unused_source_keys_fail_before_persistence(tmp_path) -> None
     run = store.get_run(user_id="u1", run_id=worker.calls[0][0])
     assert run is not None and run.status == "failed"
     assert run.report_id is None
+
+
+def _seed_second_job_at(
+    jobs: SQLiteJobPostingRepository,
+    *,
+    company_name: str,
+    source_job_id: str,
+    title: str = "Platform Engineer",
+):
+    detail = JobDetail(
+        source_name="test",
+        source_job_id=source_job_id,
+        source_url=f"https://jobs.example.test/{source_job_id}",
+        title=title,
+        company_name=company_name,
+        description="Operate the serving platform for retrieval workloads.",
+        captured_at=NOW,
+        provenance=Provenance(
+            source_name="test",
+            source_job_id=source_job_id,
+            source_url=f"https://jobs.example.test/{source_job_id}",
+            captured_at=NOW,
+            operation="detail",
+            adapter_version="test-v1",
+        ),
+    )
+    return jobs.save_captured_detail(user_id="u1", detail=detail)
+
+
+def test_two_jobs_at_one_company_share_a_single_research_run(tmp_path) -> None:
+    """Business context does not change because another role was saved.
+
+    Keying on the JD meant every saved posting at one employer paid for its own
+    duplicate run, each with its own freshness window.
+    """
+    worker = Worker()
+    jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    first_job = _seed(jobs)
+    second_job = _seed_second_job_at(
+        jobs, company_name="Example Corp", source_job_id="job-2"
+    )
+    store = SQLiteJobResearchStore(tmp_path / "research.sqlite3")
+    service = JobResearchService(jobs=jobs, store=store, worker=worker)
+
+    first = service.research(user_id="u1", job_posting_id=first_job.posting.id)
+    second = service.research(user_id="u1", job_posting_id=second_job.posting.id)
+
+    assert len(worker.calls) == 1
+    assert second.cached is True
+    assert second.report.id == first.report.id
+    # The anchor is preserved so a reader can tell which JD drove the search.
+    assert second.report.job_posting_id == first_job.posting.id
+    assert second.report.company_key == "example corp"
+
+
+def test_a_different_company_never_reuses_the_report(tmp_path) -> None:
+    worker = Worker()
+    jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    first_job = _seed(jobs)
+    other = _seed_second_job_at(
+        jobs, company_name="Other Corp", source_job_id="job-3"
+    )
+    store = SQLiteJobResearchStore(tmp_path / "research.sqlite3")
+    service = JobResearchService(jobs=jobs, store=store, worker=worker)
+
+    service.research(user_id="u1", job_posting_id=first_job.posting.id)
+    second = service.research(user_id="u1", job_posting_id=other.posting.id)
+
+    assert len(worker.calls) == 2
+    assert second.cached is False
+    assert second.report.company_key == "other corp"
+
+
+def test_only_case_and_spacing_are_folded_into_the_company_key(tmp_path) -> None:
+    """Deciding that two differently written names are one employer would serve
+    the wrong company's research; only trivially equal names are merged."""
+    from career_agent.domain.job_research import company_key
+
+    assert company_key("  Example   Corp ") == company_key("example corp")
+    assert company_key("字节跳动") != company_key("字节")
+
+    with pytest.raises(ValueError, match="company name is required"):
+        company_key("   ")
+
+
+def test_a_different_focus_is_a_different_question(tmp_path) -> None:
+    """Reuse is per company, but a focus the earlier run never asked about
+    cannot be answered from its report."""
+    worker = Worker()
+    service, _, saved = _service(tmp_path, worker)
+
+    service.research(user_id="u1", job_posting_id=saved.posting.id)
+    second = service.research(
+        user_id="u1", job_posting_id=saved.posting.id, focus="competitors"
+    )
+
+    assert len(worker.calls) == 2
+    assert second.cached is False
+
+
+def test_editing_the_jd_does_not_invalidate_company_research(tmp_path) -> None:
+    """The JD supplies search anchors, not the subject of the research."""
+    worker = Worker()
+    jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = _seed(jobs)
+    store = SQLiteJobResearchStore(tmp_path / "research.sqlite3")
+    service = JobResearchService(jobs=jobs, store=store, worker=worker)
+    service.research(user_id="u1", job_posting_id=saved.posting.id)
+
+    revised = _seed_second_job_at(
+        jobs, company_name="Example Corp", source_job_id="job-1", title="RAG Engineer"
+    )
+    again = service.research(user_id="u1", job_posting_id=revised.posting.id)
+
+    assert len(worker.calls) == 1
+    assert again.cached is True

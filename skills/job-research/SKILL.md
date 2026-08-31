@@ -44,6 +44,42 @@ Limit the result to the company-level question the user actually asked, state
 that its relationship to the role cannot be confirmed, and put the missing
 role-specific context in `open_questions` or `limitations`.
 
+## Chinese-market sources
+
+Generic web search underserves Chinese employers: the useful primary material is
+concentrated in places a broad query rarely surfaces. When the company is
+Chinese, spend source capacity on these before falling back to general results.
+
+| Question | Where the primary material is |
+|---|---|
+| Products, architecture, technical direction | the company's own engineering blog, its open-source repositories, conference talks |
+| Business lines, funding, ownership, scale | 招股书, 年报, 投资方公告, 工商信息 (天眼查, 企查查) |
+| Market position, competitors, recent moves | 36氪, 晚点LatePost, 界面新闻, 第一财经, and the company's own announcements |
+| Regulatory or licensing constraints | the issuing body's own publication |
+
+Prefer the company's own material and the issuing body's own publication over
+reporting about them. Chinese tech media frequently republishes the same wire
+copy; three outlets carrying one story are one source, not three, and citing
+them as three overstates the support behind a finding.
+
+### Self-reported content is not a primary source
+
+Anonymous or pseudonymous posts on career and social platforms — 脉脉, 牛客网,
+知乎, 小红书, CSDN, and similar — are individual recollections. They may not
+support a `fact` under any circumstances. At most they support an `inference`
+with `low` confidence, phrased as what some people report rather than as what is
+the case, and only when several independent posts agree and nothing primary
+contradicts them.
+
+### What belongs to interview preparation instead
+
+Compensation bands, interview loops, question banks, and hiring-process
+timelines are out of scope here even when such posts are easy to find. Job
+research answers what the company does and where it stands; the material a
+candidate needs to walk into a specific interview is a different request with a
+different consumer. Do not widen a company-research run into it, and do not
+report those numbers as company facts.
+
 ## Evidence boundaries
 
 - A `fact` states only what cited sources support.

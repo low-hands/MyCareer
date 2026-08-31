@@ -20,8 +20,34 @@ class SQLiteJobResearchStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "job_research", 1, self._migrate)
+            apply_schema(
+                connection,
+                "job_research",
+                2,
+                self._migrate,
+                upgrades={2: self._add_company_key},
+            )
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _add_company_key(connection: sqlite3.Connection) -> None:
+        """Version 2: research is keyed by company rather than by posting.
+
+        Existing rows are left with a NULL key on purpose. Backfilling would mean
+        guessing each row's employer from a posting this store cannot read, and a
+        wrong guess serves one company's research for another. A NULL key simply
+        never matches a reuse lookup, so old reports stay readable and the next
+        run re-establishes the key correctly.
+        """
+        for table in ("job_research_runs", "job_research_reports"):
+            columns = {
+                row[1]
+                for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            if "company_key" not in columns:
+                connection.execute(
+                    f"ALTER TABLE {table} ADD COLUMN company_key TEXT"
+                )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -30,6 +56,7 @@ class SQLiteJobResearchStore:
             CREATE TABLE IF NOT EXISTS job_research_runs (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
+                company_key TEXT,
                 job_posting_id TEXT NOT NULL,
                 jd_snapshot_id TEXT NOT NULL,
                 scope_json TEXT NOT NULL,
@@ -84,6 +111,7 @@ class SQLiteJobResearchStore:
                 id TEXT PRIMARY KEY,
                 run_id TEXT NOT NULL UNIQUE,
                 user_id TEXT NOT NULL,
+                company_key TEXT,
                 job_posting_id TEXT NOT NULL,
                 jd_snapshot_id TEXT NOT NULL,
                 status TEXT NOT NULL CHECK(status IN ('current', 'outdated', 'superseded')),
@@ -99,6 +127,17 @@ class SQLiteJobResearchStore:
             ON job_research_reports(user_id, job_posting_id, created_at DESC)
             """
         )
+        # The baseline runs before any upgrade, so on a database still at
+        # version 1 the column does not exist yet. Adding it here as well keeps
+        # the baseline self-sufficient; both operations are idempotent, and the
+        # index below would otherwise fail on exactly the files that need it.
+        SQLiteJobResearchStore._add_company_key(connection)
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS job_research_reports_user_company_idx
+            ON job_research_reports(user_id, company_key, created_at DESC)
+            """
+        )
 
     def create_run(self, run: JobResearchRun) -> JobResearchRun:
         with self._connect() as connection:
@@ -106,14 +145,16 @@ class SQLiteJobResearchStore:
                 connection.execute(
                     """
                     INSERT INTO job_research_runs(
-                        id, user_id, job_posting_id, jd_snapshot_id, scope_json,
-                        status, input_fingerprint, worker_version, report_id,
-                        error_code, error_detail, started_at, completed_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, user_id, company_key, job_posting_id, jd_snapshot_id,
+                        scope_json, status, input_fingerprint, worker_version,
+                        report_id, error_code, error_detail, started_at,
+                        completed_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run.id,
                         run.user_id,
+                        run.company_key,
                         run.job_posting_id,
                         run.jd_snapshot_id,
                         run.scope.model_dump_json(),
@@ -144,20 +185,30 @@ class SQLiteJobResearchStore:
         self,
         *,
         user_id: str,
+        company_key: str,
         input_fingerprint: str,
         worker_version: str,
         created_after: datetime,
     ) -> JobResearchReport | None:
+        """Find a fresh report to reuse for this company.
+
+        The company is matched as well as the fingerprint, even though the
+        fingerprint already derives from it. It costs nothing, and it means a
+        later change to how the fingerprint is computed can never make one
+        company's research answerable with another's.
+        """
         with self._connect() as connection:
             row = connection.execute(
                 self._REPORT_SELECT
                 + " JOIN job_research_runs r ON r.id = p.run_id "
-                "WHERE p.user_id = ? AND r.input_fingerprint = ? "
+                "WHERE p.user_id = ? AND p.company_key = ? "
+                "AND r.input_fingerprint = ? "
                 "AND r.worker_version = ? AND r.status = 'completed' "
                 "AND p.status = 'current' AND p.created_at >= ? "
                 "ORDER BY p.created_at DESC LIMIT 1",
                 (
                     user_id,
+                    company_key,
                     input_fingerprint,
                     worker_version,
                     created_after.isoformat(),
@@ -234,9 +285,9 @@ class SQLiteJobResearchStore:
                 """
                 UPDATE job_research_reports
                 SET status = 'superseded'
-                WHERE user_id = ? AND job_posting_id = ? AND status = 'current'
+                WHERE user_id = ? AND company_key = ? AND status = 'current'
                 """,
-                (run.user_id, run.job_posting_id),
+                (run.user_id, run.company_key),
             )
             for source in sources:
                 connection.execute(
@@ -264,14 +315,15 @@ class SQLiteJobResearchStore:
             connection.execute(
                 """
                 INSERT INTO job_research_reports(
-                    id, run_id, user_id, job_posting_id, jd_snapshot_id,
-                    status, report_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    id, run_id, user_id, company_key, job_posting_id,
+                    jd_snapshot_id, status, report_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report.id,
                     report.run_id,
                     report.user_id,
+                    report.company_key,
                     report.job_posting_id,
                     report.jd_snapshot_id,
                     report.status,
@@ -358,7 +410,8 @@ class SQLiteJobResearchStore:
         return tuple(self._source(row) for row in rows)
 
     _RUN_SELECT = (
-        "SELECT id, user_id, job_posting_id, jd_snapshot_id, scope_json, status, "
+        "SELECT id, user_id, company_key, job_posting_id, jd_snapshot_id, "
+        "scope_json, status, "
         "input_fingerprint, worker_version, report_id, error_code, error_detail, "
         "started_at, completed_at, updated_at FROM job_research_runs"
     )
@@ -384,18 +437,19 @@ class SQLiteJobResearchStore:
         return JobResearchRun(
             id=row[0],
             user_id=row[1],
-            job_posting_id=row[2],
-            jd_snapshot_id=row[3],
-            scope=JobResearchScope.model_validate_json(row[4]),
-            status=row[5],
-            input_fingerprint=row[6],
-            worker_version=row[7],
-            report_id=row[8],
-            error_code=row[9],
-            error_detail=row[10],
-            started_at=row[11],
-            completed_at=row[12],
-            updated_at=row[13],
+            company_key=row[2],
+            job_posting_id=row[3],
+            jd_snapshot_id=row[4],
+            scope=JobResearchScope.model_validate_json(row[5]),
+            status=row[6],
+            input_fingerprint=row[7],
+            worker_version=row[8],
+            report_id=row[9],
+            error_code=row[10],
+            error_detail=row[11],
+            started_at=row[12],
+            completed_at=row[13],
+            updated_at=row[14],
         )
 
     @staticmethod

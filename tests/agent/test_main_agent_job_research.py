@@ -163,7 +163,7 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
         "user_provided_context": "一面提到企业知识库产品线。",
         "max_sources": 5,
     }]
-    assert result.assistant_message.startswith("# 岗位研究")
+    assert result.assistant_message.startswith("# 公司调研")
     assert "[S1]" in result.assistant_message
     assert "https://example.com/product" in result.assistant_message
     assert "run-secret" not in result.assistant_message

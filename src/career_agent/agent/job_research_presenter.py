@@ -8,9 +8,17 @@ def render_job_research(
     *,
     status: str,
     user_provided_context: str | None = None,
+    anchored_by_other_job: bool = False,
 ) -> str:
     """Render a source-grounded report without asking Main Agent to rewrite it."""
-    blocks = ["# 岗位研究", draft.summary]
+    blocks = ["# 公司调研", draft.summary]
+    if anchored_by_other_job:
+        blocks.append(
+            "> 这份调研的主体是公司，内容来自你在同一家公司保存的另一个岗位所触发的"
+            "检索。公司层面的结论对这个岗位同样适用，但检索锚点来自那份 JD，"
+            "因此它未必覆盖这个岗位特有的产品线。需要针对性内容时可以指定 focus "
+            "重新调研。"
+        )
     if status == "outdated":
         blocks.append(
             "> 这份报告已超过当前时效窗口；引用仍可查看，但建议重新研究。"

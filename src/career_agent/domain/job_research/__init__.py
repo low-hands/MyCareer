@@ -1,4 +1,5 @@
 from career_agent.domain.job_research.models import (
+    company_key,
     JobResearchDraft,
     JobResearchFinding,
     JobResearchFindingDraft,
@@ -10,6 +11,7 @@ from career_agent.domain.job_research.models import (
 )
 
 __all__ = [
+    "company_key",
     "JobResearchDraft",
     "JobResearchFinding",
     "JobResearchFindingDraft",
