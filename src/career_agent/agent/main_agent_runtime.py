@@ -411,7 +411,7 @@ class MainAgentRuntime:
                 ProgressEvent(stage="presenting", message="正在整理交付内容……")
             )
             for delta in iter_content_deltas(result.assistant_message):
-                self._emit(ContentDeltaEvent(delta=delta))
+                self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
         for artifact in result.artifacts:
             reference = artifact.reference
             self._emit(

@@ -142,6 +142,7 @@ async def _sse_stream(
     request: ChatStreamRequest,
     *,
     heartbeat_seconds: float,
+    synthetic_content_delay_seconds: float = 0.025,
     on_turn_finished: Callable[[], Awaitable[None]] | None = None,
 ) -> AsyncIterator[str]:
     queue: asyncio.Queue[PublicStreamEvent | object] = asyncio.Queue()
@@ -154,6 +155,7 @@ async def _sse_stream(
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
                 user_message=request.message,
+                content_delay_seconds=synthetic_content_delay_seconds,
             ):
                 await queue.put(event)
         except Exception:
@@ -204,9 +206,12 @@ def create_app(
     action_center_factory: Callable[[], ActionCenterService] | None = None,
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
     heartbeat_seconds: float = 15.0,
+    synthetic_content_delay_seconds: float = 0.025,
 ) -> FastAPI:
     if heartbeat_seconds <= 0:
         raise ValueError("heartbeat_seconds must be positive")
+    if synthetic_content_delay_seconds < 0:
+        raise ValueError("synthetic_content_delay_seconds cannot be negative")
     factory = runtime_factory or build_api_runtime
     capture_factory = capture_repository_factory or build_capture_repository
     # Read endpoints are built eagerly and separately from the agent runtime:
@@ -297,6 +302,7 @@ def create_app(
                 runtime,
                 request,
                 heartbeat_seconds=heartbeat_seconds,
+                synthetic_content_delay_seconds=synthetic_content_delay_seconds,
                 on_turn_finished=release_gate,
             ):
                 yield chunk

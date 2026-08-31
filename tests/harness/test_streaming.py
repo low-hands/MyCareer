@@ -71,6 +71,45 @@ def test_async_adapter_bridges_sync_callback_and_can_pace_content() -> None:
     assert [event.type for event in events] == ["content_delta", "turn_completed"]
 
 
+def test_async_adapter_paces_only_synthetic_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(
+        "career_agent.harness.streaming.asyncio.sleep",
+        record_sleep,
+    )
+
+    class Runtime:
+        def run_turn(self, *, event_sink=None, **kwargs):
+            assert event_sink is not None
+            event_sink(ContentDeltaEvent(delta="真实 token"))
+            event_sink(ContentDeltaEvent(delta="假流式块", delivery="synthetic"))
+            event_sink(TurnCompletedEvent(turn_id="turn-1"))
+
+    async def collect():
+        return [
+            event
+            async for event in astream_turn_events(
+                Runtime(),
+                user_id="u1",
+                conversation_id="c1",
+                user_message="hello",
+                content_delay_seconds=0.025,
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert sleeps == [0.025]
+    assert events[1].delivery == "synthetic"
+    assert "delivery" not in events[1].model_dump()
+
+
 def test_selection_interaction_requires_options() -> None:
     with pytest.raises(ValidationError):
         InteractionRequiredEvent(

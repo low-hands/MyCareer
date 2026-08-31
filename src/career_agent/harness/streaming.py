@@ -118,6 +118,13 @@ class ContentDeltaEvent(StreamContract):
 
     type: Literal["content_delta"] = "content_delta"
     delta: str = Field(min_length=1)
+    # Transport pacing is internal metadata. It must not alter the public SSE
+    # contract, but the async adapter needs to distinguish provider-paced
+    # tokens from completed prose split into synthetic chunks.
+    delivery: Literal["provider", "synthetic"] = Field(
+        default="provider",
+        exclude=True,
+    )
 
 
 class ArtifactReadyEvent(StreamContract):
@@ -253,7 +260,11 @@ async def astream_turn_events(
             event = await queue.get()
             if event is sentinel:
                 break
-            if content_delay_seconds and isinstance(event, ContentDeltaEvent):
+            if (
+                content_delay_seconds
+                and isinstance(event, ContentDeltaEvent)
+                and event.delivery == "synthetic"
+            ):
                 await asyncio.sleep(content_delay_seconds)
             yield event
         await task
