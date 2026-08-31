@@ -2399,7 +2399,9 @@ class MainAgentToolRegistry:
             tool_name="get_job_research",
             state="job_research_ready",
             message="已读取岗位研究报告。",
-            payload=self._job_research_payload(result),
+            payload=self._job_research_payload(
+                result, model_arguments.job_posting_id
+            ),
         )
 
     @staticmethod
@@ -2437,7 +2439,8 @@ class MainAgentToolRegistry:
         return {
             "run_id": result.run.id,
             "report_id": report.id,
-            "job_posting_id": report.job_posting_id,
+            "job_posting_id": requested_job_posting_id or report.job_posting_id,
+            "anchor_job_posting_id": report.job_posting_id,
             "anchored_by_other_job": anchored_elsewhere,
             "status": report.status,
             "cached": result.cached,

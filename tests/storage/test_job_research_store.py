@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from career_agent.storage.job_research import SQLiteJobResearchStore
 
 
-def test_a_version_one_database_gains_the_company_key_without_losing_reports(
-    tmp_path,
-) -> None:
-    """The baseline runs before upgrades, so it may not assume the column exists.
-
-    An index on company_key placed in the baseline alone fails to open exactly
-    the files that still need the upgrade, which is every existing install.
-    """
+def test_a_version_one_development_database_requires_a_rebuild(tmp_path) -> None:
+    """Pre-release schemas are deliberately not migrated in place."""
     path = tmp_path / "research.sqlite3"
     SQLiteJobResearchStore(path)
     with sqlite3.connect(path) as connection:
@@ -25,23 +21,8 @@ def test_a_version_one_database_gains_the_company_key_without_losing_reports(
         for table in ("job_research_runs", "job_research_reports"):
             connection.execute(f"ALTER TABLE {table} DROP COLUMN company_key")
 
-    SQLiteJobResearchStore(path)
-
-    with sqlite3.connect(path) as connection:
-        version = connection.execute(
-            "SELECT version FROM schema_versions WHERE component = 'job_research'"
-        ).fetchone()[0]
-        runs = {
-            row[1]
-            for row in connection.execute("PRAGMA table_info(job_research_runs)")
-        }
-        reports = {
-            row[1]
-            for row in connection.execute("PRAGMA table_info(job_research_reports)")
-        }
-    assert version == 2
-    assert "company_key" in runs
-    assert "company_key" in reports
+    with pytest.raises(ValueError, match="missing upgrades for versions \\(2,\\)"):
+        SQLiteJobResearchStore(path)
 
 
 def test_a_fresh_database_is_adopted_at_the_current_version(tmp_path) -> None:
@@ -55,4 +36,3 @@ def test_a_fresh_database_is_adopted_at_the_current_version(tmp_path) -> None:
             "AND name = 'job_research_reports_user_company_idx'"
         ).fetchone()
     assert index is not None
-

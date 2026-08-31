@@ -25,29 +25,9 @@ class SQLiteJobResearchStore:
                 "job_research",
                 2,
                 self._migrate,
-                upgrades={2: self._add_company_key},
+                finalize=self._finalize_schema,
             )
         os.chmod(self.path, 0o600)
-
-    @staticmethod
-    def _add_company_key(connection: sqlite3.Connection) -> None:
-        """Version 2: research is keyed by company rather than by posting.
-
-        Existing rows are left with a NULL key on purpose. Backfilling would mean
-        guessing each row's employer from a posting this store cannot read, and a
-        wrong guess serves one company's research for another. A NULL key simply
-        never matches a reuse lookup, so old reports stay readable and the next
-        run re-establishes the key correctly.
-        """
-        for table in ("job_research_runs", "job_research_reports"):
-            columns = {
-                row[1]
-                for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
-            }
-            if "company_key" not in columns:
-                connection.execute(
-                    f"ALTER TABLE {table} ADD COLUMN company_key TEXT"
-                )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -127,11 +107,10 @@ class SQLiteJobResearchStore:
             ON job_research_reports(user_id, job_posting_id, created_at DESC)
             """
         )
-        # The baseline runs before any upgrade, so on a database still at
-        # version 1 the column does not exist yet. Adding it here as well keeps
-        # the baseline self-sufficient; both operations are idempotent, and the
-        # index below would otherwise fail on exactly the files that need it.
-        SQLiteJobResearchStore._add_company_key(connection)
+
+    @staticmethod
+    def _finalize_schema(connection: sqlite3.Connection) -> None:
+        """Create objects that depend on the complete v2 column set."""
         connection.execute(
             """
             CREATE INDEX IF NOT EXISTS job_research_reports_user_company_idx
@@ -286,8 +265,21 @@ class SQLiteJobResearchStore:
                 UPDATE job_research_reports
                 SET status = 'superseded'
                 WHERE user_id = ? AND company_key = ? AND status = 'current'
+                  AND run_id IN (
+                      SELECT id
+                      FROM job_research_runs
+                      WHERE user_id = ?
+                        AND input_fingerprint = ?
+                        AND worker_version = ?
+                  )
                 """,
-                (run.user_id, run.company_key),
+                (
+                    run.user_id,
+                    run.company_key,
+                    run.user_id,
+                    run.input_fingerprint,
+                    run.worker_version,
+                ),
             )
             for source in sources:
                 connection.execute(
@@ -382,6 +374,32 @@ class SQLiteJobResearchStore:
                 + " WHERE p.user_id = ? AND p.job_posting_id = ? "
                 "ORDER BY p.created_at DESC LIMIT 1",
                 (user_id, job_posting_id),
+            ).fetchone()
+        if row is None:
+            return None
+        report = self._report(row)
+        if (
+            report.status == "current"
+            and outdated_before is not None
+            and report.created_at < outdated_before
+        ):
+            return report.model_copy(update={"status": "outdated"})
+        return report
+
+    def latest_company_report(
+        self,
+        *,
+        user_id: str,
+        company_key: str,
+        outdated_before: datetime | None = None,
+    ) -> JobResearchReport | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                self._REPORT_SELECT
+                + " WHERE p.user_id = ? AND p.company_key = ? "
+                "ORDER BY CASE WHEN p.status = 'current' THEN 0 ELSE 1 END, "
+                "p.created_at DESC LIMIT 1",
+                (user_id, company_key),
             ).fetchone()
         if row is None:
             return None

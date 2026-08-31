@@ -219,6 +219,41 @@ def test_an_upgrade_can_use_a_table_the_same_version_baseline_adds(
         ]
 
 
+def test_finalization_runs_after_upgrades_add_the_columns_it_uses(
+    tmp_path: Path,
+) -> None:
+    """Dependent indexes must never run before their column upgrade."""
+
+    def baseline(connection: sqlite3.Connection) -> None:
+        connection.execute("CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY)")
+
+    def add_company_key(connection: sqlite3.Connection) -> None:
+        connection.execute("ALTER TABLE records ADD COLUMN company_key TEXT")
+
+    def finalize(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS records_company_idx "
+            "ON records(company_key)"
+        )
+
+    path = tmp_path / "x.sqlite3"
+    with sqlite3.connect(path) as connection:
+        apply_schema(connection, "demo", 1, baseline)
+    with sqlite3.connect(path) as connection:
+        apply_schema(
+            connection,
+            "demo",
+            2,
+            baseline,
+            {2: add_company_key},
+            finalize=finalize,
+        )
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'index' "
+            "AND name = 'records_company_idx'"
+        ).fetchone() == (1,)
+
+
 def test_an_existing_component_cannot_advance_with_a_missing_upgrade(
     tmp_path: Path,
 ) -> None:

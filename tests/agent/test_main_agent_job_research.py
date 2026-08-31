@@ -8,8 +8,10 @@ from career_agent.agent.main_agent_contracts import (
     MainAgentContext,
     SavedJobCandidateContextItem,
     ToolCall,
+    ToolResult,
     project_job_research_arguments,
 )
+from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_main_agent import (
@@ -211,6 +213,30 @@ def test_job_research_projection_uses_indexes_and_hides_internal_ids() -> None:
         "retry_job_research",
         {},
     )["run_id"] == "run-secret"
+
+
+def test_reused_company_report_keeps_the_requested_job_active() -> None:
+    result = _result()
+
+    payload = MainAgentToolRegistry._job_research_payload(
+        result, requested_job_posting_id="job-current"
+    )
+
+    assert payload["job_posting_id"] == "job-current"
+    assert payload["anchor_job_posting_id"] == "job-secret"
+    assert payload["anchored_by_other_job"] is True
+
+    task = reduce_task_state(
+        ConversationTaskState(active_job_posting_id="job-current"),
+        ToolResult(
+            tool_name="get_job_research",
+            state="job_research_ready",
+            message="已读取岗位研究报告。",
+            payload=payload,
+        ),
+    )
+    assert task.active_job_posting_id == "job-current"
+    assert task.active_job_research_report_id == "report-secret"
 
 
 def test_job_research_is_described_as_an_explicit_optional_capability() -> None:

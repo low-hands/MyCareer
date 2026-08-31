@@ -189,9 +189,15 @@ class JobResearchService:
                 outdated_before=cutoff,
             )
         elif job_posting_id is not None:
-            report = self._store.latest_report(
+            job = self._jobs.get_job(
                 user_id=user_id,
                 job_posting_id=job_posting_id,
+            )
+            if job is None:
+                raise JobResearchInputNotFoundError("job_posting")
+            report = self._store.latest_company_report(
+                user_id=user_id,
+                company_key=company_key(job.posting.company_name),
                 outdated_before=cutoff,
             )
         else:
