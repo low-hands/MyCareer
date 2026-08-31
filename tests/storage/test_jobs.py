@@ -62,6 +62,8 @@ def test_browser_capture_persists_without_creating_a_discovery_run_link(tmp_path
         user_id="u1",
         job_posting_id=saved.posting.id,
     ) == saved
+    assert repository.count_jobs(user_id="u1") == 1
+    assert repository.count_jobs(user_id="u2") == 0
     with sqlite3.connect(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM job_run_links").fetchone()[0] == 0
 

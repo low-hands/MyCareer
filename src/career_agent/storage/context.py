@@ -6,6 +6,8 @@ from pathlib import Path
 import sqlite3
 from typing import Protocol
 
+from pydantic import BaseModel, ConfigDict
+
 from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
@@ -14,6 +16,18 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.session_contracts import AgentSession
 from career_agent.storage.schema import apply_schema
+
+
+class StoredConversationOverview(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    conversation_id: str
+    status: str
+    created_at: datetime
+    last_active_at: datetime
+    title: str
+    last_message_preview: str
+    message_count: int
 
 
 class CareerProfileStore(Protocol):
@@ -79,6 +93,65 @@ class CareerContextStore:
         if session is None:
             return None
         return self.upsert_session(session.model_copy(update={"status": "closed"}))
+
+    def list_conversations(
+        self, *, user_id: str, limit: int = 50
+    ) -> tuple[StoredConversationOverview, ...]:
+        if limit < 1 or limit > 100:
+            raise ValueError("limit must be between 1 and 100")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT s.session_id, s.status, s.created_at, s.last_active_at,
+                       (SELECT payload FROM conversation_messages AS first
+                        WHERE first.user_id = s.user_id
+                          AND first.conversation_id = s.session_id
+                        ORDER BY first.sequence ASC LIMIT 1),
+                       (SELECT payload FROM conversation_messages AS last
+                        WHERE last.user_id = s.user_id
+                          AND last.conversation_id = s.session_id
+                        ORDER BY last.sequence DESC LIMIT 1),
+                       (SELECT COUNT(*) FROM conversation_messages AS messages
+                        WHERE messages.user_id = s.user_id
+                          AND messages.conversation_id = s.session_id)
+                FROM sessions AS s
+                WHERE s.user_id = ?
+                  AND EXISTS (
+                      SELECT 1 FROM conversation_messages AS present
+                      WHERE present.user_id = s.user_id
+                        AND present.conversation_id = s.session_id
+                  )
+                ORDER BY s.last_active_at DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+        conversations = []
+        for row in rows:
+            first = (
+                ConversationMessageContext.model_validate_json(row[4])
+                if row[4]
+                else None
+            )
+            last = (
+                ConversationMessageContext.model_validate_json(row[5])
+                if row[5]
+                else None
+            )
+            title = first.content.strip() if first else "新对话"
+            preview = last.content.strip() if last else "尚未发送消息"
+            conversations.append(
+                StoredConversationOverview(
+                    conversation_id=row[0],
+                    status=row[1],
+                    created_at=row[2],
+                    last_active_at=row[3],
+                    title=title[:80],
+                    last_message_preview=preview[:160],
+                    message_count=int(row[6]),
+                )
+            )
+        return tuple(conversations)
 
     def get_profile(self, user_id: str) -> CareerProfileContext | None:
         return self._get_single("career_profile_context", user_id, CareerProfileContext)

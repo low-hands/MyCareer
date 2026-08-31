@@ -412,6 +412,24 @@ class SQLiteJobResearchStore:
             return report.model_copy(update={"status": "outdated"})
         return report
 
+    def list_reports(
+        self,
+        *,
+        user_id: str,
+        limit: int = 50,
+    ) -> tuple[JobResearchReport, ...]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._REPORT_SELECT
+                + " WHERE p.user_id = ? "
+                "ORDER BY CASE WHEN p.status = 'current' THEN 0 ELSE 1 END, "
+                "p.created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return tuple(self._report(row) for row in rows)
+
     def list_sources(
         self,
         *,

@@ -37,6 +37,7 @@ export const initialChatState: ChatState = {
 
 export type ChatAction =
   | { type: "submit"; messageId: string; assistantMessageId: string; content: string }
+  | { type: "hydrate"; messages: ChatMessage[]; awaitingInput?: boolean }
   | { type: "stream_event"; event: PublicStreamEvent }
   | { type: "transport_failed"; message: string }
   | { type: "reset" };
@@ -51,6 +52,13 @@ function updateActiveMessage(state: ChatState, delta: string): ChatMessage[] {
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.type === "reset") return initialChatState;
+  if (action.type === "hydrate") {
+    return {
+      ...initialChatState,
+      phase: action.awaitingInput ? "awaiting_input" : action.messages.length ? "completed" : "idle",
+      messages: action.messages,
+    };
+  }
   if (action.type === "submit") {
     return {
       ...state,

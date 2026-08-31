@@ -73,4 +73,21 @@ describe("chatReducer", () => {
     expect(state.clientActions).toHaveLength(1);
     expect(state.clientActions[0]?.action).toBe("open_url");
   });
+
+  it("hydrates a persisted conversation without inventing a running turn", () => {
+    const state = chatReducer(initialChatState, {
+      type: "hydrate",
+      messages: [
+        { id: "history-1", role: "user", content: "分析这份岗位" },
+        { id: "history-2", role: "assistant", content: "这是岗位分析。" },
+      ],
+    });
+
+    expect(state.phase).toBe("completed");
+    expect(state.messages.map((item) => item.content)).toEqual([
+      "分析这份岗位",
+      "这是岗位分析。",
+    ]);
+    expect(state.activeAssistantMessageId).toBeNull();
+  });
 });
