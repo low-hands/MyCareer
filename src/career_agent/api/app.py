@@ -18,7 +18,12 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
 from career_agent.domain.job_discovery import JobDetail, Provenance
-from career_agent.api.reads import build_action_center_service, build_read_router
+from career_agent.api.reads import (
+    WorkspaceReader,
+    build_action_center_service,
+    build_read_router,
+    build_workspace_reader,
+)
 from career_agent.harness.streaming import PublicStreamEvent, astream_turn_events
 from career_agent.services.action_center import ActionCenterService
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
@@ -197,6 +202,7 @@ def create_app(
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
     action_center_factory: Callable[[], ActionCenterService] | None = None,
+    workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
     heartbeat_seconds: float = 15.0,
 ) -> FastAPI:
     if heartbeat_seconds <= 0:
@@ -209,9 +215,12 @@ def create_app(
     read_factory = action_center_factory or (
         lambda: build_action_center_service(_runtime_args_from_env())
     )
+    workspace_factory = workspace_reader_factory or (
+        lambda: build_workspace_reader(_runtime_args_from_env())
+    )
     # Built on first use, not at import: constructing it opens the local
     # databases, and creating an app must not touch the real store paths.
-    application_router = build_read_router(read_factory)
+    application_router = build_read_router(read_factory, workspace_factory)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

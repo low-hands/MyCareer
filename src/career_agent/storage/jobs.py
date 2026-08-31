@@ -97,6 +97,8 @@ class JobPostingRepository(Protocol):
 
     def list_jobs(self, *, user_id: str, limit: int = 20) -> tuple[StoredJobSummary, ...]: ...
 
+    def count_jobs(self, *, user_id: str) -> int: ...
+
     def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20) -> tuple[StoredJobSummary, ...]: ...
 
     def get_job(self, *, user_id: str, job_posting_id: str) -> StoredJobRecord | None: ...
@@ -366,6 +368,14 @@ class SQLiteJobPostingRepository:
         with self._connect() as connection:
             rows = connection.execute(self._SUMMARY_SELECT + " WHERE p.user_id = ? ORDER BY p.last_checked_at DESC LIMIT ?", (user_id, limit)).fetchall()
         return tuple(self._summary_from_row(row) for row in rows)
+
+    def count_jobs(self, *, user_id: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM job_postings WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return int(row[0])
 
     def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20) -> tuple[StoredJobSummary, ...]:
         self._validate_limit(limit)

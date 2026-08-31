@@ -1,15 +1,56 @@
-import { FormEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
+import {
+  type ConversationView,
+  fetchConversationMessages,
+  fetchConversations,
+} from "./api/client";
 import { streamChat } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import { InteractionCard } from "./components/InteractionCard";
+import { AppIcon, type AppIconName } from "./components/AppIcon";
 import { DailyBriefPanel } from "./pages/DailyBrief";
+import {
+  ApplicationsPanel,
+  CalendarPanel,
+  DashboardPanel,
+  JobsPanel,
+  ResearchPanel,
+  ResumesPanel,
+} from "./pages/WorkspaceViews";
 
-type View = "chat" | "brief";
+type View =
+  | "dashboard"
+  | "chat"
+  | "jobs"
+  | "applications"
+  | "brief"
+  | "calendar"
+  | "resumes"
+  | "research";
 
-const VIEWS: { id: View; label: string }[] = [
-  { id: "chat", label: "对话" },
-  { id: "brief", label: "日报" },
+const VIEW_GROUPS: {
+  label: string;
+  views: { id: View; label: string; description: string; icon: AppIconName }[];
+}[] = [
+  {
+    label: "工作台",
+    views: [
+      { id: "dashboard", label: "Dashboard", description: "求职进度总览", icon: "dashboard" },
+      { id: "chat", label: "对话", description: "让 Agent 执行任务", icon: "chat" },
+      { id: "brief", label: "日报", description: "今天的行动安排", icon: "brief" },
+    ],
+  },
+  {
+    label: "求职管理",
+    views: [
+      { id: "jobs", label: "岗位库", description: "JD 与结构化分析", icon: "search" },
+      { id: "applications", label: "投递记录", description: "岗位申请与状态", icon: "applications" },
+      { id: "calendar", label: "面试日历", description: "面试安排与同步", icon: "calendar" },
+      { id: "resumes", label: "简历管理", description: "简历家族与版本", icon: "document" },
+      { id: "research", label: "公司研究", description: "业务和产品资料", icon: "building" },
+    ],
+  },
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -49,12 +90,64 @@ export default function App() {
   // Bumped when a turn ends so panels refetch: acting in chat has to show up on
   // the board without the user reloading the page.
   const [completedTurns, setCompletedTurns] = useState(0);
+  const [conversations, setConversations] = useState<ConversationView[]>([]);
+  const [conversationListError, setConversationListError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [conversationPanelWidth, setConversationPanelWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
+    return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
+  });
   const controller = useRef<AbortController | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
   const busy = state.phase === "running";
-  const canSubmit = draft.trim().length > 0 && !busy;
+  const canSubmit = draft.trim().length > 0 && !busy && !historyLoading;
 
   useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    const request = new AbortController();
+    void fetchConversations(userId, { apiBaseUrl: API_BASE_URL, signal: request.signal })
+      .then((items) => {
+        setConversations(items);
+        setConversationListError(null);
+      })
+      .catch((cause: unknown) => {
+        if (!request.signal.aborted) {
+          setConversationListError(cause instanceof Error ? cause.message : "读取历史会话失败。");
+        }
+      });
+    return () => request.abort();
+  }, [userId, completedTurns]);
+  useEffect(() => {
+    const request = new AbortController();
+    setHistoryLoading(true);
+    void fetchConversationMessages(userId, conversationId, {
+      apiBaseUrl: API_BASE_URL,
+      signal: request.signal,
+    })
+      .then((transcript) => {
+        dispatch({
+          type: "hydrate",
+          messages: transcript.messages.map((message, index) => ({
+            id: `history-${conversationId}-${index}`,
+            role: message.role,
+            content: message.content,
+          })),
+          awaitingInput: Boolean(transcript.active_workflow),
+        });
+      })
+      .catch((cause: unknown) => {
+        if (!request.signal.aborted) {
+          dispatch({
+            type: "transport_failed",
+            message: cause instanceof Error ? cause.message : "恢复历史会话失败。",
+          });
+        }
+      })
+      .finally(() => {
+        if (!request.signal.aborted) setHistoryLoading(false);
+      });
+    return () => request.abort();
+  }, [userId, conversationId]);
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
@@ -68,7 +161,7 @@ export default function App() {
 
   async function sendMessage(rawMessage: string): Promise<void> {
     const message = rawMessage.trim();
-    if (!message || busy) return;
+    if (!message || busy || historyLoading) return;
     setDraft("");
     const nextController = new AbortController();
     controller.current = nextController;
@@ -122,83 +215,245 @@ export default function App() {
     setConversationId(next);
     dispatch({ type: "reset" });
     setDraft("");
+    setView("chat");
+  }
+
+  function askAgent(prompt: string): void {
+    setDraft(prompt);
+    setView("chat");
+  }
+
+  function openConversation(nextConversationId: string): void {
+    if (busy) return;
+    setView("chat");
+    if (nextConversationId === conversationId) return;
+    window.localStorage.setItem("career-agent:conversation-id", nextConversationId);
+    setConversationId(nextConversationId);
+  }
+
+  function beginConversationPanelResize(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = conversationPanelWidth;
+    let latestWidth = startWidth;
+    document.body.classList.add("is-resizing-panel");
+    const move = (nextEvent: PointerEvent) => {
+      latestWidth = Math.min(460, Math.max(230, startWidth + nextEvent.clientX - startX));
+      setConversationPanelWidth(latestWidth);
+    };
+    const stop = () => {
+      document.body.classList.remove("is-resizing-panel");
+      window.localStorage.setItem("career-agent:conversation-panel-width", String(latestWidth));
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  function resizeConversationPanelBy(delta: number): void {
+    setConversationPanelWidth((current) => {
+      const next = Math.min(460, Math.max(230, current + delta));
+      window.localStorage.setItem("career-agent:conversation-panel-width", String(next));
+      return next;
+    });
   }
 
   return (
     <main className="app-shell">
-      <header className="topbar">
+      <aside className="app-sidebar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">C</span>
+          <span className="brand-mark"><AppIcon name="sparkles" size={23} /></span>
           <div>
             <strong>Career Agent</strong>
             <span>你的职业行动工作台</span>
           </div>
         </div>
         <nav className="view-nav" aria-label="视图">
-          {VIEWS.map((entry) => (
-            <button
-              type="button"
-              key={entry.id}
-              className={view === entry.id ? "is-active" : ""}
-              aria-current={view === entry.id}
-              onClick={() => setView(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </nav>
-        <button className="new-chat" type="button" onClick={newConversation} disabled={busy}>
-          新对话
-        </button>
-      </header>
-
-      <DailyBriefPanel
-        userId={userId}
-        apiBaseUrl={API_BASE_URL}
-        refreshToken={completedTurns}
-        hidden={view !== "brief"}
-      />
-
-      <section className="workspace" hidden={view !== "chat"}>
-        <aside className="context-panel">
-          <p className="eyebrow">CURRENT FOCUS</p>
-          <h1>把复杂求职任务，变成下一步行动。</h1>
-          <p className="context-copy">
-            查岗位、看匹配、改简历、跟进投递，或者开始一场模拟面试。
-          </p>
-          <div className="status-card">
-            <span className={`status-dot ${busy ? "is-active" : ""}`} />
-            <div>
-              <small>Agent 状态</small>
-              <strong>{statusLabel}</strong>
-            </div>
-          </div>
-          <div className="suggestions">
-            <span>可以这样问</span>
-            {["帮我找适合的 AI 产品岗位", "分析我和这份 JD 的匹配度", "开始一场技术模拟面试"].map(
-              (suggestion) => (
+          {VIEW_GROUPS.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <span className="nav-group-label">{group.label}</span>
+              {group.views.map((entry) => (
                 <button
                   type="button"
-                  key={suggestion}
-                  disabled={busy}
-                  onClick={() => void sendMessage(suggestion)}
+                  key={entry.id}
+                  className={view === entry.id ? "is-active" : ""}
+                  aria-current={view === entry.id ? "page" : undefined}
+                  onClick={() => setView(entry.id)}
                 >
-                  {suggestion}
+                  <span className="view-icon"><AppIcon name={entry.icon} size={20} /></span>
+                  <span>
+                    <strong>{entry.label}</strong>
+                    <small>{entry.description}</small>
+                  </span>
                 </button>
-              ),
-            )}
+              ))}
+            </div>
+          ))}
+          <div className="conversation-history mobile-conversation-history">
+            <span className="nav-group-label">最近对话</span>
+            {conversationListError ? <small className="history-error">暂时无法读取</small> : null}
+            {conversations.length > 0 ? conversations.map((item) => (
+              <button
+                type="button"
+                className={`conversation-item ${item.id === conversationId ? "is-current" : ""}`}
+                key={item.id}
+                disabled={busy}
+                onClick={() => openConversation(item.id)}
+                title={item.title}
+              >
+                <span className="conversation-dot" />
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</small>
+                </span>
+              </button>
+            )) : <small className="history-empty">完成第一轮对话后会出现在这里</small>}
           </div>
-        </aside>
+        </nav>
+        <div className="sidebar-footer">
+          <div className="system-state">
+            <span className={`status-dot ${busy ? "is-active" : ""}`} />
+            <span><strong>{statusLabel}</strong><small>Agent 状态</small></span>
+          </div>
+          <button className="new-chat" type="button" onClick={newConversation} disabled={busy}>
+            <AppIcon name="plus" size={18} />
+            新对话
+          </button>
+          <small>所有实际改动仍会在对话中确认</small>
+        </div>
+      </aside>
 
-        <section className="chat-panel" aria-label="Career Agent 对话">
+      <div className="app-content">
+        <DashboardPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "dashboard"}
+          onAskAgent={askAgent}
+        />
+        <ApplicationsPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "applications"}
+          onAskAgent={askAgent}
+        />
+        <JobsPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "jobs"}
+          onAskAgent={askAgent}
+        />
+        <DailyBriefPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "brief"}
+        />
+        <CalendarPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "calendar"}
+          onAskAgent={askAgent}
+        />
+        <ResumesPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "resumes"}
+          onAskAgent={askAgent}
+        />
+        <ResearchPanel
+          userId={userId}
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "research"}
+          onAskAgent={askAgent}
+        />
+
+        <section
+          className="workspace"
+          hidden={view !== "chat"}
+          style={{ "--conversation-panel-width": `${conversationPanelWidth}px` } as CSSProperties}
+        >
+          <aside className="context-panel conversation-panel" aria-label="历史对话">
+            <header className="conversation-panel-header">
+              <div>
+                <p className="eyebrow">CONVERSATIONS</p>
+                <h1>历史对话</h1>
+                <p>选择一段对话继续推进</p>
+              </div>
+              <button type="button" onClick={newConversation} disabled={busy} aria-label="新建对话">
+                <AppIcon name="plus" size={18} />
+              </button>
+            </header>
+            <div className="conversation-panel-list">
+              {!conversations.some((item) => item.id === conversationId) ? (
+                <button type="button" className="conversation-panel-item is-current" disabled>
+                  <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
+                  <span><strong>新对话</strong><small>尚未发送第一条消息</small></span>
+                  <span className="conversation-current-mark" />
+                </button>
+              ) : null}
+              {conversationListError ? <div className="conversation-panel-error">暂时无法读取历史对话</div> : null}
+              {conversations.map((item) => (
+                <button
+                  type="button"
+                  className={`conversation-panel-item ${item.id === conversationId ? "is-current" : ""}`}
+                  key={item.id}
+                  disabled={busy}
+                  onClick={() => openConversation(item.id)}
+                >
+                  <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.last_message_preview}</small>
+                    <time>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</time>
+                  </span>
+                  {item.id === conversationId ? <span className="conversation-current-mark" /> : null}
+                </button>
+              ))}
+            </div>
+            <div className="conversation-panel-status">
+              <span className={`status-dot ${busy ? "is-active" : ""}`} />
+              <span><strong>{statusLabel}</strong><small>Agent 状态</small></span>
+            </div>
+            <button
+              type="button"
+              className="conversation-resize-handle"
+              aria-label="拖动调整会话栏宽度"
+              onPointerDown={beginConversationPanelResize}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft") resizeConversationPanelBy(-20);
+                if (event.key === "ArrowRight") resizeConversationPanelBy(20);
+              }}
+            ><span /></button>
+          </aside>
+
+          <section className="chat-panel" aria-label="Career Agent 对话">
           <div className="transcript" ref={transcript} aria-live="polite">
-            {state.messages.length === 0 ? (
+            {state.messages.length === 0 && !historyLoading ? (
               <div className="welcome">
-                <span className="welcome-index">01</span>
+                <div className="welcome-visual">
+                  <span className="orbit orbit-one" />
+                  <span className="orbit orbit-two" />
+                  <span className="welcome-core"><AppIcon name="sparkles" size={34} /></span>
+                </div>
                 <h2>今天想推进哪件事？</h2>
-                <p>我会在执行过程中告诉你正在做什么，需要选择时会停下来问你。</p>
+                <p>描述你的目标，我会拆解任务、执行工具，并在需要你决定时停下来。</p>
+                <div className="capability-chips">
+                  <span><AppIcon name="document" size={14} /> 简历</span>
+                  <span><AppIcon name="search" size={14} /> 岗位</span>
+                  <span><AppIcon name="calendar" size={14} /> 面试</span>
+                </div>
               </div>
             ) : null}
+
+            {historyLoading ? <div className="history-loading"><span className="spinner" /> 正在恢复对话…</div> : null}
 
             {state.messages.map((message) => (
               <article className={`message message-${message.role}`} key={message.id}>
@@ -271,12 +526,13 @@ export default function App() {
                   }
                 }}
               />
-              <button type="submit" disabled={!canSubmit} aria-label="发送消息">↑</button>
+              <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
             </div>
             <small>Enter 发送 · Shift + Enter 换行</small>
           </form>
+          </section>
         </section>
-      </section>
+      </div>
     </main>
   );
 }

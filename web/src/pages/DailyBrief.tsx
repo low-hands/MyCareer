@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ActionItemView, DailyBrief, fetchDailyBrief } from "../api/client";
+import { AppIcon, type AppIconName } from "../components/AppIcon";
 
-const BUCKETS: { key: keyof DailyBrief; label: string; tone: string }[] = [
-  { key: "overdue", label: "已逾期", tone: "overdue" },
-  { key: "due_today", label: "今天", tone: "today" },
-  { key: "upcoming", label: "接下来", tone: "upcoming" },
-  { key: "no_due_date", label: "没有期限", tone: "someday" },
+const BUCKETS: { key: keyof DailyBrief; label: string; tone: string; icon: AppIconName }[] = [
+  { key: "overdue", label: "已逾期", tone: "overdue", icon: "clock" },
+  { key: "due_today", label: "今天", tone: "today", icon: "target" },
+  { key: "upcoming", label: "接下来", tone: "upcoming", icon: "calendar" },
+  { key: "no_due_date", label: "没有期限", tone: "someday", icon: "document" },
 ];
 
 function dueLabel(item: ActionItemView, timezone: string): string {
@@ -56,10 +57,11 @@ export function DailyBriefPanel({
   );
 
   useEffect(() => {
+    if (hidden) return;
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [load, refreshToken]);
+  }, [load, refreshToken, hidden]);
 
   const total = brief
     ? BUCKETS.reduce((sum, bucket) => sum + (brief[bucket.key] as ActionItemView[]).length, 0)
@@ -68,11 +70,16 @@ export function DailyBriefPanel({
   return (
     <section className="brief-panel" hidden={hidden} aria-label="今日待办">
       <header className="brief-header">
-        <div>
-          <p className="eyebrow">DAILY BRIEF</p>
-          <h1>今天该推进什么</h1>
+        <div className="brief-title">
+          <span className="page-icon"><AppIcon name="brief" size={26} /></span>
+          <div>
+            <p className="eyebrow">DAILY BRIEF</p>
+            <h1>今天该推进什么</h1>
+            <p>聚合投递、面试和邮件事件生成的行动项</p>
+          </div>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading}>
+          <AppIcon name="refresh" size={16} className={loading ? "is-spinning" : undefined} />
           {loading ? "刷新中…" : "刷新"}
         </button>
       </header>
@@ -81,7 +88,8 @@ export function DailyBriefPanel({
 
       {brief && total === 0 && !error ? (
         <div className="brief-empty">
-          <strong>没有待办。</strong>
+          <span className="empty-icon"><AppIcon name="check" size={28} /></span>
+          <strong>今天没有待办</strong>
           <p>
             投递、面试和邮件事件会自动生成这里的条目。还没有内容，通常是因为
             还没有记录过任何投递。
@@ -96,17 +104,21 @@ export function DailyBriefPanel({
             return (
               <div className={`brief-bucket brief-${bucket.tone}`} key={bucket.key}>
                 <h2>
+                  <AppIcon name={bucket.icon} size={17} />
                   {bucket.label}
                   <span>{items.length}</span>
                 </h2>
                 <ul>
                   {items.map((item) => (
                     <li key={item.id}>
-                      <div className="brief-item-head">
-                        <strong>{item.title}</strong>
-                        <time>{dueLabel(item, brief.timezone)}</time>
+                      <span className="brief-item-icon"><AppIcon name={bucket.icon} size={18} /></span>
+                      <div className="brief-item-body">
+                        <div className="brief-item-head">
+                          <strong>{item.title}</strong>
+                          <time>{dueLabel(item, brief.timezone)}</time>
+                        </div>
+                        <p>{item.summary}</p>
                       </div>
-                      <p>{item.summary}</p>
                     </li>
                   ))}
                 </ul>
