@@ -241,6 +241,12 @@ def test_two_jobs_at_one_company_share_a_single_research_run(tmp_path) -> None:
     assert second.report.job_posting_id == first_job.posting.id
     assert second.report.company_key == "example corp"
 
+    loaded_for_second = service.get_report(
+        user_id="u1", job_posting_id=second_job.posting.id
+    )
+    assert loaded_for_second.report.id == first.report.id
+    assert loaded_for_second.report.job_posting_id == first_job.posting.id
+
 
 def test_a_different_company_never_reuses_the_report(tmp_path) -> None:
     worker = Worker()
@@ -278,13 +284,22 @@ def test_a_different_focus_is_a_different_question(tmp_path) -> None:
     worker = Worker()
     service, _, saved = _service(tmp_path, worker)
 
-    service.research(user_id="u1", job_posting_id=saved.posting.id)
+    first = service.research(user_id="u1", job_posting_id=saved.posting.id)
     second = service.research(
         user_id="u1", job_posting_id=saved.posting.id, focus="competitors"
     )
+    first_again = service.research(user_id="u1", job_posting_id=saved.posting.id)
 
     assert len(worker.calls) == 2
     assert second.cached is False
+    assert first_again.cached is True
+    assert first_again.report.id == first.report.id
+    assert service.get_report(
+        user_id="u1", report_id=first.report.id
+    ).report.status == "current"
+    assert service.get_report(
+        user_id="u1", report_id=second.report.id
+    ).report.status == "current"
 
 
 def test_editing_the_jd_does_not_invalidate_company_research(tmp_path) -> None:

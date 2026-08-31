@@ -17,8 +17,9 @@ startup error.
 
     read the recorded version
     → refuse anything newer than this build
-    → adopt a new/unregistered component, or run pending upgrades oldest first
-    → run the idempotent current-shape baseline
+    → run the idempotent table baseline
+    → adopt a new component, or run pending upgrades oldest first
+    → finalize indexes, views, and triggers against the current columns
     → record the version they reached
 
 The check has to come *first*. Recording after a migration that already ran would
@@ -26,14 +27,12 @@ let a newer file raise an ordinary `OperationalError` on a changed column before
 the version check was ever consulted, so the failure would look like a corrupt
 database rather than an out-of-date build.
 
-The baseline always runs. Every one is a cumulative set of
-`CREATE TABLE IF NOT EXISTS` statements, so re-running it is free and repairs a
-file left half-built by an interrupted first start — a version recorded as current
-must not stop that repair. For an unregistered component (`found == 0`) that
-baseline adopts the database directly at the current version; historical,
-non-idempotent upgrades must not be replayed over the current shape. For an
-already registered older component, upgrades run first and the baseline repairs
-the resulting current shape afterward.
+The baseline always runs. It is a cumulative, idempotent set of table creation
+statements, so it can repair an interrupted first start and give an upgrade any
+new table it needs. Finalization also always runs, but only after pending upgrades,
+so an index or view cannot accidentally reference a column an upgrade has not yet
+added. For an unregistered component (`found == 0`), the current baseline and
+finalizer adopt the database directly without replaying historical operations.
 
 A version raised without a matching migration is caught by
 `tests/storage/test_schema_version.py`, not at runtime: these numbers predate the
@@ -110,15 +109,17 @@ def apply_schema(
     version: int,
     baseline: Callable[[sqlite3.Connection], None],
     upgrades: Mapping[int, Callable[[sqlite3.Connection], None]] | None = None,
+    *,
+    finalize: Callable[[sqlite3.Connection], None] | None = None,
 ) -> int:
     """Check, migrate, then record — in that order.
 
-    ``baseline`` builds or repairs the current shape and always runs first; it must
-    be idempotent. ``upgrades`` holds the one-way steps — backfills, drops,
-    rewrites — keyed by the version that introduced them, and each runs after the
-    baseline has put the tables it needs in place. They run only for a component
-    already registered at an older version. A fresh or pre-registry component is
-    adopted by its cumulative baseline without replaying historical operations.
+    ``baseline`` builds or repairs tables and always runs first; it must be
+    idempotent. ``upgrades`` holds one-way column and data changes keyed by the
+    version that introduced them. ``finalize`` creates idempotent objects that
+    depend on the final columns, such as indexes, views, and triggers. It runs
+    after upgrades on every open. A fresh or pre-registry component is adopted
+    by its cumulative baseline and finalizer without replaying history.
 
     Returns the version found before this call, so a caller can tell a fresh file
     (0) from one it upgraded.
@@ -149,6 +150,8 @@ def apply_schema(
             )
         for step_version in pending_versions:
             upgrades[step_version](connection)
+    if finalize is not None:
+        finalize(connection)
     if found != version:
         record_schema_version(connection, component, version)
     return found
