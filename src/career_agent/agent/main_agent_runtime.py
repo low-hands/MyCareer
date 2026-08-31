@@ -1026,6 +1026,9 @@ class MainAgentRuntime:
                         if result.payload.get("user_provided_context") is not None
                         else None
                     ),
+                    anchored_by_other_job=bool(
+                        result.payload.get("anchored_by_other_job")
+                    ),
                 )
         if result.state == "saved_jobs_compared":
             comparison = MainAgentRuntime._job_comparison(result)

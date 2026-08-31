@@ -12,6 +12,20 @@ JobResearchRunStatus = Literal["running", "completed", "failed", "cancelled"]
 JobResearchReportStatus = Literal["current", "outdated", "superseded"]
 
 
+def company_key(company_name: str) -> str:
+    """Fold a company name to the key research is stored and reused under.
+
+    Only case and whitespace are folded. Nothing tries to decide that two
+    differently written names are the same employer: guessing that "字节" and
+    "字节跳动" are one company would silently serve research about the wrong
+    employer, which is worse than running it twice.
+    """
+    folded = " ".join(company_name.split()).casefold()
+    if not folded:
+        raise ValueError("company name is required to key job research")
+    return folded
+
+
 class JobResearchContract(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -98,9 +112,23 @@ class JobResearchFinding(JobResearchContract):
 
 
 class JobResearchReport(JobResearchContract):
+    """Public context about a company, anchored by one job's JD.
+
+    The subject is the company, not the posting: business lines, market, and
+    competitors do not change because a different role at the same employer was
+    saved. ``company_key`` is therefore what a report is found and reused by, and
+    ``job_posting_id`` records only which JD supplied the search anchors, so a
+    reader can tell when a report they are shown was anchored elsewhere.
+    """
+
     id: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
+    # Optional only because rows written before research became
+    # company-keyed have none, and guessing their employer from a posting
+    # could serve one company's research for another. Such rows stay
+    # readable and simply never match a reuse lookup. Every new row sets it.
+    company_key: str | None = Field(default=None, min_length=1, max_length=300)
     job_posting_id: str = Field(min_length=1)
     jd_snapshot_id: str = Field(min_length=1)
     status: JobResearchReportStatus
@@ -115,6 +143,11 @@ class JobResearchReport(JobResearchContract):
 class JobResearchRun(JobResearchContract):
     id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
+    # Optional only because rows written before research became
+    # company-keyed have none, and guessing their employer from a posting
+    # could serve one company's research for another. Such rows stay
+    # readable and simply never match a reuse lookup. Every new row sets it.
+    company_key: str | None = Field(default=None, min_length=1, max_length=300)
     job_posting_id: str = Field(min_length=1)
     jd_snapshot_id: str = Field(min_length=1)
     scope: JobResearchScope

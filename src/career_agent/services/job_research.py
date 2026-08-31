@@ -12,6 +12,7 @@ from career_agent.agent.job_research_contracts import (
     JobResearchWorkerRequest,
 )
 from career_agent.domain.job_research import (
+    company_key,
     JobResearchDraft,
     JobResearchFinding,
     JobResearchReport,
@@ -98,13 +99,12 @@ class JobResearchService:
             ),
             max_sources=max_sources,
         )
-        fingerprint = self._fingerprint(
-            jd_content_hash=job.snapshot.content_hash,
-            scope=scope,
-        )
+        key = company_key(job.posting.company_name)
+        fingerprint = self._fingerprint(company=key, scope=scope)
         now = datetime.now(timezone.utc)
         cached = self._store.find_completed(
             user_id=user_id,
+            company_key=key,
             input_fingerprint=fingerprint,
             worker_version=self._worker_version,
             created_after=now - self._freshness,
@@ -125,6 +125,7 @@ class JobResearchService:
         run = JobResearchRun(
             id=f"job_research_run_{uuid4().hex}",
             user_id=user_id,
+            company_key=key,
             job_posting_id=job.posting.id,
             jd_snapshot_id=job.snapshot.id,
             scope=scope,
@@ -312,6 +313,7 @@ class JobResearchService:
             id=f"job_research_report_{uuid4().hex}",
             run_id=run.id,
             user_id=run.user_id,
+            company_key=run.company_key,
             job_posting_id=run.job_posting_id,
             jd_snapshot_id=run.jd_snapshot_id,
             status="current",
@@ -327,10 +329,21 @@ class JobResearchService:
         )
         return sources, report
 
-    def _fingerprint(self, *, jd_content_hash: str, scope: JobResearchScope) -> str:
+    def _fingerprint(self, *, company: str, scope: JobResearchScope) -> str:
+        """Identify a research run by its subject, which is the company.
+
+        The JD is deliberately absent. It supplies search anchors, but business
+        lines, market position, and competitors do not change because a second
+        role at the same employer was saved, or because the posting's text was
+        edited. Keying on the JD meant three saved jobs at one company produced
+        three duplicate runs, each with its own freshness window.
+
+        The scope stays in the key: a different focus is a different question,
+        and must not be answered from a report that never asked it.
+        """
         canonical = json.dumps(
             {
-                "jd_content_hash": jd_content_hash,
+                "company_key": company,
                 "scope": scope.model_dump(mode="json"),
                 "worker_version": self._worker_version,
             },

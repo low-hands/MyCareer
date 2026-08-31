@@ -2338,7 +2338,9 @@ class MainAgentToolRegistry:
                 else "岗位研究已完成。"
             ),
             next_action="review_job_research",
-            payload=self._job_research_payload(result),
+            payload=self._job_research_payload(
+                result, model_arguments.job_posting_id
+            ),
         )
 
     def _retry_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2421,12 +2423,22 @@ class MainAgentToolRegistry:
         )
 
     @staticmethod
-    def _job_research_payload(result) -> dict[str, Any]:
+    def _job_research_payload(
+        result, requested_job_posting_id: str | None = None
+    ) -> dict[str, Any]:
         report = result.report
+        # Research is reused across every saved job at one company, so a report
+        # may have been anchored by a different posting's JD. Say so rather than
+        # letting it read as though it were written for the job in hand.
+        anchored_elsewhere = (
+            requested_job_posting_id is not None
+            and report.job_posting_id != requested_job_posting_id
+        )
         return {
             "run_id": result.run.id,
             "report_id": report.id,
             "job_posting_id": report.job_posting_id,
+            "anchored_by_other_job": anchored_elsewhere,
             "status": report.status,
             "cached": result.cached,
             "user_provided_context": report.scope.user_provided_context,
