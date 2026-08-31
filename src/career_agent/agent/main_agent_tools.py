@@ -6,8 +6,22 @@ from typing import Any, Literal
 from urllib.parse import urlencode
 
 from career_agent.agent.mock_interview_contracts import (
+    MockInterviewExchange,
     MockInterviewGraphResult,
+    MockInterviewQuestionSummary,
+    MockInterviewQuestionView,
+    MockInterviewResultView,
     MockInterviewStartRequest,
+)
+from career_agent.agent.interview_preparation_presenter import (
+    summarize_interview_preparation,
+)
+from career_agent.agent.job_research_presenter import summarize_job_research
+from career_agent.agent.mock_interview_presenter import (
+    render_mock_interview_turn,
+    summarize_mock_interview_question,
+    summarize_mock_interview_report,
+    summarize_mock_interview_result,
 )
 from career_agent.agent.mock_interview_graph import (
     MockInterviewCheckpointMissingError,
@@ -70,6 +84,7 @@ from career_agent.agent.main_agent_contracts import (
     SyncApplicationEmailsToolArguments,
     UpdateInterviewToolArguments,
     ToolObservation,
+    ConversationResourceReference,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.connectors.email_accounts import EmailCredentialError
@@ -528,8 +543,11 @@ class MainAgentToolRegistry:
                         "function": {
                             "name": "get_job_research",
                             "description": (
-                                "Read a persisted job-research report for the active or "
-                                "numbered saved job without running web research again."
+                                "Read a persisted job-research report without running web "
+                                "research again. Pass reference_index to read the report a "
+                                "specific earlier message produced, selection_index to read "
+                                "the numbered saved job's report, or omit both to use the "
+                                "active one."
                             ),
                             "parameters": GetJobResearchToolArguments.model_json_schema(),
                         },
@@ -813,7 +831,12 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_interview_preparation",
-                            "description": "Read one persisted interview preparation result without re-reading full source documents.",
+                            "description": (
+                                "Read one persisted interview preparation result without "
+                                "re-reading full source documents. Pass reference_index to "
+                                "read the material a specific earlier message produced, or "
+                                "omit it to use the active preparation."
+                            ),
                             "parameters": GetInterviewPreparationToolArguments.model_json_schema(),
                         },
                     },
@@ -862,12 +885,15 @@ class MainAgentToolRegistry:
                     "function": {
                         "name": "get_mock_interview_result",
                         "description": (
-                            "Read back the latest finished mock interview for the active or "
-                            "numbered application. Without a question number this lists the "
+                            "Read back a finished mock interview. Pass reference_index to "
+                            "read the exact run a specific earlier message reported, "
+                            "application_selection_index for the latest run on a numbered "
+                            "application, or omit both for the latest run on the active "
+                            "application. Without a question number this lists the "
                             "questions with their ratings; with one it returns that question, "
                             "the user's full answer, its evaluation, and any follow-ups. Use "
                             "this whenever the user asks about a past mock interview, since "
-                            "the conversation only keeps a condensed summary of the report."
+                            "the conversation only keeps a reference to the report."
                         ),
                         "parameters": GetMockInterviewResultToolArguments.model_json_schema(),
                     },
@@ -1239,33 +1265,17 @@ class MainAgentToolRegistry:
             "completed": "mock_interview_completed",
             "cancelled": "mock_interview_cancelled",
         }[result.state]
-        message = result.message
-        if result.state == "awaiting_answer" and result.question is not None:
-            blocks = []
-            if result.evaluation is not None:
-                blocks.append(
-                    "上一题反馈：\n"
-                    f"{result.evaluation.summary}\n"
-                    f"下一步原因：{result.evaluation.next_action_reason}"
-                )
-            blocks.append(f"模拟面试题：\n{result.question}")
-            message = "\n\n".join(blocks)
-        elif result.state == "completed" and result.report is not None:
-            report = result.report
-            strengths = "\n".join(f"- {item}" for item in report.strengths) or "- 暂无"
-            development = (
-                "\n".join(f"- {item}" for item in report.development_areas)
-                or "- 暂无"
-            )
-            actions = (
-                "\n".join(f"- {item}" for item in report.practice_actions)
-                or "- 暂无"
-            )
-            message = (
-                f"模拟面试完成。\n\n总结\n{report.summary}\n\n"
-                f"表现亮点\n{strengths}\n\n待提升\n{development}\n\n"
-                f"练习建议\n{actions}"
-            )
+        # Both strings come from the mock interview's own presenter rather than
+        # being composed here: how an interview reads is not this layer's
+        # concern. ``message`` is the line the durable conversation row keeps,
+        # so a finished run is condensed to its headline instead of carrying the
+        # whole report into every later turn's window; the full report reaches
+        # the screen through the runtime presenter.
+        message = (
+            summarize_mock_interview_report(result.report)
+            if result.state == "completed" and result.report is not None
+            else render_mock_interview_turn(result)
+        )
         return ToolObservation(
             tool_name="start_mock_interview",
             state=state,
@@ -1276,6 +1286,14 @@ class MainAgentToolRegistry:
                 else None
             ),
             payload=result.model_dump(mode="json"),
+            resource_ref=(
+                ConversationResourceReference(
+                    kind="mock_interview_report",
+                    resource_id=result.report_id,
+                )
+                if result.state == "completed" and result.report_id is not None
+                else None
+            ),
         )
 
     def _restart_mock_interview(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1347,7 +1365,7 @@ class MainAgentToolRegistry:
         return self._mock_interview_observation(result)
 
     def _get_mock_interview_result(self, arguments: dict[str, Any]) -> ToolObservation:
-        """Read back a finished run the conversation only holds in condensed form.
+        """Read back a finished run the conversation only holds a reference to.
 
         The run's own exchanges never enter the conversation, so without this
         the full questions and answers are unreachable once the run ends.
@@ -1355,24 +1373,48 @@ class MainAgentToolRegistry:
         if self._mock_interview_store is None:
             raise ValueError("Mock interview store is not configured")
         user_id = str(arguments["user_id"])
-        application_id = str(arguments["application_id"])
         question_number = arguments.get("question_number")
-        # Cancelled runs keep every turn they got through, so they are readable
-        # too; only the report is missing. Runs still in progress are excluded
-        # because the workflow, not this tool, owns a turn while it is driving.
-        sessions = self._mock_interview_store.list_sessions(
-            user_id=user_id,
-            application_id=application_id,
-            statuses=("completed", "cancelled"),
-            limit=1,
-        )
-        if not sessions:
-            return ToolObservation(
-                tool_name="get_mock_interview_result",
-                state="no_mock_interview_result_found",
-                message="这个投递还没有结束过的模拟面试。",
+        report_id = arguments.get("report_id")
+        if report_id is not None:
+            # Resolved from a reference the conversation carries, so this names
+            # one exact run rather than "the newest for this application".
+            session_id = self._mock_interview_store.find_report_session_id(
+                user_id=user_id, report_id=str(report_id)
             )
-        session = sessions[0]
+            if session_id is None:
+                return ToolObservation(
+                    tool_name="get_mock_interview_result",
+                    state="no_mock_interview_result_found",
+                    message="没有找到这次模拟面试的报告。",
+                )
+            session = self._mock_interview_store.get_session(
+                user_id=user_id, session_id=session_id
+            )
+            if session is None:
+                return ToolObservation(
+                    tool_name="get_mock_interview_result",
+                    state="no_mock_interview_result_found",
+                    message="没有找到这次模拟面试的报告。",
+                )
+        else:
+            application_id = str(arguments["application_id"])
+            # Cancelled runs keep every turn they got through, so they are
+            # readable too; only the report is missing. Runs still in progress
+            # are excluded because the workflow, not this tool, owns a turn
+            # while it is driving.
+            sessions = self._mock_interview_store.list_sessions(
+                user_id=user_id,
+                application_id=application_id,
+                statuses=("completed", "cancelled"),
+                limit=1,
+            )
+            if not sessions:
+                return ToolObservation(
+                    tool_name="get_mock_interview_result",
+                    state="no_mock_interview_result_found",
+                    message="这个投递还没有结束过的模拟面试。",
+                )
+            session = sessions[0]
         report = self._mock_interview_store.get_report(
             user_id=user_id, session_id=session.id
         )
@@ -1391,7 +1433,13 @@ class MainAgentToolRegistry:
     def _mock_interview_question_observation(
         *, turns: tuple[MockInterviewTurn, ...], question_number: int
     ) -> ToolObservation:
-        """Return one exchange in full, follow-ups included."""
+        """Return one exchange in full, follow-ups included.
+
+        The verbatim text goes into the payload for the presenter rather than
+        into ``message``: an answer may be twenty thousand characters, and
+        ``message`` is what the durable conversation row keeps and carries into
+        every later turn's recent window.
+        """
         matching = tuple(
             turn for turn in turns if turn.plan_item_number == question_number
         )
@@ -1401,21 +1449,28 @@ class MainAgentToolRegistry:
                 state="no_mock_interview_result_found",
                 message=f"这次模拟面试没有第 {question_number} 题。",
             )
-        blocks = []
-        for turn in matching:
-            label = "追问" if turn.turn_type == "follow_up" else "主问题"
-            lines = [f"{label}\n{turn.question}"]
-            if turn.answer is not None:
-                lines.append(f"你的回答\n{turn.answer}")
-            if turn.evaluation is not None:
-                lines.append(
-                    f"评价（{turn.evaluation.rating}）\n{turn.evaluation.summary}"
+        view = MockInterviewQuestionView(
+            question_number=question_number,
+            exchanges=tuple(
+                MockInterviewExchange(
+                    turn_type=turn.turn_type,
+                    question=turn.question,
+                    answer=turn.answer,
+                    rating=(
+                        turn.evaluation.rating if turn.evaluation is not None else None
+                    ),
+                    evaluation_summary=(
+                        turn.evaluation.summary if turn.evaluation is not None else None
+                    ),
                 )
-            blocks.append("\n\n".join(lines))
+                for turn in matching
+            ),
+        )
         return ToolObservation(
             tool_name="get_mock_interview_result",
-            state="mock_interview_result_found",
-            message=f"第 {question_number} 题：\n\n" + "\n\n---\n\n".join(blocks),
+            state="mock_interview_question_found",
+            message=summarize_mock_interview_question(view),
+            payload=view.model_dump(mode="json"),
         )
 
     @staticmethod
@@ -1425,14 +1480,18 @@ class MainAgentToolRegistry:
         report: MockInterviewReport | None,
         turns: tuple[MockInterviewTurn, ...],
     ) -> ToolObservation:
-        """List the run's questions with ratings, without their full text.
+        """Read a finished run back as an index of its questions.
 
-        An index rather than a transcript: the model can name a question number
-        to read that exchange in full, so a long run costs one short message
-        instead of every answer at once.
+        Everything the screen shows is projected into the payload and rendered
+        by the mock interview's own presenter, so this layer composes no prose.
+        ``message`` is the bounded line the transcript keeps, and the report it
+        names is reachable from the same row through ``resource_ref`` — the two
+        together are what let this readback survive the answer writer failing,
+        which the earlier version, embedding the whole summary in ``message``
+        and carrying no reference, could not.
         """
         primary = tuple(turn for turn in turns if turn.turn_type == "primary")
-        lines = []
+        questions = []
         for turn in primary:
             if turn.evaluation is not None:
                 rating = turn.evaluation.rating
@@ -1442,37 +1501,40 @@ class MainAgentToolRegistry:
                 rating = "未回答"
             else:
                 rating = "未评价"
-            follow_ups = sum(
-                1
-                for candidate in turns
-                if candidate.turn_type == "follow_up"
-                and candidate.plan_item_number == turn.plan_item_number
+            questions.append(
+                MockInterviewQuestionSummary(
+                    plan_item_number=turn.plan_item_number,
+                    question=turn.question,
+                    rating=rating,
+                    follow_up_count=sum(
+                        1
+                        for candidate in turns
+                        if candidate.turn_type == "follow_up"
+                        and candidate.plan_item_number == turn.plan_item_number
+                    ),
+                )
             )
-            suffix = f"，追问 {follow_ups} 次" if follow_ups else ""
-            lines.append(
-                f"{turn.plan_item_number}. [{rating}{suffix}] "
-                f"{turn.question[:60]}"
-            )
-        # Asked and answered are different numbers once a run can stop early: a
-        # question the user never answered is still a row here. Reporting only
-        # the row count would present an abandoned question as an attempted one.
-        answered = sum(1 for turn in primary if turn.answer is not None)
-        header = f"模拟面试（{session.interview_type}，{len(primary)} 题"
-        if answered < len(primary):
-            header += f"，答了 {answered} 题"
-        if session.status == "cancelled":
-            header += "，中途取消"
-        blocks = [
-            header + "）",
-            "题目\n" + ("\n".join(lines) if lines else "暂无"),
-        ]
-        if report is not None:
-            blocks.append(f"总结\n{report.summary}")
-        blocks.append("要看某题的完整问答，说题号。")
+        view = MockInterviewResultView(
+            interview_type=session.interview_type,
+            status=session.status,
+            questions=tuple(questions),
+            answered_count=sum(1 for turn in primary if turn.answer is not None),
+            report_id=report.id if report is not None else None,
+            report_summary=report.summary if report is not None else None,
+        )
         return ToolObservation(
             tool_name="get_mock_interview_result",
             state="mock_interview_result_found",
-            message="\n\n".join(blocks),
+            message=summarize_mock_interview_result(view),
+            payload=view.model_dump(mode="json"),
+            resource_ref=(
+                ConversationResourceReference(
+                    kind="mock_interview_report",
+                    resource_id=report.id,
+                )
+                if report is not None
+                else None
+            ),
         )
 
     def _list_email_events(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1744,6 +1806,10 @@ class MainAgentToolRegistry:
             message="真实面试复盘报告已保存；结论仅基于你的复述。",
             next_action="review_interview_retro",
             payload=self._interview_retro_payload(report),
+            resource_ref=ConversationResourceReference(
+                kind="interview_retro_report",
+                resource_id=report.id,
+            ),
         )
 
     def _prepare_interview(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1777,9 +1843,13 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="prepare_interview",
             state="interview_preparation_ready",
-            message="面试准备材料已生成。",
+            message=summarize_interview_preparation(preparation.result),
             next_action="review_interview_preparation",
             payload=self._interview_preparation_payload(preparation),
+            resource_ref=ConversationResourceReference(
+                kind="interview_preparation",
+                resource_id=preparation.id,
+            ),
         )
 
     def _get_interview_preparation(
@@ -1789,14 +1859,28 @@ class MainAgentToolRegistry:
             raise ValueError("Interview preparation service is not configured")
         user_id = str(arguments["user_id"])
         model_arguments = GetInterviewPreparationToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "interview_round_id"}
+            }
         )
-        if model_arguments.preparation_id is None:
+        # Resolved by the projection from a selection index, so it never comes
+        # from the model and is not part of the model-facing schema.
+        interview_round_id = arguments.get("interview_round_id")
+        if model_arguments.preparation_id is None and interview_round_id is None:
             raise ValueError("get_interview_preparation requires preparation_id")
         try:
-            preparation = self._interview_preparation_service.get(
-                user_id=user_id,
-                preparation_id=model_arguments.preparation_id,
+            preparation = (
+                self._interview_preparation_service.get_for_interview(
+                    user_id=user_id,
+                    interview_round_id=str(interview_round_id),
+                )
+                if model_arguments.preparation_id is None
+                else self._interview_preparation_service.get(
+                    user_id=user_id,
+                    preparation_id=model_arguments.preparation_id,
+                )
             )
         except InterviewPreparationInputNotFoundError:
             return ToolObservation(
@@ -1807,8 +1891,12 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_interview_preparation",
             state="interview_preparation_ready",
-            message="已读取面试准备材料。",
+            message=summarize_interview_preparation(preparation.result),
             payload=self._interview_preparation_payload(preparation),
+            resource_ref=ConversationResourceReference(
+                kind="interview_preparation",
+                resource_id=preparation.id,
+            ),
         )
 
     def _get_daily_brief(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2332,14 +2420,25 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="research_job",
             state="job_research_ready",
-            message=(
-                "已复用仍在有效期内的岗位研究报告。"
-                if result.cached
-                else "岗位研究已完成。"
+            # The line the durable conversation row keeps. Composed by the
+            # report's own presenter so it is the same headline whether or not
+            # the answer writer ran this turn; the full report reaches the
+            # screen from the entity, not from here.
+            message=summarize_job_research(
+                result.report.summary, cached=result.cached
             ),
             next_action="review_job_research",
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
+            ),
+            resource_ref=ConversationResourceReference(
+                kind="job_research_report",
+                resource_id=result.report.id,
+                status_at_delivery=result.report.status,
+                anchored_by_other_job=(
+                    result.report.job_posting_id
+                    != model_arguments.job_posting_id
+                ),
             ),
         )
 
@@ -2371,9 +2470,15 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="retry_job_research",
             state="job_research_ready",
-            message="岗位研究已从断点恢复并完成。",
+            message=summarize_job_research(result.report.summary, cached=False),
             next_action="review_job_research",
             payload=self._job_research_payload(result),
+            resource_ref=ConversationResourceReference(
+                kind="job_research_report",
+                resource_id=result.report.id,
+                status_at_delivery=result.report.status,
+                anchored_by_other_job=False,
+            ),
         )
 
     def _get_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2398,9 +2503,22 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_job_research",
             state="job_research_ready",
-            message="已读取岗位研究报告。",
+            # An explicit read, not a reuse the user did not ask for, so the
+            # cached wording would misdescribe it even though the service marks
+            # every stored report as cached.
+            message=summarize_job_research(result.report.summary, cached=False),
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
+            ),
+            resource_ref=ConversationResourceReference(
+                kind="job_research_report",
+                resource_id=result.report.id,
+                status_at_delivery=result.report.status,
+                anchored_by_other_job=bool(
+                    self._job_research_payload(
+                        result, model_arguments.job_posting_id
+                    ).get("anchored_by_other_job")
+                ),
             ),
         )
 
@@ -2933,6 +3051,10 @@ class MainAgentToolRegistry:
                 "created_at": stored.created_at.isoformat(),
                 **stored.result.model_dump(mode="json"),
             },
+            resource_ref=ConversationResourceReference(
+                kind="resume_job_match",
+                resource_id=stored.id,
+            ),
         )
 
     def _get_resume_job_match(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2968,6 +3090,10 @@ class MainAgentToolRegistry:
                 "created_at": stored.created_at.isoformat(),
                 **stored.result.model_dump(mode="json"),
             },
+            resource_ref=ConversationResourceReference(
+                kind="resume_job_match",
+                resource_id=stored.id,
+            ),
         )
 
     def _draft_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3488,4 +3614,8 @@ class MainAgentToolRegistry:
                 "clarification_questions": draft.result.clarification_questions,
                 "warnings": draft.result.warnings,
             },
+            resource_ref=ConversationResourceReference(
+                kind="resume_tailoring_draft",
+                resource_id=draft.id,
+            ),
         )

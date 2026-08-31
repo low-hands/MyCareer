@@ -135,6 +135,30 @@ class ArtifactReadyEvent(StreamContract):
     byte_size: int = Field(ge=1)
 
 
+class ReportReadyEvent(StreamContract):
+    """A turn produced a stored report the reply only summarizes.
+
+    Carries the reference rather than the report: the body is fetched from the
+    read API, which is the same path a reloaded transcript takes, so the live
+    card and the restored one cannot drift. The id is safe here because this
+    stream goes to the person whose report it is; the decision model gets a
+    turn-local index instead.
+    """
+
+    type: Literal["report_ready"] = "report_ready"
+    kind: Literal[
+        "job_research_report",
+        "mock_interview_report",
+        "interview_preparation",
+        "interview_retro_report",
+        "resume_job_match",
+        "resume_tailoring_draft",
+    ]
+    resource_id: str = Field(min_length=1, max_length=200)
+    status_at_delivery: Literal["current", "outdated", "superseded"] | None = None
+    anchored_by_other_job: bool | None = None
+
+
 class ClientActionEvent(StreamContract):
     type: Literal["client_action"] = "client_action"
     action: Literal["open_url"]
@@ -169,6 +193,7 @@ PublicStreamEvent: TypeAlias = Annotated[
     | InteractionRequiredEvent
     | ContentDeltaEvent
     | ArtifactReadyEvent
+    | ReportReadyEvent
     | ClientActionEvent
     | TurnSuspendedEvent
     | TurnCompletedEvent

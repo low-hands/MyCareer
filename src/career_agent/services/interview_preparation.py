@@ -117,6 +117,16 @@ class InterviewPreparationService:
             raise InterviewPreparationInputNotFoundError("interview_preparation")
         return stored
 
+    def get_for_interview(
+        self, *, user_id: str, interview_round_id: str
+    ) -> StoredInterviewPreparation:
+        stored = self._store.find_latest_for_round(
+            user_id=user_id, interview_round_id=interview_round_id
+        )
+        if stored is None:
+            raise InterviewPreparationInputNotFoundError("interview_preparation")
+        return stored
+
     @staticmethod
     def _fingerprint(
         *,

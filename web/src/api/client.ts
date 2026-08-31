@@ -1,3 +1,5 @@
+import type { ReportKind } from "../chat/events";
+
 export interface ActionItemView {
   id: string;
   action_type: string;
@@ -62,9 +64,26 @@ export interface ConversationView {
   last_active_at: string;
 }
 
+export interface ConversationResourceView {
+  kind: ReportKind;
+  resource_id: string;
+  status_at_delivery: "current" | "outdated" | "superseded" | null;
+  anchored_by_other_job: boolean | null;
+}
+
 export interface ConversationMessageView {
   role: "user" | "assistant";
   content: string;
+  created_at: string;
+  resource: ConversationResourceView | null;
+}
+
+export interface ReportView {
+  kind: string;
+  resource_id: string;
+  title: string;
+  subtitle: string;
+  body: string;
   created_at: string;
 }
 
@@ -199,6 +218,30 @@ export function fetchConversationMessages(
   return getJson<ConversationTranscript>(
     `/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
     { user_id: userId },
+    options,
+  );
+}
+
+export function fetchReport(
+  userId: string,
+  kind: ReportKind,
+  resourceId: string,
+  deliveryContext: {
+    statusAtDelivery?: "current" | "outdated" | "superseded" | null;
+    anchoredByOtherJob?: boolean | null;
+  },
+  options: ReadOptions,
+): Promise<ReportView> {
+  const params: Record<string, string> = { user_id: userId };
+  if (deliveryContext.statusAtDelivery) {
+    params.status_at_delivery = deliveryContext.statusAtDelivery;
+  }
+  if (deliveryContext.anchoredByOtherJob != null) {
+    params.anchored_by_other_job = String(deliveryContext.anchoredByOtherJob);
+  }
+  return getJson<ReportView>(
+    `/v1/reports/${encodeURIComponent(kind)}/${encodeURIComponent(resourceId)}`,
+    params,
     options,
   );
 }

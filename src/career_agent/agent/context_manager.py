@@ -3,18 +3,30 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryWorker
-from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState, MainAgentContext
+from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, MainAgentContext
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
 from career_agent.storage.context import CareerContextStore
 
 
 class ContextManager:
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 4000, max_recent_context_chars: int = 16000, compacted_message_warning_threshold: int = 200) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
-        if max_message_chars < 1 or max_recent_context_chars < max_message_chars:
+        if max_message_chars < 1 or max_recent_context_chars < 2:
             raise ValueError("conversation character budgets are invalid")
+        per_message_context_chars = (
+            max_recent_message_chars
+            if max_recent_message_chars is not None
+            else max_recent_context_chars // 2
+        )
+        if not 1 <= per_message_context_chars <= max_recent_context_chars:
+            raise ValueError("recent per-message budget is invalid")
+        if not 0 <= archived_resource_limit <= 12:
+            # Capped at the contract's own bound: each entry costs a kind, a
+            # timestamp, and one condensed line, and the catalogue is carried
+            # every turn for the whole life of the conversation.
+            raise ValueError("archived resource limit is invalid")
         if compacted_message_warning_threshold < 1:
             raise ValueError("compacted message warning threshold must be positive")
         self._store = store
@@ -24,7 +36,9 @@ class ContextManager:
         self._summary_batch_size = summary_batch_size
         self._max_message_chars = max_message_chars
         self._max_recent_context_chars = max_recent_context_chars
+        self._max_recent_message_chars = per_message_context_chars
         self._compacted_message_warning_threshold = compacted_message_warning_threshold
+        self._archived_resource_limit = archived_resource_limit
 
     def compacted_message_notice(
         self, *, user_id: str, conversation_id: str | None = None
@@ -42,7 +56,8 @@ class ContextManager:
             return None
         return (
             f"已摘要的原始消息累计 {count} 条（约 {byte_size // 1024} KiB）仍然保留。"
-            "确认摘要无误后，可以运行 career-agent context prune 回收。"
+            "运行 career-agent context prune 会同时从可见历史对话中永久删除这些消息；"
+            "只有明确不再需要回看时才应执行。"
         )
 
     def load_for_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentContext:
@@ -74,6 +89,20 @@ class ContextManager:
             preferences=preferences,
             task=task,
             recent_messages=recent_messages,
+            # Read from the messages the window has scrolled past, so a report
+            # delivered weeks ago stays nameable. Skipped entirely before the
+            # first summary exists, when nothing has scrolled past yet and the
+            # window already holds every reference.
+            archived_resources=(
+                self._store.list_archived_resource_messages(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    through_sequence=summary.through_sequence,
+                    limit=self._archived_resource_limit,
+                )
+                if summary is not None and self._archived_resource_limit
+                else ()
+            ),
             conversation_summary=summary.content if summary else None,
             user_message=self._truncate(user_message),
         )
@@ -105,14 +134,14 @@ class ContextManager:
             user_message="[workflow-owned input withheld]",
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_ref: ConversationResourceReference | None = None) -> None:
         now = datetime.now(timezone.utc)
         self._store.commit_turn(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
-            assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now),
+            assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_ref=assistant_resource_ref),
             message_limit=(
                 None if self._summary_worker is not None else self._recent_message_limit
             ),
@@ -147,6 +176,7 @@ class ContextManager:
         context: MainAgentContext,
         task: ConversationTaskState,
         assistant_message: str,
+        assistant_resource_ref: ConversationResourceReference | None = None,
     ) -> None:
         """Write the whole run as the request that began it and the reply.
 
@@ -175,6 +205,7 @@ class ContextManager:
             context=context.model_copy(update={"user_message": entry}),
             task=task.model_copy(update={"workflow_entry_message": None}),
             assistant_message=assistant_message,
+            assistant_resource_ref=assistant_resource_ref,
         )
 
     def commit_workflow_turn(
@@ -242,7 +273,9 @@ class ContextManager:
             remaining = self._max_recent_context_chars - used
             if remaining <= 0:
                 break
-            content = message.content[:remaining]
+            content = message.content[
+                : min(remaining, self._max_recent_message_chars)
+            ]
             selected.append(message.model_copy(update={"content": content}))
             used += len(content)
         return tuple(reversed(selected))

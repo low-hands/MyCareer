@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from career_agent.agent.summary_text import condense
 from career_agent.domain.job_research import JobResearchDraft
 
 
@@ -80,3 +81,17 @@ def render_job_research(
             )
         blocks.append("## 来源\n\n" + "\n\n".join(source_lines))
     return "\n\n".join(blocks)
+
+
+def summarize_job_research(summary: str, *, cached: bool) -> str:
+    """State the research outcome in the one line the transcript keeps.
+
+    The rendered report is thousands of characters and belongs to its entity, so
+    the durable row keeps a headline instead. Produced without a model call
+    because the case it covers is the answer writer not running.
+    """
+    opening = (
+        "已复用仍在有效期内的岗位研究报告。" if cached else "岗位研究已完成。"
+    )
+    headline = condense(summary)
+    return f"{opening}{headline}" if headline else opening

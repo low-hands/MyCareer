@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
+from career_agent.agent.summary_text import condense
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -83,6 +84,17 @@ class JobIntentUpdate(ContractModel):
 
 class AgentPreferencesContext(ContractModel):
     boss_search: Literal["explicit_request_only", "allowed"] = "explicit_request_only"
+
+
+SelectionIndex = Annotated[int, Field(ge=1)]
+"""A 1-based pointer into a list the model was shown this turn.
+
+The lower bound belongs to the type, not to each declaration. Written out
+per-field it was correct twenty-nine times and missing once — on
+``CompareSavedJobsToolArguments.job_selection_indices``, whose element type
+carried no bound at all, so index 0 resolved through ``candidates[-1]`` to the
+last saved job and a comparison ran against the wrong pair without erroring.
+"""
 
 
 class CandidateContextItem(ContractModel):
@@ -214,6 +226,10 @@ class ConversationTaskState(ContractModel):
     active_action_item_id: str | None = None
     action_candidates: tuple[ActionCandidateContextItem, ...] = ()
     active_calendar_proposal_id: str | None = None
+    # Projected to the model, unlike the id beside it: whether a preview is
+    # still live decides between executing it and preparing a new one, and
+    # a timestamp names no object the model could act on.
+    active_calendar_proposal_expires_at: datetime | None = None
     calendar_account_candidates: tuple[CalendarAccountCandidateContextItem, ...] = ()
     saved_job_candidates: tuple[SavedJobCandidateContextItem, ...] = ()
     target_role_candidates: tuple[TargetRoleCandidateContextItem, ...] = ()
@@ -264,6 +280,26 @@ class ConversationTaskState(ContractModel):
             }
         )
 
+    def active_resource_flags(self) -> dict[str, bool]:
+        """Whether each active object exists, without naming any of them.
+
+        Derived from the ``active_*_id`` field names rather than listed by hand.
+        Thirteen such fields existed and none reached the model: the projection
+        withheld the ids, which is right, and withheld their existence with
+        them, which is not. The system prompt repeatedly directs the model at
+        "the active object", so a run could prepare a Calendar preview and then
+        be unable to tell, on the next turn, that one was pending — the approval
+        gate was unreachable rather than merely awkward.
+
+        Deriving it means a new active object is covered the moment it is
+        declared, and that a value can never leak: only ``is not None`` crosses.
+        """
+        return {
+            f"has_{name[: -len('_id')]}": getattr(self, name) is not None
+            for name in type(self).model_fields
+            if name.startswith("active_") and name.endswith("_id")
+        }
+
     def hold_entry_message(self, message: str) -> "ConversationTaskState":
         """Keep the request a multi-turn workflow has not answered yet.
 
@@ -293,10 +329,55 @@ class ConversationTaskState(ContractModel):
         )
 
 
+class ConversationResourceReference(ContractModel):
+    """Immutable link from one historical message to its durable resource.
+
+    A statement of what one past turn produced, so it never changes once
+    written. This is the opposite of the ``active_*_id`` fields on the task,
+    which track what the user is discussing now and are overwritten every time
+    the focus moves. Reading back the report a turn produced needs the former;
+    resolving "this report" with no antecedent needs the latter.
+    """
+
+    kind: Literal[
+        "job_research_report",
+        "mock_interview_report",
+        "interview_preparation",
+        "interview_retro_report",
+        "resume_job_match",
+        "resume_tailoring_draft",
+    ]
+    resource_id: str = Field(min_length=1)
+    # Job research alone needs delivery-time render metadata because
+    # ``anchored_by_other_job`` is relative to the request that produced this
+    # turn and cannot be reconstructed from the report row. Its status is
+    # snapshotted with that render bundle. Other kinds intentionally derive
+    # current lifecycle state at read time — for example a tailoring card
+    # should say that its draft has since been superseded.
+    status_at_delivery: Literal["current", "outdated", "superseded"] | None = None
+    anchored_by_other_job: bool | None = None
+
+    @model_validator(mode="after")
+    def scope_job_research_render_context(self) -> "ConversationResourceReference":
+        values = (self.status_at_delivery, self.anchored_by_other_job)
+        if self.kind == "job_research_report":
+            if any(value is None for value in values):
+                raise ValueError(
+                    "job research references require delivery-time render context"
+                )
+        elif any(value is not None for value in values):
+            raise ValueError(
+                "delivery-time render metadata is scoped to job research; "
+                "other resource kinds derive current state when read"
+            )
+        return self
+
+
 class ConversationMessageContext(ContractModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    resource_ref: ConversationResourceReference | None = None
 
 
 class CareerMemoryRecord(ContractModel):
@@ -330,9 +411,12 @@ class ToolResult(ContractModel):
 
     tool_name: str
     state: str
-    message: str
+    # Summary-row/message-body states use this as their sole durable receipt,
+    # so an empty string would make a completed turn disappear after refresh.
+    message: str = Field(min_length=1)
     next_action: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+    resource_ref: ConversationResourceReference | None = None
 
 
 # Compatibility name for capability handlers. New orchestration code should
@@ -359,11 +443,94 @@ class MainAgentContext(ContractModel):
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
+    archived_resources: tuple[ConversationMessageContext, ...] = Field(
+        default=(), max_length=12
+    )
+    """Reports delivered before the recent window, as a reachable catalogue.
+
+    Without these a report becomes unreachable to the agent the moment its
+    turn is summarised away: ``resource_ref`` lives only on the original
+    message, and the summary carries none. The UI kept working — it reads
+    the whole transcript — so the failure was asymmetric and silent, with
+    the user looking at a card the model could no longer open.
+
+    Only the reference and a bounded label cross. The report itself stays
+    in its entity, which is the whole point of storing a pointer.
+    """
+
     tool_observations: tuple[DecisionObservation, ...] = Field(default=(), max_length=3)
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
 
+    def referenced_resources(self) -> tuple[ConversationResourceReference, ...]:
+        """Every resource the model can name this turn, in projection order.
+
+        Archived catalogue first, then the recent window, so an older report
+        keeps a lower index than a newer one and the ordering reads the way the
+        conversation happened.
+
+        One place produces the numbering that ``model_context`` shows and that
+        argument projection resolves. Numbering them twice would let the model
+        pick index 2 and be handed index 3's report the moment the two loops
+        drifted, which is silent and unrecoverable rather than an error.
+        """
+        return tuple(
+            message.resource_ref
+            for message in (*self.archived_resources, *self.recent_messages)
+            if message.resource_ref is not None
+        )
+
+    def resolve_reference_index(
+        self, *, reference_index: int, kind: str
+    ) -> str:
+        """Turn a turn-local index back into the internal resource id.
+
+        The kind is checked rather than trusted: the model picks an index out of
+        a mixed list, so an off-by-one would otherwise pass a preparation id to
+        a report lookup and read as "not found" instead of as a bad selector.
+        """
+        references = self.referenced_resources()
+        if not 1 <= reference_index <= len(references):
+            raise ValueError("resource reference index is out of range")
+        reference = references[reference_index - 1]
+        if reference.kind != kind:
+            raise ValueError(
+                f"resource reference {reference_index} is a {reference.kind}, "
+                f"not a {kind}"
+            )
+        return reference.resource_id
+
     def model_context(self) -> dict[str, Any]:
+        model_messages = []
+        # Numbered by walking the window in the same order and skipping the same
+        # messages as ``referenced_resources``, so the index the model reads here
+        # is the one it can pass back.
+        archived = [
+            {
+                "kind": message.resource_ref.kind,
+                "reference_index": index,
+                "delivered_at": message.created_at.isoformat(),
+                "summary": condense(message.content),
+            }
+            for index, message in enumerate(self.archived_resources, start=1)
+            if message.resource_ref is not None
+        ]
+        # Continues the catalogue's numbering rather than restarting, because
+        # ``referenced_resources`` concatenates the two in this same order.
+        reference_index = len(archived)
+        for message in self.recent_messages:
+            projected = {
+                "role": message.role,
+                "content": message.content,
+                "created_at": message.created_at.isoformat(),
+            }
+            if message.resource_ref is not None:
+                reference_index += 1
+                projected["resource"] = {
+                    "kind": message.resource_ref.kind,
+                    "reference_index": reference_index,
+                }
+            model_messages.append(projected)
         return {
             "career_profile": {
                 "default_city": self.profile.default_city,
@@ -378,6 +545,12 @@ class MainAgentContext(ContractModel):
             },
             "preferences": self.preferences.model_dump(mode="json"),
             "task": {
+                **self.task.active_resource_flags(),
+                "active_calendar_proposal_expires_at": (
+                    self.task.active_calendar_proposal_expires_at.isoformat()
+                    if self.task.active_calendar_proposal_expires_at is not None
+                    else None
+                ),
                 "active_workflow": self.task.active_workflow,
                 "phase": self.task.phase,
                 "email_sync_phase": self.task.email_sync_phase,
@@ -512,7 +685,11 @@ class MainAgentContext(ContractModel):
                     )
                 ],
             },
-            "recent_messages": tuple(message.model_dump(mode="json") for message in self.recent_messages),
+            # Internal resource IDs stay in durable messages for the UI and
+            # projection layer. The decision model receives only turn-local
+            # indexes, matching every other selectable object contract.
+            "archived_reports": tuple(archived),
+            "recent_messages": tuple(model_messages),
             "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
             "conversation_summary": (
                 self.conversation_summary.model_dump(mode="json")
@@ -536,12 +713,12 @@ class FindSavedJobsToolArguments(ContractModel):
 
 class GetSavedJobToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
 
 class ResearchJobToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     focus: str | None = Field(default=None, min_length=1, max_length=1000)
     user_provided_context: str | None = Field(
         default=None,
@@ -561,9 +738,24 @@ class RetryJobResearchToolArguments(ContractModel):
 
 
 class GetJobResearchToolArguments(ContractModel):
+    """Selectors for reading back one job-research report.
+
+    ``reference_index`` points at a report a past turn in the recent window
+    produced, which is the only way to read back a report that is no longer the
+    active one. The internal ids stay declared because handlers receive them
+    after projection; the model-facing schema has them stripped.
+    """
+
     report_id: str | None = Field(default=None, min_length=1)
     job_posting_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
+    reference_index: SelectionIndex | None = None
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "GetJobResearchToolArguments":
+        if self.reference_index is not None and self.selection_index is not None:
+            raise ValueError("use either reference_index or selection_index")
+        return self
 
 
 class ListTargetRolesToolArguments(ContractModel):
@@ -572,28 +764,28 @@ class ListTargetRolesToolArguments(ContractModel):
 
 class ListResumesToolArguments(ContractModel):
     target_role_id: str | None = Field(default=None, min_length=1)
-    target_role_selection_index: int | None = Field(default=None, ge=1)
+    target_role_selection_index: SelectionIndex | None = None
 
 
 class GetResumeMetadataToolArguments(ContractModel):
     resume_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
 
 class AnalyzeResumeToolArguments(ContractModel):
     resume_version_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
 
 class MatchResumeToJobToolArguments(ContractModel):
     resume_version_id: str | None = Field(default=None, min_length=1)
     job_posting_id: str | None = Field(default=None, min_length=1)
-    resume_version_selection_index: int | None = Field(default=None, ge=1)
-    job_selection_index: int | None = Field(default=None, ge=1)
+    resume_version_selection_index: SelectionIndex | None = None
+    job_selection_index: SelectionIndex | None = None
 
 
 class ProposeJobIntentToolArguments(ContractModel):
-    target_role_selection_index: int | None = Field(default=None, ge=1)
+    target_role_selection_index: SelectionIndex | None = None
     city: str | None = Field(default=None, min_length=1, max_length=40)
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
@@ -605,7 +797,9 @@ class ConfirmJobIntentToolArguments(ContractModel):
 
 
 class CompareSavedJobsToolArguments(ContractModel):
-    job_selection_indices: tuple[int, ...] = Field(min_length=2, max_length=10)
+    job_selection_indices: tuple[SelectionIndex, ...] = Field(
+        min_length=2, max_length=10
+    )
 
 
 class GetResumeJobMatchToolArguments(ContractModel):
@@ -623,8 +817,12 @@ class GetResumeTailoringDraftToolArguments(ContractModel):
 
 class ReviewResumeTailoringToolArguments(ContractModel):
     draft_id: str | None = Field(default=None, min_length=1)
-    accepted_change_indices: tuple[int, ...] = Field(default=(), max_length=30)
-    rejected_change_indices: tuple[int, ...] = Field(default=(), max_length=30)
+    accepted_change_indices: tuple[SelectionIndex, ...] = Field(
+        default=(), max_length=30
+    )
+    rejected_change_indices: tuple[SelectionIndex, ...] = Field(
+        default=(), max_length=30
+    )
     feedback: str | None = Field(default=None, min_length=1, max_length=2000)
 
     @model_validator(mode="after")
@@ -658,15 +856,15 @@ class ExportResumeArtifactToolArguments(ContractModel):
 class CreateApplicationToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
     resume_version_id: str | None = Field(default=None, min_length=1)
-    job_selection_index: int | None = Field(default=None, ge=1)
-    resume_version_selection_index: int | None = Field(default=None, ge=1)
+    job_selection_index: SelectionIndex | None = None
+    resume_version_selection_index: SelectionIndex | None = None
     submitted_at: datetime | None = None
     note: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class UpdateApplicationStatusToolArguments(ContractModel):
     application_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     status: ApplicationStatus
     note: str | None = Field(default=None, min_length=1, max_length=2000)
 
@@ -690,7 +888,7 @@ class ListApplicationsToolArguments(ContractModel):
 
 class GetApplicationToolArguments(ContractModel):
     application_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
     @model_validator(mode="after")
     def validate_application_selector(self) -> "GetApplicationToolArguments":
@@ -710,7 +908,7 @@ class ListEmailEventsToolArguments(ContractModel):
 
 class ResolveEmailEventToolArguments(ContractModel):
     event_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     approve: bool
     application_id: str | None = Field(default=None, min_length=1)
     interview_round_id: str | None = Field(default=None, min_length=1)
@@ -724,7 +922,7 @@ class ListInterviewsToolArguments(ContractModel):
 
 class GetInterviewToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
     @model_validator(mode="after")
     def validate_selector(self) -> "GetInterviewToolArguments":
@@ -740,7 +938,7 @@ class CreateInterviewToolArguments(ContractModel):
 
 class UpdateInterviewToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     details: InterviewDetails
 
     @model_validator(mode="after")
@@ -752,7 +950,7 @@ class UpdateInterviewToolArguments(ContractModel):
 
 class CompleteInterviewToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     completed_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -764,7 +962,7 @@ class CompleteInterviewToolArguments(ContractModel):
 
 class RecordInterviewRetroToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
     source_notes: str = Field(min_length=1, max_length=20_000)
     summary: str = Field(min_length=1, max_length=5000)
     questions: tuple[InterviewRetroQuestion, ...] = Field(default=(), max_length=30)
@@ -785,8 +983,8 @@ class RecordInterviewRetroToolArguments(ContractModel):
 
 class PrepareInterviewToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
-    action_selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
+    action_selection_index: SelectionIndex | None = None
 
     @model_validator(mode="after")
     def validate_selector(self) -> "PrepareInterviewToolArguments":
@@ -801,12 +999,29 @@ class PrepareInterviewToolArguments(ContractModel):
 
 
 class GetInterviewPreparationToolArguments(ContractModel):
+    """Selectors for reading back one interview preparation.
+
+    Defaults to the active preparation. ``reference_index`` reaches one an
+    earlier turn in the window produced, which the active pointer no longer
+    names once the focus has moved on.
+    """
+
     preparation_id: str | None = Field(default=None, min_length=1)
+    reference_index: SelectionIndex | None = None
+    interview_selection_index: SelectionIndex | None = None
+    """The interview whose preparation to read, from ``list_interviews``.
+
+    The entity-keyed route the other two readbacks already had: job research
+    takes a saved job, a mock interview result takes an application. Without one
+    here, a preparation fell out of reach for good once it stopped being active
+    and its message left the recent window — while the report itself was still
+    on disk and still visible in the transcript.
+    """
 
 
 class StartMockInterviewToolArguments(ContractModel):
-    application_selection_index: int | None = Field(default=None, ge=1)
-    interview_selection_index: int | None = Field(default=None, ge=1)
+    application_selection_index: SelectionIndex | None = None
+    interview_selection_index: SelectionIndex | None = None
     interview_type: MockInterviewType = "mixed"
     max_primary_questions: int = Field(default=6, ge=1, le=20)
     max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)
@@ -834,13 +1049,28 @@ class GetMockInterviewResultToolArguments(ContractModel):
     """Selectors for reading back one finished mock interview.
 
     Defaults to the latest finished run for the active application, which is
-    what "how did I do" means in practice. A question number narrows the read
-    to one exchange, because returning every answer in full would crowd out
-    the rest of the conversation.
+    what "how did I do" means in practice. ``reference_index`` instead names the
+    exact run an earlier turn reported, which matters here more than elsewhere:
+    one application can be practised against repeatedly, so "the latest" and
+    "the one you just told me about" stop agreeing after a second run. A
+    question number narrows the read to one exchange, because returning every
+    answer in full would crowd out the rest of the conversation.
     """
 
-    application_selection_index: int | None = Field(default=None, ge=1)
+    application_selection_index: SelectionIndex | None = None
+    reference_index: SelectionIndex | None = None
     question_number: int | None = Field(default=None, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> "GetMockInterviewResultToolArguments":
+        if (
+            self.reference_index is not None
+            and self.application_selection_index is not None
+        ):
+            raise ValueError(
+                "use either reference_index or application_selection_index"
+            )
+        return self
 
 
 class GetDailyBriefToolArguments(ContractModel):
@@ -857,7 +1087,7 @@ class ListActionItemsToolArguments(ContractModel):
 
 class ResolveActionItemToolArguments(ContractModel):
     action_item_id: str | None = Field(default=None, min_length=1)
-    selection_index: int | None = Field(default=None, ge=1)
+    selection_index: SelectionIndex | None = None
 
     @model_validator(mode="after")
     def validate_selector(self) -> "ResolveActionItemToolArguments":
@@ -880,9 +1110,9 @@ class ListCalendarLinksToolArguments(ContractModel):
 
 class PrepareInterviewCalendarSyncToolArguments(ContractModel):
     interview_round_id: str | None = Field(default=None, min_length=1)
-    interview_selection_index: int | None = Field(default=None, ge=1)
+    interview_selection_index: SelectionIndex | None = None
     calendar_account_id: str | None = Field(default=None, min_length=1)
-    calendar_account_selection_index: int | None = Field(default=None, ge=1)
+    calendar_account_selection_index: SelectionIndex | None = None
 
     @model_validator(mode="after")
     def validate_selectors(self) -> "PrepareInterviewCalendarSyncToolArguments":
@@ -955,9 +1185,14 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
     if name == "compare_saved_jobs":
         indices = payload.pop("job_selection_indices", ())
         candidates = context.task.saved_job_candidates
+        # Both bounds here as well as in the schema. These guards checked only
+        # the upper one, so the lower rested entirely on ``ge=1`` per field —
+        # correct twenty-nine times and absent on this collection's element
+        # type, where index 0 read ``candidates[-1]`` and compared a job
+        # against itself without erroring.
         job_posting_ids = []
         for index in indices:
-            if index > len(candidates):
+            if not 1 <= index <= len(candidates):
                 raise ValueError("saved-job selection index is out of range")
             job_posting_ids.append(candidates[index - 1].job_posting_id)
         payload["job_posting_ids"] = tuple(job_posting_ids)
@@ -966,7 +1201,7 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         selection_index = payload.pop("selection_index", None)
         job_posting_id = context.task.active_job_posting_id
         if selection_index is not None:
-            if selection_index > len(context.task.saved_job_candidates):
+            if not 1 <= selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")
             job_posting_id = context.task.saved_job_candidates[
                 selection_index - 1
@@ -989,7 +1224,7 @@ def project_job_intent_arguments(
         selection_index = payload.pop("target_role_selection_index", None)
         if selection_index is not None:
             candidates = context.task.target_role_candidates
-            if selection_index > len(candidates):
+            if not 1 <= selection_index <= len(candidates):
                 raise ValueError("target-role selection index is out of range")
             payload["target_role_id"] = candidates[selection_index - 1].target_role_id
         update = JobIntentUpdate.model_validate(payload)
@@ -1039,7 +1274,7 @@ def project_job_research_arguments(
         selection_index = payload.pop("selection_index", None)
         job_posting_id = context.task.active_job_posting_id
         if selection_index is not None:
-            if selection_index > len(context.task.saved_job_candidates):
+            if not 1 <= selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")
             job_posting_id = context.task.saved_job_candidates[
                 selection_index - 1
@@ -1055,8 +1290,15 @@ def project_job_research_arguments(
     elif name == "get_job_research":
         model_arguments = GetJobResearchToolArguments.model_validate(arguments)
         selection_index = model_arguments.selection_index
-        if selection_index is not None:
-            if selection_index > len(context.task.saved_job_candidates):
+        if model_arguments.reference_index is not None:
+            payload = {
+                "report_id": context.resolve_reference_index(
+                    reference_index=model_arguments.reference_index,
+                    kind="job_research_report",
+                )
+            }
+        elif selection_index is not None:
+            if not 1 <= selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")
             payload = {
                 "job_posting_id": context.task.saved_job_candidates[
@@ -1118,7 +1360,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
     if name == "list_resumes":
         selection_index = payload.pop("target_role_selection_index", None)
         if selection_index is not None:
-            if selection_index > len(context.task.target_role_candidates):
+            if not 1 <= selection_index <= len(context.task.target_role_candidates):
                 raise ValueError("target-role selection index is out of range")
             payload["target_role_id"] = context.task.target_role_candidates[
                 selection_index - 1
@@ -1126,7 +1368,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
     if name == "get_resume_metadata":
         selection_index = payload.pop("selection_index", None)
         if selection_index is not None:
-            if selection_index > len(context.task.resume_candidates):
+            if not 1 <= selection_index <= len(context.task.resume_candidates):
                 raise ValueError("resume selection index is out of range")
             payload["resume_id"] = context.task.resume_candidates[
                 selection_index - 1
@@ -1137,7 +1379,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         selection_index = payload.pop("selection_index", None)
         resume_version_id = context.task.active_resume_version_id
         if selection_index is not None:
-            if selection_index > len(context.task.resume_version_candidates):
+            if not 1 <= selection_index <= len(context.task.resume_version_candidates):
                 raise ValueError("resume-version selection index is out of range")
             resume_version_id = context.task.resume_version_candidates[
                 selection_index - 1
@@ -1152,14 +1394,14 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         job_selection_index = payload.pop("job_selection_index", None)
         resume_version_id = context.task.active_resume_version_id
         if resume_selection_index is not None:
-            if resume_selection_index > len(context.task.resume_version_candidates):
+            if not 1 <= resume_selection_index <= len(context.task.resume_version_candidates):
                 raise ValueError("resume-version selection index is out of range")
             resume_version_id = context.task.resume_version_candidates[
                 resume_selection_index - 1
             ].resume_version_id
         job_posting_id = context.task.active_job_posting_id
         if job_selection_index is not None:
-            if job_selection_index > len(context.task.saved_job_candidates):
+            if not 1 <= job_selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")
             job_posting_id = context.task.saved_job_candidates[
                 job_selection_index - 1
@@ -1209,14 +1451,14 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         )
         job_posting_id = context.task.active_job_posting_id
         if job_selection_index is not None:
-            if job_selection_index > len(context.task.saved_job_candidates):
+            if not 1 <= job_selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")
             job_posting_id = context.task.saved_job_candidates[
                 job_selection_index - 1
             ].job_posting_id
         resume_version_id = context.task.active_resume_version_id
         if resume_selection_index is not None:
-            if resume_selection_index > len(context.task.resume_version_candidates):
+            if not 1 <= resume_selection_index <= len(context.task.resume_version_candidates):
                 raise ValueError("resume-version selection index is out of range")
             resume_version_id = context.task.resume_version_candidates[
                 resume_selection_index - 1
@@ -1231,7 +1473,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         application_id = payload.get("application_id")
         selection_index = payload.pop("selection_index", None)
         if application_id is None and selection_index is not None:
-            if selection_index > len(context.task.application_candidates):
+            if not 1 <= selection_index <= len(context.task.application_candidates):
                 raise ValueError("application selection index is out of range")
             application_id = context.task.application_candidates[
                 selection_index - 1
@@ -1259,7 +1501,7 @@ def project_email_arguments(
     if name == "resolve_email_event":
         selection_index = payload.pop("selection_index", None)
         if selection_index is not None:
-            if selection_index > len(context.task.email_event_candidates):
+            if not 1 <= selection_index <= len(context.task.email_event_candidates):
                 raise ValueError("email-event selection index is out of range")
             payload["event_id"] = context.task.email_event_candidates[
                 selection_index - 1
@@ -1306,7 +1548,7 @@ def project_interview_arguments(
         interview_round_id = payload.get("interview_round_id")
         selection_index = payload.pop("selection_index", None)
         if interview_round_id is None and selection_index is not None:
-            if selection_index > len(context.task.interview_candidates):
+            if not 1 <= selection_index <= len(context.task.interview_candidates):
                 raise ValueError("interview selection index is out of range")
             interview_round_id = context.task.interview_candidates[
                 selection_index - 1
@@ -1329,13 +1571,13 @@ def project_interview_preparation_arguments(
         selection_index = payload.pop("selection_index", None)
         action_selection_index = payload.pop("action_selection_index", None)
         if interview_round_id is None and selection_index is not None:
-            if selection_index > len(context.task.interview_candidates):
+            if not 1 <= selection_index <= len(context.task.interview_candidates):
                 raise ValueError("interview selection index is out of range")
             interview_round_id = context.task.interview_candidates[
                 selection_index - 1
             ].interview_round_id
         if interview_round_id is None and action_selection_index is not None:
-            if action_selection_index > len(context.task.action_candidates):
+            if not 1 <= action_selection_index <= len(context.task.action_candidates):
                 raise ValueError("action selection index is out of range")
             action = context.task.action_candidates[action_selection_index - 1]
             if (
@@ -1351,11 +1593,29 @@ def project_interview_preparation_arguments(
     elif name == "get_interview_preparation":
         model_arguments = GetInterviewPreparationToolArguments.model_validate(arguments)
         payload = model_arguments.model_dump()
-        preparation_id = (
-            payload.get("preparation_id")
-            or context.task.active_interview_preparation_id
-        )
-        if preparation_id is None:
+        reference_index = payload.pop("reference_index", None)
+        interview_index = payload.pop("interview_selection_index", None)
+        preparation_id = None
+        if reference_index is not None:
+            preparation_id = context.resolve_reference_index(
+                reference_index=reference_index,
+                kind="interview_preparation",
+            )
+        elif interview_index is not None:
+            if not 1 <= interview_index <= len(context.task.interview_candidates):
+                raise ValueError("interview selection index is out of range")
+            # Resolved to the interview, not to a preparation: which preparation
+            # belongs to it is the store's answer, and the newest is the one a
+            # candidate means by "the prep for that interview".
+            payload["interview_round_id"] = context.task.interview_candidates[
+                interview_index - 1
+            ].interview_round_id
+        else:
+            preparation_id = (
+                payload.get("preparation_id")
+                or context.task.active_interview_preparation_id
+            )
+        if preparation_id is None and "interview_round_id" not in payload:
             raise ValueError("get_interview_preparation requires an active preparation")
         payload["preparation_id"] = preparation_id
     else:
@@ -1373,12 +1633,12 @@ def project_mock_interview_arguments(
 
     if model_arguments.application_selection_index is not None:
         index = model_arguments.application_selection_index
-        if index > len(context.task.application_candidates):
+        if not 1 <= index <= len(context.task.application_candidates):
             raise ValueError("application selection index is out of range")
         application_id = context.task.application_candidates[index - 1].application_id
     elif model_arguments.interview_selection_index is not None:
         index = model_arguments.interview_selection_index
-        if index > len(context.task.interview_candidates):
+        if not 1 <= index <= len(context.task.interview_candidates):
             raise ValueError("interview selection index is out of range")
         candidate = context.task.interview_candidates[index - 1]
         application_id = candidate.application_id
@@ -1425,10 +1685,23 @@ def project_mock_interview_result_arguments(
 ) -> dict[str, Any]:
     _reject_internal_identifiers("get_mock_interview_result", arguments)
     model_arguments = GetMockInterviewResultToolArguments.model_validate(arguments)
+    if model_arguments.reference_index is not None:
+        # A report id names one exact run, so the application is not needed and
+        # must not be sent: passing both would let the handler fall back to the
+        # newest run for that application and quietly answer about a different
+        # interview than the turn the user pointed at.
+        return {
+            "user_id": context.profile.user_id,
+            "report_id": context.resolve_reference_index(
+                reference_index=model_arguments.reference_index,
+                kind="mock_interview_report",
+            ),
+            "question_number": model_arguments.question_number,
+        }
     application_id = context.task.active_application_id
     if model_arguments.application_selection_index is not None:
         index = model_arguments.application_selection_index
-        if index > len(context.task.application_candidates):
+        if not 1 <= index <= len(context.task.application_candidates):
             raise ValueError("application selection index is out of range")
         application_id = context.task.application_candidates[index - 1].application_id
     if application_id is None:
@@ -1459,7 +1732,7 @@ def project_action_center_arguments(
         action_item_id = payload.get("action_item_id")
         selection_index = payload.pop("selection_index", None)
         if action_item_id is None and selection_index is not None:
-            if selection_index > len(context.task.action_candidates):
+            if not 1 <= selection_index <= len(context.task.action_candidates):
                 raise ValueError("action selection index is out of range")
             action_item_id = context.task.action_candidates[
                 selection_index - 1
@@ -1492,7 +1765,7 @@ def project_calendar_arguments(
         interview_round_id = payload.get("interview_round_id")
         interview_index = payload.pop("interview_selection_index", None)
         if interview_round_id is None and interview_index is not None:
-            if interview_index > len(context.task.interview_candidates):
+            if not 1 <= interview_index <= len(context.task.interview_candidates):
                 raise ValueError("interview selection index is out of range")
             interview_round_id = context.task.interview_candidates[
                 interview_index - 1
@@ -1504,7 +1777,7 @@ def project_calendar_arguments(
         account_id = payload.get("calendar_account_id")
         account_index = payload.pop("calendar_account_selection_index", None)
         if account_id is None and account_index is not None:
-            if account_index > len(context.task.calendar_account_candidates):
+            if not 1 <= account_index <= len(context.task.calendar_account_candidates):
                 raise ValueError("calendar account selection index is out of range")
             account_id = context.task.calendar_account_candidates[
                 account_index - 1

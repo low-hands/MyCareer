@@ -8,6 +8,8 @@ import {
 import { streamChat } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import { InteractionCard } from "./components/InteractionCard";
+import { ReportCard } from "./components/ReportCard";
+import { MarkdownContent } from "./components/MarkdownContent";
 import { AppIcon, type AppIconName } from "./components/AppIcon";
 import { DailyBriefPanel } from "./pages/DailyBrief";
 import {
@@ -131,6 +133,14 @@ export default function App() {
             id: `history-${conversationId}-${index}`,
             role: message.role,
             content: message.content,
+            resource: message.resource
+              ? {
+                  kind: message.resource.kind,
+                  resourceId: message.resource.resource_id,
+                  statusAtDelivery: message.resource.status_at_delivery,
+                  anchoredByOtherJob: message.resource.anchored_by_other_job,
+                }
+              : undefined,
           })),
           awaitingInput: Boolean(transcript.active_workflow),
         });
@@ -459,8 +469,23 @@ export default function App() {
               <article className={`message message-${message.role}`} key={message.id}>
                 <span className="message-role">{message.role === "user" ? "你" : "Career Agent"}</span>
                 <div className="message-content">
-                  {message.content || (message.role === "assistant" && busy ? <span className="typing">● ● ●</span> : null)}
+                  {message.content ? (
+                    message.role === "assistant" ? (
+                      <MarkdownContent content={message.content} className="markdown-content" />
+                    ) : (
+                      message.content
+                    )
+                  ) : message.role === "assistant" && busy ? (
+                    <span className="typing">● ● ●</span>
+                  ) : null}
                 </div>
+                {message.resource ? (
+                  <ReportCard
+                    resource={message.resource}
+                    userId={userId}
+                    apiBaseUrl={API_BASE_URL}
+                  />
+                ) : null}
               </article>
             ))}
 

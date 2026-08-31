@@ -429,6 +429,42 @@ def build_parser() -> argparse.ArgumentParser:
         "--calendar-store", default="~/.career-agent/calendar.sqlite3"
     )
 
+    eval_command = subparsers.add_parser(
+        "eval",
+        help="Run or re-record the Main Agent trajectory evaluation.",
+        description=(
+            "Trajectory scenarios pin what the Main Agent decides, which is the "
+            "one thing the ordinary test suite cannot see: every other test "
+            "scripts the decision and checks the runtime. Replay runs offline "
+            "and checks this project against decisions the model already made; "
+            "only --record evaluates the model itself."
+        ),
+    )
+    eval_subparsers = eval_command.add_subparsers(dest="eval_command", required=True)
+    eval_trajectories = eval_subparsers.add_parser(
+        "trajectories", help="Replay the scenario catalogue, or re-record it."
+    )
+    eval_trajectories.add_argument(
+        "--record",
+        action="store_true",
+        help=(
+            "Ask the live model and overwrite the cassettes. Needs MAIN_AGENT_* "
+            "configured, and costs one model call per scenario step."
+        ),
+    )
+    eval_trajectories.add_argument(
+        "--main-agent-timeout-seconds",
+        type=float,
+        default=60.0,
+        help="Main Agent model timeout while recording (default: 60).",
+    )
+    eval_trajectories.add_argument(
+        "--scenario",
+        action="append",
+        default=None,
+        help="Limit to named scenarios. Repeatable.",
+    )
+
     context_command = subparsers.add_parser(
         "context",
         help="Inspect and reclaim summarised conversation history.",
@@ -545,6 +581,120 @@ def _failure_exit_code(result: ToolObservation) -> int:
     if result.state != "failed":
         return EXIT_OK
     return EXIT_WORKFLOW_ERROR
+
+
+def _trajectory_tool_specs():
+    """Every tool the registry can offer, wired with placeholder services.
+
+    Scenarios never execute a tool, so the services only have to exist. What
+    has to match production is the schema list: a scenario that forbids a tool
+    the model was never offered proves nothing.
+    """
+    from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+
+    parameters = (
+        "job_repository", "job_comparison_service", "career_profile_store",
+        "resume_store", "resume_analysis_service", "resume_job_match_service",
+        "resume_tailoring_service", "resume_export_service",
+        "application_service", "email_tracking_service", "interview_service",
+        "interview_preparation_service", "action_center_service",
+        "calendar_service", "mock_interview_graph", "mock_interview_store",
+        "job_research_service",
+    )
+    return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
+
+
+def _run_trajectory_evaluation(args, stdout) -> int:
+    """Replay the scenario catalogue, or re-cut it against the live model.
+
+    Reports each scenario's contract result separately from its replay result,
+    because the two mean different things and collapsing them would let a green
+    run be read as "the model behaves" when no cassette exists.
+    """
+    from dataclasses import replace as _replace
+
+    from career_agent.evaluation.main_agent_scenarios import SCENARIOS
+    from career_agent.evaluation.trajectory import (
+        check_contract,
+        load_cassette,
+        record,
+        replay,
+    )
+
+    try:
+        schemas = _trajectory_tool_specs()
+        offered = frozenset(spec["function"]["name"] for spec in schemas)
+        selected = (
+            tuple(item for item in SCENARIOS if item.name in set(args.scenario))
+            if args.scenario
+            else SCENARIOS
+        )
+        if args.scenario and len(selected) != len(set(args.scenario)):
+            known = ", ".join(item.name for item in SCENARIOS)
+            raise ValueError(f"unknown scenario; available: {known}")
+
+        config = None
+        if args.record:
+            config = _replace(
+                OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
+                timeout_seconds=args.main_agent_timeout_seconds,
+            )
+
+        results = []
+        for scenario in selected:
+            contract = check_contract(scenario, offered_tools=offered)
+            if args.record and not contract:
+                record(scenario, tool_specs=schemas, config=config)
+            responses = load_cassette(scenario.name)
+            behaviour = (
+                replay(scenario, tool_specs=schemas, responses=responses)
+                if responses is not None and not contract
+                else ()
+            )
+            results.append(
+                {
+                    "scenario": scenario.name,
+                    "policy": scenario.policy,
+                    "contract": "passed" if not contract else "failed",
+                    "behaviour": (
+                        "unrecorded"
+                        if responses is None
+                        else ("passed" if not behaviour else "failed")
+                    ),
+                    "failures": list(contract) + list(behaviour),
+                }
+            )
+
+        unrecorded = sum(1 for item in results if item["behaviour"] == "unrecorded")
+        failed = [item for item in results if item["failures"]]
+        payload = {
+            "scenarios": len(results),
+            "contract_failed": sum(
+                1 for item in results if item["contract"] == "failed"
+            ),
+            "behaviour_failed": sum(
+                1 for item in results if item["behaviour"] == "failed"
+            ),
+            "unrecorded": unrecorded,
+            # Said outright rather than left to be inferred from the counts: a
+            # run with no cassettes is green and proves nothing about the model.
+            "note": (
+                "contract results say the scenario is well posed; only recorded "
+                "behaviour evaluates the model"
+            ),
+            "results": results,
+        }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK if not failed else EXIT_ARGUMENT_ERROR
+    except AgentConfigurationError as error:
+        json.dump({"state": "failed", "error_code": error.code, "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_CONFIGURATION_ERROR
+    except (OSError, ValueError) as error:
+        json.dump({"state": "failed", "error_code": "EVAL_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_ARGUMENT_ERROR
 
 
 def main(
@@ -731,6 +881,8 @@ def main(
             )
             stdout.write("\n")
             return EXIT_ARGUMENT_ERROR
+    if args.command == "eval":
+        return _run_trajectory_evaluation(args, stdout)
     if args.command == "context":
         try:
             store = CareerContextStore(Path(args.context_store).expanduser())

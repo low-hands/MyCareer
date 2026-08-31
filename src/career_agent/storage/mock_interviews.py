@@ -514,6 +514,24 @@ class SQLiteMockInterviewStore:
             ).fetchone()
         return MockInterviewReport.model_validate_json(row[0]) if row else None
 
+    def find_report_session_id(
+        self, *, user_id: str, report_id: str
+    ) -> str | None:
+        """Which run produced this report, scoped to its owner.
+
+        Reading a report back needs the run's turns too, and those hang off the
+        session rather than the report. The user filter is the ownership check:
+        a report id from another user's conversation resolves to nothing rather
+        than to their interview.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT session_id FROM mock_interview_reports "
+                "WHERE id = ? AND user_id = ?",
+                (report_id, user_id),
+            ).fetchone()
+        return str(row[0]) if row else None
+
     _SESSION_SELECT = (
         "SELECT id, user_id, application_id, interview_round_id, job_posting_id, "
         "jd_snapshot_id, resume_version_id, interview_type, graph_version, status, "

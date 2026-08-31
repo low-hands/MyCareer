@@ -259,6 +259,45 @@ class SQLiteResumeTailoringDraftStore:
             )
         return self._record(row, review_rows) if row else None
 
+    def get_for_display(
+        self,
+        *,
+        user_id: str,
+        draft_id: str,
+    ) -> StoredResumeTailoringDraft | None:
+        """Read a historical draft without reviving its expired capabilities.
+
+        Mutation paths continue to call :meth:`get`, which enforces the TTL.
+        This method exists only for the person's read-only report card, where
+        an expired or superseded draft must remain honestly inspectable.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, match_id, parent_draft_id, revision_number,
+                       revision_feedback, tailoring_goal, review_status,
+                       worker_version, result_json, automated_review_json,
+                       created_at, expires_at
+                FROM resume_tailoring_drafts
+                WHERE id = ? AND user_id = ?
+                """,
+                (draft_id, user_id),
+            ).fetchone()
+            review_rows = (
+                connection.execute(
+                    """
+                    SELECT change_index, decision, feedback, reviewed_at
+                    FROM resume_tailoring_change_reviews
+                    WHERE draft_id = ? AND user_id = ?
+                    ORDER BY change_index
+                    """,
+                    (draft_id, user_id),
+                ).fetchall()
+                if row
+                else ()
+            )
+        return self._record(row, review_rows) if row else None
+
     def review_changes(
         self,
         *,

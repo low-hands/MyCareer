@@ -212,3 +212,7 @@ def test_main_agent_records_user_grounded_real_interview_retro(tmp_path) -> None
         }
     ]
     assert result.context.task.active_interview_round_id == "interview-1"
+    assert result.assistant_message.startswith("# 真实面试复盘")
+    assert "如何评估 RAG？" in result.assistant_message
+    assert result.tool_result.resource_ref is not None
+    assert result.tool_result.resource_ref.kind == "interview_retro_report"

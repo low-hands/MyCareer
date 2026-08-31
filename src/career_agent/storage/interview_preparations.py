@@ -81,6 +81,29 @@ class SQLiteInterviewPreparationStore:
             ).fetchone()
         return self._record(row) if row else None
 
+    def find_latest_for_round(
+        self, *, user_id: str, interview_round_id: str
+    ) -> StoredInterviewPreparation | None:
+        """The most recent preparation written for one interview.
+
+        The entity-keyed way back to a preparation, matching what job research
+        and mock interview reports already offer. Without it a preparation was
+        reachable only while it was the active one or still named by a message
+        in the recent window, so it became permanently unreachable to the agent
+        the moment both lapsed — alone among the three report kinds.
+
+        Uses the (user_id, interview_round_id, created_at DESC) index the table
+        already declares for exactly this shape of read.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                self._SELECT
+                + " WHERE user_id = ? AND interview_round_id = ?"
+                + " ORDER BY created_at DESC LIMIT 1",
+                (user_id, interview_round_id),
+            ).fetchone()
+        return self._record(row) if row else None
+
     def get(
         self, *, user_id: str, preparation_id: str
     ) -> StoredInterviewPreparation | None:
