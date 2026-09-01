@@ -441,6 +441,12 @@ _DECISION_FACT_KEYS_BY_STATE = {
     "job_research_ready": frozenset({"cached", "finding_count", "status"}),
 }
 
+# Shared window for the contract, runtime, and trajectory evaluator.  Eight is
+# the provisional capacity for the planned split budgets; the budget PR must
+# enforce that its maximum emitted observations fit this window rather than
+# relying on this comment or silently evicting an earlier observation.
+MAX_DECISION_OBSERVATIONS = 8
+
 
 class DecisionObservation(ContractModel):
     """Closed, bounded observation visible to the Main Agent decision model."""
@@ -508,7 +514,10 @@ class MainAgentContext(ContractModel):
     in its entity, which is the whole point of storing a pointer.
     """
 
-    tool_observations: tuple[DecisionObservation, ...] = Field(default=(), max_length=3)
+    tool_observations: tuple[DecisionObservation, ...] = Field(
+        default=(),
+        max_length=MAX_DECISION_OBSERVATIONS,
+    )
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
 

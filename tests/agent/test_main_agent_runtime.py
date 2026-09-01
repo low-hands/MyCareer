@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, ToolResult
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, ToolResult
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -347,6 +347,42 @@ def test_decision_observation_clamps_the_receipt_at_its_boundary() -> None:
     assert len(observation.message) == 600
     assert observation.message.endswith("…")
     assert DecisionObservation.model_validate(observation.model_dump()) == observation
+
+
+def test_main_agent_context_keeps_a_full_eight_observation_turn_window() -> None:
+    observations = tuple(
+        DecisionObservation(
+            tool_name=f"read_step_{index}",
+            state="read_complete",
+            message=f"第 {index} 步读取完成。",
+        )
+        for index in range(MAX_DECISION_OBSERVATIONS)
+    )
+
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=observations,
+        user_message="继续处理。",
+    )
+
+    assert context.tool_observations == observations
+    assert len(context.model_context()["tool_observations"]) == 8
+
+    with pytest.raises(ValidationError):
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            tool_observations=(
+                *observations,
+                DecisionObservation(
+                    tool_name="read_step_8",
+                    state="read_complete",
+                    message="第 8 步读取完成。",
+                ),
+            ),
+            user_message="继续处理。",
+        )
 
 
 def test_blank_receipt_degrades_after_a_tool_result_instead_of_raising() -> None:

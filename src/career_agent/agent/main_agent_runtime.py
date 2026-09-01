@@ -13,7 +13,7 @@ from career_agent.agent.answer_writer import (
     AnswerCompositionRequest,
     AnswerWriter,
 )
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
 from career_agent.harness.observability import TraceRecorder
 from career_agent.agent.delivery_policy import (
@@ -1070,7 +1070,7 @@ class MainAgentRuntime:
                 "tool_observations": (
                     *updated.tool_observations,
                     self._tool_observation("start_mock_interview", result),
-                )[-3:]
+                )[-MAX_DECISION_OBSERVATIONS:]
             }
         )
         decision = AgentDecision(
@@ -1249,7 +1249,14 @@ class MainAgentRuntime:
         else:
             updated = self._update_atomic_task(context, result)
         observation = self._tool_observation(capability_name, result)
-        updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
+        updated = updated.model_copy(
+            update={
+                "tool_observations": (
+                    *updated.tool_observations,
+                    observation,
+                )[-MAX_DECISION_OBSERVATIONS:]
+            }
+        )
         fingerprint = self._tool_call_fingerprint(state["decision"])
         artifact_ids = state.get("artifact_ids", ())
         if result.state == "invalid_input":
