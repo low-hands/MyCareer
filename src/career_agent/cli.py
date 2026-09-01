@@ -65,6 +65,7 @@ from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.run_events import SQLiteTraceRecorder
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.services.job_comparison import JobComparisonService
@@ -177,6 +178,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         answer_writer=OpenAIStreamingAnswerWriter(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
+        trace_recorder=SQLiteTraceRecorder(Path(args.run_events_store).expanduser()),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,
@@ -278,6 +280,11 @@ def _resume_payload(resume, versions=()) -> dict[str, object]:
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
+    parser.add_argument(
+        "--run-events-store",
+        default="~/.career-agent/run-events.sqlite3",
+        help="Local best-effort telemetry store path, redacted and independent of business stores.",
+    )
     parser.add_argument("--job-store", default="~/.career-agent/jobs.sqlite3", help="Local durable job and JD snapshot store path.")
     parser.add_argument(
         "--job-research-store",

@@ -6,6 +6,8 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.security.redaction import redact, redact_text
+
 
 EventType = Literal[
     "run_started",
@@ -19,6 +21,10 @@ EventType = Literal[
     "model_attempt",
     "model_succeeded",
     "model_failed",
+    "turn_completed",
+    "turn_failed",
+    "capability_failed",
+    "presentation_degraded",
 ]
 
 
@@ -65,6 +71,20 @@ class TraceRecorder(Protocol):
     def snapshot(self, run_id: str) -> RunTrace: ...
 
 
+def safe_trace_fields(
+    *,
+    details: dict[str, Any] | None,
+    error_detail: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Apply the mandatory storage boundary for every trace implementation."""
+
+    safe_details = redact(details or {})
+    safe_error = (
+        redact_text(error_detail)[:2000] if error_detail is not None else None
+    )
+    return safe_details, safe_error
+
+
 class InMemoryTraceRecorder:
     def __init__(self) -> None:
         self._events: dict[str, list[RunEvent]] = {}
@@ -84,6 +104,10 @@ class InMemoryTraceRecorder:
         error_detail: str | None = None,
         recoverable: bool | None = None,
     ) -> RunEvent:
+        safe_details, safe_error = safe_trace_fields(
+            details=details,
+            error_detail=error_detail,
+        )
         with self._lock:
             events = self._events.setdefault(run_id, [])
             event = RunEvent(
@@ -95,9 +119,9 @@ class InMemoryTraceRecorder:
                 occurred_at=datetime.now(timezone.utc),
                 duration_ms=duration_ms,
                 outcome=outcome,
-                details=details or {},
+                details=safe_details,
                 error_code=error_code,
-                error_detail=error_detail,
+                error_detail=safe_error,
                 recoverable=recoverable,
             )
             events.append(event)
@@ -138,6 +162,10 @@ class NoopTraceRecorder:
         error_detail: str | None = None,
         recoverable: bool | None = None,
     ) -> RunEvent:
+        safe_details, safe_error = safe_trace_fields(
+            details=details,
+            error_detail=error_detail,
+        )
         return RunEvent(
             run_id=run_id,
             sequence=1,
@@ -147,9 +175,9 @@ class NoopTraceRecorder:
             occurred_at=datetime.now(timezone.utc),
             duration_ms=duration_ms,
             outcome=outcome,
-            details=details or {},
+            details=safe_details,
             error_code=error_code,
-            error_detail=error_detail,
+            error_detail=safe_error,
             recoverable=recoverable,
         )
 
