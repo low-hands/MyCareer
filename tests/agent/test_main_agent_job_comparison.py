@@ -142,6 +142,7 @@ def test_the_model_chooses_jobs_by_index_and_never_sees_an_internal_id(
 
 
 def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
+    """Empty context: nothing to re-select, so the turn ends on the refusal."""
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -149,12 +150,56 @@ def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
                 name="compare_saved_jobs",
                 arguments={"job_selection_indices": [1, 2]},
             ),
-        )
+        ),
     )
     runtime, _, _ = build_runtime(tmp_path, decisions)
 
-    with pytest.raises(ValueError, match="selection index is out of range"):
-        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="对比一下")
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="对比一下")
+
+    assert result.tool_result is not None
+    assert result.tool_result.state == "invalid_input"
+    assert "selection index is out of range" in result.assistant_message
+    assert len(decisions.contexts) == 1
+
+
+def test_an_out_of_range_index_with_listed_jobs_is_rerouted_to_decide(
+    tmp_path,
+) -> None:
+    """Candidates exist, so the refusal loops back and the model re-selects."""
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "AI"}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="compare_saved_jobs",
+                arguments={"job_selection_indices": [1, 3]},
+            ),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="compare_saved_jobs",
+                arguments={"job_selection_indices": [1, 2]},
+            ),
+        ),
+        AgentDecision(action="final", message=""),
+    )
+    runtime, _, _ = build_runtime(tmp_path, decisions)
+
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="对比一下")
+
+    assert result.tool_result is not None
+    assert result.tool_result.state == "saved_jobs_compared"
+    # First compare refused, looped back, model re-selected against the listed
+    # jobs, and the comparison went through without bouncing the user.
+    assert len(decisions.contexts) == 4
+    assert any(
+        "selection index is out of range" in context.model_dump_json()
+        for context in decisions.contexts
+    )
 
 
 def test_the_comparison_is_rendered_for_the_user_but_stays_out_of_the_model_context(

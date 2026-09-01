@@ -182,6 +182,7 @@ _POLICIES.update(
             "mock_interview_input_retry_required",
             "mock_interview_restart_failed",
             "mock_interview_running",
+            "invalid_input",
             "no_mock_interview_result_found",
             "no_mock_interview_to_restart",
             "resume_analysis_confirmed",

@@ -87,6 +87,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationResourceReference,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.tool_reachability import reachable
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.services.resume_analysis import (
@@ -408,7 +409,7 @@ class MainAgentToolRegistry:
             return "atomic_tool"
         raise ValueError(f"Unknown main-agent capability: {name}")
 
-    def schemas(self) -> tuple[dict[str, Any], ...]:
+    def schemas(self, context: MainAgentContext | None = None) -> tuple[dict[str, Any], ...]:
         schemas = []
         if "open_job_search" in self._atomic_handlers:
             schemas.append(
@@ -989,6 +990,12 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
+        if context is not None:
+            schemas = [
+                schema
+                for schema in schemas
+                if reachable(schema["function"]["name"], context.task)
+            ]
         return tuple(self._decision_tool_schema(schema) for schema in schemas)
 
     @staticmethod
