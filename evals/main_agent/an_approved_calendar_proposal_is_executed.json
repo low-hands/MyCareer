@@ -2,7 +2,9 @@
   "scenario": "an_approved_calendar_proposal_is_executed",
   "policy": "Call execute_calendar_proposal only when the current user message explicitly approves the active displayed proposal.",
   "model": "gpt-5.6-luna",
-  "recorded_at": "2026-08-31T08:29:46.928509+00:00",
+  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "context_shape_fingerprint": "6ea41e6d679009a8e390d1db2012515f9688bc063e80b7436e5e873012e19000",
+  "recorded_at": "2026-09-01T01:27:31.951242+00:00",
   "steps": [
     {
       "tool_call": {

@@ -2,10 +2,17 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "gpt-5.6-luna",
-  "recorded_at": "2026-08-31T07:58:42.948690+00:00",
+  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "context_shape_fingerprint": "566bae0a632284cfffbed6a25758fc4e7ba3c27189320c127d3844351a10e27a",
+  "recorded_at": "2026-09-01T01:27:41.000356+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"目前这场面试仍记录为已安排（2026-08-20 00:00 UTC），还没有完成记录或面试结果。你是想确认面试安排，还是已经参加完并想记录复盘？\"}"
+      "tool_call": {
+        "name": "get_interview",
+        "arguments": {
+          "selection_index": 1
+        }
+      }
     }
   ]
 }

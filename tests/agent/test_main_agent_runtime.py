@@ -252,6 +252,8 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
     assert observation == {
         "tool_name": "open_job_search",
         "state": "job_search_page_ready",
+        "message": "已准备打开 BOSS 搜索“AI Engineer”。请正常浏览，并只保存你感兴趣的岗位。",
+        "facts": {},
         "next_action": "browse_and_save_job",
     }
     serialized = str(observation)
@@ -309,7 +311,7 @@ def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
     result = ToolResult(
         tool_name="get_saved_job",
         state="saved_job_ready",
-        message=f"message:{sentinel}",
+        message="已读取已保存岗位。",
         next_action="match_resume_to_job",
         payload={"jd_snapshot": {"content": sentinel}, "job_posting_id": "secret-id"},
     )
@@ -319,14 +321,128 @@ def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
     assert observation.model_dump() == {
         "tool_name": "get_saved_job",
         "state": "saved_job_ready",
+        "message": "已读取已保存岗位。",
+        "facts": {},
         "next_action": "match_resume_to_job",
     }
     assert sentinel not in observation.model_dump_json()
-    assert len(observation.model_dump_json()) < 256
+    assert len(observation.model_dump_json()) < 900
     with pytest.raises(ValidationError):
         DecisionObservation.model_validate(
             {**observation.model_dump(), "payload": {"content": sentinel}}
         )
+
+
+def test_decision_observation_clamps_the_receipt_at_its_boundary() -> None:
+    result = ToolResult(
+        tool_name="start_mock_interview",
+        state="mock_interview_answer_required",
+        message="模拟面试题：" + "请说明你的设计。" * 200,
+    )
+
+    observation = MainAgentRuntime._tool_observation(
+        "start_mock_interview", result
+    )
+
+    assert len(observation.message) == 600
+    assert observation.message.endswith("…")
+    assert DecisionObservation.model_validate(observation.model_dump()) == observation
+
+
+def test_blank_receipt_degrades_after_a_tool_result_instead_of_raising() -> None:
+    observation = MainAgentRuntime._tool_observation(
+        "write_side_effect",
+        ToolResult(
+            tool_name="write_side_effect",
+            state="write_complete",
+            message="   ",
+        ),
+    )
+
+    assert observation.message == "工具已返回，但没有提供结果摘要。"
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    (
+        (
+            ToolResult(
+                tool_name="get_daily_brief",
+                state="daily_brief_ready",
+                message="今日职业简报包含 13 个待办事项。",
+                payload={
+                    "overdue": [{}] * 6,
+                    "due_today": [{}] * 4,
+                    "no_due_date": [{}] * 3,
+                },
+            ),
+            {"overdue": 6, "due_today": 4, "waiting": 3},
+        ),
+        (
+            ToolResult(
+                tool_name="analyze_resume",
+                state="resume_analysis_ready",
+                message="已分析简历。",
+                payload={
+                    "records": [{}] * 12,
+                    "clarification_questions": ["请确认时间"],
+                    "warnings": [],
+                },
+            ),
+            {
+                "record_count": 12,
+                "clarification_count": 1,
+                "has_warnings": False,
+            },
+        ),
+        (
+            ToolResult(
+                tool_name="research_job",
+                state="job_research_ready",
+                message="已复用岗位研究。",
+                payload={
+                    "cached": True,
+                    "status": "current",
+                    "research": {"findings": [{}] * 8},
+                },
+            ),
+            {"cached": True, "finding_count": 8, "status": "current"},
+        ),
+        (
+            ToolResult(
+                tool_name="match_resume_to_job",
+                state="resume_job_match_ready",
+                message="已完成逐项匹配，整体匹配度为 moderate。",
+                payload={"result": {"overall_fit": "moderate"}},
+            ),
+            {},
+        ),
+    ),
+)
+def test_decision_facts_are_state_whitelisted(result, expected) -> None:
+    observation = MainAgentRuntime._tool_observation(result.tool_name, result)
+
+    assert observation.facts == expected
+    assert all(key != "id" and not key.endswith("_id") for key in observation.facts)
+
+
+def test_decision_facts_reject_nested_values_ids_and_unbounded_shapes() -> None:
+    base = {
+        "tool_name": "get_daily_brief",
+        "state": "daily_brief_ready",
+        "message": "已读取简报。",
+    }
+
+    with pytest.raises(ValidationError):
+        DecisionObservation.model_validate({**base, "facts": {"report_id": "secret"}})
+    with pytest.raises(ValidationError):
+        DecisionObservation.model_validate({**base, "facts": {"counts": {"due": 1}}})
+    with pytest.raises(ValidationError):
+        DecisionObservation.model_validate(
+            {**base, "facts": {f"fact_{index}": index for index in range(9)}}
+        )
+    with pytest.raises(ValidationError):
+        DecisionObservation.model_validate({**base, "facts": {"overdue": 1}})
 
 
 def test_internal_tool_result_requires_a_durable_receipt() -> None:

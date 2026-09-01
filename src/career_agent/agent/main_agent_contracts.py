@@ -424,16 +424,66 @@ class ToolResult(ContractModel):
 ToolObservation = ToolResult
 
 
+DecisionFactKey = Annotated[
+    str,
+    Field(pattern=r"^[a-z][a-z0-9_]{0,39}$"),
+]
+DecisionFactValue = (
+    Annotated[bool, Field(strict=True)]
+    | Annotated[int, Field(strict=True, ge=0, le=1_000_000)]
+    | Annotated[str, Field(strict=True, min_length=1, max_length=80)]
+)
+_DECISION_FACT_KEYS_BY_STATE = {
+    "daily_brief_ready": frozenset({"overdue", "due_today", "waiting"}),
+    "resume_analysis_ready": frozenset(
+        {"record_count", "clarification_count", "has_warnings"}
+    ),
+    "job_research_ready": frozenset({"cached", "finding_count", "status"}),
+}
+
+
 class DecisionObservation(ContractModel):
     """Closed, bounded observation visible to the Main Agent decision model."""
 
     tool_name: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     state: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    message: str = Field(min_length=1, max_length=600)
+    facts: dict[DecisionFactKey, DecisionFactValue] = Field(
+        default_factory=dict,
+        max_length=8,
+    )
     next_action: str | None = Field(
         default=None,
         pattern=r"^[a-z0-9_]+$",
         max_length=80,
     )
+
+    @model_validator(mode="after")
+    def facts_cannot_name_internal_identifiers(self) -> "DecisionObservation":
+        if any(key == "id" or key.endswith("_id") for key in self.facts):
+            raise ValueError("decision facts cannot contain internal identifiers")
+        if self.facts:
+            expected = _DECISION_FACT_KEYS_BY_STATE.get(self.state)
+            if expected is None or frozenset(self.facts) != expected:
+                raise ValueError("decision facts must match the declared state schema")
+            if self.state == "daily_brief_ready" and not all(
+                type(self.facts[key]) is int
+                for key in ("overdue", "due_today", "waiting")
+            ):
+                raise ValueError("daily brief decision facts must be integer counts")
+            if self.state == "resume_analysis_ready" and not (
+                type(self.facts["record_count"]) is int
+                and type(self.facts["clarification_count"]) is int
+                and type(self.facts["has_warnings"]) is bool
+            ):
+                raise ValueError("resume analysis decision facts have invalid types")
+            if self.state == "job_research_ready" and not (
+                type(self.facts["cached"]) is bool
+                and type(self.facts["finding_count"]) is int
+                and self.facts["status"] in {"current", "outdated", "superseded"}
+            ):
+                raise ValueError("job research decision facts have invalid values")
+        return self
 
 
 class MainAgentContext(ContractModel):
