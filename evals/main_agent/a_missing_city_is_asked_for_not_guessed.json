@@ -2,12 +2,12 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "aa21ed87a3385c6dcbf1eb9b636828820e2de9afc9e765536855918c304aeeed",
+  "prompt_fingerprint": "21125b19eae5951ff744bdd2ad4118ccf82c0e0588e804494d73fc2a4131ddcb",
   "context_shape_fingerprint": "6ea41e6d679009a8e390d1db2012515f9688bc063e80b7436e5e873012e19000",
-  "recorded_at": "2026-09-01T03:17:02.955473+00:00",
+  "recorded_at": "2026-09-01T08:28:30.740751+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么岗位？希望在哪个城市工作？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的职位关键词和城市（例如“Java开发，上海”）。\"}"
     }
   ]
 }

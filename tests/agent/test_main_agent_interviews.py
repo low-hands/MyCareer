@@ -3,8 +3,12 @@ from datetime import datetime, timezone
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
+    ApplicationCandidateContextItem,
     CareerProfileContext,
+    ConversationTaskState,
+    MainAgentContext,
     ToolCall,
+    project_interview_arguments,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -87,6 +91,87 @@ def test_main_agent_selects_interview_without_treating_sequence_as_employer_labe
     assert result.context.task.active_interview_round_id == "interview-1"
     assert result.context.task.interview_candidates[0].sequence_number == 1
     assert result.context.task.interview_candidates[0].employer_label is None
+
+
+def test_create_interview_selects_an_application_candidate_without_exposing_ids() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_application_id="app-active",
+            application_candidates=(
+                ApplicationCandidateContextItem(
+                    application_id="app-1",
+                    title="算法工程师",
+                    company_name="甲公司",
+                    status="submitted",
+                ),
+                ApplicationCandidateContextItem(
+                    application_id="app-2",
+                    title="AI 工程师",
+                    company_name="乙公司",
+                    status="interviewing",
+                ),
+            ),
+        ),
+        user_message="给第二个投递记录面试",
+    )
+
+    projected = project_interview_arguments(
+        context,
+        "create_interview",
+        {
+            "application_selection_index": 2,
+            "details": {"interview_format": "video"},
+        },
+    )
+    assert projected["application_id"] == "app-2"
+    assert "application_selection_index" not in projected
+
+    tools = MainAgentToolRegistry(interview_service=object())
+    schema = next(
+        spec["function"]
+        for spec in tools.schemas(context)
+        if spec["function"]["name"] == "create_interview"
+    )
+    properties = schema["parameters"]["properties"]
+    assert "application_selection_index" in properties
+    assert "application_id" not in properties
+
+
+def test_create_interview_falls_back_to_active_and_rejects_bad_selection() -> None:
+    import pytest
+
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_application_id="app-active",
+            application_candidates=(
+                ApplicationCandidateContextItem(
+                    application_id="app-1",
+                    title="算法工程师",
+                    company_name="甲公司",
+                    status="submitted",
+                ),
+            ),
+        ),
+        user_message="记录面试",
+    )
+    arguments = {"details": {"interview_format": "video"}}
+    assert project_interview_arguments(
+        context, "create_interview", arguments
+    )["application_id"] == "app-active"
+
+    with pytest.raises(ValueError, match="application selection index is out of range"):
+        project_interview_arguments(
+            context,
+            "create_interview",
+            {
+                "application_selection_index": 2,
+                "details": {"interview_format": "video"},
+            },
+        )
 
 
 class RetroInterviews(Interviews):

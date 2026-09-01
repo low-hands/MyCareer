@@ -594,8 +594,8 @@ def _trajectory_tool_specs():
     """Every tool the registry can offer, wired with placeholder services.
 
     Scenarios never execute a tool, so the services only have to exist. What
-    has to match production is the schema list: a scenario that forbids a tool
-    the model was never offered proves nothing.
+    has to match production is the schema universe; trajectory evaluation then
+    applies the same per-step reachability filter as the runtime.
     """
     from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 
@@ -631,7 +631,6 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 
     try:
         schemas = _trajectory_tool_specs()
-        offered = frozenset(spec["function"]["name"] for spec in schemas)
         selected = (
             tuple(item for item in SCENARIOS if item.name in set(args.scenario))
             if args.scenario
@@ -650,7 +649,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 
         results = []
         for scenario in selected:
-            contract = check_contract(scenario, offered_tools=offered)
+            contract = check_contract(scenario, tool_specs=schemas)
             if args.record and not contract:
                 record(scenario, tool_specs=schemas, config=config)
             cassette = load_cassette(scenario.name)

@@ -112,7 +112,7 @@ PRECONDITIONS: dict[str, Precondition] = {
     "get_calendar_proposal": lambda t: bool(t.active_calendar_proposal_id),
     "execute_calendar_proposal": lambda t: bool(t.active_calendar_proposal_id),
     # Job research retry.
-    "retry_job_research": lambda t: t.job_research_status == "failed",
+    "retry_job_research": lambda t: bool(t.active_job_research_run_id),
     # Mock interview.
     "start_mock_interview": lambda t: bool(
         _reachable_via_application(t) or _reachable_via_interview(t)
@@ -126,6 +126,61 @@ PRECONDITIONS: dict[str, Precondition] = {
         }
     ),
 }
+
+
+# Whether a refused projection can be resolved by re-selecting from a candidate
+# list. Kept beside the menu preconditions so both questions share one
+# declaration of what a tool's selector can draw from: adding a tool here vs
+# above without the other is the drift this single file exists to prevent.
+# Reference readbacks are deliberately absent from the menu table (they are
+# never hidden) but can still recover from an out-of-range selector, so they
+# appear here alone.
+REROUTE_FIELDS: dict[str, tuple[str, ...]] = {
+    "get_job_research": ("saved_job_candidates",),
+    "get_saved_job": ("saved_job_candidates",),
+    "research_job": ("saved_job_candidates",),
+    "compare_saved_jobs": ("saved_job_candidates",),
+    "get_resume_metadata": ("resume_candidates",),
+    "analyze_resume": ("resume_version_candidates",),
+    "match_resume_to_job": ("saved_job_candidates", "resume_version_candidates"),
+    "create_application": (
+        "saved_job_candidates",
+        "resume_version_candidates",
+    ),
+    "propose_job_intent": ("target_role_candidates",),
+    "list_resumes": ("target_role_candidates",),
+    "get_application": ("application_candidates",),
+    "update_application_status": ("application_candidates",),
+    "create_interview": ("application_candidates",),
+    "get_interview": ("interview_candidates",),
+    "update_interview": ("interview_candidates",),
+    "complete_interview": ("interview_candidates",),
+    "record_interview_retro": ("interview_candidates",),
+    "prepare_interview": ("interview_candidates", "action_candidates"),
+    "resolve_email_event": ("email_event_candidates",),
+    "complete_action_item": ("action_candidates",),
+    "dismiss_action_item": ("action_candidates",),
+    "snooze_action_item": ("action_candidates",),
+    "prepare_interview_calendar_sync": (
+        "calendar_account_candidates",
+        "interview_candidates",
+    ),
+    "start_mock_interview": ("application_candidates", "interview_candidates"),
+    "get_mock_interview_result": ("application_candidates",),
+    "get_interview_preparation": ("interview_candidates",),
+}
+
+
+def reroutable(name: str, task: ConversationTaskState) -> bool:
+    """Whether a refused ``name`` can recover by drawing from current candidates.
+
+    Tools absent from ``REROUTE_FIELDS`` have no candidate path: only the user
+    can supply the object, so a refusal must end the turn. Reference readbacks
+    may still be listed — their menu presence is unconditional, but an
+    out-of-range selector can be fixed against a candidate list if one exists.
+    """
+    fields = REROUTE_FIELDS.get(name, ())
+    return any(bool(getattr(task, field, ())) for field in fields)
 
 
 def reachable(name: str, task: ConversationTaskState) -> bool:

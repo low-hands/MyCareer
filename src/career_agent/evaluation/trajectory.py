@@ -5,10 +5,10 @@ model:
 
 **Contract level** — always runs, needs no API key. Builds the exact context a
 scenario would send and checks that the decision is even *decidable* from it:
-the facts the policy turns on are present in the projection, the tool the
-scenario expects is offered, and the tools it forbids are offered too. That last
-one is what keeps a scenario honest — forbidding a tool the model was never
-shown proves nothing, and a suite full of vacuous scenarios is worse than none.
+the facts the policy turns on are present in the projection, and every expected
+tool is offered by the production reachability menu at that exact step. A
+forbidden tool hidden by that menu is a structural guard, not model evidence;
+the reachability suite owns that guarantee.
 
 **Replay level** — runs for scenarios that have a recorded model response.
 Checks the decision itself against the scenario's expectations.
@@ -192,10 +192,16 @@ def cassette_path(name: str, *, root: Path | None = None) -> Path:
 
 
 def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
-    """Hash the exact system prompt used with this offered tool set."""
+    """Hash the exact system prompt and schemas sent for one decision."""
     tool_names = tuple(spec["function"]["name"] for spec in tool_specs)
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(tool_names)
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    encoded = json.dumps(
+        {"system_prompt": prompt, "tool_specs": tool_specs},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
@@ -260,13 +266,13 @@ def cassette_staleness(
     tool_specs: tuple[dict[str, Any], ...],
 ) -> str | None:
     """Explain why a recording cannot represent the current prompt."""
-    current = prompt_fingerprint(tool_specs)
+    current = trajectory_prompt_fingerprint(scenario, tool_specs)
     if cassette.prompt_fingerprint is None:
         return "cassette has no prompt_fingerprint; re-record it"
     if cassette.prompt_fingerprint != current:
         return (
-            "cassette prompt_fingerprint does not match the current system "
-            "prompt; re-record it"
+            "cassette prompt_fingerprint does not match the current dynamic "
+            "prompt/tool menu; re-record it"
         )
     current_shape = context_shape_fingerprint(scenario)
     if cassette.context_shape_fingerprint is None:
@@ -280,14 +286,15 @@ def cassette_staleness(
 
 
 def check_contract(
-    scenario: TrajectoryScenario, *, offered_tools: frozenset[str]
+    scenario: TrajectoryScenario, *, tool_specs: tuple[dict[str, Any], ...]
 ) -> tuple[str, ...]:
     """Whether the scenario asks a question the model could answer.
 
-    Runs without a model and catches the two ways an evaluation quietly stops
-    testing anything: the context no longer carries the fact the policy turns
-    on, or the forbidden tool is not on the menu, which makes "the model did not
-    call it" true for the wrong reason.
+    Runs without a model and catches two invalid test shapes: the context no
+    longer carries the fact the policy turns on, or a step expects a tool that
+    production would hide at that exact state. A forbidden tool that is hidden
+    is a structural reachability guarantee rather than a prompt-policy test; it
+    is therefore not treated as vacuous model evidence here.
     """
     failures = []
     projection = scenario.context.model_context()
@@ -297,11 +304,17 @@ def check_contract(
                 f"{scenario.name}: the projection has no '{path}', so this "
                 "policy is no longer decidable from what the model is sent"
             )
-    for tool in scenario.tools:
-        if tool not in offered_tools:
+    context = scenario.context
+    for index, step in enumerate(scenario.steps):
+        context = _advance(context, step)
+        offered = {
+            spec["function"]["name"]
+            for spec in _dynamic_schemas(tool_specs, context)
+        }
+        if step.expect_tool is not None and step.expect_tool not in offered:
             failures.append(
-                f"{scenario.name}: '{tool}' is not offered, so the scenario "
-                "would pass without testing anything"
+                f"{scenario.name}[{index}]: expected tool "
+                f"'{step.expect_tool}' is hidden by the production menu"
             )
     return tuple(failures)
 
@@ -358,6 +371,56 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
     return tuple(failures)
 
 
+def _dynamic_schemas(
+    static_schemas: tuple[dict[str, Any], ...], context: MainAgentContext
+) -> tuple[dict[str, Any], ...]:
+    """The per-step menu the production runtime would show for ``context``.
+
+    Kept derived from the static universe so the full-name list stays in one
+    place; only the set of offered tools shrinks per step.
+    """
+    from career_agent.agent.tool_reachability import reachable
+
+    return tuple(
+        schema
+        for schema in static_schemas
+        if reachable(schema["function"]["name"], context.task)
+    )
+
+
+def trajectory_prompt_fingerprint(
+    scenario: TrajectoryScenario,
+    tool_specs: tuple[dict[str, Any], ...],
+) -> str:
+    """Hash the sequence of real per-step prompts and tool schemas.
+
+    One static fingerprint cannot represent a dynamic menu: a reachability
+    change may alter only step two, while the full registry remains identical.
+    Hashing each step's actual request makes that cassette stale instead of
+    silently replaying a decision produced under a tool the model no longer
+    sees.
+    """
+    context = scenario.context
+    step_fingerprints = []
+    for index, step in enumerate(scenario.steps):
+        context = _advance(context, step)
+        step_fingerprints.append(
+            {
+                "step": index,
+                "fingerprint": prompt_fingerprint(
+                    _dynamic_schemas(tool_specs, context)
+                ),
+            }
+        )
+    encoded = json.dumps(
+        step_fingerprints,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def replay(
     scenario: TrajectoryScenario,
     *,
@@ -365,7 +428,12 @@ def replay(
     responses: Sequence[Mapping[str, Any]],
     config: OpenAICompatibleAgentConfig | None = None,
 ) -> tuple[str, ...]:
-    """Run a scenario against its recording through the real decision maker."""
+    """Run a scenario against its recording through the real decision maker.
+
+    Each step is evaluated against the *dynamic* menu the production runtime
+    would offer for that step's state — a scenario that forbids a tool the
+    model was never shown would otherwise prove nothing.
+    """
     client = ReplayClient(responses)
     maker = OpenAICompatibleMainAgentDecisionMaker(
         config
@@ -380,7 +448,19 @@ def replay(
     context = scenario.context
     for index, step in enumerate(scenario.steps):
         context = _advance(context, step)
-        decision = maker.decide(context, tool_specs)
+        offered_specs = _dynamic_schemas(tool_specs, context)
+        decision = maker.decide(context, offered_specs)
+        offered_names = {
+            spec["function"]["name"] for spec in offered_specs
+        }
+        called = (
+            decision.tool_call.name if decision.tool_call is not None else None
+        )
+        if called is not None and called not in offered_names:
+            failures.append(
+                f"{scenario.name}[{index}]: cassette returned unavailable "
+                f"tool '{called}'"
+            )
         failures.extend(check_step(step, decision, scenario=scenario.name, index=index))
     return tuple(failures)
 
@@ -416,7 +496,7 @@ def record(
     context = scenario.context
     for step in scenario.steps:
         context = _advance(context, step)
-        decision = maker.decide(context, tool_specs)
+        decision = maker.decide(context, _dynamic_schemas(tool_specs, context))
         steps.append(
             {"tool_call": {"name": decision.tool_call.name, "arguments": decision.tool_call.arguments}}
             if decision.tool_call is not None
@@ -430,7 +510,9 @@ def record(
                 "scenario": scenario.name,
                 "policy": scenario.policy,
                 "model": config.model,
-                "prompt_fingerprint": prompt_fingerprint(tool_specs),
+                "prompt_fingerprint": trajectory_prompt_fingerprint(
+                    scenario, tool_specs
+                ),
                 "context_shape_fingerprint": context_shape_fingerprint(scenario),
                 "recorded_at": datetime.now(timezone.utc).isoformat(),
                 "steps": steps,

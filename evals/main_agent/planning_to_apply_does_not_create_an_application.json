@@ -2,12 +2,12 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "aa21ed87a3385c6dcbf1eb9b636828820e2de9afc9e765536855918c304aeeed",
+  "prompt_fingerprint": "d332b82b208102bceaaa75e1d4bcbaa56422911162e4bf6863384ac6e67d68bf",
   "context_shape_fingerprint": "68a94f7bd879e626671afb0c8fe28c4803d067804db860795a216df13815ae83",
-  "recorded_at": "2026-09-01T03:17:32.045408+00:00",
+  "recorded_at": "2026-09-01T08:28:50.980597+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你是已经在招聘平台上实际提交了这个“示例科技｜算法工程师”岗位的申请，还是只是准备提交？如果已提交，请告诉我提交时间（可选）以及使用的简历版本；如果还没提交，我不会提前记录申请。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你是已经在招聘平台完成了该岗位的实际投递，还是只是准备投递？只有确认已完成外部投递后，我才能为你建立申请记录。\"}"
     }
   ]
 }

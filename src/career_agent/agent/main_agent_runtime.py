@@ -24,6 +24,7 @@ from career_agent.agent.delivery_policy import (
     uses_answer_writer,
 )
 from career_agent.agent.main_agent_reducers import reduce_task_state
+from career_agent.agent.tool_reachability import reroutable
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.interview_retro_presenter import (
@@ -92,35 +93,6 @@ _TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
     "main_agent_trace_context",
     default=None,
 )
-
-# Candidate lists that could resolve a model's refused tool call: the ones whose
-# contents the tool's projection actually consumes. A refusal softens into
-# ``invalid_input``, and whether the turn keeps going depends on whether one of
-# these lists is non-empty — then the model can list or re-select it in the same
-# turn instead of bouncing the user.
-_REFUSAL_CANDIDATE_FIELDS: dict[str, tuple[str, ...]] = {
-    "get_saved_job": ("saved_job_candidates",),
-    "research_job": ("saved_job_candidates",),
-    "compare_saved_jobs": ("saved_job_candidates",),
-    "get_resume_metadata": ("resume_candidates",),
-    "analyze_resume": ("resume_version_candidates",),
-    "match_resume_to_job": ("saved_job_candidates", "resume_version_candidates"),
-    "create_application": ("saved_job_candidates", "resume_version_candidates"),
-    "get_application": ("application_candidates",),
-    "update_application_status": ("application_candidates",),
-    "create_interview": ("application_candidates",),
-    "get_interview": ("interview_candidates",),
-    "update_interview": ("interview_candidates",),
-    "complete_interview": ("interview_candidates",),
-    "record_interview_retro": ("interview_candidates",),
-    "prepare_interview": ("interview_candidates", "action_candidates"),
-    "resolve_email_event": ("email_event_candidates",),
-    "complete_action_item": ("action_candidates",),
-    "dismiss_action_item": ("action_candidates",),
-    "snooze_action_item": ("action_candidates",),
-    "prepare_interview_calendar_sync": ("interview_candidates",),
-}
-"""Tools absent here have no candidate path: only the user can supply the object."""
 
 
 class MainAgentState(TypedDict, total=False):
@@ -1309,6 +1281,17 @@ class MainAgentRuntime:
 
     @staticmethod
     def _after_observe(state: MainAgentState) -> Literal["decide", "present"]:
+        # Deterministic end-of-turn outcomes come first: a fresh analyze_resume
+        # extraction must reach its presenter, and a workflow's entry question
+        # must reach the candidate. Only after those are ruled out may an
+        # ``invalid_input`` refusal decide between "loop for a re-select" and
+        # "end the turn" — keeping the three turn-ending families in one ordered
+        # block makes the future reflect step's insertion point unambiguous.
+        if (
+            state.get("pending_capability_name") == "analyze_resume"
+            and state["pending_tool_result"].state == "resume_analysis_ready"
+        ):
+            return "present"
         # A projection refusal already went through the model once. Whether it
         # gets another shot depends on whether any candidate list could resolve
         # it: with candidates present the model can list or re-select in the
@@ -1317,27 +1300,16 @@ class MainAgentRuntime:
         # on a second guess over an empty context.
         result = state.get("pending_tool_result")
         if result is not None and result.state == "invalid_input":
-            task = state["context"].task
-            fields = _REFUSAL_CANDIDATE_FIELDS.get(
-                state.get("pending_capability_name", ""), ()
+            can_reroute = reroutable(
+                state.get("pending_capability_name", ""),
+                state["context"].task,
             )
-            reroutable = any(bool(getattr(task, field, ())) for field in fields)
-            if not reroutable or state.get("refusal_count", 0) >= 2:
+            if not can_reroute or state.get("refusal_count", 0) >= 2:
                 return "present"
-        # Fresh extraction is proposed evidence, not durable truth. End the
-        # turn on its presenter so the user can inspect it before the harness
-        # accepts a bound confirmation response. Key this by capability,
-        # not state: get_resume_analysis returns the same ready state and must
-        # remain composable for explicit review and follow-up requests.
-        if (
-            state.get("pending_capability_name") == "analyze_resume"
-            and state["pending_tool_result"].state == "resume_analysis_ready"
-        ):
-            return "present"
-        # Both entries into a run end the turn on the question they just asked.
-        # A restart is a start with a retirement in front of it, so routing it
-        # back to the decision model would put the first question of the new run
-        # behind another tool call instead of in front of the candidate.
+            return "decide"
+        # Both successful entries into a run end the turn on the question they
+        # just asked. A projection refusal is handled above because no workflow
+        # was entered yet and a candidate selector may still be corrected.
         if state.get("pending_capability_name") in {
             "start_mock_interview",
             "restart_mock_interview",

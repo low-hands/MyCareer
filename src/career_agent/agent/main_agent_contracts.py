@@ -983,6 +983,7 @@ class GetInterviewToolArguments(ContractModel):
 
 class CreateInterviewToolArguments(ContractModel):
     application_id: str | None = Field(default=None, min_length=1)
+    application_selection_index: SelectionIndex | None = None
     details: InterviewDetails
 
 
@@ -1583,7 +1584,15 @@ def project_interview_arguments(
         raise ValueError(f"Unknown interview tool: {name}")
     payload = model_arguments.model_dump()
     if name == "create_interview":
-        application_id = payload.get("application_id") or context.task.active_application_id
+        application_id = payload.get("application_id")
+        selection_index = payload.pop("application_selection_index", None)
+        if application_id is None and selection_index is not None:
+            if not 1 <= selection_index <= len(context.task.application_candidates):
+                raise ValueError("application selection index is out of range")
+            application_id = context.task.application_candidates[
+                selection_index - 1
+            ].application_id
+        application_id = application_id or context.task.active_application_id
         if application_id is None:
             raise ValueError("create_interview requires an active application")
         payload["application_id"] = application_id
