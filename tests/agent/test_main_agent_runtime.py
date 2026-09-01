@@ -756,7 +756,7 @@ def test_unresumable_mock_interview_returns_control_to_main_agent(
     )
 
     class NeverResumeTools:
-        def schemas(self):
+        def schemas(self, context=None):
             return ()
 
         def handle_mock_interview_input(self, **kwargs):

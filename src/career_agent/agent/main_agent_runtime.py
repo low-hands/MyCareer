@@ -93,6 +93,35 @@ _TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
     default=None,
 )
 
+# Candidate lists that could resolve a model's refused tool call: the ones whose
+# contents the tool's projection actually consumes. A refusal softens into
+# ``invalid_input``, and whether the turn keeps going depends on whether one of
+# these lists is non-empty — then the model can list or re-select it in the same
+# turn instead of bouncing the user.
+_REFUSAL_CANDIDATE_FIELDS: dict[str, tuple[str, ...]] = {
+    "get_saved_job": ("saved_job_candidates",),
+    "research_job": ("saved_job_candidates",),
+    "compare_saved_jobs": ("saved_job_candidates",),
+    "get_resume_metadata": ("resume_candidates",),
+    "analyze_resume": ("resume_version_candidates",),
+    "match_resume_to_job": ("saved_job_candidates", "resume_version_candidates"),
+    "create_application": ("saved_job_candidates", "resume_version_candidates"),
+    "get_application": ("application_candidates",),
+    "update_application_status": ("application_candidates",),
+    "create_interview": ("application_candidates",),
+    "get_interview": ("interview_candidates",),
+    "update_interview": ("interview_candidates",),
+    "complete_interview": ("interview_candidates",),
+    "record_interview_retro": ("interview_candidates",),
+    "prepare_interview": ("interview_candidates", "action_candidates"),
+    "resolve_email_event": ("email_event_candidates",),
+    "complete_action_item": ("action_candidates",),
+    "dismiss_action_item": ("action_candidates",),
+    "snooze_action_item": ("action_candidates",),
+    "prepare_interview_calendar_sync": ("interview_candidates",),
+}
+"""Tools absent here have no candidate path: only the user can supply the object."""
+
 
 class MainAgentState(TypedDict, total=False):
     context: MainAgentContext
@@ -104,6 +133,7 @@ class MainAgentState(TypedDict, total=False):
     tool_call_fingerprints: tuple[str, ...]
     artifact_ids: tuple[str, ...]
     tool_call_count: int
+    refusal_count: int
     assistant_message: str
 
 
@@ -1017,6 +1047,7 @@ class MainAgentRuntime:
                 "artifact_ids": (),
                 "tool_results": (),
                 "tool_call_count": 0,
+                "refusal_count": 0,
             }
         )
         tool_result = state.get("last_tool_result")
@@ -1038,7 +1069,7 @@ class MainAgentRuntime:
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
-        return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas())}
+        return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas(state["context"]))}
 
     def _run_active_mock_interview(
         self, *, context: MainAgentContext, user_message: str
@@ -1129,7 +1160,14 @@ class MainAgentRuntime:
         decision = state["decision"]
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
-        arguments = self._project_atomic_tool_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
+        try:
+            arguments = self._project_atomic_tool_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
+        except ValueError as error:
+            MainAgentRuntime._reraise_security_refusal(error)
+            result = MainAgentRuntime._rejection_observation(
+                decision.tool_call.name, error
+            )
+            return {"pending_capability_name": decision.tool_call.name, "pending_tool_result": result}
         self._emit_capability_started(decision.tool_call.name)
         result = self._tools.invoke_atomic_tool(decision.tool_call.name, arguments)
         self._emit_capability_completed(decision.tool_call.name, result.state)
@@ -1141,28 +1179,73 @@ class MainAgentRuntime:
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
-        if name == "sync_application_emails":
-            arguments = project_email_arguments(context, name, decision.tool_call.arguments)
-        elif name in {"research_job", "retry_job_research"}:
-            arguments = project_job_research_arguments(
-                context,
-                name,
-                decision.tool_call.arguments,
-            )
-        elif name == "start_mock_interview":
-            arguments = project_mock_interview_arguments(
-                context, decision.tool_call.arguments
-            )
-        elif name == "restart_mock_interview":
-            arguments = project_restart_mock_interview_arguments(
-                context, decision.tool_call.arguments
-            )
-        else:
-            raise ValueError(f"Unknown main-agent workflow: {name}")
+        try:
+            if name == "sync_application_emails":
+                arguments = project_email_arguments(context, name, decision.tool_call.arguments)
+            elif name in {"research_job", "retry_job_research"}:
+                arguments = project_job_research_arguments(
+                    context,
+                    name,
+                    decision.tool_call.arguments,
+                )
+            elif name == "start_mock_interview":
+                arguments = project_mock_interview_arguments(
+                    context, decision.tool_call.arguments
+                )
+            elif name == "restart_mock_interview":
+                arguments = project_restart_mock_interview_arguments(
+                    context, decision.tool_call.arguments
+                )
+            else:
+                raise ValueError(f"Unknown main-agent workflow: {name}")
+        except ValueError as error:
+            MainAgentRuntime._reraise_security_refusal(error)
+            result = MainAgentRuntime._rejection_observation(name, error)
+            return {"pending_capability_name": name, "pending_tool_result": result}
         self._emit_capability_started(name)
         result = self._tools.invoke_workflow(name, arguments)
         self._emit_capability_completed(name, result.state)
         return {"pending_capability_name": name, "pending_tool_result": result}
+
+    @staticmethod
+    def _reraise_security_refusal(error: ValueError) -> None:
+        """Keep the least-privilege boundary hard, unlike a soft refusal.
+
+        A projection error says one of two things: the object the model named is
+        not there (a wrong but ordinary choice, softened below), or the model is
+        reaching for identifiers or argument shapes it must never be able to
+        touch. The second must still kill the turn before it commits anything:
+        softening it would turn the guard into a suggestion.
+        """
+        message = str(error)
+        if (
+            "cannot accept internal identifier" in message
+            or "Extra inputs are not permitted" in message
+            or message.startswith("Unknown ")
+        ):
+            raise error
+
+    @staticmethod
+    def _rejection_observation(name: str, error: ValueError) -> ToolObservation:
+        """The soft form of a projection refusal, safe to present.
+
+        A model-selected tool whose preconditions fail at projection used to
+        raise through the whole turn, killing it with a canned failure. That
+        gave the model no way to recover and the user no say. Now the refusal
+        returns as an ordinary result, and which way the turn goes from there is
+        told by whether any re-routable candidates exist in task state:
+
+        - ``needs_user`` when no candidates can possibly resolve the refusal —
+          nothing to list, nothing to point at; only the user can supply it.
+        - ``invalid_input`` when candidates for the named capability exist, so
+          the model can list or re-select them in the same turn instead of
+          bouncing the user.
+        """
+        return ToolObservation(
+            tool_name=name,
+            state="invalid_input",
+            message=f"这步暂时做不到：{error}。",
+        )
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
@@ -1197,6 +1280,19 @@ class MainAgentRuntime:
         updated = updated.model_copy(update={"tool_observations": (*updated.tool_observations, observation)[-3:]})
         fingerprint = self._tool_call_fingerprint(state["decision"])
         artifact_ids = state.get("artifact_ids", ())
+        if result.state == "invalid_input":
+            return {
+                "context": updated,
+                "last_tool_result": result,
+                "tool_results": (*state.get("tool_results", ()), result),
+                "tool_call_fingerprints": (
+                    *state.get("tool_call_fingerprints", ()),
+                    fingerprint,
+                ),
+                "tool_call_count": state.get("tool_call_count", 0) + 1,
+                "refusal_count": state.get("refusal_count", 0) + 1,
+                "artifact_ids": artifact_ids,
+            }
         if result.state == "resume_artifact_ready":
             artifact_id = result.payload.get("artifact_id")
             if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
@@ -1207,11 +1303,27 @@ class MainAgentRuntime:
             "tool_results": (*state.get("tool_results", ()), result),
             "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
             "tool_call_count": state.get("tool_call_count", 0) + 1,
+            "refusal_count": state.get("refusal_count", 0),
             "artifact_ids": artifact_ids,
         }
 
     @staticmethod
     def _after_observe(state: MainAgentState) -> Literal["decide", "present"]:
+        # A projection refusal already went through the model once. Whether it
+        # gets another shot depends on whether any candidate list could resolve
+        # it: with candidates present the model can list or re-select in the
+        # same turn; with none, only the user can supply the object, so end the
+        # turn on the grounded refusal instead of burning the remaining budget
+        # on a second guess over an empty context.
+        result = state.get("pending_tool_result")
+        if result is not None and result.state == "invalid_input":
+            task = state["context"].task
+            fields = _REFUSAL_CANDIDATE_FIELDS.get(
+                state.get("pending_capability_name", ""), ()
+            )
+            reroutable = any(bool(getattr(task, field, ())) for field in fields)
+            if not reroutable or state.get("refusal_count", 0) >= 2:
+                return "present"
         # Fresh extraction is proposed evidence, not durable truth. End the
         # turn on its presenter so the user can inspect it before the harness
         # accepts a bound confirmation response. Key this by capability,

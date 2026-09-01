@@ -48,8 +48,8 @@ class Decisions:
     def decide(self, context, tool_specs):
         names = {spec["function"]["name"] for spec in tool_specs}
         assert {
-            "get_daily_brief", "list_action_items", "complete_action_item",
-            "dismiss_action_item", "snooze_action_item",
+            "get_daily_brief",
+            "list_action_items",
         }.issubset(names)
         return self.values.pop(0)
 

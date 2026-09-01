@@ -46,7 +46,6 @@ class Decisions:
         assert {
             "sync_application_emails",
             "list_email_events",
-            "resolve_email_event",
         }.issubset(names)
         return self.values.pop(0)
 

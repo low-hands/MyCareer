@@ -165,9 +165,13 @@ def test_proposing_saves_nothing(tmp_path) -> None:
 def test_confirming_without_a_readback_is_refused(tmp_path) -> None:
     runtime, store, _ = build(tmp_path, confirm())
 
-    with pytest.raises(ValueError, match="proposed update the user has seen"):
-        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="好的")
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="好的")
 
+    # A consumed-or-missing confirmation is now a grounded soft result, not a
+    # turn-killing exception; nothing was written either way.
+    assert result.tool_result is not None
+    assert result.tool_result.state == "invalid_input"
+    assert "proposed update the user has seen" in result.assistant_message
     assert store.get_profile("u1") is None
 
 
@@ -203,8 +207,14 @@ def test_an_out_of_range_role_index_is_rejected(tmp_path) -> None:
         tmp_path, propose(target_role_selection_index=3, salary_expectation="40K")
     )
 
-    with pytest.raises(ValueError, match="target-role selection index is out of range"):
-        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="记一下")
+    # Same soft-refusal contract as confirm-without-readback: the turn ends on
+    # a grounded message instead of raising, and nothing is recorded.
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记一下"
+    )
+    assert result.tool_result is not None
+    assert result.tool_result.state == "invalid_input"
+    assert "target-role selection index is out of range" in result.assistant_message
 
 
 def test_the_tool_cannot_be_used_to_record_skills(tmp_path) -> None:

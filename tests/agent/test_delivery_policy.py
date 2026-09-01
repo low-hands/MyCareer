@@ -59,6 +59,11 @@ def _emitted_states() -> set[str]:
     """
     source = _TOOLS_SOURCE.read_text()
     states = set(re.findall(r'state="([a-z_]+)"', source))
+    # ``invalid_input`` is emitted by the runtime's projection-refusal path,
+    # not spelled as a tool-layer state literal. It belongs to the same
+    # single-source-of-truth check, so the runtime source joins the scan.
+    runtime_source = Path(inspect.getsourcefile(MainAgentRuntime)).read_text()
+    states.update(re.findall(r'state="([a-z_]+)"', runtime_source))
     mapping = re.search(
         r'state = \{(.*?)\}\[result\.state\]', source, re.DOTALL
     )
