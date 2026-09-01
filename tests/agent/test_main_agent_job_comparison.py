@@ -160,7 +160,7 @@ def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
 def test_the_comparison_is_rendered_for_the_user_but_stays_out_of_the_model_context(
     tmp_path,
 ) -> None:
-    """The matrix is long and internal; the model gets the opaque observation."""
+    """The matrix stays internal; the model gets only its bounded receipt."""
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -187,6 +187,8 @@ def test_the_comparison_is_rendered_for_the_user_but_stays_out_of_the_model_cont
     assert observation == {
         "tool_name": "compare_saved_jobs",
         "state": "saved_jobs_compared",
+        "message": "已对比 2 个已保存岗位。",
+        "facts": {},
         "next_action": "discuss_comparison_or_match_missing_jobs",
     }
     assert "job-1" not in str(observation)

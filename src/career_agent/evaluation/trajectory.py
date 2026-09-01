@@ -21,6 +21,7 @@ recording says that. ``record`` refreshes them against the live model.
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +54,7 @@ class TrajectoryStep:
 
     expect_action: str | None = None
     expect_tool: str | None = None
+    expect_message: str | None = None
     forbid_tools: frozenset[str] = frozenset()
     observation: DecisionObservation | None = None
     task_update: Mapping[str, Any] = field(default_factory=dict)
@@ -175,15 +177,106 @@ class ScenarioOutcome:
         return not self.failures
 
 
+@dataclass(frozen=True)
+class TrajectoryCassette:
+    """Recorded decisions plus the prompt identity they were made under."""
+
+    steps: tuple[dict[str, Any], ...]
+    prompt_fingerprint: str | None
+    context_shape_fingerprint: str | None
+    model: str | None
+
+
 def cassette_path(name: str, *, root: Path | None = None) -> Path:
     return (root or CASSETTE_ROOT) / f"{name}.json"
 
 
-def load_cassette(name: str, *, root: Path | None = None) -> list[dict[str, Any]] | None:
+def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
+    """Hash the exact system prompt used with this offered tool set."""
+    tool_names = tuple(spec["function"]["name"] for spec in tool_specs)
+    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(tool_names)
+    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+
+def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
+    """Hash the key paths of every model context this scenario sends.
+
+    Values are deliberately excluded: changing a count or user sentence is a
+    new example, not a projection schema change. Sequence elements share a
+    ``[]`` path, so candidate count also cannot make an otherwise identical
+    shape stale.
+    """
+    context = scenario.context
+    step_shapes = []
+    for index, step in enumerate(scenario.steps):
+        context = _advance(context, step)
+        step_shapes.append(
+            {
+                "step": index,
+                "paths": sorted(_key_paths(context.model_context())),
+            }
+        )
+    encoded = json.dumps(
+        step_shapes,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _key_paths(value: Any, path: str = "$") -> set[str]:
+    paths = {path}
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            paths.update(_key_paths(child, f"{path}.{key}"))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        item_path = f"{path}[]"
+        paths.add(item_path)
+        for child in value:
+            paths.update(_key_paths(child, item_path))
+    return paths
+
+
+def load_cassette(
+    name: str, *, root: Path | None = None
+) -> TrajectoryCassette | None:
     path = cassette_path(name, root=root)
     if not path.exists():
         return None
-    return json.loads(path.read_text())["steps"]
+    payload = json.loads(path.read_text())
+    return TrajectoryCassette(
+        steps=tuple(payload["steps"]),
+        prompt_fingerprint=payload.get("prompt_fingerprint"),
+        context_shape_fingerprint=payload.get("context_shape_fingerprint"),
+        model=payload.get("model"),
+    )
+
+
+def cassette_staleness(
+    cassette: TrajectoryCassette,
+    *,
+    scenario: TrajectoryScenario,
+    tool_specs: tuple[dict[str, Any], ...],
+) -> str | None:
+    """Explain why a recording cannot represent the current prompt."""
+    current = prompt_fingerprint(tool_specs)
+    if cassette.prompt_fingerprint is None:
+        return "cassette has no prompt_fingerprint; re-record it"
+    if cassette.prompt_fingerprint != current:
+        return (
+            "cassette prompt_fingerprint does not match the current system "
+            "prompt; re-record it"
+        )
+    current_shape = context_shape_fingerprint(scenario)
+    if cassette.context_shape_fingerprint is None:
+        return "cassette has no context_shape_fingerprint; re-record it"
+    if cassette.context_shape_fingerprint != current_shape:
+        return (
+            "cassette context_shape_fingerprint does not match the current "
+            "model_context projection; re-record it"
+        )
+    return None
 
 
 def check_contract(
@@ -222,9 +315,22 @@ def _has_path(payload: Any, path: str) -> bool:
     """
     node = payload
     for part in path.split("."):
-        if not isinstance(node, Mapping) or part not in node:
-            return False
-        node = node[part]
+        if isinstance(node, Mapping):
+            if part not in node:
+                return False
+            node = node[part]
+            continue
+        if (
+            isinstance(node, Sequence)
+            and not isinstance(node, (str, bytes))
+            and part.isdigit()
+        ):
+            index = int(part)
+            if index >= len(node):
+                return False
+            node = node[index]
+            continue
+        return False
     return True
 
 
@@ -241,6 +347,11 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
         failures.append(
             f"{label}: expected tool '{step.expect_tool}', got "
             f"'{called or decision.action}'"
+        )
+    if step.expect_message is not None and decision.message != step.expect_message:
+        failures.append(
+            f"{label}: expected message {step.expect_message!r}, got "
+            f"{decision.message!r}"
         )
     if called in step.forbid_tools:
         failures.append(f"{label}: called forbidden tool '{called}'")
@@ -319,6 +430,8 @@ def record(
                 "scenario": scenario.name,
                 "policy": scenario.policy,
                 "model": config.model,
+                "prompt_fingerprint": prompt_fingerprint(tool_specs),
+                "context_shape_fingerprint": context_shape_fingerprint(scenario),
                 "recorded_at": datetime.now(timezone.utc).isoformat(),
                 "steps": steps,
             },

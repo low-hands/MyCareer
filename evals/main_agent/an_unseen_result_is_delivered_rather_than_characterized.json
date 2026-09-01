@@ -1,15 +1,15 @@
 {
   "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
-  "policy": "Tool observations contain status tokens only; complete tool results are not visible to you. Never summarize, evaluate, praise, or characterize unseen result content. When finishing immediately after a tool, leave message empty.",
+  "policy": "Tool observations include a bounded receipt message and selected flat decision facts, not the complete tool payload or report body. You may use values explicitly present in either, but never expand them into omitted details or characterize result content they did not state. When finishing immediately after a tool, leave message empty.",
   "model": "gpt-5.6-luna",
-  "recorded_at": "2026-08-31T07:58:54.779465+00:00",
+  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "context_shape_fingerprint": "f2592f460e074d2eae01f1506f3829821ded191050af804eead9d69c862d2052",
+  "recorded_at": "2026-09-01T01:27:56.967483+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_daily_brief",
-        "arguments": {
-          "timezone": "Asia/Shanghai"
-        }
+        "arguments": {}
       }
     },
     {

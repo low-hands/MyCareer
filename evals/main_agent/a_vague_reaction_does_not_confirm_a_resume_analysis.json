@@ -2,10 +2,12 @@
   "scenario": "a_vague_reaction_does_not_confirm_a_resume_analysis",
   "policy": "Call confirm_resume_analysis only after the user explicitly confirms that specific analysis; never treat analysis output or vague approval as confirmation.",
   "model": "gpt-5.6-luna",
-  "recorded_at": "2026-08-31T07:58:17.287904+00:00",
+  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "context_shape_fingerprint": "6ea41e6d679009a8e390d1db2012515f9688bc063e80b7436e5e873012e19000",
+  "recorded_at": "2026-09-01T01:27:15.566672+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"好的。你接下来想做什么？例如找新职位、查看已保存职位、分析/匹配简历，或跟进申请进度。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前简历分析草稿仍待确认。若你希望把这份分析中的候选信息保存为已确认职业记录，请明确回复“确认保存简历分析”；如需先查看内容，请说“查看简历分析”。\"}"
     }
   ]
 }

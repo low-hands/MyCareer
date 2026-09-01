@@ -1,0 +1,18 @@
+{
+  "scenario": "cached_research_routes_to_an_explicit_new_focus",
+  "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "context_shape_fingerprint": "5b88522c6ee296c27dfdf8cc15537411d7587a816522d0dad51b1c808abcb9e6",
+  "recorded_at": "2026-09-01T01:28:08.991865+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "research_job",
+        "arguments": {
+          "focus": "竞争对手情况"
+        }
+      }
+    }
+  ]
+}

@@ -615,6 +615,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 
     from career_agent.evaluation.main_agent_scenarios import SCENARIOS
     from career_agent.evaluation.trajectory import (
+        cassette_staleness,
         check_contract,
         load_cassette,
         record,
@@ -645,12 +646,24 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             contract = check_contract(scenario, offered_tools=offered)
             if args.record and not contract:
                 record(scenario, tool_specs=schemas, config=config)
-            responses = load_cassette(scenario.name)
+            cassette = load_cassette(scenario.name)
+            stale = (
+                cassette_staleness(
+                    cassette,
+                    scenario=scenario,
+                    tool_specs=schemas,
+                )
+                if cassette is not None
+                else None
+            )
             behaviour = (
-                replay(scenario, tool_specs=schemas, responses=responses)
-                if responses is not None and not contract
+                replay(scenario, tool_specs=schemas, responses=cassette.steps)
+                if cassette is not None and stale is None and not contract
                 else ()
             )
+            failures = list(contract)
+            if stale is not None:
+                failures.append(f"{scenario.name}: {stale}")
             results.append(
                 {
                     "scenario": scenario.name,
@@ -658,10 +671,14 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                     "contract": "passed" if not contract else "failed",
                     "behaviour": (
                         "unrecorded"
-                        if responses is None
-                        else ("passed" if not behaviour else "failed")
+                        if cassette is None
+                        else (
+                            "stale"
+                            if stale is not None
+                            else ("passed" if not behaviour else "failed")
+                        )
                     ),
-                    "failures": list(contract) + list(behaviour),
+                    "failures": failures + list(behaviour),
                 }
             )
 
@@ -675,6 +692,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             "behaviour_failed": sum(
                 1 for item in results if item["behaviour"] == "failed"
             ),
+            "stale": sum(1 for item in results if item["behaviour"] == "stale"),
             "unrecorded": unrecorded,
             # Said outright rather than left to be inferred from the counts: a
             # run with no cassettes is green and proves nothing about the model.

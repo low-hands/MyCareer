@@ -1029,17 +1029,73 @@ class MainAgentRuntime:
 
     @staticmethod
     def _tool_observation(name: str, result: MainAgentToolOutput) -> DecisionObservation:
+        receipt = clamp(result.message) or "工具已返回，但没有提供结果摘要。"
         if isinstance(result, ToolObservation):
             return DecisionObservation(
                 tool_name=result.tool_name,
                 state=result.state,
+                message=receipt,
+                facts=MainAgentRuntime._decision_facts(result),
                 next_action=result.next_action,
             )
         return DecisionObservation(
             tool_name=name,
             state=result.state,
+            message=receipt,
+            facts=MainAgentRuntime._decision_facts(result),
             next_action=result.next_action,
         )
+
+    @staticmethod
+    def _decision_facts(result: MainAgentToolOutput) -> dict[str, bool | int | str]:
+        """Project only explicitly approved scalar facts into the model context.
+
+        This is deliberately state-keyed instead of accepting a handler-owned
+        ``facts`` dict. Adding payload fields must never silently expand the
+        decision prompt. ``waiting`` currently means an open Daily Brief item
+        without a due date; the domain has no separate waiting bucket yet.
+        """
+        payload = result.payload
+        if result.state == "daily_brief_ready":
+            buckets = {
+                key: payload.get(key)
+                for key in ("overdue", "due_today", "no_due_date")
+            }
+            if all(isinstance(value, (list, tuple)) for value in buckets.values()):
+                return {
+                    "overdue": len(buckets["overdue"]),
+                    "due_today": len(buckets["due_today"]),
+                    "waiting": len(buckets["no_due_date"]),
+                }
+        if result.state == "resume_analysis_ready":
+            records = payload.get("records")
+            clarifications = payload.get("clarification_questions")
+            warnings = payload.get("warnings")
+            if all(
+                isinstance(value, (list, tuple))
+                for value in (records, clarifications, warnings)
+            ):
+                return {
+                    "record_count": len(records),
+                    "clarification_count": len(clarifications),
+                    "has_warnings": bool(warnings),
+                }
+        if result.state == "job_research_ready":
+            research = payload.get("research")
+            findings = research.get("findings") if isinstance(research, dict) else None
+            cached = payload.get("cached")
+            status = payload.get("status")
+            if (
+                isinstance(cached, bool)
+                and isinstance(findings, (list, tuple))
+                and status in {"current", "outdated", "superseded"}
+            ):
+                return {
+                    "cached": cached,
+                    "finding_count": len(findings),
+                    "status": status,
+                }
+        return {}
 
     @staticmethod
     def _conversation_content(

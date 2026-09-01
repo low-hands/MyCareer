@@ -41,6 +41,7 @@ def _context(
     task: ConversationTaskState | None = None,
     recent_messages: tuple[ConversationMessageContext, ...] = (),
     archived_resources: tuple[ConversationMessageContext, ...] = (),
+    tool_observations: tuple[DecisionObservation, ...] = (),
 ) -> MainAgentContext:
     return MainAgentContext(
         conversation_id="eval",
@@ -48,6 +49,7 @@ def _context(
         task=task or ConversationTaskState(),
         recent_messages=recent_messages,
         archived_resources=archived_resources,
+        tool_observations=tool_observations,
         user_message=user_message,
     )
 
@@ -137,7 +139,9 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # propose_job_intent immediately — the model was right and the scenario
         # was wrong, which is the outcome a catalogue should make cheap.
         context=_context(
-            user_message="我想找上海的算法岗，期望薪资 40K 以上",
+            user_message=(
+                "请把我的求职意向记下来：我想找上海的算法岗，期望薪资 40K 以上"
+            ),
             task=ConversationTaskState(),
         ),
         decisive_facts=("task.target_roles", "user_message"),
@@ -150,6 +154,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 observation=DecisionObservation(
                     tool_name="list_target_roles",
                     state="target_roles_found",
+                    message="已读取目标岗位列表。",
                     next_action=None,
                 ),
                 task_update={"target_role_candidates": (_TARGET_ROLE,)},
@@ -261,6 +266,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 observation=DecisionObservation(
                     tool_name="list_calendar_accounts",
                     state="calendar_accounts_found",
+                    message="已读取 Calendar 账户列表。",
                     next_action=None,
                 ),
                 task_update={"calendar_account_candidates": (_CALENDAR_ACCOUNT,)},
@@ -410,14 +416,15 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="an_unseen_result_is_delivered_rather_than_characterized",
         policy=(
-            "Tool observations contain status tokens only; complete tool "
-            "results are not visible to you. Never summarize, evaluate, praise, "
-            "or characterize unseen result content. When finishing immediately "
-            "after a tool, leave message empty."
+            "Tool observations include a bounded receipt message and selected "
+            "flat decision facts, not the complete tool payload or report body. "
+            "You may use values explicitly present in either, but never expand "
+            "them into omitted details or characterize result content they did "
+            "not state. When finishing immediately after a tool, leave message empty."
         ),
-        # Two steps: the model asks for the brief, then has to finish on an
-        # observation that tells it nothing but the state. Anything it writes
-        # here is invented.
+        # Two steps: the model asks for the brief, then sees only its bounded
+        # receipt and three approved counts. It may reason from those values,
+        # but any claim about item contents or quality would still be invented.
         context=_context(
             user_message="今天有什么要处理的",
             task=ConversationTaskState(
@@ -436,12 +443,125 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             TrajectoryStep(expect_tool="get_daily_brief"),
             TrajectoryStep(
                 expect_action="final",
+                expect_message="",
                 observation=DecisionObservation(
                     tool_name="get_daily_brief",
                     state="daily_brief_ready",
+                    message="今日职业简报包含 3 个待办事项。",
+                    facts={"overdue": 1, "due_today": 2, "waiting": 0},
                     next_action=None,
                 ),
                 forbid_tools=frozenset({"get_daily_brief", "list_action_items"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="overdue_brief_routes_to_the_action_list",
+        policy=(
+            "Tool observation facts are approved decision values. When the "
+            "user explicitly asks for a conditional follow-up, use the overdue "
+            "count rather than giving a generic answer or guessing the brief body."
+        ),
+        context=_context(
+            user_message=(
+                "刚才的简报如果有逾期，就打开行动清单让我选择先处理哪一项；"
+                "如果没有逾期就直接结束。"
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="get_daily_brief",
+                    state="daily_brief_ready",
+                    message="今日职业简报包含 13 个待办事项。",
+                    facts={"overdue": 6, "due_today": 4, "waiting": 3},
+                ),
+            ),
+        ),
+        decisive_facts=("tool_observations.0.facts.overdue", "user_message"),
+        steps=(
+            TrajectoryStep(
+                expect_tool="list_action_items",
+                forbid_tools=frozenset({"get_daily_brief"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="weak_match_routes_to_resume_tailoring",
+        policy=(
+            "The bounded observation message may carry an explicitly stated "
+            "overall fit. Follow the user's conditional instruction from that "
+            "value without inventing unseen match details."
+        ),
+        context=_context(
+            user_message=(
+                "如果刚才的整体匹配度是 weak，就直接生成一版针对性简历优化草稿；"
+                "不是 weak 就到这里。"
+            ),
+            task=ConversationTaskState(
+                active_job_posting_id="job-1",
+                active_resume_version_id="resume-version-1",
+                active_resume_job_match_id="match-1",
+                resume_job_match_status="ready",
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="match_resume_to_job",
+                    state="resume_job_match_ready",
+                    message="已完成逐项匹配，整体匹配度为 weak。",
+                    next_action="explain_match_or_offer_resume_tailoring",
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.message",
+            "task.has_active_resume_job_match",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="draft_resume_tailoring",
+                forbid_tools=frozenset({"create_application"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="cached_research_routes_to_an_explicit_new_focus",
+        policy=(
+            "Use the approved cached fact to distinguish a reused report from "
+            "new research. Run another research operation only when the user "
+            "explicitly requests a distinct focus."
+        ),
+        context=_context(
+            user_message=(
+                "如果这次只是复用了缓存报告，就以竞争对手为新重点再研究一次；"
+                "如果是刚完成的新报告就直接结束。"
+            ),
+            task=ConversationTaskState(
+                active_job_posting_id="job-1",
+                active_job_research_report_id="report-1",
+                job_research_status="current",
+                saved_job_candidates=(_SAVED_JOB,),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已复用仍在有效期内的岗位研究报告。",
+                    facts={
+                        "cached": True,
+                        "finding_count": 8,
+                        "status": "current",
+                    },
+                    next_action="review_job_research",
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.facts.cached",
+            "task.has_active_job_posting",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="research_job",
+                forbid_tools=frozenset({"get_job_research", "retry_job_research"}),
             ),
         ),
     ),
@@ -465,6 +585,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 observation=DecisionObservation(
                     tool_name="find_saved_jobs",
                     state="saved_jobs_found",
+                    message="找到了 1 个已保存岗位。",
                     next_action=None,
                 ),
                 task_update={"saved_job_candidates": (_SAVED_JOB,)},

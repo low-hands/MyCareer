@@ -23,10 +23,17 @@ from __future__ import annotations
 import pytest
 
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.openai_compatible_main_agent import (
+    OpenAICompatibleMainAgentDecisionMaker,
+)
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.trajectory import (
+    TrajectoryCassette,
+    cassette_staleness,
     check_contract,
+    context_shape_fingerprint,
     load_cassette,
+    prompt_fingerprint,
     replay,
 )
 
@@ -79,13 +86,19 @@ def test_a_scenario_asks_a_question_the_model_could_answer(scenario, offered) ->
 def test_the_recorded_decision_follows_the_policy(scenario, offered) -> None:
     """The replay level: what the model actually chose, when we have it."""
     _, schemas = offered
-    responses = load_cassette(scenario.name)
-    if responses is None:
+    cassette = load_cassette(scenario.name)
+    if cassette is None:
         pytest.skip(
             f"no recording for '{scenario.name}'; run "
             "`career-agent eval trajectories --record` against a live model"
         )
-    failures = replay(scenario, tool_specs=schemas, responses=responses)
+    stale = cassette_staleness(
+        cassette,
+        scenario=scenario,
+        tool_specs=schemas,
+    )
+    assert stale is None, f"{scenario.name}: {stale}"
+    failures = replay(scenario, tool_specs=schemas, responses=cassette.steps)
     if scenario.known_gap is not None:
         # Expected to fail, and reported if it stops: the scenario is right and
         # the system is not, so a pass here means the defect was fixed and the
@@ -108,6 +121,91 @@ def test_every_scenario_names_the_policy_sentence_it_holds() -> None:
     for scenario in SCENARIOS:
         assert len(scenario.policy) > 40, scenario.name
         assert scenario.steps, scenario.name
+
+
+def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> None:
+    _, schemas = offered
+    scenario = SCENARIOS[0]
+    current = prompt_fingerprint(schemas)
+    current_shape = context_shape_fingerprint(scenario)
+
+    assert cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint=None,
+            context_shape_fingerprint=current_shape,
+            model="test",
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+    ) == "cassette has no prompt_fingerprint; re-record it"
+    assert cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint="0" * len(current),
+            context_shape_fingerprint=current_shape,
+            model="test",
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+    ) == (
+        "cassette prompt_fingerprint does not match the current system prompt; "
+        "re-record it"
+    )
+    assert cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint=current,
+            context_shape_fingerprint=None,
+            model="test",
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+    ) == "cassette has no context_shape_fingerprint; re-record it"
+    assert cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint=current,
+            context_shape_fingerprint=current_shape,
+            model="test",
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+    ) is None
+
+
+def test_changing_the_system_prompt_changes_its_fingerprint(
+    offered, monkeypatch
+) -> None:
+    _, schemas = offered
+    before = prompt_fingerprint(schemas)
+    original = OpenAICompatibleMainAgentDecisionMaker._system_prompt
+    monkeypatch.setattr(
+        OpenAICompatibleMainAgentDecisionMaker,
+        "_system_prompt",
+        staticmethod(lambda names: original(names) + " changed"),
+    )
+
+    assert prompt_fingerprint(schemas) != before
+
+
+def test_changing_model_context_keys_changes_the_shape_fingerprint(
+    monkeypatch,
+) -> None:
+    scenario = SCENARIOS[0]
+    before = context_shape_fingerprint(scenario)
+    context_type = type(scenario.context)
+    original = context_type.model_context
+
+    def without_phase(context):
+        projection = original(context)
+        task = dict(projection["task"])
+        task.pop("phase")
+        return {**projection, "task": task}
+
+    monkeypatch.setattr(context_type, "model_context", without_phase)
+
+    assert context_shape_fingerprint(scenario) != before
 
 
 def test_a_known_gap_is_described_well_enough_to_act_on() -> None:
