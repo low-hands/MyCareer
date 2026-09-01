@@ -2,16 +2,16 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "prompt_fingerprint": "aa21ed87a3385c6dcbf1eb9b636828820e2de9afc9e765536855918c304aeeed",
   "context_shape_fingerprint": "76997c4677f27d39efc69054ba44186a1f2cb2e97ac6499caebce68221e3c423",
-  "recorded_at": "2026-09-01T01:28:17.131330+00:00",
+  "recorded_at": "2026-09-01T03:24:38.123377+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "已保存的岗位",
-          "limit": 10
+          "query": "我保存的岗位",
+          "limit": 20
         }
       }
     },

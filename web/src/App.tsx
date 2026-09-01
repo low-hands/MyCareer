@@ -5,7 +5,7 @@ import {
   fetchConversationMessages,
   fetchConversations,
 } from "./api/client";
-import { streamChat } from "./api/sse";
+import { streamChat, type InteractionResponse } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import { InteractionCard } from "./components/InteractionCard";
 import { ReportCard } from "./components/ReportCard";
@@ -127,21 +127,31 @@ export default function App() {
       signal: request.signal,
     })
       .then((transcript) => {
+        const messages = transcript.messages.map((message, index) => ({
+          id: `history-${conversationId}-${index}`,
+          role: message.role,
+          content: message.content,
+          resource: message.resource
+            ? {
+                kind: message.resource.kind,
+                resourceId: message.resource.resource_id,
+                statusAtDelivery: message.resource.status_at_delivery,
+                anchoredByOtherJob: message.resource.anchored_by_other_job,
+              }
+            : undefined,
+        }));
+        if (transcript.pending_interaction_body) {
+          messages.push({
+            id: `pending-${conversationId}`,
+            role: "assistant",
+            content: transcript.pending_interaction_body,
+            resource: undefined,
+          });
+        }
         dispatch({
           type: "hydrate",
-          messages: transcript.messages.map((message, index) => ({
-            id: `history-${conversationId}-${index}`,
-            role: message.role,
-            content: message.content,
-            resource: message.resource
-              ? {
-                  kind: message.resource.kind,
-                  resourceId: message.resource.resource_id,
-                  statusAtDelivery: message.resource.status_at_delivery,
-                  anchoredByOtherJob: message.resource.anchored_by_other_job,
-                }
-              : undefined,
-          })),
+          messages,
+          interaction: transcript.pending_interaction,
           awaitingInput: Boolean(transcript.active_workflow),
         });
       })
@@ -169,7 +179,10 @@ export default function App() {
     return "可以开始";
   }, [state.phase]);
 
-  async function sendMessage(rawMessage: string): Promise<void> {
+  async function sendMessage(
+    rawMessage: string,
+    interactionResponse?: InteractionResponse,
+  ): Promise<void> {
     const message = rawMessage.trim();
     if (!message || busy || historyLoading) return;
     setDraft("");
@@ -183,7 +196,12 @@ export default function App() {
     });
     try {
       for await (const event of streamChat(
-        { user_id: userId, conversation_id: conversationId, message },
+        {
+          user_id: userId,
+          conversation_id: conversationId,
+          message,
+          interaction_response: interactionResponse,
+        },
         { apiBaseUrl: API_BASE_URL, signal: nextController.signal },
       )) {
         if (
@@ -500,7 +518,9 @@ export default function App() {
               <InteractionCard
                 interaction={state.interaction}
                 disabled={busy}
-                onReply={(reply) => void sendMessage(reply)}
+                onReply={(reply) =>
+                  void sendMessage(reply.message, reply.interactionResponse)
+                }
               />
             ) : null}
 

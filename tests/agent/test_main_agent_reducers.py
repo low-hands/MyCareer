@@ -29,10 +29,15 @@ def _fully_wired_registry() -> MainAgentToolRegistry:
 
 def test_every_reducer_is_keyed_to_a_real_capability() -> None:
     registry = _fully_wired_registry()
-    known = set(registry.atomic_tool_names) | set(registry.workflow_names)
+    known = (
+        set(registry.atomic_tool_names)
+        | set(registry.workflow_names)
+        | set(registry.harness_action_names)
+    )
 
-    # A reducer keyed to a name no tool reports would never fire, and the state
-    # it guards would silently stop being maintained.
+    # A reducer keyed to a name no model tool, workflow, or bound harness action
+    # reports would never fire, and the state it guards would silently stop
+    # being maintained.
     assert set(ATOMIC_TASK_REDUCERS) <= known
 
 

@@ -24,7 +24,11 @@ from career_agent.api.reads import (
     build_read_router,
     build_workspace_reader,
 )
-from career_agent.harness.streaming import PublicStreamEvent, astream_turn_events
+from career_agent.harness.streaming import (
+    InteractionResponse,
+    PublicStreamEvent,
+    astream_turn_events,
+)
 from career_agent.services.action_center import ActionCenterService
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
@@ -38,6 +42,7 @@ class ChatStreamRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=200)
     conversation_id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=100_000)
+    interaction_response: InteractionResponse | None = None
 
 
 class BrowserJobCaptureRequest(BaseModel):
@@ -155,6 +160,7 @@ async def _sse_stream(
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
                 user_message=request.message,
+                interaction_response=request.interaction_response,
                 content_delay_seconds=synthetic_content_delay_seconds,
             ):
                 await queue.put(event)

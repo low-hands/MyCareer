@@ -8,6 +8,7 @@ from career_agent.agent.resume_analysis_contracts import (
 )
 from career_agent.services.resume_analysis import (
     ResumeAnalysisNotFoundError,
+    ResumeAnalysisNotPendingError,
     ResumeAnalysisService,
     ResumeVersionNotFoundError,
 )
@@ -125,9 +126,9 @@ def test_service_gets_and_idempotently_confirms_analysis(tmp_path) -> None:
     with pytest.raises(ResumeAnalysisNotFoundError):
         service.get_analysis(user_id="other", analysis_id=draft.id)
     confirmed = service.confirm_analysis(user_id="u1", analysis_id=draft.id)
-    repeated = service.confirm_analysis(user_id="u1", analysis_id=draft.id)
+    with pytest.raises(ResumeAnalysisNotPendingError):
+        service.confirm_analysis(user_id="u1", analysis_id=draft.id)
 
-    assert repeated == confirmed
     assert len(confirmed.records) == 1
     assert len(confirmed.evidence) == 1
     assert draft_store.get(user_id="u1", analysis_id=draft.id).status == "confirmed"

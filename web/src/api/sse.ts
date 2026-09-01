@@ -4,6 +4,13 @@ export interface ChatStreamRequest {
   user_id: string;
   conversation_id: string;
   message: string;
+  interaction_response?: InteractionResponse;
+}
+
+export interface InteractionResponse {
+  interaction_id: string;
+  scope: "resume_analysis_confirmation";
+  action: "confirm" | "cancel";
 }
 
 export interface SseFrame {

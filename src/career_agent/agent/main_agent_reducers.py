@@ -406,7 +406,7 @@ def _get_resume_analysis(
         update={
             "active_resume_analysis_id": result.payload.get("analysis_id"),
             "resume_analysis_status": (
-                status if status in {"pending", "confirmed"} else None
+                status if status in {"pending", "confirmed", "rejected"} else None
             ),
         }
     )
@@ -416,6 +416,12 @@ def _confirm_resume_analysis(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     return task.model_copy(update={"resume_analysis_status": "confirmed"})
+
+
+def _reject_resume_analysis(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"resume_analysis_status": "rejected"})
 
 
 def _resume_job_match_ready(
@@ -581,6 +587,9 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "get_resume_analysis": _entry(("resume_analysis_ready",), _get_resume_analysis),
     "confirm_resume_analysis": _entry(
         ("resume_analysis_confirmed",), _confirm_resume_analysis
+    ),
+    "reject_resume_analysis": _entry(
+        ("resume_analysis_rejected",), _reject_resume_analysis
     ),
     "finalize_resume_tailoring": _entry(
         ("resume_tailoring_finalized",), _finalize_resume_tailoring

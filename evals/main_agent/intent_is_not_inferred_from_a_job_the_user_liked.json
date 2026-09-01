@@ -2,12 +2,12 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "7b4ff11d2e38451d4a2b5b643c456fee8222a251c126b1f8b4e2a9bde327b3b8",
+  "prompt_fingerprint": "aa21ed87a3385c6dcbf1eb9b636828820e2de9afc9e765536855918c304aeeed",
   "context_shape_fingerprint": "68a94f7bd879e626671afb0c8fe28c4803d067804db860795a216df13815ae83",
-  "recorded_at": "2026-09-01T01:27:10.839933+00:00",
+  "recorded_at": "2026-09-01T03:17:25.662382+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你想下一步做什么：查看岗位详情、用简历匹配，还是研究该公司的公开业务背景？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做什么？例如：查看完整职位描述、匹配简历、比较已保存岗位，或记录你的求职意向。\"}"
     }
   ]
 }

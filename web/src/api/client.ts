@@ -1,4 +1,4 @@
-import type { ReportKind } from "../chat/events";
+import type { PublicStreamEvent, ReportKind } from "../chat/events";
 
 export interface ActionItemView {
   id: string;
@@ -91,6 +91,11 @@ export interface ConversationTranscript {
   messages: ConversationMessageView[];
   active_workflow: string | null;
   phase: string | null;
+  pending_interaction: Extract<
+    PublicStreamEvent,
+    { type: "interaction_required" }
+  > | null;
+  pending_interaction_body: string | null;
 }
 
 export interface ResumeView {

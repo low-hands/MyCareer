@@ -1,11 +1,17 @@
 import { useMemo, useState } from "react";
 
 import type { InteractionRequiredEvent } from "../chat/types";
+import type { InteractionResponse } from "../api/sse";
+
+export interface InteractionReply {
+  message: string;
+  interactionResponse?: InteractionResponse;
+}
 
 interface InteractionCardProps {
   interaction: InteractionRequiredEvent;
   disabled: boolean;
-  onReply: (message: string) => void;
+  onReply: (reply: InteractionReply) => void;
 }
 
 function optionValue(option: InteractionRequiredEvent["options"][number]): string {
@@ -51,7 +57,18 @@ export function InteractionCard({ interaction, disabled, onReply }: InteractionC
               aria-pressed={isMultiple ? active : undefined}
               onClick={() => {
                 if (!isMultiple) {
-                  onReply(value);
+                  onReply({
+                    message: option.label,
+                    interactionResponse:
+                      interaction.scope === "resume_analysis_confirmation" &&
+                      (value === "confirm" || value === "cancel")
+                        ? {
+                            interaction_id: interaction.interaction_id,
+                            scope: interaction.scope,
+                            action: value,
+                          }
+                        : undefined,
+                  });
                   return;
                 }
                 setSelected((current) => {
@@ -73,7 +90,7 @@ export function InteractionCard({ interaction, disabled, onReply }: InteractionC
           type="button"
           className="confirm-button"
           disabled={disabled || selected.size === 0}
-          onClick={() => onReply(selectedMessage)}
+          onClick={() => onReply({ message: selectedMessage })}
         >
           确认选择
         </button>

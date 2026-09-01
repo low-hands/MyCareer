@@ -77,6 +77,14 @@ class InteractionOption(StreamContract):
         return self
 
 
+class InteractionResponse(StreamContract):
+    """A UI response whose authority is bound to one durable interaction."""
+
+    interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
+    scope: Literal["resume_analysis_confirmation"]
+    action: Literal["confirm", "cancel"]
+
+
 class InteractionRequiredEvent(StreamContract):
     type: Literal["interaction_required"] = "interaction_required"
     interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
@@ -91,6 +99,7 @@ class InteractionRequiredEvent(StreamContract):
     prompt: str = Field(min_length=1, max_length=5000)
     options: tuple[InteractionOption, ...] = Field(default=(), max_length=50)
     allow_free_text: bool = False
+    scope: Literal["resume_analysis_confirmation"] | None = None
 
     @model_validator(mode="after")
     def _validate_options(self) -> "InteractionRequiredEvent":
@@ -210,6 +219,7 @@ class StreamableTurnRuntime(Protocol):
         user_id: str,
         conversation_id: str,
         user_message: str,
+        interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
     ) -> object: ...
 
@@ -219,6 +229,27 @@ def interaction_id(*durable_parts: object) -> str:
 
     canonical = "\x1f".join(str(part) for part in durable_parts)
     return f"interaction_{sha256(canonical.encode('utf-8')).hexdigest()[:20]}"
+
+
+def resume_analysis_confirmation_event(
+    *, conversation_id: str, analysis_id: str
+) -> InteractionRequiredEvent:
+    """Rebuild the same pending gate for live delivery and transcript reload."""
+
+    return InteractionRequiredEvent(
+        interaction_id=interaction_id(
+            conversation_id,
+            "resume_analysis_confirmation",
+            analysis_id,
+        ),
+        scope="resume_analysis_confirmation",
+        kind="confirmation",
+        prompt="请核对上面的候选事实。确认后才会写入职业事实库。",
+        options=(
+            InteractionOption(value="confirm", label="确认并导入"),
+            InteractionOption(value="cancel", label="取消导入"),
+        ),
+    )
 
 
 def iter_content_deltas(text: str, *, target_chars: int = 48) -> Iterator[str]:
@@ -243,6 +274,7 @@ async def astream_turn_events(
     user_id: str,
     conversation_id: str,
     user_message: str,
+    interaction_response: InteractionResponse | None = None,
     content_delay_seconds: float = 0.0,
 ) -> AsyncIterator[PublicStreamEvent]:
     """Bridge the synchronous runtime to an async SSE/WebSocket consumer.
@@ -270,12 +302,15 @@ async def astream_turn_events(
 
     def execute() -> None:
         try:
-            runtime.run_turn(
+            turn_arguments = dict(
                 user_id=user_id,
                 conversation_id=conversation_id,
                 user_message=user_message,
                 event_sink=sink,
             )
+            if interaction_response is not None:
+                turn_arguments["interaction_response"] = interaction_response
+            runtime.run_turn(**turn_arguments)
         finally:
             post(sentinel)
 

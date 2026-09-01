@@ -66,6 +66,7 @@ export type PublicStreamEvent =
       prompt: string;
       options: InteractionOption[];
       allow_free_text: boolean;
+      scope?: "resume_analysis_confirmation";
     }
   | { type: "content_delta"; delta: string }
   | {
@@ -151,7 +152,9 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
         typeof value.kind !== "string" ||
         typeof value.prompt !== "string" ||
         !Array.isArray(value.options) ||
-        typeof value.allow_free_text !== "boolean"
+        typeof value.allow_free_text !== "boolean" ||
+        (value.scope !== undefined &&
+          value.scope !== "resume_analysis_confirmation")
       ) {
         throw new Error("SSE_EVENT_INVALID");
       }
