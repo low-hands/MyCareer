@@ -163,7 +163,7 @@ def test_proposing_saves_nothing(tmp_path) -> None:
 
 
 def test_confirming_without_a_readback_is_refused(tmp_path) -> None:
-    runtime, store, _ = build(tmp_path, confirm())
+    runtime, store, _ = build(tmp_path, confirm(), final())
 
     result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="好的")
 
@@ -204,11 +204,14 @@ def test_an_omitted_field_is_left_alone_rather_than_cleared(tmp_path) -> None:
 
 def test_an_out_of_range_role_index_is_rejected(tmp_path) -> None:
     runtime, _, _ = build(
-        tmp_path, propose(target_role_selection_index=3, salary_expectation="40K")
+        tmp_path,
+        propose(target_role_selection_index=3, salary_expectation="40K"),
+        final(),
     )
 
-    # Same soft-refusal contract as confirm-without-readback: the turn ends on
-    # a grounded message instead of raising, and nothing is recorded.
+    # Same soft-refusal contract as confirm-without-readback: the model sees a
+    # grounded observation before the presenter delivers it, and nothing is
+    # recorded.
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记一下"
     )
