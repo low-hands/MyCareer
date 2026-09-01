@@ -1,0 +1,144 @@
+"""End-to-end wiring: the runtime records the two failure events it promised.
+
+These live here rather than beside the storage tests because they exercise the
+runtime's ``_TRACE_CONTEXT`` path — the recorder is injected, a turn runs, and
+the correct events land in the durable store with their payload copied out of
+the tool result.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.main_agent_contracts import (
+    AgentDecision,
+    CareerProfileContext,
+    ToolCall,
+)
+from career_agent.agent.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
+from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.connectors.gmail_readonly import GmailAPIError
+from career_agent.storage.context import CareerContextStore
+from career_agent.storage.run_events import SQLiteTraceRecorder
+
+
+class FailingEmailService:
+    def sync(self, **kwargs):
+        raise GmailAPIError(429, "quota exceeded")
+
+
+class Decisions:
+    def __init__(self, *decisions):
+        self.values = list(decisions)
+
+    def decide(self, context, tool_specs):
+        return self.values.pop(0)
+
+
+def _runtime(tmp_path, email_service, recorder) -> MainAgentRuntime:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    return MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="sync_application_emails", arguments={}),
+            ),
+            AgentDecision(action="final", message=""),
+        ),
+        tools=MainAgentToolRegistry(email_tracking_service=email_service),
+        trace_recorder=recorder,
+    )
+
+
+def _all_events(recorder: SQLiteTraceRecorder) -> tuple:
+    import sqlite3
+
+    with recorder._connect() as connection:
+        rows = connection.execute(
+            "SELECT run_id, sequence FROM run_events ORDER BY sequence"
+        ).fetchall()
+    run_ids = {row[0] for row in rows}
+    events = []
+    for run_id in run_ids:
+        events.extend(recorder.snapshot(run_id).events)
+    return tuple(events)
+
+
+def test_a_capability_failure_is_recorded_with_its_error_code(tmp_path: Path) -> None:
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    runtime = _runtime(tmp_path, FailingEmailService(), recorder)
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="检查邮箱")
+
+    events = _all_events(recorder)
+    failed = [e for e in events if e.event_type == "capability_failed"]
+    assert failed, "a capability failure must be traced"
+    assert any(e.error_code == "GmailAPIError" for e in failed)
+    assert any(
+        e.event_type == "turn_completed" for e in events
+    ), "a non-raising capability failure still completes the turn"
+
+
+def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
+    """A decision-maker failure raises through run_turn and records turn_failed."""
+
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    class ExplodingDecisionMaker:
+        def decide(self, context, tool_specs):
+            raise AgentWorkerError(
+                "MAIN_AGENT_TRANSPORT_ERROR",
+                "transport failed",
+                retryable=True,
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=ExplodingDecisionMaker(),
+        tools=MainAgentToolRegistry(),
+        trace_recorder=recorder,
+    )
+
+    import pytest
+
+    with pytest.raises(AgentWorkerError):
+        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="随便")
+
+    events = _all_events(recorder)
+    failed = [event for event in events if event.event_type == "turn_failed"]
+    assert len(failed) == 1
+    assert failed[0].error_code == "MAIN_AGENT_TRANSPORT_ERROR"
+    assert failed[0].recoverable is True
+    assert failed[0].details == {
+        "conversation_id": "c1",
+        "error_type": "AgentWorkerError",
+    }
+
+
+def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:
+    """A payload/presenter drift must become a countable durable event."""
+
+    class PresenterContract(BaseModel):
+        required_value: str
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    token = _TRACE_CONTEXT.set((recorder, "turn-presenter"))
+    try:
+        assert MainAgentRuntime._validated(PresenterContract, {}) is None
+    finally:
+        _TRACE_CONTEXT.reset(token)
+
+    events = recorder.snapshot("turn-presenter").events
+    assert len(events) == 1
+    assert events[0].event_type == "presentation_degraded"
+    assert events[0].stage == "PresenterContract"
+    assert events[0].outcome == "failed"
+    assert events[0].error_detail == "validation_error"

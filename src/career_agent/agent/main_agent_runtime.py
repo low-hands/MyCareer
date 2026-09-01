@@ -15,6 +15,7 @@ from career_agent.agent.answer_writer import (
 )
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
+from career_agent.harness.observability import TraceRecorder
 from career_agent.agent.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
@@ -87,6 +88,11 @@ _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
     default=None,
 )
 
+_TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
+    "main_agent_trace_context",
+    default=None,
+)
+
 
 class MainAgentState(TypedDict, total=False):
     context: MainAgentContext
@@ -122,7 +128,7 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = ()) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
         if max_tool_calls < 1:
             raise ValueError("max_tool_calls must be at least one")
         self._context_manager = context_manager
@@ -134,6 +140,7 @@ class MainAgentRuntime:
         self._career_context_projector = career_context_projector
         self._answer_writer = answer_writer
         self._max_tool_calls = max_tool_calls
+        self._trace_recorder = trace_recorder
         self._owned_resources = owned_resources
         self._closed = False
 
@@ -274,6 +281,9 @@ class MainAgentRuntime:
 
         turn_id = uuid4().hex
         sink_token = _STREAM_SINK.set(event_sink)
+        trace_token = _TRACE_CONTEXT.set(
+            (self._trace_recorder, turn_id) if self._trace_recorder is not None else None
+        )
         self._emit(TurnStartedEvent(turn_id=turn_id))
         self._emit(
             ProgressEvent(
@@ -288,13 +298,15 @@ class MainAgentRuntime:
                 user_message=user_message,
                 interaction_response=interaction_response,
             )
+            self._record_turn(turn_id=turn_id, conversation_id=conversation_id, result=result)
             self._deliver_stream_events(
                 result=result,
                 turn_id=turn_id,
                 conversation_id=conversation_id,
             )
             return result
-        except Exception:
+        except Exception as error:
+            self._record_turn_failed(turn_id=turn_id, conversation_id=conversation_id, error=error)
             self._emit(
                 TurnFailedEvent(
                     turn_id=turn_id,
@@ -305,6 +317,102 @@ class MainAgentRuntime:
             raise
         finally:
             _STREAM_SINK.reset(sink_token)
+            _TRACE_CONTEXT.reset(trace_token)
+
+    @staticmethod
+    def _emit_trace(
+        event_type: Literal["capability_failed", "presentation_degraded"],
+        stage: str,
+        *,
+        error_code: str | None = None,
+        error_detail: str | None = None,
+        details: dict[str, Any] | None = None,
+        recoverable: bool | None = None,
+    ) -> None:
+        """Record a best-effort runtime trace event under the active turn.
+
+        The active turn's recorder + run id arrive via ``_TRACE_CONTEXT``, set in
+        ``run_turn``. Static so the presenter path (``_validated``) can reach it
+        without a bound instance. A write that fails must never roll back
+        already-durable business effects.
+        """
+        context = _TRACE_CONTEXT.get()
+        if context is None:
+            return
+        recorder, run_id = context
+        try:
+            recorder.record(
+                run_id,
+                event_type,
+                stage,
+                outcome="failed",
+                error_code=error_code,
+                error_detail=error_detail,
+                details=details,
+                recoverable=recoverable,
+            )
+        except Exception:
+            return
+
+    def _record_turn(
+        self,
+        *,
+        turn_id: str,
+        conversation_id: str,
+        result: MainAgentTurnResult,
+    ) -> None:
+        if self._trace_recorder is None:
+            return
+        try:
+            self._trace_recorder.record(
+                turn_id,
+                "turn_completed",
+                "turn",
+                outcome="succeeded",
+                details={
+                    "conversation_id": conversation_id,
+                    "tool_call_count": len(result.tool_results),
+                    "final_state": (
+                        result.tool_result.state if result.tool_result is not None else result.decision.action
+                    ),
+                },
+            )
+        except Exception:
+            # Telemetry is best-effort; a recorder that cannot write must not
+            # roll back a turn whose business effects are already durable.
+            return
+
+    def _record_turn_failed(
+        self,
+        *,
+        turn_id: str,
+        conversation_id: str,
+        error: Exception,
+    ) -> None:
+        if self._trace_recorder is None:
+            return
+        error_code = getattr(error, "code", None)
+        if not isinstance(error_code, str) or not error_code.strip():
+            error_code = "TURN_EXECUTION_FAILED"
+        retryable = getattr(error, "retryable", None)
+        if not isinstance(retryable, bool):
+            retryable = None
+        try:
+            self._trace_recorder.record(
+                turn_id,
+                "turn_failed",
+                "turn",
+                outcome="failed",
+                details={
+                    "conversation_id": conversation_id,
+                    "error_type": type(error).__name__,
+                },
+                error_code=error_code,
+                error_detail=str(error),
+                recoverable=retryable,
+            )
+        except Exception:
+            return
 
     def _run_and_commit_turn(
         self,
@@ -1060,6 +1168,24 @@ class MainAgentRuntime:
         context = state["context"]
         result = state["pending_tool_result"]
         capability_name = state["pending_capability_name"]
+        if result.state == "failed" or (
+            result.payload.get("error_code") is not None
+        ):
+            # The tool layer already classified this failure into an error_code
+            # and a retryability flag. Copy them into the durable trace so a
+            # failure that lasted one turn does not vanish with the payload.
+            MainAgentRuntime._emit_trace(
+                "capability_failed",
+                capability_name,
+                error_code=str(result.payload.get("error_code"))
+                if result.payload.get("error_code") is not None
+                else "CAPABILITY_FAILED",
+                recoverable=(
+                    bool(result.payload.get("retryable"))
+                    if "retryable" in result.payload
+                    else None
+                ),
+            )
         if result.tool_name in {
             "start_mock_interview",
             "restart_mock_interview",
@@ -1377,11 +1503,21 @@ class MainAgentRuntime:
         A payload that will not validate means the presenter cannot be reached,
         and the caller falls back to the tool's own ``message``. Presenting
         something is always better than failing a turn whose work is already
-        durable.
+        durable. But the degrade must not be silent: it now records a trace
+        event, or the report-turned-receipt is indistinguishable from a normal
+        answer and no one ever knows the payload drifted.
         """
         try:
             return model.model_validate(payload)
-        except ValueError:
+        except ValueError as error:
+            MainAgentRuntime._emit_trace(
+                "presentation_degraded",
+                getattr(model, "__name__", type(model).__name__ or "presenter"),
+                error_detail="validation_error",
+                details={
+                    "errors": getattr(error, "errors", lambda: ())() and str(error),
+                },
+            )
             return None
 
     @staticmethod
