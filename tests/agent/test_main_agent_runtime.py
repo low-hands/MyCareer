@@ -674,6 +674,67 @@ def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> 
     assert manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="next").recent_messages == ()
 
 
+def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) -> None:
+    """A selector refusal is not a workflow entry; its question does not exist."""
+    from career_agent.agent.main_agent_contracts import (
+        ApplicationCandidateContextItem,
+        ConversationTaskState,
+        MainAgentContext,
+        AgentDecision,
+        CareerProfileContext,
+    )
+    from career_agent.agent.main_agent_tools import ToolObservation
+
+    def state_for(capability, result_state, *, refusal_count=1):
+        return {
+            "context": MainAgentContext(
+                conversation_id="c1",
+                profile=CareerProfileContext(user_id="u1"),
+                task=ConversationTaskState(
+                    application_candidates=(
+                        ApplicationCandidateContextItem(
+                            application_id="app-1",
+                            title="算法",
+                            company_name="Acme",
+                            status="submitted",
+                        ),
+                    ),
+                ),
+                user_message="走起",
+            ),
+            "pending_capability_name": capability,
+            "pending_tool_result": ToolObservation(
+                tool_name=capability,
+                state=result_state,
+                message="x",
+            ),
+            "refusal_count": refusal_count,
+        }
+
+    # Projection failed before the graph started, so candidates can still
+    # repair the selector in the same turn.
+    assert (
+        MainAgentRuntime._after_observe(
+            state_for("start_mock_interview", "invalid_input")
+        )
+        == "decide"
+    )
+    # Once the workflow really starts, its first question must reach the user.
+    assert (
+        MainAgentRuntime._after_observe(
+            state_for("start_mock_interview", "mock_interview_answer_required")
+        )
+        == "present"
+    )
+    # A second refused selector is bounded and ends the turn.
+    assert (
+        MainAgentRuntime._after_observe(
+            state_for("start_mock_interview", "invalid_input", refusal_count=2)
+        )
+        == "present"
+    )
+
+
 def test_unknown_capability_is_rejected_without_commit(tmp_path) -> None:
     agent, _, manager = build_runtime(tmp_path, AgentDecision(action="tool_call", tool_call=ToolCall(name="boss.detail", arguments={})))
 

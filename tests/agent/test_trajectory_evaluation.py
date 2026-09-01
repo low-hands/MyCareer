@@ -8,8 +8,9 @@ first tests that fail when a policy stops holding.
 Two levels, and the difference is the whole design:
 
 - **Contract**, always run, no API key. Does the context we send still make the
-  policy decidable, and is the forbidden tool even on the menu? Catches the two
-  ways an evaluation quietly stops testing anything.
+  policy decidable, and is each expected tool exposed by the production menu?
+  Hidden forbidden tools are structural reachability guarantees, tested by the
+  reachability suite rather than misreported as model behaviour.
 - **Replay**, run per scenario that has a cassette. Checks the decision itself.
 
 A green contract run does NOT mean the model behaves. It means the question was
@@ -19,6 +20,8 @@ reported rather than hidden.
 """
 
 from __future__ import annotations
+
+from dataclasses import replace
 
 import pytest
 
@@ -35,6 +38,7 @@ from career_agent.evaluation.trajectory import (
     load_cassette,
     prompt_fingerprint,
     replay,
+    trajectory_prompt_fingerprint,
 )
 
 
@@ -78,8 +82,8 @@ _SERVICE_PARAMETERS = (
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda item: item.name)
 def test_a_scenario_asks_a_question_the_model_could_answer(scenario, offered) -> None:
     """The contract level: the scenario is not vacuous and not stale."""
-    names, _ = offered
-    assert check_contract(scenario, offered_tools=names) == ()
+    _, schemas = offered
+    assert check_contract(scenario, tool_specs=schemas) == ()
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda item: item.name)
@@ -126,7 +130,7 @@ def test_every_scenario_names_the_policy_sentence_it_holds() -> None:
 def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> None:
     _, schemas = offered
     scenario = SCENARIOS[0]
-    current = prompt_fingerprint(schemas)
+    current = trajectory_prompt_fingerprint(scenario, schemas)
     current_shape = context_shape_fingerprint(scenario)
 
     assert cassette_staleness(
@@ -149,8 +153,8 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         scenario=scenario,
         tool_specs=schemas,
     ) == (
-        "cassette prompt_fingerprint does not match the current system prompt; "
-        "re-record it"
+        "cassette prompt_fingerprint does not match the current dynamic "
+        "prompt/tool menu; re-record it"
     )
     assert cassette_staleness(
         TrajectoryCassette(
@@ -187,6 +191,42 @@ def test_changing_the_system_prompt_changes_its_fingerprint(
     )
 
     assert prompt_fingerprint(schemas) != before
+
+
+def test_changing_a_step_menu_changes_the_trajectory_fingerprint(offered) -> None:
+    _, schemas = offered
+    scenario = SCENARIOS[0]
+    before = trajectory_prompt_fingerprint(scenario, schemas)
+    context = scenario.context.model_copy(
+        update={
+            "task": scenario.context.task.model_copy(
+                update={"active_job_posting_id": "job-1"}
+            )
+        }
+    )
+
+    assert trajectory_prompt_fingerprint(
+        replace(scenario, context=context), schemas
+    ) != before
+
+
+def test_contract_rejects_an_expected_tool_hidden_on_that_step(offered) -> None:
+    _, schemas = offered
+    scenario = SCENARIOS[0]
+    hidden_expectation = replace(
+        scenario,
+        steps=(
+            replace(
+                scenario.steps[0],
+                expect_action=None,
+                expect_tool="get_saved_job",
+            ),
+        ),
+    )
+
+    failures = check_contract(hidden_expectation, tool_specs=schemas)
+    assert len(failures) == 1
+    assert "hidden by the production menu" in failures[0]
 
 
 def test_changing_model_context_keys_changes_the_shape_fingerprint(
