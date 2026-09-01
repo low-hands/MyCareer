@@ -68,6 +68,7 @@ from career_agent.harness.streaming import (
     ContentDeltaEvent,
     InteractionOption,
     InteractionRequiredEvent,
+    InteractionResponse,
     ProgressEvent,
     PublicStreamEvent,
     ReportReadyEvent,
@@ -78,6 +79,7 @@ from career_agent.harness.streaming import (
     TurnSuspendedEvent,
     interaction_id,
     iter_content_deltas,
+    resume_analysis_confirmation_event,
 )
 
 _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
@@ -261,6 +263,7 @@ class MainAgentRuntime:
         user_id: str,
         conversation_id: str,
         user_message: str,
+        interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
     ) -> MainAgentTurnResult:
         """Run one committed turn and optionally publish presentation-only events.
@@ -283,6 +286,7 @@ class MainAgentRuntime:
                 user_id=user_id,
                 conversation_id=conversation_id,
                 user_message=user_message,
+                interaction_response=interaction_response,
             )
             self._deliver_stream_events(
                 result=result,
@@ -303,12 +307,40 @@ class MainAgentRuntime:
             _STREAM_SINK.reset(sink_token)
 
     def _run_and_commit_turn(
-        self, *, user_id: str, conversation_id: str, user_message: str
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        user_message: str,
+        interaction_response: InteractionResponse | None = None,
     ) -> MainAgentTurnResult:
         routing_task = self._context_manager.get_task(
             user_id=user_id,
             conversation_id=conversation_id,
         )
+        if interaction_response is not None:
+            context = self._context_manager.load_for_turn(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_message=user_message,
+            )
+            result = self._run_interaction_response(
+                context=context,
+                conversation_id=conversation_id,
+                response=interaction_response,
+            )
+            self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
+            self._context_manager.commit_turn(
+                context=context,
+                task=result.context.task,
+                assistant_message=self._conversation_content(
+                    result.tool_result,
+                    screen=result.assistant_message,
+                    composed=False,
+                ),
+            )
+            return result
+
         if self._owns_next_turn(routing_task):
             context = self._context_manager.load_for_workflow_turn(
                 user_id=user_id,
@@ -428,6 +460,16 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
         )
         if interaction is not None:
+            # Resume analysis is different from ordinary questions: the user
+            # must see the complete proposed evidence before the bound buttons
+            # can carry meaningful consent. The card prompt is only the gate,
+            # not a replacement for the analysis body.
+            if interaction.scope == "resume_analysis_confirmation":
+                self._emit(
+                    ProgressEvent(stage="presenting", message="正在展示分析结果……")
+                )
+                for delta in iter_content_deltas(result.assistant_message):
+                    self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
             self._emit(interaction)
             self._emit(
                 TurnSuspendedEvent(
@@ -613,6 +655,15 @@ class MainAgentRuntime:
         )
 
         if tool_result is not None:
+            if (
+                tool_result.state == "resume_analysis_ready"
+                and task.resume_analysis_status == "pending"
+                and task.active_resume_analysis_id is not None
+            ):
+                return resume_analysis_confirmation_event(
+                    conversation_id=conversation_id,
+                    analysis_id=task.active_resume_analysis_id,
+                )
             if tool_result.state == "calendar_approval_required":
                 return InteractionRequiredEvent(
                     interaction_id=interaction_id(*stable_parts),
@@ -666,6 +717,61 @@ class MainAgentRuntime:
                 allow_free_text=True,
             )
         return None
+
+    def _run_interaction_response(
+        self,
+        *,
+        context: MainAgentContext,
+        conversation_id: str,
+        response: InteractionResponse,
+    ) -> MainAgentTurnResult:
+        """Resolve a capability-owned UI decision before the LLM sees it."""
+
+        task = context.task
+        analysis_id = task.active_resume_analysis_id
+        expected_id = (
+            interaction_id(
+                conversation_id,
+                "resume_analysis_confirmation",
+                analysis_id,
+            )
+            if analysis_id is not None
+            else None
+        )
+        if (
+            response.scope != "resume_analysis_confirmation"
+            or analysis_id is None
+            or task.resume_analysis_status != "pending"
+            or response.interaction_id != expected_id
+        ):
+            result = ToolObservation(
+                tool_name="resume_analysis_confirmation",
+                state="resume_analysis_decision_expired",
+                message="这项确认已过期或已处理，请重新打开当前简历分析。",
+            )
+            updated = context
+        else:
+            result = self._tools.resolve_resume_analysis_confirmation(
+                user_id=context.profile.user_id,
+                analysis_id=analysis_id,
+                action=response.action,
+            )
+            updated = (
+                context.model_copy(
+                    update={"task": reduce_task_state(task, result)}
+                )
+                if result.state
+                in {"resume_analysis_confirmed", "resume_analysis_rejected"}
+                else context
+            )
+        decision = AgentDecision(action="final", message=result.message)
+        return MainAgentTurnResult(
+            decision=decision,
+            context=updated,
+            assistant_message=self._assistant_message(result),
+            tool_result=result,
+            tool_results=(result,),
+        )
 
     @staticmethod
     def _selection_options(
@@ -980,6 +1086,16 @@ class MainAgentRuntime:
 
     @staticmethod
     def _after_observe(state: MainAgentState) -> Literal["decide", "present"]:
+        # Fresh extraction is proposed evidence, not durable truth. End the
+        # turn on its presenter so the user can inspect it before the harness
+        # accepts a bound confirmation response. Key this by capability,
+        # not state: get_resume_analysis returns the same ready state and must
+        # remain composable for explicit review and follow-up requests.
+        if (
+            state.get("pending_capability_name") == "analyze_resume"
+            and state["pending_tool_result"].state == "resume_analysis_ready"
+        ):
+            return "present"
         # Both entries into a run end the turn on the question they just asked.
         # A restart is a start with a retirement in front of it, so routing it
         # back to the decision model would put the first question of the new run
@@ -1435,7 +1551,6 @@ class MainAgentRuntime:
             "get_resume_metadata",
             "analyze_resume",
             "get_resume_analysis",
-            "confirm_resume_analysis",
             "match_resume_to_job",
             "get_resume_job_match",
             "draft_resume_tailoring",

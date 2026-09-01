@@ -54,7 +54,12 @@ export const initialChatState: ChatState = {
 
 export type ChatAction =
   | { type: "submit"; messageId: string; assistantMessageId: string; content: string }
-  | { type: "hydrate"; messages: ChatMessage[]; awaitingInput?: boolean }
+  | {
+      type: "hydrate";
+      messages: ChatMessage[];
+      interaction?: InteractionRequiredEvent | null;
+      awaitingInput?: boolean;
+    }
   | { type: "stream_event"; event: PublicStreamEvent }
   | { type: "transport_failed"; message: string }
   | { type: "reset" };
@@ -72,8 +77,13 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.type === "hydrate") {
     return {
       ...initialChatState,
-      phase: action.awaitingInput ? "awaiting_input" : action.messages.length ? "completed" : "idle",
+      phase: action.interaction || action.awaitingInput
+        ? "awaiting_input"
+        : action.messages.length
+          ? "completed"
+          : "idle",
       messages: action.messages,
+      interaction: action.interaction ?? null,
     };
   }
   if (action.type === "submit") {

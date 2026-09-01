@@ -11,6 +11,12 @@ from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerRecord,
     ResumeAnalysisResult,
 )
+from career_agent.harness.streaming import (
+    ContentDeltaEvent,
+    InteractionRequiredEvent,
+    InteractionResponse,
+    interaction_id,
+)
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
@@ -55,6 +61,7 @@ def build_agent(
     *,
     user_id: str = "u1",
     resume_analysis_service: ResumeAnalysisService | None = None,
+    max_tool_calls: int = 3,
 ):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
@@ -62,7 +69,15 @@ def build_agent(
         resume_store=store,
         resume_analysis_service=resume_analysis_service,
     )
-    return MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools), tools
+    return (
+        MainAgentRuntime(
+            context_manager=manager,
+            decision_maker=decisions,
+            tools=tools,
+            max_tool_calls=max_tool_calls,
+        ),
+        tools,
+    )
 
 
 def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> None:
@@ -166,11 +181,12 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     _, _, _, version = seed_resume(store)
     worker = RecordingResumeAnalysisWorker()
     draft_store = SQLiteResumeAnalysisDraftStore(tmp_path / "drafts.sqlite3")
+    history_store = CareerHistoryStore(tmp_path / "resumes.sqlite3")
     service = ResumeAnalysisService(
         store,
         worker,
         draft_store,
-        CareerHistoryStore(tmp_path / "resumes.sqlite3"),
+        history_store,
     )
     decisions = SequenceDecisionMaker(
         AgentDecision(action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={})),
@@ -182,26 +198,36 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
             ),
         ),
         AgentDecision(action="tool_call", tool_call=ToolCall(name="analyze_resume", arguments={"selection_index": 1})),
-        AgentDecision(action="final", message="我已提取出一段待确认经历。"),
+        # A faulty decision model must not be able to turn its own extraction
+        # into confirmed evidence before the user has seen it.
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="confirm_resume_analysis", arguments={}),
+        ),
     )
     agent, tools = build_agent(
         tmp_path,
         store,
         decisions,
         resume_analysis_service=service,
+        # Keep budget out of the assertion: without the tool-level turn
+        # barrier, the scripted confirmation would otherwise execute.
+        max_tool_calls=5,
     )
 
+    events = []
     result = agent.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="分析最新版本的简历",
+        event_sink=events.append,
     )
 
-    assert tools.names[-3:] == (
+    assert tools.names[-2:] == (
         "analyze_resume",
         "get_resume_analysis",
-        "confirm_resume_analysis",
     )
+    assert "confirm_resume_analysis" not in tools.names
     schema = next(
         spec for spec in tools.schemas() if spec["function"]["name"] == "analyze_resume"
     )
@@ -217,10 +243,27 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     assert "raw_bytes" not in serialized
     assert result.context.task.resume_analysis_status == "pending"
     assert result.context.task.active_resume_analysis_id == observation.payload["analysis_id"]
+    assert len(result.tool_results) == 3
+    assert len(decisions.decisions) == 1
+    assert decisions.decisions[0].tool_call.name == "confirm_resume_analysis"
+    assert history_store.list_records(user_id="u1") == ()
+    assert history_store.list_evidence(user_id="u1") == ()
     assert result.assistant_message.startswith("# 简历分析结果")
     assert "Product Manager · Example Inc. · 工作经历" in result.assistant_message
     assert "What was the start month?" in result.assistant_message
     assert "尚未写入职业事实库" in result.assistant_message
+    interaction_index = next(
+        index
+        for index, event in enumerate(events)
+        if isinstance(event, InteractionRequiredEvent)
+    )
+    streamed = "".join(
+        event.delta
+        for event in events[:interaction_index]
+        if isinstance(event, ContentDeltaEvent)
+    )
+    assert streamed == result.assistant_message
+    assert events[interaction_index].scope == "resume_analysis_confirmation"
 
 
 def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
@@ -324,22 +367,42 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
     review_observation = review_result.tool_result
     assert review_observation.payload["analysis_id"] == analysis_id
     assert review_observation.payload["status"] == "pending"
+    assert len(review_decisions.contexts) == 2
 
-    confirm_decisions = SequenceDecisionMaker(
-        AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(name="confirm_resume_analysis", arguments={}),
-        ),
-        AgentDecision(action="final", message="已经保存到职业档案。"),
-    )
+    confirm_decisions = SequenceDecisionMaker()
     confirm_agent, _ = build_agent(
         tmp_path,
         store,
         confirm_decisions,
         resume_analysis_service=service,
     )
+    stale = confirm_agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认旧版本",
+        interaction_response=InteractionResponse(
+            interaction_id=interaction_id(
+                "c1", "resume_analysis_confirmation", "older-analysis"
+            ),
+            scope="resume_analysis_confirmation",
+            action="confirm",
+        ),
+    )
+    assert stale.tool_result.state == "resume_analysis_decision_expired"
+    assert len(history_store.list_records(user_id="u1")) == 0
+    assert confirm_decisions.contexts == []
+
     confirmed = confirm_agent.run_turn(
-        user_id="u1", conversation_id="c1", user_message="确认这些内容"
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认并导入",
+        interaction_response=InteractionResponse(
+            interaction_id=interaction_id(
+                "c1", "resume_analysis_confirmation", analysis_id
+            ),
+            scope="resume_analysis_confirmation",
+            action="confirm",
+        ),
     )
 
     confirm_observation = confirmed.tool_result
@@ -348,3 +411,21 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
     assert len(history_store.list_records(user_id="u1")) == 1
     assert len(history_store.list_evidence(user_id="u1")) == 2
     assert confirmed.context.task.resume_analysis_status == "confirmed"
+    assert confirm_decisions.contexts == []
+
+    repeated = confirm_agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="再次确认",
+        interaction_response=InteractionResponse(
+            interaction_id=interaction_id(
+                "c1", "resume_analysis_confirmation", analysis_id
+            ),
+            scope="resume_analysis_confirmation",
+            action="confirm",
+        ),
+    )
+    assert repeated.tool_result.state == "resume_analysis_decision_expired"
+    assert len(history_store.list_records(user_id="u1")) == 1
+    assert len(history_store.list_evidence(user_id="u1")) == 2
+    assert confirm_decisions.contexts == []

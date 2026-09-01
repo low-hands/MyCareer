@@ -24,6 +24,10 @@ class ResumeAnalysisNotFoundError(ValueError):
     """Raised when an analysis is expired, missing, or belongs to another user."""
 
 
+class ResumeAnalysisNotPendingError(ValueError):
+    """Raised when a one-time analysis decision was already consumed."""
+
+
 class ResumeAnalysisDraft(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -49,6 +53,10 @@ class ResumeAnalysisDraftStore(Protocol):
     def get(self, *, user_id: str, analysis_id: str) -> ResumeAnalysisDraft | None: ...
 
     def mark_confirmed(
+        self, *, user_id: str, analysis_id: str
+    ) -> ResumeAnalysisDraft: ...
+
+    def mark_rejected(
         self, *, user_id: str, analysis_id: str
     ) -> ResumeAnalysisDraft: ...
 
@@ -105,8 +113,10 @@ class ResumeAnalysisService:
         self, *, user_id: str, analysis_id: str
     ) -> CareerHistoryImportResult:
         draft = self.get_analysis(user_id=user_id, analysis_id=analysis_id)
-        if draft.status == "rejected":
-            raise ValueError("Rejected resume analysis cannot be confirmed")
+        if draft.status != "pending":
+            raise ResumeAnalysisNotPendingError(
+                f"Cannot confirm {draft.status} resume analysis"
+            )
         imported = self._career_history_store.import_confirmed_resume_analysis(
             user_id=user_id,
             analysis_id=draft.id,
@@ -115,3 +125,16 @@ class ResumeAnalysisService:
         )
         self._draft_store.mark_confirmed(user_id=user_id, analysis_id=draft.id)
         return imported
+
+    def reject_analysis(
+        self, *, user_id: str, analysis_id: str
+    ) -> ResumeAnalysisDraft:
+        draft = self.get_analysis(user_id=user_id, analysis_id=analysis_id)
+        if draft.status != "pending":
+            raise ResumeAnalysisNotPendingError(
+                f"Cannot reject {draft.status} resume analysis"
+            )
+        return self._draft_store.mark_rejected(
+            user_id=user_id,
+            analysis_id=analysis_id,
+        )

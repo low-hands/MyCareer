@@ -19,6 +19,7 @@ from career_agent.api.app import (
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.harness.streaming import (
     ContentDeltaEvent,
+    InteractionResponse,
     TurnCompletedEvent,
     TurnFailedEvent,
     TurnStartedEvent,
@@ -39,9 +40,11 @@ class Runtime:
         user_id,
         conversation_id,
         user_message,
+        interaction_response=None,
         event_sink=None,
     ):
         self.calls.append((user_id, conversation_id, user_message))
+        self.interaction_response = interaction_response
         assert event_sink is not None
         event_sink(TurnStartedEvent(turn_id="turn-1"))
         if self.delay:
@@ -121,6 +124,30 @@ def test_chat_endpoint_serializes_typed_events_as_sse_and_closes_runtime() -> No
         for event_type, payload in events
         if event_type == "content_delta"
     ) == "你好，世界"
+
+
+def test_chat_endpoint_transports_bound_interaction_response() -> None:
+    runtime = Runtime()
+    app = create_app(runtime_factory=lambda: runtime)
+    response_value = InteractionResponse(
+        interaction_id="interaction_0123456789abcdef0123",
+        scope="resume_analysis_confirmation",
+        action="confirm",
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/chat/stream",
+            json={
+                "user_id": "u1",
+                "conversation_id": "c1",
+                "message": "确认并导入",
+                "interaction_response": response_value.model_dump(),
+            },
+        )
+
+    assert response.status_code == 200
+    assert runtime.interaction_response == response_value
 
 
 def test_sse_does_not_expose_raw_runtime_exception() -> None:

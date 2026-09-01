@@ -204,7 +204,7 @@ class ConversationTaskState(ContractModel):
     workflow_entry_message: str | None = None
     pending_job_intent_update: JobIntentUpdate | None = None
     active_resume_analysis_id: str | None = None
-    resume_analysis_status: Literal["pending", "confirmed"] | None = None
+    resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
@@ -1402,8 +1402,6 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = GetApplicationToolArguments.model_validate(arguments)
     elif name == "get_resume_analysis":
         model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
-    elif name == "confirm_resume_analysis":
-        model_arguments = ConfirmResumeAnalysisToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown resume tool: {name}")
     payload = model_arguments.model_dump()
@@ -1462,7 +1460,7 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             )
         payload["resume_version_id"] = resume_version_id
         payload["job_posting_id"] = job_posting_id
-    if name in {"get_resume_analysis", "confirm_resume_analysis"}:
+    if name == "get_resume_analysis":
         analysis_id = payload.get("analysis_id") or context.task.active_resume_analysis_id
         if analysis_id is None:
             raise ValueError(f"{name} requires an active resume analysis")

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import sqlite3
 
+import pytest
+
 from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerEvidence,
     ExtractedCareerRecord,
@@ -53,6 +55,29 @@ def test_draft_store_round_trips_structured_analysis_and_scopes_user(tmp_path) -
     assert path.stat().st_mode & 0o777 == 0o600
 
 
+def test_reanalysis_creates_a_new_id_without_mutating_the_old_result(tmp_path) -> None:
+    store = SQLiteResumeAnalysisDraftStore(tmp_path / "resumes.sqlite3")
+    first_result = _result()
+    second_result = first_result.model_copy(
+        update={"warnings": ("A later extraction produced different content",)}
+    )
+
+    first = store.create(
+        user_id="u1",
+        resume_version_id="version-1",
+        result=first_result,
+    )
+    second = store.create(
+        user_id="u1",
+        resume_version_id="version-1",
+        result=second_result,
+    )
+
+    assert second.id != first.id
+    assert store.get(user_id="u1", analysis_id=first.id).result == first_result
+    assert store.get(user_id="u1", analysis_id=second.id).result == second_result
+
+
 def test_draft_store_does_not_store_original_resume_document(tmp_path) -> None:
     path = tmp_path / "resumes.sqlite3"
     store = SQLiteResumeAnalysisDraftStore(path)
@@ -92,7 +117,7 @@ def test_expired_draft_is_hidden_and_can_be_deleted(tmp_path) -> None:
     assert store.delete_expired(now=later) == 0
 
 
-def test_mark_confirmed_is_user_scoped_and_idempotent(tmp_path) -> None:
+def test_mark_confirmed_is_user_scoped_and_one_time(tmp_path) -> None:
     store = SQLiteResumeAnalysisDraftStore(tmp_path / "resumes.sqlite3")
     now = datetime(2026, 8, 25, tzinfo=timezone.utc)
     draft = store.create(
@@ -108,13 +133,44 @@ def test_mark_confirmed_is_user_scoped_and_idempotent(tmp_path) -> None:
         analysis_id=draft.id,
         now=confirmed_at,
     )
-    repeated = store.mark_confirmed(
-        user_id="u1",
-        analysis_id=draft.id,
-        now=confirmed_at + timedelta(minutes=1),
-    )
+    with pytest.raises(ValueError, match="Cannot confirm confirmed"):
+        store.mark_confirmed(
+            user_id="u1",
+            analysis_id=draft.id,
+            now=confirmed_at + timedelta(minutes=1),
+        )
 
     assert confirmed.status == "confirmed"
     assert confirmed.updated_at == confirmed_at
-    assert repeated == confirmed
     assert store.get(user_id="other", analysis_id=draft.id, now=confirmed_at) is None
+
+
+def test_reject_is_one_time_and_prevents_later_confirmation(tmp_path) -> None:
+    store = SQLiteResumeAnalysisDraftStore(tmp_path / "resumes.sqlite3")
+    now = datetime(2026, 8, 25, tzinfo=timezone.utc)
+    draft = store.create(
+        user_id="u1",
+        resume_version_id="version-1",
+        result=_result(),
+        now=now,
+    )
+
+    rejected = store.mark_rejected(
+        user_id="u1",
+        analysis_id=draft.id,
+        now=now + timedelta(minutes=1),
+    )
+
+    assert rejected.status == "rejected"
+    with pytest.raises(ValueError, match="Cannot reject rejected"):
+        store.mark_rejected(
+            user_id="u1",
+            analysis_id=draft.id,
+            now=now + timedelta(minutes=2),
+        )
+    with pytest.raises(ValueError, match="Cannot confirm rejected"):
+        store.mark_confirmed(
+            user_id="u1",
+            analysis_id=draft.id,
+            now=now + timedelta(minutes=2),
+        )

@@ -27,6 +27,37 @@ describe("SseParser", () => {
 });
 
 describe("streamChat", () => {
+  it("sends a bound interaction response in the POST body", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Response(
+        'event: turn_completed\ndata: {"type":"turn_completed","turn_id":"turn-1"}\n\n',
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    for await (const _event of streamChat({
+      user_id: "u1",
+      conversation_id: "c1",
+      message: "确认并导入",
+      interaction_response: {
+        interaction_id: "interaction_0123456789abcdef0123",
+        scope: "resume_analysis_confirmation",
+        action: "confirm",
+      },
+    })) {
+      // Consume the response so the request completes.
+    }
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      interaction_response: {
+        interaction_id: "interaction_0123456789abcdef0123",
+        scope: "resume_analysis_confirmation",
+        action: "confirm",
+      },
+    });
+  });
+
   it("decodes typed events across response chunks", async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({

@@ -45,6 +45,7 @@ from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
+from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.agent.interview_preparation_presenter import (
@@ -57,6 +58,11 @@ from career_agent.agent.mock_interview_presenter import (
     render_mock_interview_report,
 )
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
+from career_agent.agent.resume_analysis_presenter import render_resume_analysis
+from career_agent.harness.streaming import (
+    InteractionRequiredEvent,
+    resume_analysis_confirmation_event,
+)
 from career_agent.agent.resume_tailoring_presenter import (
     TailoringChangeReviewView,
     render_resume_tailoring,
@@ -202,6 +208,8 @@ class ConversationTranscriptResponse(BaseModel):
     messages: tuple[ConversationMessageView, ...] = ()
     active_workflow: str | None = None
     phase: str | None = None
+    pending_interaction: InteractionRequiredEvent | None = None
+    pending_interaction_body: str | None = None
 
 
 class ResumeView(BaseModel):
@@ -335,6 +343,9 @@ class WorkspaceReader:
         self._tailoring_drafts = SQLiteResumeTailoringDraftStore(
             Path(args.resume_store).expanduser()
         )
+        self._resume_analyses = SQLiteResumeAnalysisDraftStore(
+            Path(args.resume_store).expanduser()
+        )
 
     def applications(self, *, user_id: str, limit: int = 100) -> tuple[ApplicationView, ...]:
         return tuple(
@@ -427,6 +438,16 @@ class WorkspaceReader:
         if self._context.get_session(user_id, conversation_id) is None:
             return ConversationTranscriptResponse()
         task = self._context.get_task(user_id, conversation_id)
+        pending_analysis = (
+            self._resume_analyses.get(
+                user_id=user_id,
+                analysis_id=task.active_resume_analysis_id,
+            )
+            if task is not None
+            and task.resume_analysis_status == "pending"
+            and task.active_resume_analysis_id is not None
+            else None
+        )
         return ConversationTranscriptResponse(
             messages=tuple(
                 ConversationMessageView(
@@ -452,6 +473,21 @@ class WorkspaceReader:
             ),
             active_workflow=task.active_workflow if task else None,
             phase=task.phase if task else None,
+            pending_interaction=(
+                resume_analysis_confirmation_event(
+                    conversation_id=conversation_id,
+                    analysis_id=pending_analysis.id,
+                )
+                if pending_analysis is not None
+                and pending_analysis.status == "pending"
+                else None
+            ),
+            pending_interaction_body=(
+                render_resume_analysis(pending_analysis.result)
+                if pending_analysis is not None
+                and pending_analysis.status == "pending"
+                else None
+            ),
         )
 
     def resumes(self, *, user_id: str) -> tuple[ResumeView, ...]:

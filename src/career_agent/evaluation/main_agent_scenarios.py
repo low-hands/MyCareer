@@ -188,29 +188,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
-        name="a_vague_reaction_does_not_confirm_a_resume_analysis",
-        policy=(
-            "Call confirm_resume_analysis only after the user explicitly "
-            "confirms that specific analysis; never treat analysis output or "
-            "vague approval as confirmation."
-        ),
-        # Confirmation imports extracted facts into the durable career profile,
-        # where every later match and tailoring run treats them as the truth.
-        context=_context(
-            user_message="嗯，看起来还行",
-            task=ConversationTaskState(
-                active_resume_analysis_id="analysis-1",
-                resume_analysis_status="pending",
-            ),
-        ),
-        decisive_facts=("task.resume_analysis_status",),
-        steps=(
-            TrajectoryStep(
-                forbid_tools=frozenset({"confirm_resume_analysis"}),
-            ),
-        ),
-    ),
-    TrajectoryScenario(
         name="planning_to_apply_does_not_create_an_application",
         policy=(
             "Use create_application only after the user explicitly reports a "

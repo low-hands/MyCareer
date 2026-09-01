@@ -13,7 +13,14 @@ from career_agent.storage.schema import apply_schema
 
 
 class SQLiteResumeAnalysisDraftStore:
-    """Short-lived storage for unconfirmed structured resume analyses."""
+    """Short-lived, immutable-content storage for resume analyses.
+
+    Creating another analysis always inserts a new id. Existing rows expose no
+    content update operation; their only transitions are the one-time status
+    changes from pending to confirmed or rejected. The interaction can
+    therefore bind the analysis id itself instead of maintaining a second
+    result hash that could drift from the row it is meant to protect.
+    """
 
     def __init__(self, path: Path, *, ttl: timedelta = timedelta(days=30)) -> None:
         if ttl <= timedelta(0):
@@ -119,8 +126,6 @@ class SQLiteResumeAnalysisDraftStore:
             if row is None:
                 raise ValueError("Resume analysis draft not found")
             current = self._draft(row)
-            if current.status == "confirmed":
-                return current
             if current.status != "pending":
                 raise ValueError(f"Cannot confirm {current.status} resume analysis")
             connection.execute(
@@ -133,6 +138,42 @@ class SQLiteResumeAnalysisDraftStore:
             )
         return current.model_copy(
             update={"status": "confirmed", "updated_at": timestamp}
+        )
+
+    def mark_rejected(
+        self,
+        *,
+        user_id: str,
+        analysis_id: str,
+        now: datetime | None = None,
+    ) -> ResumeAnalysisDraft:
+        timestamp = self._utc(now or datetime.now(timezone.utc))
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT id, user_id, resume_version_id, status, result_json,
+                       created_at, updated_at, expires_at
+                FROM resume_analysis_drafts
+                WHERE id = ? AND user_id = ? AND expires_at > ?
+                """,
+                (analysis_id, user_id, timestamp.isoformat()),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Resume analysis draft not found")
+            current = self._draft(row)
+            if current.status != "pending":
+                raise ValueError(f"Cannot reject {current.status} resume analysis")
+            connection.execute(
+                """
+                UPDATE resume_analysis_drafts
+                SET status = 'rejected', updated_at = ?
+                WHERE id = ? AND user_id = ? AND status = 'pending'
+                """,
+                (timestamp.isoformat(), analysis_id, user_id),
+            )
+        return current.model_copy(
+            update={"status": "rejected", "updated_at": timestamp}
         )
 
     @staticmethod
