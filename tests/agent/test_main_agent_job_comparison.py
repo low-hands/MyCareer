@@ -141,8 +141,8 @@ def test_the_model_chooses_jobs_by_index_and_never_sees_an_internal_id(
     ) == {"job_selection_indices"}
 
 
-def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
-    """Empty context: nothing to re-select, so the turn ends on the refusal."""
+def test_an_out_of_range_index_without_candidates_stops_without_a_futile_retry(tmp_path) -> None:
+    """No candidate-backed selector can repair this refusal in the same turn."""
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -151,6 +151,7 @@ def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
                 arguments={"job_selection_indices": [1, 2]},
             ),
         ),
+        AgentDecision(action="final", message="请先选择要比较的岗位。"),
     )
     runtime, _, _ = build_runtime(tmp_path, decisions)
 
@@ -160,6 +161,7 @@ def test_an_out_of_range_index_is_rejected(tmp_path) -> None:
     assert result.tool_result.state == "invalid_input"
     assert "selection index is out of range" in result.assistant_message
     assert len(decisions.contexts) == 1
+    assert result.context.tool_observations[-1].state == "invalid_input"
 
 
 def test_an_out_of_range_index_with_listed_jobs_is_rerouted_to_decide(

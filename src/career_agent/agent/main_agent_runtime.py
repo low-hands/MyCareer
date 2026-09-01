@@ -19,12 +19,11 @@ from career_agent.harness.observability import TraceRecorder
 from career_agent.agent.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
-    is_waiting,
     response_type_for,
     uses_answer_writer,
 )
-from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.tool_reachability import reroutable
+from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.interview_retro_presenter import (
@@ -95,11 +94,18 @@ _TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
 )
 
 
+class PendingAction(TypedDict, total=False):
+    name: str
+    kind: Literal["atomic_tool", "workflow"]
+    arguments: dict[str, Any]
+    result: MainAgentToolOutput
+
+
 class MainAgentState(TypedDict, total=False):
     context: MainAgentContext
     decision: AgentDecision
-    pending_capability_name: str
-    pending_tool_result: MainAgentToolOutput
+    pending: PendingAction
+    authorization_route: Literal["act", "observe", "present", "interrupt"]
     last_tool_result: MainAgentToolOutput
     tool_results: tuple[MainAgentToolOutput, ...]
     tool_call_fingerprints: tuple[str, ...]
@@ -121,6 +127,23 @@ class MainAgentTurnResult:
 
 
 class MainAgentRuntime:
+    _INTERACTION_RENDERER_STATES = frozenset(
+        {
+            "calendar_approval_required",
+            "email_events_pending",
+            "mock_interview_answer_required",
+            "mock_interview_running",
+            "resume_analysis_ready",
+            "resume_final_review_blocked",
+            "resume_tailoring_review_blocked",
+            "resume_tailoring_superseded",
+        }
+    )
+
+    @classmethod
+    def _has_interaction_renderer(cls, state: str) -> bool:
+        return state in cls._INTERACTION_RENDERER_STATES
+
     _MOCK_INTERVIEW_GRAPH_STATES = frozenset(
         {
             "mock_interview_answer_required",
@@ -147,38 +170,46 @@ class MainAgentRuntime:
         self._closed = False
 
         graph = StateGraph(MainAgentState)
-        graph.add_node("hydrate_career_context", self._hydrate_career_context)
+        graph.add_node("hydrate", self._hydrate_career_context)
         graph.add_node("decide", self._decide)
-        graph.add_node("invoke_atomic_tool", self._invoke_atomic_tool)
-        graph.add_node("run_workflow", self._run_workflow)
+        graph.add_node("authorize", self._authorize)
+        graph.add_node("act", self._act)
         graph.add_node("observe", self._observe)
-        graph.add_node("finish", self._finish)
-        # One exit for every path that renders the last tool result instead of
-        # model prose. It is a node, rather than the plain function the three
-        # exits already shared, only because ``_after_observe`` is a conditional
-        # edge whose return value has to name a node.
         graph.add_node("present", self._present)
-        graph.add_edge(START, "hydrate_career_context")
-        graph.add_edge("hydrate_career_context", "decide")
+        graph.add_node("interrupt", self._interrupt)
+        graph.add_edge(START, "hydrate")
+        graph.add_edge("hydrate", "decide")
         graph.add_conditional_edges(
             "decide",
-            self._after_decision,
+            self._route_decision,
             {
-                "invoke_atomic_tool": "invoke_atomic_tool",
-                "run_workflow": "run_workflow",
-                "finish": "finish",
+                "authorize": "authorize",
                 "present": "present",
+                "interrupt": "interrupt",
             },
         )
-        graph.add_edge("invoke_atomic_tool", "observe")
-        graph.add_edge("run_workflow", "observe")
+        graph.add_conditional_edges(
+            "authorize",
+            self._after_authorize,
+            {
+                "act": "act",
+                "observe": "observe",
+                "present": "present",
+                "interrupt": "interrupt",
+            },
+        )
+        graph.add_edge("act", "observe")
         graph.add_conditional_edges(
             "observe",
             self._after_observe,
-            {"decide": "decide", "present": "present"},
+            {
+                "decide": "decide",
+                "present": "present",
+                "interrupt": "interrupt",
+            },
         )
-        graph.add_edge("finish", END)
         graph.add_edge("present", END)
+        graph.add_edge("interrupt", END)
         self._graph = graph.compile()
 
     def close(self) -> None:
@@ -801,7 +832,6 @@ class MainAgentRuntime:
                 "resume_tailoring_review_blocked",
                 "resume_final_review_blocked",
                 "resume_tailoring_superseded",
-                "waiting_user",
             }:
                 return InteractionRequiredEvent(
                     interaction_id=interaction_id(*stable_parts),
@@ -809,7 +839,6 @@ class MainAgentRuntime:
                     prompt=prompt,
                     allow_free_text=True,
                 )
-
         if result.decision.action == "ask_user":
             options = MainAgentRuntime._selection_options(tool_result, task)
             if options:
@@ -1106,78 +1135,93 @@ class MainAgentRuntime:
             separators=(",", ":"),
         )
 
-    def _after_decision(self, state: MainAgentState) -> Literal["invoke_atomic_tool", "run_workflow", "finish", "present"]:
+    @staticmethod
+    def _route_decision(
+        state: MainAgentState,
+    ) -> Literal["authorize", "present", "interrupt"]:
         decision = state["decision"]
-        if decision.action != "tool_call":
-            return "finish"
-        if decision.tool_call is None:
-            raise ValueError("tool_call action requires tool_call arguments")
-        # Three ways a requested call is refused: the budget is spent, it
-        # repeats a call already made this turn, or the last result is waiting
-        # on the user. All three end the turn on what is already in hand.
-        if state.get("tool_call_count", 0) >= self._max_tool_calls:
-            return "present"
-        if self._tool_call_fingerprint(decision) in state.get("tool_call_fingerprints", ()):
-            return "present"
-        last_result = state.get("last_tool_result")
-        if last_result is not None and is_waiting(last_result.state):
-            return "present"
-        kind = self._tools.capability_kind(decision.tool_call.name)
-        if kind == "atomic_tool":
-            return "invoke_atomic_tool"
-        return "run_workflow"
+        if decision.action == "tool_call":
+            if decision.tool_call is None:
+                raise ValueError("tool_call action requires tool_call arguments")
+            return "authorize"
+        if decision.action == "ask_user":
+            return "interrupt"
+        return "present"
 
-    def _invoke_atomic_tool(self, state: MainAgentState) -> MainAgentState:
-        context = state["context"]
-        decision = state["decision"]
-        if decision.tool_call is None:
-            raise ValueError("tool_call action requires tool_call arguments")
-        try:
-            arguments = self._project_atomic_tool_arguments(context, decision.tool_call.name, decision.tool_call.arguments)
-        except ValueError as error:
-            MainAgentRuntime._reraise_security_refusal(error)
-            result = MainAgentRuntime._rejection_observation(
-                decision.tool_call.name, error
-            )
-            return {"pending_capability_name": decision.tool_call.name, "pending_tool_result": result}
-        self._emit_capability_started(decision.tool_call.name)
-        result = self._tools.invoke_atomic_tool(decision.tool_call.name, arguments)
-        self._emit_capability_completed(decision.tool_call.name, result.state)
-        return {"pending_capability_name": decision.tool_call.name, "pending_tool_result": result}
+    def _authorize(self, state: MainAgentState) -> MainAgentState:
+        """Project and gate one model-selected action without choosing its successor."""
 
-    def _run_workflow(self, state: MainAgentState) -> MainAgentState:
-        context = state["context"]
         decision = state["decision"]
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
+
+        if state.get("tool_call_count", 0) >= self._max_tool_calls:
+            return {"authorization_route": "present"}
+        if self._tool_call_fingerprint(decision) in state.get("tool_call_fingerprints", ()):
+            return {"authorization_route": "present"}
+
+        kind = self._tools.capability_kind(name)
         try:
-            if name == "sync_application_emails":
-                arguments = project_email_arguments(context, name, decision.tool_call.arguments)
-            elif name in {"research_job", "retry_job_research"}:
-                arguments = project_job_research_arguments(
-                    context,
+            arguments = (
+                self._project_atomic_tool_arguments(
+                    state["context"],
                     name,
                     decision.tool_call.arguments,
                 )
-            elif name == "start_mock_interview":
-                arguments = project_mock_interview_arguments(
-                    context, decision.tool_call.arguments
+                if kind == "atomic_tool"
+                else self._project_workflow_arguments(
+                    state["context"],
+                    name,
+                    decision.tool_call.arguments,
                 )
-            elif name == "restart_mock_interview":
-                arguments = project_restart_mock_interview_arguments(
-                    context, decision.tool_call.arguments
-                )
-            else:
-                raise ValueError(f"Unknown main-agent workflow: {name}")
+            )
         except ValueError as error:
             MainAgentRuntime._reraise_security_refusal(error)
             result = MainAgentRuntime._rejection_observation(name, error)
-            return {"pending_capability_name": name, "pending_tool_result": result}
+            return {
+                "authorization_route": "observe",
+                "pending": {"name": name, "result": result},
+            }
+        return {
+            "authorization_route": "act",
+            "pending": {"name": name, "kind": kind, "arguments": arguments},
+        }
+
+    @staticmethod
+    def _after_authorize(
+        state: MainAgentState,
+    ) -> Literal["act", "observe", "present", "interrupt"]:
+        return state["authorization_route"]
+
+    def _act(self, state: MainAgentState) -> MainAgentState:
+        pending = state["pending"]
+        name = pending["name"]
+        arguments = pending["arguments"]
         self._emit_capability_started(name)
-        result = self._tools.invoke_workflow(name, arguments)
+        result = (
+            self._tools.invoke_atomic_tool(name, arguments)
+            if pending["kind"] == "atomic_tool"
+            else self._tools.invoke_workflow(name, arguments)
+        )
         self._emit_capability_completed(name, result.state)
-        return {"pending_capability_name": name, "pending_tool_result": result}
+        return {"pending": {**pending, "result": result}}
+
+    @staticmethod
+    def _project_workflow_arguments(
+        context: MainAgentContext,
+        name: str,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        if name == "sync_application_emails":
+            return project_email_arguments(context, name, arguments)
+        if name in {"research_job", "retry_job_research"}:
+            return project_job_research_arguments(context, name, arguments)
+        if name == "start_mock_interview":
+            return project_mock_interview_arguments(context, arguments)
+        if name == "restart_mock_interview":
+            return project_restart_mock_interview_arguments(context, arguments)
+        raise ValueError(f"Unknown main-agent workflow: {name}")
 
     @staticmethod
     def _reraise_security_refusal(error: ValueError) -> None:
@@ -1221,8 +1265,9 @@ class MainAgentRuntime:
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
-        result = state["pending_tool_result"]
-        capability_name = state["pending_capability_name"]
+        pending = state["pending"]
+        result = pending["result"]
+        capability_name = pending["name"]
         if result.state == "failed" or (
             result.payload.get("error_code") is not None
         ):
@@ -1287,78 +1332,61 @@ class MainAgentRuntime:
         }
 
     @staticmethod
-    def _after_observe(state: MainAgentState) -> Literal["decide", "present"]:
-        # Deterministic end-of-turn outcomes come first: a fresh analyze_resume
-        # extraction must reach its presenter, and a workflow's entry question
-        # must reach the candidate. Only after those are ruled out may an
-        # ``invalid_input`` refusal decide between "loop for a re-select" and
-        # "end the turn" — keeping the three turn-ending families in one ordered
-        # block makes the future reflect step's insertion point unambiguous.
-        if (
-            state.get("pending_capability_name") == "analyze_resume"
-            and state["pending_tool_result"].state == "resume_analysis_ready"
-        ):
-            return "present"
-        # A projection refusal already went through the model once. Whether it
-        # gets another shot depends on whether any candidate list could resolve
-        # it: with candidates present the model can list or re-select in the
-        # same turn; with none, only the user can supply the object, so end the
-        # turn on the grounded refusal instead of burning the remaining budget
-        # on a second guess over an empty context.
-        result = state.get("pending_tool_result")
-        if result is not None and result.state == "invalid_input":
-            can_reroute = reroutable(
-                state.get("pending_capability_name", ""),
-                state["context"].task,
-            )
-            if not can_reroute or state.get("refusal_count", 0) >= 2:
+    def _after_observe(
+        state: MainAgentState,
+    ) -> Literal["decide", "present", "interrupt"]:
+        pending = state["pending"]
+        result = pending["result"]
+        # A capability that already produced a complete, bound interaction
+        # contract does not need an LLM to paraphrase or rediscover its prompt.
+        if result.disposition == "interaction_required":
+            return "interrupt"
+        # Projection refusals normally return to the model so it can re-select
+        # or ask the user. The second refusal is a control-limit exit, not a
+        # semantic successor chosen from a capability-name table.
+        if result.state == "invalid_input":
+            if not reroutable(pending["name"], state["context"].task):
                 return "present"
+            if state.get("refusal_count", 0) >= 2:
+                return "present"
+        # Failures intentionally return to the model once, with their bounded
+        # observation, so it can explain, recover, or ask the user. This is not
+        # the old waiting-state fallthrough.
+        if result.disposition == "failed":
             return "decide"
-        # Both successful entries into a run end the turn on the question they
-        # just asked. A projection refusal is handled above because no workflow
-        # was entered yet and a candidate selector may still be corrected.
-        if state.get("pending_capability_name") in {
-            "start_mock_interview",
-            "restart_mock_interview",
-        }:
-            return "present"
         return "decide"
 
     @staticmethod
-    def _finish(state: MainAgentState) -> MainAgentState:
+    def _present(state: MainAgentState) -> MainAgentState:
+        """Deliver a final decision without letting model prose replace evidence."""
+
         decision = state["decision"]
         result = state.get("last_tool_result")
-        if result is not None and decision.action == "final":
-            # The decision model only saw DecisionObservation, never the full
-            # result. A final answer about that result must therefore come from
-            # the authoritative presenter rather than ungrounded model prose.
-            message = MainAgentRuntime._assistant_message(result)
-        else:
-            message = decision.message or ""
-            if not message and result is not None:
-                message = MainAgentRuntime._assistant_message(result)
-        return {"assistant_message": message}
+        if result is not None:
+            # Deliberately retain the authoritative presenter override. Letting
+            # a post-tool model message coexist with evidence is the separate
+            # presentation-composition item (070/F), not part of loop routing.
+            return {"assistant_message": MainAgentRuntime._assistant_message(result)}
+        if decision.action == "final" and decision.message:
+            return {"assistant_message": decision.message}
+        return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
 
     @staticmethod
-    def _present(state: MainAgentState) -> MainAgentState:
-        """Render the last tool result and end the turn.
+    def _interrupt(state: MainAgentState) -> MainAgentState:
+        """Suspend on either a model question or a capability-owned interaction."""
 
-        One node for every exit that has no model prose of its own: a workflow
-        that must show its own question, a tool-call budget that ran out, a
-        repeated call, and a waiting state the model tried to act on. These were
-        three nodes (``present_workflow`` and ``fallback``, alongside
-        ``finish``); the first two had near-identical bodies and the names
-        implied a division of labour that did not exist, since ``finish`` calls
-        the same presenter for a tool-backed final answer.
-
-        The ``None`` guard is what remains genuinely distinct: reached from
-        ``observe`` there is always a result, but reached straight from
-        ``decide`` — budget exhausted on the first call — there is none.
-        """
+        decision = state["decision"]
+        if decision.action == "ask_user":
+            return {"assistant_message": decision.message or "请补充下一步所需的信息。"}
         result = state.get("last_tool_result")
-        if result is not None:
-            return {"assistant_message": MainAgentRuntime._assistant_message(result)}
-        return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
+        if result is None:
+            raise ValueError("capability interaction requires an observed result")
+        if not MainAgentRuntime._has_interaction_renderer(result.state):
+            raise ValueError(
+                "interaction_required result has no interaction renderer: "
+                f"{result.tool_name}/{result.state}"
+            )
+        return {"assistant_message": MainAgentRuntime._assistant_message(result)}
 
     @staticmethod
     def _tool_observation(name: str, result: MainAgentToolOutput) -> DecisionObservation:
@@ -1389,6 +1417,12 @@ class MainAgentRuntime:
         without a due date; the domain has no separate waiting bucket yet.
         """
         payload = result.payload
+        if (
+            isinstance(result, ToolObservation)
+            and result.disposition == "failed"
+            and type(payload.get("retryable")) is bool
+        ):
+            return {"retryable": payload["retryable"]}
         if result.state == "daily_brief_ready":
             buckets = {
                 key: payload.get(key)

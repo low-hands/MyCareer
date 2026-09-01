@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, Protocol
 from pydantic import Field, model_validator
 
 from career_agent.agent.summary_text import condense
+from career_agent.agent.delivery_policy import is_failed, is_waiting
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -414,9 +415,48 @@ class ToolResult(ContractModel):
     # Summary-row/message-body states use this as their sole durable receipt,
     # so an empty string would make a completed turn disappear after refresh.
     message: str = Field(min_length=1)
+    # Internal graph control. Excluding it preserves public result payloads and
+    # keeps this execution signal out of the decision model's observation.
+    disposition: Literal["completed", "interaction_required", "failed"] = Field(
+        default="completed",
+        exclude=True,
+    )
     next_action: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     resource_ref: ConversationResourceReference | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_control_disposition(cls, value: Any) -> Any:
+        """Bind graph control to delivery policy, with explicit emitter exceptions.
+
+        Most waiting states have one meaning everywhere, so the policy registry
+        supplies their disposition. A tool may still explicitly require an
+        interaction for a state that is not universally waiting — notably a
+        newly produced ``resume_analysis_ready`` draft, while reading that same
+        immutable analysis remains completed. Failures are classified here so
+        their return to ``decide`` is deliberate rather than a default side
+        effect of an unused enum value.
+        """
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        state = data.get("state")
+        declared = data.get("disposition")
+        if isinstance(state, str) and is_waiting(state):
+            if declared not in {None, "interaction_required"}:
+                raise ValueError(
+                    f"waiting state {state!r} must require an interaction"
+                )
+            data["disposition"] = "interaction_required"
+        elif declared == "interaction_required" and state != "resume_analysis_ready":
+            raise ValueError(
+                "an interaction-required emitter must be declared waiting; "
+                "only the analyze/read shared resume state is tool-specific"
+            )
+        elif declared is None and isinstance(state, str):
+            data["disposition"] = "failed" if is_failed(state) else "completed"
+        return data
 
 
 # Compatibility name for capability handlers. New orchestration code should
@@ -469,7 +509,11 @@ class DecisionObservation(ContractModel):
         if any(key == "id" or key.endswith("_id") for key in self.facts):
             raise ValueError("decision facts cannot contain internal identifiers")
         if self.facts:
-            expected = _DECISION_FACT_KEYS_BY_STATE.get(self.state)
+            expected = (
+                frozenset({"retryable"})
+                if is_failed(self.state)
+                else _DECISION_FACT_KEYS_BY_STATE.get(self.state)
+            )
             if expected is None or frozenset(self.facts) != expected:
                 raise ValueError("decision facts must match the declared state schema")
             if self.state == "daily_brief_ready" and not all(
@@ -489,6 +533,8 @@ class DecisionObservation(ContractModel):
                 and self.facts["status"] in {"current", "outdated", "superseded"}
             ):
                 raise ValueError("job research decision facts have invalid values")
+            if is_failed(self.state) and type(self.facts["retryable"]) is not bool:
+                raise ValueError("failure retryability fact must be boolean")
         return self
 
 

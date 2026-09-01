@@ -2813,6 +2813,7 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="analyze_resume",
             state="resume_analysis_ready",
+            disposition="interaction_required",
             message=f"已分析该简历版本，提取出 {len(draft.result.records)} 段候选经历。",
             next_action="review_and_confirm_extracted_career_facts",
             payload={

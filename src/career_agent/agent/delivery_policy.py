@@ -23,6 +23,13 @@ class DeliveryPolicy:
     waiting: bool = False
     """The result is waiting on the user, so no further tool call may run."""
 
+    outcome: Literal["completed", "failed"] = "completed"
+    """Whether the result represents a capability failure.
+
+    This is explicit because spelling conventions are not semantics: checkpoint
+    loss and graph incompatibility are failures without a ``_failed`` suffix.
+    """
+
     durable_message: Literal["full", "summary"] = "full"
     """Whether the transcript row keeps the delivered prose or a bounded line.
 
@@ -64,6 +71,8 @@ class DeliveryPolicy:
             )
         if self.waiting and self.response_type is not None:
             raise ValueError("a waiting state has no report for the writer")
+        if self.waiting and self.outcome == "failed":
+            raise ValueError("a failed result must return to orchestration, not wait")
 
     @property
     def uses_answer_writer(self) -> bool:
@@ -79,6 +88,7 @@ class DeliveryPolicy:
 
 
 _WAITING = DeliveryPolicy(waiting=True)
+_FAILED = DeliveryPolicy(outcome="failed")
 _PLAIN = DeliveryPolicy()
 
 
@@ -105,10 +115,21 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # Waiting on the user. Reaching ``decide`` with one of these ends the turn.
     "calendar_approval_required": _WAITING,
     "email_events_pending": _WAITING,
-    "failed": _WAITING,
+    "mock_interview_answer_required": _WAITING,
+    "mock_interview_running": _WAITING,
     "resume_final_review_blocked": _WAITING,
     "resume_tailoring_review_blocked": _WAITING,
     "resume_tailoring_superseded": _WAITING,
+    # Failures return to the decision model with a bounded receipt and, when
+    # known, an explicit retryability fact. Names are intentionally irrelevant.
+    "calendar_sync_not_available": _FAILED,
+    "calendar_write_failed": _FAILED,
+    "failed": _FAILED,
+    "job_research_failed": _FAILED,
+    "mock_interview_checkpoint_missing": _FAILED,
+    "mock_interview_graph_incompatible": _FAILED,
+    "mock_interview_restart_failed": _FAILED,
+    "resume_tailoring_not_ready": _FAILED,
     # Report-shaped. Presenter renders the screen, ``message`` is the row.
     "daily_brief_ready": _summarised("daily_brief"),
     "interview_preparation_ready": _card("interview_preparation"),
@@ -147,8 +168,6 @@ _POLICIES.update(
             "calendar_proposal_not_found",
             "calendar_proposal_ready",
             "calendar_sync_complete",
-            "calendar_sync_not_available",
-            "calendar_write_failed",
             "compare_input_not_found",
             "email_account_not_found",
             "email_event_not_found",
@@ -170,18 +189,12 @@ _POLICIES.update(
             "invalid_timezone",
             "job_intent_proposed",
             "job_intent_recorded",
-            "job_research_failed",
             "job_research_not_found",
             "job_research_not_retryable",
             "job_search_page_ready",
             "match_input_not_found",
-            "mock_interview_answer_required",
             "mock_interview_cancelled",
-            "mock_interview_checkpoint_missing",
-            "mock_interview_graph_incompatible",
             "mock_interview_input_retry_required",
-            "mock_interview_restart_failed",
-            "mock_interview_running",
             "invalid_input",
             "no_mock_interview_result_found",
             "no_mock_interview_to_restart",
@@ -196,7 +209,6 @@ _POLICIES.update(
             "resume_tailoring_already_finalized",
             "resume_tailoring_draft_not_found",
             "resume_tailoring_finalized",
-            "resume_tailoring_not_ready",
             "resume_version_not_found",
             "resumes_found",
             "saved_job_not_found",
@@ -226,6 +238,10 @@ def policy_for(state: str) -> DeliveryPolicy:
 
 def is_waiting(state: str) -> bool:
     return policy_for(state).waiting
+
+
+def is_failed(state: str) -> bool:
+    return policy_for(state).outcome == "failed"
 
 
 def condenses_message(state: str) -> bool:

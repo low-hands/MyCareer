@@ -56,38 +56,28 @@ def build_runtime(tmp_path, decision: AgentDecision):
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
 
 
-def test_main_graph_separates_atomic_tools_from_workflows(tmp_path) -> None:
+def test_main_graph_uses_one_authorize_act_path_for_every_capability(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
 
     assert set(agent._graph.get_graph().nodes) == {
         "__start__",
-        "hydrate_career_context",
+        "hydrate",
         "decide",
-        "invoke_atomic_tool",
-        "run_workflow",
+        "authorize",
+        "act",
         "observe",
-        "finish",
         "present",
+        "interrupt",
         "__end__",
     }
 
 
-def test_every_exit_that_renders_a_tool_result_is_one_node(tmp_path) -> None:
-    """One presenter exit, not three.
-
-    ``present_workflow`` and ``fallback`` were separate nodes with near-identical
-    bodies, and ``finish`` calls the same presenter for a tool-backed final
-    answer, so the names implied a division of labour that did not exist. Both
-    conditional edges now name the same landing spot, which is the only reason
-    it has to be a node at all.
-    """
+def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
     graph = agent._graph.get_graph()
 
-    assert "fallback" not in graph.nodes
-    assert "present_workflow" not in graph.nodes
     ends = {edge.source for edge in graph.edges if edge.target == "__end__"}
-    assert ends == {"finish", "present"}
+    assert ends == {"present", "interrupt"}
 
 
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
@@ -349,6 +339,74 @@ def test_decision_observation_clamps_the_receipt_at_its_boundary() -> None:
     assert DecisionObservation.model_validate(observation.model_dump()) == observation
 
 
+def test_failed_observation_exposes_only_explicit_retryability() -> None:
+    retryable = MainAgentRuntime._tool_observation(
+        "research_job",
+        ToolResult(
+            tool_name="research_job",
+            state="job_research_failed",
+            message="岗位调研暂时失败。",
+            payload={"retryable": True, "error_code": "UPSTREAM_TIMEOUT"},
+        ),
+    )
+    unknown = MainAgentRuntime._tool_observation(
+        "research_job",
+        ToolResult(
+            tool_name="research_job",
+            state="job_research_failed",
+            message="岗位调研失败。",
+            payload={"error_code": "UNKNOWN"},
+        ),
+    )
+
+    assert retryable.facts == {"retryable": True}
+    assert unknown.facts == {}
+    assert "error_code" not in retryable.model_dump_json()
+
+
+def test_non_streaming_interrupt_enforces_renderer_completeness(
+    tmp_path, monkeypatch
+) -> None:
+    """CLI/run_turn cannot bypass the interaction contract checked by SSE."""
+
+    class BrokenInteractionRegistry(CountingRegistry):
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append((name, dict(arguments)))
+            return ToolObservation(
+                tool_name=name,
+                state="calendar_approval_required",
+                message="需要确认。",
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=DecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="open_job_search", arguments={"keyword": "AI Engineer"}
+                ),
+            )
+        ),
+        tools=BrokenInteractionRegistry(),
+    )
+    monkeypatch.setattr(
+        MainAgentRuntime,
+        "_INTERACTION_RENDERER_STATES",
+        MainAgentRuntime._INTERACTION_RENDERER_STATES
+        - {"calendar_approval_required"},
+    )
+
+    with pytest.raises(ValueError, match="has no interaction renderer"):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="打开岗位搜索",
+        )
+
+
 def test_main_agent_context_keeps_a_full_eight_observation_turn_window() -> None:
     observations = tuple(
         DecisionObservation(
@@ -499,7 +557,7 @@ def test_final_model_message_cannot_characterize_an_opaque_tool_result() -> None
         payload={"records": [{"title": "PRIVATE RESULT"}]},
     )
 
-    update = MainAgentRuntime._finish(
+    update = MainAgentRuntime._present(
         {
             "decision": AgentDecision(
                 action="final",
@@ -721,7 +779,13 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
     )
     from career_agent.agent.main_agent_tools import ToolObservation
 
-    def state_for(capability, result_state, *, refusal_count=1):
+    def state_for(
+        capability,
+        result_state,
+        *,
+        refusal_count=1,
+        disposition="completed",
+    ):
         return {
             "context": MainAgentContext(
                 conversation_id="c1",
@@ -738,12 +802,15 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
                 ),
                 user_message="走起",
             ),
-            "pending_capability_name": capability,
-            "pending_tool_result": ToolObservation(
-                tool_name=capability,
-                state=result_state,
-                message="x",
-            ),
+            "pending": {
+                "name": capability,
+                "result": ToolObservation(
+                    tool_name=capability,
+                    state=result_state,
+                    message="x",
+                    disposition=disposition,
+                ),
+            },
             "refusal_count": refusal_count,
         }
 
@@ -755,12 +822,17 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
         )
         == "decide"
     )
-    # Once the workflow really starts, its first question must reach the user.
+    # Once the workflow really starts, its typed interaction bypasses another
+    # model call without relying on capability-name routing.
     assert (
         MainAgentRuntime._after_observe(
-            state_for("start_mock_interview", "mock_interview_answer_required")
+            state_for(
+                "start_mock_interview",
+                "mock_interview_answer_required",
+                disposition="interaction_required",
+            )
         )
-        == "present"
+        == "interrupt"
     )
     # A second refused selector is bounded and ends the turn.
     assert (
@@ -769,6 +841,42 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
         )
         == "present"
     )
+
+
+def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
+    base = {
+        "pending": {"name": "either_resume_tool"},
+        "refusal_count": 0,
+    }
+
+    assert MainAgentRuntime._after_observe(
+        {
+            **base,
+            "pending": {
+                **base["pending"],
+                "result": ToolObservation(
+                    tool_name="get_resume_analysis",
+                    state="resume_analysis_ready",
+                    message="已读取分析。",
+                    disposition="completed",
+                ),
+            },
+        }
+    ) == "decide"
+    assert MainAgentRuntime._after_observe(
+        {
+            **base,
+            "pending": {
+                **base["pending"],
+                "result": ToolObservation(
+                    tool_name="analyze_resume",
+                    state="resume_analysis_ready",
+                    message="分析完成，等待确认。",
+                    disposition="interaction_required",
+                ),
+            },
+        }
+    ) == "interrupt"
 
 
 def test_unknown_capability_is_rejected_without_commit(tmp_path) -> None:

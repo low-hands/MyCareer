@@ -23,12 +23,21 @@ from career_agent.agent.delivery_policy import (
     DELIVERY_POLICIES,
     DeliveryPolicy,
     condenses_message,
+    is_failed,
     is_waiting,
     policy_for,
     response_type_for,
     uses_answer_writer,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_runtime import MainAgentTurnResult
+from career_agent.agent.main_agent_contracts import (
+    AgentDecision,
+    CareerProfileContext,
+    ConversationTaskState,
+    MainAgentContext,
+    ToolObservation,
+)
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewExchange,
@@ -160,6 +169,112 @@ def test_the_runtime_reads_waiting_and_writer_rules_from_the_registry() -> None:
     assert is_waiting("calendar_approval_required")
     assert not is_waiting("saved_jobs_found")
     assert response_type_for("mock_interview_result_found") == "interview_report"
+
+
+def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
+    waiting = {
+        state for state, policy in DELIVERY_POLICIES.items() if policy.waiting
+    }
+
+    for state in waiting:
+        assert ToolObservation(
+            tool_name="emitter",
+            state=state,
+            message="需要用户继续。",
+        ).disposition == "interaction_required"
+
+    # The sole state whose meaning depends on its emitter: producing a new
+    # analysis asks for confirmation, reading the same immutable result does
+    # not. Every other explicit interaction must first be declared waiting.
+    assert ToolObservation(
+        tool_name="analyze_resume",
+        state="resume_analysis_ready",
+        message="等待确认。",
+        disposition="interaction_required",
+    ).disposition == "interaction_required"
+    with pytest.raises(ValueError, match="must be declared waiting"):
+        ToolObservation(
+            tool_name="future_emitter",
+            state="saved_jobs_found",
+            message="错误地等待用户。",
+            disposition="interaction_required",
+        )
+
+    source = _TOOLS_SOURCE.read_text()
+    explicit_states = set()
+    for block in re.split(r"ToolObservation\(", source)[1:]:
+        constructor = block[: block.find(")\n")]
+        if 'disposition="interaction_required"' not in constructor:
+            continue
+        found = re.search(r'state="([a-z_]+)"', constructor)
+        assert found is not None, "explicit interaction must name a reviewable state"
+        explicit_states.add(found.group(1))
+    assert explicit_states == {"resume_analysis_ready"}
+
+
+def test_failure_disposition_is_intentional_and_not_waiting() -> None:
+    assert not is_waiting("failed")
+    assert ToolObservation(
+        tool_name="emitter", state="failed", message="执行失败。"
+    ).disposition == "failed"
+    assert ToolObservation(
+        tool_name="emitter", state="job_research_failed", message="调研失败。"
+    ).disposition == "failed"
+    for state in {
+        "calendar_sync_not_available",
+        "calendar_write_failed",
+        "mock_interview_checkpoint_missing",
+        "mock_interview_graph_incompatible",
+        "mock_interview_restart_failed",
+        "resume_tailoring_not_ready",
+    }:
+        assert is_failed(state), state
+        assert ToolObservation(
+            tool_name="emitter", state=state, message="执行失败。"
+        ).disposition == "failed"
+
+
+def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
+    """Configuration omissions fail in CI, not as a production turn error."""
+    waiting = {
+        state for state, policy in DELIVERY_POLICIES.items() if policy.waiting
+    }
+    expected = waiting | {"resume_analysis_ready"}
+    assert MainAgentRuntime._INTERACTION_RENDERER_STATES == expected
+
+    for state in sorted(expected):
+        task = ConversationTaskState()
+        disposition = None
+        if state == "resume_analysis_ready":
+            task = task.model_copy(
+                update={
+                    "active_resume_analysis_id": "analysis-1",
+                    "resume_analysis_status": "pending",
+                }
+            )
+            disposition = "interaction_required"
+        observation = ToolObservation(
+            tool_name="analyze_resume" if disposition else "emitter",
+            state=state,
+            message="请继续。",
+            **({"disposition": disposition} if disposition else {}),
+        )
+        context = MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            task=task,
+            user_message="继续",
+        )
+        turn = MainAgentTurnResult(
+            decision=AgentDecision(action="final", message="请继续。"),
+            context=context,
+            assistant_message="请继续。",
+            tool_result=observation,
+        )
+        assert MainAgentRuntime._interaction_event(
+            result=turn,
+            conversation_id="c1",
+        ) is not None, state
 
 
 def _long_result_view() -> MockInterviewResultView:
