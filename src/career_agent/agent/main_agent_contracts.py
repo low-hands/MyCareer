@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
-from career_agent.agent.summary_text import condense
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, condense
 from career_agent.agent.delivery_policy import is_failed, is_waiting
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
@@ -485,6 +486,10 @@ _DECISION_FACT_KEYS_BY_STATE = {
 # six reads, one write, two projection corrections, and one authorization
 # refusal without forcing unrelated refusal classes to share a counter.
 MAX_DECISION_OBSERVATIONS = 10
+MAX_DECISION_OBSERVATION_BODIES = 1
+DECISION_OBSERVATION_RECEIPT_LIMIT = DELIVERY_SUMMARY_LIMIT
+DECISION_OBSERVATION_BODY_LIMIT = 6_000
+MAX_DECISION_OBSERVATION_CHARS = 16_000
 
 
 class DecisionObservation(ContractModel):
@@ -492,7 +497,15 @@ class DecisionObservation(ContractModel):
 
     tool_name: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     state: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
-    message: str = Field(min_length=1, max_length=600)
+    message: str = Field(
+        min_length=1,
+        max_length=DECISION_OBSERVATION_RECEIPT_LIMIT,
+    )
+    body: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=DECISION_OBSERVATION_BODY_LIMIT,
+    )
     facts: dict[DecisionFactKey, DecisionFactValue] = Field(
         default_factory=dict,
         max_length=8,
@@ -537,6 +550,52 @@ class DecisionObservation(ContractModel):
         return self
 
 
+def append_decision_observation(
+    observations: tuple[DecisionObservation, ...],
+    observation: DecisionObservation,
+) -> tuple[DecisionObservation, ...]:
+    """Append one observation and clear bodies outside the newest keep window.
+
+    Receipts, facts, state and next_action remain intact. Body retention follows
+    observation age rather than "last body-bearing result": a later plain
+    result makes an earlier body old and clears it as well.
+    """
+
+    combined = (*observations, observation)[-MAX_DECISION_OBSERVATIONS:]
+    keep_from = max(0, len(combined) - MAX_DECISION_OBSERVATION_BODIES)
+    return tuple(
+        item
+        if index >= keep_from or item.body is None
+        else item.model_copy(update={"body": None})
+        for index, item in enumerate(combined)
+    )
+
+
+def decision_observation_projection(
+    observations: tuple[DecisionObservation, ...],
+) -> tuple[dict[str, Any], ...]:
+    """The exact observation shape serialized into the decision prompt."""
+
+    return tuple(
+        observation.model_dump(mode="json", exclude_none=True)
+        for observation in observations
+    )
+
+
+def decision_observation_chars(
+    observations: tuple[DecisionObservation, ...],
+) -> int:
+    """Character cost of observations in the actual JSON prompt projection."""
+
+    return len(
+        json.dumps(
+            decision_observation_projection(observations),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
 class MainAgentContext(ContractModel):
     conversation_id: str
     profile: CareerProfileContext
@@ -565,6 +624,19 @@ class MainAgentContext(ContractModel):
     )
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def observation_bodies_are_only_on_the_newest_item(self) -> "MainAgentContext":
+        stale = self.tool_observations[:-MAX_DECISION_OBSERVATION_BODIES]
+        if any(item.body is not None for item in stale):
+            raise ValueError(
+                "only the newest decision observation may retain a body"
+            )
+        if decision_observation_chars(self.tool_observations) > (
+            MAX_DECISION_OBSERVATION_CHARS
+        ):
+            raise ValueError("decision observations exceed the character budget")
+        return self
 
     def referenced_resources(self) -> tuple[ConversationResourceReference, ...]:
         """Every resource the model can name this turn, in projection order.
@@ -794,7 +866,9 @@ class MainAgentContext(ContractModel):
             # indexes, matching every other selectable object contract.
             "archived_reports": tuple(archived),
             "recent_messages": tuple(model_messages),
-            "tool_observations": tuple(observation.model_dump(mode="json") for observation in self.tool_observations),
+            "tool_observations": decision_observation_projection(
+                self.tool_observations
+            ),
             "conversation_summary": (
                 self.conversation_summary.model_dump(mode="json")
                 if self.conversation_summary

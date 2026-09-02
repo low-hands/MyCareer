@@ -393,11 +393,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="an_unseen_result_is_delivered_rather_than_characterized",
         policy=(
-            "Tool observations include a bounded receipt message and selected "
-            "flat decision facts, not the complete tool payload or report body. "
-            "You may use values explicitly present in either, but never expand "
-            "them into omitted details or characterize result content they did "
-            "not state. When finishing immediately after a tool, leave message empty."
+            "An observation without body exposes only a bounded receipt and "
+            "selected flat decision facts, not the internal payload. Use values "
+            "explicitly present there, but never expand them into omitted "
+            "details; the runtime presenter remains the authoritative delivery."
         ),
         # Two steps: the model asks for the brief, then sees only its bounded
         # receipt and three approved counts. It may reason from those values,
@@ -420,7 +419,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             TrajectoryStep(expect_tool="get_daily_brief"),
             TrajectoryStep(
                 expect_action="final",
-                expect_message="",
                 observation=DecisionObservation(
                     tool_name="get_daily_brief",
                     state="daily_brief_ready",
@@ -529,6 +527,94 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             TrajectoryStep(
                 expect_tool="draft_resume_tailoring",
                 forbid_tools=frozenset({"create_application"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="saved_jd_body_drives_the_next_read_step",
+        policy=(
+            "A bounded observation body is approved presenter text from the "
+            "read result. Use an explicit requirement stated in that body to "
+            "choose the user's requested next operation without guessing from "
+            "the receipt."
+        ),
+        context=_context(
+            user_message=(
+                "如果刚才完整 JD 明确要求 Rust，就继续匹配我的简历；"
+                "如果没有明确要求就到这里。"
+            ),
+            task=ConversationTaskState(
+                active_job_posting_id="job-1",
+                active_resume_version_id="resume-version-1",
+                saved_job_candidates=(_SAVED_JOB,),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="get_saved_job",
+                    state="saved_job_ready",
+                    message="已读取算法工程师（示例科技）的完整 JD。",
+                    body="岗位要求：必须熟悉 Rust，并有生产环境异步服务经验。",
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.body",
+            "task.has_active_resume_version",
+            "task.has_active_job_posting",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="match_resume_to_job",
+                forbid_tools=frozenset({"get_saved_job", "draft_resume_tailoring"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="saved_jd_body_without_language_requirement_finishes",
+        policy=(
+            "A bounded observation body is approved presenter text from the "
+            "read result. When the user's condition is absent from that body, "
+            "finish instead of following the usual read-to-match route."
+        ),
+        # Causal mirror of saved_jd_body_drives_the_next_read_step. The request,
+        # active objects, receipt and tool state are identical; only the body
+        # lacks the condition. A final decision is therefore evidence that the
+        # model read the body, not merely that it tends to match after reading a
+        # saved JD.
+        context=_context(
+            user_message=(
+                "如果刚才完整 JD 明确要求 Rust，就继续匹配我的简历；"
+                "如果没有明确要求就到这里。"
+            ),
+            task=ConversationTaskState(
+                active_job_posting_id="job-1",
+                active_resume_version_id="resume-version-1",
+                saved_job_candidates=(_SAVED_JOB,),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="get_saved_job",
+                    state="saved_job_ready",
+                    message="已读取算法工程师（示例科技）的完整 JD。",
+                    body="岗位要求：具备分布式系统设计和生产环境异步服务经验。",
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.body",
+            "task.has_active_resume_version",
+            "task.has_active_job_posting",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_action="final",
+                forbid_tools=frozenset(
+                    {
+                        "get_saved_job",
+                        "match_resume_to_job",
+                        "draft_resume_tailoring",
+                    }
+                ),
             ),
         ),
     ),

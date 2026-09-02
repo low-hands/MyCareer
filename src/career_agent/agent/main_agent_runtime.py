@@ -14,7 +14,7 @@ from career_agent.agent.answer_writer import (
     AnswerCompositionRequest,
     AnswerWriter,
 )
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
 from career_agent.harness.observability import (
     EventType,
@@ -1209,15 +1209,10 @@ class MainAgentRuntime:
         )
         details = {
             "context_chars": context_chars,
-            "observation_chars": len(
-                json.dumps(
-                    [
-                        item.model_dump(mode="json")
-                        for item in context.tool_observations
-                    ],
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
+            # This helper serializes the same exclude-none projection used by
+            # model_context; the metric is the actual dynamic prompt growth.
+            "observation_chars": decision_observation_chars(
+                context.tool_observations
             ),
             "observation_count": len(context.tool_observations),
             "offered_tool_count": len(schemas),
@@ -1280,10 +1275,10 @@ class MainAgentRuntime:
         updated = self._update_mock_interview_task(context, result)
         updated = updated.model_copy(
             update={
-                "tool_observations": (
-                    *updated.tool_observations,
+                "tool_observations": append_decision_observation(
+                    updated.tool_observations,
                     self._tool_observation("start_mock_interview", result),
-                )[-MAX_DECISION_OBSERVATIONS:]
+                )
             }
         )
         decision = AgentDecision(
@@ -1592,10 +1587,10 @@ class MainAgentRuntime:
         observation = self._tool_observation(capability_name, result)
         updated = updated.model_copy(
             update={
-                "tool_observations": (
-                    *updated.tool_observations,
+                "tool_observations": append_decision_observation(
+                    updated.tool_observations,
                     observation,
-                )[-MAX_DECISION_OBSERVATIONS:]
+                )
             }
         )
         artifact_ids = state.get("artifact_ids", ())
@@ -1687,11 +1682,16 @@ class MainAgentRuntime:
     @staticmethod
     def _tool_observation(name: str, result: MainAgentToolOutput) -> DecisionObservation:
         receipt = clamp(result.message) or "工具已返回，但没有提供结果摘要。"
+        body = None
+        if condenses_message(result.state):
+            rendered = MainAgentRuntime._assistant_message(result)
+            body = clamp(rendered, limit=DECISION_OBSERVATION_BODY_LIMIT) or None
         if isinstance(result, ToolObservation):
             return DecisionObservation(
                 tool_name=result.tool_name,
                 state=result.state,
                 message=receipt,
+                body=body,
                 facts=MainAgentRuntime._decision_facts(result),
                 next_action=result.next_action,
             )
@@ -1699,6 +1699,7 @@ class MainAgentRuntime:
             tool_name=name,
             state=result.state,
             message=receipt,
+            body=body,
             facts=MainAgentRuntime._decision_facts(result),
             next_action=result.next_action,
         )
@@ -1804,6 +1805,12 @@ class MainAgentRuntime:
 
     @staticmethod
     def _assistant_message(result: MainAgentToolOutput) -> str:
+        if result.state == "saved_job_ready":
+            snapshot = result.payload.get("jd_snapshot")
+            if isinstance(snapshot, dict):
+                content = snapshot.get("content")
+                if isinstance(content, str) and content.strip():
+                    return content.strip()
         if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
             # The workflow's own presenter handles every state a run can be
             # left in, including the terminal ones, so the payload is parsed

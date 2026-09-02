@@ -140,6 +140,9 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "resume_analysis_ready": _summarised("resume_analysis"),
     "resume_job_match_ready": _card("resume_match"),
     "resume_tailoring_draft_ready": _card("resume_tailoring"),
+    # Reading a saved job asks for its immutable JD body. The raw JD text is
+    # delivered live, while the transcript keeps the bounded receipt.
+    "saved_job_ready": _summarised(),
     # Split screen and row without the writer: one mock interview exchange is
     # read back verbatim, so restating it would only cost fidelity, but the
     # answer it quotes is up to 20k characters and cannot enter the row.
@@ -213,7 +216,6 @@ _POLICIES.update(
             "resume_version_not_found",
             "resumes_found",
             "saved_job_not_found",
-            "saved_job_ready",
             "saved_jobs_compared",
             "saved_jobs_found",
             "target_role_not_found",

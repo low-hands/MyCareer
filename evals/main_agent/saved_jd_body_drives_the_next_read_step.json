@@ -1,0 +1,16 @@
+{
+  "scenario": "saved_jd_body_drives_the_next_read_step",
+  "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "64ef2fdc8b449ae75f59bfe53d58f3673986e52260050354358ec7514ff970e3",
+  "context_shape_fingerprint": "246aee50253dcda74a63ae97f77191e07bd3f9957678fea937fab29091f325b3",
+  "recorded_at": "2026-09-02T03:11:47.801532+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "match_resume_to_job",
+        "arguments": {}
+      }
+    }
+  ]
+}
