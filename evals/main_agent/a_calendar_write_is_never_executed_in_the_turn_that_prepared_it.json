@@ -2,9 +2,9 @@
   "scenario": "a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
   "policy": "prepare_interview_calendar_sync only creates a fixed preview and performs no external write. After preparing it, ask for explicit approval; do not execute it in the same turn.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "8e2485639330752064424e8f7f446ce0ddb925a3d74ff7f24ebab3fa4ef50248",
-  "context_shape_fingerprint": "ce1031e5cbcf19ea0627e74f8eda7b037b789d7274623e39f3785240fe751e04",
-  "recorded_at": "2026-09-01T08:31:37.475731+00:00",
+  "prompt_fingerprint": "89cc5f217a5398c4b449f631eef6dcbd01b25990beda06ac6dc02fca81acd4be",
+  "context_shape_fingerprint": "ec452a322987e6472819f0030d14904c23b8ef143bb4e35f56dc42f55dbda06b",
+  "recorded_at": "2026-09-02T03:05:35.058394+00:00",
   "steps": [
     {
       "tool_call": {

@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, ToolResult
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -541,7 +541,7 @@ def test_target_and_search_overrides_do_not_mutate_profile(tmp_path) -> None:
     assert profile.default_city == "Shanghai"
 
 
-def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
+def test_saved_job_exposes_only_the_bounded_presenter_body_not_internal_payload() -> None:
     sentinel = "PRIVATE-PAYLOAD-DO-NOT-PROMPT"
     result = ToolResult(
         tool_name="get_saved_job",
@@ -557,11 +557,13 @@ def test_internal_tool_result_cannot_expand_decision_prompt() -> None:
         "tool_name": "get_saved_job",
         "state": "saved_job_ready",
         "message": "已读取已保存岗位。",
+        "body": sentinel,
         "facts": {},
         "next_action": "match_resume_to_job",
     }
-    assert sentinel not in observation.model_dump_json()
-    assert len(observation.model_dump_json()) < 900
+    assert sentinel in observation.model_dump_json()
+    assert "secret-id" not in observation.model_dump_json()
+    assert len(observation.model_dump_json()) < DECISION_OBSERVATION_BODY_LIMIT + 900
     with pytest.raises(ValidationError):
         DecisionObservation.model_validate(
             {**observation.model_dump(), "payload": {"content": sentinel}}
@@ -582,6 +584,100 @@ def test_decision_observation_clamps_the_receipt_at_its_boundary() -> None:
     assert len(observation.message) == 600
     assert observation.message.endswith("…")
     assert DecisionObservation.model_validate(observation.model_dump()) == observation
+    with pytest.raises(ValidationError):
+        DecisionObservation(
+            tool_name="get_saved_job",
+            state="saved_job_ready",
+            message="已读取完整 JD。",
+            body="x" * (DECISION_OBSERVATION_BODY_LIMIT + 1),
+        )
+
+
+def test_condensed_result_body_is_bounded_and_matches_the_presenter() -> None:
+    result = ToolResult(
+        tool_name="get_daily_brief",
+        state="daily_brief_ready",
+        message="今日职业简报包含 1 个待办事项。",
+        payload={
+            "overdue": [
+                {
+                    "title": "跟进岗位" + "很重要" * 2500,
+                    "summary": "发送跟进消息",
+                    "due_at": "2026-09-02T09:00:00+08:00",
+                }
+            ],
+            "due_today": [],
+            "upcoming": [],
+            "no_due_date": [],
+        },
+    )
+
+    observation = MainAgentRuntime._tool_observation("get_daily_brief", result)
+    rendered = MainAgentRuntime._assistant_message(result)
+
+    assert observation.body is not None
+    assert len(observation.body) == DECISION_OBSERVATION_BODY_LIMIT
+    assert observation.body.endswith("…")
+    assert observation.body == rendered[: DECISION_OBSERVATION_BODY_LIMIT - 1].rstrip() + "…"
+    assert observation.facts == {"overdue": 1, "due_today": 0, "waiting": 0}
+
+
+def test_plain_result_does_not_carry_payload_as_body() -> None:
+    observation = MainAgentRuntime._tool_observation(
+        "find_saved_jobs",
+        ToolResult(
+            tool_name="find_saved_jobs",
+            state="saved_jobs_found",
+            message="找到 1 个岗位。",
+            payload={"private": "NEVER-PROMPT-THIS"},
+        ),
+    )
+
+    assert observation.body is None
+    assert "NEVER-PROMPT-THIS" not in observation.model_dump_json()
+
+
+def test_only_newest_observation_retains_body_without_losing_receipt_or_facts() -> None:
+    first = DecisionObservation(
+        tool_name="get_daily_brief",
+        state="daily_brief_ready",
+        message="今日职业简报包含 1 个待办事项。",
+        body="# 今日职业简报\n\n- 跟进岗位",
+        facts={"overdue": 1, "due_today": 0, "waiting": 0},
+    )
+    second = DecisionObservation(
+        tool_name="list_action_items",
+        state="action_items_found",
+        message="找到 1 个行动项。",
+    )
+
+    observations = append_decision_observation((first,), second)
+
+    visible = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=(first,),
+        user_message="继续。",
+    ).model_context()["tool_observations"][0]
+    assert visible["body"] == first.body
+    assert observations[0].body is None
+    assert observations[0].message == first.message
+    assert observations[0].facts == first.facts
+    assert observations[1] == second
+    cleared = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=observations,
+        user_message="继续。",
+    ).model_context()["tool_observations"][0]
+    assert "body" not in cleared
+    with pytest.raises(ValidationError, match="newest decision observation"):
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            tool_observations=(first, second),
+            user_message="继续。",
+        )
 
 
 def test_failed_observation_exposes_only_explicit_retryability() -> None:
@@ -686,6 +782,46 @@ def test_main_agent_context_keeps_the_full_observation_turn_window() -> None:
             ),
             user_message="继续处理。",
         )
+
+
+def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() -> None:
+    observations = tuple(
+        DecisionObservation(
+            tool_name="t" * 80,
+            state="s" * 80,
+            message="m" * DECISION_OBSERVATION_RECEIPT_LIMIT,
+            next_action="n" * 80,
+        )
+        for _ in range(MAX_DECISION_OBSERVATIONS - 1)
+    ) + (
+        DecisionObservation(
+            tool_name="t" * 80,
+            state="job_research_ready",
+            message="m" * DECISION_OBSERVATION_RECEIPT_LIMIT,
+            body="b" * DECISION_OBSERVATION_BODY_LIMIT,
+            facts={
+                "cached": True,
+                "finding_count": 1_000_000,
+                "status": "superseded",
+            },
+            next_action="n" * 80,
+        ),
+    )
+
+    assert (
+        MAX_DECISION_OBSERVATION_BODIES * DECISION_OBSERVATION_BODY_LIMIT
+        + MAX_DECISION_OBSERVATIONS * DECISION_OBSERVATION_RECEIPT_LIMIT
+    ) == 12_000
+    assert decision_observation_chars(observations) == 15_204
+    assert decision_observation_chars(observations) <= (
+        MAX_DECISION_OBSERVATION_CHARS
+    )
+    MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=observations,
+        user_message="继续。",
+    )
 
 
 def test_blank_receipt_degrades_after_a_tool_result_instead_of_raising() -> None:
@@ -976,10 +1112,10 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     observation = decisions.contexts[2].tool_observations[-1]
     tool_result = result.tool_results[-1]
     assert observation.tool_name == "get_saved_job"
-    assert "PRIVATE SAVED JD" not in observation.model_dump_json()
+    assert observation.body == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["analysis"]["required_skills"] == ["Python"]
-    assert result.assistant_message == "已读取 RAG Engineer（Acme）的完整 JD。"
+    assert result.assistant_message == "PRIVATE SAVED JD: Build production RAG systems."
 
 
 @pytest.mark.parametrize("tool_name,arguments", [

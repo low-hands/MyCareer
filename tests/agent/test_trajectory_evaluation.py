@@ -309,3 +309,45 @@ def test_daily_brief_fact_pair_is_causal_and_has_fresh_model_evidence(
         "list_action_items"
     )
     assert clear_cassette.steps[0].get("tool_call") is None
+
+
+def test_saved_jd_body_pair_is_causal_and_has_fresh_model_evidence(
+    offered,
+) -> None:
+    """Identical receipts diverge only when the requested JD fact is present."""
+    _, schemas = offered
+    by_name = {scenario.name: scenario for scenario in SCENARIOS}
+    requires_rust = by_name["saved_jd_body_drives_the_next_read_step"]
+    no_language = by_name[
+        "saved_jd_body_without_language_requirement_finishes"
+    ]
+
+    assert requires_rust.context.user_message == no_language.context.user_message
+    positive = requires_rust.context.tool_observations[0]
+    negative = no_language.context.tool_observations[0]
+    assert positive.tool_name == negative.tool_name
+    assert positive.state == negative.state
+    assert positive.message == negative.message
+    assert "Rust" in (positive.body or "")
+    assert "Rust" not in (negative.body or "")
+
+    for scenario in (requires_rust, no_language):
+        cassette = load_cassette(scenario.name)
+        assert cassette is not None, f"{scenario.name} needs a live recording"
+        assert cassette_staleness(
+            cassette,
+            scenario=scenario,
+            tool_specs=schemas,
+        ) is None
+        assert replay(
+            scenario,
+            tool_specs=schemas,
+            responses=cassette.steps,
+        ) == ()
+
+    positive_cassette = load_cassette(requires_rust.name)
+    negative_cassette = load_cassette(no_language.name)
+    assert positive_cassette.steps[0].get("tool_call", {}).get("name") == (
+        "match_resume_to_job"
+    )
+    assert negative_cassette.steps[0].get("tool_call") is None

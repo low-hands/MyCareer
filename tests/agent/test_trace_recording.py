@@ -8,6 +8,7 @@ the tool result.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -16,6 +17,8 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
+    DecisionObservation,
+    MainAgentContext,
     ToolCall,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
@@ -23,6 +26,7 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
+from career_agent.harness.observability import InMemoryTraceRecorder
 
 
 class FailingEmailService:
@@ -141,6 +145,42 @@ def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
     assert len(model_failure) == 1
     assert model_failure[0].model_call_category == "orchestrator_decision"
     assert model_failure[0].error_code == "MAIN_AGENT_TRANSPORT_ERROR"
+
+
+def test_observation_chars_measures_the_body_in_the_actual_prompt_shape(
+    tmp_path: Path,
+) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    recorder = InMemoryTraceRecorder()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(AgentDecision(action="final", message="done")),
+        tools=MainAgentToolRegistry(),
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=(
+            DecisionObservation(
+                tool_name="get_saved_job",
+                state="saved_job_ready",
+                message="已读取完整 JD。",
+                body="J" * 6_000,
+            ),
+        ),
+        user_message="继续。",
+    )
+    token = _TRACE_CONTEXT.set((recorder, "body-trace"))
+    try:
+        runtime._decide({"context": context})
+    finally:
+        _TRACE_CONTEXT.reset(token)
+
+    attempt = recorder.snapshot("body-trace").events[0]
+    projected = context.model_context()["tool_observations"]
+    expected = len(json.dumps(projected, ensure_ascii=False, sort_keys=True))
+    assert attempt.details["observation_chars"] == expected
+    assert attempt.details["observation_chars"] > 6_000
 
 
 def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:

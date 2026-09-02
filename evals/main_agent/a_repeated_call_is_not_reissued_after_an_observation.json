@@ -2,21 +2,21 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "80de8df3a326d0fb9d22c4462ab24310213d9eb9812965495c29685f09efe877",
-  "context_shape_fingerprint": "76997c4677f27d39efc69054ba44186a1f2cb2e97ac6499caebce68221e3c423",
-  "recorded_at": "2026-09-01T08:29:40.301802+00:00",
+  "prompt_fingerprint": "f55bf1f64406bd4833a5a367bf9cc0637603bf7dc1fda63025f4537ee4965255",
+  "context_shape_fingerprint": "4588f8fbed340e1db41ada5d8caaa2566ed2d68dbcf84bc843dd9a7f5fe59f7a",
+  "recorded_at": "2026-09-02T03:14:22.101069+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "我保存的岗位",
+          "query": "全部已保存岗位",
           "limit": 20
         }
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师**｜示例科技｜上海｜30–50K\"}"
     }
   ]
 }

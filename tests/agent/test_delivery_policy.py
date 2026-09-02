@@ -164,6 +164,202 @@ def test_an_unregistered_state_is_delivered_plainly_rather_than_raising() -> Non
     assert response_type_for("a_state_from_the_future") == "general"
 
 
+def test_body_eligibility_is_exactly_condensed_delivery_and_never_raw_payload(
+    monkeypatch,
+) -> None:
+    """H reuses the presenter boundary; internal payload IDs never bypass it."""
+
+    internal_id = "internal-job-posting-id-should-not-cross"
+    monkeypatch.setattr(
+        MainAgentRuntime,
+        "_assistant_message",
+        staticmethod(lambda result: "SAFE PRESENTER BODY"),
+    )
+    for state, policy in DELIVERY_POLICIES.items():
+        observation = MainAgentRuntime._tool_observation(
+            "probe",
+            ToolObservation(
+                tool_name="probe",
+                state=state,
+                message="安全收据。",
+                payload={"job_posting_id": internal_id},
+            ),
+        )
+        assert (observation.body is not None) == policy.condensed_message, state
+        assert internal_id not in observation.model_dump_json(), state
+
+
+def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
+    """The presenter boundary itself must stay clean, not only hide raw payloads.
+
+    The monkeypatched registry test above proves that payload cannot bypass the
+    presenter. This complementary test runs every real condensed presenter with
+    a UUID-shaped internal identifier in an actual payload field. A distinct
+    visible marker also proves that validation reached the intended presenter
+    instead of silently degrading to the receipt.
+    """
+
+    internal_id = "a" * 32
+    cases = {
+        "daily_brief_ready": (
+            {
+                "due_today": [
+                    {"title": "真实日报标记", "summary": "今天处理", "id": internal_id}
+                ],
+                "job_posting_id": internal_id,
+            },
+            "真实日报标记",
+        ),
+        "interview_preparation_ready": (
+            {
+                "preparation": {
+                    "summary": "真实面试准备标记",
+                    "focus_areas": [],
+                    "evidence_stories": [],
+                    "likely_questions": [],
+                    "gaps": [],
+                    "questions_to_ask": [],
+                    "checklist": [],
+                    "limitations": [],
+                },
+                "application_id": internal_id,
+            },
+            "真实面试准备标记",
+        ),
+        "interview_retro_recorded": (
+            {
+                "report_id": internal_id,
+                "source_notes": "真实复盘原始标记",
+                "summary": "真实复盘摘要标记",
+                "self_assessment": "uncertain",
+            },
+            "真实复盘摘要标记",
+        ),
+        "job_research_ready": (
+            {
+                "report_id": internal_id,
+                "research": {
+                    "summary": "真实调研标记",
+                    "findings": [
+                        {
+                            "topic": "产品线",
+                            "statement": "真实调研结论标记",
+                            "evidence_type": "fact",
+                            "source_keys": ["S1"],
+                            "confidence": "high",
+                        }
+                    ],
+                    "open_questions": [],
+                    "limitations": [],
+                },
+                "sources": [
+                    {
+                        "source_key": "S1",
+                        "url": "https://example.com/product",
+                        "title": "公开产品资料",
+                        "publisher": "示例科技",
+                        "relevant_excerpt": "公开资料中的真实来源标记。",
+                    }
+                ],
+            },
+            "真实调研标记",
+        ),
+        "mock_interview_completed": (
+            {
+                "session_id": internal_id,
+                "state": "completed",
+                "message": "真实模拟面试内部状态",
+            },
+            "模拟面试完成",
+        ),
+        "mock_interview_result_found": (
+            {
+                "interview_type": "真实模拟结果标记",
+                "status": "completed",
+                "questions": [],
+                "answered_count": 0,
+                "report_id": internal_id,
+                "report_summary": "真实模拟总结标记",
+            },
+            "真实模拟结果标记",
+        ),
+        "mock_interview_question_found": (
+            {
+                "question_number": 1,
+                "exchanges": [
+                    {
+                        "turn_type": "primary",
+                        "question": "真实模拟问题标记",
+                        "answer": "真实模拟回答标记",
+                        }
+                    ],
+            },
+            "真实模拟问题标记",
+        ),
+        "resume_analysis_ready": (
+            {
+                "analysis_id": internal_id,
+                "records": [],
+                "clarification_questions": [],
+                "warnings": ["真实简历分析标记"],
+            },
+            "真实简历分析标记",
+        ),
+        "resume_job_match_ready": (
+            {
+                "match_id": internal_id,
+                "overall_fit": "moderate",
+                "summary": "真实匹配标记",
+                "requirements": [],
+                "recommendations": [],
+                "clarification_questions": [],
+                "limitations": [],
+            },
+            "真实匹配标记",
+        ),
+        "resume_tailoring_draft_ready": (
+            {
+                "draft_id": internal_id,
+                "strategy_summary": "真实定制标记",
+                "changes": [],
+                "preserved_strengths": [],
+                "unresolved_gaps": [],
+                "clarification_questions": [],
+                "warnings": [],
+            },
+            "真实定制标记",
+        ),
+        "saved_job_ready": (
+            {
+                "job_posting_id": internal_id,
+                "jd_snapshot": {"content": "真实 JD 正文标记"},
+            },
+            "真实 JD 正文标记",
+        ),
+    }
+    condensed = {
+        state
+        for state, policy in DELIVERY_POLICIES.items()
+        if policy.condensed_message
+    }
+    assert set(cases) == condensed
+
+    internal_id_pattern = re.compile(r"\b[0-9a-f]{32}\b")
+    for state, (payload, marker) in cases.items():
+        observation = MainAgentRuntime._tool_observation(
+            "probe",
+            ToolObservation(
+                tool_name="probe",
+                state=state,
+                message="如果 presenter 失败就只能看到这条收据。",
+                payload=payload,
+            ),
+        )
+        assert observation.body is not None, state
+        assert marker in observation.body, state
+        assert internal_id_pattern.search(observation.body) is None, state
+
+
 def test_the_runtime_reads_waiting_and_writer_rules_from_the_registry() -> None:
     """No second copy of these tables survives on the runtime."""
     assert not hasattr(MainAgentRuntime, "_WAITING_STATES")

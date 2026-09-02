@@ -31,7 +31,7 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     DecisionObservation,
     MainAgentContext,
-    MAX_DECISION_OBSERVATIONS,
+    append_decision_observation,
 )
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_main_agent import (
@@ -472,10 +472,10 @@ def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContex
     if step.user_message is not None:
         update["user_message"] = step.user_message
     if step.observation is not None:
-        update["tool_observations"] = (
-            *context.tool_observations,
+        update["tool_observations"] = append_decision_observation(
+            context.tool_observations,
             step.observation,
-        )[-MAX_DECISION_OBSERVATIONS:]
+        )
     if step.task_update:
         update["task"] = context.task.model_copy(update=dict(step.task_update))
     return context.model_copy(update=update) if update else context
