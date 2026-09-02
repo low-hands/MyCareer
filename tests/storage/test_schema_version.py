@@ -76,7 +76,7 @@ DECLARED_VERSIONS = {
     "agent_context": 1,
     "job_postings": 1,
     "job_research": 2,
-    "run_events": 1,
+    "run_events": 2,
 }
 
 

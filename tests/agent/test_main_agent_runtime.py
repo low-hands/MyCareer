@@ -80,6 +80,39 @@ def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None
     assert ends == {"present", "interrupt"}
 
 
+def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None:
+    from career_agent.agent.main_agent_runtime import (
+        DEFAULT_MAX_AUTHORIZATION_REFUSALS,
+        DEFAULT_MAX_PROJECTION_REFUSALS,
+        DEFAULT_MAX_READ_CALLS,
+        DEFAULT_MAX_WRITE_CALLS,
+        MainAgentState,
+    )
+
+    assert len(MainAgentState.__annotations__) <= 9
+    assert (
+        DEFAULT_MAX_READ_CALLS
+        + DEFAULT_MAX_WRITE_CALLS
+        + DEFAULT_MAX_PROJECTION_REFUSALS
+        + DEFAULT_MAX_AUTHORIZATION_REFUSALS
+        <= MAX_DECISION_OBSERVATIONS
+    )
+    with pytest.raises(ValueError, match="must fit the observation window"):
+        MainAgentRuntime(
+            context_manager=ContextManager(
+                CareerContextStore(tmp_path / "overflow-context.sqlite3")
+            ),
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(action="final", message="done")
+            ),
+            tools=MainAgentToolRegistry(),
+            max_read_calls=7,
+            max_write_calls=1,
+            max_projection_refusals=2,
+            max_authorization_refusals=1,
+        )
+
+
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     tmp_path,
 ) -> None:
@@ -251,37 +284,249 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
 
 
 def test_repeated_tool_call_is_stopped_without_duplicate_execution(tmp_path) -> None:
-    agent, tools, _ = build_runtime(
-        tmp_path,
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
-    )
-
-    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Find work.")
-
-    assert len(tools.calls) == 1
-    assert result.assistant_message.startswith("已准备打开 BOSS 搜索“AI Engineer”")
-
-
-def test_tool_loop_stops_at_configured_limit(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     tools = CountingRegistry()
     decisions = SequenceDecisionMaker(
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role A"})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role B"})),
-        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "Role C"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
+        AgentDecision(action="final", message="已有搜索页，不再重复打开。"),
+    )
+    agent = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Find work.")
+
+    assert len(tools.calls) == 1
+    assert [item.state for item in result.tool_results] == ["job_search_page_ready"]
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    assert result.assistant_message.startswith("已准备打开 BOSS 搜索")
+    assert len(decisions.contexts) == 3
+
+
+def test_tool_loop_stops_at_configured_limit(tmp_path) -> None:
+    class ReadRegistry(CountingRegistry):
+        def __init__(self):
+            super().__init__()
+            self._atomic_handlers["find_saved_jobs"] = self._find
+
+        def _find(self, arguments):
+            return ToolObservation(
+                tool_name="find_saved_jobs",
+                state="saved_jobs_found",
+                message=f"已读取 {arguments['query']}。",
+                payload={"items": [], "query": arguments["query"]},
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    tools = ReadRegistry()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "Role A"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "Role B"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "Role C"})),
+        AgentDecision(action="final", message="本轮读取预算已经用完。"),
     )
     agent = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decisions,
         tools=tools,
-        max_tool_calls=2,
+        max_read_calls=2,
     )
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Research several roles.")
 
-    assert [arguments["keyword"] for _, arguments in tools.calls] == ["Role A", "Role B"]
-    assert result.assistant_message.startswith("已准备打开 BOSS 搜索“Role B”")
+    assert [arguments["query"] for _, arguments in tools.calls] == ["Role A", "Role B"]
+    assert result.assistant_message == "已读取 Role B。"
+    assert [item.state for item in result.tool_results] == [
+        "saved_jobs_found",
+        "saved_jobs_found",
+    ]
+    assert decisions.contexts[-1].tool_observations[-1].state == "authorization_refused"
+    assert result.delegated_read_count == 2
+    assert result.delegated_write_count == 0
+
+
+def test_one_workflow_advance_is_one_main_loop_delegation(tmp_path) -> None:
+    runtime, _, manager = build_runtime(
+        tmp_path, AgentDecision(action="final", message="done")
+    )
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="推进 workflow"
+    )
+    # The workflow may have performed many private graph nodes before returning;
+    # L1 receives one closed result and therefore records one delegated write.
+    result = ToolObservation(
+        tool_name="synthetic_workflow",
+        state="workflow_completed",
+        message="内部执行了多个节点后完成。",
+    )
+    observed = runtime._observe(
+        {
+            "context": context,
+            "decision": AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="synthetic_workflow", arguments={}),
+            ),
+            "pending": {
+                "name": "synthetic_workflow",
+                "kind": "workflow",
+                "effect": "WRITE",
+                "arguments": {},
+                "result": result,
+            },
+            "tool_results": (),
+            "artifact_ids": (),
+            "control": {
+                "read_calls": 0,
+                "write_calls": 0,
+                "projection_refusals": 0,
+                "authorization_refusals": 0,
+            },
+        }
+    )
+
+    assert observed["control"]["write_calls"] == 1
+    assert observed["control"]["read_calls"] == 0
+
+
+def test_projection_and_authorization_refusals_have_independent_budgets(
+    tmp_path,
+) -> None:
+    class ReadRegistry(CountingRegistry):
+        def __init__(self):
+            super().__init__()
+            self._atomic_handlers["find_saved_jobs"] = lambda arguments: None
+
+    manager = ContextManager(CareerContextStore(tmp_path / "split-refusal.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(),
+        tools=ReadRegistry(),
+        max_read_calls=1,
+    )
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+    state = {
+        "context": context,
+        "decision": AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "AI"}),
+        ),
+        "tool_results": (),
+        "artifact_ids": (),
+        "control": {
+            "read_calls": 1,
+            "write_calls": 0,
+            "projection_refusals": 2,
+            "authorization_refusals": 0,
+            "fingerprints": (),
+            "retryable_fingerprints": (),
+            "retry_counts": {},
+        },
+    }
+
+    authorized = runtime._authorize(state)
+    assert authorized["authorization_route"] == "observe"
+    assert authorized["pending"]["synthetic_kind"] == "authorization"
+    observed = runtime._observe({**state, **authorized})
+
+    assert observed["control"]["projection_refusals"] == 2
+    assert observed["control"]["authorization_refusals"] == 1
+    assert observed["tool_results"] == ()
+    assert observed["context"].tool_observations[-1].state == "authorization_refused"
+
+
+def test_retryable_failure_allows_at_most_two_same_call_retries(tmp_path) -> None:
+    class AlwaysRetryableRegistry(CountingRegistry):
+        def __init__(self):
+            super().__init__()
+            self._atomic_handlers["find_saved_jobs"] = lambda arguments: None
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append((name, dict(arguments)))
+            return ToolObservation(
+                tool_name=name,
+                state="failed",
+                message="上游暂时不可用。",
+                payload={"error_code": "TEMPORARY", "retryable": True},
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "retry-context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    same_call = AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(
+            name="find_saved_jobs", arguments={"query": "AI Engineer"}
+        ),
+    )
+    decisions = SequenceDecisionMaker(
+        same_call,
+        same_call,
+        same_call,
+        same_call,
+        AgentDecision(action="final", message="连续重试仍未成功。"),
+    )
+    tools = AlwaysRetryableRegistry()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=tools,
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="打开岗位搜索"
+    )
+
+    assert len(tools.calls) == 3  # initial delegation + two retries
+    assert all(item.state == "failed" for item in result.tool_results)
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    assert "重试上限" in result.context.tool_observations[-1].message
+    assert result.context.tool_observations[-2].facts == {"retryable": True}
+
+
+def test_non_retryable_failure_cannot_repeat_the_same_call(tmp_path) -> None:
+    class NonRetryableRegistry(CountingRegistry):
+        def __init__(self):
+            super().__init__()
+            self._atomic_handlers["find_saved_jobs"] = lambda arguments: None
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append((name, dict(arguments)))
+            return ToolObservation(
+                tool_name=name,
+                state="failed",
+                message="请求不能重试。",
+                payload={"error_code": "PERMANENT", "retryable": False},
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "no-retry-context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    same_call = AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "AI"}),
+    )
+    decisions = SequenceDecisionMaker(
+        same_call,
+        same_call,
+        AgentDecision(action="final", message="不能自动重试。"),
+    )
+    tools = NonRetryableRegistry()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=tools,
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="打开岗位搜索"
+    )
+
+    assert len(tools.calls) == 1
+    assert [item.state for item in result.tool_results] == ["failed"]
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    assert "没有声明为可重试" in result.context.tool_observations[-1].message
 
 
 def test_target_and_search_overrides_do_not_mutate_profile(tmp_path) -> None:
@@ -407,7 +652,7 @@ def test_non_streaming_interrupt_enforces_renderer_completeness(
         )
 
 
-def test_main_agent_context_keeps_a_full_eight_observation_turn_window() -> None:
+def test_main_agent_context_keeps_the_full_observation_turn_window() -> None:
     observations = tuple(
         DecisionObservation(
             tool_name=f"read_step_{index}",
@@ -425,7 +670,7 @@ def test_main_agent_context_keeps_a_full_eight_observation_turn_window() -> None
     )
 
     assert context.tool_observations == observations
-    assert len(context.model_context()["tool_observations"]) == 8
+    assert len(context.model_context()["tool_observations"]) == MAX_DECISION_OBSERVATIONS
 
     with pytest.raises(ValidationError):
         MainAgentContext(
@@ -434,9 +679,9 @@ def test_main_agent_context_keeps_a_full_eight_observation_turn_window() -> None
             tool_observations=(
                 *observations,
                 DecisionObservation(
-                    tool_name="read_step_8",
+                    tool_name=f"read_step_{MAX_DECISION_OBSERVATIONS}",
                     state="read_complete",
-                    message="第 8 步读取完成。",
+                    message=f"第 {MAX_DECISION_OBSERVATIONS} 步读取完成。",
                 ),
             ),
             user_message="继续处理。",
@@ -563,7 +808,7 @@ def test_final_model_message_cannot_characterize_an_opaque_tool_result() -> None
                 action="final",
                 message="看起来很不错，经历非常有竞争力。",
             ),
-            "last_tool_result": result,
+            "tool_results": (result,),
         }
     )
 
@@ -804,6 +1049,9 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
             ),
             "pending": {
                 "name": capability,
+                "synthetic_kind": (
+                    "projection" if result_state == "invalid_input" else None
+                ),
                 "result": ToolObservation(
                     tool_name=capability,
                     state=result_state,
@@ -811,7 +1059,7 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
                     disposition=disposition,
                 ),
             },
-            "refusal_count": refusal_count,
+            "control": {"projection_refusals": refusal_count},
         }
 
     # Projection failed before the graph started, so candidates can still
@@ -834,19 +1082,20 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
         )
         == "interrupt"
     )
-    # A second refused selector is bounded and ends the turn.
+    # An observed refusal always returns once; authorize prevents a second
+    # refusal from being appended after the configured synthetic limit.
     assert (
         MainAgentRuntime._after_observe(
             state_for("start_mock_interview", "invalid_input", refusal_count=2)
         )
-        == "present"
+        == "decide"
     )
 
 
 def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
     base = {
         "pending": {"name": "either_resume_tool"},
-        "refusal_count": 0,
+        "control": {"projection_refusals": 0, "authorization_refusals": 0},
     }
 
     assert MainAgentRuntime._after_observe(

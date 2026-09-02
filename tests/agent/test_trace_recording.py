@@ -82,6 +82,20 @@ def test_a_capability_failure_is_recorded_with_its_error_code(tmp_path: Path) ->
     assert any(
         e.event_type == "turn_completed" for e in events
     ), "a non-raising capability failure still completes the turn"
+    decisions = [
+        event for event in events if event.event_type == "model_attempt"
+    ]
+    assert len(decisions) == 2
+    assert all(
+        event.model_call_category == "orchestrator_decision"
+        for event in decisions
+    )
+    assert all(event.details["context_chars"] > 0 for event in decisions)
+    assert all(event.details["tool_schema_chars"] > 0 for event in decisions)
+    assert decisions[1].details["observation_count"] == 1
+    assert decisions[1].details["observation_chars"] > decisions[0].details[
+        "observation_chars"
+    ]
 
 
 def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
@@ -121,6 +135,12 @@ def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
         "conversation_id": "c1",
         "error_type": "AgentWorkerError",
     }
+    model_failure = [
+        event for event in events if event.event_type == "model_failed"
+    ]
+    assert len(model_failure) == 1
+    assert model_failure[0].model_call_category == "orchestrator_decision"
+    assert model_failure[0].error_code == "MAIN_AGENT_TRANSPORT_ERROR"
 
 
 def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:

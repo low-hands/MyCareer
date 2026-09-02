@@ -169,8 +169,8 @@ def test_confirming_without_a_readback_is_refused(tmp_path) -> None:
 
     # A consumed-or-missing confirmation is now a grounded soft result, not a
     # turn-killing exception; nothing was written either way.
-    assert result.tool_result is not None
-    assert result.tool_result.state == "invalid_input"
+    assert result.tool_result is None
+    assert result.context.tool_observations[-1].state == "invalid_input"
     assert "proposed update the user has seen" in result.assistant_message
     assert store.get_profile("u1") is None
 
@@ -215,8 +215,8 @@ def test_an_out_of_range_role_index_is_rejected(tmp_path) -> None:
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记一下"
     )
-    assert result.tool_result is not None
-    assert result.tool_result.state == "invalid_input"
+    assert result.tool_result is None
+    assert result.context.tool_observations[-1].state == "invalid_input"
     assert "target-role selection index is out of range" in result.assistant_message
 
 

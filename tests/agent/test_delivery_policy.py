@@ -12,6 +12,7 @@ promise its policy makes.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import re
 from datetime import datetime, timezone
@@ -232,6 +233,37 @@ def test_failure_disposition_is_intentional_and_not_waiting() -> None:
         assert ToolObservation(
             tool_name="emitter", state=state, message="执行失败。"
         ).disposition == "failed"
+
+
+def test_every_failed_emitter_declares_retryability_in_its_payload() -> None:
+    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    checked = 0
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "ToolObservation"
+        ):
+            continue
+        keywords = {item.arg: item.value for item in node.keywords if item.arg}
+        state_node = keywords.get("state")
+        if not (
+            isinstance(state_node, ast.Constant)
+            and isinstance(state_node.value, str)
+            and is_failed(state_node.value)
+        ):
+            continue
+        payload = keywords.get("payload")
+        assert isinstance(payload, ast.Dict), state_node.value
+        payload_keys = {
+            key.value
+            for key in payload.keys
+            if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        }
+        assert "retryable" in payload_keys, state_node.value
+        checked += 1
+
+    assert checked >= 11
 
 
 def test_every_interaction_emitter_state_constructs_a_renderer() -> None:

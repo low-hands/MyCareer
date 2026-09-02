@@ -1226,7 +1226,7 @@ class MainAgentToolRegistry:
                     "模拟面试的业务记录仍在，但执行断点已经丢失，当前会话无法继续。"
                 ),
                 next_action="restart_mock_interview",
-                payload={"session_id": session_id},
+                payload={"session_id": session_id, "retryable": False},
             )
         except MockInterviewGraphVersionError:
             return ToolObservation(
@@ -1236,7 +1236,7 @@ class MainAgentToolRegistry:
                     "这次模拟面试由不兼容的旧版流程创建，不能用当前版本安全恢复。"
                 ),
                 next_action="restart_mock_interview",
-                payload={"session_id": session_id},
+                payload={"session_id": session_id, "retryable": False},
             )
         except (AgentWorkerError, ValueError) as error:
             return ToolObservation(
@@ -2143,7 +2143,7 @@ class MainAgentToolRegistry:
                 tool_name="prepare_interview_calendar_sync",
                 state="calendar_sync_not_available",
                 message="当前面试没有需要执行的 Calendar 变更。",
-                payload={"reason": str(error)},
+                payload={"reason": str(error), "retryable": False},
             )
         return ToolObservation(
             tool_name="prepare_interview_calendar_sync",
@@ -2210,7 +2210,11 @@ class MainAgentToolRegistry:
                 tool_name="execute_calendar_proposal",
                 state="calendar_write_failed",
                 message="Calendar 外部写入没有获得成功确认。",
-                payload={"error_code": error.code, "error_detail": str(error)},
+                payload={
+                    "error_code": error.code,
+                    "error_detail": str(error),
+                    "retryable": False,
+                },
             )
         return ToolObservation(
             tool_name="execute_calendar_proposal",
@@ -3349,6 +3353,7 @@ class MainAgentToolRegistry:
                 payload={
                     "draft_id": model_arguments.draft_id,
                     "reason": str(error),
+                    "retryable": False,
                 },
             )
         except ResumeFinalReviewBlockedError as error:

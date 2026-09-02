@@ -21,6 +21,7 @@ from career_agent.agent.openai_compatible_client import (
     OpenAICompatibleAgentConfig,
 )
 from career_agent.storage.context import CareerContextStore
+from career_agent.harness.observability import InMemoryTraceRecorder, model_call_counts
 
 
 class Decisions:
@@ -50,6 +51,7 @@ def _manager(tmp_path) -> ContextManager:
 def test_runtime_streams_writer_tokens_and_commits_the_same_answer(tmp_path) -> None:
     manager = _manager(tmp_path)
     writer = RecordingWriter("这是", "真正的", "流式回答。")
+    recorder = InMemoryTraceRecorder()
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(
@@ -57,6 +59,7 @@ def test_runtime_streams_writer_tokens_and_commits_the_same_answer(tmp_path) -> 
         ),
         tools=MainAgentToolRegistry(),
         answer_writer=writer,
+        trace_recorder=recorder,
     )
     events = []
 
@@ -80,6 +83,11 @@ def test_runtime_streams_writer_tokens_and_commits_the_same_answer(tmp_path) -> 
         "请用自然语言解释",
         "这是真正的流式回答。",
     ]
+    trace = recorder.snapshot(events[0].turn_id)
+    counts = model_call_counts(trace)
+    assert counts["orchestrator_decision"] == 1
+    assert counts["writer"] == 1
+    assert "legacy_router" not in counts
 
 
 def test_interaction_bypasses_writer(tmp_path) -> None:

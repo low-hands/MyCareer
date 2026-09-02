@@ -161,6 +161,7 @@ _POLICIES.update(
             "application_ready",
             "application_update_conflict",
             "applications_found",
+            "authorization_refused",
             "calendar_account_required",
             "calendar_accounts_found",
             "calendar_approval_invalid",

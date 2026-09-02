@@ -462,6 +462,39 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
+        name="clear_brief_finishes_without_opening_the_action_list",
+        policy=(
+            "Tool observation facts are approved decision values. When the "
+            "user explicitly asks for a conditional follow-up, finish when "
+            "the overdue count is zero instead of opening the action list."
+        ),
+        # This is the causal mirror of overdue_brief_routes_to_the_action_list:
+        # the request, tool, state and receipt are identical. Only the approved
+        # counts differ, so a different successor is evidence that the model
+        # uses observation facts rather than merely following the same route.
+        context=_context(
+            user_message=(
+                "刚才的简报如果有逾期，就打开行动清单让我选择先处理哪一项；"
+                "如果没有逾期就直接结束。"
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="get_daily_brief",
+                    state="daily_brief_ready",
+                    message="今日职业简报包含 13 个待办事项。",
+                    facts={"overdue": 0, "due_today": 4, "waiting": 9},
+                ),
+            ),
+        ),
+        decisive_facts=("tool_observations.0.facts.overdue", "user_message"),
+        steps=(
+            TrajectoryStep(
+                expect_action="final",
+                forbid_tools=frozenset({"get_daily_brief", "list_action_items"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="weak_match_routes_to_resume_tailoring",
         policy=(
             "The bounded observation message may carry an explicitly stated "

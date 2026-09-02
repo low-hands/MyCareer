@@ -142,9 +142,6 @@ class ContextManager:
             task=task,
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_ref=assistant_resource_ref),
-            message_limit=(
-                None if self._summary_worker is not None else self._recent_message_limit
-            ),
         )
         self._maybe_summarize(
             user_id=context.profile.user_id,

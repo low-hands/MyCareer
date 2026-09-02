@@ -419,8 +419,16 @@ class CareerContextStore:
         task: ConversationTaskState,
         user_message: ConversationMessageContext,
         assistant_message: ConversationMessageContext,
-        message_limit: int | None,
     ) -> None:
+        """Append one turn. The transcript is never pruned here.
+
+        What the model reads is bounded by the context projection; what the file
+        keeps is not. Deleting rows to bound the window would trade an
+        irreversible loss for nothing, since the read is already limited to the
+        same number of messages, and it would take the resource references the
+        archived-resource lookup scans for along with it.
+        """
+
         messages = (user_message, assistant_message)
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
@@ -451,11 +459,6 @@ class CareerContextStore:
                     for offset, message in enumerate(messages)
                 ],
             )
-            if message_limit is not None:
-                connection.execute(
-                    "DELETE FROM conversation_messages WHERE user_id = ? AND conversation_id = ? AND sequence NOT IN (SELECT sequence FROM conversation_messages WHERE user_id = ? AND conversation_id = ? ORDER BY sequence DESC LIMIT ?)",
-                    (user_id, conversation_id, user_id, conversation_id, message_limit),
-                )
         os.chmod(self.path, 0o600)
 
     def _get_single(self, table: str, user_id: str, model):

@@ -6,7 +6,7 @@ DELIVERY_SUMMARY_LIMIT = 600
 """How long a report-shaped turn's prose may be, writer or no writer.
 
 Larger than ``SUMMARY_LIMIT`` because this is a written answer to a question
-rather than a mechanical first line, and small enough that eight of them fit in
+rather than a mechanical first line, and small enough that ten of them fit in
 the recent window with room to spare. The report body is not what this bounds:
 that goes to the report card, which is where a reader can take it at their own
 length.

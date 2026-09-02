@@ -364,7 +364,11 @@ def test_a_failed_replacement_does_not_claim_the_next_runtime_turn(tmp_path) -> 
 
     assert result.context.task.active_workflow == "none"
     assert result.context.task.run_id is None
-    assert result.tool_result.state == "mock_interview_restart_failed"
+    assert [item.state for item in result.tool_results] == [
+        "mock_interview_restart_failed",
+    ]
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    assert result.delegated_write_count == 1
     assert "替代面试暂时启动失败" in result.assistant_message
     persisted = manager.get_task(user_id="u1", conversation_id="c1")
     assert persisted.active_workflow == "none"

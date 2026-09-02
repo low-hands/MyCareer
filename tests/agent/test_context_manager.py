@@ -189,6 +189,37 @@ def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
     assert [message.sequence for message in remaining] == [1, 2, 3, 4, 5, 6]
 
 
+def test_a_conversation_without_a_summary_worker_still_keeps_every_message(
+    tmp_path,
+) -> None:
+    """Retention must not depend on whether an optional worker was wired.
+
+    Without a summary worker the read window is already limited to
+    ``recent_message_limit`` messages, so pruning the table deleted only rows
+    that could never be read again. It also took their resource references
+    along, which is what a later turn scans to name an old report.
+    """
+    context_manager = manager(tmp_path, limit=4)
+    window_sizes = []
+    for index in range(20):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        window_sizes.append(len(context.recent_messages))
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    assert max(window_sizes) <= 4
+    stored = context_manager._store.list_messages_after(
+        user_id="u1", conversation_id="c1", after_sequence=0, limit=1000
+    )
+    assert len(stored) == 40
+    assert stored[0].content == "user-0"
+
+
 def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -> None:
     """What the model reads is bounded; what the file stores is not.
 
