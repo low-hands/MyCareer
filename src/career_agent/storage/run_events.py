@@ -9,9 +9,11 @@ from typing import Literal
 
 from career_agent.harness.observability import (
     EventType,
+    ModelCallCategory,
     RunEvent,
     RunTrace,
     safe_trace_fields,
+    validate_model_call_category,
 )
 from career_agent.storage.schema import apply_schema
 
@@ -24,7 +26,13 @@ class SQLiteTraceRecorder:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            apply_schema(connection, "run_events", 1, self._baseline)
+            apply_schema(
+                connection,
+                "run_events",
+                2,
+                self._baseline,
+                {2: self._upgrade_to_v2},
+            )
         os.chmod(self.path, 0o600)
 
     def record(
@@ -40,7 +48,9 @@ class SQLiteTraceRecorder:
         error_code: str | None = None,
         error_detail: str | None = None,
         recoverable: bool | None = None,
+        model_call_category: ModelCallCategory | None = None,
     ) -> RunEvent:
+        validate_model_call_category(event_type, model_call_category)
         safe_details, safe_error = safe_trace_fields(
             details=details,
             error_detail=error_detail,
@@ -66,14 +76,15 @@ class SQLiteTraceRecorder:
                 error_code=error_code,
                 error_detail=safe_error,
                 recoverable=recoverable,
+                model_call_category=model_call_category,
             )
             connection.execute(
                 """
                 INSERT INTO run_events(
                     run_id, sequence, event_type, stage, attempt, occurred_at,
                     duration_ms, outcome, details_json, error_code,
-                    error_detail, recoverable
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    error_detail, recoverable, model_call_category
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.run_id,
@@ -88,6 +99,7 @@ class SQLiteTraceRecorder:
                     event.error_code,
                     event.error_detail,
                     None if event.recoverable is None else int(event.recoverable),
+                    event.model_call_category,
                 ),
             )
         os.chmod(self.path, 0o600)
@@ -99,7 +111,7 @@ class SQLiteTraceRecorder:
                 """
                 SELECT run_id, sequence, event_type, stage, attempt, occurred_at,
                        duration_ms, outcome, details_json, error_code,
-                       error_detail, recoverable
+                       error_detail, recoverable, model_call_category
                 FROM run_events
                 WHERE run_id = ?
                 ORDER BY sequence
@@ -133,6 +145,7 @@ class SQLiteTraceRecorder:
                 error_code TEXT,
                 error_detail TEXT,
                 recoverable INTEGER,
+                model_call_category TEXT,
                 PRIMARY KEY(run_id, sequence)
             )
             """
@@ -165,4 +178,11 @@ class SQLiteTraceRecorder:
             error_code=row[9],
             error_detail=row[10],
             recoverable=(None if row[11] is None else bool(row[11])),
+            model_call_category=row[12],
+        )
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            "ALTER TABLE run_events ADD COLUMN model_call_category TEXT"
         )

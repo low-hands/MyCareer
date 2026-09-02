@@ -1,0 +1,13 @@
+{
+  "scenario": "clear_brief_finishes_without_opening_the_action_list",
+  "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "21125b19eae5951ff744bdd2ad4118ccf82c0e0588e804494d73fc2a4131ddcb",
+  "context_shape_fingerprint": "edb373b70a07069a877fe50baf197aaa1f74ff4664f627f70913875cc7b23c87",
+  "recorded_at": "2026-09-02T01:51:35.747313+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"\"}"
+    }
+  ]
+}

@@ -27,6 +27,15 @@ EventType = Literal[
     "presentation_degraded",
 ]
 
+ModelCallCategory = Literal[
+    "orchestrator_decision",
+    "capability_agent",
+    "planner",
+    "evaluator",
+    "writer",
+    "legacy_router",
+]
+
 
 class RunEvent(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -43,6 +52,7 @@ class RunEvent(BaseModel):
     error_code: str | None = None
     error_detail: str | None = None
     recoverable: bool | None = None
+    model_call_category: ModelCallCategory | None = None
 
 
 class RunTrace(BaseModel):
@@ -66,6 +76,7 @@ class TraceRecorder(Protocol):
         error_code: str | None = None,
         error_detail: str | None = None,
         recoverable: bool | None = None,
+        model_call_category: ModelCallCategory | None = None,
     ) -> RunEvent: ...
 
     def snapshot(self, run_id: str) -> RunTrace: ...
@@ -83,6 +94,24 @@ def safe_trace_fields(
         redact_text(error_detail)[:2000] if error_detail is not None else None
     )
     return safe_details, safe_error
+
+
+def validate_model_call_category(
+    event_type: EventType,
+    model_call_category: ModelCallCategory | None,
+) -> None:
+    """Enforce classification at the new-write boundary, not while reading v1."""
+
+    is_model_event = event_type in {
+        "model_attempt",
+        "model_succeeded",
+        "model_failed",
+    }
+    if is_model_event != (model_call_category is not None):
+        raise ValueError(
+            "model events require model_call_category and non-model events "
+            "must not carry it"
+        )
 
 
 class InMemoryTraceRecorder:
@@ -103,7 +132,9 @@ class InMemoryTraceRecorder:
         error_code: str | None = None,
         error_detail: str | None = None,
         recoverable: bool | None = None,
+        model_call_category: ModelCallCategory | None = None,
     ) -> RunEvent:
+        validate_model_call_category(event_type, model_call_category)
         safe_details, safe_error = safe_trace_fields(
             details=details,
             error_detail=error_detail,
@@ -123,6 +154,7 @@ class InMemoryTraceRecorder:
                 error_code=error_code,
                 error_detail=safe_error,
                 recoverable=recoverable,
+                model_call_category=model_call_category,
             )
             events.append(event)
             return event
@@ -161,7 +193,9 @@ class NoopTraceRecorder:
         error_code: str | None = None,
         error_detail: str | None = None,
         recoverable: bool | None = None,
+        model_call_category: ModelCallCategory | None = None,
     ) -> RunEvent:
+        validate_model_call_category(event_type, model_call_category)
         safe_details, safe_error = safe_trace_fields(
             details=details,
             error_detail=error_detail,
@@ -179,7 +213,29 @@ class NoopTraceRecorder:
             error_code=error_code,
             error_detail=safe_error,
             recoverable=recoverable,
+            model_call_category=model_call_category,
         )
 
     def snapshot(self, run_id: str) -> RunTrace:
         return RunTrace(run_id=run_id)
+
+
+def model_call_counts(trace: RunTrace) -> dict[ModelCallCategory, int]:
+    """Count recorded call attempts once, independently from tool delegation.
+
+    Attempts are the stable denominator: success and failure are outcomes of
+    the same call and must not double-count it. The mapping is deliberately
+    sparse: an absent category means this trace contains no observation for it,
+    not that the corresponding component made zero calls. In particular, most
+    capability workers do not yet receive a TraceRecorder, so returning
+    ``capability_agent: 0`` would turn missing instrumentation into a false
+    operational claim.
+    """
+
+    counts: dict[ModelCallCategory, int] = {}
+    for event in trace.events:
+        if event.event_type == "model_attempt" and event.model_call_category is not None:
+            counts[event.model_call_category] = (
+                counts.get(event.model_call_category, 0) + 1
+            )
+    return counts

@@ -481,11 +481,10 @@ _DECISION_FACT_KEYS_BY_STATE = {
     "job_research_ready": frozenset({"cached", "finding_count", "status"}),
 }
 
-# Shared window for the contract, runtime, and trajectory evaluator.  Eight is
-# the provisional capacity for the planned split budgets; the budget PR must
-# enforce that its maximum emitted observations fit this window rather than
-# relying on this comment or silently evicting an earlier observation.
-MAX_DECISION_OBSERVATIONS = 8
+# Shared window for the contract, runtime, and trajectory evaluator. Ten holds
+# six reads, one write, two projection corrections, and one authorization
+# refusal without forcing unrelated refusal classes to share a counter.
+MAX_DECISION_OBSERVATIONS = 10
 
 
 class DecisionObservation(ContractModel):

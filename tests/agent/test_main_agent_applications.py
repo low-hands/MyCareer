@@ -81,7 +81,8 @@ def build_application_agent(tmp_path, decisions):
         context_manager=manager,
         decision_maker=decisions,
         tools=tools,
-        max_tool_calls=5,
+        max_read_calls=5,
+        max_write_calls=2,
     )
     return runtime, manager, tools, job, resume, version
 

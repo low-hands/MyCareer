@@ -14,6 +14,7 @@ Three behaviours are pinned here:
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 
 from career_agent.harness.observability import (
     EventType,
@@ -95,3 +96,81 @@ def test_error_detail_is_truncated_to_two_thousand_chars(tmp_path: Path) -> None
         "run-1", "turn_failed", "boot", outcome="failed", error_detail=long_error
     )
     assert len(event.error_detail) <= 2000
+
+
+def test_model_call_category_survives_sqlite_round_trip(tmp_path: Path) -> None:
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    recorder.record(
+        "run-1",
+        "model_attempt",
+        "main_agent_decide",
+        outcome="started",
+        model_call_category="orchestrator_decision",
+    )
+
+    event = recorder.snapshot("run-1").events[0]
+    assert event.model_call_category == "orchestrator_decision"
+
+
+def test_v1_trace_store_is_upgraded_before_model_events_are_written(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "run_events.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE schema_versions (
+                component TEXT PRIMARY KEY,
+                version INTEGER NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE run_events (
+                run_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                attempt INTEGER,
+                occurred_at TEXT NOT NULL,
+                duration_ms INTEGER,
+                outcome TEXT NOT NULL,
+                details_json TEXT NOT NULL,
+                error_code TEXT,
+                error_detail TEXT,
+                recoverable INTEGER,
+                PRIMARY KEY(run_id, sequence)
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO schema_versions(component, version) VALUES ('run_events', 1)"
+        )
+        connection.execute(
+            """
+            INSERT INTO run_events(
+                run_id, sequence, event_type, stage, occurred_at, outcome,
+                details_json
+            ) VALUES (
+                'legacy-run', 1, 'model_attempt', 'old_worker',
+                '2026-09-01T00:00:00+00:00', 'started', '{}'
+            )
+            """
+        )
+
+    recorder = SQLiteTraceRecorder(path)
+    recorder.record(
+        "run-1",
+        "model_attempt",
+        "main_agent_decide",
+        model_call_category="orchestrator_decision",
+    )
+
+    assert recorder.snapshot("run-1").events[0].model_call_category == (
+        "orchestrator_decision"
+    )
+    legacy = recorder.snapshot("legacy-run").events[0]
+    assert legacy.event_type == "model_attempt"
+    assert legacy.model_call_category is None

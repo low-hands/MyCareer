@@ -52,10 +52,24 @@ class Jobs:
                 id=job_posting_id,
                 title=f"AI Engineer {job_posting_id}",
                 company_name="Acme",
+                source_name="boss",
+                source_url=None,
             ),
             city="上海",
             salary=None if job_posting_id == "job-2" else "30-50K",
             availability_status="active",
+            snapshot=SimpleNamespace(
+                version=1,
+                content="负责 AI 平台研发与评估。",
+                captured_at=NOW,
+                provenance=SimpleNamespace(
+                    model_dump=lambda **_: {
+                        "source_name": "boss",
+                        "source_url": None,
+                    }
+                ),
+            ),
+            analysis=None,
         )
 
 
@@ -141,6 +155,46 @@ def test_the_model_chooses_jobs_by_index_and_never_sees_an_internal_id(
     ) == {"job_selection_indices"}
 
 
+def test_find_get_compare_read_chain_finishes_in_one_turn(tmp_path) -> None:
+    """Acceptance trajectory: three delegated reads, then a grounded answer."""
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "AI"}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="get_saved_job", arguments={"selection_index": 1}
+            ),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="compare_saved_jobs",
+                arguments={"job_selection_indices": [1, 2]},
+            ),
+        ),
+        AgentDecision(action="final", message="已完成比较。"),
+    )
+    runtime, _, _ = build_runtime(tmp_path, decisions)
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="先找出 AI 岗位，看第一份详情，再比较这两份。",
+    )
+
+    assert [item.state for item in result.tool_results] == [
+        "saved_jobs_found",
+        "saved_job_ready",
+        "saved_jobs_compared",
+    ]
+    assert len(decisions.contexts) == 4
+    assert "岗位横向对比" in result.assistant_message
+    assert result.context.tool_observations[-1].state == "saved_jobs_compared"
+
+
 def test_an_out_of_range_index_without_candidates_stops_without_a_futile_retry(tmp_path) -> None:
     """No candidate-backed selector can repair this refusal in the same turn."""
     decisions = SequenceDecisionMaker(
@@ -157,8 +211,7 @@ def test_an_out_of_range_index_without_candidates_stops_without_a_futile_retry(t
 
     result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="对比一下")
 
-    assert result.tool_result is not None
-    assert result.tool_result.state == "invalid_input"
+    assert result.tool_result is None
     assert "selection index is out of range" in result.assistant_message
     assert len(decisions.contexts) == 1
     assert result.context.tool_observations[-1].state == "invalid_input"

@@ -269,3 +269,43 @@ def test_the_suite_is_mostly_negative_and_not_entirely_negative() -> None:
     })
     assert positive >= 3
     assert negative >= positive
+
+
+def test_daily_brief_fact_pair_is_causal_and_has_fresh_model_evidence(
+    offered,
+) -> None:
+    """The same receipt must lead elsewhere solely because facts changed."""
+    _, schemas = offered
+    by_name = {scenario.name: scenario for scenario in SCENARIOS}
+    overdue = by_name["overdue_brief_routes_to_the_action_list"]
+    clear = by_name["clear_brief_finishes_without_opening_the_action_list"]
+
+    assert overdue.context.user_message == clear.context.user_message
+    overdue_observation = overdue.context.tool_observations[0]
+    clear_observation = clear.context.tool_observations[0]
+    assert overdue_observation.tool_name == clear_observation.tool_name
+    assert overdue_observation.state == clear_observation.state
+    assert overdue_observation.message == clear_observation.message
+    assert overdue_observation.facts["overdue"] > 0
+    assert clear_observation.facts["overdue"] == 0
+
+    for scenario in (overdue, clear):
+        cassette = load_cassette(scenario.name)
+        assert cassette is not None, f"{scenario.name} needs a live recording"
+        assert cassette_staleness(
+            cassette,
+            scenario=scenario,
+            tool_specs=schemas,
+        ) is None
+        assert replay(
+            scenario,
+            tool_specs=schemas,
+            responses=cassette.steps,
+        ) == ()
+
+    overdue_cassette = load_cassette(overdue.name)
+    clear_cassette = load_cassette(clear.name)
+    assert overdue_cassette.steps[0].get("tool_call", {}).get("name") == (
+        "list_action_items"
+    )
+    assert clear_cassette.steps[0].get("tool_call") is None

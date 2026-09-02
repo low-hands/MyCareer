@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from contextvars import ContextVar
+from time import perf_counter
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
@@ -15,7 +16,11 @@ from career_agent.agent.answer_writer import (
 )
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
-from career_agent.harness.observability import TraceRecorder
+from career_agent.harness.observability import (
+    EventType,
+    ModelCallCategory,
+    TraceRecorder,
+)
 from career_agent.agent.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
@@ -23,6 +28,7 @@ from career_agent.agent.delivery_policy import (
     uses_answer_writer,
 )
 from career_agent.agent.tool_reachability import reroutable
+from career_agent.agent.tool_effects import ToolEffect, effect_for
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
@@ -93,12 +99,30 @@ _TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
     default=None,
 )
 
+DEFAULT_MAX_READ_CALLS = 6
+DEFAULT_MAX_WRITE_CALLS = 1
+DEFAULT_MAX_PROJECTION_REFUSALS = 2
+DEFAULT_MAX_AUTHORIZATION_REFUSALS = 1
+DEFAULT_MAX_FAILURE_RETRIES = 2
+
 
 class PendingAction(TypedDict, total=False):
     name: str
     kind: Literal["atomic_tool", "workflow"]
+    effect: ToolEffect
     arguments: dict[str, Any]
     result: MainAgentToolOutput
+    synthetic_kind: Literal["projection", "authorization"]
+
+
+class LoopControl(TypedDict, total=False):
+    read_calls: int
+    write_calls: int
+    projection_refusals: int
+    authorization_refusals: int
+    fingerprints: tuple[str, ...]
+    retryable_fingerprints: tuple[str, ...]
+    retry_counts: dict[str, int]
 
 
 class MainAgentState(TypedDict, total=False):
@@ -106,17 +130,14 @@ class MainAgentState(TypedDict, total=False):
     decision: AgentDecision
     pending: PendingAction
     authorization_route: Literal["act", "observe", "present", "interrupt"]
-    last_tool_result: MainAgentToolOutput
     tool_results: tuple[MainAgentToolOutput, ...]
-    tool_call_fingerprints: tuple[str, ...]
+    control: LoopControl
     artifact_ids: tuple[str, ...]
-    tool_call_count: int
-    refusal_count: int
     assistant_message: str
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False) -> None:
+    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
         self.decision = decision
         self.context = context
         self.assistant_message = assistant_message
@@ -124,6 +145,8 @@ class MainAgentTurnResult:
         self.tool_results = tool_results
         self.artifacts = artifacts
         self.content_streamed = content_streamed
+        self.delegated_read_count = delegated_read_count
+        self.delegated_write_count = delegated_write_count
 
 
 class MainAgentRuntime:
@@ -153,9 +176,27 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_tool_calls: int = 3, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
-        if max_tool_calls < 1:
-            raise ValueError("max_tool_calls must be at least one")
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
+        if max_read_calls < 1:
+            raise ValueError("max_read_calls must be at least one")
+        if max_write_calls < 1:
+            raise ValueError("max_write_calls must be at least one")
+        if max_projection_refusals < 1:
+            raise ValueError("max_projection_refusals must be at least one")
+        if max_authorization_refusals < 1:
+            raise ValueError("max_authorization_refusals must be at least one")
+        if max_failure_retries < 0:
+            raise ValueError("max_failure_retries cannot be negative")
+        if (
+            max_read_calls
+            + max_write_calls
+            + max_projection_refusals
+            + max_authorization_refusals
+            > MAX_DECISION_OBSERVATIONS
+        ):
+            raise ValueError(
+                "read, write, and refusal budgets must fit the observation window"
+            )
         self._context_manager = context_manager
         # Exposed for the CLI's post-turn maintenance notice, which is an
         # operator concern and deliberately never reaches the decision model.
@@ -164,7 +205,11 @@ class MainAgentRuntime:
         self._tools = tools
         self._career_context_projector = career_context_projector
         self._answer_writer = answer_writer
-        self._max_tool_calls = max_tool_calls
+        self._max_read_calls = max_read_calls
+        self._max_write_calls = max_write_calls
+        self._max_projection_refusals = max_projection_refusals
+        self._max_authorization_refusals = max_authorization_refusals
+        self._max_failure_retries = max_failure_retries
         self._trace_recorder = trace_recorder
         self._owned_resources = owned_resources
         self._closed = False
@@ -369,6 +414,30 @@ class MainAgentRuntime:
         without a bound instance. A write that fails must never roll back
         already-durable business effects.
         """
+        MainAgentRuntime._record_trace_event(
+            event_type,
+            stage,
+            outcome="failed",
+            error_code=error_code,
+            error_detail=error_detail,
+            details=details,
+            recoverable=recoverable,
+        )
+
+    @staticmethod
+    def _record_trace_event(
+        event_type: EventType,
+        stage: str,
+        *,
+        outcome: Literal["started", "succeeded", "failed", "interrupted"],
+        duration_ms: int | None = None,
+        error_code: str | None = None,
+        error_detail: str | None = None,
+        details: dict[str, Any] | None = None,
+        recoverable: bool | None = None,
+        model_call_category: ModelCallCategory | None = None,
+    ) -> None:
+        """Best-effort event write shared by model and non-model telemetry."""
         context = _TRACE_CONTEXT.get()
         if context is None:
             return
@@ -378,11 +447,13 @@ class MainAgentRuntime:
                 run_id,
                 event_type,
                 stage,
-                outcome="failed",
+                outcome=outcome,
+                duration_ms=duration_ms,
                 error_code=error_code,
                 error_detail=error_detail,
                 details=details,
                 recoverable=recoverable,
+                model_call_category=model_call_category,
             )
         except Exception:
             return
@@ -404,7 +475,11 @@ class MainAgentRuntime:
                 outcome="succeeded",
                 details={
                     "conversation_id": conversation_id,
-                    "tool_call_count": len(result.tool_results),
+                    "tool_call_count": (
+                        result.delegated_read_count + result.delegated_write_count
+                    ),
+                    "read_call_count": result.delegated_read_count,
+                    "write_call_count": result.delegated_write_count,
                     "final_state": (
                         result.tool_result.state if result.tool_result is not None else result.decision.action
                     ),
@@ -722,6 +797,20 @@ class MainAgentRuntime:
         )
         chunks: list[str] = []
         written = 0
+        trace_details = {
+            "grounded_draft_chars": len(request.grounded_draft),
+            "user_request_chars": len(request.user_request),
+            "max_chars": request.max_chars,
+            "response_type": request.response_type,
+        }
+        started = perf_counter()
+        self._record_trace_event(
+            "model_attempt",
+            "answer_writer",
+            outcome="started",
+            details=trace_details,
+            model_call_category="writer",
+        )
         try:
             for delta in self._answer_writer.stream(request):
                 if not delta:
@@ -743,12 +832,43 @@ class MainAgentRuntime:
                 chunks.append(delta)
                 written += len(delta)
                 self._emit(ContentDeltaEvent(delta=delta))
-        except AgentWorkerError:
+        except AgentWorkerError as error:
+            self._record_trace_event(
+                "model_failed",
+                "answer_writer",
+                outcome="failed",
+                duration_ms=int((perf_counter() - started) * 1000),
+                details={**trace_details, "emitted_chars": sum(map(len, chunks))},
+                error_code=error.code,
+                error_detail=error.detail or type(error).__name__,
+                recoverable=error.retryable,
+                model_call_category="writer",
+            )
             if chunks:
                 # Some text has already reached the user. Falling back now
                 # would append a second, contradictory answer to that prefix.
                 raise
             return
+        except Exception as error:
+            self._record_trace_event(
+                "model_failed",
+                "answer_writer",
+                outcome="failed",
+                duration_ms=int((perf_counter() - started) * 1000),
+                details={**trace_details, "emitted_chars": sum(map(len, chunks))},
+                error_code="ANSWER_WRITER_FAILED",
+                error_detail=type(error).__name__,
+                model_call_category="writer",
+            )
+            raise
+        self._record_trace_event(
+            "model_succeeded",
+            "answer_writer",
+            outcome="succeeded",
+            duration_ms=int((perf_counter() - started) * 1000),
+            details={**trace_details, "emitted_chars": sum(map(len, chunks))},
+            model_call_category="writer",
+        )
         if not chunks:
             return
         result.assistant_message = "".join(chunks)
@@ -1044,14 +1164,20 @@ class MainAgentRuntime:
         state = self._graph.invoke(
             {
                 "context": context,
-                "tool_call_fingerprints": (),
                 "artifact_ids": (),
                 "tool_results": (),
-                "tool_call_count": 0,
-                "refusal_count": 0,
+                "control": {
+                    "read_calls": 0,
+                    "write_calls": 0,
+                    "projection_refusals": 0,
+                    "authorization_refusals": 0,
+                    "fingerprints": (),
+                    "retryable_fingerprints": (),
+                    "retry_counts": {},
+                },
             }
         )
-        tool_result = state.get("last_tool_result")
+        tool_result = self._last_result(state)
         artifacts = tuple(
             self._tools.deliver_resume_artifact(
                 user_id=context.profile.user_id,
@@ -1059,6 +1185,7 @@ class MainAgentRuntime:
             )
             for artifact_id in state.get("artifact_ids", ())
         )
+        control = state.get("control", {})
         return MainAgentTurnResult(
             decision=state["decision"],
             context=state["context"],
@@ -1066,11 +1193,68 @@ class MainAgentRuntime:
             tool_result=tool_result,
             tool_results=state.get("tool_results", ()),
             artifacts=artifacts,
+            delegated_read_count=control.get("read_calls", 0),
+            delegated_write_count=control.get("write_calls", 0),
         )
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
-        return {"decision": self._decision_maker.decide(state["context"], self._tools.schemas(state["context"]))}
+        context = state["context"]
+        schemas = self._tools.schemas(context)
+        context_chars = len(
+            json.dumps(context.model_context(), ensure_ascii=False, sort_keys=True)
+        )
+        tool_schema_chars = len(
+            json.dumps(schemas, ensure_ascii=False, sort_keys=True)
+        )
+        details = {
+            "context_chars": context_chars,
+            "observation_chars": len(
+                json.dumps(
+                    [
+                        item.model_dump(mode="json")
+                        for item in context.tool_observations
+                    ],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            ),
+            "observation_count": len(context.tool_observations),
+            "offered_tool_count": len(schemas),
+            "tool_schema_chars": tool_schema_chars,
+        }
+        started = perf_counter()
+        self._record_trace_event(
+            "model_attempt",
+            "main_agent_decide",
+            outcome="started",
+            details=details,
+            model_call_category="orchestrator_decision",
+        )
+        try:
+            decision = self._decision_maker.decide(context, schemas)
+        except Exception as error:
+            self._record_trace_event(
+                "model_failed",
+                "main_agent_decide",
+                outcome="failed",
+                duration_ms=int((perf_counter() - started) * 1000),
+                details=details,
+                error_code=getattr(error, "code", "ORCHESTRATOR_DECISION_FAILED"),
+                error_detail=getattr(error, "detail", None) or type(error).__name__,
+                recoverable=getattr(error, "retryable", None),
+                model_call_category="orchestrator_decision",
+            )
+            raise
+        self._record_trace_event(
+            "model_succeeded",
+            "main_agent_decide",
+            outcome="succeeded",
+            duration_ms=int((perf_counter() - started) * 1000),
+            details={**details, "decision_action": decision.action},
+            model_call_category="orchestrator_decision",
+        )
+        return {"decision": decision}
 
     def _run_active_mock_interview(
         self, *, context: MainAgentContext, user_message: str
@@ -1148,6 +1332,44 @@ class MainAgentRuntime:
             return "interrupt"
         return "present"
 
+    @staticmethod
+    def _control(state: MainAgentState) -> LoopControl:
+        return state.get("control", {})
+
+    @staticmethod
+    def _last_result(state: MainAgentState) -> MainAgentToolOutput | None:
+        results = state.get("tool_results", ())
+        return results[-1] if results else None
+
+    def _authorization_refusal(
+        self,
+        state: MainAgentState,
+        *,
+        name: str,
+        reason: str,
+        next_action: str,
+    ) -> MainAgentState:
+        control = self._control(state)
+        if (
+            control.get("authorization_refusals", 0)
+            >= self._max_authorization_refusals
+        ):
+            return {"authorization_route": "present"}
+        result = ToolObservation(
+            tool_name=name,
+            state="authorization_refused",
+            message=reason,
+            next_action=next_action,
+        )
+        return {
+            "authorization_route": "observe",
+            "pending": {
+                "name": name,
+                "result": result,
+                "synthetic_kind": "authorization",
+            },
+        }
+
     def _authorize(self, state: MainAgentState) -> MainAgentState:
         """Project and gate one model-selected action without choosing its successor."""
 
@@ -1155,13 +1377,44 @@ class MainAgentRuntime:
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
-
-        if state.get("tool_call_count", 0) >= self._max_tool_calls:
-            return {"authorization_route": "present"}
-        if self._tool_call_fingerprint(decision) in state.get("tool_call_fingerprints", ()):
-            return {"authorization_route": "present"}
-
         kind = self._tools.capability_kind(name)
+        effect = effect_for(name)
+        control = self._control(state)
+        used = control.get("read_calls", 0) if effect == "READ" else control.get("write_calls", 0)
+        limit = self._max_read_calls if effect == "READ" else self._max_write_calls
+        if used >= limit:
+            return self._authorization_refusal(
+                state,
+                name=name,
+                reason=(
+                    f"本轮 {effect} 委派预算已经用完；请基于已有结果作答，"
+                    "或说明需要下一轮继续。"
+                ),
+                next_action="finish_or_ask_to_continue",
+            )
+
+        fingerprint = self._tool_call_fingerprint(decision)
+        fingerprints = control.get("fingerprints", ())
+        retry_counts = dict(control.get("retry_counts", {}))
+        if fingerprint in fingerprints:
+            retryable = fingerprint in control.get("retryable_fingerprints", ())
+            retries = retry_counts.get(fingerprint, 0)
+            if not retryable:
+                return self._authorization_refusal(
+                    state,
+                    name=name,
+                    reason="相同调用已经执行过，且上次结果没有声明为可重试。",
+                    next_action="use_existing_observation_or_change_arguments",
+                )
+            if retries >= self._max_failure_retries:
+                return self._authorization_refusal(
+                    state,
+                    name=name,
+                    reason="相同失败调用已经达到本轮重试上限。",
+                    next_action="explain_failure_or_ask_to_continue",
+                )
+            retry_counts[fingerprint] = retries + 1
+            control = {**control, "retry_counts": retry_counts}
         try:
             arguments = (
                 self._project_atomic_tool_arguments(
@@ -1178,14 +1431,29 @@ class MainAgentRuntime:
             )
         except ValueError as error:
             MainAgentRuntime._reraise_security_refusal(error)
+            if (
+                control.get("projection_refusals", 0)
+                >= self._max_projection_refusals
+            ):
+                return {"authorization_route": "present"}
             result = MainAgentRuntime._rejection_observation(name, error)
             return {
                 "authorization_route": "observe",
-                "pending": {"name": name, "result": result},
+                "pending": {
+                    "name": name,
+                    "result": result,
+                    "synthetic_kind": "projection",
+                },
             }
         return {
             "authorization_route": "act",
-            "pending": {"name": name, "kind": kind, "arguments": arguments},
+            "control": control,
+            "pending": {
+                "name": name,
+                "kind": kind,
+                "effect": effect,
+                "arguments": arguments,
+            },
         }
 
     @staticmethod
@@ -1268,9 +1536,9 @@ class MainAgentRuntime:
         pending = state["pending"]
         result = pending["result"]
         capability_name = pending["name"]
-        if result.state == "failed" or (
-            result.payload.get("error_code") is not None
-        ):
+        control = dict(self._control(state))
+        synthetic_kind = pending.get("synthetic_kind")
+        if result.disposition == "failed":
             # The tool layer already classified this failure into an error_code
             # and a retryability flag. Copy them into the durable trace so a
             # failure that lasted one turn does not vanish with the payload.
@@ -1286,13 +1554,41 @@ class MainAgentRuntime:
                     else None
                 ),
             )
-        if result.tool_name in {
-            "start_mock_interview",
-            "restart_mock_interview",
-        }:
-            updated = self._update_mock_interview_task(context, result)
+        if synthetic_kind is not None:
+            updated = context
+            refusal_key = (
+                "projection_refusals"
+                if synthetic_kind == "projection"
+                else "authorization_refusals"
+            )
+            control[refusal_key] = control.get(refusal_key, 0) + 1
         else:
-            updated = self._update_atomic_task(context, result)
+            if result.tool_name in {
+                "start_mock_interview",
+                "restart_mock_interview",
+            }:
+                updated = self._update_mock_interview_task(context, result)
+            else:
+                updated = self._update_atomic_task(context, result)
+            effect = pending["effect"]
+            budget_key = "read_calls" if effect == "READ" else "write_calls"
+            control[budget_key] = control.get(budget_key, 0) + 1
+            fingerprint = self._tool_call_fingerprint(state["decision"])
+            fingerprints = control.get("fingerprints", ())
+            if fingerprint not in fingerprints:
+                control["fingerprints"] = (*fingerprints, fingerprint)
+            retryable_fingerprints = tuple(control.get("retryable_fingerprints", ()))
+            if (
+                result.disposition == "failed"
+                and result.payload.get("retryable") is True
+            ):
+                if fingerprint not in retryable_fingerprints:
+                    retryable_fingerprints = (*retryable_fingerprints, fingerprint)
+            else:
+                retryable_fingerprints = tuple(
+                    item for item in retryable_fingerprints if item != fingerprint
+                )
+            control["retryable_fingerprints"] = retryable_fingerprints
         observation = self._tool_observation(capability_name, result)
         updated = updated.model_copy(
             update={
@@ -1302,32 +1598,18 @@ class MainAgentRuntime:
                 )[-MAX_DECISION_OBSERVATIONS:]
             }
         )
-        fingerprint = self._tool_call_fingerprint(state["decision"])
         artifact_ids = state.get("artifact_ids", ())
-        if result.state == "invalid_input":
-            return {
-                "context": updated,
-                "last_tool_result": result,
-                "tool_results": (*state.get("tool_results", ()), result),
-                "tool_call_fingerprints": (
-                    *state.get("tool_call_fingerprints", ()),
-                    fingerprint,
-                ),
-                "tool_call_count": state.get("tool_call_count", 0) + 1,
-                "refusal_count": state.get("refusal_count", 0) + 1,
-                "artifact_ids": artifact_ids,
-            }
         if result.state == "resume_artifact_ready":
             artifact_id = result.payload.get("artifact_id")
             if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
                 artifact_ids = (*artifact_ids, artifact_id)
+        tool_results = state.get("tool_results", ())
+        if synthetic_kind is None:
+            tool_results = (*tool_results, result)
         return {
             "context": updated,
-            "last_tool_result": result,
-            "tool_results": (*state.get("tool_results", ()), result),
-            "tool_call_fingerprints": (*state.get("tool_call_fingerprints", ()), fingerprint),
-            "tool_call_count": state.get("tool_call_count", 0) + 1,
-            "refusal_count": state.get("refusal_count", 0),
+            "tool_results": tool_results,
+            "control": control,
             "artifact_ids": artifact_ids,
         }
 
@@ -1347,8 +1629,8 @@ class MainAgentRuntime:
         if result.state == "invalid_input":
             if not reroutable(pending["name"], state["context"].task):
                 return "present"
-            if state.get("refusal_count", 0) >= 2:
-                return "present"
+        if pending.get("synthetic_kind") is not None:
+            return "decide"
         # Failures intentionally return to the model once, with their bounded
         # observation, so it can explain, recover, or ask the user. This is not
         # the old waiting-state fallthrough.
@@ -1361,7 +1643,21 @@ class MainAgentRuntime:
         """Deliver a final decision without letting model prose replace evidence."""
 
         decision = state["decision"]
-        result = state.get("last_tool_result")
+        pending = state.get("pending", {})
+        pending_result = pending.get("result")
+        if (
+            decision.action == "tool_call"
+            and pending.get("synthetic_kind") == "projection"
+            and pending_result is not None
+        ):
+            # A projection refusal with no possible candidate repair is a safe,
+            # user-facing explanation, but it remains outside tool_results.
+            return {
+                "assistant_message": MainAgentRuntime._assistant_message(
+                    pending_result
+                )
+            }
+        result = MainAgentRuntime._last_result(state)
         if result is not None:
             # Deliberately retain the authoritative presenter override. Letting
             # a post-tool model message coexist with evidence is the separate
@@ -1378,7 +1674,7 @@ class MainAgentRuntime:
         decision = state["decision"]
         if decision.action == "ask_user":
             return {"assistant_message": decision.message or "请补充下一步所需的信息。"}
-        result = state.get("last_tool_result")
+        result = MainAgentRuntime._last_result(state)
         if result is None:
             raise ValueError("capability interaction requires an observed result")
         if not MainAgentRuntime._has_interaction_renderer(result.state):

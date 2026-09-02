@@ -61,7 +61,8 @@ def build_agent(
     *,
     user_id: str = "u1",
     resume_analysis_service: ResumeAnalysisService | None = None,
-    max_tool_calls: int = 3,
+    max_read_calls: int = 6,
+    max_write_calls: int = 1,
 ):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
@@ -74,7 +75,8 @@ def build_agent(
             context_manager=manager,
             decision_maker=decisions,
             tools=tools,
-            max_tool_calls=max_tool_calls,
+            max_read_calls=max_read_calls,
+            max_write_calls=max_write_calls,
         ),
         tools,
     )
@@ -212,7 +214,7 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
         resume_analysis_service=service,
         # Keep budget out of the assertion: without the tool-level turn
         # barrier, the scripted confirmation would otherwise execute.
-        max_tool_calls=5,
+        max_read_calls=5,
     )
 
     events = []
