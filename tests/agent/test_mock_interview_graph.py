@@ -497,6 +497,40 @@ def test_resume_reports_a_finished_run_rather_than_a_lost_checkpoint(
         assert replayed.report_id is not None
 
 
+def test_a_completed_run_without_its_report_fails_instead_of_projecting(
+    tmp_path: Path,
+) -> None:
+    """The same invariant the report node enforces, enforced where it is read.
+
+    ``_report`` raises when a completed session has no report. ``_project`` used
+    to answer the identical impossible state with ``report.id if report else
+    None`` — a completed result carrying no reference. That shape is worse than
+    the failure it avoids: the delivery layer treats ``mock_interview_completed``
+    as card-backed, compresses the body, and fails open on the missing
+    reference, so a finished interview arrives as a report nobody can name.
+
+    Unreachable through the graph's own writes, which is why the row is deleted
+    behind its back here. It is pinned because it was not a raise until now, and
+    putting the conditional back breaks nothing else.
+    """
+    graph, store, _, _ = _graph(tmp_path)
+    started = graph.start(_request(max_follow_ups_per_question=0))
+    while graph.resume(
+        user_id="u1", session_id=started.session_id, answer="An answer."
+    ).state == "awaiting_answer":
+        pass
+    assert store.get_report(user_id="u1", session_id=started.session_id) is not None
+
+    with sqlite3.connect(tmp_path / "mock.sqlite3") as connection:
+        connection.execute(
+            "DELETE FROM mock_interview_reports WHERE session_id = ?",
+            (started.session_id,),
+        )
+
+    with pytest.raises(ValueError, match="Completed mock interview has no report"):
+        graph.resume(user_id="u1", session_id=started.session_id, answer="An answer.")
+
+
 def test_resume_rejects_an_incompatible_graph_version(tmp_path: Path) -> None:
     graph, store, _, _ = _graph(tmp_path)
     started = graph.start(_request())

@@ -56,7 +56,37 @@ class TrajectoryStep:
     expect_action: str | None = None
     expect_tool: str | None = None
     expect_message: str | None = None
+    forbid_message_contains: frozenset[str] = frozenset()
+    """Substrings the reply must not carry, for delivery the runtime owns.
+
+    A card-backed report reaches the reader through its entity. Restating the
+    body in the reply duplicates it into a window that will keep the row for
+    every later turn, and puts a second, drifting copy next to the one the
+    reader can reopen. Exact-matching prose would be brittle, so the assertion
+    names only what must be absent.
+    """
+
     forbid_tools: frozenset[str] = frozenset()
+    expect_arguments: Mapping[str, Any] = field(default_factory=dict)
+    """Argument values the call must carry, checked as a subset.
+
+    ``expect_tool`` says which capability; this says the model selected the
+    right thing with it. A subset rather than equality: the assertion is about
+    the selector the policy turns on, and pinning every other argument would
+    make an unrelated schema change read as a policy failure.
+    """
+
+    forbid_argument_keys: frozenset[str] = frozenset()
+    """Argument names the call must not carry, whatever it calls.
+
+    For a mirror scenario where the *right* behaviour is genuinely open. Take
+    the handle away from an observation and the model has no good
+    move left — call the read tool bare and hope the active report is the one it
+    meant, or ask. Neither is wrong, so ``expect_tool`` would be asserting a
+    preference rather than a policy. What must hold is narrower and real: it
+    cannot produce a number it was never given.
+    """
+
     observation: DecisionObservation | None = None
     task_update: Mapping[str, Any] = field(default_factory=dict)
     user_message: str | None = None
@@ -367,8 +397,28 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
             f"{label}: expected message {step.expect_message!r}, got "
             f"{decision.message!r}"
         )
+    for fragment in sorted(step.forbid_message_contains):
+        if fragment in (decision.message or ""):
+            failures.append(
+                f"{label}: reply restated runtime-owned delivery {fragment!r}"
+            )
     if called in step.forbid_tools:
         failures.append(f"{label}: called forbidden tool '{called}'")
+    arguments = (
+        decision.tool_call.arguments if decision.tool_call is not None else {}
+    )
+    for name, expected in sorted(step.expect_arguments.items()):
+        if arguments.get(name) != expected:
+            failures.append(
+                f"{label}: expected argument {name}={expected!r}, got "
+                f"{arguments.get(name)!r}"
+            )
+    for name in sorted(step.forbid_argument_keys):
+        if name in arguments:
+            failures.append(
+                f"{label}: passed {name}={arguments[name]!r}, which the "
+                "projection never offered"
+            )
     return tuple(failures)
 
 

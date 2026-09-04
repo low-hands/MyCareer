@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
@@ -165,9 +166,21 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
         "user_provided_context": "一面提到企业知识库产品线。",
         "max_sources": 5,
     }]
-    assert result.assistant_message.startswith("# 公司调研")
-    assert "[S1]" in result.assistant_message
-    assert "https://example.com/product" in result.assistant_message
+    # F: the message is the model's. The report itself is delivered by the
+    # card and is the same text H puts in the observation body, so the content
+    # and leak assertions belong to that rendering, not to the reply.
+    # Declared by the handler from the typed run result it already holds.
+    assert result.tool_result.facts == {
+        "cached": result.tool_result.payload["cached"],
+        "finding_count": len(result.tool_result.payload["research"]["findings"]),
+        "status": result.tool_result.payload["status"],
+    }
+    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    assert rendered.startswith("# 公司调研")
+    assert "[S1]" in rendered
+    assert "https://example.com/product" in rendered
+    assert "run-secret" not in rendered
+    assert "report-secret" not in rendered
     assert "run-secret" not in result.assistant_message
     assert "report-secret" not in result.assistant_message
     assert result.context.task.active_job_research_report_id == "report-secret"
@@ -183,8 +196,11 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
         user_id="u1", conversation_id="c1", user_message="继续"
     )
     stored_reply = loaded.recent_messages[-1].content
-    assert stored_reply.startswith("岗位研究已完成。")
+    # Since F the row keeps the model's reply, not a receipt. What must not
+    # change is that the report body stays in the entity behind the card.
+    assert stored_reply == "研究完成。"
     assert "Enterprise Retrieval Product" not in stored_reply
+    assert len(stored_reply) <= DELIVERY_SUMMARY_LIMIT
 
 
 def test_job_research_projection_uses_indexes_and_hides_internal_ids() -> None:

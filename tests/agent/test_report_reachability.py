@@ -42,7 +42,7 @@ def test_each_readback_can_be_reached_from_its_owning_entity(
     """A route that survives the catalogue being trimmed."""
     model = getattr(contracts, model_name)
     assert selector in model.model_fields, (
-        f"{model_name} can only be reached by reference_index, so its report "
+        f"{model_name} can only be reached by a resource handle, so its report "
         "becomes unreachable once the archived catalogue trims it"
     )
 

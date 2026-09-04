@@ -175,7 +175,8 @@ def test_a_failed_replacement_releases_the_retired_workflow_slot(tmp_path) -> No
     updated = MainAgentRuntime._update_mock_interview_task(context, result)
 
     assert result.state == "mock_interview_restart_failed"
-    assert result.next_action == "start_mock_interview"
+    # Prose, because the one thing worth saying here is what NOT to do.
+    assert "重新开一场" in result.next_action
     assert result.payload["error_code"] == "PLAN_FAILED"
     assert store.find_resumable(user_id="u1") is None
     assert updated.task.active_workflow == "none"

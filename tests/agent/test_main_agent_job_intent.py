@@ -25,7 +25,8 @@ class SequenceDecisionMaker:
         return self.decisions.pop(0)
 
 
-def build(tmp_path, *decisions, profile=None):
+def build_with(tmp_path, decision_maker, profile=None):
+    """``build`` with a caller-owned decision maker, so its contexts stay visible."""
     store = CareerContextStore(tmp_path / "context.sqlite3")
     resumes = ResumeStore(tmp_path / "resumes.sqlite3")
     manager = ContextManager(store)
@@ -33,12 +34,14 @@ def build(tmp_path, *decisions, profile=None):
         manager.upsert_profile(profile)
     runtime = MainAgentRuntime(
         context_manager=manager,
-        decision_maker=SequenceDecisionMaker(*decisions),
-        tools=MainAgentToolRegistry(
-            career_profile_store=store, resume_store=resumes
-        ),
+        decision_maker=decision_maker,
+        tools=MainAgentToolRegistry(career_profile_store=store, resume_store=resumes),
     )
     return runtime, store, resumes
+
+
+def build(tmp_path, *decisions, profile=None):
+    return build_with(tmp_path, SequenceDecisionMaker(*decisions), profile=profile)
 
 
 def propose(**fields) -> AgentDecision:
@@ -163,15 +166,25 @@ def test_proposing_saves_nothing(tmp_path) -> None:
 
 
 def test_confirming_without_a_readback_is_refused(tmp_path) -> None:
-    runtime, store, _ = build(tmp_path, confirm(), final())
+    decisions = SequenceDecisionMaker(
+        confirm(),
+        AgentDecision(action="final", message="我还没给你看过要记的内容，先说一下？"),
+    )
+    runtime, store, _ = build_with(tmp_path, decisions)
 
     result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="好的")
 
-    # A consumed-or-missing confirmation is now a grounded soft result, not a
+    # A consumed-or-missing confirmation is a grounded soft result, not a
     # turn-killing exception; nothing was written either way.
     assert result.tool_result is None
     assert result.context.tool_observations[-1].state == "invalid_input"
-    assert "proposed update the user has seen" in result.assistant_message
+    # The reason goes to the model, not to the user: it is the model that turns
+    # "no proposal the user has seen" into a sentence worth reading.
+    assert (
+        "proposed update the user has seen"
+        in decisions.contexts[-1].tool_observations[-1].message
+    )
+    assert result.assistant_message == "我还没给你看过要记的内容，先说一下？"
     assert store.get_profile("u1") is None
 
 
@@ -203,21 +216,24 @@ def test_an_omitted_field_is_left_alone_rather_than_cleared(tmp_path) -> None:
 
 
 def test_an_out_of_range_role_index_is_rejected(tmp_path) -> None:
-    runtime, _, _ = build(
-        tmp_path,
+    decisions = SequenceDecisionMaker(
         propose(target_role_selection_index=3, salary_expectation="40K"),
-        final(),
+        AgentDecision(action="final", message="你只有两个目标岗位，第 3 个不存在。"),
     )
+    runtime, _, _ = build_with(tmp_path, decisions)
 
     # Same soft-refusal contract as confirm-without-readback: the model sees a
-    # grounded observation before the presenter delivers it, and nothing is
-    # recorded.
+    # grounded observation and answers from it, and nothing is recorded.
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记一下"
     )
     assert result.tool_result is None
     assert result.context.tool_observations[-1].state == "invalid_input"
-    assert "target-role selection index is out of range" in result.assistant_message
+    assert (
+        "target-role selection index is out of range"
+        in decisions.contexts[-1].tool_observations[-1].message
+    )
+    assert result.assistant_message == "你只有两个目标岗位，第 3 个不存在。"
 
 
 def test_the_tool_cannot_be_used_to_record_skills(tmp_path) -> None:

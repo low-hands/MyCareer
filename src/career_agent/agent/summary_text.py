@@ -13,6 +13,20 @@ length.
 """
 
 
+MODEL_REPLY_LIMIT = 8_000
+"""How long the model's own reply may be when nothing else bounds it.
+
+``DELIVERY_SUMMARY_LIMIT`` is the ceiling for prose that accompanies a card,
+where the body is delivered elsewhere and the message is only about it. A reply
+with no card behind it is the whole answer — an explanation, a multi-step
+summary, resume advice — and holding it to the card ceiling would truncate
+answers the old writer never touched, because the writer only ever restated
+card-backed reports. This bound exists to keep one turn from filling the recent
+window on its own, not to summarise; it stays well under the context manager's
+32k message ceiling.
+"""
+
+
 def condense(text: str, *, limit: int = SUMMARY_LIMIT) -> str:
     """Reduce a report's own summary to one bounded line.
 

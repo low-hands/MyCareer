@@ -1051,8 +1051,9 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     serialized = observation.model_dump_json()
     assert "PRIVATE RESUME" not in serialized
     assert "PRIVATE JD" not in serialized
-    assert result.assistant_message.startswith("# 简历定制草稿 · 修订 1")
-    assert "Built production RAG systems for knowledge retrieval." in result.assistant_message
+    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    assert rendered.startswith("# 简历定制草稿 · 修订 1")
+    assert "Built production RAG systems for knowledge retrieval." in rendered
     assert observation.resource_ref is not None
     assert observation.resource_ref.kind == "resume_tailoring_draft"
 

@@ -199,7 +199,8 @@ class ConversationMessageView(BaseModel):
     role: str
     content: str
     created_at: datetime
-    resource: ConversationResourceView | None = None
+    resources: tuple[ConversationResourceView, ...] = ()
+    """Plural because one turn can store two reports; see 070 (F/复核修正)."""
 
 
 class ConversationTranscriptResponse(BaseModel):
@@ -454,15 +455,14 @@ class WorkspaceReader:
                     role=item.role,
                     content=item.content,
                     created_at=item.created_at,
-                    resource=(
+                    resources=tuple(
                         ConversationResourceView(
-                            kind=item.resource_ref.kind,
-                            resource_id=item.resource_ref.resource_id,
-                            status_at_delivery=item.resource_ref.status_at_delivery,
-                            anchored_by_other_job=item.resource_ref.anchored_by_other_job,
+                            kind=reference.kind,
+                            resource_id=reference.resource_id,
+                            status_at_delivery=reference.status_at_delivery,
+                            anchored_by_other_job=reference.anchored_by_other_job,
                         )
-                        if item.resource_ref is not None
-                        else None
+                        for reference in item.resource_refs
                     ),
                 )
                 for item in self._context.list_messages(

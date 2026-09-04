@@ -1,15 +1,17 @@
 {
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
-  "policy": "A recent_messages entry carrying a resource means that turn produced a stored report whose contents you were never shown: its one-line text is not the report. To discuss such a report, read it back with the matching tool using its reference_index.",
+  "policy": "A recent_messages entry carrying a resource means that turn produced a stored report whose contents you were never shown: its one-line text is not the report. To discuss such a report, read it back with the matching tool using the reference handle it carries.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "5f72f2eebccad0bb71326c226283cb0f4348246dd2d0db7bd0af745f3f231c96",
-  "context_shape_fingerprint": "c3e68a128b382361241bdfea9e4b2622c836f384517a8cddeea4397094c94fca",
-  "recorded_at": "2026-09-02T03:06:08.161102+00:00",
+  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "context_shape_fingerprint": "9b8d85d3f227acbb655d52dad7e6ca4e7318354fafd65527fbea4f3248cc5d99",
+  "recorded_at": "2026-09-04T02:22:23.531475+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
-        "arguments": {}
+        "arguments": {
+          "reference": "report_9ca510"
+        }
       }
     }
   ]

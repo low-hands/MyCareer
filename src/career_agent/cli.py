@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.answer_writer import OpenAIStreamingAnswerWriter
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -176,7 +175,6 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     return MainAgentRuntime(
         context_manager=context_manager,
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
-        answer_writer=OpenAIStreamingAnswerWriter(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
         trace_recorder=SQLiteTraceRecorder(Path(args.run_events_store).expanduser()),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
@@ -556,9 +554,23 @@ def _write_chat_payload(
         "user_id": user_id,
         "session_id": session_id,
         "assistant_message": turn.assistant_message,
+        # ``decision`` reports the model's choice, so a turn the model never
+        # decided reports none. Two ingresses fabricate an ``AgentDecision`` —
+        # the bound interaction receipt and the mock interview takeover — and
+        # emitting their invented ``action``/``tool_name`` here published a
+        # machine-readable claim that a call had been made which never was.
+        # What actually happened is in ``tool_results``, which is where a reader
+        # should look for it.
         "decision": {
-            "action": turn.decision.action,
-            "tool_name": turn.decision.tool_call.name if turn.decision.tool_call else None,
+            "source": turn.decision_source,
+            "action": (
+                turn.decision.action if turn.decision_source == "model" else None
+            ),
+            "tool_name": (
+                turn.decision.tool_call.name
+                if turn.decision_source == "model" and turn.decision.tool_call
+                else None
+            ),
         },
         "tool_result": _chat_tool_result_payload(tool_result) if tool_result else None,
         "tool_results": [

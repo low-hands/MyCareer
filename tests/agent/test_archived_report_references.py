@@ -1,6 +1,6 @@
 """A report stays nameable after its turn scrolls out of the recent window.
 
-``resource_ref`` lives on the message a turn wrote, and the recent window is
+``resource_refs`` lives on the message a turn wrote, and the recent window is
 loaded from ``through_sequence`` onward. Once summarisation passed a report's
 turn, the reference left the agent's context for good while the transcript
 endpoint — which reads every message — kept showing the card. The user could
@@ -70,7 +70,7 @@ def _turn(manager, *, index: int, ref=None) -> None:
         context=context,
         task=ConversationTaskState(),
         assistant_message=f"回复 {index}",
-        assistant_resource_ref=ref,
+        assistant_resource_refs=(ref,) if ref is not None else (),
     )
 
 
@@ -86,14 +86,13 @@ def test_a_report_stays_nameable_after_its_turn_is_summarised(tmp_path) -> None:
 
     # The delivering turn is long gone from the window.
     assert all(
-        message.resource_ref is None for message in context.recent_messages
+        not message.resource_refs for message in context.recent_messages
     )
     # It is still reachable, and resolvable back to the internal id.
     assert [ref.resource_id for ref in context.referenced_resources()] == ["report-1"]
+    handle = context.reference_handle(context.referenced_resources()[0])
     assert (
-        context.resolve_reference_index(
-            reference_index=1, kind="job_research_report"
-        )
+        context.resolve_reference(reference=handle, kind="job_research_report")
         == "report-1"
     )
 
@@ -110,7 +109,7 @@ def test_the_catalogue_reaches_the_model_with_a_bounded_label(tmp_path) -> None:
         context=context,
         task=ConversationTaskState(),
         assistant_message="岗位研究已完成。这家公司近年主要投入企业级搜索。\n正文" * 200,
-        assistant_resource_ref=_research_ref("report-1"),
+        assistant_resource_refs=(_research_ref("report-1"),),
     )
     for index in range(2, 7):
         _turn(manager, index=index)
@@ -121,7 +120,7 @@ def test_the_catalogue_reaches_the_model_with_a_bounded_label(tmp_path) -> None:
 
     entry = projected["archived_reports"][0]
     assert entry["kind"] == "job_research_report"
-    assert entry["reference_index"] == 1
+    assert entry["reference"].startswith("report_")
     # A catalogue carried every turn for the life of a conversation cannot grow
     # with the reports it lists.
     assert len(entry["summary"]) <= 220
@@ -129,13 +128,15 @@ def test_the_catalogue_reaches_the_model_with_a_bounded_label(tmp_path) -> None:
     assert "report-1" not in str(projected)
 
 
-def test_numbering_is_continuous_across_the_catalogue_and_the_window(tmp_path) -> None:
-    """The two loops that number references must not drift.
+def test_the_catalogue_and_the_window_name_reports_the_same_way(tmp_path) -> None:
+    """A report keeps its name when it crosses the window boundary.
 
-    ``model_context`` shows an index and ``resolve_reference_index`` resolves it.
-    They are produced by different code walking the same two lists, so an
-    off-by-one hands the model report 3 when it asked for report 2 — silent,
-    and wrong in the worst possible way.
+    Under ordinals this test guarded against two loops drifting, because a
+    report's number depended on where it sat: summarising a turn could renumber
+    everything after it. A derived handle has no such dependence, so what is
+    worth checking now is the property that replaced it — the same report is
+    named the same way whether it reaches the model through the catalogue or
+    through the window, and every name shown resolves to what it was shown for.
     """
     manager, _ = _manager(tmp_path)
     _turn(manager, index=1, ref=_research_ref("old-report"))
@@ -148,7 +149,7 @@ def test_numbering_is_continuous_across_the_catalogue_and_the_window(tmp_path) -
         context=context,
         task=ConversationTaskState(),
         assistant_message="岗位研究已完成。",
-        assistant_resource_ref=_research_ref("new-report"),
+        assistant_resource_refs=(_research_ref("new-report"),),
     )
 
     context = manager.load_for_turn(
@@ -156,24 +157,28 @@ def test_numbering_is_continuous_across_the_catalogue_and_the_window(tmp_path) -
     )
     projected = context.model_context()
     shown = [
-        entry["reference_index"] for entry in projected["archived_reports"]
+        entry["reference"] for entry in projected["archived_reports"]
     ] + [
-        message["resource"]["reference_index"]
+        entry["reference"]
         for message in projected["recent_messages"]
-        if "resource" in message
+        for entry in message.get("resources", ())
     ]
 
-    assert shown == list(range(1, len(context.referenced_resources()) + 1))
     resolved = [
-        context.resolve_reference_index(
-            reference_index=index, kind="job_research_report"
-        )
-        for index in shown
+        context.resolve_reference(reference=handle, kind="job_research_report")
+        for handle in shown
     ]
-    assert resolved == [ref.resource_id for ref in context.referenced_resources()]
-    # Oldest first, so an index does not mean a different report depending on
-    # which side of the window boundary it fell.
+    # One report reached through the catalogue, one through the window, and the
+    # catalogue one is the older — the reading order is kept even though nothing
+    # depends on it any more.
     assert resolved == ["old-report", "new-report"]
+    # The names are the resources', not the positions'. Rebuilding the same
+    # references in a context where they sit somewhere else yields the same
+    # handles.
+    assert shown == [
+        context.reference_handle(reference)
+        for reference in context.referenced_resources()
+    ]
 
 
 def test_pruning_summarised_originals_keeps_the_reports_reachable(tmp_path) -> None:
@@ -227,7 +232,7 @@ def test_the_catalogue_is_bounded_however_many_reports_a_conversation_holds(
     assert len(context.archived_resources) == 12
     # The newest survive a trim: an older report is likelier to have been
     # superseded, and the recent window covers the very newest anyway.
-    assert context.archived_resources[-1].resource_ref.resource_id == "report-19"
+    assert context.archived_resources[-1].resource_refs[0].resource_id == "report-19"
 
 
 def test_the_limit_is_validated_rather_than_silently_clamped(tmp_path) -> None:
@@ -266,3 +271,51 @@ def test_the_reclaim_notice_counts_only_what_a_prune_would_delete(tmp_path) -> N
             user_id="u1", conversation_id="c1", user_message="那份调研呢"
         ).referenced_resources()
     ] == ["report-1"]
+
+
+def test_a_capped_catalogue_says_how_much_it_is_not_showing(tmp_path) -> None:
+    """Twelve entries with nothing else said read as everything there is.
+
+    ``archived_resource_limit`` is 12 and capped at 12, so the thirteenth-oldest
+    report leaves the projection entirely — no handle, no line. The user still
+    asks about it: it was delivered to them and their transcript still shows it.
+
+    Measured behaviour is that the model reaches for the nearest plausible entry
+    when it believes the thing it wants is on screen, so the projection must
+    stop implying that. A count rather than a flag, for the reason that made
+    ``next_action`` prose: "there are more" leaves the model guessing how many,
+    while 12 of 15 says how far short the list falls.
+    """
+    manager, _ = _manager(tmp_path)
+    for number in range(1, 16):
+        _turn(manager, index=number, ref=_research_ref(f"report-{number}"))
+    for number in range(16, 22):
+        _turn(manager, index=number)
+
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="上个月那份调研呢"
+    )
+    projected = context.model_context()
+
+    assert len(projected["archived_reports"]) == 12
+    assert projected["archived_reports_total"] == 15
+    # The three it cannot show are genuinely unreachable, not merely unlisted:
+    # nothing else in the projection names them either.
+    named = {entry["reference"] for entry in projected["archived_reports"]}
+    assert set(context.reference_handles()) >= named
+    assert len(context.reference_handles()) < 15
+
+
+def test_a_complete_catalogue_says_so_by_agreeing_with_itself(tmp_path) -> None:
+    """The signal has to distinguish, or it is noise on every turn."""
+    manager, _ = _manager(tmp_path)
+    for number in range(1, 4):
+        _turn(manager, index=number, ref=_research_ref(f"report-{number}"))
+    for number in range(4, 10):
+        _turn(manager, index=number)
+
+    projected = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    ).model_context()
+
+    assert projected["archived_reports_total"] == len(projected["archived_reports"])

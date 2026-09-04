@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+import hashlib
+import hmac
 from datetime import datetime
 import json
+import re
 from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import Field, model_validator
@@ -358,6 +362,27 @@ class ConversationResourceReference(ContractModel):
     # should say that its draft has since been superseded.
     status_at_delivery: Literal["current", "outdated", "superseded"] | None = None
     anchored_by_other_job: bool | None = None
+    label: str = Field(default="", max_length=80)
+    """What this resource is *about*, for a reader choosing between several.
+
+    The handle answers "how do I ask for it"; this answers "which one is it".
+    Without it a catalogue of twelve research reports projects as twelve
+    interchangeable lines that differ only in an opaque suffix, and a model
+    asked about one of them has nothing to match against — so it either asks
+    which, or picks. MCP's ``ResourceLink`` carries ``title``/``description``
+    beside the URI for exactly this reason; we had implemented the URI half and
+    left the describing half out.
+
+    Filled by whichever capability produced the resource, because only it knows
+    what the thing is: a company and role for research, a version for a resume,
+    a session for a mock interview. Same discipline as ``facts`` and the prose
+    ``next_action`` — declared where the typed object is, not reconstructed from
+    a payload later.
+
+    Empty is allowed and means "not labelled yet", not "no label exists". It is
+    a projection nicety, so a producer that has not been taught to fill it must
+    not break the reference it is attached to.
+    """
 
     @model_validator(mode="after")
     def scope_job_research_render_context(self) -> "ConversationResourceReference":
@@ -379,7 +404,16 @@ class ConversationMessageContext(ContractModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
-    resource_ref: ConversationResourceReference | None = None
+    resource_refs: tuple[ConversationResourceReference, ...] = ()
+    """Every stored report this turn produced, in the order it produced them.
+
+    Plural because a turn is. Four card-backed reads fit inside the read budget,
+    so one turn can end holding two reports; a single field would let the live
+    stream hand the reader two cards while the reloaded transcript shows one,
+    and would leave the earlier report without a handle for the model to read it
+    back with.
+    """
+
 
 
 class CareerMemoryRecord(ContractModel):
@@ -404,6 +438,74 @@ class CareerMemoryContext(ContractModel):
     records: tuple[CareerMemoryRecord, ...] = ()
 
 
+MAX_DECISION_FACTS = 8
+# One sentence, not an essay. Long enough for "别再重试，把失败说清楚，或者问用户
+# 要不要换个做法"; short enough that a capability cannot annex the decision prompt.
+ResourceHandle = Annotated[str, Field(pattern=r"^[a-z]+_[0-9a-f]{6,32}$")]
+"""A handle as the model may write it back: the shape, not the membership.
+
+Whether this particular handle was handed out is settled by
+``resolve_reference``, which looks it up in what the projection actually
+produced. The pattern only refuses text that could never be one.
+"""
+
+_HANDLE_PREFIXES = {
+    "job_research_report": "report",
+    "mock_interview_report": "mock",
+    "interview_preparation": "preparation",
+    "interview_retro_report": "retro",
+    "resume_job_match": "match",
+    "resume_tailoring_draft": "tailoring",
+}
+_HANDLE_SUFFIX_LENGTH = 6
+
+NEXT_ACTION_LIMIT = 200
+# Arguments are model-authored, so unlike a receipt nothing upstream bounds them.
+# Ten observations carrying an unbounded dict would break the character budget
+# this file declares, so an oversized set is dropped rather than truncated: a
+# half-recorded call would read as a call that was made with different arguments,
+# which is worse than a call whose arguments are simply not shown.
+OBSERVATION_ARGUMENTS_LIMIT = 200
+_INTERNAL_ID_VALUE = re.compile(r"\b[0-9a-f]{32}\b")
+
+DecisionFactKey = Annotated[
+    str,
+    Field(pattern=r"^[a-z][a-z0-9_]{0,39}$"),
+]
+DecisionFactValue = (
+    Annotated[bool, Field(strict=True)]
+    | Annotated[int, Field(strict=True, ge=0, le=1_000_000)]
+    | Annotated[str, Field(strict=True, min_length=1, max_length=80)]
+)
+
+
+def validate_decision_facts(
+    facts: Mapping[str, bool | int | str]
+) -> Mapping[str, bool | int | str]:
+    """Bound the shape of capability-declared facts, not their membership.
+
+    Facts are declared by the capability that produced the result, next to the
+    typed objects it already holds — there is no central state table to keep in
+    step with a separate extractor. What stays enforced here is what a central
+    table could never check anyway: that a value is a bounded scalar, that no
+    key or value carries an internal identifier, and that the set stays small
+    enough to be read in a prompt. The declaration itself is the review surface,
+    and `tests/agent/test_decision_facts.py` prints it in one place.
+    """
+    if len(facts) > MAX_DECISION_FACTS:
+        raise ValueError(
+            f"decision facts may not exceed {MAX_DECISION_FACTS} keys"
+        )
+    for key, value in facts.items():
+        if key == "id" or key.endswith("_id"):
+            raise ValueError("decision facts cannot contain internal identifiers")
+        if isinstance(value, str) and _INTERNAL_ID_VALUE.search(value):
+            raise ValueError(
+                f"decision fact {key!r} carries an internal identifier value"
+            )
+    return facts
+
+
 class ToolResult(ContractModel):
     """Complete internal result used by reducers and the delivery layer.
 
@@ -422,9 +524,27 @@ class ToolResult(ContractModel):
         default="completed",
         exclude=True,
     )
-    next_action: str | None = None
+    # Declared by the capability, next to the typed objects it already holds.
+    # Excluded like ``disposition``: it is a decision projection, not part of
+    # the public result payload.
+    facts: dict[DecisionFactKey, DecisionFactValue] = Field(
+        default_factory=dict,
+        max_length=MAX_DECISION_FACTS,
+        exclude=True,
+    )
+    next_action: str | None = Field(default=None, max_length=NEXT_ACTION_LIMIT)
+    """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
     resource_ref: ConversationResourceReference | None = None
+
+    @model_validator(mode="after")
+    def declared_facts_stay_bounded_and_identifier_free(self) -> "ToolResult":
+        validate_decision_facts(self.facts)
+        if is_failed(self.state) and set(self.facts) - {"retryable"}:
+            raise ValueError(
+                "a failed result may only declare retryability to the model"
+            )
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -457,6 +577,17 @@ class ToolResult(ContractModel):
             )
         elif declared is None and isinstance(state, str):
             data["disposition"] = "failed" if is_failed(state) else "completed"
+        # Retryability is a uniform property of failure, not a per-capability
+        # decision value, so it is derived once here rather than declared by the
+        # ten emitters that already put it in their payload. Unknown stays
+        # absent: an empty facts object must not read as "not retryable".
+        if (
+            isinstance(state, str)
+            and is_failed(state)
+            and not data.get("facts")
+            and type((data.get("payload") or {}).get("retryable")) is bool
+        ):
+            data["facts"] = {"retryable": data["payload"]["retryable"]}
         return data
 
 
@@ -465,23 +596,6 @@ class ToolResult(ContractModel):
 ToolObservation = ToolResult
 
 
-DecisionFactKey = Annotated[
-    str,
-    Field(pattern=r"^[a-z][a-z0-9_]{0,39}$"),
-]
-DecisionFactValue = (
-    Annotated[bool, Field(strict=True)]
-    | Annotated[int, Field(strict=True, ge=0, le=1_000_000)]
-    | Annotated[str, Field(strict=True, min_length=1, max_length=80)]
-)
-_DECISION_FACT_KEYS_BY_STATE = {
-    "daily_brief_ready": frozenset({"overdue", "due_today", "waiting"}),
-    "resume_analysis_ready": frozenset(
-        {"record_count", "clarification_count", "has_warnings"}
-    ),
-    "job_research_ready": frozenset({"cached", "finding_count", "status"}),
-}
-
 # Shared window for the contract, runtime, and trajectory evaluator. Ten holds
 # six reads, one write, two projection corrections, and one authorization
 # refusal without forcing unrelated refusal classes to share a counter.
@@ -489,7 +603,14 @@ MAX_DECISION_OBSERVATIONS = 10
 MAX_DECISION_OBSERVATION_BODIES = 1
 DECISION_OBSERVATION_RECEIPT_LIMIT = DELIVERY_SUMMARY_LIMIT
 DECISION_OBSERVATION_BODY_LIMIT = 6_000
-MAX_DECISION_OBSERVATION_CHARS = 16_000
+# Raised from 16_000 when observations began recording their arguments. The
+# increase is exactly that record's worst case (ten observations x a 200-char
+# argument bound), not a number chosen to make a test pass: without arguments,
+# two calls to one capability project identically, so a model that researched
+# job 1 and then job 2 could not tell its own two observations apart. Measured
+# reality is far below either figure — a real turn's whole context was 1_340
+# chars against 11_979 of tool schemas.
+MAX_DECISION_OBSERVATION_CHARS = 18_000
 
 
 class DecisionObservation(ContractModel):
@@ -510,43 +631,66 @@ class DecisionObservation(ContractModel):
         default_factory=dict,
         max_length=8,
     )
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    """The projected arguments this call was made with.
+
+    Without them two calls to one capability are indistinguishable: researching
+    job 1 and then job 2 produced two identical lines, so the model could not
+    tell which observation belonged to which job — it could not read back what
+    it had just done. Anthropic's context editing keeps the ``tool_use`` block,
+    arguments and all, and clears only the result; this field is the same record
+    for the same reason.
+
+    These are the arguments the model wrote, not the projected ones. Projection
+    turns a selector into what the handler needs — live domain objects, and the
+    internal ids the boundary exists to keep away from the model — so projected
+    arguments are neither safe to show nor recognizable to the model as its own
+    call. Showing it back what it wrote is both safe by construction and the
+    only form that answers "which of my two calls was this?".
+    """
+    resource_ref: ConversationResourceReference | None = Field(
+        default=None,
+        exclude=True,
+    )
+    """The stored resource this observation produced, if any.
+
+    Excluded from the wire shape: what the model reads is the *number*, which
+    only ``MainAgentContext`` can assign — it depends on how many resources the
+    conversation already carries. See ``referenced_resources``.
+    """
     next_action: str | None = Field(
         default=None,
-        pattern=r"^[a-z0-9_]+$",
-        max_length=80,
+        max_length=NEXT_ACTION_LIMIT,
     )
+    """One sentence of advice from the capability, or nothing.
+
+    Prose, not an enum. The pattern used to be ``^[a-z0-9_]+$``, which kept the
+    field's shape but threw away the thing that makes it work: a token like
+    ``review_job_research`` is not a tool name and does not say what to do with
+    it, so the model can only guess, while "别再重试，先问用户" is followed
+    directly. The industry pattern this field comes from is a natural-language
+    hint for exactly that reason.
+
+    Only say something ``state`` cannot. A hint that restates its state
+    (``job_search_page_ready`` → ``browse_and_save_job``) is noise in every
+    decision prompt that carries it; thirteen such literals were deleted rather
+    than translated. What survives says something the state does not — most of
+    it about *not* continuing: the call is a repeat, the retries are spent, the
+    budget is gone.
+
+    It is advice, never an instruction. The decision prompt says so, because
+    today these strings are our own literals but the same field would carry an
+    external MCP tool's words unchanged, and a tool must not be able to steer
+    the agent. See ``docs/iteration`` for the tool-to-tool boundary note.
+    """
 
     @model_validator(mode="after")
-    def facts_cannot_name_internal_identifiers(self) -> "DecisionObservation":
-        if any(key == "id" or key.endswith("_id") for key in self.facts):
-            raise ValueError("decision facts cannot contain internal identifiers")
-        if self.facts:
-            expected = (
-                frozenset({"retryable"})
-                if is_failed(self.state)
-                else _DECISION_FACT_KEYS_BY_STATE.get(self.state)
-            )
-            if expected is None or frozenset(self.facts) != expected:
-                raise ValueError("decision facts must match the declared state schema")
-            if self.state == "daily_brief_ready" and not all(
-                type(self.facts[key]) is int
-                for key in ("overdue", "due_today", "waiting")
-            ):
-                raise ValueError("daily brief decision facts must be integer counts")
-            if self.state == "resume_analysis_ready" and not (
-                type(self.facts["record_count"]) is int
-                and type(self.facts["clarification_count"]) is int
-                and type(self.facts["has_warnings"]) is bool
-            ):
-                raise ValueError("resume analysis decision facts have invalid types")
-            if self.state == "job_research_ready" and not (
-                type(self.facts["cached"]) is bool
-                and type(self.facts["finding_count"]) is int
-                and self.facts["status"] in {"current", "outdated", "superseded"}
-            ):
-                raise ValueError("job research decision facts have invalid values")
-            if is_failed(self.state) and type(self.facts["retryable"]) is not bool:
-                raise ValueError("failure retryability fact must be boolean")
+    def facts_stay_bounded_and_identifier_free(self) -> "DecisionObservation":
+        validate_decision_facts(self.facts)
+        if self.arguments:
+            serialized = json.dumps(self.arguments, ensure_ascii=False, sort_keys=True)
+            if len(serialized) > OBSERVATION_ARGUMENTS_LIMIT:
+                object.__setattr__(self, "arguments", {})
         return self
 
 
@@ -573,13 +717,41 @@ def append_decision_observation(
 
 def decision_observation_projection(
     observations: tuple[DecisionObservation, ...],
+    reference_handles: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], ...]:
-    """The exact observation shape serialized into the decision prompt."""
+    """The exact observation shape serialized into the decision prompt.
 
-    return tuple(
-        observation.model_dump(mode="json", exclude_none=True)
-        for observation in observations
-    )
+    ``reference_handles`` maps a resource id to the name the model may pass back.
+    Without it an observation that stored a report says only that a report
+    exists: the line that carries its name is written when the turn commits,
+    which has not happened yet. With ``MAX_DECISION_OBSERVATION_BODIES = 1`` a
+    second call clears the first observation's body, so a model that wanted to
+    re-read the report had nothing to select it with and could only call the
+    read tool bare and hope the active resource was still the one it meant.
+
+    This is the same handle discipline the clearing itself follows — drop the
+    contents, keep the reference — and the same principle behind removing
+    ``REROUTE_FIELDS`` and the ``next_action`` enums: give the model something
+    explicit instead of something to infer.
+    """
+
+    projected = []
+    for observation in observations:
+        line = observation.model_dump(mode="json", exclude_none=True)
+        reference = observation.resource_ref
+        if reference is not None and reference_handles is not None:
+            handle = reference_handles.get(reference.resource_id)
+            if handle is not None:
+                line["reference"] = handle
+                # Same field the catalogue and the window carry. Leaving it out
+                # here would fail the case the handle was added for: two reports
+                # produced in one turn project as two observations that differ
+                # only in an opaque suffix, so a model asked about the first has
+                # nothing to match on.
+                if reference.label:
+                    line["label"] = reference.label
+        projected.append(line)
+    return tuple(projected)
 
 
 def decision_observation_chars(
@@ -603,13 +775,31 @@ class MainAgentContext(ContractModel):
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
+    archived_resource_total: int = Field(default=0, ge=0)
+    """How many resources the catalogue would list uncapped.
+
+    Zero when there is no catalogue. Sent because a capped list cannot say it
+    was capped: twelve entries and nothing else read as the complete set, and a
+    report that scrolled past the cap then looks like it must be one of the
+    twelve. Measured behaviour is that the model reaches for the nearest
+    plausible entry when it believes the thing it wants is on screen, so the
+    fix is to stop the projection from implying that.
+
+    A count rather than a flag, on the same reasoning that made ``next_action``
+    prose: "there are more" leaves the model to guess how many it cannot see,
+    while 12 of 27 says how far short the list falls.
+    """
+
     archived_resources: tuple[ConversationMessageContext, ...] = Field(
         default=(), max_length=12
     )
-    """Reports delivered before the recent window, as a reachable catalogue.
+    """Messages delivered before the recent window, as a reachable catalogue.
+
+    Bounded by messages rather than references: one message can carry several,
+    because one turn can store several reports.
 
     Without these a report becomes unreachable to the agent the moment its
-    turn is summarised away: ``resource_ref`` lives only on the original
+    turn is summarised away: ``resource_refs`` live only on the original
     message, and the summary carries none. The UI kept working — it reads
     the whole transcript — so the failure was asymmetric and silent, with
     the user looking at a card the model could no longer open.
@@ -639,75 +829,169 @@ class MainAgentContext(ContractModel):
         return self
 
     def referenced_resources(self) -> tuple[ConversationResourceReference, ...]:
-        """Every resource the model can name this turn, in projection order.
+        """Every resource the model can name this turn.
 
-        Archived catalogue first, then the recent window, so an older report
-        keeps a lower index than a newer one and the ordering reads the way the
-        conversation happened.
+        Archived catalogue, then the recent window, then what this turn produced
+        and no stored line names yet. The order is no longer load-bearing — a
+        handle is derived from the resource, not from where it sits — but it is
+        kept because it reads the way the conversation happened.
 
-        One place produces the numbering that ``model_context`` shows and that
-        argument projection resolves. Numbering them twice would let the model
-        pick index 2 and be handed index 3's report the moment the two loops
-        drifted, which is silent and unrecoverable rather than an error.
+        A resource already named is skipped rather than listed twice: reading an
+        old report back produces a reference to something the catalogue already
+        holds, and its handle would be identical anyway.
         """
-        return tuple(
-            message.resource_ref
-            for message in (*self.archived_resources, *self.recent_messages)
-            if message.resource_ref is not None
-        )
+        references: list[ConversationResourceReference] = []
+        seen: set[str] = set()
+        for reference in (
+            *(
+                reference
+                for message in (*self.archived_resources, *self.recent_messages)
+                for reference in message.resource_refs
+            ),
+            *(
+                observation.resource_ref
+                for observation in self.tool_observations
+                if observation.resource_ref is not None
+            ),
+        ):
+            if reference.resource_id in seen:
+                continue
+            seen.add(reference.resource_id)
+            references.append(reference)
+        return tuple(references)
 
-    def resolve_reference_index(
-        self, *, reference_index: int, kind: str
+    def reference_handle(self, reference: ConversationResourceReference) -> str:
+        """The name the model may pass back for one resource.
+
+        ``<kind prefix>_<derived suffix>``, following the shape every published
+        tool API uses for the same job — ``file_abc123``, ``toolu_01A...``, an
+        MCP URI. Two of that shape's three properties are adopted and one is
+        not:
+
+        * **Unguessable.** The whole reason for the migration. An ordinal is
+          guessable by construction, and a model that has never been given one
+          will still write ``1``: recorded behaviour, not a worry. It then
+          resolves — to whatever sits first — because the number is real and its
+          kind matches. Nothing in a positional scheme can tell "the number I
+          was given" from "the number I counted to".
+        * **Prefixed by kind.** So a mistake reads as "that is a report handle
+          and you used it where a preparation was wanted" instead of "not
+          found", and so the model need not pair a handle with a separate
+          ``kind`` field to know what it holds.
+        * **Not the primary key.** Published APIs expose the id itself; we do
+          not, because internal identifiers stay out of the projection. The
+          handle is derived one-way from the resource id instead, which also
+          means no stored row changes and nothing has to be migrated.
+
+        Derived rather than random so the same report keeps the same handle
+        across turns and restarts, with no new column to store it in. The
+        conversation id is the salt, which makes handles differ between
+        conversations; that is scope hygiene, not a security boundary — the
+        property being bought is that a handle cannot be reached by counting,
+        not that an adversary holding the transcript could not recompute one.
+        """
+        digest = hmac.new(
+            self.conversation_id.encode("utf-8"),
+            reference.resource_id.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{_HANDLE_PREFIXES[reference.kind]}_{digest[:_HANDLE_SUFFIX_LENGTH]}"
+
+    def reference_handles(self) -> dict[str, str]:
+        """Handle → resource id, for everything nameable this turn.
+
+        Built once and read by both the projection and the resolver, so what the
+        model is shown and what comes back cannot be two different derivations.
+
+        A collision is resolved by lengthening, not by falling back to order:
+        the point of the scheme is that a handle carries no positional meaning.
+        Two six-hex-digit suffixes colliding inside one conversation's handful
+        of resources is remote, but it would silently hand back the wrong report
+        — the exact failure being migrated away from — so it is detected here
+        rather than assumed away.
+        """
+        handles: dict[str, str] = {}
+        for reference in self.referenced_resources():
+            handle = self.reference_handle(reference)
+            length = _HANDLE_SUFFIX_LENGTH
+            while handle in handles and handles[handle] != reference.resource_id:
+                length += 2
+                handle = self._lengthened_handle(reference, length)
+            handles[handle] = reference.resource_id
+        return handles
+
+    def _lengthened_handle(
+        self, reference: ConversationResourceReference, length: int
     ) -> str:
-        """Turn a turn-local index back into the internal resource id.
+        digest = hmac.new(
+            self.conversation_id.encode("utf-8"),
+            reference.resource_id.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{_HANDLE_PREFIXES[reference.kind]}_{digest[:length]}"
 
-        The kind is checked rather than trusted: the model picks an index out of
-        a mixed list, so an off-by-one would otherwise pass a preparation id to
-        a report lookup and read as "not found" instead of as a bad selector.
+    def resolve_reference(self, *, reference: str, kind: str) -> str:
+        """Turn a handle the model wrote back into the internal resource id.
+
+        The kind is still checked rather than trusted. The prefix tells the model
+        what it is holding, but it is a hint in text the model itself produced;
+        the server has to verify against what it actually handed out.
         """
-        references = self.referenced_resources()
-        if not 1 <= reference_index <= len(references):
-            raise ValueError("resource reference index is out of range")
-        reference = references[reference_index - 1]
-        if reference.kind != kind:
+        resource_id = self.reference_handles().get(reference)
+        if resource_id is None:
+            raise ValueError(f"unknown resource reference '{reference}'")
+        held = next(
+            item
+            for item in self.referenced_resources()
+            if item.resource_id == resource_id
+        )
+        if held.kind != kind:
             raise ValueError(
-                f"resource reference {reference_index} is a {reference.kind}, "
-                f"not a {kind}"
+                f"resource reference '{reference}' is a {held.kind}, not a {kind}"
             )
-        return reference.resource_id
+        return resource_id
 
     def model_context(self) -> dict[str, Any]:
         model_messages = []
-        # Numbered by walking the window in the same order and skipping the same
-        # messages as ``referenced_resources``, so the index the model reads here
-        # is the one it can pass back.
+        # One derivation, read here and by the resolver. Nothing depends on the
+        # order of this walk any more: a handle names its resource, so the
+        # catalogue and the window cannot disagree about what a name means.
+        handles = {
+            resource_id: handle
+            for handle, resource_id in self.reference_handles().items()
+        }
         archived = [
             {
-                "kind": message.resource_ref.kind,
-                "reference_index": index,
+                "kind": reference.kind,
+                "reference": handles[reference.resource_id],
                 "delivered_at": message.created_at.isoformat(),
                 "summary": condense(message.content),
+                **({"label": reference.label} if reference.label else {}),
             }
-            for index, message in enumerate(self.archived_resources, start=1)
-            if message.resource_ref is not None
+            for message in self.archived_resources
+            for reference in message.resource_refs
         ]
-        # Continues the catalogue's numbering rather than restarting, because
-        # ``referenced_resources`` concatenates the two in this same order.
-        reference_index = len(archived)
         for message in self.recent_messages:
             projected = {
                 "role": message.role,
                 "content": message.content,
                 "created_at": message.created_at.isoformat(),
             }
-            if message.resource_ref is not None:
-                reference_index += 1
-                projected["resource"] = {
-                    "kind": message.resource_ref.kind,
-                    "reference_index": reference_index,
-                }
+            if message.resource_refs:
+                resources = [
+                    {
+                        "kind": reference.kind,
+                        "reference": handles[reference.resource_id],
+                        **({"label": reference.label} if reference.label else {}),
+                    }
+                    for reference in message.resource_refs
+                ]
+                # Plural because one turn can store two reports. The key stays
+                # ``resources`` in both cases so the model reads one shape.
+                projected["resources"] = resources
             model_messages.append(projected)
         return {
+            "archived_reports_total": self.archived_resource_total,
             "career_profile": {
                 "default_city": self.profile.default_city,
                 # Role-scoped intent reaches the model through
@@ -867,7 +1151,11 @@ class MainAgentContext(ContractModel):
             "archived_reports": tuple(archived),
             "recent_messages": tuple(model_messages),
             "tool_observations": decision_observation_projection(
-                self.tool_observations
+                self.tool_observations,
+                {
+                    resource_id: handle
+                    for handle, resource_id in self.reference_handles().items()
+                }
             ),
             "conversation_summary": (
                 self.conversation_summary.model_dump(mode="json")
@@ -918,21 +1206,21 @@ class RetryJobResearchToolArguments(ContractModel):
 class GetJobResearchToolArguments(ContractModel):
     """Selectors for reading back one job-research report.
 
-    ``reference_index`` points at a report a past turn in the recent window
-    produced, which is the only way to read back a report that is no longer the
-    active one. The internal ids stay declared because handlers receive them
-    after projection; the model-facing schema has them stripped.
+    ``reference`` is the handle a projection line carries, which is the only way
+    to read back a report that is no longer the active one. The internal ids stay
+    declared because handlers receive them after projection; the model-facing
+    schema has them stripped.
     """
 
     report_id: str | None = Field(default=None, min_length=1)
     job_posting_id: str | None = Field(default=None, min_length=1)
     selection_index: SelectionIndex | None = None
-    reference_index: SelectionIndex | None = None
+    reference: ResourceHandle | None = None
 
     @model_validator(mode="after")
     def validate_selector(self) -> "GetJobResearchToolArguments":
-        if self.reference_index is not None and self.selection_index is not None:
-            raise ValueError("use either reference_index or selection_index")
+        if self.reference is not None and self.selection_index is not None:
+            raise ValueError("use either reference or selection_index")
         return self
 
 
@@ -1180,13 +1468,13 @@ class PrepareInterviewToolArguments(ContractModel):
 class GetInterviewPreparationToolArguments(ContractModel):
     """Selectors for reading back one interview preparation.
 
-    Defaults to the active preparation. ``reference_index`` reaches one an
-    earlier turn in the window produced, which the active pointer no longer
-    names once the focus has moved on.
+    Defaults to the active preparation. ``reference`` reaches one an earlier
+    turn in the window produced, which the active pointer no longer names once
+    the focus has moved on.
     """
 
     preparation_id: str | None = Field(default=None, min_length=1)
-    reference_index: SelectionIndex | None = None
+    reference: ResourceHandle | None = None
     interview_selection_index: SelectionIndex | None = None
     """The interview whose preparation to read, from ``list_interviews``.
 
@@ -1228,7 +1516,7 @@ class GetMockInterviewResultToolArguments(ContractModel):
     """Selectors for reading back one finished mock interview.
 
     Defaults to the latest finished run for the active application, which is
-    what "how did I do" means in practice. ``reference_index`` instead names the
+    what "how did I do" means in practice. ``reference`` instead names the
     exact run an earlier turn reported, which matters here more than elsewhere:
     one application can be practised against repeatedly, so "the latest" and
     "the one you just told me about" stop agreeing after a second run. A
@@ -1237,17 +1525,17 @@ class GetMockInterviewResultToolArguments(ContractModel):
     """
 
     application_selection_index: SelectionIndex | None = None
-    reference_index: SelectionIndex | None = None
+    reference: ResourceHandle | None = None
     question_number: int | None = Field(default=None, ge=1, le=20)
 
     @model_validator(mode="after")
     def validate_selector(self) -> "GetMockInterviewResultToolArguments":
         if (
-            self.reference_index is not None
+            self.reference is not None
             and self.application_selection_index is not None
         ):
             raise ValueError(
-                "use either reference_index or application_selection_index"
+                "use either reference or application_selection_index"
             )
         return self
 
@@ -1469,10 +1757,10 @@ def project_job_research_arguments(
     elif name == "get_job_research":
         model_arguments = GetJobResearchToolArguments.model_validate(arguments)
         selection_index = model_arguments.selection_index
-        if model_arguments.reference_index is not None:
+        if model_arguments.reference is not None:
             payload = {
-                "report_id": context.resolve_reference_index(
-                    reference_index=model_arguments.reference_index,
+                "report_id": context.resolve_reference(
+                    reference=model_arguments.reference,
                     kind="job_research_report",
                 )
             }
@@ -1778,12 +2066,12 @@ def project_interview_preparation_arguments(
     elif name == "get_interview_preparation":
         model_arguments = GetInterviewPreparationToolArguments.model_validate(arguments)
         payload = model_arguments.model_dump()
-        reference_index = payload.pop("reference_index", None)
+        reference = payload.pop("reference", None)
         interview_index = payload.pop("interview_selection_index", None)
         preparation_id = None
-        if reference_index is not None:
-            preparation_id = context.resolve_reference_index(
-                reference_index=reference_index,
+        if reference is not None:
+            preparation_id = context.resolve_reference(
+                reference=reference,
                 kind="interview_preparation",
             )
         elif interview_index is not None:
@@ -1870,15 +2158,15 @@ def project_mock_interview_result_arguments(
 ) -> dict[str, Any]:
     _reject_internal_identifiers("get_mock_interview_result", arguments)
     model_arguments = GetMockInterviewResultToolArguments.model_validate(arguments)
-    if model_arguments.reference_index is not None:
+    if model_arguments.reference is not None:
         # A report id names one exact run, so the application is not needed and
         # must not be sent: passing both would let the handler fall back to the
         # newest run for that application and quietly answer about a different
         # interview than the turn the user pointed at.
         return {
             "user_id": context.profile.user_id,
-            "report_id": context.resolve_reference_index(
-                reference_index=model_arguments.reference_index,
+            "report_id": context.resolve_reference(
+                reference=model_arguments.reference,
                 kind="mock_interview_report",
             ),
             "question_number": model_arguments.question_number,

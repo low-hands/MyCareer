@@ -51,32 +51,13 @@ class DeliveryPolicy:
     delivery, which is only contradictory if the two are one flag.
     """
 
-    response_type: str | None = None
-    """The answer writer's response type, or ``None`` to skip the writer.
-
-    Implies ``durable_message == "summary"``: the writer shares a model and a
-    key with ``decide``, so it does fail, and the durable row then falls back to
-    ``message``. If that were the full body, the fallback would put a
-    multi-thousand character blob into every later turn's recent window.
-    """
-
     def __post_init__(self) -> None:
-        if self.response_type is not None and self.durable_message != "summary":
-            raise ValueError(
-                "a writer-eligible state must condense its durable message"
-            )
         if self.body_delivery == "resource_card" and self.durable_message != "summary":
             raise ValueError(
                 "a card-delivered body must not also be kept in the row"
             )
-        if self.waiting and self.response_type is not None:
-            raise ValueError("a waiting state has no report for the writer")
         if self.waiting and self.outcome == "failed":
             raise ValueError("a failed result must return to orchestration, not wait")
-
-    @property
-    def uses_answer_writer(self) -> bool:
-        return self.response_type is not None
 
     @property
     def condensed_message(self) -> bool:
@@ -92,23 +73,22 @@ _FAILED = DeliveryPolicy(outcome="failed")
 _PLAIN = DeliveryPolicy()
 
 
-def _card(response_type: str) -> DeliveryPolicy:
+def _card() -> DeliveryPolicy:
     """A report the UI renders from its entity; the message is prose about it."""
     return DeliveryPolicy(
         durable_message="summary",
         body_delivery="resource_card",
-        response_type=response_type,
     )
 
 
-def _summarised(response_type: str | None = None) -> DeliveryPolicy:
+def _summarised() -> DeliveryPolicy:
     """The body is the message, but the row keeps a bounded line instead.
 
     For results with no card behind them: whatever is displayed is the only
     delivery there will be, so it is streamed in full, while the row records
     the outcome rather than carrying the body into every later turn.
     """
-    return DeliveryPolicy(durable_message="summary", response_type=response_type)
+    return DeliveryPolicy(durable_message="summary")
 
 
 _POLICIES: dict[str, DeliveryPolicy] = {
@@ -131,18 +111,22 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "mock_interview_restart_failed": _FAILED,
     "resume_tailoring_not_ready": _FAILED,
     # Report-shaped. Presenter renders the screen, ``message`` is the row.
-    "daily_brief_ready": _summarised("daily_brief"),
-    "interview_preparation_ready": _card("interview_preparation"),
-    "interview_retro_recorded": _card("interview_report"),
-    "job_research_ready": _card("job_research"),
-    "mock_interview_completed": _card("interview_report"),
-    "mock_interview_result_found": _card("interview_report"),
-    "resume_analysis_ready": _summarised("resume_analysis"),
-    "resume_job_match_ready": _card("resume_match"),
-    "resume_tailoring_draft_ready": _card("resume_tailoring"),
+    "daily_brief_ready": _summarised(),
+    "interview_preparation_ready": _card(),
+    "interview_retro_recorded": _card(),
+    "job_research_ready": _card(),
+    "mock_interview_completed": _card(),
+    "mock_interview_result_found": _card(),
+    "resume_analysis_ready": _summarised(),
+    "resume_job_match_ready": _card(),
+    "resume_tailoring_draft_ready": _card(),
     # Reading a saved job asks for its immutable JD body. The raw JD text is
     # delivered live, while the transcript keeps the bounded receipt.
     "saved_job_ready": _summarised(),
+    # The comparison table is rendered prose, far richer than its receipt.
+    # Registered plain, the model could not see it and the reader would lose
+    # it once the model — not the presenter — writes the message.
+    "saved_jobs_compared": _summarised(),
     # Split screen and row without the writer: one mock interview exchange is
     # read back verbatim, so restating it would only cost fidelity, but the
     # answer it quotes is up to 20k characters and cannot enter the row.
@@ -216,7 +200,6 @@ _POLICIES.update(
             "resume_version_not_found",
             "resumes_found",
             "saved_job_not_found",
-            "saved_jobs_compared",
             "saved_jobs_found",
             "target_role_not_found",
             "target_roles_found",
@@ -249,14 +232,6 @@ def is_failed(state: str) -> bool:
 
 def condenses_message(state: str) -> bool:
     return policy_for(state).condensed_message
-
-
-def uses_answer_writer(state: str) -> bool:
-    return policy_for(state).uses_answer_writer
-
-
-def response_type_for(state: str) -> str:
-    return policy_for(state).response_type or "general"
 
 
 def delivers_body_elsewhere(state: str) -> bool:

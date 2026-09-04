@@ -18,6 +18,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,
+    DecisionObservation,
     GetInterviewPreparationToolArguments,
     GetJobResearchToolArguments,
     GetMockInterviewResultToolArguments,
@@ -37,22 +38,49 @@ def _message(content: str, *, kind: str | None = None, resource_id: str = "") ->
         role="assistant",
         content=content,
         created_at=NOW,
-        resource_ref=(
-            ConversationResourceReference(
-                kind=kind,
-                resource_id=resource_id,
-                status_at_delivery=("current" if kind == "job_research_report" else None),
-                anchored_by_other_job=(False if kind == "job_research_report" else None),
+        resource_refs=(
+            (
+                ConversationResourceReference(
+                    kind=kind,
+                    resource_id=resource_id,
+                    status_at_delivery=(
+                        "current" if kind == "job_research_report" else None
+                    ),
+                    anchored_by_other_job=(
+                        False if kind == "job_research_report" else None
+                    ),
+                ),
             )
             if kind is not None
-            else None
+            else ()
         ),
     )
 
 
-def _context(*messages: ConversationMessageContext, task: ConversationTaskState | None = None) -> MainAgentContext:
+def _handle(reference: ConversationResourceReference, *, conversation_id: str) -> str:
+    """The handle the projection derives, derived the same way the code does.
+
+    Asserted as a derivation rather than as a pasted literal: what these tests
+    mean is "the name for this resource", and a literal would keep passing while
+    silently meaning something else.
+    """
     return MainAgentContext(
-        conversation_id="c1",
+        conversation_id=conversation_id,
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="x",
+    ).reference_handle(reference)
+
+
+def _only_handle(context: MainAgentContext) -> str:
+    """The one handle a single-resource context hands out."""
+    handles = tuple(context.reference_handles())
+    assert len(handles) == 1
+    return handles[0]
+
+
+def _context(*messages: ConversationMessageContext, task: ConversationTaskState | None = None, conversation_id: str = "c1") -> MainAgentContext:
+    return MainAgentContext(
+        conversation_id=conversation_id,
         profile=CareerProfileContext(user_id="u1"),
         task=task or ConversationTaskState(),
         recent_messages=messages,
@@ -74,21 +102,43 @@ def _mixed_context() -> MainAgentContext:
     )
 
 
-def test_the_index_the_model_reads_is_the_index_it_can_pass_back() -> None:
-    """Projection and resolution number the same list the same way.
+def test_the_handle_the_model_reads_is_the_handle_it_can_pass_back() -> None:
+    """Projection and resolution derive the same name for the same resource.
 
-    Numbering them in two independent loops would be a silent defect rather than
-    an error: the model would ask for index 2 and be handed index 3's report.
+    Deriving them separately would be a silent defect rather than an error: the
+    model would send back a name the resolver does not know, or worse, one it
+    knows as a different resource.
     """
     context = _mixed_context()
 
     projected = context.model_context()["recent_messages"]
-    assert [item.get("resource") for item in projected] == [
-        {"kind": "job_research_report", "reference_index": 1},
+    shown = [item.get("resources") for item in projected]
+    assert [
+        None if group is None else [item["kind"] for item in group]
+        for group in shown
+    ] == [
+        ["job_research_report"],
         None,
-        {"kind": "interview_preparation", "reference_index": 2},
-        {"kind": "mock_interview_report", "reference_index": 3},
+        ["interview_preparation"],
+        ["mock_interview_report"],
     ]
+    # Every name shown resolves, as its own kind, to the resource it was shown
+    # for — the property, rather than the strings the derivation happens to make.
+    for group, resource_id in zip(
+        (shown[0], shown[2], shown[3]), ("report-1", "prep-1", "rep-1")
+    ):
+        item = group[0]
+        assert (
+            context.resolve_reference(
+                reference=item["reference"], kind=item["kind"]
+            )
+            == resource_id
+        )
+    # A handle carries its kind in the prefix, so a mistake reads as a mismatch
+    # rather than as "not found".
+    assert shown[0][0]["reference"].startswith("report_")
+    assert shown[2][0]["reference"].startswith("preparation_")
+    assert shown[3][0]["reference"].startswith("mock_")
     # Plain turns are skipped in the numbering, not counted and hidden.
     assert [reference.resource_id for reference in context.referenced_resources()] == [
         "report-1",
@@ -118,6 +168,11 @@ def test_job_research_reference_keeps_delivery_time_render_context() -> None:
         "resource_id": "report-1",
         "status_at_delivery": "outdated",
         "anchored_by_other_job": True,
+        # Unlabelled here on purpose: the stored shape carries the field even
+        # when the producer has nothing to put in it, and rows written before
+        # labels existed read back the same way. The projection omits an empty
+        # one rather than showing a blank line to the model.
+        "label": "",
     }
     # The model learns only that a selectable report exists; presentation
     # metadata and the internal id remain outside its prompt.
@@ -126,58 +181,88 @@ def test_job_research_reference_keeps_delivery_time_render_context() -> None:
             role="assistant",
             content="岗位研究已完成。",
             created_at=NOW,
-            resource_ref=reference,
+            resource_refs=(reference,),
         )
     ).model_context()["recent_messages"][0]
-    assert projected["resource"] == {
-        "kind": "job_research_report",
-        "reference_index": 1,
-    }
+    assert projected["resources"] == [
+        {
+            "kind": "job_research_report",
+            "reference": _handle(reference, conversation_id="c1"),
+        }
+    ]
 
 
-def test_resolution_checks_the_kind_rather_than_trusting_the_index() -> None:
-    """A mistyped index is an error, not a lookup for the wrong entity.
+def test_resolution_checks_the_kind_rather_than_trusting_the_prefix() -> None:
+    """The prefix is a hint to the model; the server verifies against its own map.
 
-    The model picks out of one mixed list, so without this an off-by-one hands a
-    preparation id to a report lookup, which reads back as "not found" and
-    invites a retry that cannot succeed.
+    ``preparation_...`` tells the model what it is holding without pairing the
+    handle with a separate field. But it is text the model produced, so a handle
+    used against the wrong reader has to be refused by what was actually handed
+    out, not by reading the string.
     """
     context = _mixed_context()
+    handles = context.reference_handles()
+    report = next(h for h, rid in handles.items() if rid == "report-1")
+    preparation = next(h for h, rid in handles.items() if rid == "prep-1")
 
     assert (
-        context.resolve_reference_index(
-            reference_index=1, kind="job_research_report"
-        )
+        context.resolve_reference(reference=report, kind="job_research_report")
         == "report-1"
     )
     with pytest.raises(ValueError, match="is a interview_preparation, not a"):
-        context.resolve_reference_index(
-            reference_index=2, kind="job_research_report"
+        context.resolve_reference(
+            reference=preparation, kind="job_research_report"
         )
 
 
-@pytest.mark.parametrize("reference_index", [0, 4])
-def test_an_index_outside_the_window_is_rejected(reference_index) -> None:
-    """Out of range rather than clamped: the window slides as turns age out.
+@pytest.mark.parametrize(
+    "fabricated", ["report_1", "report_000000", "report_deadbeef", "1"]
+)
+def test_a_handle_that_was_never_handed_out_is_rejected(fabricated) -> None:
+    """The reason for the whole scheme, stated as a test.
 
-    A report the recent window no longer covers is genuinely unreachable this
-    way, and silently resolving to the nearest reference would answer about a
-    different report than the user asked about.
+    Under ordinals the model wrote ``reference_index=1`` on a turn where no
+    index had been offered — recorded behaviour, not a worry — and it resolved,
+    because 1 was a real number of a real report of the right kind. Nothing
+    could tell "the number I was given" from "the number I counted to".
+
+    A derived handle has no counting order to land on. Every plausible guess
+    here — a small integer, a zeroed suffix, a well-formed hex string — is
+    simply not in the map.
     """
-    with pytest.raises(ValueError, match="out of range"):
-        _mixed_context().resolve_reference_index(
-            reference_index=reference_index, kind="job_research_report"
+    with pytest.raises(ValueError, match="unknown resource reference"):
+        _mixed_context().resolve_reference(
+            reference=fabricated, kind="job_research_report"
         )
 
 
-def test_no_references_leaves_every_index_out_of_range() -> None:
+def test_a_handle_from_another_conversation_does_not_resolve() -> None:
+    """The salt is the conversation, so names do not travel between them.
+
+    Scope hygiene rather than a security boundary: it keeps a handle quoted from
+    elsewhere from silently naming some local resource.
+    """
+    message = _message(
+        "岗位研究已完成。", kind="job_research_report", resource_id="report-1"
+    )
+    here = _context(message, conversation_id="c1")
+    elsewhere = _context(message, conversation_id="c2")
+    foreign = next(iter(elsewhere.reference_handles()))
+
+    assert foreign not in here.reference_handles()
+    with pytest.raises(ValueError, match="unknown resource reference"):
+        here.resolve_reference(reference=foreign, kind="job_research_report")
+
+
+def test_no_references_leaves_every_handle_unknown() -> None:
     context = _context(_message("你好。"))
 
     assert context.referenced_resources() == ()
-    assert context.model_context()["recent_messages"][0].get("resource") is None
-    with pytest.raises(ValueError, match="out of range"):
-        context.resolve_reference_index(
-            reference_index=1, kind="job_research_report"
+    assert context.reference_handles() == {}
+    assert not context.model_context()["recent_messages"][0].get("resources")
+    with pytest.raises(ValueError, match="unknown resource reference"):
+        context.resolve_reference(
+            reference="report_abc123", kind="job_research_report"
         )
 
 
@@ -197,7 +282,7 @@ def test_job_research_reads_back_the_referenced_report_not_the_active_one() -> N
     )
 
     projected = project_job_research_arguments(
-        context, "get_job_research", {"reference_index": 1}
+        context, "get_job_research", {"reference": _only_handle(context)}
     )
     assert projected == {"user_id": "u1", "report_id": "report-1"}
     # With no reference the active pointer still applies.
@@ -220,11 +305,11 @@ def test_job_research_rejects_two_selectors_at_once() -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="either reference_index or selection_index"):
+    with pytest.raises(ValueError, match="either reference or selection_index"):
         project_job_research_arguments(
             context,
             "get_job_research",
-            {"reference_index": 1, "selection_index": 1},
+            {"reference": _only_handle(context), "selection_index": 1},
         )
 
 
@@ -239,7 +324,7 @@ def test_interview_preparation_reads_back_an_earlier_result() -> None:
     )
 
     projected = project_interview_preparation_arguments(
-        context, "get_interview_preparation", {"reference_index": 1}
+        context, "get_interview_preparation", {"reference": _only_handle(context)}
     )
     assert projected == {"user_id": "u1", "preparation_id": "prep-1"}
     assert project_interview_preparation_arguments(
@@ -270,7 +355,7 @@ def test_a_referenced_mock_interview_is_read_by_report_not_by_application() -> N
     )
 
     projected = project_mock_interview_result_arguments(
-        context, {"reference_index": 1, "question_number": 2}
+        context, {"reference": _only_handle(context), "question_number": 2}
     )
     assert projected == {
         "user_id": "u1",
@@ -280,10 +365,10 @@ def test_a_referenced_mock_interview_is_read_by_report_not_by_application() -> N
     assert "application_id" not in projected
 
     with pytest.raises(
-        ValueError, match="either reference_index or application_selection_index"
+        ValueError, match="either reference or application_selection_index"
     ):
         project_mock_interview_result_arguments(
-            context, {"reference_index": 1, "application_selection_index": 1}
+            context, {"reference": _only_handle(context), "application_selection_index": 1}
         )
 
 
@@ -310,7 +395,100 @@ def test_every_read_back_contract_offers_the_reference_selector(
     )
     properties = schema["function"]["parameters"]["properties"]
 
-    assert "reference_index" in properties
+    assert "reference" in properties
     for internal_id in internal_ids:
         assert internal_id in contract.model_json_schema()["properties"]
         assert internal_id not in properties
+
+
+def test_every_projection_path_carries_the_label_beside_the_handle() -> None:
+    """The catalogue, the window and this turn's observations, or none of them.
+
+    Two reports produced in one turn is the case the handle was added for, and
+    it reaches the model through ``tool_observations`` — the one path that was
+    left unlabelled when labels were added to the other two. Without it the two
+    observations differ only in an opaque suffix, so a model asked about the
+    first has nothing to match on, which is the failure labels exist to remove.
+    """
+    first = ConversationResourceReference(
+        kind="job_research_report",
+        resource_id="report-a",
+        label="示例科技",
+        status_at_delivery="current",
+        anchored_by_other_job=False,
+    )
+    second = ConversationResourceReference(
+        kind="job_research_report",
+        resource_id="report-b",
+        label="另一家科技",
+        status_at_delivery="current",
+        anchored_by_other_job=False,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="示例科技那份怎么说",
+        archived_resources=(
+            ConversationMessageContext(
+                role="assistant",
+                content="更早的一份。",
+                created_at=NOW,
+                resource_refs=(first,),
+            ),
+        ),
+        recent_messages=(
+            ConversationMessageContext(
+                role="assistant",
+                content="上一轮的一份。",
+                created_at=NOW,
+                resource_refs=(second,),
+            ),
+        ),
+        tool_observations=(
+            DecisionObservation(
+                tool_name="research_job",
+                state="job_research_ready",
+                message="已完成示例科技的岗位研究。",
+                resource_ref=first,
+            ),
+        ),
+    )
+
+    projected = context.model_context()
+
+    assert projected["archived_reports"][0]["label"] == "示例科技"
+    assert projected["recent_messages"][0]["resources"][0]["label"] == "另一家科技"
+    assert projected["tool_observations"][0]["label"] == "示例科技"
+
+
+def test_an_unlabelled_resource_shows_no_empty_label_anywhere() -> None:
+    """Absent, not blank: a producer that has nothing to say says nothing."""
+    reference = ConversationResourceReference(
+        kind="interview_preparation", resource_id="prep-1"
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="继续",
+        recent_messages=(
+            ConversationMessageContext(
+                role="assistant",
+                content="面试准备已生成。",
+                created_at=NOW,
+                resource_refs=(reference,),
+            ),
+        ),
+        tool_observations=(
+            DecisionObservation(
+                tool_name="prepare_interview",
+                state="interview_preparation_ready",
+                message="已生成。",
+                resource_ref=reference,
+            ),
+        ),
+    )
+
+    projected = context.model_context()
+
+    assert "label" not in projected["recent_messages"][0]["resources"][0]
+    assert "label" not in projected["tool_observations"][0]

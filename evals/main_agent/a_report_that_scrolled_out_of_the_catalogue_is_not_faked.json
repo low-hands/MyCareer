@@ -1,0 +1,13 @@
+{
+  "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+  "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "7f2a1ecf8f1917835d1c7b3394d5a43cf09a317faef4c84aaa638e1a5c9e901e",
+  "context_shape_fingerprint": "6a4b002687ff3e72cbac5a794e8e76e512b46dacdc379db720a0902910eab402",
+  "recorded_at": "2026-09-04T02:43:48.364290+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"我看到的历史调研报告里没有 Shopee，只有字节跳动、腾讯、阿里巴巴等公司的报告。请提供 Shopee 报告的引用编号，或确认是否要我重新进行 Shopee 的公开信息调研。\"}"
+    }
+  ]
+}

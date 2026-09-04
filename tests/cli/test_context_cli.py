@@ -156,6 +156,7 @@ class _Runtime:
 
     def run_turn(self, *, user_id, conversation_id, user_message):
         return MainAgentTurnResult(
+            decision_source="model",
             decision=AgentDecision(action="final", message="好的。"),
             context=type("Context", (), {"task": None})(),
             assistant_message="好的。",

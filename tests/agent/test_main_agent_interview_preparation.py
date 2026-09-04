@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
@@ -113,9 +114,12 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
     assert result.context.task.active_interview_preparation_id == "preparation-1"
     assert result.context.task.active_resume_version_id == "resume-version-1"
     assert tools.capability_kind("prepare_interview") == "atomic_tool"
-    assert result.assistant_message.startswith("# 面试准备\n\n重点准备 RAG 可靠性。")
-    assert "## 可能的问题" in result.assistant_message
-    assert "确认会议链接" in result.assistant_message
+    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    assert rendered.startswith("# 面试准备\n\n重点准备 RAG 可靠性。")
+    assert "## 可能的问题" in rendered
+    assert "确认会议链接" in rendered
+    assert "preparation-1" not in rendered
+    assert "jd-1" not in rendered
     assert "preparation-1" not in result.assistant_message
     assert "jd-1" not in result.assistant_message
 
@@ -125,16 +129,17 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
         user_message="继续",
     )
     stored_reply = loaded.recent_messages[-1]
-    # History states the outcome, sizes it, and points at the preparation
-    # entity. The material itself is read back from that entity, so only a
-    # bounded headline enters the recent window — deterministically, because
-    # this line has to exist whether or not the answer writer ran.
-    assert stored_reply.content == (
-        "面试准备材料已生成。重点准备 RAG 可靠性。（1 个可能问题，1 个准备重点）"
-    )
-    assert stored_reply.resource_ref is not None
-    assert stored_reply.resource_ref.kind == "interview_preparation"
-    assert stored_reply.resource_ref.resource_id == "preparation-1"
+    # History states the outcome and points at the preparation entity. The
+    # material is read back from that entity, so only bounded prose enters the
+    # recent window. Since F that prose is the model's own reply rather than a
+    # receipt, but the property the row has to keep is unchanged: bounded, and
+    # never carrying the report body into every later turn's window.
+    assert stored_reply.content == "准备重点已整理。"
+    assert "## 可能的问题" not in stored_reply.content
+    assert len(stored_reply.content) <= DELIVERY_SUMMARY_LIMIT
+    assert stored_reply.resource_refs
+    assert stored_reply.resource_refs[0].kind == "interview_preparation"
+    assert stored_reply.resource_refs[0].resource_id == "preparation-1"
 
 
 def test_preparation_can_resolve_interview_from_action_center_selection() -> None:

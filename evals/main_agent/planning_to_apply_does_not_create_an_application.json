@@ -2,12 +2,12 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "5f72f2eebccad0bb71326c226283cb0f4348246dd2d0db7bd0af745f3f231c96",
-  "context_shape_fingerprint": "68a94f7bd879e626671afb0c8fe28c4803d067804db860795a216df13815ae83",
-  "recorded_at": "2026-09-02T03:05:21.584997+00:00",
+  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "context_shape_fingerprint": "b4b884cf22a6fd266ccf27de30cbc10aa7811ecd8dc4539401d5da687c5737f8",
+  "recorded_at": "2026-09-04T02:21:11.347533+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请先在招聘平台完成实际投递。投递成功后告诉我“我已投递”，我再为这个岗位建立申请记录。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请先在招聘平台完成实际投递；投递成功后告诉我“已投递”，我再为这个岗位建立申请记录。\"}"
     }
   ]
 }

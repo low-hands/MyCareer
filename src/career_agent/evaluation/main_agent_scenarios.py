@@ -34,6 +34,48 @@ from career_agent.evaluation.trajectory import TrajectoryScenario, TrajectorySte
 _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
 
+# Company and the one-line conclusion that turn's reply carried. The catalogue
+# shows both: ``label`` says which report this is, ``summary`` is a condensed
+# copy of what the assistant said when it delivered it. Written as two different
+# things on purpose — a scenario whose summaries all read "X 的调研已完成" would
+# make ``summary`` look redundant when in production it holds the turn's actual
+# prose about the report.
+_ARCHIVED_COMPANIES = (
+    ("字节跳动", "推荐与搜索双线扩招，面试重算法工程实现。"),
+    ("腾讯", "社交与游戏基本盘稳定，云业务增速放缓。"),
+    ("阿里巴巴", "电商主站与云智能拆分后独立核算。"),
+    ("美团", "本地生活竞争加剧，配送算法团队扩编。"),
+    ("小红书", "商业化提速，搜索推荐岗位需求集中。"),
+    ("快手", "短视频增长见顶，转向电商与本地生活。"),
+    ("百度", "文心系列投入大，广告收入承压。"),
+    ("京东", "供应链与物流仍是核心壁垒。"),
+    ("网易", "游戏出海为主要增量，音乐业务分拆。"),
+    ("滴滴", "合规恢复后重启招聘，规模较此前收缩。"),
+    ("拼多多", "海外 Temu 增速快，国内利润率提升。"),
+    ("华为", "终端回暖，芯片与操作系统投入持续。"),
+)
+
+
+def _handle_for(resource_id: str) -> str:
+    """The handle the projection derives for one resource in these scenarios.
+
+    Derived here rather than pasted so an assertion says "report-a's handle"
+    rather than a literal that would silently stop meaning that.
+    """
+    return MainAgentContext(
+        conversation_id="eval",
+        profile=CareerProfileContext(user_id="eval-user"),
+        user_message="handle",
+    ).reference_handle(
+        ConversationResourceReference(
+            kind="job_research_report",
+            resource_id=resource_id,
+            status_at_delivery="current",
+            anchored_by_other_job=False,
+        )
+    )
+
+
 def _context(
     *,
     user_message: str,
@@ -41,12 +83,14 @@ def _context(
     task: ConversationTaskState | None = None,
     recent_messages: tuple[ConversationMessageContext, ...] = (),
     archived_resources: tuple[ConversationMessageContext, ...] = (),
+    archived_resource_total: int = 0,
     tool_observations: tuple[DecisionObservation, ...] = (),
 ) -> MainAgentContext:
     return MainAgentContext(
         conversation_id="eval",
         profile=profile or CareerProfileContext(user_id="eval-user"),
         task=task or ConversationTaskState(),
+        archived_resource_total=archived_resource_total,
         recent_messages=recent_messages,
         archived_resources=archived_resources,
         tool_observations=tool_observations,
@@ -76,6 +120,15 @@ _SAVED_JOB = SavedJobCandidateContextItem(
     company_name="示例科技",
     city="上海",
     salary="30-50K",
+)
+
+
+_OTHER_SAVED_JOB = SavedJobCandidateContextItem(
+    job_posting_id="job-2",
+    title="推荐算法工程师",
+    company_name="另一家科技",
+    city="上海",
+    salary="35-55K",
 )
 
 
@@ -312,7 +365,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "A recent_messages entry carrying a resource means that turn "
             "produced a stored report whose contents you were never shown: its "
             "one-line text is not the report. To discuss such a report, read it "
-            "back with the matching tool using its reference_index."
+            "back with the matching tool using the reference handle it carries."
         ),
         # The exact failure 052 and 053 were built around: the durable row holds
         # one bounded line, so a model that answers from it is answering from a
@@ -333,12 +386,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     role="assistant",
                     content="岗位研究已完成。这家公司近年主要投入在企业级搜索产品上。",
                     created_at=_NOW,
-                    resource_ref=ConversationResourceReference(
+                    resource_refs=(ConversationResourceReference(
                         kind="job_research_report",
                         resource_id="report-1",
                         status_at_delivery="current",
                         anchored_by_other_job=False,
-                    ),
+                    ),),
                 ),
             ),
         ),
@@ -351,12 +404,282 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
+        name="a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+        policy=(
+            "Only reports the projection still names can be read back. When the "
+            "report the user asks about is not among them, say it can no longer "
+            "be reached instead of sending some other report's handle."
+        ),
+        # The production shape of the mirror scenario. That one had to strip a
+        # resource_ref by hand, and since the mock interview projection was
+        # taught to raise rather than emit a card-shaped result without a
+        # reference, no live turn produces the state it constructs.
+        #
+        # This one needs no artifice. ``archived_resource_limit`` is 12 and
+        # capped at 12, so the thirteenth-oldest report leaves the projection
+        # entirely — not in the window, not in the catalogue, no handle. The
+        # user asks about it anyway, which is the normal thing to do: the report
+        # was delivered to them and their transcript still shows it.
+        #
+        # Twelve legitimate handles are on screen, each now labelled with its
+        # company, and the projection says fifteen exist. So the model can both
+        # see that none of the twelve is A 公司 and see that three are missing.
+        # Before labels it could do neither: twelve interchangeable lines that
+        # differed only in an opaque suffix, presented as the complete set.
+        context=_context(
+            user_message="上个月 Shopee 那份调研里，他们的主要竞争对手是谁？",
+            task=ConversationTaskState(),
+            archived_resources=tuple(
+                ConversationMessageContext(
+                    role="assistant",
+                    content=f"{company}的岗位研究已完成。{conclusion}",
+                    created_at=_NOW,
+                    resource_refs=(
+                        ConversationResourceReference(
+                            kind="job_research_report",
+                            resource_id=f"report-{number}",
+                            label=company,
+                            status_at_delivery="current",
+                            anchored_by_other_job=False,
+                        ),
+                    ),
+                )
+                for number, (company, conclusion) in enumerate(
+                    _ARCHIVED_COMPANIES, start=1
+                )
+            ),
+            # Fifteen were delivered; twelve fit. The report the user is asking
+            # about is one of the three that did not, and the projection says so
+            # rather than presenting the twelve as the whole set.
+            archived_resource_total=15,
+        ),
+        decisive_facts=(
+            "archived_reports",
+            "archived_reports_total",
+            "user_message",
+        ),
+        steps=(
+            TrajectoryStep(
+                # No expect_tool: reading nothing and saying so, or asking which
+                # company, are both right. What must not happen is naming one of
+                # the twelve reports that are not the one asked for.
+                forbid_argument_keys=frozenset({"reference"}),
+                forbid_tools=frozenset({"research_job"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="a_report_made_this_turn_is_read_back_by_its_index",
+        policy=(
+            "A tool observation carrying a reference names the report "
+            "that call produced. When the report you need is not the active "
+            "one, read it back by that index; omitting the selector would "
+            "silently return whichever report is active."
+        ),
+        # Two reports in one turn, and the active one is the *other* one. That
+        # setting is the whole point: with a single report the active id always
+        # equals the target, so calling the tool bare returns the right thing
+        # and the handle cannot be shown to matter. The first version of this
+        # scenario had exactly that flaw — it asserted a preference for the
+        # explicit selector where the implicit one was equally correct, and the
+        # model rightly ignored it.
+        #
+        # Here the bare call is wrong, not merely less explicit: it resolves to
+        # report-b and answers about the wrong company. The index is the only
+        # way to reach report-a, which is what makes this a correctness test.
+        #
+        # The two stored reports exist to break a second ambiguity. With an
+        # empty history the reference numbering and the observation positions
+        # coincide, so a model that simply counts observations produces the
+        # right number for the wrong reason — and an ordinal handle cannot tell
+        # the two apart. Offsetting them is also the realistic case: a live
+        # conversation almost always has history, and the coincidence is what
+        # was artificial.
+        #
+        # The shape is what MAX_DECISION_OBSERVATION_BODIES = 1 produces: the
+        # first research observation has lost its body to the second, so what
+        # remains of report-a is a receipt and a number.
+        context=_context(
+            user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
+            task=ConversationTaskState(
+                active_job_posting_id="job-2",
+                active_job_research_report_id="report-b",
+                job_research_status="current",
+                saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="assistant",
+                    content="上周两家公司的调研都好了。",
+                    created_at=_NOW,
+                    resource_refs=(
+                        ConversationResourceReference(
+                            kind="job_research_report",
+                            resource_id="report-h1",
+                            status_at_delivery="current",
+                            anchored_by_other_job=False,
+                        ),
+                        ConversationResourceReference(
+                            kind="job_research_report",
+                            resource_id="report-h2",
+                            status_at_delivery="current",
+                            anchored_by_other_job=False,
+                        ),
+                    ),
+                ),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已完成示例科技的岗位研究。",
+                    arguments={"job_selection_index": 1},
+                    resource_ref=ConversationResourceReference(
+                        kind="job_research_report",
+                        resource_id="report-a",
+                        label="示例科技",
+                        status_at_delivery="current",
+                        anchored_by_other_job=False,
+                    ),
+                ),
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已完成另一家科技的岗位研究。",
+                    arguments={"job_selection_index": 2},
+                    body="另一家科技近年主攻推荐系统，主要竞争对手为 B 公司。",
+                    resource_ref=ConversationResourceReference(
+                        kind="job_research_report",
+                        resource_id="report-b",
+                        label="另一家科技",
+                        status_at_delivery="current",
+                        anchored_by_other_job=False,
+                    ),
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.reference",
+            "task.has_active_job_research_report",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="get_job_research",
+                # The only argument that reaches report-a. Omitting it returns
+                # report-b, the active one, and answers about the wrong company.
+                # Written as a derivation rather than a literal so the scenario
+                # stays honest if the handle scheme changes: what is asserted is
+                # "the handle for report-a", not a string that happens to match.
+                expect_arguments={"reference": _handle_for("report-a")},
+                forbid_tools=frozenset({"research_job"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="a_report_made_this_turn_without_an_index_cannot_be_named",
+        policy=(
+            "Never pass a resource reference the projection did not give you. "
+            "Without one there is no way to name a report that is not the "
+            "active one, and guessing a number would select whichever resource "
+            "happens to hold it."
+        ),
+        # The mirror, identical except that neither observation carries a
+        # resource_ref, so this turn's reports have no handle at all — while the
+        # two stored reports still have theirs.
+        #
+        # Measured twice, and the second measurement is the interesting one.
+        #
+        # Under ordinals the model wrote reference_index=1 — a number the
+        # projection really showed — and received last week's research. The
+        # migration to derived handles was meant to remove that move, and it
+        # did: there is no name to count to.
+        #
+        # It did not remove the failure. Offered no handle for the report it is
+        # asked about, the model now copies one that *is* on screen: it sent
+        # report_662e28, which is report-h1, last week's. Same wrong report,
+        # reached by a different route.
+        #
+        # So unguessability was not the binding constraint. The model would
+        # rather name some report than say it cannot reach the one asked for,
+        # and every scheme that puts other resources in view leaves that move
+        # available. What is left is a behaviour problem, not a format one.
+        # The model is now in the position the handle was added to remove: the
+        # report it is asked about cannot be named at all.
+        #
+        # The assertion is deliberately not expect_tool. There is no right
+        # answer to demand here — calling the tool bare and returning the wrong
+        # report, or telling the user it cannot be reached, are both defensible
+        # responses to an impossible request, and that open-endedness is the
+        # problem rather than the test. What must hold is only that a number
+        # nobody supplied cannot appear.
+        context=_context(
+            user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
+            task=ConversationTaskState(
+                active_job_posting_id="job-2",
+                active_job_research_report_id="report-b",
+                job_research_status="current",
+                saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="assistant",
+                    content="上周两家公司的调研都好了。",
+                    created_at=_NOW,
+                    resource_refs=(
+                        ConversationResourceReference(
+                            kind="job_research_report",
+                            resource_id="report-h1",
+                            status_at_delivery="current",
+                            anchored_by_other_job=False,
+                        ),
+                        ConversationResourceReference(
+                            kind="job_research_report",
+                            resource_id="report-h2",
+                            status_at_delivery="current",
+                            anchored_by_other_job=False,
+                        ),
+                    ),
+                ),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已完成示例科技的岗位研究。",
+                    arguments={"job_selection_index": 1},
+                ),
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已完成另一家科技的岗位研究。",
+                    arguments={"job_selection_index": 2},
+                    body="另一家科技近年主攻推荐系统，主要竞争对手为 B 公司。",
+                ),
+            ),
+        ),
+        decisive_facts=("tool_observations", "task.has_active_job_research_report"),
+        known_gap=(
+            "Offered no handle for the report it is asked about, the model "
+            "sends another report's handle — report_662e28 is last week's "
+            "report-h1 — and receives the wrong research silently. Derived "
+            "handles closed the guess-a-number route; copying a shown handle "
+            "is the same failure by another route, and is behavioural rather "
+            "than structural."
+        ),
+        steps=(
+            TrajectoryStep(
+                forbid_argument_keys=frozenset({"reference"}),
+                forbid_tools=frozenset({"research_job"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",
         policy=(
             "A recent_messages entry carrying a resource means that turn "
             "produced a stored report whose contents you were never shown. To "
             "discuss such a report, read it back with the matching tool using "
-            "its reference_index."
+            "the reference handle it carries."
         ),
         # The same policy as the in-window case, one summarisation later. The
         # reference now arrives through archived_reports instead of a message,
@@ -373,12 +696,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     role="assistant",
                     content="岗位研究已完成。这家公司近年主要投入在企业级搜索产品上。",
                     created_at=datetime(2026, 8, 24, tzinfo=timezone.utc),
-                    resource_ref=ConversationResourceReference(
+                    resource_refs=(ConversationResourceReference(
                         kind="job_research_report",
                         resource_id="report-1",
                         status_at_delivery="current",
                         anchored_by_other_job=False,
-                    ),
+                    ),),
                 ),
             ),
         ),
@@ -515,7 +838,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     tool_name="match_resume_to_job",
                     state="resume_job_match_ready",
                     message="已完成逐项匹配，整体匹配度为 weak。",
-                    next_action="explain_match_or_offer_resume_tailoring",
                 ),
             ),
         ),
@@ -619,6 +941,76 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
+        name="a_card_backed_report_is_answered_without_reproducing_it",
+        policy=(
+            "Reports, cards and files are delivered by the runtime alongside "
+            "your reply, so summarize and point to them instead of restating "
+            "their contents."
+        ),
+        # F moved the reply from the presenter to the model. The replacement
+        # risk is a model that copies the rendered report out of its observation
+        # body into the reply, duplicating into every later turn's window what
+        # the card already delivers once.
+        #
+        # What this holds is reproduction, not summarisation. The user here asks
+        # for the conclusion, so condensing the findings is the correct answer —
+        # the assertions therefore name the report's own scaffolding (verbatim
+        # finding text, citation markers, section headers), which belongs to the
+        # rendering and has no business in a reply. Paraphrase is deliberately
+        # allowed: forbidding it would mean refusing to answer the question.
+        context=_context(
+            user_message="调研完了吗？一句话说说结论就行。",
+            task=ConversationTaskState(
+                active_job_posting_id="job-1",
+                active_job_research_report_id="report-1",
+                job_research_status="current",
+                saved_job_candidates=(_SAVED_JOB,),
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="research_job",
+                    state="job_research_ready",
+                    message="已完成岗位研究，报告包含 3 条发现。",
+                    body=(
+                        "# 公司调研\n\n"
+                        "## 发现\n\n"
+                        "- 该公司在 2026 年第二季度将检索业务拆分为独立事业部。[S1]\n"
+                        "- 招聘规模较上一季度扩大约四成。[S2]\n"
+                        "- 主要竞争对手在同一赛道尚未公开同类产品。[S3]\n"
+                    ),
+                    facts={
+                        "cached": False,
+                        "finding_count": 3,
+                        "status": "current",
+                    },
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "tool_observations.0.body",
+            "task.has_active_job_posting",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_action="final",
+                forbid_tools=frozenset({"research_job", "retry_job_research"}),
+                forbid_message_contains=frozenset(
+                    {
+                        # Verbatim finding text and the report's scaffolding.
+                        "该公司在 2026 年第二季度将检索业务拆分为独立事业部",
+                        "招聘规模较上一季度扩大约四成",
+                        "主要竞争对手在同一赛道尚未公开同类产品",
+                        "[S1]",
+                        "[S2]",
+                        "[S3]",
+                        "# 公司调研",
+                        "## 发现",
+                    }
+                ),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="cached_research_routes_to_an_explicit_new_focus",
         policy=(
             "Use the approved cached fact to distinguish a reused report from "
@@ -646,7 +1038,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                         "finding_count": 8,
                         "status": "current",
                     },
-                    next_action="review_job_research",
                 ),
             ),
         ),

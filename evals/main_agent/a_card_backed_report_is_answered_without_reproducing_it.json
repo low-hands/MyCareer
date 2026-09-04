@@ -1,0 +1,13 @@
+{
+  "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+  "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "context_shape_fingerprint": "3239ba7415dcad25232691a06e40e633318d0d67f10deb20670c515995a2daf8",
+  "recorded_at": "2026-09-04T02:34:09.986916+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"调研完成：示例科技将在2026年第二季度拆分检索业务并扩大招聘，且同赛道竞争对手尚未公开类似产品，整体处于扩张窗口。\"}"
+    }
+  ]
+}

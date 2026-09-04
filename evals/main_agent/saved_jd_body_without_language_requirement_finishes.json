@@ -2,12 +2,12 @@
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "64ef2fdc8b449ae75f59bfe53d58f3673986e52260050354358ec7514ff970e3",
-  "context_shape_fingerprint": "246aee50253dcda74a63ae97f77191e07bd3f9957678fea937fab29091f325b3",
-  "recorded_at": "2026-09-02T05:31:10.335581+00:00",
+  "prompt_fingerprint": "0298228c7573ad0f60517fccde680feb645f23f572a801da0eb0e47f103c173a",
+  "context_shape_fingerprint": "35c50fc240a6d62918a072cccc7a003aa314fcfca21e8f366b18e312d978d916",
+  "recorded_at": "2026-09-04T02:24:18.248819+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"刚才读取到的完整 JD 中没有明确要求 Rust，因此到这里为止。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"完整 JD 中没有明确要求 Rust，因此按你的条件到这里，不继续进行简历匹配。\"}"
     }
   ]
 }
