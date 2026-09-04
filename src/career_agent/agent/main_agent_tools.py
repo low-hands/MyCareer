@@ -2482,7 +2482,10 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="execute_calendar_proposal",
                 state="calendar_write_failed",
-                message="Calendar 外部写入没有获得成功确认。",
+                message=(
+                    "Calendar 外部写入没有获得成功确认。结果不确定时，"
+                    "下一份预览会先核对该执行记录，再决定是否可以重新批准。"
+                ),
                 payload={
                     "error_code": error.code,
                     "error_detail": str(error),

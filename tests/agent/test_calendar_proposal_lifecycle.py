@@ -9,6 +9,7 @@ directed by policy to act on exactly that.
 ``calendar_write_failed`` is in the clearing set on evidence, not preference:
 ``CalendarService.execute_proposal`` marks the proposal ``failed`` before
 re-raising, and it requires ``pending`` to run at all, so no retry can succeed.
+
 """
 
 from __future__ import annotations
@@ -85,6 +86,8 @@ def test_a_state_that_leaves_a_preview_waiting_claims_the_slot(state) -> None:
     assert task.active_calendar_proposal_expires_at == _NOW
     assert task.active_resource_flags()["has_active_calendar_proposal"] is True
     assert task.active_interview_round_id == "round-9"
+
+
 
 
 def test_executing_then_preparing_again_does_not_resurrect_the_old_preview() -> None:

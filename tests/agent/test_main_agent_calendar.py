@@ -5,6 +5,7 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.connectors.calendar import CalendarConnectorError
 from career_agent.domain.calendar import (
     CalendarChangeProposal,
     CalendarEventLink,
@@ -123,3 +124,24 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
         {"user_id": "u1", "proposal_id": "proposal-1"}
     ]
     assert tools.capability_kind("execute_calendar_proposal") == "atomic_tool"
+
+
+def test_uncertain_calendar_execution_requires_a_new_preview() -> None:
+    class UncertainCalendar(Calendar):
+        def execute_proposal(self, **kwargs):
+            raise CalendarConnectorError(
+                "GOOGLE_CALENDAR_TRANSPORT_ERROR",
+                "timeout",
+                outcome_unknown=True,
+            )
+
+    observation = MainAgentToolRegistry(
+        calendar_service=UncertainCalendar()
+    ).invoke_atomic_tool(
+        "execute_calendar_proposal",
+        {"user_id": "u1", "proposal_id": "proposal-1"},
+    )
+
+    assert observation.state == "calendar_write_failed"
+    assert observation.disposition == "failed"
+    assert observation.payload["retryable"] is False

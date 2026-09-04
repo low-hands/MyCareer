@@ -4,7 +4,9 @@ from career_agent.domain.calendar.models import (
     CalendarChangeProposal,
     CalendarEventLink,
     CalendarEventPayload,
+    CalendarExecutionStatus,
     CalendarOperation,
+    CalendarOperationExecution,
     CalendarProposalStatus,
     CalendarProvider,
 )
@@ -15,7 +17,9 @@ __all__ = [
     "CalendarChangeProposal",
     "CalendarEventLink",
     "CalendarEventPayload",
+    "CalendarExecutionStatus",
     "CalendarOperation",
+    "CalendarOperationExecution",
     "CalendarProposalStatus",
     "CalendarProvider",
 ]
