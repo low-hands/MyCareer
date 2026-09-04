@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import json
 import os
-from typing import Protocol
+from typing import Literal, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -21,9 +21,12 @@ from career_agent.domain.calendar import (
 
 
 class CalendarConnectorError(RuntimeError):
-    def __init__(self, code: str, detail: str) -> None:
+    def __init__(
+        self, code: str, detail: str, *, outcome_unknown: bool = False
+    ) -> None:
         super().__init__(detail)
         self.code = code
+        self.outcome_unknown = outcome_unknown
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,12 @@ class CalendarWriteResult:
     external_event_id: str
     etag: str | None = None
     html_link: str | None = None
+
+
+@dataclass(frozen=True)
+class CalendarReconciliationResult:
+    outcome: Literal["applied", "not_applied", "conflict"]
+    write_result: CalendarWriteResult | None = None
 
 
 class CalendarConnector(Protocol):
@@ -41,7 +50,19 @@ class CalendarConnector(Protocol):
         calendar_id: str,
         external_event_id: str,
         payload: CalendarEventPayload | None,
+        idempotency_key: str,
+        payload_hash: str,
     ) -> CalendarWriteResult: ...
+
+    def reconcile(
+        self,
+        *,
+        operation: CalendarOperation,
+        calendar_id: str,
+        external_event_id: str,
+        payload_hash: str,
+        prior_payload_hash: str | None = None,
+    ) -> CalendarReconciliationResult: ...
 
 
 class GoogleCalendarConnector:
@@ -58,6 +79,8 @@ class GoogleCalendarConnector:
         calendar_id: str,
         external_event_id: str,
         payload: CalendarEventPayload | None,
+        idempotency_key: str,
+        payload_hash: str,
     ) -> CalendarWriteResult:
         encoded_calendar = quote(calendar_id, safe="")
         encoded_event = quote(external_event_id, safe="")
@@ -69,7 +92,11 @@ class GoogleCalendarConnector:
                 raise ValueError("calendar create requires payload")
             method = "POST"
             url = f"{base}?{query}"
-            body_payload = self._event_body(payload)
+            body_payload = self._event_body(
+                payload,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+            )
             body_payload["id"] = external_event_id
             body = json.dumps(body_payload).encode()
         elif operation == "update":
@@ -77,7 +104,13 @@ class GoogleCalendarConnector:
                 raise ValueError("calendar update requires payload")
             method = "PATCH"
             url = f"{base}/{encoded_event}?{query}"
-            body = json.dumps(self._event_body(payload)).encode()
+            body = json.dumps(
+                self._event_body(
+                    payload,
+                    idempotency_key=idempotency_key,
+                    payload_hash=payload_hash,
+                )
+            ).encode()
         else:
             method = "DELETE"
             url = f"{base}/{encoded_event}?{query}"
@@ -102,40 +135,17 @@ class GoogleCalendarConnector:
         except HTTPError as error:
             if operation == "cancel" and error.code == 404:
                 return CalendarWriteResult(external_event_id=external_event_id)
-            if operation == "create" and error.code == 409 and payload is not None:
-                reconcile = Request(
-                    f"{base}/{encoded_event}?{query}",
-                    data=json.dumps(self._event_body(payload)).encode(),
-                    method="PATCH",
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                        "Accept": "application/json",
-                        "Content-Type": "application/json",
-                    },
-                )
-                try:
-                    with urlopen(reconcile, timeout=self._timeout) as response:
-                        raw = response.read()
-                except HTTPError as reconcile_error:
-                    detail = reconcile_error.read().decode(
-                        "utf-8", errors="replace"
-                    )[:2000]
-                    raise CalendarConnectorError(
-                        f"GOOGLE_CALENDAR_HTTP_{reconcile_error.code}",
-                        detail or str(reconcile_error),
-                    ) from reconcile_error
-                except (URLError, TimeoutError, OSError) as reconcile_error:
-                    raise CalendarConnectorError(
-                        "GOOGLE_CALENDAR_TRANSPORT_ERROR", str(reconcile_error)
-                    ) from reconcile_error
-            else:
-                detail = error.read().decode("utf-8", errors="replace")[:2000]
-                raise CalendarConnectorError(
-                    f"GOOGLE_CALENDAR_HTTP_{error.code}", detail or str(error)
-                ) from error
+            detail = error.read().decode("utf-8", errors="replace")[:2000]
+            raise CalendarConnectorError(
+                f"GOOGLE_CALENDAR_HTTP_{error.code}",
+                detail or str(error),
+                outcome_unknown=(error.code in {408, 409} or error.code >= 500),
+            ) from error
         except (URLError, TimeoutError, OSError) as error:
             raise CalendarConnectorError(
-                "GOOGLE_CALENDAR_TRANSPORT_ERROR", str(error)
+                "GOOGLE_CALENDAR_TRANSPORT_ERROR",
+                str(error),
+                outcome_unknown=True,
             ) from error
         if operation == "cancel":
             return CalendarWriteResult(external_event_id=external_event_id)
@@ -143,13 +153,16 @@ class GoogleCalendarConnector:
             result = json.loads(raw or b"{}")
         except json.JSONDecodeError as error:
             raise CalendarConnectorError(
-                "GOOGLE_CALENDAR_INVALID_RESPONSE", "Calendar response was not JSON"
+                "GOOGLE_CALENDAR_INVALID_RESPONSE",
+                "Calendar response was not JSON",
+                outcome_unknown=True,
             ) from error
         returned_id = result.get("id")
         if not isinstance(returned_id, str) or returned_id != external_event_id:
             raise CalendarConnectorError(
                 "GOOGLE_CALENDAR_ID_MISMATCH",
                 "Calendar response did not confirm the fixed external event ID",
+                outcome_unknown=True,
             )
         return CalendarWriteResult(
             external_event_id=returned_id,
@@ -161,8 +174,104 @@ class GoogleCalendarConnector:
             ),
         )
 
+    def reconcile(
+        self,
+        *,
+        operation: CalendarOperation,
+        calendar_id: str,
+        external_event_id: str,
+        payload_hash: str,
+        prior_payload_hash: str | None = None,
+    ) -> CalendarReconciliationResult:
+        encoded_calendar = quote(calendar_id, safe="")
+        encoded_event = quote(external_event_id, safe="")
+        url = (
+            "https://www.googleapis.com/calendar/v3/calendars/"
+            f"{encoded_calendar}/events/{encoded_event}"
+        )
+        try:
+            token = self._token_provider()
+            request = Request(
+                url,
+                method="GET",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                },
+            )
+            with urlopen(request, timeout=self._timeout) as response:
+                raw = response.read()
+        except EmailCredentialError as error:
+            raise CalendarConnectorError(
+                "CALENDAR_CREDENTIAL_ERROR", str(error)
+            ) from error
+        except HTTPError as error:
+            if error.code in {404, 410}:
+                return CalendarReconciliationResult(
+                    outcome="applied" if operation == "cancel" else "not_applied",
+                    write_result=(
+                        CalendarWriteResult(external_event_id=external_event_id)
+                        if operation == "cancel"
+                        else None
+                    ),
+                )
+            detail = error.read().decode("utf-8", errors="replace")[:2000]
+            raise CalendarConnectorError(
+                f"GOOGLE_CALENDAR_HTTP_{error.code}", detail or str(error)
+            ) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise CalendarConnectorError(
+                "GOOGLE_CALENDAR_RECONCILIATION_UNAVAILABLE", str(error)
+            ) from error
+
+        if operation == "cancel":
+            return CalendarReconciliationResult(outcome="not_applied")
+        try:
+            result = json.loads(raw or b"{}")
+        except json.JSONDecodeError as error:
+            raise CalendarConnectorError(
+                "GOOGLE_CALENDAR_INVALID_RESPONSE",
+                "Calendar reconciliation response was not JSON",
+            ) from error
+        returned_id = result.get("id")
+        if not isinstance(returned_id, str) or returned_id != external_event_id:
+            raise CalendarConnectorError(
+                "GOOGLE_CALENDAR_ID_MISMATCH",
+                "Calendar reconciliation did not return the fixed external event ID",
+            )
+        extended = result.get("extendedProperties")
+        private = extended.get("private") if isinstance(extended, dict) else None
+        remote_hash = (
+            private.get("careerAgentPayloadHash")
+            if isinstance(private, dict)
+            else None
+        )
+        if remote_hash == payload_hash:
+            return CalendarReconciliationResult(
+                outcome="applied",
+                write_result=CalendarWriteResult(
+                    external_event_id=returned_id,
+                    etag=result.get("etag") if isinstance(result.get("etag"), str) else None,
+                    html_link=(
+                        result.get("htmlLink")
+                        if isinstance(result.get("htmlLink"), str)
+                        else None
+                    ),
+                ),
+            )
+        if operation == "update" and remote_hash == prior_payload_hash:
+            return CalendarReconciliationResult(outcome="not_applied")
+        if remote_hash != payload_hash:
+            return CalendarReconciliationResult(outcome="conflict")
+        raise AssertionError("unreachable calendar reconciliation outcome")
+
     @staticmethod
-    def _event_body(payload: CalendarEventPayload) -> dict[str, object]:
+    def _event_body(
+        payload: CalendarEventPayload,
+        *,
+        idempotency_key: str,
+        payload_hash: str,
+    ) -> dict[str, object]:
         body: dict[str, object] = {
             "summary": payload.title,
             "description": payload.description,
@@ -173,6 +282,12 @@ class GoogleCalendarConnector:
             "end": {
                 "dateTime": payload.end_at.isoformat(),
                 "timeZone": payload.timezone,
+            },
+            "extendedProperties": {
+                "private": {
+                    "careerAgentExecutionKey": idempotency_key,
+                    "careerAgentPayloadHash": payload_hash,
+                }
             },
         }
         if payload.location is not None:

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from career_agent.connectors.calendar import (
     CalendarConnectorError,
+    CalendarReconciliationResult,
     CalendarWriteResult,
 )
 from career_agent.domain.calendar import (
@@ -20,7 +21,11 @@ from career_agent.domain.calendar import (
 )
 from career_agent.services.applications import ApplicationService
 from career_agent.services.interviews import InterviewNotFoundError, InterviewService
-from career_agent.storage.calendar import SQLiteCalendarStore
+from career_agent.storage.calendar import (
+    CalendarExecutionLeaseActiveError,
+    CalendarExecutionUnresolvedError,
+    SQLiteCalendarStore,
+)
 
 
 class CalendarAccountNotFoundError(ValueError):
@@ -54,12 +59,16 @@ class CalendarService:
         connector_resolver,
         *,
         proposal_ttl: timedelta = timedelta(minutes=15),
+        execution_lease: timedelta = timedelta(minutes=1),
     ) -> None:
         self._store = store
         self._interview_service = interview_service
         self._application_service = application_service
         self._connector_resolver = connector_resolver
         self._proposal_ttl = proposal_ttl
+        if execution_lease <= timedelta(0):
+            raise ValueError("calendar execution lease must be positive")
+        self._execution_lease = execution_lease
 
     def list_accounts(self, *, user_id: str) -> tuple[CalendarAccount, ...]:
         return self._store.list_accounts(user_id=user_id)
@@ -88,6 +97,12 @@ class CalendarService:
         current = now or datetime.now(timezone.utc)
         account = self._select_account(
             user_id=user_id, calendar_account_id=calendar_account_id
+        )
+        self._reconcile_before_new_proposal(
+            user_id=user_id,
+            interview_round_id=interview_round_id,
+            account=account,
+            now=current,
         )
         operation, event_id, payload = self._expected_change(
             user_id=user_id,
@@ -124,7 +139,10 @@ class CalendarService:
             created_at=current,
             expires_at=current + self._proposal_ttl,
         )
-        self._store.create_proposal(proposal)
+        try:
+            self._store.create_proposal(proposal)
+        except CalendarExecutionUnresolvedError as error:
+            raise CalendarSyncNotAvailableError(str(error)) from error
         return proposal
 
     def execute_proposal(
@@ -145,11 +163,12 @@ class CalendarService:
             if link is None:
                 raise CalendarProposalConflictError("executed proposal has no link")
             return CalendarExecution(proposal=proposal, link=link)
-        if proposal.status != "pending":
+        recovering = proposal.status in {"executing", "reconciliation_required"}
+        if proposal.status not in {"pending", "executing", "reconciliation_required"}:
             raise CalendarProposalConflictError(
                 f"calendar proposal is {proposal.status}; prepare a new proposal"
             )
-        if current >= proposal.expires_at:
+        if proposal.status == "pending" and current >= proposal.expires_at:
             self._store.set_proposal_status(
                 user_id=user_id, proposal_id=proposal.id,
                 status="expired", now=current,
@@ -160,48 +179,279 @@ class CalendarService:
         account = self._select_account(
             user_id=user_id, calendar_account_id=proposal.calendar_account_id
         )
-        operation, event_id, payload = self._expected_change(
-            user_id=user_id,
-            interview_round_id=proposal.interview_round_id,
-            account=account,
-            proposed_event_id=proposal.external_event_id,
-        )
-        expected_hash = self._hash(
-            operation=operation, external_event_id=event_id, payload=payload
-        )
-        if (
-            operation != proposal.operation
-            or event_id != proposal.external_event_id
-            or expected_hash != proposal.payload_hash
-        ):
-            self._store.set_proposal_status(
-                user_id=user_id, proposal_id=proposal.id,
-                status="superseded", now=current,
+        if proposal.status == "pending":
+            operation, event_id, payload = self._expected_change(
+                user_id=user_id,
+                interview_round_id=proposal.interview_round_id,
+                account=account,
+                proposed_event_id=proposal.external_event_id,
             )
-            raise CalendarProposalConflictError(
-                "interview changed after approval preview; prepare a new proposal"
+            expected_hash = self._hash(
+                operation=operation, external_event_id=event_id, payload=payload
             )
+            if (
+                operation != proposal.operation
+                or event_id != proposal.external_event_id
+                or expected_hash != proposal.payload_hash
+            ):
+                self._store.set_proposal_status(
+                    user_id=user_id, proposal_id=proposal.id,
+                    status="superseded", now=current,
+                )
+                raise CalendarProposalConflictError(
+                    "interview changed after approval preview; prepare a new proposal"
+                )
+        try:
+            proposal, execution, must_reconcile = self._store.claim_execution(
+                proposal=proposal,
+                now=current,
+                lease_duration=self._execution_lease,
+            )
+        except CalendarExecutionLeaseActiveError as error:
+            raise CalendarConnectorError(
+                "CALENDAR_EXECUTION_IN_PROGRESS",
+                str(error),
+                outcome_unknown=True,
+            ) from error
+
+        if recovering != must_reconcile:
+            raise ValueError("calendar proposal and execution ledger disagree")
+
         try:
             connector = self._connector_resolver.resolve(account)
+        except CalendarConnectorError as error:
+            if must_reconcile:
+                self._store.mark_reconciliation_required(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code=error.code,
+                    error_detail=str(error),
+                )
+                raise CalendarConnectorError(
+                    error.code,
+                    str(error),
+                    outcome_unknown=True,
+                ) from error
+            self._store.fail_execution(
+                proposal=proposal,
+                execution=execution,
+                now=current,
+                error_code=error.code,
+                error_detail=str(error),
+            )
+            raise
+
+        if must_reconcile:
+            try:
+                reconciled: CalendarReconciliationResult = connector.reconcile(
+                    operation=proposal.operation,
+                    calendar_id=account.calendar_id,
+                    external_event_id=proposal.external_event_id,
+                    payload_hash=proposal.payload_hash,
+                    prior_payload_hash=execution.prior_payload_hash,
+                )
+            except CalendarConnectorError as error:
+                self._store.mark_reconciliation_required(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code=error.code,
+                    error_detail=str(error),
+                )
+                raise CalendarConnectorError(
+                    error.code,
+                    str(error),
+                    outcome_unknown=True,
+                ) from error
+            if reconciled.outcome == "applied":
+                result = reconciled.write_result
+                if result is None:
+                    raise ValueError("applied reconciliation has no write result")
+                executed, link = self._store.complete_execution(
+                    proposal=proposal,
+                    execution=execution,
+                    external_etag=result.etag,
+                    external_html_link=result.html_link,
+                    now=current,
+                )
+                return CalendarExecution(proposal=executed, link=link)
+            if reconciled.outcome == "conflict":
+                detail = (
+                    "the external event exists but does not carry the approved "
+                    "calendar payload hash"
+                )
+                self._store.mark_reconciliation_required(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code="CALENDAR_RECONCILIATION_CONFLICT",
+                    error_detail=detail,
+                )
+                raise CalendarConnectorError(
+                    "CALENDAR_RECONCILIATION_CONFLICT",
+                    detail,
+                    outcome_unknown=True,
+                )
+
+        try:
             result: CalendarWriteResult = connector.apply(
                 operation=proposal.operation,
                 calendar_id=account.calendar_id,
                 external_event_id=proposal.external_event_id,
                 payload=proposal.payload,
+                idempotency_key=execution.idempotency_key,
+                payload_hash=execution.payload_hash,
             )
         except CalendarConnectorError as error:
-            self._store.set_proposal_status(
-                user_id=user_id, proposal_id=proposal.id, status="failed",
-                now=current, error_code=error.code, error_detail=str(error),
-            )
+            if error.outcome_unknown:
+                self._store.mark_reconciliation_required(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code=error.code,
+                    error_detail=str(error),
+                )
+            else:
+                self._store.fail_execution(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code=error.code,
+                    error_detail=str(error),
+                )
             raise
-        executed, link = self._store.complete_execution(
-            proposal=proposal,
-            external_etag=result.etag,
-            external_html_link=result.html_link,
-            now=current,
-        )
+        except Exception as error:
+            detail = f"{type(error).__name__}: {error}"
+            self._store.mark_reconciliation_required(
+                proposal=proposal,
+                execution=execution,
+                now=current,
+                error_code="CALENDAR_OUTCOME_UNKNOWN",
+                error_detail=detail,
+            )
+            raise CalendarConnectorError(
+                "CALENDAR_OUTCOME_UNKNOWN", detail, outcome_unknown=True
+            ) from error
+        try:
+            executed, link = self._store.complete_execution(
+                proposal=proposal,
+                execution=execution,
+                external_etag=result.etag,
+                external_html_link=result.html_link,
+                now=current,
+            )
+        except Exception as error:
+            # The remote write succeeded but the local transaction did not.
+            # Leave the durable intent recoverable; the next claim must GET and
+            # verify the external marker before completing locally.
+            detail = f"{type(error).__name__}: {error}"
+            try:
+                self._store.mark_reconciliation_required(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code="CALENDAR_LOCAL_COMMIT_FAILED",
+                    error_detail=detail,
+                )
+            except Exception:
+                pass
+            raise CalendarConnectorError(
+                "CALENDAR_LOCAL_COMMIT_FAILED", detail, outcome_unknown=True
+            ) from error
         return CalendarExecution(proposal=executed, link=link)
+
+    def _reconcile_before_new_proposal(
+        self,
+        *,
+        user_id: str,
+        interview_round_id: str,
+        account: CalendarAccount,
+        now: datetime,
+    ) -> None:
+        """Resolve an unknown prior write before issuing another approval.
+
+        The existing product policy requires a fresh preview after an uncertain
+        write. That is safe only after the previous durable intent has been
+        reconciled: otherwise a new approval could duplicate or overwrite an
+        operation whose response was merely lost.
+        """
+
+        unresolved = self._store.get_unresolved_execution(
+            user_id=user_id,
+            calendar_account_id=account.id,
+            interview_round_id=interview_round_id,
+        )
+        if unresolved is None:
+            return
+        prior_proposal, _ = unresolved
+        try:
+            claimed, execution, _ = self._store.claim_execution(
+                proposal=prior_proposal,
+                now=now,
+                lease_duration=self._execution_lease,
+            )
+        except CalendarExecutionLeaseActiveError as error:
+            raise CalendarSyncNotAvailableError(
+                "the previous calendar execution is still in progress"
+            ) from error
+        try:
+            connector = self._connector_resolver.resolve(account)
+            reconciled = connector.reconcile(
+                operation=claimed.operation,
+                calendar_id=account.calendar_id,
+                external_event_id=claimed.external_event_id,
+                payload_hash=claimed.payload_hash,
+                prior_payload_hash=execution.prior_payload_hash,
+            )
+        except CalendarConnectorError as error:
+            self._store.mark_reconciliation_required(
+                proposal=claimed,
+                execution=execution,
+                now=now,
+                error_code=error.code,
+                error_detail=str(error),
+            )
+            raise CalendarSyncNotAvailableError(
+                "the previous calendar execution could not be reconciled"
+            ) from error
+
+        if reconciled.outcome == "applied":
+            result = reconciled.write_result
+            if result is None:
+                raise ValueError("applied reconciliation has no write result")
+            self._store.complete_execution(
+                proposal=claimed,
+                execution=execution,
+                external_etag=result.etag,
+                external_html_link=result.html_link,
+                now=now,
+            )
+            return
+        if reconciled.outcome == "not_applied":
+            self._store.fail_execution(
+                proposal=claimed,
+                execution=execution,
+                now=now,
+                error_code="CALENDAR_RECONCILED_NOT_APPLIED",
+                error_detail=(
+                    "external state confirms that the previous operation was not applied"
+                ),
+            )
+            return
+
+        detail = (
+            "the external event matches neither the prior local payload nor the "
+            "approved payload"
+        )
+        self._store.mark_reconciliation_required(
+            proposal=claimed,
+            execution=execution,
+            now=now,
+            error_code="CALENDAR_RECONCILIATION_CONFLICT",
+            error_detail=detail,
+        )
+        raise CalendarSyncNotAvailableError(detail)
 
     def _select_account(
         self, *, user_id: str, calendar_account_id: str | None

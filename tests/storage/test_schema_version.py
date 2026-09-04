@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.interview_preparations import (
     SQLiteInterviewPreparationStore,
@@ -65,7 +66,7 @@ DECLARED_VERSIONS = {
     "action_center": 2,
     "applications": 1,
     "interviews": 2,
-    "calendar": 1,
+    "calendar": 2,
     "email_tracking": 1,
     "mock_interviews": 3,
     "resume_analysis": 1,
@@ -310,3 +311,25 @@ def test_an_upgrade_above_the_declared_version_is_rejected(tmp_path: Path) -> No
             apply_schema(
                 connection, "demo", 1, lambda c: None, {2: lambda c: None}
             )
+
+
+def test_calendar_v1_store_upgrades_with_an_execution_ledger(tmp_path: Path) -> None:
+    path = tmp_path / "calendar.sqlite3"
+    SQLiteCalendarStore(path)
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP INDEX calendar_executions_user_status_idx")
+        connection.execute("DROP TABLE calendar_operation_executions")
+        connection.execute(
+            "UPDATE schema_versions SET version = 1 WHERE component = 'calendar'"
+        )
+
+    SQLiteCalendarStore(path)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT version FROM schema_versions WHERE component = 'calendar'"
+        ).fetchone() == (2,)
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'calendar_operation_executions'"
+        ).fetchone() == (1,)
