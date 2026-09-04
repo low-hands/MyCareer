@@ -683,11 +683,12 @@ def _graph_states_with_a_reference() -> set[str]:
         ("cancelled", {}),
         ("running", {}),
     ):
-        observation = MainAgentToolRegistry._mock_interview_observation(
+        observation = MainAgentToolRegistry()._mock_interview_observation(
             MockInterviewGraphResult(
                 session_id="sess-1", state=graph_state, message="…", **kwargs
             ),
             "start_mock_interview",
+            user_id="u1",
         )
         if observation.resource_ref is not None:
             states.add(observation.state)

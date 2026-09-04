@@ -302,3 +302,5 @@ def test_main_agent_records_user_grounded_real_interview_retro(tmp_path) -> None
     assert "如何评估 RAG？" in rendered
     assert result.tool_result.resource_ref is not None
     assert result.tool_result.resource_ref.kind == "interview_retro_report"
+    assert result.tool_result.resource_ref.title == "面试复盘"
+    assert result.tool_result.resource_ref.description == "评测数据集设计需要补强。"

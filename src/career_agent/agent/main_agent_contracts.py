@@ -8,9 +8,9 @@ import json
 import re
 from typing import Annotated, Any, Literal, Protocol
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, condense
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.delivery_policy import is_failed, is_waiting
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.domain.applications import ApplicationStatus
@@ -362,7 +362,12 @@ class ConversationResourceReference(ContractModel):
     # should say that its draft has since been superseded.
     status_at_delivery: Literal["current", "outdated", "superseded"] | None = None
     anchored_by_other_job: bool | None = None
-    label: str = Field(default="", max_length=80)
+    title: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("title", "label"),
+        min_length=1,
+        max_length=80,
+    )
     """What this resource is *about*, for a reader choosing between several.
 
     The handle answers "how do I ask for it"; this answers "which one is it".
@@ -379,10 +384,28 @@ class ConversationResourceReference(ContractModel):
     ``next_action`` — declared where the typed object is, not reconstructed from
     a payload later.
 
-    Empty is allowed and means "not labelled yet", not "no label exists". It is
-    a projection nicety, so a producer that has not been taught to fill it must
-    not break the reference it is attached to.
+    Missing is allowed for legacy rows and means "not titled yet", not "no title
+    exists". New producers fill it. The old field name ``label`` remains a
+    validation alias so already persisted references survive the rename, while
+    every new serialization uses the MCP-aligned name ``title``.
     """
+    description: str | None = Field(default=None, min_length=1, max_length=200)
+    """Producer-owned hint about what reading the resource will provide.
+
+    This is deliberately not reconstructed from the assistant's delivery
+    message. One turn can deliver several resources and a model-written reply
+    can be as generic as "done", so the producer is the only reliable place to
+    declare a resource-specific preview.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_empty_label(cls, value: Any) -> Any:
+        if isinstance(value, dict) and value.get("label") == "":
+            normalized = dict(value)
+            normalized.pop("label")
+            return normalized
+        return value
 
     @model_validator(mode="after")
     def scope_job_research_render_context(self) -> "ConversationResourceReference":
@@ -748,8 +771,10 @@ def decision_observation_projection(
                 # produced in one turn project as two observations that differ
                 # only in an opaque suffix, so a model asked about the first has
                 # nothing to match on.
-                if reference.label:
-                    line["label"] = reference.label
+                if reference.title:
+                    line["title"] = reference.title
+                if reference.description:
+                    line["description"] = reference.description
         projected.append(line)
     return tuple(projected)
 
@@ -804,7 +829,7 @@ class MainAgentContext(ContractModel):
     the whole transcript — so the failure was asymmetric and silent, with
     the user looking at a card the model could no longer open.
 
-    Only the reference and a bounded label cross. The report itself stays
+    Only the reference and bounded producer-owned metadata cross. The report itself stays
     in its entity, which is the whole point of storing a pointer.
     """
 
@@ -965,8 +990,12 @@ class MainAgentContext(ContractModel):
                 "kind": reference.kind,
                 "reference": handles[reference.resource_id],
                 "delivered_at": message.created_at.isoformat(),
-                "summary": condense(message.content),
-                **({"label": reference.label} if reference.label else {}),
+                **({"title": reference.title} if reference.title else {}),
+                **(
+                    {"description": reference.description}
+                    if reference.description
+                    else {}
+                ),
             }
             for message in self.archived_resources
             for reference in message.resource_refs
@@ -982,7 +1011,12 @@ class MainAgentContext(ContractModel):
                     {
                         "kind": reference.kind,
                         "reference": handles[reference.resource_id],
-                        **({"label": reference.label} if reference.label else {}),
+                        **({"title": reference.title} if reference.title else {}),
+                        **(
+                            {"description": reference.description}
+                            if reference.description
+                            else {}
+                        ),
                     }
                     for reference in message.resource_refs
                 ]

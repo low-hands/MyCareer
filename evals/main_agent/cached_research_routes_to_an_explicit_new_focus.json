@@ -2,15 +2,15 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
   "context_shape_fingerprint": "1918238a34bd0f1272865059dfc3302f8d6d01622302d80c7667ec7df2b5291f",
-  "recorded_at": "2026-09-04T02:24:25.918691+00:00",
+  "recorded_at": "2026-09-04T04:57:36.714592+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：识别公司所在市场的主要竞争对手、各自产品或业务定位、差异化优势，以及这些信息对该岗位可能意味着什么。",
+          "focus": "竞争对手：识别该公司的主要竞争对手，比较其产品、业务定位、市场差异与对该岗位可能相关的竞争环境。",
           "max_sources": 8
         }
       }

@@ -2,9 +2,9 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "1a3965285fa8bd0de8f722705fd61f825f8297c4ba43b6a30be53aa268deeacc",
+  "prompt_fingerprint": "77e3523fd40c9004f380c90c70c4e530e5f49acd4b11db7bd64737864e57a583",
   "context_shape_fingerprint": "c27d2fb30ff502ab1776fab74c98ecedcb5de8ab1a81a1558faa80e8dada6b4b",
-  "recorded_at": "2026-09-04T02:26:47.926153+00:00",
+  "recorded_at": "2026-09-04T04:58:23.420946+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,7 +16,7 @@
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师｜示例科技**\\n   - 城市：上海\\n   - 薪资：30–50K\\n\\n如果你想查看完整职位描述，可以告诉我“查看第 1 个岗位”。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师**｜示例科技｜上海｜30-50K\"}"
     }
   ]
 }

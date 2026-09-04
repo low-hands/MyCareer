@@ -1056,6 +1056,10 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     assert "Built production RAG systems for knowledge retrieval." in rendered
     assert observation.resource_ref is not None
     assert observation.resource_ref.kind == "resume_tailoring_draft"
+    assert observation.resource_ref.title == "简历改写稿 v1"
+    assert observation.resource_ref.description == (
+        "Lead with directly supported production RAG experience."
+    )
 
     stored = service._draft_store.get_for_display(
         user_id="u1", draft_id=observation.payload["draft_id"]

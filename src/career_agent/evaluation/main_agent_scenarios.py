@@ -35,7 +35,7 @@ _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
 
 # Company and the one-line conclusion that turn's reply carried. The catalogue
-# shows both: ``label`` says which report this is, ``summary`` is a condensed
+# shows both: ``title`` says which report this is, ``description`` previews it
 # copy of what the assistant said when it delivered it. Written as two different
 # things on purpose — a scenario whose summaries all read "X 的调研已完成" would
 # make ``summary`` look redundant when in production it holds the turn's actual
@@ -438,7 +438,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                         ConversationResourceReference(
                             kind="job_research_report",
                             resource_id=f"report-{number}",
-                            label=company,
+                            title=company,
+                            description=conclusion,
                             status_at_delivery="current",
                             anchored_by_other_job=False,
                         ),
@@ -516,12 +517,16 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                         ConversationResourceReference(
                             kind="job_research_report",
                             resource_id="report-h1",
+                            title="历史科技甲",
+                            description="历史公司甲的产品调研。",
                             status_at_delivery="current",
                             anchored_by_other_job=False,
                         ),
                         ConversationResourceReference(
                             kind="job_research_report",
                             resource_id="report-h2",
+                            title="历史科技乙",
+                            description="历史公司乙的产品调研。",
                             status_at_delivery="current",
                             anchored_by_other_job=False,
                         ),
@@ -537,7 +542,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     resource_ref=ConversationResourceReference(
                         kind="job_research_report",
                         resource_id="report-a",
-                        label="示例科技",
+                        title="示例科技",
+                        description="企业搜索产品调研。",
                         status_at_delivery="current",
                         anchored_by_other_job=False,
                     ),
@@ -551,7 +557,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     resource_ref=ConversationResourceReference(
                         kind="job_research_report",
                         resource_id="report-b",
-                        label="另一家科技",
+                        title="另一家科技",
+                        description="推荐系统产品调研。",
                         status_at_delivery="current",
                         anchored_by_other_job=False,
                     ),
@@ -587,24 +594,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # resource_ref, so this turn's reports have no handle at all — while the
         # two stored reports still have theirs.
         #
-        # Measured twice, and the second measurement is the interesting one.
-        #
-        # Under ordinals the model wrote reference_index=1 — a number the
-        # projection really showed — and received last week's research. The
-        # migration to derived handles was meant to remove that move, and it
-        # did: there is no name to count to.
-        #
-        # It did not remove the failure. Offered no handle for the report it is
-        # asked about, the model now copies one that *is* on screen: it sent
-        # report_662e28, which is report-h1, last week's. Same wrong report,
-        # reached by a different route.
-        #
-        # So unguessability was not the binding constraint. The model would
-        # rather name some report than say it cannot reach the one asked for,
-        # and every scheme that puts other resources in view leaves that move
-        # available. What is left is a behaviour problem, not a format one.
-        # The model is now in the position the handle was added to remove: the
-        # report it is asked about cannot be named at all.
+        # Earlier versions left the two stored reports untitled, and the model
+        # copied one of their valid handles when the requested in-turn report
+        # had none. Producer-owned titles make the negative case honest: the
+        # visible handles are explicitly about other companies, so using either
+        # is demonstrably wrong rather than merely ambiguous.
         #
         # The assertion is deliberately not expect_tool. There is no right
         # answer to demand here — calling the tool bare and returning the wrong
@@ -629,12 +623,16 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                         ConversationResourceReference(
                             kind="job_research_report",
                             resource_id="report-h1",
+                            title="历史科技甲",
+                            description="历史公司甲的产品调研。",
                             status_at_delivery="current",
                             anchored_by_other_job=False,
                         ),
                         ConversationResourceReference(
                             kind="job_research_report",
                             resource_id="report-h2",
+                            title="历史科技乙",
+                            description="历史公司乙的产品调研。",
                             status_at_delivery="current",
                             anchored_by_other_job=False,
                         ),
@@ -658,14 +656,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         decisive_facts=("tool_observations", "task.has_active_job_research_report"),
-        known_gap=(
-            "Offered no handle for the report it is asked about, the model "
-            "sends another report's handle — report_662e28 is last week's "
-            "report-h1 — and receives the wrong research silently. Derived "
-            "handles closed the guess-a-number route; copying a shown handle "
-            "is the same failure by another route, and is behavioural rather "
-            "than structural."
-        ),
         steps=(
             TrajectoryStep(
                 forbid_argument_keys=frozenset({"reference"}),

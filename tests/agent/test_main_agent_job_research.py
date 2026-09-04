@@ -184,6 +184,11 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
     assert "run-secret" not in result.assistant_message
     assert "report-secret" not in result.assistant_message
     assert result.context.task.active_job_research_report_id == "report-secret"
+    assert result.tool_result.resource_ref is not None
+    assert result.tool_result.resource_ref.title == "岗位研究报告"
+    assert result.tool_result.resource_ref.description == (
+        "公司调研；该岗位与企业检索可靠性直接相关。"
+    )
     assert result.context.model_context()["task"]["job_research_status"] == "current"
     assert tools.capability_kind("research_job") == "workflow"
     assert tools.capability_kind("get_job_research") == "atomic_tool"

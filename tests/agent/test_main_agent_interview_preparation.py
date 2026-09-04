@@ -122,6 +122,9 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
     assert "jd-1" not in rendered
     assert "preparation-1" not in result.assistant_message
     assert "jd-1" not in result.assistant_message
+    assert result.tool_result.resource_ref is not None
+    assert result.tool_result.resource_ref.title == "面试准备"
+    assert result.tool_result.resource_ref.description == "重点准备 RAG 可靠性。"
 
     loaded = manager.load_for_turn(
         user_id="u1",

@@ -503,10 +503,12 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         shown = positive["tool_observations"][position]
         hidden = negative["tool_observations"][position]
         handle = shown.pop("reference")
-        # ``label`` rides on the reference, so removing one removes the other.
-        # The mirror is "no reference at all", not "a reference stripped of its
-        # name", which is the state a real turn would be in.
-        shown.pop("label")
+        # ``title`` and ``description`` ride on the reference, so removing one
+        # removes all three. The mirror is "no reference at all", not "a
+        # reference stripped of its name", which is the state a real turn
+        # would be in.
+        shown.pop("title")
+        shown.pop("description")
         assert (
             numbered.context.resolve_reference(
                 reference=handle, kind="job_research_report"
@@ -557,16 +559,8 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         )
         == "report-a"
     )
-    # The mirror after the migration, kept as evidence rather than as the
-    # expectation it was written as. The model does send a handle — and it is a
-    # real one, for the wrong report: no handle exists for what it was asked
-    # about, so it reaches for one that is on screen. Unguessability was not the
-    # binding constraint; the model preferring a wrong answer to no answer is.
+    # Producer-owned titles close the remaining ambiguity: the only visible
+    # handles are explicitly about other companies, so the mirror no longer
+    # substitutes one of them for a report it cannot name.
     unnumbered_call = load_cassette(unnumbered.name).steps[0].get("tool_call") or {}
-    copied = unnumbered_call.get("arguments", {}).get("reference")
-    assert (
-        unnumbered.context.resolve_reference(
-            reference=copied, kind="job_research_report"
-        )
-        == "report-h1"
-    )
+    assert "reference" not in unnumbered_call.get("arguments", {})

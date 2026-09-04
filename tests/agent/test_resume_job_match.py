@@ -357,6 +357,8 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
         AgentDecision(action="final", message="这份简历与岗位整体中等匹配。"),
     )
     tools = MainAgentToolRegistry(
+        job_repository=jobs,
+        resume_store=resumes,
         resume_job_match_service=service,
     )
     runtime = MainAgentRuntime(
@@ -394,6 +396,10 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     assert "The resume demonstrates relevant RAG experience." in rendered
     assert observation.resource_ref is not None
     assert observation.resource_ref.kind == "resume_job_match"
+    assert observation.resource_ref.title == (
+        "AI Resume v1 × Acme · RAG Engineer · 简历岗位匹配"
+    )
+    assert observation.resource_ref.description == "简历与岗位匹配；整体匹配度为 moderate。"
 
     review_decisions = SequenceDecisionMaker(
         AgentDecision(

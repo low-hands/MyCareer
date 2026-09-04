@@ -17,6 +17,7 @@ from career_agent.agent.interview_preparation_presenter import (
     summarize_interview_preparation,
 )
 from career_agent.agent.job_research_presenter import summarize_job_research
+from career_agent.agent.summary_text import condense
 from career_agent.agent.mock_interview_presenter import (
     render_mock_interview_turn,
     summarize_mock_interview_question,
@@ -381,6 +382,129 @@ class MainAgentToolRegistry:
                     "execute_calendar_proposal": self._execute_calendar_proposal,
                 }
             )
+
+    @staticmethod
+    def _resource_title(*parts: str | None) -> str:
+        """Join producer-selected identity fields into one bounded title."""
+
+        title = " · ".join(part.strip() for part in parts if part and part.strip())
+        return condense(title, limit=80)
+
+    @staticmethod
+    def _resource_description(text: str) -> str | None:
+        description = condense(text, limit=200)
+        return description or None
+
+    def _job_display(
+        self, *, user_id: str, job_posting_id: str
+    ) -> tuple[str, str] | None:
+        """Read formal job names when that producer dependency is available."""
+
+        get_job = getattr(self._job_repository, "get_job", None)
+        if not callable(get_job):
+            return None
+        job = get_job(
+            user_id=user_id, job_posting_id=job_posting_id
+        )
+        if job is None:
+            return None
+        return job.posting.company_name, job.posting.title
+
+    def _resume_display(
+        self, *, user_id: str, resume_version_id: str
+    ) -> str | None:
+        if self._resume_store is None:
+            return None
+        resolved = self._resume_store.get_version(
+            user_id=user_id, resume_version_id=resume_version_id
+        )
+        if resolved is None:
+            return None
+        resume, version = resolved
+        return f"{resume.name} v{version.version_number}"
+
+    def _job_resource_metadata(
+        self,
+        *,
+        user_id: str,
+        job_posting_id: str,
+        resource_name: str,
+        description: str,
+        prefix: str | None = None,
+    ) -> tuple[str, str | None]:
+        job = self._job_display(user_id=user_id, job_posting_id=job_posting_id)
+        title = (
+            self._resource_title(prefix, job[0], job[1], resource_name)
+            if job is not None
+            else self._resource_title(prefix, resource_name)
+        )
+        return title, self._resource_description(description)
+
+    def _job_research_metadata(
+        self, *, user_id: str, report
+    ) -> tuple[str, str | None]:
+        job = self._job_display(
+            user_id=user_id, job_posting_id=report.job_posting_id
+        )
+        title = self._resource_title(
+            job[0] if job is not None else report.company_key,
+            None if (job is not None or report.company_key) else "岗位研究报告",
+        )
+        anchor = f"以 {job[1]} 岗位 JD 为检索锚点。" if job is not None else ""
+        description = self._resource_description(
+            f"公司调研；{anchor}{report.summary}"
+        )
+        return title, description
+
+    def _resume_match_metadata(
+        self, *, user_id: str, stored
+    ) -> tuple[str, str | None]:
+        job = self._job_display(
+            user_id=user_id, job_posting_id=stored.job_posting_id
+        )
+        resume = self._resume_display(
+            user_id=user_id, resume_version_id=stored.resume_version_id
+        )
+        identity = (
+            f"{resume} × {job[0]} · {job[1]}"
+            if resume and job
+            else resume or (" · ".join(job) if job else None)
+        )
+        title = self._resource_title(identity, "简历岗位匹配")
+        return title, self._resource_description(
+            f"简历与岗位匹配；整体匹配度为 {stored.result.overall_fit}。"
+        )
+
+    def _tailoring_metadata(
+        self, *, user_id: str, draft: StoredResumeTailoringDraft
+    ) -> tuple[str, str | None]:
+        match = None
+        if self._resume_job_match_service is not None:
+            try:
+                match = self._resume_job_match_service.get_match(
+                    user_id=user_id, match_id=draft.match_id
+                )
+            except ResumeJobMatchInputNotFoundError:
+                pass
+        if match is not None:
+            job = self._job_display(
+                user_id=user_id, job_posting_id=match.job_posting_id
+            )
+            resume = self._resume_display(
+                user_id=user_id, resume_version_id=match.resume_version_id
+            )
+        else:
+            job = None
+            resume = None
+        identity = (
+            f"{resume} → {job[0]} · {job[1]}"
+            if resume and job
+            else resume or (" · ".join(job) if job else None)
+        )
+        title = self._resource_title(
+            identity, f"简历改写稿 v{draft.revision_number}"
+        )
+        return title, self._resource_description(draft.result.strategy_summary)
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -1145,7 +1269,9 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result, "start_mock_interview")
+        return self._mock_interview_observation(
+            result, "start_mock_interview", user_id=workflow_input.user_id
+        )
 
     def resume_mock_interview(
         self, *, user_id: str, session_id: str, answer: str
@@ -1155,6 +1281,7 @@ class MainAgentToolRegistry:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
             tool_name="resume_mock_interview",
+            user_id=user_id,
             session_id=session_id,
             drive=lambda graph: graph.resume(
                 user_id=user_id,
@@ -1171,6 +1298,7 @@ class MainAgentToolRegistry:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
             tool_name="handle_mock_interview_input",
+            user_id=user_id,
             session_id=session_id,
             drive=lambda graph: graph.handle_input(
                 user_id=user_id,
@@ -1194,6 +1322,7 @@ class MainAgentToolRegistry:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
             tool_name="retry_mock_interview",
+            user_id=user_id,
             session_id=session_id,
             drive=lambda graph: graph.retry(
                 user_id=user_id,
@@ -1205,6 +1334,7 @@ class MainAgentToolRegistry:
         self,
         *,
         tool_name: str,
+        user_id: str,
         session_id: str,
         drive: Callable[[Any], MockInterviewGraphResult],
     ) -> ToolObservation:
@@ -1275,12 +1405,14 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result, tool_name)
+        return self._mock_interview_observation(result, tool_name, user_id=user_id)
 
-    @staticmethod
     def _mock_interview_observation(
+        self,
         result: MockInterviewGraphResult,
         tool_name: str,
+        *,
+        user_id: str,
     ) -> ToolObservation:
         state = {
             "awaiting_answer": "mock_interview_answer_required",
@@ -1299,6 +1431,27 @@ class MainAgentToolRegistry:
             if result.state == "completed" and result.report is not None
             else render_mock_interview_turn(result)
         )
+        session = (
+            self._mock_interview_store.get_session(
+                user_id=user_id, session_id=result.session_id
+            )
+            if self._mock_interview_store is not None
+            else None
+        )
+        job = (
+            self._job_display(
+                user_id=user_id, job_posting_id=session.job_posting_id
+            )
+            if session is not None
+            else None
+        )
+        title = self._resource_title(
+            *(job or ()),
+            "模拟面试报告",
+        )
+        description = self._resource_description(
+            result.report.summary if result.report is not None else "模拟面试报告"
+        )
         return ToolObservation(
             tool_name=tool_name,
             state=state,
@@ -1313,6 +1466,8 @@ class MainAgentToolRegistry:
                 ConversationResourceReference(
                     kind="mock_interview_report",
                     resource_id=result.report_id,
+                    title=title,
+                    description=description,
                 )
                 if result.state == "completed"
                 else None
@@ -1385,7 +1540,9 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result, "restart_mock_interview")
+        return self._mock_interview_observation(
+            result, "restart_mock_interview", user_id=user_id
+        )
 
     def _get_mock_interview_result(self, arguments: dict[str, Any]) -> ToolObservation:
         """Read back a finished run the conversation only holds a reference to.
@@ -1449,7 +1606,7 @@ class MainAgentToolRegistry:
                 turns=turns, question_number=int(question_number)
             )
         return self._mock_interview_result_observation(
-            session=session, report=report, turns=turns
+            user_id=user_id, session=session, report=report, turns=turns
         )
 
     @staticmethod
@@ -1496,9 +1653,10 @@ class MainAgentToolRegistry:
             payload=view.model_dump(mode="json"),
         )
 
-    @staticmethod
     def _mock_interview_result_observation(
+        self,
         *,
+        user_id: str,
         session: MockInterviewSession,
         report: MockInterviewReport | None,
         turns: tuple[MockInterviewTurn, ...],
@@ -1545,6 +1703,13 @@ class MainAgentToolRegistry:
             report_id=report.id if report is not None else None,
             report_summary=report.summary if report is not None else None,
         )
+        job = self._job_display(
+            user_id=user_id, job_posting_id=session.job_posting_id
+        )
+        title = self._resource_title(*(job or ()), "模拟面试报告")
+        description = self._resource_description(
+            report.summary if report is not None else "模拟面试报告"
+        )
         return ToolObservation(
             tool_name="get_mock_interview_result",
             state="mock_interview_result_found",
@@ -1554,6 +1719,8 @@ class MainAgentToolRegistry:
                 ConversationResourceReference(
                     kind="mock_interview_report",
                     resource_id=report.id,
+                    title=title,
+                    description=description,
                 )
                 if report is not None
                 else None
@@ -1822,6 +1989,27 @@ class MainAgentToolRegistry:
                 action_type="interview_retro",
                 source_id=report.interview_round_id,
             )
+        job = None
+        if self._application_service is not None:
+            try:
+                detail = self._application_service.get_application(
+                    user_id=user_id, application_id=report.application_id
+                )
+                job = (
+                    detail.job.posting.company_name,
+                    detail.job.posting.title,
+                )
+            except ApplicationInputNotFoundError:
+                pass
+        interview_label = None
+        if self._interview_service is not None:
+            try:
+                interview_label = self._interview_service.get_interview(
+                    user_id=user_id,
+                    interview_round_id=report.interview_round_id,
+                ).interview.employer_label
+            except InterviewNotFoundError:
+                pass
         return ToolObservation(
             tool_name="record_interview_retro",
             state="interview_retro_recorded",
@@ -1830,6 +2018,10 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="interview_retro_report",
                 resource_id=report.id,
+                title=self._resource_title(
+                    *(job or ()), interview_label, "面试复盘"
+                ),
+                description=self._resource_description(report.summary),
             ),
         )
 
@@ -1861,6 +2053,12 @@ class MainAgentToolRegistry:
                 message="当前面试状态不适合生成准备材料。",
                 payload={"reason": str(error)},
             )
+        title, description = self._job_resource_metadata(
+            user_id=user_id,
+            job_posting_id=preparation.job_posting_id,
+            resource_name="面试准备",
+            description=preparation.result.summary,
+        )
         return ToolObservation(
             tool_name="prepare_interview",
             state="interview_preparation_ready",
@@ -1869,6 +2067,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="interview_preparation",
                 resource_id=preparation.id,
+                title=title,
+                description=description,
             ),
         )
 
@@ -1908,6 +2108,12 @@ class MainAgentToolRegistry:
                 state="interview_preparation_not_found",
                 message="没有找到该面试准备结果，或它不属于当前用户。",
             )
+        title, description = self._job_resource_metadata(
+            user_id=user_id,
+            job_posting_id=preparation.job_posting_id,
+            resource_name="面试准备",
+            description=preparation.result.summary,
+        )
         return ToolObservation(
             tool_name="get_interview_preparation",
             state="interview_preparation_ready",
@@ -1916,6 +2122,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="interview_preparation",
                 resource_id=preparation.id,
+                title=title,
+                description=description,
             ),
         )
 
@@ -2461,6 +2669,9 @@ class MainAgentToolRegistry:
                 error=error,
                 job_posting_id=model_arguments.job_posting_id,
             )
+        title, description = self._job_research_metadata(
+            user_id=user_id, report=result.report
+        )
         return ToolObservation(
             tool_name="research_job",
             state="job_research_ready",
@@ -2478,10 +2689,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
-                # What the catalogue shows to tell twelve reports apart. The key
-                # is the company name with only case and whitespace folded, so
-                # for the names this project sees it reads as written.
-                label=result.report.company_key or "",
+                title=title,
+                description=description,
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=(
                     result.report.job_posting_id
@@ -2515,6 +2724,9 @@ class MainAgentToolRegistry:
                 tool_name="retry_job_research",
                 error=error,
             )
+        title, description = self._job_research_metadata(
+            user_id=user_id, report=result.report
+        )
         return ToolObservation(
             tool_name="retry_job_research",
             state="job_research_ready",
@@ -2524,10 +2736,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
-                # What the catalogue shows to tell twelve reports apart. The key
-                # is the company name with only case and whitespace folded, so
-                # for the names this project sees it reads as written.
-                label=result.report.company_key or "",
+                title=title,
+                description=description,
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=False,
             ),
@@ -2552,6 +2762,9 @@ class MainAgentToolRegistry:
                 state="job_research_not_found",
                 message="没有找到该岗位的研究报告。",
             )
+        title, description = self._job_research_metadata(
+            user_id=user_id, report=result.report
+        )
         return ToolObservation(
             tool_name="get_job_research",
             state="job_research_ready",
@@ -2566,10 +2779,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
-                # What the catalogue shows to tell twelve reports apart. The key
-                # is the company name with only case and whitespace folded, so
-                # for the names this project sees it reads as written.
-                label=result.report.company_key or "",
+                title=title,
+                description=description,
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=bool(
                     self._job_research_payload(
@@ -3138,6 +3349,9 @@ class MainAgentToolRegistry:
                     "retryable": error.retryable,
                 },
             )
+        title, description = self._resume_match_metadata(
+            user_id=user_id, stored=stored
+        )
         return ToolObservation(
             tool_name="match_resume_to_job",
             state="resume_job_match_ready",
@@ -3152,6 +3366,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="resume_job_match",
                 resource_id=stored.id,
+                title=title,
+                description=description,
             ),
         )
 
@@ -3176,6 +3392,9 @@ class MainAgentToolRegistry:
                 message="没有找到这次简历岗位匹配，或它不属于当前用户。",
                 payload={"match_id": model_arguments.match_id},
             )
+        title, description = self._resume_match_metadata(
+            user_id=user_id, stored=stored
+        )
         return ToolObservation(
             tool_name="get_resume_job_match",
             state="resume_job_match_ready",
@@ -3190,6 +3409,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="resume_job_match",
                 resource_id=stored.id,
+                title=title,
+                description=description,
             ),
         )
 
@@ -3230,6 +3451,7 @@ class MainAgentToolRegistry:
                 payload={"error_code": error.code, "retryable": error.retryable},
             )
         return self._tailoring_observation(
+            user_id=user_id,
             tool_name="draft_resume_tailoring",
             draft=draft,
             message=f"已生成 {len(draft.result.changes)} 条待审阅的简历修改建议。",
@@ -3257,6 +3479,7 @@ class MainAgentToolRegistry:
                 payload={"draft_id": model_arguments.draft_id},
             )
         return self._tailoring_observation(
+            user_id=user_id,
             tool_name="get_resume_tailoring_draft",
             draft=draft,
             message=f"已读取包含 {len(draft.result.changes)} 条修改建议的草稿。",
@@ -3301,6 +3524,7 @@ class MainAgentToolRegistry:
                 payload={"draft_id": model_arguments.draft_id},
             )
         return self._tailoring_observation(
+            user_id=user_id,
             tool_name="review_resume_tailoring",
             draft=draft,
             message=(
@@ -3361,6 +3585,7 @@ class MainAgentToolRegistry:
                 payload={"error_code": error.code, "retryable": error.retryable},
             )
         return self._tailoring_observation(
+            user_id=user_id,
             tool_name="revise_resume_tailoring",
             draft=draft,
             message=(
@@ -3657,13 +3882,17 @@ class MainAgentToolRegistry:
             "updated_at": application.updated_at.isoformat(),
         }
 
-    @staticmethod
     def _tailoring_observation(
+        self,
         *,
+        user_id: str,
         tool_name: str,
         draft: StoredResumeTailoringDraft,
         message: str,
     ) -> ToolObservation:
+        title, description = self._tailoring_metadata(
+            user_id=user_id, draft=draft
+        )
         return ToolObservation(
             tool_name=tool_name,
             state="resume_tailoring_draft_ready",
@@ -3709,5 +3938,7 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="resume_tailoring_draft",
                 resource_id=draft.id,
+                title=title,
+                description=description,
             ),
         )

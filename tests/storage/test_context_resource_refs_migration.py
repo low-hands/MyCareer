@@ -65,6 +65,7 @@ def test_a_v1_row_keeps_its_reference_through_the_upgrade(tmp_path) -> None:
                     "resource_id": "report-legacy",
                     "status_at_delivery": "current",
                     "anchored_by_other_job": False,
+                    "label": "Example Corp",
                 },
             ),
             _message("普通回复。", reference=None),
@@ -82,6 +83,8 @@ def test_a_v1_row_keeps_its_reference_through_the_upgrade(tmp_path) -> None:
     reference = messages[0].resource_refs[0]
     assert reference.status_at_delivery == "current"
     assert reference.anchored_by_other_job is False
+    assert reference.title == "Example Corp"
+    assert reference.description is None
 
 
 def test_the_upgraded_rows_answer_the_predicates_that_index_them(tmp_path) -> None:
