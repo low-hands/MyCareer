@@ -34,7 +34,7 @@ def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None
 
     ``decision.tool_name`` is machine-readable output. For the two ingresses
     that fabricate an ``AgentDecision`` — the bound interaction receipt and the
-    mock interview takeover — publishing the invented values stated, in a form
+    mock interview workflow continuation — publishing those values, in a form
     another program would act on, that the model chose a capability it was
     never even consulted about. What did happen is in ``tool_results``.
     """

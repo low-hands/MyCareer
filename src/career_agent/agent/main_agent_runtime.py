@@ -107,6 +107,7 @@ DEFAULT_MAX_FAILURE_RETRIES = 2
 class PendingAction(TypedDict, total=False):
     name: str
     kind: Literal["atomic_tool", "workflow"]
+    runtime_owned: bool
     effect: ToolEffect
     arguments: dict[str, Any]
     result: MainAgentToolOutput
@@ -139,10 +140,10 @@ class MainAgentTurnResult:
     def __init__(self, *, decision: AgentDecision, decision_source: Literal["model", "runtime"], context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
         self.decision = decision
         # Who chose this. ``decision`` is typed ``AgentDecision`` and named after
-        # the model's choice, but two ingresses fabricate one: the bound
-        # interaction receipt (the user clicked a button whose contract was
-        # sealed when the interaction was issued) and the mock interview
-        # takeover. Both are legitimate — a receipt has no open semantic
+        # the model's choice, but two ingresses construct one at runtime: the
+        # bound interaction receipt (the user clicked a button whose contract
+        # was sealed when the interaction was issued) and a bound workflow
+        # continuation. Both are legitimate — a receipt has no open semantic
         # decision to make, and asking the model again would only let it
         # overrule an explicit click — but neither is a model decision, and
         # nothing used to say so, leaving every consumer to read all three as
@@ -238,7 +239,14 @@ class MainAgentRuntime:
         graph.add_node("observe", self._observe)
         graph.add_node("present", self._present)
         graph.add_node("interrupt", self._interrupt)
-        graph.add_edge(START, "hydrate")
+        graph.add_conditional_edges(
+            START,
+            self._route_entry,
+            {
+                "hydrate": "hydrate",
+                "authorize": "authorize",
+            },
+        )
         graph.add_edge("hydrate", "decide")
         graph.add_conditional_edges(
             "decide",
@@ -272,6 +280,16 @@ class MainAgentRuntime:
         graph.add_edge("present", END)
         graph.add_edge("interrupt", END)
         self._graph = graph.compile()
+
+    @staticmethod
+    def _route_entry(state: MainAgentState) -> Literal["hydrate", "authorize"]:
+        """Enter at authorization for a bound runtime-owned workflow action."""
+
+        return (
+            "authorize"
+            if state.get("pending", {}).get("runtime_owned")
+            else "hydrate"
+        )
 
     def close(self) -> None:
         if self._closed:
@@ -631,22 +649,14 @@ class MainAgentRuntime:
                 conversation_id=conversation_id,
                 task=routing_task,
             )
-            # The started/completed pair both name the entry that actually ran.
-            # Only ``_run_active_mock_interview`` knows which one that is, so it
-            # emits the start, and the completion reads the name back off the
-            # observation rather than guessing it a second time.
             try:
-                result = self._run_active_mock_interview(
+                result = self._run_owned_workflow_turn(
                     context=context,
                     user_message=user_message,
                 )
             except Exception as error:
                 self._commit_interrupted_turn(context=context, error=error)
                 raise
-            if result.tool_result is not None:
-                self._emit_capability_completed(
-                    result.tool_result.tool_name, result.tool_result.state
-                )
             # One decision point for every way a run can end, so no exit path
             # can forget to leave a trace. The test is whether the workflow will
             # still be driving the next turn, not whether it still holds the
@@ -1169,66 +1179,72 @@ class MainAgentRuntime:
         )
         return {"decision": decision}
 
-    def _run_active_mock_interview(
+    def _run_owned_workflow_turn(
         self, *, context: MainAgentContext, user_message: str
     ) -> MainAgentTurnResult:
+        """Advance an isolated workflow through the ordinary execution graph.
+
+        Workflow ownership already determines the operation, so no model call is
+        needed. The action still enters at ``authorize`` and continues through
+        ``act`` and ``observe``: budgets, effect bookkeeping, task reduction,
+        progress events and telemetry are therefore the same machinery used by
+        model-selected tools. The raw answer stays in the private pending input
+        and is never copied into a model-visible observation.
+        """
+
         session_id = context.task.run_id
         if session_id is None:
             raise ValueError("Active mock interview has no resumable session")
-        # Derived once, here, and used for the progress event, the ledger, the
-        # observation and the fabricated decision alike. Computing it again at
-        # the ingress would mean two places deciding which entry ran, from two
-        # different copies of the task.
         entry = (
             "retry_mock_interview"
             if context.task.phase == "failed"
             else "handle_mock_interview_input"
         )
-        self._emit_capability_started(entry)
-        if context.task.phase == "failed":
-            # The answer for this turn is already durable; the step after it
-            # failed. Re-drive from the store rather than treating this message
-            # as a new answer, which the turn would reject as conflicting and
-            # leave the candidate unable to leave the failed phase at all.
-            result = self._tools.retry_mock_interview(
-                user_id=context.profile.user_id,
-                session_id=session_id,
-            )
-        else:
-            result = self._tools.handle_mock_interview_input(
-                user_id=context.profile.user_id,
-                session_id=session_id,
-                message=user_message,
-            )
-        # This ingress takes over the whole turn and never reaches ``_act``, so
-        # the ledger has to be told here. The write is real: the answer is
-        # persisted by the workflow before the step that consumes it can fail —
-        # ``retry_mock_interview`` exists precisely because of that ordering.
-        # Were this call to run inside the graph it would be an ordinary
-        # graph-driven WRITE and need no special case here.
-        MainAgentRuntime._record_durable_write(entry, result)
-        updated = self._update_mock_interview_task(context, result)
-        updated = updated.model_copy(
-            update={
-                "tool_observations": append_decision_observation(
-                    updated.tool_observations,
-                    self._tool_observation(entry, result),
-                )
-            }
-        )
         decision = AgentDecision(
             action="tool_call",
-            # The entry that ran, not the capability that started the run —
-            # same obligation as the observation above.
             tool_call=ToolCall(name=entry, arguments={}),
         )
+        runtime_arguments = (
+            {}
+            if entry == "retry_mock_interview"
+            else {"message": user_message}
+        )
+        state = self._graph.invoke(
+            {
+                "context": context,
+                "decision": decision,
+                # Runtime-owned workflow input is execution data, not model
+                # context. It starts in pending and is replaced by projected
+                # handler arguments during authorization.
+                "pending": {
+                    "name": entry,
+                    "runtime_owned": True,
+                    "arguments": runtime_arguments,
+                },
+                "artifact_ids": (),
+                "tool_results": (),
+                "control": {
+                    "read_calls": 0,
+                    "write_calls": 0,
+                    "projection_refusals": 0,
+                    "authorization_refusals": 0,
+                    "fingerprints": (),
+                    "retryable_fingerprints": (),
+                    "retry_counts": {},
+                },
+            }
+        )
+        result = self._last_result(state)
+        control = state.get("control", {})
         return MainAgentTurnResult(
-            decision=decision,
+            decision=state["decision"],
             decision_source="runtime",
-            context=updated,
-            assistant_message=self._assistant_message(result),
+            context=state["context"],
+            assistant_message=state["assistant_message"],
             tool_result=result,
-            tool_results=(result,),
+            tool_results=state.get("tool_results", ()),
+            delegated_read_count=control.get("read_calls", 0),
+            delegated_write_count=control.get("write_calls", 0),
         )
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
@@ -1300,17 +1316,32 @@ class MainAgentRuntime:
                 "name": name,
                 "result": result,
                 "synthetic_kind": "authorization",
+                "runtime_owned": bool(
+                    state.get("pending", {}).get("runtime_owned")
+                ),
             },
         }
 
     def _authorize(self, state: MainAgentState) -> MainAgentState:
-        """Project and gate one model-selected action without choosing its successor."""
+        """Project and gate one action without choosing its successor.
+
+        Most actions are model-selected. A workflow-owned turn supplies one
+        bound runtime action instead; it receives the same budgets and effect
+        checks but uses a separate projector so private workflow input never
+        becomes model-authored arguments.
+        """
 
         decision = state["decision"]
         if decision.tool_call is None:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
-        kind = self._tools.capability_kind(name)
+        runtime_owned = bool(state.get("pending", {}).get("runtime_owned"))
+        if runtime_owned:
+            if name not in self._tools.runtime_workflow_names:
+                raise ValueError(f"Unknown runtime-owned workflow: {name}")
+            kind = "workflow"
+        else:
+            kind = self._tools.capability_kind(name)
         effect = effect_for(name)
         control = self._control(state)
         used = control.get("read_calls", 0) if effect == "READ" else control.get("write_calls", 0)
@@ -1359,7 +1390,9 @@ class MainAgentRuntime:
             control = {**control, "retry_counts": retry_counts}
         try:
             arguments = (
-                self._project_atomic_tool_arguments(
+                self._project_runtime_workflow_arguments(state, name)
+                if runtime_owned
+                else self._project_atomic_tool_arguments(
                     state["context"],
                     name,
                     decision.tool_call.arguments,
@@ -1385,6 +1418,7 @@ class MainAgentRuntime:
                     "name": name,
                     "result": result,
                     "synthetic_kind": "projection",
+                    "runtime_owned": runtime_owned,
                 },
             }
         return {
@@ -1393,6 +1427,7 @@ class MainAgentRuntime:
             "pending": {
                 "name": name,
                 "kind": kind,
+                "runtime_owned": runtime_owned,
                 "effect": effect,
                 "arguments": arguments,
             },
@@ -1410,9 +1445,13 @@ class MainAgentRuntime:
         arguments = pending["arguments"]
         self._emit_capability_started(name)
         result = (
-            self._tools.invoke_atomic_tool(name, arguments)
-            if pending["kind"] == "atomic_tool"
-            else self._tools.invoke_workflow(name, arguments)
+            self._tools.invoke_runtime_workflow(name, arguments)
+            if pending.get("runtime_owned")
+            else (
+                self._tools.invoke_atomic_tool(name, arguments)
+                if pending["kind"] == "atomic_tool"
+                else self._tools.invoke_workflow(name, arguments)
+            )
         )
         self._emit_capability_completed(name, result.state)
         if pending.get("effect") == "WRITE":
@@ -1423,9 +1462,8 @@ class MainAgentRuntime:
     def _record_durable_write(name: str, result: MainAgentToolOutput) -> None:
         """Note a call that reports it changed something durable.
 
-        Called from ``_act`` for every graph-driven WRITE, and from the mock
-        interview ingress, which does not go through the graph at all — see
-        ``_run_active_mock_interview``.
+        Called from ``_act`` for every graph-driven WRITE, including
+        runtime-owned workflow continuations.
         """
         if result.disposition == "failed":
             # Called *after* the call returns, and silent for a call that
@@ -1449,6 +1487,39 @@ class MainAgentRuntime:
         ledger = _DURABLE_WRITES.get()
         if ledger is not None:
             ledger.append(name)
+
+    @staticmethod
+    def _project_runtime_workflow_arguments(
+        state: MainAgentState, name: str
+    ) -> dict[str, Any]:
+        """Bind private workflow input to the durable owner selected at ingress."""
+
+        context = state["context"]
+        task = context.task
+        if task.active_workflow != "mock_interview" or not task.run_id:
+            raise ValueError("runtime-owned mock interview has no active session")
+        supplied = state.get("pending", {}).get("arguments", {})
+        if name == "retry_mock_interview":
+            if task.phase != "failed" or supplied:
+                raise ValueError("retry_mock_interview requires one failed active run")
+            return {
+                "user_id": context.profile.user_id,
+                "session_id": task.run_id,
+            }
+        if name == "handle_mock_interview_input":
+            if task.phase == "failed" or set(supplied) != {"message"}:
+                raise ValueError(
+                    "handle_mock_interview_input requires one workflow-owned message"
+                )
+            message = supplied["message"]
+            if not isinstance(message, str):
+                raise ValueError("workflow-owned mock interview message must be text")
+            return {
+                "user_id": context.profile.user_id,
+                "session_id": task.run_id,
+                "message": message,
+            }
+        raise ValueError(f"Unknown runtime-owned workflow: {name}")
 
     @staticmethod
     def _project_workflow_arguments(
@@ -1549,6 +1620,8 @@ class MainAgentRuntime:
             if result.tool_name in {
                 "start_mock_interview",
                 "restart_mock_interview",
+                "handle_mock_interview_input",
+                "retry_mock_interview",
             }:
                 updated = self._update_mock_interview_task(context, result)
             else:
@@ -1617,6 +1690,12 @@ class MainAgentRuntime:
         # contract does not need an LLM to paraphrase or rediscover its prompt.
         if result.disposition == "interaction_required":
             return "interrupt"
+        # A workflow-owned input must not fall through to the general decision
+        # model after execution. Its successor is already defined by the child
+        # workflow result, and the raw input was intentionally withheld from
+        # Main Agent context.
+        if state.get("pending", {}).get("runtime_owned"):
+            return "present"
         # A projection refusal always returns to the model, which then re-selects,
         # asks the user, or explains — its call, not a table's.
         #
@@ -1674,7 +1753,13 @@ class MainAgentRuntime:
         pending_result = pending.get("result")
         if (
             decision.action == "tool_call"
-            and pending.get("synthetic_kind") == "projection"
+            and (
+                pending.get("synthetic_kind") == "projection"
+                or (
+                    pending.get("synthetic_kind") == "authorization"
+                    and pending.get("runtime_owned")
+                )
+            )
             and pending_result is not None
         ):
             # A projection refusal with no possible candidate repair is a safe,

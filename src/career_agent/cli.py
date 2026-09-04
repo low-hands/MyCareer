@@ -555,12 +555,10 @@ def _write_chat_payload(
         "session_id": session_id,
         "assistant_message": turn.assistant_message,
         # ``decision`` reports the model's choice, so a turn the model never
-        # decided reports none. Two ingresses fabricate an ``AgentDecision`` —
-        # the bound interaction receipt and the mock interview takeover — and
-        # emitting their invented ``action``/``tool_name`` here published a
-        # machine-readable claim that a call had been made which never was.
-        # What actually happened is in ``tool_results``, which is where a reader
-        # should look for it.
+        # decided reports none. Two runtime-owned ingresses use the same result
+        # envelope — a bound interaction receipt and a workflow continuation —
+        # but neither action was selected by the model. What actually executed
+        # is in ``tool_results``, which is where a reader should look for it.
         "decision": {
             "source": turn.decision_source,
             "action": (

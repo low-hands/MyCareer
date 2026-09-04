@@ -227,6 +227,13 @@ class MainAgentToolRegistry:
         job_research_service: JobResearchService | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
+        # Workflow continuations are runtime-owned capabilities. They share the
+        # harness execution path with model tools, but are deliberately absent
+        # from ``schemas()`` and ``names`` so the decision model can neither see
+        # nor request them.
+        self._runtime_workflow_handlers: dict[
+            str, Callable[[dict[str, Any]], MainAgentToolOutput]
+        ] = {}
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
             "open_job_search": self._open_job_search,
         }
@@ -351,6 +358,15 @@ class MainAgentToolRegistry:
         if mock_interview_graph is not None and application_service is not None:
             self._workflow_handlers["start_mock_interview"] = (
                 self._start_mock_interview
+            )
+        if mock_interview_graph is not None:
+            self._runtime_workflow_handlers.update(
+                {
+                    "handle_mock_interview_input": (
+                        self._handle_mock_interview_input
+                    ),
+                    "retry_mock_interview": self._retry_mock_interview,
+                }
             )
         if mock_interview_store is not None:
             self._atomic_handlers["get_mock_interview_result"] = (
@@ -525,6 +541,12 @@ class MainAgentToolRegistry:
         if self._resume_analysis_service is None:
             return ()
         return ("confirm_resume_analysis", "reject_resume_analysis")
+
+    @property
+    def runtime_workflow_names(self) -> tuple[str, ...]:
+        """Workflow entries callable by the harness but never by the model."""
+
+        return tuple(self._runtime_workflow_handlers)
 
     def capability_kind(self, name: str) -> CapabilityKind:
         if name in self._workflow_handlers:
@@ -1160,6 +1182,14 @@ class MainAgentToolRegistry:
             raise ValueError(f"Unknown main-agent workflow: {name}")
         return handler(arguments)
 
+    def invoke_runtime_workflow(
+        self, name: str, arguments: dict[str, Any]
+    ) -> MainAgentToolOutput:
+        handler = self._runtime_workflow_handlers.get(name)
+        if handler is None:
+            raise ValueError(f"Unknown runtime-owned workflow: {name}")
+        return handler(arguments)
+
     def _sync_application_emails(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._email_tracking_service is None:
             raise ValueError("Email tracking service is not configured")
@@ -1307,6 +1337,15 @@ class MainAgentToolRegistry:
             ),
         )
 
+    def _handle_mock_interview_input(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        return self.handle_mock_interview_input(
+            user_id=str(arguments["user_id"]),
+            session_id=str(arguments["session_id"]),
+            message=str(arguments["message"]),
+        )
+
     def retry_mock_interview(
         self, *, user_id: str, session_id: str
     ) -> ToolObservation:
@@ -1328,6 +1367,12 @@ class MainAgentToolRegistry:
                 user_id=user_id,
                 session_id=session_id,
             ),
+        )
+
+    def _retry_mock_interview(self, arguments: dict[str, Any]) -> ToolObservation:
+        return self.retry_mock_interview(
+            user_id=str(arguments["user_id"]),
+            session_id=str(arguments["session_id"]),
         )
 
     def _drive_mock_interview(

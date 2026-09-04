@@ -20,6 +20,7 @@ _WRITE_CAPABILITIES = frozenset(
         "execute_calendar_proposal",
         "export_resume_artifact",
         "finalize_resume_tailoring",
+        "handle_mock_interview_input",
         "match_resume_to_job",
         "open_job_search",
         "prepare_interview",
@@ -36,6 +37,7 @@ _WRITE_CAPABILITIES = frozenset(
         "update_application_status",
         "update_interview",
         "restart_mock_interview",
+        "retry_mock_interview",
     }
 )
 

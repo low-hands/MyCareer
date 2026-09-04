@@ -1056,23 +1056,19 @@ def test_a_turn_killed_after_a_write_still_leaves_the_write_in_the_conversation(
     assert "帮我记一下这次投递" in stored[-2].content
 
 
-def test_the_mock_interview_ingress_reports_its_write_too(tmp_path) -> None:
-    """The one durable write that never passes through ``_act``.
-
-    This ingress takes over the whole turn, so the ledger populated in ``_act``
-    stays empty for it and its ``_commit_interrupted_turn`` wrapper had nothing
-    to say. The write is real, and the code says so itself:
-    ``retry_mock_interview`` exists because the answer is persisted before the
-    step that consumes it can fail. That is exactly the window this test drives.
-
-    G removes the takeover, at which point this stops being a special case.
-    """
+def test_the_mock_interview_graph_path_reports_its_write(tmp_path) -> None:
+    """The standard act ledger survives a later workflow observation failure."""
 
     class Tools:
+        runtime_workflow_names = ("handle_mock_interview_input",)
+
         def handle_mock_interview_input(self, *, user_id, session_id, message):
             return ToolObservation(
-                tool_name="start_mock_interview", state="ok", message="下一题。"
+                tool_name="handle_mock_interview_input", state="ok", message="下一题。"
             )
+
+        def invoke_runtime_workflow(self, name, arguments):
+            return self.handle_mock_interview_input(**arguments)
 
     class ExplodingRuntime(MainAgentRuntime):
         def _update_mock_interview_task(self, context, result):
@@ -1889,22 +1885,39 @@ def test_unknown_capability_is_rejected_without_commit(tmp_path) -> None:
     ],
 )
 def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
-    phase: str, expected: str
+    tmp_path, phase: str, expected: str
 ) -> None:
     class Tools:
+        runtime_workflow_names = (
+            "handle_mock_interview_input",
+            "retry_mock_interview",
+        )
+
         def __init__(self) -> None:
             self.calls: list[tuple[str, str | None]] = []
 
         def handle_mock_interview_input(self, *, user_id, session_id, message):
             self.calls.append(("resume", message))
-            return ToolObservation(tool_name="start_mock_interview", state="ok", message="m")
+            return ToolObservation(
+                tool_name="handle_mock_interview_input", state="ok", message="m"
+            )
 
         def retry_mock_interview(self, *, user_id, session_id):
             self.calls.append(("retry", None))
-            return ToolObservation(tool_name="start_mock_interview", state="ok", message="m")
+            return ToolObservation(tool_name="retry_mock_interview", state="ok", message="m")
 
-    agent = MainAgentRuntime.__new__(MainAgentRuntime)
-    agent._tools = Tools()
+        def invoke_runtime_workflow(self, name, arguments):
+            if name == "retry_mock_interview":
+                return self.retry_mock_interview(**arguments)
+            return self.handle_mock_interview_input(**arguments)
+
+    agent = MainAgentRuntime(
+        context_manager=ContextManager(
+            CareerContextStore(tmp_path / f"context-{phase}.sqlite3")
+        ),
+        decision_maker=SequenceDecisionMaker(),
+        tools=Tools(),
+    )
     context = MainAgentContext(
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1"),
@@ -1914,12 +1927,13 @@ def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
         user_message="随便说点别的",
     )
 
-    agent._run_active_mock_interview(
+    result = agent._run_owned_workflow_turn(
         context=context,
         user_message="随便说点别的",
     )
 
     assert [name for name, _ in agent._tools.calls] == [expected]
+    assert result.delegated_write_count == 1
     if expected == "retry":
         # Recovery must not depend on what the candidate can retype.
         assert agent._tools.calls[0][1] is None
