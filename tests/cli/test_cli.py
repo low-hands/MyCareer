@@ -7,7 +7,7 @@ from io import StringIO
 from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall, ToolObservation
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_WORKFLOW_ERROR, main
+from career_agent.cli import EXIT_ARGUMENT_ERROR, EXIT_WORKFLOW_ERROR, main
 
 
 class TTYBuffer(StringIO):
@@ -27,6 +27,56 @@ class Runtime:
 
     def close(self):
         self.closed = True
+
+
+def test_trajectory_cli_reports_quality_as_an_independent_axis() -> None:
+    output = StringIO()
+
+    code = main(
+        [
+            "eval",
+            "trajectories",
+            "--scenario",
+            "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+        ],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+    result = payload["results"][0]
+
+    assert code == 0
+    assert payload["behaviour_failed"] == 0
+    assert payload["quality_failed"] == 0
+    assert result["quality_status"] == "passed"
+    assert result["quality_samples_passed"] == 5
+    assert result["quality_sample_count"] == 5
+    assert result["quality_pass_rate"] == 1.0
+    assert result["quality_min_pass_rate"] == 0.6
+    assert result["quality_wilson_95"] == [0.565518, 1.0]
+
+
+def test_trajectory_cli_keeps_intermittent_hard_gaps_red() -> None:
+    output = StringIO()
+
+    code = main(
+        ["eval", "trajectories"],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+    intermittent = {
+        result["scenario"]
+        for result in payload["results"]
+        if result["known_gap_status"] == "intermittent"
+    }
+
+    assert code == EXIT_ARGUMENT_ERROR
+    assert payload["behaviour_failed"] == 2
+    assert intermittent == {
+        "a_report_made_this_turn_without_an_index_cannot_be_named",
+        "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+    }
 
 
 def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None:

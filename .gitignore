@@ -16,3 +16,10 @@ __pycache__/
 /web/node_modules/
 /web/dist/
 /web/.vite/
+
+# Credential and workspace databases. api_keys.sqlite3 holds live API key
+# digests: committing it would put the credential store in every clone and in
+# every history rewrite, and a digest that has been published is a credential
+# that has to be reissued.
+data/
+*.sqlite3

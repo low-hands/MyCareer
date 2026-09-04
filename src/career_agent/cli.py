@@ -51,6 +51,11 @@ from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_tailoring import ResumeTailoringService
+from career_agent.storage.api_keys import (
+    DEFAULT_EXPIRY_DAYS,
+    KNOWN_SCOPES,
+    SQLiteApiKeyStore,
+)
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.storage.applications import SQLiteApplicationStore
@@ -454,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Ask the live model and overwrite the cassettes. Needs MAIN_AGENT_* "
-            "configured, and costs one model call per scenario step."
+            "configured. Cost is scenario steps multiplied by its sample count."
         ),
     )
     eval_trajectories.add_argument(
@@ -469,6 +474,63 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Limit to named scenarios. Repeatable.",
     )
+    eval_trajectories.add_argument(
+        "--samples",
+        type=int,
+        default=None,
+        help=(
+            "Set the live recording sample count for every selected scenario "
+            "(1-5). It may increase, but not lower, a scenario's requirement."
+        ),
+    )
+
+    keys_command = subparsers.add_parser(
+        "api-keys",
+        help="Issue, list and revoke the credentials the API authenticates with.",
+        description=(
+            "Every API route derives its user from a key rather than from a "
+            "field the caller sends, so a key is the only way in. Issue one per "
+            "client and give it only the scopes that client needs: the browser "
+            "extension cannot hold a secret safely, so its key should carry "
+            "capture:write and nothing else."
+        ),
+    )
+    keys_subparsers = keys_command.add_subparsers(dest="keys_command", required=True)
+    issue_keys = keys_subparsers.add_parser(
+        "issue", help="Mint a key. Its secret is printed once and never stored."
+    )
+    issue_keys.add_argument("--user-id", required=True)
+    issue_keys.add_argument(
+        "--name", required=True, help="What holds this key, so a human can revoke it."
+    )
+    issue_keys.add_argument(
+        "--scope",
+        action="append",
+        required=True,
+        choices=sorted(KNOWN_SCOPES),
+        help="Repeatable. Grant the narrowest set that client needs.",
+    )
+    issue_keys.add_argument(
+        "--expires-in-days",
+        type=int,
+        default=DEFAULT_EXPIRY_DAYS,
+        help=(
+            f"Default {DEFAULT_EXPIRY_DAYS}. A key with no end date is a key "
+            "nobody rotates, so a permanent one takes --no-expiry."
+        ),
+    )
+    issue_keys.add_argument(
+        "--no-expiry",
+        action="store_true",
+        help="Issue a key that never expires. Deliberate, not the default.",
+    )
+    issue_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
+    list_keys = keys_subparsers.add_parser("list", help="Show keys without secrets.")
+    list_keys.add_argument("--user-id", default=None)
+    list_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
+    revoke_keys = keys_subparsers.add_parser("revoke", help="Retire one key.")
+    revoke_keys.add_argument("--key-id", required=True)
+    revoke_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
 
     context_command = subparsers.add_parser(
         "context",
@@ -621,6 +683,77 @@ def _trajectory_tool_specs():
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 
 
+def _run_api_keys(args, stdout) -> int:
+    store = SQLiteApiKeyStore(Path(args.api_key_store).expanduser())
+    if args.keys_command == "issue":
+        try:
+            issued = store.issue(
+                user_id=args.user_id,
+                name=args.name,
+                scopes=frozenset(args.scope),
+                expires_in_days=None if args.no_expiry else args.expires_in_days,
+            )
+        except ValueError as error:
+            stdout.write(json.dumps({"error": str(error)}, ensure_ascii=False))
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
+        # The only moment the secret exists outside the client. The store keeps
+        # a digest, so a lost key is reissued rather than recovered.
+        stdout.write(
+            json.dumps(
+                {
+                    "key_id": issued.key_id,
+                    "user_id": issued.user_id,
+                    "name": issued.name,
+                    "scopes": sorted(issued.scopes),
+                    "expires_at": (
+                        issued.expires_at.isoformat() if issued.expires_at else None
+                    ),
+                    "secret": issued.secret,
+                    "note": "Store this now; it cannot be shown again.",
+                },
+                ensure_ascii=False,
+            )
+        )
+        stdout.write("\n")
+        return EXIT_OK
+    if args.keys_command == "revoke":
+        removed = store.revoke(key_id=args.key_id)
+        stdout.write(
+            json.dumps({"key_id": args.key_id, "revoked": removed}, ensure_ascii=False)
+        )
+        stdout.write("\n")
+        return EXIT_OK if removed else EXIT_ARGUMENT_ERROR
+    stdout.write(
+        json.dumps(
+            [
+                {
+                    "key_id": record.key_id,
+                    "user_id": record.user_id,
+                    "name": record.name,
+                    "scopes": sorted(record.scopes),
+                    "created_at": record.created_at.isoformat(),
+                    "expires_at": (
+                        record.expires_at.isoformat() if record.expires_at else None
+                    ),
+                    "last_used_at": (
+                        record.last_used_at.isoformat()
+                        if record.last_used_at
+                        else None
+                    ),
+                    "revoked_at": (
+                        record.revoked_at.isoformat() if record.revoked_at else None
+                    ),
+                }
+                for record in store.list_keys(user_id=args.user_id)
+            ],
+            ensure_ascii=False,
+        )
+    )
+    stdout.write("\n")
+    return EXIT_OK
+
+
 def _run_trajectory_evaluation(args, stdout) -> int:
     """Replay the scenario catalogue, or re-cut it against the live model.
 
@@ -636,7 +769,11 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         check_contract,
         load_cassette,
         record,
-        replay,
+        replay_cassette,
+        replay_quality,
+        known_gap_reproduction,
+        quality_shortfall,
+        wilson_score_interval,
     )
 
     try:
@@ -649,6 +786,27 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         if args.scenario and len(selected) != len(set(args.scenario)):
             known = ", ".join(item.name for item in SCENARIOS)
             raise ValueError(f"unknown scenario; available: {known}")
+        if args.record and args.samples is not None:
+            required = max(
+                (scenario.recording_samples for scenario in selected),
+                default=1,
+            )
+            if args.samples < required:
+                raise ValueError(
+                    f"selected scenarios require at least {required} sample(s)"
+                )
+            mismatched_quality = tuple(
+                scenario.name
+                for scenario in selected
+                if scenario.has_quality_assertions
+                and args.samples != scenario.recording_samples
+            )
+            if mismatched_quality:
+                raise ValueError(
+                    "quality scenarios pin their sample denominator; omit "
+                    "--samples or use their declared count: "
+                    + ", ".join(mismatched_quality)
+                )
 
         config = None
         if args.record:
@@ -661,7 +819,12 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         for scenario in selected:
             contract = check_contract(scenario, tool_specs=schemas)
             if args.record and not contract:
-                record(scenario, tool_specs=schemas, config=config)
+                record(
+                    scenario,
+                    tool_specs=schemas,
+                    config=config,
+                    sample_count=args.samples,
+                )
             cassette = load_cassette(scenario.name)
             stale = (
                 cassette_staleness(
@@ -672,14 +835,70 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 if cassette is not None
                 else None
             )
-            behaviour = (
-                replay(scenario, tool_specs=schemas, responses=cassette.steps)
+            sample_failures = (
+                replay_cassette(
+                    scenario,
+                    tool_specs=schemas,
+                    cassette=cassette,
+                )
                 if cassette is not None and stale is None and not contract
                 else ()
             )
+            behaviour = tuple(
+                f"{failure} (sample {sample_index}/{len(sample_failures)})"
+                for sample_index, failures in enumerate(sample_failures, start=1)
+                for failure in failures
+            )
+            graded = (
+                replay_quality(
+                    scenario,
+                    tool_specs=schemas,
+                    cassette=cassette,
+                )
+                if cassette is not None and stale is None and not contract
+                else ()
+            )
+            replayable = cassette is not None and stale is None and not contract
+            shortfall = (
+                quality_shortfall(scenario, graded)
+                if replayable and scenario.has_quality_assertions
+                else None
+            )
+            quality_passing = (
+                sum(not item for item in graded)
+                if replayable and scenario.has_quality_assertions
+                else None
+            )
+            quality_total = (
+                len(graded)
+                if replayable and scenario.has_quality_assertions
+                else None
+            )
+            quality_rate = (
+                quality_passing / quality_total
+                if quality_passing is not None and quality_total
+                else None
+            )
+            quality_interval = (
+                wilson_score_interval(quality_passing, quality_total)
+                if quality_passing is not None and quality_total is not None
+                else None
+            )
+            if not scenario.has_quality_assertions:
+                quality_status = "not_applicable"
+            elif cassette is None:
+                quality_status = "unrecorded"
+            elif stale is not None:
+                quality_status = "stale"
+            elif contract:
+                quality_status = "blocked"
+            else:
+                quality_status = "failed" if shortfall is not None else "passed"
             failures = list(contract)
             if stale is not None:
                 failures.append(f"{scenario.name}: {stale}")
+            if shortfall is not None:
+                failures.append(shortfall)
             results.append(
                 {
                     "scenario": scenario.name,
@@ -693,6 +912,27 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                             if stale is not None
                             else ("passed" if not behaviour else "failed")
                         )
+                    ),
+                    "sample_count": cassette.sample_count if cassette else 0,
+                    "quality_status": quality_status,
+                    "quality_min_pass_rate": scenario.quality_min_pass_rate,
+                    "quality_samples_passed": quality_passing,
+                    "quality_sample_count": quality_total,
+                    "quality_pass_rate": quality_rate,
+                    "quality_wilson_95": (
+                        [round(bound, 6) for bound in quality_interval]
+                        if quality_interval is not None
+                        else None
+                    ),
+                    "samples_passed": (
+                        sum(not failures for failures in sample_failures)
+                        if stale is None and not contract
+                        else 0
+                    ),
+                    "known_gap_status": (
+                        known_gap_reproduction(sample_failures)
+                        if scenario.known_gap is not None and replayable
+                        else None
                     ),
                     "failures": failures + list(behaviour),
                 }
@@ -708,13 +948,18 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             "behaviour_failed": sum(
                 1 for item in results if item["behaviour"] == "failed"
             ),
+            "quality_failed": sum(
+                1 for item in results if item["quality_status"] == "failed"
+            ),
             "stale": sum(1 for item in results if item["behaviour"] == "stale"),
             "unrecorded": unrecorded,
             # Said outright rather than left to be inferred from the counts: a
             # run with no cassettes is green and proves nothing about the model.
             "note": (
-                "contract results say the scenario is well posed; only recorded "
-                "behaviour evaluates the model"
+                "contract results say the scenario is well posed; hard behaviour "
+                "uses pass^k; quality uses an observed-rate floor and reports a "
+                "Wilson 95% interval, which is descriptive rather than a "
+                "population-rate guarantee at small n"
             ),
             "results": results,
         }
@@ -915,6 +1160,8 @@ def main(
             )
             stdout.write("\n")
             return EXIT_ARGUMENT_ERROR
+    if args.command == "api-keys":
+        return _run_api_keys(args, stdout)
     if args.command == "eval":
         return _run_trajectory_evaluation(args, stdout)
     if args.command == "context":

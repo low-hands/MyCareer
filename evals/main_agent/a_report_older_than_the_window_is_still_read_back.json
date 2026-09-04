@@ -3,8 +3,8 @@
   "policy": "A recent_messages entry carrying a resource means that turn produced a stored report whose contents you were never shown. To discuss such a report, read it back with the matching tool using the reference handle it carries.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "1e2482c1ace87e674327fc4c5df168153744bcd835371ff02f45366438decccf",
-  "recorded_at": "2026-09-04T04:52:20.236466+00:00",
+  "context_shape_fingerprint": "dac75dedbaa18d389ecb1afdc851504ea95cc13e6a534b885f60d04dd7becf7a",
+  "recorded_at": "2026-09-04T07:46:39.241867+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,6 +13,22 @@
           "reference": "report_9ca510"
         }
       }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:46:39.241867+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_9ca510"
+            }
+          }
+        }
+      ]
     }
   ]
 }

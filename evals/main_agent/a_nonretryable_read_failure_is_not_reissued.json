@@ -1,0 +1,40 @@
+{
+  "scenario": "a_nonretryable_read_failure_is_not_reissued",
+  "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "c0f203d0264c7533db76118c6fd7983f59cb3d1b7ea34eeac9bbb2f1ec744a77",
+  "context_shape_fingerprint": "746ee12e8496a7ef711c1393e0ecaed7f3c57d4afdac9f058f165ee0f698be61",
+  "recorded_at": "2026-09-04T07:48:33.462180+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对你已保存的 RAG 岗位的查询，请稍后再试。\"}"
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:48:18.454429+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对你已保存的 RAG 岗位的查询，请稍后再试。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:48:23.092498+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”保存岗位查询。请稍后再试，或提供更具体的岗位关键词。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:48:33.462180+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对“RAG”保存岗位的查询，请稍后再试。\"}"
+        }
+      ]
+    }
+  ]
+}

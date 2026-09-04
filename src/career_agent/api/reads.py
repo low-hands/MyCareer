@@ -12,10 +12,12 @@ state on the user's behalf: these endpoints answer "what do I have", and every
 change still goes through the agent, where it gets confirmation and an audit
 trail.
 
-Identity is the caller's asserted ``user_id``, which is exactly as strong as the
-rest of this deployment: a local single-user process with no CORS and no auth.
-It is a scoping key, not an authorization boundary, and must not be treated as
-one if this ever leaves localhost.
+Identity is the API key the caller presents, never a ``user_id`` they send. It
+used to be the latter, with this docstring warning that it was a scoping key and
+not an authorization boundary — which is exactly what it was being used as by
+anyone who could reach the port. Every route now derives the user from the
+credential and requires the ``workspace:read`` scope, so a key issued to a
+browser extension for capture cannot read any of this.
 """
 
 from __future__ import annotations
@@ -26,9 +28,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.security.authentication import require_scope
+from career_agent.storage.api_keys import ApiKeyPrincipal, WORKSPACE_READ
 from career_agent.domain.action_center import ActionItem, DailyBrief
 from career_agent.services.action_center import ActionCenterService
 from career_agent.services.applications import ApplicationService
@@ -881,7 +885,7 @@ def build_read_router(
 
     @router.get("/daily-brief", response_model=DailyBriefResponse)
     async def daily_brief(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         timezone: str = Query(default="Asia/Shanghai", min_length=1, max_length=100),
     ) -> DailyBriefResponse:
         # This regenerates derived action items before answering. That is a
@@ -889,29 +893,29 @@ def build_read_router(
         # function of the pipeline keyed by stable_key: reading a stale brief
         # would be the actual surprise. Nothing the user authored is touched.
         return DailyBriefResponse.of(
-            action_center().daily_brief(user_id=user_id, timezone_name=timezone)
+            action_center().daily_brief(user_id=principal.user_id, timezone_name=timezone)
         )
 
     @router.get("/applications", response_model=tuple[ApplicationView, ...])
     async def applications(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[ApplicationView, ...]:
-        return workspace().applications(user_id=user_id, limit=limit)
+        return workspace().applications(user_id=principal.user_id, limit=limit)
 
     @router.get("/jobs", response_model=tuple[SavedJobView, ...])
     async def jobs(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=100, ge=1, le=100),
     ) -> tuple[SavedJobView, ...]:
-        return workspace().jobs(user_id=user_id, limit=limit)
+        return workspace().jobs(user_id=principal.user_id, limit=limit)
 
     @router.get("/conversations", response_model=tuple[ConversationView, ...])
     async def conversations(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=50, ge=1, le=100),
     ) -> tuple[ConversationView, ...]:
-        return workspace().conversations(user_id=user_id, limit=limit)
+        return workspace().conversations(user_id=principal.user_id, limit=limit)
 
     @router.get(
         "/conversations/{conversation_id}/messages",
@@ -919,44 +923,44 @@ def build_read_router(
     )
     async def conversation_messages(
         conversation_id: str,
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=200, ge=1, le=500),
     ) -> ConversationTranscriptResponse:
         return workspace().conversation_messages(
-            user_id=user_id,
+            user_id=principal.user_id,
             conversation_id=conversation_id,
             limit=limit,
         )
 
     @router.get("/resumes", response_model=tuple[ResumeView, ...])
     async def resumes(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
     ) -> tuple[ResumeView, ...]:
-        return workspace().resumes(user_id=user_id)
+        return workspace().resumes(user_id=principal.user_id)
 
     @router.get("/calendar", response_model=CalendarWorkspaceResponse)
     async def calendar(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
     ) -> CalendarWorkspaceResponse:
-        return workspace().calendar(user_id=user_id)
+        return workspace().calendar(user_id=principal.user_id)
 
     @router.get("/company-research", response_model=tuple[CompanyResearchView, ...])
     async def company_research(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[CompanyResearchView, ...]:
-        return workspace().research(user_id=user_id, limit=limit)
+        return workspace().research(user_id=principal.user_id, limit=limit)
 
     @router.get("/reports/{kind}/{resource_id}", response_model=ReportView)
     async def report(
         kind: str,
         resource_id: str,
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         status_at_delivery: Literal["current", "outdated", "superseded"] | None = Query(default=None),
         anchored_by_other_job: bool | None = Query(default=None),
     ) -> ReportView:
         view = workspace().report(
-            user_id=user_id,
+            user_id=principal.user_id,
             kind=kind,
             resource_id=resource_id,
             status_at_delivery=status_at_delivery,
@@ -972,17 +976,17 @@ def build_read_router(
 
     @router.get("/dashboard", response_model=DashboardResponse)
     async def dashboard(
-        user_id: str = Query(min_length=1, max_length=200),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         timezone: str = Query(default="Asia/Shanghai", min_length=1, max_length=100),
     ) -> DashboardResponse:
-        application_items = workspace().applications(user_id=user_id, limit=500)
-        job_items = workspace().jobs(user_id=user_id, limit=6)
-        saved_job_count = workspace().job_count(user_id=user_id)
-        resume_items = workspace().resumes(user_id=user_id)
-        research_items = workspace().research(user_id=user_id, limit=500)
-        calendar_items = workspace().calendar(user_id=user_id)
+        application_items = workspace().applications(user_id=principal.user_id, limit=500)
+        job_items = workspace().jobs(user_id=principal.user_id, limit=6)
+        saved_job_count = workspace().job_count(user_id=principal.user_id)
+        resume_items = workspace().resumes(user_id=principal.user_id)
+        research_items = workspace().research(user_id=principal.user_id, limit=500)
+        calendar_items = workspace().calendar(user_id=principal.user_id)
         brief = DailyBriefResponse.of(
-            action_center().daily_brief(user_id=user_id, timezone_name=timezone)
+            action_center().daily_brief(user_id=principal.user_id, timezone_name=timezone)
         )
         statuses: dict[str, int] = {}
         for item in application_items:

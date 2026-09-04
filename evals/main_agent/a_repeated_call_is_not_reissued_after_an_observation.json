@@ -3,20 +3,40 @@
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "77e3523fd40c9004f380c90c70c4e530e5f49acd4b11db7bd64737864e57a583",
-  "context_shape_fingerprint": "c27d2fb30ff502ab1776fab74c98ecedcb5de8ab1a81a1558faa80e8dada6b4b",
-  "recorded_at": "2026-09-04T04:58:23.420946+00:00",
+  "context_shape_fingerprint": "29418135df0d8722a33c86793caf870f99526191e3dc8d37d73807ea48d944a3",
+  "recorded_at": "2026-09-04T07:47:58.243592+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "我保存的岗位",
-          "limit": 20
+          "limit": 10,
+          "query": "岗位"
         }
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师**｜示例科技｜上海｜30-50K\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n如果你需要，我可以继续查看该岗位的完整职位描述。\"}"
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:47:58.243592+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "limit": 10,
+              "query": "岗位"
+            }
+          }
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n如果你需要，我可以继续查看该岗位的完整职位描述。\"}"
+        }
+      ]
     }
   ]
 }

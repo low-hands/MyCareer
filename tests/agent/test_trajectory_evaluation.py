@@ -26,10 +26,16 @@ import json
 import re
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.main_agent_contracts import AgentDecision
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    OpenAICompatibleAgentConfig,
+)
 from career_agent.agent.openai_compatible_main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
@@ -40,13 +46,22 @@ from career_agent.agent.delivery_policy import (
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.trajectory import (
     TrajectoryCassette,
+    TrajectoryStep,
     cassette_staleness,
     check_contract,
+    check_step,
+    check_step_quality,
     context_shape_fingerprint,
+    known_gap_reproduction,
     load_cassette,
     prompt_fingerprint,
+    record,
     replay,
+    replay_cassette,
+    replay_quality,
+    quality_shortfall,
     trajectory_prompt_fingerprint,
+    wilson_score_interval,
 )
 
 
@@ -96,7 +111,7 @@ def test_a_scenario_asks_a_question_the_model_could_answer(scenario, offered) ->
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda item: item.name)
 def test_the_recorded_decision_follows_the_policy(scenario, offered) -> None:
-    """The replay level: what the model actually chose, when we have it."""
+    """Hard replay level: every recorded sample must preserve invariants."""
     _, schemas = offered
     cassette = load_cassette(scenario.name)
     if cassette is None:
@@ -110,17 +125,52 @@ def test_the_recorded_decision_follows_the_policy(scenario, offered) -> None:
         tool_specs=schemas,
     )
     assert stale is None, f"{scenario.name}: {stale}"
-    failures = replay(scenario, tool_specs=schemas, responses=cassette.steps)
+    sample_failures = replay_cassette(
+        scenario, tool_specs=schemas, cassette=cassette
+    )
+    failures = tuple(
+        failure for sample in sample_failures for failure in sample
+    )
     if scenario.known_gap is not None:
-        # Expected to fail, and reported if it stops: the scenario is right and
-        # the system is not, so a pass here means the defect was fixed and the
-        # marker should be retired.
-        assert failures, (
-            f"{scenario.name} now passes; remove its known_gap: "
-            f"{scenario.known_gap}"
-        )
-        pytest.xfail(scenario.known_gap)
-    assert failures == ()
+        reproduction = known_gap_reproduction(sample_failures)
+        if reproduction == "resolved":
+            pytest.fail(
+                f"{scenario.name} now passes all samples; remove its "
+                f"known_gap: {scenario.known_gap}"
+            )
+        reason = scenario.known_gap
+        if reproduction == "intermittent":
+            failed = sum(bool(sample) for sample in sample_failures)
+            reason = (
+                f"{reason} (intermittent reproduction: "
+                f"{failed}/{len(sample_failures)} samples failed)"
+            )
+        pytest.xfail(reason)
+    assert all(not sample for sample in sample_failures)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    tuple(item for item in SCENARIOS if item.has_quality_assertions),
+    ids=lambda item: item.name,
+)
+def test_the_recorded_quality_stays_above_its_rate_floor(scenario, offered) -> None:
+    """Quality replay is independent of hard-rule known-gap disposition."""
+    _, schemas = offered
+    cassette = load_cassette(scenario.name)
+    assert cassette is not None, (
+        f"no recording for '{scenario.name}'; run "
+        "`career-agent eval trajectories --record` against a live model"
+    )
+    stale = cassette_staleness(
+        cassette,
+        scenario=scenario,
+        tool_specs=schemas,
+    )
+    assert stale is None, f"{scenario.name}: {stale}"
+    graded = replay_quality(scenario, tool_specs=schemas, cassette=cassette)
+    shortfall = quality_shortfall(scenario, graded)
+    assert shortfall is None, shortfall
 
 
 _FIELD_DUMP_LINE = re.compile(r"^\s*[\w ]{1,30}\s*[:：]\s*\S", re.M)
@@ -161,52 +211,51 @@ def test_a_reply_does_not_take_over_delivery_that_belongs_elsewhere() -> None:
     the_delivery``. Splitting would move the covered half and leave the
     uncovered half alone.
 
-    Already multi-sample: one recording per scenario, not one sample overall.
-    The single-sample risk lives in the per-scenario behaviour assertions
-    instead — ``expect_tool``, ``expect_arguments`` — and is registered there.
+    Every recording is inspected. Ordinary scenarios retain one sample; the
+    few conclusions that depend on one exact behaviour declare three or more.
     """
     checked = 0
     for scenario in SCENARIOS:
         cassette = load_cassette(scenario.name)
         if cassette is None:
             continue
-        for index, step in enumerate(cassette.steps):
-            try:
-                decision = json.loads(step["content"])
-            except (TypeError, ValueError, KeyError):
-                continue
-            message = (decision.get("message") or "").strip()
-            if decision.get("action") != "final" or not message:
-                continue
-            label = f"{scenario.name}[{index}]"
-            # A reply is never JSON and always reads as language, whatever the
-            # turn produced.
-            assert not message.startswith("{"), label
-            assert any(mark in message for mark in "。！？.!?"), label
-            # What the turn was holding when it answered: the seeded context
-            # plus every observation fed back up to and including this step.
-            # Seeded ones matter — several scenarios put the card-backed result
-            # in the context rather than on a step, and reading only the step
-            # would exempt exactly the turns this guard is for.
-            observations = (
-                *scenario.context.tool_observations,
-                *(
-                    step_before.observation
-                    for step_before in scenario.steps[: index + 1]
-                    if step_before.observation is not None
-                ),
-            )
-            if not observations:
-                continue
-            latest = observations[-1]
-            if not (
-                condenses_message(latest.state)
-                or delivers_body_elsewhere(latest.state)
-            ):
-                continue
-            checked += 1
-            assert "|---" not in message, label
-            assert len(_FIELD_DUMP_LINE.findall(message)) < 2, label
+        for sample_index, recording in enumerate(cassette.recordings, start=1):
+            for index, step in enumerate(recording):
+                try:
+                    decision = json.loads(step["content"])
+                except (TypeError, ValueError, KeyError):
+                    continue
+                message = (decision.get("message") or "").strip()
+                if decision.get("action") != "final" or not message:
+                    continue
+                label = f"{scenario.name}[sample={sample_index},step={index}]"
+                # A reply is never JSON and always reads as language, whatever
+                # the turn produced.
+                assert not message.startswith("{"), label
+                assert any(mark in message for mark in "。！？.!?"), label
+                # What the turn was holding when it answered: the seeded
+                # context plus every observation fed back through this step.
+                # Seeded ones matter — several scenarios put the card-backed
+                # result in the context rather than on a step.
+                observations = (
+                    *scenario.context.tool_observations,
+                    *(
+                        step_before.observation
+                        for step_before in scenario.steps[: index + 1]
+                        if step_before.observation is not None
+                    ),
+                )
+                if not observations:
+                    continue
+                latest = observations[-1]
+                if not (
+                    condenses_message(latest.state)
+                    or delivers_body_elsewhere(latest.state)
+                ):
+                    continue
+                checked += 1
+                assert "|---" not in message, label
+                assert len(_FIELD_DUMP_LINE.findall(message)) < 2, label
 
     assert checked, "no recorded reply on a turn that delivers a body elsewhere"
 
@@ -272,6 +321,149 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         scenario=scenario,
         tool_specs=schemas,
     ) is None
+
+
+def test_a_legacy_cassette_is_one_recording(tmp_path: Path) -> None:
+    (tmp_path / "legacy.json").write_text(
+        json.dumps(
+            {
+                "steps": [{"content": "one"}],
+                "prompt_fingerprint": "prompt",
+                "context_shape_fingerprint": "shape",
+                "model": "test",
+            }
+        )
+    )
+
+    cassette = load_cassette("legacy", root=tmp_path)
+
+    assert cassette is not None
+    assert cassette.sample_count == 1
+    assert cassette.recordings == (({"content": "one"},),)
+
+
+def test_a_policy_critical_scenario_rejects_too_few_samples(offered) -> None:
+    _, schemas = offered
+    scenario = replace(SCENARIOS[0], recording_samples=3)
+    cassette = TrajectoryCassette(
+        steps=(),
+        prompt_fingerprint=trajectory_prompt_fingerprint(scenario, schemas),
+        context_shape_fingerprint=context_shape_fingerprint(scenario),
+        model="test",
+    )
+
+    assert cassette_staleness(
+        cassette, scenario=scenario, tool_specs=schemas
+    ) == "cassette has 1 sample(s), but the scenario requires 3; re-record it"
+
+
+def test_record_captures_independent_samples_and_retries_transport_errors(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    scenario = replace(SCENARIOS[0], recording_samples=3)
+    calls = 0
+    delays = []
+    real_maker = OpenAICompatibleMainAgentDecisionMaker
+
+    class FlakyMaker:
+        _system_prompt = staticmethod(real_maker._system_prompt)
+
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise AgentWorkerError(
+                    "MAIN_AGENT_TRANSPORT_ERROR",
+                    "temporary",
+                    retryable=True,
+                )
+            return AgentDecision(action="ask_user", message="请补充城市。")
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        FlakyMaker,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+
+    path = record(
+        scenario,
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+        retry_delay_seconds=0.25,
+        sleeper=delays.append,
+    )
+    cassette = load_cassette(scenario.name, root=tmp_path)
+
+    assert path.exists()
+    assert calls == 4
+    assert delays == [0.25]
+    assert cassette is not None
+    assert cassette.sample_count == 3
+    assert [len(sample) for sample in cassette.recordings] == [1, 1, 1]
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        real_maker,
+    )
+    assert replay_cassette(scenario, tool_specs=schemas, cassette=cassette) == (
+        (),
+        (),
+        (),
+    )
+
+
+def test_record_does_not_retry_a_nonretryable_model_failure(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    scenario = SCENARIOS[0]
+    calls = 0
+
+    class BrokenMaker:
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            nonlocal calls
+            calls += 1
+            raise AgentWorkerError(
+                "MAIN_AGENT_INVALID_RESPONSE",
+                "invalid",
+                retryable=False,
+            )
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        BrokenMaker,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+
+    with pytest.raises(AgentWorkerError, match="invalid"):
+        record(
+            scenario,
+            tool_specs=schemas,
+            config=config,
+            root=tmp_path,
+            sleeper=lambda _: pytest.fail("must not sleep"),
+        )
+
+    assert calls == 1
+    assert not (tmp_path / f"{scenario.name}.json").exists()
 
 
 def test_changing_the_system_prompt_changes_its_fingerprint(
@@ -349,6 +541,119 @@ def test_a_known_gap_is_described_well_enough_to_act_on() -> None:
     for scenario in SCENARIOS:
         if scenario.known_gap is not None:
             assert len(scenario.known_gap) > 80, scenario.name
+
+
+@pytest.mark.parametrize(
+    ("sample_failures", "expected"),
+    (
+        ((("wrong tool",), ("wrong action",)), "stable"),
+        ((("wrong tool",), ()), "intermittent"),
+        (((), ()), "resolved"),
+        ((), "resolved"),
+    ),
+)
+def test_known_gap_reproduction_distinguishes_partial_recovery(
+    sample_failures, expected
+) -> None:
+    assert known_gap_reproduction(sample_failures) == expected
+
+
+def test_quality_message_facts_accept_wording_variants() -> None:
+    scenario = "message-facts"
+    step = TrajectoryStep(
+        quality_message_contains_any=(
+            frozenset({"3 份", "三份", "更早"}),
+            frozenset({"未列出", "无法按引用"}),
+        )
+    )
+
+    assert check_step_quality(
+        step,
+        AgentDecision(
+            action="final",
+            message="另有更早的调研未列出，当前不能直接读取。",
+        ),
+        scenario=scenario,
+        index=0,
+    ) == ()
+    assert check_step_quality(
+        step,
+        AgentDecision(action="final", message="当前列表里没有 Shopee。"),
+        scenario=scenario,
+        index=0,
+    )
+
+
+def test_quality_contract_requires_a_rate_and_pins_its_denominator(
+    offered,
+) -> None:
+    _, schemas = offered
+    quality_step = TrajectoryStep(
+        quality_message_contains_any=(frozenset({"更早"}),)
+    )
+    with pytest.raises(ValueError, match="quality_min_pass_rate"):
+        replace(SCENARIOS[0], steps=(quality_step,))
+    with pytest.raises(ValueError, match="greater than 0"):
+        replace(
+            SCENARIOS[0],
+            steps=(quality_step,),
+            quality_min_pass_rate=0,
+        )
+
+    scenario = replace(
+        SCENARIOS[0],
+        steps=(quality_step,),
+        recording_samples=5,
+        quality_min_pass_rate=0.6,
+    )
+    cassette = TrajectoryCassette(
+        steps=(),
+        prompt_fingerprint=trajectory_prompt_fingerprint(scenario, schemas),
+        context_shape_fingerprint=context_shape_fingerprint(scenario),
+        model="test",
+        samples=(({},),) * 4,
+    )
+    assert "requires exactly 5" in cassette_staleness(
+        cassette, scenario=scenario, tool_specs=schemas
+    )
+    three_sample_scenario = replace(scenario, recording_samples=3)
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+    with pytest.raises(ValueError, match="exactly their declared sample count"):
+        record(
+            three_sample_scenario,
+            tool_specs=schemas,
+            config=config,
+            sample_count=4,
+        )
+
+
+def test_quality_threshold_is_a_rate_and_reports_uncertainty() -> None:
+    scenario = replace(
+        SCENARIOS[0],
+        steps=(
+            TrajectoryStep(
+                quality_message_contains_any=(frozenset({"更早"}),)
+            ),
+        ),
+        recording_samples=5,
+        quality_min_pass_rate=0.6,
+    )
+
+    assert (
+        quality_shortfall(scenario, ((), (), (), ("thin",), ("thin",)))
+        is None
+    )
+    assert "40.0%" in quality_shortfall(
+        scenario, ((), (), ("thin",), ("thin",), ("thin",))
+    )
+    lower, upper = wilson_score_interval(4, 5)
+    assert lower == pytest.approx(0.375535, abs=1e-6)
+    assert upper == pytest.approx(0.963776, abs=1e-6)
+    assert wilson_score_interval(0, 0) is None
 
 
 def test_the_suite_is_mostly_negative_and_not_entirely_negative() -> None:
@@ -531,14 +836,23 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         assert cassette_staleness(
             cassette, scenario=scenario, tool_specs=schemas
         ) is None
-        failures = replay(scenario, tool_specs=schemas, responses=cassette.steps)
-        if scenario.known_gap is None:
-            assert failures == ()
-        else:
-            # The mirror is a known gap, not a passing case: the model does
-            # supply a number it was never given. Asserting the failure keeps
-            # the defect visible here too, so fixing it retires both markers.
-            assert failures
+    # The positive side is an invariant and is held to pass^k.
+    assert all(
+        not failures
+        for failures in replay_cassette(
+            numbered, tool_specs=schemas, cassette=load_cassette(numbered.name)
+        )
+    )
+    # The mirror is a known gap, and an intermittent one. A single recording
+    # showed it selecting correctly and read as resolved; three showed the
+    # borrowing return in one of them. Asserting the classification rather than
+    # "it fails" keeps the distinction the samples bought — a defect that stops
+    # reproducing at all still has to be noticed and retired.
+    assert known_gap_reproduction(
+        replay_cassette(
+            unnumbered, tool_specs=schemas, cassette=load_cassette(unnumbered.name)
+        )
+    ) == "intermittent"
 
     # The hazard the ordinal scheme sat on, now closed: under numbers, a
     # fabricated 1 named last week's report and resolved silently. There is no
@@ -550,17 +864,29 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
                 reference=guess, kind="job_research_report"
             )
 
-    numbered_call = load_cassette(numbered.name).steps[0].get("tool_call", {})
-    assert numbered_call.get("name") == "get_job_research"
-    assert (
-        numbered.context.resolve_reference(
-            reference=numbered_call.get("arguments", {}).get("reference"),
-            kind="job_research_report",
+    for sample in load_cassette(numbered.name).recordings:
+        numbered_call = sample[0].get("tool_call", {})
+        assert numbered_call.get("name") == "get_job_research"
+        assert (
+            numbered.context.resolve_reference(
+                reference=numbered_call.get("arguments", {}).get("reference"),
+                kind="job_research_report",
+            )
+            == "report-a"
         )
-        == "report-a"
+    # Producer-owned titles narrowed the ambiguity without closing it. Two of
+    # three samples now select by ``selection_index``, naming nothing they were
+    # not given; the third still borrows a visible handle, and it resolves — to
+    # last week's research, silently. Recorded as evidence, not as expectation.
+    borrowed = [
+        (sample[0].get("tool_call") or {}).get("arguments", {}).get("reference")
+        for sample in load_cassette(unnumbered.name).recordings
+    ]
+    assert borrowed.count(None) == 2
+    handed_back = next(handle for handle in borrowed if handle)
+    assert (
+        unnumbered.context.resolve_reference(
+            reference=handed_back, kind="job_research_report"
+        )
+        == "report-h1"
     )
-    # Producer-owned titles close the remaining ambiguity: the only visible
-    # handles are explicitly about other companies, so the mirror no longer
-    # substitutes one of them for a report it cannot name.
-    unnumbered_call = load_cassette(unnumbered.name).steps[0].get("tool_call") or {}
-    assert "reference" not in unnumbered_call.get("arguments", {})

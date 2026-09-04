@@ -457,8 +457,9 @@ def test_every_projection_path_carries_the_label_beside_the_handle() -> None:
 
     projected = context.model_context()
 
-    assert projected["archived_reports"][0]["title"] == "示例科技"
-    assert projected["archived_reports"][0]["description"] == "企业搜索产品调研。"
+    archived = projected["archived_reports"]["items"][0]
+    assert archived["title"] == "示例科技"
+    assert archived["description"] == "企业搜索产品调研。"
     assert projected["recent_messages"][0]["resources"][0]["title"] == "另一家科技"
     assert projected["recent_messages"][0]["resources"][0]["description"] == "推荐系统产品调研。"
     assert projected["tool_observations"][0]["title"] == "示例科技"

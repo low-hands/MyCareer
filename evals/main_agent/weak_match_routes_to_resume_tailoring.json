@@ -3,14 +3,28 @@
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "866e56fa2c72d57e0ab361d2acce07540017cbf3ee37d41ed6ccc73878ff1fcf",
-  "context_shape_fingerprint": "4eed096293b1f2eb7973a14cb4ac20e6ee41933dba6ea5d06e7214416834d088",
-  "recorded_at": "2026-09-04T04:55:16.369260+00:00",
+  "context_shape_fingerprint": "ab829e82342f1bbde78304d42b0a3b9c16da61838add8d60e2430449f783b289",
+  "recorded_at": "2026-09-04T07:46:59.324015+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "draft_resume_tailoring",
         "arguments": {}
       }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:46:59.324015+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {}
+          }
+        }
+      ]
     }
   ]
 }

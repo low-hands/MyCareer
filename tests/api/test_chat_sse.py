@@ -24,6 +24,7 @@ from career_agent.harness.streaming import (
     TurnFailedEvent,
     TurnStartedEvent,
 )
+from career_agent.storage.api_keys import CAPTURE_WRITE, WORKSPACE_READ
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 
 
@@ -92,15 +93,15 @@ def _events(body: str) -> list[tuple[str, dict]]:
     return parsed
 
 
-def test_chat_endpoint_serializes_typed_events_as_sse_and_closes_runtime() -> None:
+def test_chat_endpoint_serializes_typed_events_as_sse_and_closes_runtime(api_keys, auth) -> None:
     runtime = Runtime()
-    app = create_app(runtime_factory=lambda: runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
 
     with TestClient(app) as client:
         response = client.post(
             "/v1/chat/stream",
+            headers=auth,
             json={
-                "user_id": "u1",
                 "conversation_id": "c1",
                 "message": "你好",
             },
@@ -126,9 +127,9 @@ def test_chat_endpoint_serializes_typed_events_as_sse_and_closes_runtime() -> No
     ) == "你好，世界"
 
 
-def test_chat_endpoint_transports_bound_interaction_response() -> None:
+def test_chat_endpoint_transports_bound_interaction_response(api_keys, auth) -> None:
     runtime = Runtime()
-    app = create_app(runtime_factory=lambda: runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
     response_value = InteractionResponse(
         interaction_id="interaction_0123456789abcdef0123",
         scope="resume_analysis_confirmation",
@@ -138,8 +139,8 @@ def test_chat_endpoint_transports_bound_interaction_response() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/v1/chat/stream",
+            headers=auth,
             json={
-                "user_id": "u1",
                 "conversation_id": "c1",
                 "message": "确认并导入",
                 "interaction_response": response_value.model_dump(),
@@ -150,15 +151,15 @@ def test_chat_endpoint_transports_bound_interaction_response() -> None:
     assert runtime.interaction_response == response_value
 
 
-def test_sse_does_not_expose_raw_runtime_exception() -> None:
+def test_sse_does_not_expose_raw_runtime_exception(api_keys, auth) -> None:
     runtime = Runtime(fail=True)
-    app = create_app(runtime_factory=lambda: runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
 
     with TestClient(app) as client:
         response = client.post(
             "/v1/chat/stream",
+            headers=auth,
             json={
-                "user_id": "u1",
                 "conversation_id": "c1",
                 "message": "触发失败",
             },
@@ -172,17 +173,14 @@ def test_sse_does_not_expose_raw_runtime_exception() -> None:
 
 def test_sse_sends_heartbeat_while_runtime_is_quiet() -> None:
     async def collect() -> str:
-        request = ChatStreamRequest(
-            user_id="u1",
-            conversation_id="c1",
-            message="慢任务",
-        )
+        request = ChatStreamRequest(conversation_id="c1", message="慢任务")
         return "".join(
             [
                 chunk
                 async for chunk in _sse_stream(
                     Runtime(delay=0.03),
                     request,
+                    user_id="u1",
                     heartbeat_seconds=0.005,
                 )
             ]
@@ -198,11 +196,7 @@ def test_disconnecting_observer_releases_gate_only_after_turn_finishes() -> None
     async def exercise() -> None:
         gate = ConversationRunGate()
         await gate.acquire("u1", "c1")
-        request = ChatStreamRequest(
-            user_id="u1",
-            conversation_id="c1",
-            message="慢任务",
-        )
+        request = ChatStreamRequest(conversation_id="c1", message="慢任务")
 
         async def release_gate() -> None:
             await gate.release("u1", "c1")
@@ -210,6 +204,7 @@ def test_disconnecting_observer_releases_gate_only_after_turn_finishes() -> None
         stream = _sse_stream(
             Runtime(delay=0.05),
             request,
+            user_id="u1",
             heartbeat_seconds=1,
             on_turn_finished=release_gate,
         )
@@ -238,15 +233,15 @@ def test_conversation_gate_rejects_only_the_same_active_conversation() -> None:
     asyncio.run(exercise())
 
 
-def test_request_contract_rejects_unknown_fields() -> None:
+def test_request_contract_rejects_unknown_fields(api_keys, auth) -> None:
     runtime = Runtime()
-    app = create_app(runtime_factory=lambda: runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
 
     with TestClient(app) as client:
         response = client.post(
             "/v1/chat/stream",
+            headers=auth,
             json={
-                "user_id": "u1",
                 "conversation_id": "c1",
                 "message": "你好",
                 "internal_job_id": "must-not-pass",
@@ -257,7 +252,7 @@ def test_request_contract_rejects_unknown_fields() -> None:
     assert runtime.calls == []
 
 
-def test_configuration_failure_keeps_api_alive_and_reports_exact_missing_keys() -> None:
+def test_configuration_failure_keeps_api_alive_and_reports_exact_missing_keys(api_keys, auth) -> None:
     def unavailable_runtime():
         raise AgentConfigurationError(
             "AGENT_CONFIGURATION_MISSING",
@@ -267,14 +262,14 @@ def test_configuration_failure_keeps_api_alive_and_reports_exact_missing_keys() 
             ),
         )
 
-    app = create_app(runtime_factory=unavailable_runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=unavailable_runtime)
     with TestClient(app) as client:
         health = client.get("/health")
         ready = client.get("/ready")
         stream = client.post(
             "/v1/chat/stream",
+            headers=auth,
             json={
-                "user_id": "u1",
                 "conversation_id": "c1",
                 "message": "你好",
             },
@@ -287,9 +282,9 @@ def test_configuration_failure_keeps_api_alive_and_reports_exact_missing_keys() 
     assert "RESUME_ANALYSIS_AGENT_API_KEY" in ready.json()["detail"]["message"]
 
 
-def test_ready_reports_runtime_is_available() -> None:
+def test_ready_reports_runtime_is_available(api_keys) -> None:
     runtime = Runtime()
-    app = create_app(runtime_factory=lambda: runtime)
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
 
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -298,10 +293,11 @@ def test_ready_reports_runtime_is_available() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path) -> None:
+def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path, api_keys, auth) -> None:
     runtime = Runtime()
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     app = create_app(
+        api_key_store_factory=lambda: api_keys,
         runtime_factory=lambda: runtime,
         capture_repository_factory=lambda: repository,
     )
@@ -309,9 +305,8 @@ def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path) -> No
     with TestClient(app) as client:
         response = client.post(
             "/v1/browser-captures/jobs",
-            headers={"X-Career-Agent-Capture": "v1"},
+            headers={**auth, "X-Career-Agent-Capture": "v1"},
             json={
-                "user_id": "u1",
                 "source_url": (
                     "https://www.zhipin.com/job_detail/boss-123.html"
                     "?securityId=must-not-be-stored#detail"
@@ -337,35 +332,63 @@ def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path) -> No
     assert saved.snapshot.content == "负责 AI 产品规划和交付。"
 
 
-def test_browser_capture_rejects_cross_site_urls_and_missing_capture_header(tmp_path) -> None:
+def test_browser_capture_requires_a_capture_scoped_credential(
+    tmp_path, api_keys, issue_key
+) -> None:
     runtime = Runtime()
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     app = create_app(
+        api_key_store_factory=lambda: api_keys,
         runtime_factory=lambda: runtime,
         capture_repository_factory=lambda: repository,
     )
     payload = {
-        "user_id": "u1",
         "source_url": "https://example.com/job_detail/123.html",
         "title": "AI 产品经理",
         "company_name": "示例科技",
         "description": "负责 AI 产品规划和交付。",
     }
+    capture_only = issue_key("u1", CAPTURE_WRITE)
+    read_only = issue_key("u1", WORKSPACE_READ)
 
     with TestClient(app) as client:
-        missing_header = client.post("/v1/browser-captures/jobs", json=payload)
-        cross_site = client.post(
+        # The static header was never access control — anyone could send it —
+        # and it used to be the only gate on this route. It is now a payload
+        # version marker, so sending it without a credential proves nothing.
+        no_credential = client.post(
             "/v1/browser-captures/jobs",
             headers={"X-Career-Agent-Capture": "v1"},
             json=payload,
         )
+        # A real key for the right user, but the wrong capability. This is the
+        # reason the extension gets its own scope: whatever it holds cannot be
+        # turned into a read of the workspace, and vice versa.
+        wrong_scope = client.post(
+            "/v1/browser-captures/jobs",
+            headers={**read_only, "X-Career-Agent-Capture": "v1"},
+            json=payload,
+        )
+        missing_header = client.post(
+            "/v1/browser-captures/jobs", headers=capture_only, json=payload
+        )
+        cross_site = client.post(
+            "/v1/browser-captures/jobs",
+            headers={**capture_only, "X-Career-Agent-Capture": "v1"},
+            json=payload,
+        )
+        workspace_via_capture_key = client.get("/v1/jobs", headers=capture_only)
 
-    assert missing_header.status_code == 403
+    assert no_credential.status_code == 401
+    assert wrong_scope.status_code == 403
+    # Unsupported version, not forbidden: the caller is allowed here and simply
+    # sent a shape this build does not read.
+    assert missing_header.status_code == 422
     assert cross_site.status_code == 422
+    assert workspace_via_capture_key.status_code == 403
     assert repository.list_jobs(user_id="u1") == ()
 
 
-def _brief_app(tmp_path, *, applications=(), interviews=(), events=()):
+def _brief_app(tmp_path, api_keys, *, applications=(), interviews=(), events=()):
     from career_agent.api.app import create_app
     from career_agent.services.action_center import ActionCenterService
     from career_agent.storage.action_center import SQLiteActionItemStore
@@ -391,6 +414,7 @@ def _brief_app(tmp_path, *, applications=(), interviews=(), events=()):
         Interviews(),
     )
     return create_app(
+        api_key_store_factory=lambda: api_keys,
         runtime_factory=Runtime,
         capture_repository_factory=lambda: None,
         action_center_factory=lambda: service,
@@ -412,11 +436,11 @@ def _stale_application(application_id: str, *, days: int):
     )
 
 
-def test_daily_brief_groups_actions_for_the_dashboard(tmp_path) -> None:
-    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+def test_daily_brief_groups_actions_for_the_dashboard(tmp_path, auth, api_keys) -> None:
+    app = _brief_app(tmp_path, api_keys, applications=(_stale_application("app-1", days=9),))
 
     with TestClient(app) as client:
-        response = client.get("/v1/daily-brief", params={"user_id": "u1"})
+        response = client.get("/v1/daily-brief", headers=auth)
 
     payload = response.json()
     assert response.status_code == 200
@@ -427,12 +451,12 @@ def test_daily_brief_groups_actions_for_the_dashboard(tmp_path) -> None:
     assert payload["overdue"] == []
 
 
-def test_the_brief_never_returns_derivation_plumbing(tmp_path) -> None:
+def test_the_brief_never_returns_derivation_plumbing(tmp_path, auth, api_keys) -> None:
     """The client must not be able to key its own state on internal fields."""
-    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+    app = _brief_app(tmp_path, api_keys, applications=(_stale_application("app-1", days=9),))
 
     with TestClient(app) as client:
-        payload = client.get("/v1/daily-brief", params={"user_id": "u1"}).json()
+        payload = client.get("/v1/daily-brief", headers=auth).json()
 
     item = payload["due_today"][0]
     assert set(item) == {
@@ -450,34 +474,47 @@ def test_the_brief_never_returns_derivation_plumbing(tmp_path) -> None:
     assert "user_id" not in item
 
 
-def test_the_brief_is_scoped_to_the_asserted_user(tmp_path) -> None:
-    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+def test_the_brief_is_scoped_to_the_asserted_user(tmp_path, auth, api_keys, issue_key) -> None:
+    app = _brief_app(tmp_path, api_keys, applications=(_stale_application("app-1", days=9),))
 
     with TestClient(app) as client:
-        mine = client.get("/v1/daily-brief", params={"user_id": "u1"}).json()
-        theirs = client.get("/v1/daily-brief", params={"user_id": "u2"}).json()
+        mine = client.get("/v1/daily-brief", headers=auth).json()
+        theirs = client.get("/v1/daily-brief", headers=issue_key("u2")).json()
 
     assert mine["due_today"]
     assert theirs["due_today"] == []
 
 
-def test_the_brief_requires_a_user(tmp_path) -> None:
-    app = _brief_app(tmp_path)
+def test_the_brief_requires_a_credential_not_a_named_user(tmp_path, api_keys) -> None:
+    """What "requires a user" now means: hold a key, not type a name.
+
+    This used to assert 422 for a missing or empty ``user_id`` query parameter —
+    a validation check on a field any caller could fill with anyone's id. The
+    field is gone, so the property worth pinning is that an unauthenticated
+    request is refused, and that a malformed credential is not accidentally
+    accepted by a lenient header parse.
+    """
+    app = _brief_app(tmp_path, api_keys)
 
     with TestClient(app) as client:
-        assert client.get("/v1/daily-brief").status_code == 422
+        assert client.get("/v1/daily-brief").status_code == 401
+        for header in ("", "Bearer", "Bearer ", "Basic abc", "not-a-scheme x"):
+            assert client.get(
+                "/v1/daily-brief", headers={"Authorization": header}
+            ).status_code == 401
         assert client.get(
-            "/v1/daily-brief", params={"user_id": ""}
-        ).status_code == 422
+            "/v1/daily-brief", headers={"Authorization": "Bearer wrong-secret"}
+        ).status_code == 401
 
 
 def test_reading_the_brief_needs_no_model_configuration(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch,
+    api_keys, auth,
 ) -> None:
     """A dashboard must survive a machine where the worker keys are missing."""
     for name in ("MAIN_AGENT_BASE_URL", "MAIN_AGENT_API_KEY", "MAIN_AGENT_MODEL"):
         monkeypatch.delenv(name, raising=False)
-    app = _brief_app(tmp_path, applications=(_stale_application("app-1", days=9),))
+    app = _brief_app(tmp_path, api_keys, applications=(_stale_application("app-1", days=9),))
 
     with TestClient(app) as client:
-        assert client.get("/v1/daily-brief", params={"user_id": "u1"}).status_code == 200
+        assert client.get("/v1/daily-brief", headers=auth).status_code == 200

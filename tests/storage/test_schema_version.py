@@ -75,6 +75,7 @@ DECLARED_VERSIONS = {
     "resume_job_matches": 1,
     "interview_preparations": 1,
     "agent_context": 2,
+    "api_keys": 1,
     "job_postings": 1,
     "job_research": 2,
     "run_events": 2,

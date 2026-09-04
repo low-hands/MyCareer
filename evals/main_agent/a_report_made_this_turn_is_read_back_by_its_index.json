@@ -3,8 +3,8 @@
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "3760abaecfd42623a5ec10bdb5248541118870d2479e139b539375e4a6003258",
-  "recorded_at": "2026-09-04T04:51:45.152011+00:00",
+  "context_shape_fingerprint": "0910472016f183373f0c80c56f88f554d241c2bedcece93a4ab68b8ca2ce867f",
+  "recorded_at": "2026-09-04T07:46:21.559827+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,6 +13,48 @@
           "reference": "report_440400"
         }
       }
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:45:28.648516+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:45:39.909669+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:46:21.559827+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          }
+        }
+      ]
     }
   ]
 }

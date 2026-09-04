@@ -2134,7 +2134,8 @@ def test_every_number_the_model_is_shown_resolves_to_what_it_was_shown_for() -> 
 
     projection = context.model_context()
     shown = {
-        line["reference"]: line["kind"] for line in projection["archived_reports"]
+        line["reference"]: line["kind"]
+        for line in projection["archived_reports"]["items"]
     }
     for message in projection["recent_messages"]:
         for resource in message.get("resources", ()):
@@ -2257,7 +2258,8 @@ def test_the_catalogue_and_the_window_are_numbered_by_the_same_walk() -> None:
 
     projection = context.model_context()
     shown: list[tuple[str, str]] = [
-        (line["reference"], line["kind"]) for line in projection["archived_reports"]
+        (line["reference"], line["kind"])
+        for line in projection["archived_reports"]["items"]
     ]
     for message in projection["recent_messages"]:
         for resource in message.get("resources", ()):

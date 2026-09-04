@@ -20,12 +20,15 @@ recording says that. ``record`` refreshes them against the live model.
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
+import math
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from statistics import NormalDist
+from typing import Any, Callable, Mapping, Sequence
 
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
@@ -33,7 +36,10 @@ from career_agent.agent.main_agent_contracts import (
     MainAgentContext,
     append_decision_observation,
 )
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    OpenAICompatibleAgentConfig,
+)
 from career_agent.agent.openai_compatible_main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
@@ -66,6 +72,24 @@ class TrajectoryStep:
     names only what must be absent.
     """
 
+    quality_message_contains_any: tuple[frozenset[str], ...] = ()
+    """Fragments a *good* reply carries, graded by rate rather than per sample.
+
+    The hard assertions on this step are invariants: a single violation is a
+    defect, so they are gated with ``pass^k`` — every sample must satisfy them.
+    Some things a reply should do are not invariants. Volunteering that the
+    catalogue is truncated makes the answer more complete; omitting it leaves
+    the answer correct but thinner, and the model does it about three times in
+    five.
+
+    Treating that as a hard assertion would make the suite red on a working
+    system. Deleting it would stop measuring the thing entirely — the failure
+    mode this project keeps returning to, where a check is removed rather than
+    re-aimed. So it is kept and graded: the scenario declares the floor its
+    recorded rate must not fall below, and a regression to one-in-five is a
+    failure while three-in-five is the recorded status quo.
+    """
+
     forbid_tools: frozenset[str] = frozenset()
     expect_arguments: Mapping[str, Any] = field(default_factory=dict)
     """Argument values the call must carry, checked as a subset.
@@ -76,8 +100,8 @@ class TrajectoryStep:
     make an unrelated schema change read as a policy failure.
     """
 
-    forbid_argument_keys: frozenset[str] = frozenset()
-    """Argument names the call must not carry, whatever it calls.
+    forbid_non_null_arguments: frozenset[str] = frozenset()
+    """Argument names for which the call must not invent a value.
 
     For a mirror scenario where the *right* behaviour is genuinely open. Take
     the handle away from an observation and the model has no good
@@ -105,6 +129,21 @@ class TrajectoryScenario:
     policy: str
     context: MainAgentContext
     steps: tuple[TrajectoryStep, ...]
+    recording_samples: int = 1
+    """How many live recordings a policy-critical scenario requires."""
+
+    quality_min_pass_rate: float | None = None
+    """Observed pass-rate floor for the quality assertions.
+
+    ``None`` when the scenario declares none. Quality scenarios pin their
+    sample count, so changing the denominator cannot silently weaken this rate.
+    The evaluator also reports a Wilson interval: five samples are useful as a
+    cheap regression sentinel, not enough to claim a precise population rate.
+
+    A floor rather than a target. ``pass^k`` is the right gate for an invariant
+    and the wrong one for a quality property, but so is no gate at all: a
+    property nobody measures is a property that regresses unnoticed.
+    """
     known_gap: str | None = None
     """A defect this scenario currently exposes, named so the suite stays green.
 
@@ -128,6 +167,36 @@ class TrajectoryScenario:
         expected = {step.expect_tool for step in self.steps if step.expect_tool}
         forbidden = set().union(*(step.forbid_tools for step in self.steps))
         return frozenset(expected | forbidden)
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.recording_samples <= 5:
+            raise ValueError(
+                "trajectory recording_samples must be between 1 and 5"
+            )
+        declares_quality = any(
+            step.quality_message_contains_any for step in self.steps
+        )
+        if declares_quality and self.quality_min_pass_rate is None:
+            raise ValueError(
+                "a scenario with quality assertions must declare a "
+                "quality_min_pass_rate; "
+                "an ungated quality assertion is one nobody is measuring"
+            )
+        if self.quality_min_pass_rate is not None and not (
+            0 < self.quality_min_pass_rate <= 1
+        ):
+            raise ValueError(
+                "quality_min_pass_rate must be greater than 0 and at most 1"
+            )
+        if self.quality_min_pass_rate is not None and not declares_quality:
+            raise ValueError(
+                "quality_min_pass_rate is declared but no step asserts a "
+                "quality property"
+            )
+
+    @property
+    def has_quality_assertions(self) -> bool:
+        return any(step.quality_message_contains_any for step in self.steps)
 
 
 class ReplayClient:
@@ -216,6 +285,17 @@ class TrajectoryCassette:
     prompt_fingerprint: str | None
     context_shape_fingerprint: str | None
     model: str | None
+    samples: tuple[tuple[dict[str, Any], ...], ...] = ()
+
+    @property
+    def recordings(self) -> tuple[tuple[dict[str, Any], ...], ...]:
+        """Every independent recording, including legacy single-step files."""
+
+        return self.samples or (self.steps,)
+
+    @property
+    def sample_count(self) -> int:
+        return len(self.recordings)
 
 
 def cassette_path(name: str, *, root: Path | None = None) -> Path:
@@ -282,11 +362,22 @@ def load_cassette(
     if not path.exists():
         return None
     payload = json.loads(path.read_text())
+    raw_samples = payload.get("samples")
+    samples = (
+        tuple(
+            tuple(sample["steps"] if isinstance(sample, dict) else sample)
+            for sample in raw_samples
+        )
+        if isinstance(raw_samples, list) and raw_samples
+        else ()
+    )
+    steps = samples[0] if samples else tuple(payload["steps"])
     return TrajectoryCassette(
-        steps=tuple(payload["steps"]),
+        steps=steps,
         prompt_fingerprint=payload.get("prompt_fingerprint"),
         context_shape_fingerprint=payload.get("context_shape_fingerprint"),
         model=payload.get("model"),
+        samples=samples,
     )
 
 
@@ -312,6 +403,18 @@ def cassette_staleness(
         return (
             "cassette context_shape_fingerprint does not match the current "
             "model_context projection; re-record it"
+        )
+    if scenario.has_quality_assertions and (
+        cassette.sample_count != scenario.recording_samples
+    ):
+        return (
+            f"cassette has {cassette.sample_count} sample(s), but quality scenario "
+            f"requires exactly {scenario.recording_samples}; re-record it"
+        )
+    if cassette.sample_count < scenario.recording_samples:
+        return (
+            f"cassette has {cassette.sample_count} sample(s), but the scenario "
+            f"requires {scenario.recording_samples}; re-record it"
         )
     return None
 
@@ -378,6 +481,26 @@ def _has_path(payload: Any, path: str) -> bool:
     return True
 
 
+def check_step_quality(
+    step: TrajectoryStep, decision: AgentDecision, *, scenario: str, index: int
+) -> tuple[str, ...]:
+    """Grade the properties that are graded by rate, not per sample.
+
+    Kept apart from ``check_step`` rather than flagged inside it, so that a
+    reader of either function knows which gate it feeds. Mixing them would make
+    ``pass^k`` quietly apply to a property that is not an invariant.
+    """
+    failures = []
+    message = decision.message or ""
+    for alternatives in step.quality_message_contains_any:
+        if not any(fragment in message for fragment in alternatives):
+            failures.append(
+                f"{scenario}[{index}]: reply did not mention any of "
+                f"{sorted(alternatives)!r}"
+            )
+    return tuple(failures)
+
+
 def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, index: int) -> tuple[str, ...]:
     failures = []
     label = f"{scenario}[{index}]"
@@ -413,8 +536,8 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
                 f"{label}: expected argument {name}={expected!r}, got "
                 f"{arguments.get(name)!r}"
             )
-    for name in sorted(step.forbid_argument_keys):
-        if name in arguments:
+    for name in sorted(step.forbid_non_null_arguments):
+        if arguments.get(name) is not None:
             failures.append(
                 f"{label}: passed {name}={arguments[name]!r}, which the "
                 "projection never offered"
@@ -516,6 +639,133 @@ def replay(
     return tuple(failures)
 
 
+def replay_cassette(
+    scenario: TrajectoryScenario,
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    cassette: TrajectoryCassette,
+) -> tuple[tuple[str, ...], ...]:
+    """Replay every independent sample without hiding intermittent failures."""
+
+    return tuple(
+        replay(scenario, tool_specs=tool_specs, responses=responses)
+        for responses in cassette.recordings
+    )
+
+
+def replay_quality(
+    scenario: TrajectoryScenario,
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    cassette: TrajectoryCassette,
+) -> tuple[tuple[str, ...], ...]:
+    """Grade the rate-gated properties, one entry per sample.
+
+    Separate pass over the same recordings rather than a second return value
+    from ``replay_cassette``: the two tiers are read by different gates, and a
+    caller that only cares about invariants should not have to know this exists.
+    """
+    if not any(step.quality_message_contains_any for step in scenario.steps):
+        return ()
+    graded: list[tuple[str, ...]] = []
+    for responses in cassette.recordings:
+        client = ReplayClient(responses)
+        maker = OpenAICompatibleMainAgentDecisionMaker(
+            OpenAICompatibleAgentConfig(
+                endpoint="https://replay.invalid/v1/chat/completions",
+                api_key="replay",
+                model="replay",
+            ),
+            client=client,
+        )
+        failures: list[str] = []
+        context = scenario.context
+        for index, step in enumerate(scenario.steps):
+            context = _advance(context, step)
+            decision = maker.decide(context, _dynamic_schemas(tool_specs, context))
+            failures.extend(
+                check_step_quality(
+                    step, decision, scenario=scenario.name, index=index
+                )
+            )
+        graded.append(tuple(failures))
+    return tuple(graded)
+
+
+def quality_shortfall(
+    scenario: TrajectoryScenario,
+    graded: Sequence[Sequence[str]],
+) -> str | None:
+    """Whether the recorded rate has fallen below the floor the scenario keeps.
+
+    Reports the rate either way when it returns a message, because the number is
+    the finding: "3 of 5" is the status quo this project measured, and the point
+    of the gate is to notice the day it becomes 1 of 5.
+    """
+    if scenario.quality_min_pass_rate is None:
+        return None
+    if len(graded) != scenario.recording_samples:
+        return (
+            f"{scenario.name}: quality grading requires exactly "
+            f"{scenario.recording_samples} samples, got {len(graded)}"
+        )
+    passing = sum(1 for failures in graded if not failures)
+    rate = passing / len(graded)
+    if rate >= scenario.quality_min_pass_rate:
+        return None
+    return (
+        f"{scenario.name}: quality properties held in {passing} of "
+        f"{len(graded)} samples ({rate:.1%}), below the declared floor of "
+        f"{scenario.quality_min_pass_rate:.1%}"
+    )
+
+
+def wilson_score_interval(
+    passing: int,
+    total: int,
+    *,
+    confidence: float = 0.95,
+) -> tuple[float, float] | None:
+    """Wilson interval for an observed binomial pass rate.
+
+    The interval characterises uncertainty; the small fixed-sample regression
+    gate above deliberately remains a point-estimate floor. Returning ``None``
+    for no observations prevents callers from publishing a fictitious 0/0
+    quality rate.
+    """
+    if total == 0:
+        return None
+    if not 0 <= passing <= total:
+        raise ValueError(
+            "passing samples must be between zero and total samples"
+        )
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between zero and one")
+    z = NormalDist().inv_cdf(0.5 + confidence / 2)
+    rate = passing / total
+    denominator = 1 + z * z / total
+    centre = (rate + z * z / (2 * total)) / denominator
+    margin = (
+        z
+        * math.sqrt(rate * (1 - rate) / total + z * z / (4 * total * total))
+        / denominator
+    )
+    return centre - margin, centre + margin
+
+
+def known_gap_reproduction(
+    sample_failures: Sequence[Sequence[str]],
+) -> str:
+    """Classify whether a known defect still reproduces across its samples."""
+
+    failed = tuple(bool(failures) for failures in sample_failures)
+    if not failed or not any(failed):
+        return "resolved"
+    if all(failed):
+        return "stable"
+    return "intermittent"
+
+
 def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContext:
     """Apply what the runtime would have carried into this step."""
     update: dict[str, Any] = {}
@@ -537,6 +787,10 @@ def record(
     tool_specs: tuple[dict[str, Any], ...],
     config: OpenAICompatibleAgentConfig,
     root: Path | None = None,
+    sample_count: int | None = None,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> Path:
     """Ask the live model and write the answers down.
 
@@ -545,16 +799,54 @@ def record(
     which is why a stale cassette is worth re-cutting whenever the prompt, the
     projection, or the model changes.
     """
+    requested_samples = (
+        scenario.recording_samples if sample_count is None else sample_count
+    )
+    if not 1 <= requested_samples <= 5:
+        raise ValueError("trajectory sample count must be between 1 and 5")
+    if scenario.has_quality_assertions and (
+        requested_samples != scenario.recording_samples
+    ):
+        raise ValueError(
+            "quality scenarios must be recorded with exactly their declared "
+            "sample count"
+        )
+    if not 1 <= max_attempts <= 5:
+        raise ValueError("trajectory record attempts must be between 1 and 5")
+    if retry_delay_seconds < 0:
+        raise ValueError("trajectory retry delay cannot be negative")
+
     maker = OpenAICompatibleMainAgentDecisionMaker(config)
-    steps = []
-    context = scenario.context
-    for step in scenario.steps:
-        context = _advance(context, step)
-        decision = maker.decide(context, _dynamic_schemas(tool_specs, context))
-        steps.append(
-            {"tool_call": {"name": decision.tool_call.name, "arguments": decision.tool_call.arguments}}
-            if decision.tool_call is not None
-            else {"content": decision.model_dump_json(exclude_none=True)}
+    samples = []
+    for _ in range(requested_samples):
+        steps = []
+        context = scenario.context
+        for step in scenario.steps:
+            context = _advance(context, step)
+            schemas = _dynamic_schemas(tool_specs, context)
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    decision = maker.decide(context, schemas)
+                    break
+                except AgentWorkerError as error:
+                    if not error.retryable or attempt == max_attempts:
+                        raise
+                    sleeper(retry_delay_seconds * (2 ** (attempt - 1)))
+            steps.append(
+                {
+                    "tool_call": {
+                        "name": decision.tool_call.name,
+                        "arguments": decision.tool_call.arguments,
+                    }
+                }
+                if decision.tool_call is not None
+                else {"content": decision.model_dump_json(exclude_none=True)}
+            )
+        samples.append(
+            {
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "steps": steps,
+            }
         )
     path = cassette_path(scenario.name, root=root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -568,8 +860,12 @@ def record(
                     scenario, tool_specs
                 ),
                 "context_shape_fingerprint": context_shape_fingerprint(scenario),
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
-                "steps": steps,
+                "recorded_at": samples[-1]["recorded_at"],
+                # Keep the first sample under the legacy key so external readers
+                # do not break while the evaluator consumes every sample below.
+                "steps": samples[0]["steps"],
+                "sample_count": requested_samples,
+                "samples": samples,
             },
             ensure_ascii=False,
             indent=2,

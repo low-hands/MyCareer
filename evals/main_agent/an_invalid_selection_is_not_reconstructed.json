@@ -1,0 +1,40 @@
+{
+  "scenario": "an_invalid_selection_is_not_reconstructed",
+  "policy": "When required information is missing, ask the user. Never invent an internal identifier or selection that the projected candidate list does not contain.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
+  "context_shape_fingerprint": "2da705b31f755fd205c7cb59d585f47dec11e373c79cc4eb14f6968d271895b1",
+  "recorded_at": "2026-09-04T07:49:24.815213+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位，无法打开第 2 个。请选择第 1 个“算法工程师（示例科技，上海）”，或先保存更多岗位。\"}"
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:49:16.739503+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位，无法打开第 2 个。请选择第 1 个“算法工程师（示例科技，上海）”，或先保存更多岗位。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:49:20.803469+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只有 1 个已保存岗位，无法打开第 2 个。请告诉我是否要打开第 1 个岗位的完整 JD。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:49:24.815213+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只有 1 个已保存岗位，第 2 个岗位不存在。要查看“算法工程师”（示例科技，上海）的完整 JD，请回复“打开第 1 个岗位”。\"}"
+        }
+      ]
+    }
+  ]
+}
