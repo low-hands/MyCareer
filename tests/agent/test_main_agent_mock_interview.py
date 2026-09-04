@@ -562,6 +562,8 @@ def test_a_long_report_reaches_the_screen_and_is_referenced_in_history(
         {
             "kind": "mock_interview_report",
             "reference": loaded.reference_handle(stored.resource_refs[0]),
+            "title": "模拟面试报告",
+            "description": "回" * 199 + "…",
         }
     ]
     assert projected["resources"][0]["reference"].startswith("mock_")

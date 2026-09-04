@@ -168,11 +168,10 @@ def test_job_research_reference_keeps_delivery_time_render_context() -> None:
         "resource_id": "report-1",
         "status_at_delivery": "outdated",
         "anchored_by_other_job": True,
-        # Unlabelled here on purpose: the stored shape carries the field even
-        # when the producer has nothing to put in it, and rows written before
-        # labels existed read back the same way. The projection omits an empty
-        # one rather than showing a blank line to the model.
-        "label": "",
+        # Untitled here on purpose: legacy rows are still readable, while the
+        # projection omits absent metadata rather than showing a blank field.
+        "title": None,
+        "description": None,
     }
     # The model learns only that a selectable report exists; presentation
     # metadata and the internal id remain outside its prompt.
@@ -413,14 +412,16 @@ def test_every_projection_path_carries_the_label_beside_the_handle() -> None:
     first = ConversationResourceReference(
         kind="job_research_report",
         resource_id="report-a",
-        label="示例科技",
+        title="示例科技",
+        description="企业搜索产品调研。",
         status_at_delivery="current",
         anchored_by_other_job=False,
     )
     second = ConversationResourceReference(
         kind="job_research_report",
         resource_id="report-b",
-        label="另一家科技",
+        title="另一家科技",
+        description="推荐系统产品调研。",
         status_at_delivery="current",
         anchored_by_other_job=False,
     )
@@ -456,9 +457,12 @@ def test_every_projection_path_carries_the_label_beside_the_handle() -> None:
 
     projected = context.model_context()
 
-    assert projected["archived_reports"][0]["label"] == "示例科技"
-    assert projected["recent_messages"][0]["resources"][0]["label"] == "另一家科技"
-    assert projected["tool_observations"][0]["label"] == "示例科技"
+    assert projected["archived_reports"][0]["title"] == "示例科技"
+    assert projected["archived_reports"][0]["description"] == "企业搜索产品调研。"
+    assert projected["recent_messages"][0]["resources"][0]["title"] == "另一家科技"
+    assert projected["recent_messages"][0]["resources"][0]["description"] == "推荐系统产品调研。"
+    assert projected["tool_observations"][0]["title"] == "示例科技"
+    assert projected["tool_observations"][0]["description"] == "企业搜索产品调研。"
 
 
 def test_an_unlabelled_resource_shows_no_empty_label_anywhere() -> None:
@@ -490,5 +494,7 @@ def test_an_unlabelled_resource_shows_no_empty_label_anywhere() -> None:
 
     projected = context.model_context()
 
-    assert "label" not in projected["recent_messages"][0]["resources"][0]
-    assert "label" not in projected["tool_observations"][0]
+    assert "title" not in projected["recent_messages"][0]["resources"][0]
+    assert "description" not in projected["recent_messages"][0]["resources"][0]
+    assert "title" not in projected["tool_observations"][0]
+    assert "description" not in projected["tool_observations"][0]

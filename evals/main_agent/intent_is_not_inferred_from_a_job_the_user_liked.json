@@ -2,12 +2,12 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
   "context_shape_fingerprint": "b4b884cf22a6fd266ccf27de30cbc10aa7811ecd8dc4539401d5da687c5737f8",
-  "recorded_at": "2026-09-04T02:21:06.837192+00:00",
+  "recorded_at": "2026-09-04T04:48:01.777897+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位已在你的记录中。你希望下一步做什么：匹配简历、研究公司信息，还是比较其他已保存岗位？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你希望我下一步做什么？可以帮你查看完整 JD、研究公司背景，或比较你已保存的岗位。\"}"
     }
   ]
 }

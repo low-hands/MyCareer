@@ -97,7 +97,7 @@ def test_a_report_stays_nameable_after_its_turn_is_summarised(tmp_path) -> None:
     )
 
 
-def test_the_catalogue_reaches_the_model_with_a_bounded_label(tmp_path) -> None:
+def test_the_catalogue_uses_resource_metadata_not_delivery_prose(tmp_path) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(
         store, summary_worker=_Worker(), recent_message_limit=2, summary_batch_size=2
@@ -121,9 +121,9 @@ def test_the_catalogue_reaches_the_model_with_a_bounded_label(tmp_path) -> None:
     entry = projected["archived_reports"][0]
     assert entry["kind"] == "job_research_report"
     assert entry["reference"].startswith("report_")
-    # A catalogue carried every turn for the life of a conversation cannot grow
-    # with the reports it lists.
-    assert len(entry["summary"]) <= 220
+    # Delivery prose belongs to the conversation, not to the resource index.
+    # A producer-owned description is the only supported preview.
+    assert "summary" not in entry
     assert "resource_id" not in entry
     assert "report-1" not in str(projected)
 

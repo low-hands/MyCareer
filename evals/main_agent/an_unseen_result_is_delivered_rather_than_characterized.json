@@ -2,9 +2,9 @@
   "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
   "policy": "An observation without body exposes only a bounded receipt and selected flat decision facts, not the internal payload. Use values explicitly present there, but never expand them into omitted details; the runtime presenter remains the authoritative delivery.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "89730a191aef1ad42c1bd75be08ded68a757ab1a999065033685304d5e2b13d2",
+  "prompt_fingerprint": "63dba67beb4003889ca61e380eb90434e4ea981bef91e2c24adb51cb65127e46",
   "context_shape_fingerprint": "34977507b8fd974aa43169bcab37a3df49e3e1d6d0794ebf8303c022f38bb7f3",
-  "recorded_at": "2026-09-04T02:23:52.804320+00:00",
+  "recorded_at": "2026-09-04T04:53:25.165764+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,7 +15,7 @@
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"今天职业简报显示共有 3 个待办：其中 2 个今天到期，1 个已逾期，没有等待中的事项。请查看随附的职业简报，按优先级处理逾期事项和今日到期事项。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"今天有 3 个职业待办：其中 2 个今天到期，1 个已逾期。请优先处理逾期事项，再完成今天到期的两项。职业简报已附上，可查看具体内容。\"}"
     }
   ]
 }
