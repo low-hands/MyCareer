@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from career_agent.agent.job_discovery_contracts import AgentWorker, T
 from career_agent.agent.openai_compatible_client import AgentWorkerError, OpenAICompatibleAgentConfig
+from career_agent.harness.observability import traced_model_call
 
 
 def _base_url(endpoint: str) -> str:
@@ -46,6 +47,9 @@ class OpenAICompatibleAgentWorker(AgentWorker):
             prompt += " Select no more than input.selection_limit candidates. Every selected result_ref must exactly match one of input.allowed_result_refs; never invent or rewrite a result_ref. Return an empty selections list when no candidate is suitable."
         return prompt
 
+    @traced_model_call(
+        lambda self, *, stage, **_: f"job_discovery_{stage}"
+    )
     def decide(self, *, stage: str, input: dict[str, Any], output_type: type[T]) -> T:
         try:
             response = self._client.chat.completions.create(

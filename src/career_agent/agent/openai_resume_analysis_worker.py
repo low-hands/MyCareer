@@ -15,6 +15,7 @@ from career_agent.agent.resume_analysis_contracts import (
     ResumeAnalysisResult,
     ResumeAnalysisWorker,
 )
+from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -71,6 +72,7 @@ class OpenAIResumeAnalysisWorker(ResumeAnalysisWorker):
             client=client,
         )
 
+    @traced_model_call("resume_analysis")
     def analyze(self, document: StoredResumeDocument) -> ResumeAnalysisResult:
         content = self._document_content(document)
         try:

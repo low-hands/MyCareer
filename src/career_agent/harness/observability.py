@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from contextvars import ContextVar
 from datetime import datetime, timezone
+from functools import wraps
 from threading import Lock
-from typing import Any, Literal, Protocol
+from time import perf_counter
+from typing import Any, Callable, Literal, Protocol
 
+from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.security.redaction import redact, redact_text
@@ -80,6 +84,213 @@ class TraceRecorder(Protocol):
     ) -> RunEvent: ...
 
     def snapshot(self, run_id: str) -> RunTrace: ...
+
+
+# Bound by the outer turn and inherited by synchronous capability/workflow
+# calls.  Keeping it in the harness package lets isolated workers emit model
+# telemetry without importing MainAgentRuntime (which would invert the
+# dependency and create a cycle).
+ACTIVE_TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
+    "active_agent_trace_context",
+    default=None,
+)
+
+
+def record_active_trace(
+    event_type: EventType,
+    stage: str,
+    *,
+    outcome: Literal["started", "succeeded", "failed", "interrupted"],
+    duration_ms: int | None = None,
+    error_code: str | None = None,
+    error_detail: str | None = None,
+    recoverable: bool | None = None,
+    details: dict[str, Any] | None = None,
+    model_call_category: ModelCallCategory | None = None,
+) -> None:
+    """Best-effort event write for code running inside the active turn."""
+
+    context = ACTIVE_TRACE_CONTEXT.get()
+    if context is None:
+        return
+    recorder, run_id = context
+    try:
+        recorder.record(
+            run_id,
+            event_type,
+            stage,
+            outcome=outcome,
+            duration_ms=duration_ms,
+            error_code=error_code,
+            error_detail=error_detail,
+            recoverable=recoverable,
+            details=details,
+            model_call_category=model_call_category,
+        )
+    except Exception:
+        # Observability cannot become authority over a business operation.
+        return
+
+
+TraceStage = str | Callable[..., str]
+
+
+def traced_model_call(
+    stage: TraceStage,
+    *,
+    when: Callable[..., bool] | None = None,
+):
+    """Trace one worker method without persisting any of its input or output.
+
+    ``stage`` may be a fixed internal label or a callable receiving the same
+    arguments as the decorated method.  The event carries only that label and
+    the worker class name: never prompts, resume/JD text, interview answers, or
+    model output.
+    """
+
+    def decorate(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            if ACTIVE_TRACE_CONTEXT.get() is None:
+                return function(*args, **kwargs)
+            if when is not None:
+                try:
+                    should_trace = when(*args, **kwargs)
+                except Exception:
+                    # A diagnostic predicate cannot become a new failure mode.
+                    should_trace = False
+                if not should_trace:
+                    return function(*args, **kwargs)
+            try:
+                resolved_stage = (
+                    stage(*args, **kwargs) if callable(stage) else stage
+                )
+            except Exception:
+                # Preserve the model call even if a future signature change
+                # leaves the more specific stage resolver stale.
+                resolved_stage = function.__name__
+            safe_stage = str(resolved_stage)
+            details = {
+                "worker": type(args[0]).__name__ if args else function.__qualname__
+            }
+            started = perf_counter()
+            record_active_trace(
+                "model_attempt",
+                safe_stage,
+                outcome="started",
+                details=details,
+                model_call_category="capability_agent",
+            )
+            try:
+                result = function(*args, **kwargs)
+            except Exception as error:
+                retryable = getattr(error, "retryable", None)
+                record_active_trace(
+                    "model_failed",
+                    safe_stage,
+                    outcome="failed",
+                    duration_ms=int((perf_counter() - started) * 1000),
+                    error_code=getattr(error, "code", type(error).__name__),
+                    # Worker details can contain provider validation fragments
+                    # derived from a resume, JD, email, or interview answer.
+                    # The stable code is enough for aggregation; keep the
+                    # detail structural instead of trusting every producer to
+                    # redact its exception payload correctly.
+                    error_detail=type(error).__name__,
+                    recoverable=retryable if isinstance(retryable, bool) else None,
+                    details=details,
+                    model_call_category="capability_agent",
+                )
+                raise
+            record_active_trace(
+                "model_succeeded",
+                safe_stage,
+                outcome="succeeded",
+                duration_ms=int((perf_counter() - started) * 1000),
+                details=details,
+                model_call_category="capability_agent",
+            )
+            return result
+
+        return wrapped
+
+    return decorate
+
+
+class CapabilityModelTraceCallback(BaseCallbackHandler):
+    """Trace each LangChain chat-model request made inside a Deep Agent.
+
+    A Deep Agent invocation can contain several model/tool/model cycles, so a
+    decorator around ``agent.invoke`` would undercount them.  This callback is
+    attached to the actual ChatOpenAI instance and records one pair per model
+    request, while deliberately ignoring prompts, messages, generations and
+    token content supplied by LangChain.
+    """
+
+    def __init__(self, *, stage: str, worker: str) -> None:
+        self._stage = stage
+        self._worker = worker
+        self._started: dict[object, float] = {}
+        self._lock = Lock()
+
+    def on_chat_model_start(
+        self,
+        serialized: dict[str, Any],
+        messages: list[list[Any]],
+        *,
+        run_id: object,
+        **kwargs: Any,
+    ) -> None:
+        del serialized, messages, kwargs
+        if ACTIVE_TRACE_CONTEXT.get() is None:
+            return
+        with self._lock:
+            if run_id in self._started:
+                return
+            self._started[run_id] = perf_counter()
+        record_active_trace(
+            "model_attempt",
+            self._stage,
+            outcome="started",
+            details={"worker": self._worker},
+            model_call_category="capability_agent",
+        )
+
+    def on_llm_end(self, response: Any, *, run_id: object, **kwargs: Any) -> None:
+        del response, kwargs
+        with self._lock:
+            started = self._started.pop(run_id, None)
+        if started is None:
+            return
+        record_active_trace(
+            "model_succeeded",
+            self._stage,
+            outcome="succeeded",
+            duration_ms=int((perf_counter() - started) * 1000),
+            details={"worker": self._worker},
+            model_call_category="capability_agent",
+        )
+
+    def on_llm_error(
+        self, error: BaseException, *, run_id: object, **kwargs: Any
+    ) -> None:
+        del kwargs
+        with self._lock:
+            started = self._started.pop(run_id, None)
+        if started is None:
+            return
+        retryable = getattr(error, "retryable", None)
+        record_active_trace(
+            "model_failed",
+            self._stage,
+            outcome="failed",
+            duration_ms=int((perf_counter() - started) * 1000),
+            error_code=getattr(error, "code", type(error).__name__),
+            error_detail=type(error).__name__,
+            recoverable=retryable if isinstance(retryable, bool) else None,
+            details={"worker": self._worker},
+            model_call_category="capability_agent",
+        )
 
 
 def safe_trace_fields(

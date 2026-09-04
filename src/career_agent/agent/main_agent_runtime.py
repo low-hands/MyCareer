@@ -13,9 +13,11 @@ from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
+    ACTIVE_TRACE_CONTEXT,
     EventType,
     ModelCallCategory,
     TraceRecorder,
+    record_active_trace,
 )
 from career_agent.agent.delivery_policy import (
     condenses_message,
@@ -87,10 +89,10 @@ _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
     default=None,
 )
 
-_TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
-    "main_agent_trace_context",
-    default=None,
-)
+# Compatibility alias for focused runtime tests and callers that already bind
+# the turn context directly.  The owner moved to the harness so capability
+# workers can emit into the same run without importing this module.
+_TRACE_CONTEXT = ACTIVE_TRACE_CONTEXT
 
 _DURABLE_WRITES: ContextVar[list[str] | None] = ContextVar(
     "main_agent_durable_writes",
@@ -474,25 +476,17 @@ class MainAgentRuntime:
         model_call_category: ModelCallCategory | None = None,
     ) -> None:
         """Best-effort event write shared by model and non-model telemetry."""
-        context = _TRACE_CONTEXT.get()
-        if context is None:
-            return
-        recorder, run_id = context
-        try:
-            recorder.record(
-                run_id,
-                event_type,
-                stage,
-                outcome=outcome,
-                duration_ms=duration_ms,
-                error_code=error_code,
-                error_detail=error_detail,
-                details=details,
-                recoverable=recoverable,
-                model_call_category=model_call_category,
-            )
-        except Exception:
-            return
+        record_active_trace(
+            event_type,
+            stage,
+            outcome=outcome,
+            duration_ms=duration_ms,
+            error_code=error_code,
+            error_detail=error_detail,
+            details=details,
+            recoverable=recoverable,
+            model_call_category=model_call_category,
+        )
 
     def _record_turn(
         self,

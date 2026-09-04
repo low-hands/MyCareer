@@ -35,6 +35,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewTurn,
 )
 from career_agent.storage.resumes import StoredResumeDocument
+from career_agent.harness.observability import traced_model_call
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -350,6 +351,9 @@ class OpenAIMockInterviewWorker:
             max_output_tokens=self._MAX_OUTPUT_TOKENS[operation],
         )
 
+    @traced_model_call(
+        lambda self, *, result_name, **_: result_name.removesuffix("_result")
+    )
     def _request_structured(
         self,
         *,
