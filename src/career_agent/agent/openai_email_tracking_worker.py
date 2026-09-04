@@ -15,6 +15,7 @@ from career_agent.domain.email_tracking import (
     RemoteEmailContent,
     RemoteEmailMetadata,
 )
+from career_agent.harness.observability import traced_model_call
 
 
 def _base_url(endpoint: str) -> str:
@@ -37,6 +38,7 @@ class OpenAIEmailTrackingWorker:
             max_retries=3,
         )
 
+    @traced_model_call("email_tracking_assess")
     def assess(
         self,
         *,

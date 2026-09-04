@@ -25,6 +25,10 @@ from career_agent.agent.openai_compatible_client import (
     OpenAICompatibleAgentConfig,
 )
 from career_agent.domain.job_research import JobResearchDraft
+from career_agent.harness.observability import (
+    CapabilityModelTraceCallback,
+    traced_model_call,
+)
 
 
 DeepAgentFactory = Callable[..., Any]
@@ -51,8 +55,13 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
         self._skills_root = skills_root.expanduser().resolve()
         self._checkpointer = checkpointer
         self._validate_skill_source(self._skills_root)
+        self._agent_emits_model_trace = agent is None
         self._agent = agent or self._build_agent(agent_factory)
 
+    @traced_model_call(
+        "job_research",
+        when=lambda self, **_: not self._agent_emits_model_trace,
+    )
     def research(
         self,
         *,
@@ -117,6 +126,12 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
             max_retries=3,
             use_responses_api=True,
             store=False,
+            callbacks=[
+                CapabilityModelTraceCallback(
+                    stage="job_research",
+                    worker=type(self).__name__,
+                )
+            ],
         )
         profile_key = (
             self._config.model

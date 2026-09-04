@@ -10,6 +10,7 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
+from career_agent.harness.observability import traced_model_call
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
     ResumeJobMatchResult,
@@ -119,6 +120,9 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
             return result.model_copy(update={"verdict": "block"})
         return result
 
+    @traced_model_call(
+        lambda self, *, stage, **_: f"resume_{stage}_review"
+    )
     def _review(
         self,
         *,

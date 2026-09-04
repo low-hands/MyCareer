@@ -16,6 +16,7 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchResult,
     ResumeJobMatchWorker,
 )
+from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -68,6 +69,10 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             client=client,
         )
 
+    @traced_model_call(
+        "resume_job_match",
+        when=lambda self, *, jd_text, **_: bool(jd_text.strip()),
+    )
     def match(
         self,
         *,

@@ -14,6 +14,7 @@ from career_agent.agent.openai_compatible_client import (
     OpenAICompatibleAgentConfig,
 )
 from career_agent.domain.interview_preparation import InterviewPreparationResult
+from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -33,6 +34,10 @@ class OpenAIInterviewPreparationWorker:
             max_retries=3,
         )
 
+    @traced_model_call(
+        "interview_preparation",
+        when=lambda self, *, context, **_: bool(context.jd_text.strip()),
+    )
     def prepare(
         self,
         *,

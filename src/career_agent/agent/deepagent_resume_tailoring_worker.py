@@ -33,6 +33,10 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringWorker,
 )
 from career_agent.storage.resumes import StoredResumeDocument
+from career_agent.harness.observability import (
+    CapabilityModelTraceCallback,
+    traced_model_call,
+)
 
 
 DeepAgentFactory = Callable[..., Any]
@@ -57,8 +61,15 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
         self._config = config
         self._skills_root = skills_root.expanduser().resolve()
         self._validate_skill_source(self._skills_root)
+        self._agent_emits_model_trace = agent is None
         self._agent = agent or self._build_agent(agent_factory)
 
+    @traced_model_call(
+        "resume_tailoring",
+        when=lambda self, *, jd_text, **_: (
+            bool(jd_text.strip()) and not self._agent_emits_model_trace
+        ),
+    )
     def tailor(
         self,
         *,
@@ -129,6 +140,12 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             max_retries=3,
             use_responses_api=True,
             store=False,
+            callbacks=[
+                CapabilityModelTraceCallback(
+                    stage="resume_tailoring",
+                    worker=type(self).__name__,
+                )
+            ],
         )
         profile_key = (
             self._config.model
@@ -306,8 +323,13 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
         self._config = config
         self._skills_root = skills_root.expanduser().resolve()
         DeepAgentResumeTailoringWorker._validate_skill_source(self._skills_root)
+        self._agent_emits_model_trace = agent is None
         self._agent = agent or self._build_agent(agent_factory)
 
+    @traced_model_call(
+        "resume_finalization",
+        when=lambda self, **_: not self._agent_emits_model_trace,
+    )
     def finalize(
         self,
         *,
@@ -368,6 +390,12 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
             max_retries=3,
             use_responses_api=True,
             store=False,
+            callbacks=[
+                CapabilityModelTraceCallback(
+                    stage="resume_finalization",
+                    worker=type(self).__name__,
+                )
+            ],
         )
         profile_key = (
             self._config.model
