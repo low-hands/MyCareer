@@ -277,7 +277,7 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     # it is the same line whether or not the answer writer ran.
     assert len(contents[3]) <= 240
     assert "待提升" not in contents[3]
-    reference = after_completion.recent_messages[3].resource_ref
+    reference = after_completion.recent_messages[3].resource_refs[0]
     assert reference is not None
     assert reference.kind == "mock_interview_report"
     # One request, one reply. Neither the questions nor the answers survive.
@@ -333,7 +333,7 @@ class RoutingFailureGraph(FakeMockInterviewGraph):
         )
 
 
-def _runtime_with_graph(tmp_path, graph, decision_maker):
+def _runtime_with_graph(tmp_path, graph, decision_maker, runtime_class=MainAgentRuntime):
     service, application = _application_setup(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -349,7 +349,7 @@ def _runtime_with_graph(tmp_path, graph, decision_maker):
         application_service=service,
         mock_interview_graph=graph,
     )
-    runtime = MainAgentRuntime(
+    runtime = runtime_class(
         context_manager=manager,
         decision_maker=decision_maker,
         tools=tools,
@@ -553,15 +553,18 @@ def test_a_long_report_reaches_the_screen_and_is_referenced_in_history(
     assert stored.content.startswith("模拟面试完成。")
     assert len(stored.content) <= 240
     assert "待提升" not in stored.content
-    assert stored.resource_ref is not None
-    assert stored.resource_ref.kind == "mock_interview_report"
-    assert stored.resource_ref.resource_id == "report-1"
+    assert stored.resource_refs
+    assert stored.resource_refs[0].kind == "mock_interview_report"
+    assert stored.resource_refs[0].resource_id == "report-1"
     # The model sees that a report exists without ever seeing its id.
     projected = loaded.model_context()["recent_messages"][-1]
-    assert projected["resource"] == {
-        "kind": "mock_interview_report",
-        "reference_index": 1,
-    }
+    assert projected["resources"] == [
+        {
+            "kind": "mock_interview_report",
+            "reference": loaded.reference_handle(stored.resource_refs[0]),
+        }
+    ]
+    assert projected["resources"][0]["reference"].startswith("mock_")
 
 
 
@@ -616,3 +619,143 @@ def test_a_turn_with_no_report_streams_no_reference(tmp_path) -> None:
     )
 
     assert not [event for event in events if event.type == "report_ready"]
+
+
+def test_every_entry_reports_the_call_that_actually_happened(tmp_path) -> None:
+    """The decision model must not be told about a call that never occurred.
+
+    ``_drive_mock_interview`` hardcoded ``tool_name="start_mock_interview"`` in
+    all four entries and in every one of its error branches. That string is not
+    telemetry: ``_tool_observation`` copies it straight into the decision
+    context, so consuming a candidate's answer produced an observation reading
+    "this turn called start_mock_interview" — naming a capability nobody
+    invoked, on the very turn the answer was being consumed.
+
+    Independent of G, which changes *who* drives these calls, not what they
+    call themselves.
+    """
+    class RetryableGraph(FakeMockInterviewGraph):
+        def retry(self, *, user_id, session_id):
+            return self.resume(user_id=user_id, session_id=session_id, answer="stored")
+
+    service, _ = _application_setup(tmp_path)
+    tools = MainAgentToolRegistry(
+        application_service=service,
+        mock_interview_graph=RetryableGraph(),
+    )
+
+    consumed = tools.handle_mock_interview_input(
+        user_id="u1", session_id="s1", message="我做过检索系统的端到端优化。"
+    )
+    retried = tools.retry_mock_interview(user_id="u1", session_id="s1")
+
+    assert consumed.tool_name == "handle_mock_interview_input"
+    assert retried.tool_name == "retry_mock_interview"
+
+    # The failure branches carry the same obligation: a closed observation is
+    # still an observation the model reads.
+    failing = MainAgentToolRegistry(
+        application_service=service,
+        mock_interview_graph=RoutingFailureGraph(),
+    )
+    refused = failing.handle_mock_interview_input(
+        user_id="u1", session_id="s1", message="我做过检索系统的端到端优化。"
+    )
+    assert refused.state == "mock_interview_input_retry_required"
+    assert refused.tool_name == "handle_mock_interview_input"
+
+
+def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
+    """``decision`` is the model's choice, and two ingresses fabricate one.
+
+    The mock interview takeover invents a ``tool_call`` and the interaction
+    receipt invents a ``final``; both then travelled as ordinary
+    ``AgentDecision`` values with nothing marking them apart, so every consumer
+    read all three ingresses as one thing. The CLI published the invented
+    ``tool_name`` as machine-readable JSON — a call that never happened.
+
+    Marking the source is deliberately not the same as routing these through the
+    graph. The receipt *should* bypass the graph: its contract was sealed when
+    the interaction was issued, and re-asking the model would only let it
+    overrule an explicit click. Only the mock interview takeover is G.
+    """
+    class RetryableGraph(FakeMockInterviewGraph):
+        def retry(self, *, user_id, session_id):
+            return self.resume(user_id=user_id, session_id=session_id, answer="stored")
+
+    service, _ = _application_setup(tmp_path)
+    tools = MainAgentToolRegistry(
+        application_service=service,
+        mock_interview_graph=RetryableGraph(),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(CareerContextStore(tmp_path / "ctx.sqlite3")),
+        decision_maker=_never_called_decision_maker(),
+        tools=tools,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_workflow="mock_interview", run_id="s1", phase="mock_interview_running"
+        ),
+        user_message="我做过检索系统的端到端优化。",
+    )
+
+    result = runtime._run_active_mock_interview(
+        context=context, user_message="我做过检索系统的端到端优化。"
+    )
+
+    assert result.decision_source == "runtime"
+    # The fabricated call names the entry that ran, so that if anything does
+    # read it, it reads the truth rather than the capability that began the run.
+    assert result.decision.tool_call.name == "handle_mock_interview_input"
+
+
+class _never_called_decision_maker:
+    def decide(self, context, schemas):  # pragma: no cover - must not be reached
+        raise AssertionError("the takeover consults no model")
+
+
+def test_the_progress_events_name_the_entry_that_actually_ran(tmp_path) -> None:
+    """The last place still announcing a call that never happened.
+
+    ``_drive_mock_interview``, the observation and the fabricated ``decision``
+    were all corrected to report the real entry; the ingress kept emitting
+    ``capability_started("start_mock_interview")`` because ``entry`` was derived
+    inside ``_run_active_mock_interview`` and the ingress could not see it.
+
+    User-visible text is unaffected — ``_public_capability`` maps every mock
+    interview entry to ``interview``, which is exactly why the label cannot be
+    what this test reads. It asserts on the name handed to the emitters, the
+    same claim the other three sites were fixed for.
+
+    The fix derives ``entry`` once, at the top of the takeover, and lets the
+    completion read the name back off the observation rather than deriving it a
+    second time from a second copy of the task.
+    """
+    announced: list[str] = []
+
+    class RecordingRuntime(MainAgentRuntime):
+        def _emit_capability_started(self, name):
+            announced.append(name)
+
+        def _emit_capability_completed(self, name, state):
+            announced.append(name)
+
+    runtime, _ = _runtime_with_graph(
+        tmp_path,
+        FakeMockInterviewGraph(),
+        ReplayDecisions(_start_decision()),
+        runtime_class=RecordingRuntime,
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
+    announced.clear()
+    runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="我的回答"
+    )
+
+    assert announced == [
+        "handle_mock_interview_input",
+        "handle_mock_interview_input",
+    ]

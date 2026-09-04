@@ -114,7 +114,9 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
     serialized = metadata_observation.model_dump_json()
     assert "PRIVATE RESUME CONTENT" not in serialized
     assert first.content_sha256 not in serialized
-    assert result.assistant_message == "已读取简历“AI Base”及其 2 个版本的元数据。"
+    # F: the reply is the model's; the receipt remains the tool's own record.
+    assert result.assistant_message == "你有一份 AI Engineer 简历，共两个版本。"
+    assert result.tool_result.message == "已读取简历“AI Base”及其 2 个版本的元数据。"
 
 
 def test_get_resume_metadata_hides_foreign_resume(tmp_path) -> None:
@@ -240,6 +242,12 @@ def test_analyze_resume_tool_loads_owned_document_and_returns_only_analysis(tmp_
     assert observation.payload["analysis_id"].startswith("resume_analysis_")
     assert observation.payload["records"][0]["title"] == "Product Manager"
     assert observation.payload["clarification_questions"] == ("What was the start month?",)
+    # Declared by the handler from its typed draft, not re-derived from payload.
+    assert observation.facts == {
+        "record_count": len(observation.payload["records"]),
+        "clarification_count": 1,
+        "has_warnings": False,
+    }
     serialized = observation.model_dump_json()
     assert "PRIVATE RESUME CONTENT" not in serialized
     assert "raw_bytes" not in serialized

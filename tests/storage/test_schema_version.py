@@ -73,7 +73,7 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 1,
+    "agent_context": 2,
     "job_postings": 1,
     "job_research": 2,
     "run_events": 2,
@@ -96,6 +96,43 @@ def test_no_component_declares_a_version_this_table_does_not_know_about() -> Non
             declared[component] = int(version)
 
     assert declared == DECLARED_VERSIONS
+
+
+def test_no_store_writes_the_file_wide_version_the_registry_replaced() -> None:
+    """The registry has to be the only source of truth, not merely the better one.
+
+    ``PRAGMA user_version`` is one integer per *file*, and seven stores own
+    ``resumes.sqlite3``. While any store still wrote it, the file carried two
+    version records that nothing reconciled: bumping a component in
+    ``schema_versions`` left the PRAGMA behind, and no code path noticed. Nothing
+    ever read it — so the fix is to stop writing it, and this test is what keeps
+    a future store from reintroducing the second record.
+    """
+    offenders = [
+        source.name
+        for source in Path("src/career_agent/storage").glob("*.py")
+        if re.search(r"PRAGMA\s+user_version\s*=", source.read_text())
+    ]
+    assert offenders == []
+
+
+def test_the_shared_file_carries_component_rows_and_no_file_wide_version(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "resumes.sqlite3"
+    for store in SHARED_STORES:
+        store(path)
+
+    with sqlite3.connect(path) as connection:
+        file_wide = connection.execute("PRAGMA user_version").fetchone()[0]
+        components = connection.execute(
+            "SELECT COUNT(*) FROM schema_versions"
+        ).fetchone()[0]
+
+    # Untouched at its default. A number here would describe one of seven owners
+    # and misdescribe the other six.
+    assert file_wide == 0
+    assert components == len(SHARED_STORES)
 
 
 def test_opening_a_newer_schema_fails_instead_of_writing(tmp_path: Path) -> None:

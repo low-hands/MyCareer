@@ -10,12 +10,8 @@ from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.answer_writer import (
-    AnswerCompositionRequest,
-    AnswerWriter,
-)
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
     EventType,
     ModelCallCategory,
@@ -24,10 +20,7 @@ from career_agent.harness.observability import (
 from career_agent.agent.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
-    response_type_for,
-    uses_answer_writer,
 )
-from career_agent.agent.tool_reachability import reroutable
 from career_agent.agent.tool_effects import ToolEffect, effect_for
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
@@ -99,6 +92,11 @@ _TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
     default=None,
 )
 
+_DURABLE_WRITES: ContextVar[list[str] | None] = ContextVar(
+    "main_agent_durable_writes",
+    default=None,
+)
+
 DEFAULT_MAX_READ_CALLS = 6
 DEFAULT_MAX_WRITE_CALLS = 1
 DEFAULT_MAX_PROJECTION_REFUSALS = 2
@@ -134,17 +132,36 @@ class MainAgentState(TypedDict, total=False):
     control: LoopControl
     artifact_ids: tuple[str, ...]
     assistant_message: str
+    model_message: str
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
+    def __init__(self, *, decision: AgentDecision, decision_source: Literal["model", "runtime"], context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
         self.decision = decision
+        # Who chose this. ``decision`` is typed ``AgentDecision`` and named after
+        # the model's choice, but two ingresses fabricate one: the bound
+        # interaction receipt (the user clicked a button whose contract was
+        # sealed when the interaction was issued) and the mock interview
+        # takeover. Both are legitimate — a receipt has no open semantic
+        # decision to make, and asking the model again would only let it
+        # overrule an explicit click — but neither is a model decision, and
+        # nothing used to say so, leaving every consumer to read all three as
+        # one thing.
+        #
+        # Required, not defaulted: "did the model decide this turn?" has to be
+        # answered at every construction site, including future ones. A default
+        # would answer it silently and wrongly for exactly the paths this field
+        # exists to distinguish.
+        self.decision_source = decision_source
         self.context = context
         self.assistant_message = assistant_message
         self.tool_result = tool_result
         self.tool_results = tool_results
         self.artifacts = artifacts
         self.content_streamed = content_streamed
+        # The reply alone, without any presenter body appended for the screen.
+        # Non-empty exactly when the model authored this turn's answer.
+        self.model_message = model_message
         self.delegated_read_count = delegated_read_count
         self.delegated_write_count = delegated_write_count
 
@@ -176,7 +193,7 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, answer_writer: AnswerWriter | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
         if max_read_calls < 1:
             raise ValueError("max_read_calls must be at least one")
         if max_write_calls < 1:
@@ -204,7 +221,6 @@ class MainAgentRuntime:
         self._decision_maker = decision_maker
         self._tools = tools
         self._career_context_projector = career_context_projector
-        self._answer_writer = answer_writer
         self._max_read_calls = max_read_calls
         self._max_write_calls = max_write_calls
         self._max_projection_refusals = max_projection_refusals
@@ -359,6 +375,7 @@ class MainAgentRuntime:
 
         turn_id = uuid4().hex
         sink_token = _STREAM_SINK.set(event_sink)
+        writes_token = _DURABLE_WRITES.set([])
         trace_token = _TRACE_CONTEXT.set(
             (self._trace_recorder, turn_id) if self._trace_recorder is not None else None
         )
@@ -396,6 +413,7 @@ class MainAgentRuntime:
         finally:
             _STREAM_SINK.reset(sink_token)
             _TRACE_CONTEXT.reset(trace_token)
+            _DURABLE_WRITES.reset(writes_token)
 
     @staticmethod
     def _emit_trace(
@@ -522,6 +540,52 @@ class MainAgentRuntime:
         except Exception:
             return
 
+    def _commit_interrupted_turn(
+        self, *, context: MainAgentContext, error: Exception
+    ) -> None:
+        """Leave a conversational trace when a turn dies after it already wrote.
+
+        A turn runs to completion and commits afterwards, so an exception in the
+        middle drops the whole conversation record — including the user's own
+        message — while the domain write that already landed stays in its store.
+        Three states then disagree: the applications store says it happened, the
+        conversation has zero messages, and ``ConversationTaskState`` still says
+        no application is active.
+
+        The write is not lost, and a later ``list_applications`` would find it.
+        The danger is narrower and worse: nothing tells the model to go look.
+        ``max_write_calls = 1`` exists to make writes deliberate, and this path
+        let a deliberate write go invisible at the conversation layer.
+
+        Reachable by design, not by accident: ``_reraise_security_refusal`` hard
+        throws through the whole turn for internal identifiers, extra fields and
+        unknown capabilities. That boundary stays hard — this does not catch the
+        error, it only records what preceded it before re-raising.
+
+        Nothing is written when the turn made no durable write. There is then no
+        disagreement to reconcile, and a clean retry is the better outcome. The
+        task is committed as it was loaded: the transition this turn intended
+        never finished, so claiming it did would be a second lie.
+        """
+        writes = _DURABLE_WRITES.get() or []
+        if not writes:
+            return
+        executed = "、".join(dict.fromkeys(writes))
+        try:
+            self._context_manager.commit_turn(
+                context=context,
+                task=context.task,
+                assistant_message=(
+                    f"本轮执行中断（{type(error).__name__}），但以下操作已经写入："
+                    f"{executed}。请先核对这些记录的实际状态，再决定是否重做。"
+                ),
+            )
+        except Exception:
+            # Best effort, exactly like the trace recorder: a conversation row
+            # that cannot be written must not replace the original failure with
+            # a less informative one.
+            return
+
     def _run_and_commit_turn(
         self,
         *,
@@ -540,11 +604,15 @@ class MainAgentRuntime:
                 conversation_id=conversation_id,
                 user_message=user_message,
             )
-            result = self._run_interaction_response(
-                context=context,
-                conversation_id=conversation_id,
-                response=interaction_response,
-            )
+            try:
+                result = self._run_interaction_response(
+                    context=context,
+                    conversation_id=conversation_id,
+                    response=interaction_response,
+                )
+            except Exception as error:
+                self._commit_interrupted_turn(context=context, error=error)
+                raise
             self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
             self._context_manager.commit_turn(
                 context=context,
@@ -563,20 +631,22 @@ class MainAgentRuntime:
                 conversation_id=conversation_id,
                 task=routing_task,
             )
-            self._emit_capability_started("start_mock_interview")
-            result = self._run_active_mock_interview(
-                context=context,
-                user_message=user_message,
-            )
+            # The started/completed pair both name the entry that actually ran.
+            # Only ``_run_active_mock_interview`` knows which one that is, so it
+            # emits the start, and the completion reads the name back off the
+            # observation rather than guessing it a second time.
+            try:
+                result = self._run_active_mock_interview(
+                    context=context,
+                    user_message=user_message,
+                )
+            except Exception as error:
+                self._commit_interrupted_turn(context=context, error=error)
+                raise
             if result.tool_result is not None:
                 self._emit_capability_completed(
-                    "start_mock_interview", result.tool_result.state
+                    result.tool_result.tool_name, result.tool_result.state
                 )
-            self._stream_answer_if_eligible(
-                result=result,
-                conversation_id=conversation_id,
-                user_request=user_message,
-            )
             # One decision point for every way a run can end, so no exit path
             # can forget to leave a trace. The test is whether the workflow will
             # still be driving the next turn, not whether it still holds the
@@ -597,13 +667,11 @@ class MainAgentRuntime:
                     # to fit alongside the rest of the conversation next turn.
                     assistant_message=self._conversation_content(
                         result.tool_result,
-                        screen=result.assistant_message,
-                        composed=result.content_streamed,
+                        screen=self._durable_screen(result),
+                        composed=bool(result.model_message),
                     ),
-                    assistant_resource_ref=(
-                        result.tool_result.resource_ref
-                        if result.tool_result is not None
-                        else None
+                    assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
+                        result.tool_results
                     ),
                 )
             return result
@@ -613,12 +681,11 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
             user_message=user_message,
         )
-        result = self._run_loaded_context(context)
-        self._stream_answer_if_eligible(
-            result=result,
-            conversation_id=conversation_id,
-            user_request=user_message,
-        )
+        try:
+            result = self._run_loaded_context(context)
+        except Exception as error:
+            self._commit_interrupted_turn(context=context, error=error)
+            raise
         # This input belonged to Main Agent even when its result hands future
         # turns to a workflow. Ownership is an ingress property, not something
         # that can be inferred from the task state after execution. The reply,
@@ -639,13 +706,11 @@ class MainAgentRuntime:
                 task=result.context.task,
                 assistant_message=self._conversation_content(
                     result.tool_result,
-                    screen=result.assistant_message,
-                    composed=result.content_streamed,
+                    screen=self._durable_screen(result),
+                    composed=bool(result.model_message),
                 ),
-                assistant_resource_ref=(
-                    result.tool_result.resource_ref
-                    if result.tool_result is not None
-                    else None
+                assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
+                    result.tool_results
                 ),
             )
         return result
@@ -711,11 +776,10 @@ class MainAgentRuntime:
             streamed_message = (
                 self._conversation_content(
                     result.tool_result,
-                    screen=result.assistant_message,
-                    composed=False,
+                    screen=self._durable_screen(result),
+                    composed=bool(result.model_message),
                 )
-                if result.tool_result is not None
-                and self._has_backed_card(result.tool_result)
+                if self._turn_is_card_backed(result.tool_results)
                 else result.assistant_message
             )
             for delta in iter_content_deltas(streamed_message):
@@ -733,171 +797,21 @@ class MainAgentRuntime:
         # The card is the only full-report delivery path both live and after a
         # reload. The accompanying message is the same short prose in both
         # cases; no full report is duplicated into content_delta.
-        if result.tool_result is not None and result.tool_result.resource_ref is not None:
+        #
+        # One card per report, not one per turn. Four card-backed reads fit
+        # inside the read budget, so "show me the research and the match" ends a
+        # turn holding two stored reports; emitting only the last one would
+        # leave a durable report the reader is never handed.
+        for reference in self._turn_resource_refs(result.tool_results):
             self._emit(
                 ReportReadyEvent(
-                    kind=result.tool_result.resource_ref.kind,
-                    resource_id=result.tool_result.resource_ref.resource_id,
-                    status_at_delivery=(
-                        result.tool_result.resource_ref.status_at_delivery
-                    ),
-                    anchored_by_other_job=(
-                        result.tool_result.resource_ref.anchored_by_other_job
-                    ),
+                    kind=reference.kind,
+                    resource_id=reference.resource_id,
+                    status_at_delivery=reference.status_at_delivery,
+                    anchored_by_other_job=reference.anchored_by_other_job,
                 )
             )
         self._emit(TurnCompletedEvent(turn_id=turn_id))
-
-    def _stream_answer_if_eligible(
-        self,
-        *,
-        result: MainAgentTurnResult,
-        conversation_id: str,
-        user_request: str,
-    ) -> None:
-        if self._answer_writer is None or not self._should_use_answer_writer(result):
-            return
-        if self._interaction_event(result=result, conversation_id=conversation_id):
-            return
-
-        # Report-shaped turns deliver their body through the card, so the
-        # writer is asked for a bounded delivery summary instead of a rewrite.
-        # The instruction alone is not enough — it is a request to a model about
-        # its own output length — so the stream is cut at the same number below.
-        limit = (
-            DELIVERY_SUMMARY_LIMIT
-            if result.tool_result is not None
-            and self._has_backed_card(result.tool_result)
-            else None
-        )
-        request = AnswerCompositionRequest(
-            response_type=self._answer_response_type(result),
-            user_request=user_request,
-            grounded_draft=result.assistant_message,
-            max_chars=limit,
-            # "Preserve every factual value" cannot be obeyed alongside a
-            # character ceiling when grounded_draft is a whole report. Asking
-            # for both left the writer to choose which instruction to break.
-            required_rules=(
-                (
-                    "Do not add facts that are absent from grounded_draft.",
-                    "Every fact you do state must be accurate and keep the "
-                    "uncertainty grounded_draft gave it.",
-                    "Keep any warning, limitation, or staleness notice.",
-                )
-                if limit is not None
-                else (
-                    "Preserve every factual value and all explicit uncertainty from grounded_draft.",
-                    "Do not add facts that are absent from grounded_draft.",
-                )
-            ),
-        )
-        self._emit(
-            ProgressEvent(stage="presenting", message="正在生成最终回答……")
-        )
-        chunks: list[str] = []
-        written = 0
-        trace_details = {
-            "grounded_draft_chars": len(request.grounded_draft),
-            "user_request_chars": len(request.user_request),
-            "max_chars": request.max_chars,
-            "response_type": request.response_type,
-        }
-        started = perf_counter()
-        self._record_trace_event(
-            "model_attempt",
-            "answer_writer",
-            outcome="started",
-            details=trace_details,
-            model_call_category="writer",
-        )
-        try:
-            for delta in self._answer_writer.stream(request):
-                if not delta:
-                    continue
-                # The ellipsis is part of the budget, not an addition to it:
-                # counting only the content let an answer that landed exactly
-                # on the limit overflow it by the marker's own character.
-                if limit is not None and written + len(delta) + 1 > limit:
-                    # Cut on the delta that would cross, and mark the cut in the
-                    # stream rather than only in storage: the reader has to see
-                    # the same text the transcript will keep.
-                    remainder = delta[: max(0, limit - written - 1)]
-                    if remainder:
-                        chunks.append(remainder)
-                        self._emit(ContentDeltaEvent(delta=remainder))
-                    chunks.append("…")
-                    self._emit(ContentDeltaEvent(delta="…"))
-                    break
-                chunks.append(delta)
-                written += len(delta)
-                self._emit(ContentDeltaEvent(delta=delta))
-        except AgentWorkerError as error:
-            self._record_trace_event(
-                "model_failed",
-                "answer_writer",
-                outcome="failed",
-                duration_ms=int((perf_counter() - started) * 1000),
-                details={**trace_details, "emitted_chars": sum(map(len, chunks))},
-                error_code=error.code,
-                error_detail=error.detail or type(error).__name__,
-                recoverable=error.retryable,
-                model_call_category="writer",
-            )
-            if chunks:
-                # Some text has already reached the user. Falling back now
-                # would append a second, contradictory answer to that prefix.
-                raise
-            return
-        except Exception as error:
-            self._record_trace_event(
-                "model_failed",
-                "answer_writer",
-                outcome="failed",
-                duration_ms=int((perf_counter() - started) * 1000),
-                details={**trace_details, "emitted_chars": sum(map(len, chunks))},
-                error_code="ANSWER_WRITER_FAILED",
-                error_detail=type(error).__name__,
-                model_call_category="writer",
-            )
-            raise
-        self._record_trace_event(
-            "model_succeeded",
-            "answer_writer",
-            outcome="succeeded",
-            duration_ms=int((perf_counter() - started) * 1000),
-            details={**trace_details, "emitted_chars": sum(map(len, chunks))},
-            model_call_category="writer",
-        )
-        if not chunks:
-            return
-        result.assistant_message = "".join(chunks)
-        result.content_streamed = True
-
-    @staticmethod
-    def _should_use_answer_writer(result: MainAgentTurnResult) -> bool:
-        """Whether this turn's deliverable is one the writer should restate.
-
-        Artifacts and questions are excluded here rather than in the registry:
-        both are properties of the turn, not of the state it ended in. What the
-        state decides — is this report-shaped — is a single registry lookup, so
-        it can no longer diverge from the response type or from the durable-row
-        rule that assumes the same answer.
-        """
-        if result.artifacts or result.decision.action == "ask_user":
-            return False
-        tool_result = result.tool_result
-        if tool_result is None:
-            return result.decision.action == "final" and bool(result.assistant_message)
-        return uses_answer_writer(tool_result.state)
-
-    @staticmethod
-    def _answer_response_type(result: MainAgentTurnResult) -> str:
-        tool_result = result.tool_result
-        if tool_result is None:
-            return "general"
-        return response_type_for(tool_result.state)
-
     @staticmethod
     def _interaction_event(
         *,
@@ -1026,6 +940,7 @@ class MainAgentRuntime:
         decision = AgentDecision(action="final", message=result.message)
         return MainAgentTurnResult(
             decision=decision,
+            decision_source="runtime",
             context=updated,
             assistant_message=self._assistant_message(result),
             tool_result=result,
@@ -1188,11 +1103,14 @@ class MainAgentRuntime:
         control = state.get("control", {})
         return MainAgentTurnResult(
             decision=state["decision"],
+            decision_source="model",
             context=state["context"],
             assistant_message=state["assistant_message"],
             tool_result=tool_result,
             tool_results=state.get("tool_results", ()),
             artifacts=artifacts,
+            content_streamed=False,
+            model_message=state.get("model_message", ""),
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
         )
@@ -1257,6 +1175,16 @@ class MainAgentRuntime:
         session_id = context.task.run_id
         if session_id is None:
             raise ValueError("Active mock interview has no resumable session")
+        # Derived once, here, and used for the progress event, the ledger, the
+        # observation and the fabricated decision alike. Computing it again at
+        # the ingress would mean two places deciding which entry ran, from two
+        # different copies of the task.
+        entry = (
+            "retry_mock_interview"
+            if context.task.phase == "failed"
+            else "handle_mock_interview_input"
+        )
+        self._emit_capability_started(entry)
         if context.task.phase == "failed":
             # The answer for this turn is already durable; the step after it
             # failed. Re-drive from the store rather than treating this message
@@ -1272,21 +1200,31 @@ class MainAgentRuntime:
                 session_id=session_id,
                 message=user_message,
             )
+        # This ingress takes over the whole turn and never reaches ``_act``, so
+        # the ledger has to be told here. The write is real: the answer is
+        # persisted by the workflow before the step that consumes it can fail —
+        # ``retry_mock_interview`` exists precisely because of that ordering.
+        # Were this call to run inside the graph it would be an ordinary
+        # graph-driven WRITE and need no special case here.
+        MainAgentRuntime._record_durable_write(entry, result)
         updated = self._update_mock_interview_task(context, result)
         updated = updated.model_copy(
             update={
                 "tool_observations": append_decision_observation(
                     updated.tool_observations,
-                    self._tool_observation("start_mock_interview", result),
+                    self._tool_observation(entry, result),
                 )
             }
         )
         decision = AgentDecision(
             action="tool_call",
-            tool_call=ToolCall(name="start_mock_interview", arguments={}),
+            # The entry that ran, not the capability that started the run —
+            # same obligation as the observation above.
+            tool_call=ToolCall(name=entry, arguments={}),
         )
         return MainAgentTurnResult(
             decision=decision,
+            decision_source="runtime",
             context=updated,
             assistant_message=self._assistant_message(result),
             tool_result=result,
@@ -1385,7 +1323,10 @@ class MainAgentRuntime:
                     f"本轮 {effect} 委派预算已经用完；请基于已有结果作答，"
                     "或说明需要下一轮继续。"
                 ),
-                next_action="finish_or_ask_to_continue",
+                next_action=(
+                    "本轮的委派预算已经用完。请基于已有结果作答，"
+                    "或者告诉用户还缺什么。"
+                ),
             )
 
         fingerprint = self._tool_call_fingerprint(decision)
@@ -1399,14 +1340,20 @@ class MainAgentRuntime:
                     state,
                     name=name,
                     reason="相同调用已经执行过，且上次结果没有声明为可重试。",
-                    next_action="use_existing_observation_or_change_arguments",
+                    next_action=(
+                        "这次调用和本轮之前那次完全一样，再调一次也不会有新结果。"
+                        "请用已有的观察作答，或者换一组参数。"
+                    ),
                 )
             if retries >= self._max_failure_retries:
                 return self._authorization_refusal(
                     state,
                     name=name,
                     reason="相同失败调用已经达到本轮重试上限。",
-                    next_action="explain_failure_or_ask_to_continue",
+                    next_action=(
+                        "同一个失败调用已经重试到本轮上限。别再重试；"
+                        "把失败讲清楚，或者问用户要不要换个做法。"
+                    ),
                 )
             retry_counts[fingerprint] = retries + 1
             control = {**control, "retry_counts": retry_counts}
@@ -1468,7 +1415,40 @@ class MainAgentRuntime:
             else self._tools.invoke_workflow(name, arguments)
         )
         self._emit_capability_completed(name, result.state)
+        if pending.get("effect") == "WRITE":
+            MainAgentRuntime._record_durable_write(name, result)
         return {"pending": {**pending, "result": result}}
+
+    @staticmethod
+    def _record_durable_write(name: str, result: MainAgentToolOutput) -> None:
+        """Note a call that reports it changed something durable.
+
+        Called from ``_act`` for every graph-driven WRITE, and from the mock
+        interview ingress, which does not go through the graph at all — see
+        ``_run_active_mock_interview``.
+        """
+        if result.disposition == "failed":
+            # Called *after* the call returns, and silent for a call that
+            # reports it did nothing. ``WRITE`` is a declared capability of the
+            # tool, not a report about this invocation: a refused calendar write
+            # is a WRITE that changed nothing, and naming it as "already
+            # written" would be the original bug with its sign flipped —
+            # claiming an effect that never happened instead of hiding one that
+            # did. That path is ordinary, not exotic: ``_after_observe`` routes a
+            # failed result back to ``decide``, so "write fails, model tries
+            # something else, that something else hard-throws" is a normal
+            # trajectory.
+            #
+            # ``disposition`` is the tool's own answer, so a write that landed
+            # externally and then failed to be recorded is still invisible here.
+            # That window is registered as 071 五-2 and belongs to the durable
+            # effect log, not to a best-effort ledger read after the fact.
+            return
+        # The ledger has to live outside the graph state: the very case it
+        # exists for is the one where the graph never returns.
+        ledger = _DURABLE_WRITES.get()
+        if ledger is not None:
+            ledger.append(name)
 
     @staticmethod
     def _project_workflow_arguments(
@@ -1511,19 +1491,27 @@ class MainAgentRuntime:
         A model-selected tool whose preconditions fail at projection used to
         raise through the whole turn, killing it with a canned failure. That
         gave the model no way to recover and the user no say. Now the refusal
-        returns as an ordinary result, and which way the turn goes from there is
-        told by whether any re-routable candidates exist in task state:
+        returns as an ordinary result and the model decides what to do with it —
+        re-select, list what is available, or ask the user for the one thing
+        only the user has.
 
-        - ``needs_user`` when no candidates can possibly resolve the refusal —
-          nothing to list, nothing to point at; only the user can supply it.
-        - ``invalid_input`` when candidates for the named capability exist, so
-          the model can list or re-select them in the same turn instead of
-          bouncing the user.
+        The state is unconditional. An earlier version chose between
+        ``needs_user`` and ``invalid_input`` by looking up the capability in a
+        reroute table; that decision now belongs to the model, and the counter
+        in ``_authorize`` bounds how many times it may take it.
         """
         return ToolObservation(
             tool_name=name,
             state="invalid_input",
             message=f"这步暂时做不到：{error}。",
+            # The one thing the state cannot say: this is not a failure to retry
+            # but a selection that did not hold. Deleting ``REROUTE_FIELDS`` gave
+            # the model this decision; leaving the hint empty would have given it
+            # the decision without the knowledge the table used to carry.
+            next_action=(
+                "这不是失败，是选择或参数不成立。原样重试没有意义："
+                "换一个已经在上下文里的对象，或者向用户要一个只有他才有的信息。"
+            ),
         )
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
@@ -1584,7 +1572,18 @@ class MainAgentRuntime:
                     item for item in retryable_fingerprints if item != fingerprint
                 )
             control["retryable_fingerprints"] = retryable_fingerprints
-        observation = self._tool_observation(capability_name, result)
+        # The model's own arguments, not ``pending["arguments"]``. Projection
+        # turns a selector into what the handler needs — including live domain
+        # objects and the internal ids the projection boundary exists to keep
+        # away from the model — so the projected form is neither safe to show
+        # nor the thing the model would recognize as its own call.
+        decision = state.get("decision")
+        written = (
+            decision.tool_call.arguments
+            if decision is not None and decision.tool_call is not None
+            else {}
+        )
+        observation = self._tool_observation(capability_name, result, written)
         updated = updated.model_copy(
             update={
                 "tool_observations": append_decision_observation(
@@ -1618,12 +1617,24 @@ class MainAgentRuntime:
         # contract does not need an LLM to paraphrase or rediscover its prompt.
         if result.disposition == "interaction_required":
             return "interrupt"
-        # Projection refusals normally return to the model so it can re-select
-        # or ask the user. The second refusal is a control-limit exit, not a
-        # semantic successor chosen from a capability-name table.
-        if result.state == "invalid_input":
-            if not reroutable(pending["name"], state["context"].task):
-                return "present"
+        # A projection refusal always returns to the model, which then re-selects,
+        # asks the user, or explains — its call, not a table's.
+        #
+        # A ``REROUTE_FIELDS`` table used to end the turn here whenever task
+        # state held no candidate list the refused tool could draw from. It
+        # answered the right question ("could a re-selection possibly work?")
+        # in the wrong place: whether a call is *possible* is the harness's to
+        # know, but whether to retry, ask, or give up is the agent's to decide,
+        # and the model is better placed than a canned presenter to say "only
+        # you can tell me which one". It was also a hardcoded capability-name
+        # successor table of exactly the kind this design rejects everywhere
+        # else, and it had to be edited in lockstep with the menu table.
+        #
+        # The cost is one model call in the hopeless case. The bound is
+        # ``max_projection_refusals``: every ``invalid_input`` comes from
+        # ``_rejection_observation``, which only runs on the synthetic
+        # projection path, so every one of them increments that counter and the
+        # limit exits to ``present`` on its own.
         if pending.get("synthetic_kind") is not None:
             return "decide"
         # Failures intentionally return to the model once, with their bounded
@@ -1635,7 +1646,28 @@ class MainAgentRuntime:
 
     @staticmethod
     def _present(state: MainAgentState) -> MainAgentState:
-        """Deliver a final decision without letting model prose replace evidence."""
+        """Deliver the model's own answer, with the presenter as the fallback.
+
+        The model narrates now. It has seen the same presenter text the reader
+        will — H puts a bounded body on the newest observation — so a post-tool
+        answer is grounded rather than invented, and one message can cover a
+        multi-step turn, which the presenter structurally cannot: it renders a
+        single result and silently drops every earlier one.
+
+        The presenter keeps *presentation*, and for one family it keeps the
+        delivery itself. A condensed state with no card has nowhere else to put
+        its body: the reader sees it here or never. The model may only introduce
+        such a body, never stand in for it — it read at most a truncated 6k
+        projection of it, and its reply is bounded far below that, so letting
+        the reply replace the body would silently drop a complete JD, a
+        comparison matrix or a mock interview readback.
+
+        For everything else the reply is the delivery: card-backed reports reach
+        the reader through the card, and a plain state's receipt is already the
+        whole of it. The presenter remains the fallback for turns with no model
+        prose — a control-limit exit, or a model that answered with an empty
+        message.
+        """
 
         decision = state["decision"]
         pending = state.get("pending", {})
@@ -1653,14 +1685,121 @@ class MainAgentRuntime:
                 )
             }
         result = MainAgentRuntime._last_result(state)
+        # ``strip()``, not truthiness: a whitespace-only message would enter this
+        # branch and then clamp to "", leaving ``model_message`` empty while the
+        # branch claims the model wrote the reply — and prefixing the body with a
+        # blank line. The invariant below has to be true, not nearly true.
+        if decision.action == "final" and (decision.message or "").strip():
+            results = state.get("tool_results", ())
+            body = MainAgentRuntime._undelivered_bodies(results)
+            # The card ceiling means "this message is only prose about a body
+            # delivered elsewhere". That holds when every delivery this turn is
+            # elsewhere. It stops holding the moment the reply also has to
+            # introduce a body with nowhere else to go, or cover steps the card
+            # says nothing about.
+            only_cards = MainAgentRuntime._turn_is_card_backed(results)
+            reply = clamp(
+                decision.message,
+                limit=(
+                    DELIVERY_SUMMARY_LIMIT if only_cards else MODEL_REPLY_LIMIT
+                ),
+            )
+            return {
+                "assistant_message": f"{reply}\n\n{body}" if body else reply,
+                # Non-empty exactly when the model wrote the reply, so the
+                # delivery layer needs no second flag to say the same thing.
+                "model_message": reply,
+            }
         if result is not None:
-            # Deliberately retain the authoritative presenter override. Letting
-            # a post-tool model message coexist with evidence is the separate
-            # presentation-composition item (070/F), not part of loop routing.
             return {"assistant_message": MainAgentRuntime._assistant_message(result)}
-        if decision.action == "final" and decision.message:
-            return {"assistant_message": decision.message}
         return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
+
+    @staticmethod
+    def _turn_resource_refs(
+        results: tuple[MainAgentToolOutput, ...],
+    ) -> tuple[ConversationResourceReference, ...]:
+        """Every stored report this turn produced, deduplicated by resource.
+
+        Shares its judgement with card emission on purpose: the same turn must
+        not hand the reader two cards while the transcript records one, and it
+        must not mint two references for one report when
+        ``research_job`` and ``get_job_research`` land on the same report.
+        """
+        references: list[ConversationResourceReference] = []
+        seen: set[str] = set()
+        for result in results:
+            reference = result.resource_ref
+            if reference is None or reference.resource_id in seen:
+                continue
+            seen.add(reference.resource_id)
+            references.append(reference)
+        return tuple(references)
+
+    @staticmethod
+    def _turn_is_card_backed(results: tuple[MainAgentToolOutput, ...]) -> bool:
+        """Whether every delivery this turn goes out through a card.
+
+        The single question three forks have to answer the same way: the reply
+        may be trimmed to card-length prose, the stream may hand the body to the
+        card instead of writing it out, and the row may keep the receipt — each
+        of those is only safe when *nothing* this turn needs the message itself
+        to carry a body.
+
+        It is a property of the turn, never of its last result. Reading a JD and
+        then researching a company gives the last result a card while the JD has
+        none; answering "yes, all cards" there drops the JD from the stream and
+        cuts the reply to 600 characters. Every fork asks this one function so
+        the three answers cannot drift apart again.
+        """
+        return bool(results) and all(
+            MainAgentRuntime._has_backed_card(item) for item in results
+        )
+
+    @staticmethod
+    def _durable_screen(result: MainAgentTurnResult) -> str:
+        """What the transcript and the live row should carry.
+
+        ``assistant_message`` is the screen delivery, which for a card-less
+        condensed state includes the presenter body. The row must not: that body
+        is what the recent window exists to stay out of. When the model wrote the
+        reply, the row keeps the reply.
+        """
+        return result.model_message or result.assistant_message
+
+    @staticmethod
+    def _undelivered_bodies(results: tuple[MainAgentToolOutput, ...]) -> str:
+        """Every presenter body in this turn that no other path will carry.
+
+        Pinned by ``test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last``,
+        which drives ``_present`` rather than naming this helper.
+
+        A condensed state without a card keeps a bounded line in the transcript
+        and shows the body live; nothing else ever shows it. Plain states put
+        everything in the receipt, and card states deliver through the entity,
+        so neither appears here.
+
+        Deliberately every such result, not the last one. Reading a JD and then
+        comparing saved jobs produces two bodies with no card behind either, and
+        taking ``tool_results[-1]`` would drop the JD — reproducing one level up
+        the exact failure this turn's composition was meant to fix.
+
+        Deliberately unbounded, per body and in total: the 6k observation limit
+        bounds what the *model* reads, and clamping here would re-truncate the
+        full JD this path exists to deliver. The read budget is what keeps a turn
+        from stacking several of them; see 070 for who owns which ceiling.
+        """
+        bodies: list[str] = []
+        for result in results:
+            if not condenses_message(result.state):
+                continue
+            if delivers_body_elsewhere(result.state):
+                continue
+            rendered = MainAgentRuntime._assistant_message(result)
+            # A repeated identical render adds nothing but length; two different
+            # jobs rendering differently must both survive.
+            if rendered and rendered not in bodies:
+                bodies.append(rendered)
+        return "\n\n".join(bodies)
 
     @staticmethod
     def _interrupt(state: MainAgentState) -> MainAgentState:
@@ -1680,7 +1819,11 @@ class MainAgentRuntime:
         return {"assistant_message": MainAgentRuntime._assistant_message(result)}
 
     @staticmethod
-    def _tool_observation(name: str, result: MainAgentToolOutput) -> DecisionObservation:
+    def _tool_observation(
+        name: str,
+        result: MainAgentToolOutput,
+        arguments: dict[str, Any] | None = None,
+    ) -> DecisionObservation:
         receipt = clamp(result.message) or "工具已返回，但没有提供结果摘要。"
         body = None
         if condenses_message(result.state):
@@ -1692,74 +1835,23 @@ class MainAgentRuntime:
                 state=result.state,
                 message=receipt,
                 body=body,
-                facts=MainAgentRuntime._decision_facts(result),
+                facts=dict(result.facts),
                 next_action=result.next_action,
+                arguments=dict(arguments or {}),
+                # The handle survives the body. Clearing keeps the reference for
+                # the same reason tool-result clearing keeps the tool_use record.
+                resource_ref=result.resource_ref,
             )
         return DecisionObservation(
             tool_name=name,
             state=result.state,
             message=receipt,
             body=body,
-            facts=MainAgentRuntime._decision_facts(result),
+            facts=dict(result.facts),
             next_action=result.next_action,
+            arguments=dict(arguments or {}),
+            resource_ref=result.resource_ref,
         )
-
-    @staticmethod
-    def _decision_facts(result: MainAgentToolOutput) -> dict[str, bool | int | str]:
-        """Project only explicitly approved scalar facts into the model context.
-
-        This is deliberately state-keyed instead of accepting a handler-owned
-        ``facts`` dict. Adding payload fields must never silently expand the
-        decision prompt. ``waiting`` currently means an open Daily Brief item
-        without a due date; the domain has no separate waiting bucket yet.
-        """
-        payload = result.payload
-        if (
-            isinstance(result, ToolObservation)
-            and result.disposition == "failed"
-            and type(payload.get("retryable")) is bool
-        ):
-            return {"retryable": payload["retryable"]}
-        if result.state == "daily_brief_ready":
-            buckets = {
-                key: payload.get(key)
-                for key in ("overdue", "due_today", "no_due_date")
-            }
-            if all(isinstance(value, (list, tuple)) for value in buckets.values()):
-                return {
-                    "overdue": len(buckets["overdue"]),
-                    "due_today": len(buckets["due_today"]),
-                    "waiting": len(buckets["no_due_date"]),
-                }
-        if result.state == "resume_analysis_ready":
-            records = payload.get("records")
-            clarifications = payload.get("clarification_questions")
-            warnings = payload.get("warnings")
-            if all(
-                isinstance(value, (list, tuple))
-                for value in (records, clarifications, warnings)
-            ):
-                return {
-                    "record_count": len(records),
-                    "clarification_count": len(clarifications),
-                    "has_warnings": bool(warnings),
-                }
-        if result.state == "job_research_ready":
-            research = payload.get("research")
-            findings = research.get("findings") if isinstance(research, dict) else None
-            cached = payload.get("cached")
-            status = payload.get("status")
-            if (
-                isinstance(cached, bool)
-                and isinstance(findings, (list, tuple))
-                and status in {"current", "outdated", "superseded"}
-            ):
-                return {
-                    "cached": cached,
-                    "finding_count": len(findings),
-                    "status": status,
-                }
-        return {}
 
     @staticmethod
     def _conversation_content(
@@ -1788,6 +1880,17 @@ class MainAgentRuntime:
         treated as a broken instance of a card policy and fails open to the
         full screen body, because there is then nowhere else to retrieve it.
         """
+        if composed:
+            # F: the model wrote this, having seen the same bounded presenter
+            # text the reader gets. There is no large body left to condense —
+            # the row keeps the answer, and the card still owns the report.
+            #
+            # Returned as-is. ``_present`` already cut the reply to the ceiling
+            # this turn earns: card length when every delivery is a card, the
+            # full reply ceiling otherwise. Clamping again here would apply the
+            # card ceiling to a turn that did not earn it, storing 600
+            # characters of an answer the reader was shown in full.
+            return screen
         if result is None or not condenses_message(result.state):
             return screen
         # A policy may claim a card only if this particular observation carries
@@ -1800,7 +1903,7 @@ class MainAgentRuntime:
             # The stream is already cut at this number. This is a pure second
             # boundary for card-backed prose, never the summarisation strategy
             # for an ephemeral message body.
-            return clamp(screen) if composed else result.message
+            return result.message
         return result.message
 
     @staticmethod

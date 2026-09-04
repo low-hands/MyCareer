@@ -566,12 +566,20 @@ class MockInterviewGraph:
         )
         if session.status == "completed":
             report = self._store.get_report(user_id=user_id, session_id=session_id)
+            if report is None:
+                # The same invariant ``_report`` enforces, answered the same way.
+                # Reading it as ``report.id if report else None`` degraded an
+                # impossible state into a card-shaped result with no reference,
+                # which ``_conversation_content`` then fails open on — a finished
+                # interview delivered as a report nobody can name. Unreachable
+                # either way; this way it says so.
+                raise ValueError("Completed mock interview has no report")
             return MockInterviewGraphResult(
                 session_id=session_id,
                 state="completed",
                 message="Mock interview completed.",
                 evaluation=evaluation,
-                report_id=report.id if report else None,
+                report_id=report.id,
                 report=report,
             )
         if session.status == "cancelled":

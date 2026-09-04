@@ -27,8 +27,6 @@ from career_agent.agent.delivery_policy import (
     is_failed,
     is_waiting,
     policy_for,
-    response_type_for,
-    uses_answer_writer,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult
@@ -39,6 +37,7 @@ from career_agent.agent.main_agent_contracts import (
     MainAgentContext,
     ToolObservation,
 )
+from career_agent.agent.job_comparison_presenter import DIMENSION_ORDER
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewExchange,
@@ -131,37 +130,11 @@ def test_a_bounded_row_does_not_by_itself_shorten_the_delivery() -> None:
     )
 
 
-def test_a_writer_eligible_state_must_condense_its_durable_row() -> None:
-    """The invariant the mock interview readback violated.
-
-    The writer shares a model and a key with ``decide``, so it fails for real
-    reasons. When it does, the durable row falls back to ``message`` — which has
-    to be a bounded line, or the fallback writes the whole report into every
-    later turn's recent window.
-    """
-    with pytest.raises(ValueError):
-        DeliveryPolicy(response_type="job_research")
-
-    for state, policy in DELIVERY_POLICIES.items():
-        if policy.uses_answer_writer:
-            assert policy.condensed_message, state
-
-
-def test_a_waiting_state_is_never_handed_to_the_writer() -> None:
-    with pytest.raises(ValueError):
-        DeliveryPolicy(waiting=True, durable_message="summary", response_type="general")
-
-    for state, policy in DELIVERY_POLICIES.items():
-        assert not (policy.waiting and policy.uses_answer_writer), state
-
-
 def test_an_unregistered_state_is_delivered_plainly_rather_than_raising() -> None:
     """A result is already in hand, and may have had durable effects."""
     assert policy_for("a_state_from_the_future") == DeliveryPolicy()
     assert not is_waiting("a_state_from_the_future")
     assert not condenses_message("a_state_from_the_future")
-    assert not uses_answer_writer("a_state_from_the_future")
-    assert response_type_for("a_state_from_the_future") == "general"
 
 
 def test_body_eligibility_is_exactly_condensed_delivery_and_never_raw_payload(
@@ -329,6 +302,44 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实定制标记",
         ),
+        "saved_jobs_compared": (
+            {
+                "job_posting_id": internal_id,
+                "comparison": {
+                    "rows": [
+                        {
+                            # The row model itself carries an internal id, so
+                            # this state proves the presenter drops one it holds
+                            # rather than merely one left in the raw payload.
+                            "job_posting_id": internal_id,
+                            "title": "真实对比标记",
+                            "company_name": "示例科技",
+                            "cells": [
+                                {
+                                    "dimension": dimension,
+                                    "value": value,
+                                    "basis": "示例依据",
+                                }
+                                for dimension, value in zip(
+                                    DIMENSION_ORDER,
+                                    (
+                                        "insufficient_evidence",
+                                        "partial",
+                                        "undisclosed",
+                                        "differs",
+                                        "active",
+                                    ),
+                                )
+                            ],
+                        }
+                    ],
+                    "uninformative_dimensions": [],
+                    "jobs_without_match": [],
+                    "notes": [],
+                },
+            },
+            "真实对比标记",
+        ),
         "saved_job_ready": (
             {
                 "job_posting_id": internal_id,
@@ -360,12 +371,11 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
         assert internal_id_pattern.search(observation.body) is None, state
 
 
-def test_the_runtime_reads_waiting_and_writer_rules_from_the_registry() -> None:
+def test_the_runtime_reads_waiting_rules_from_the_registry() -> None:
     """No second copy of these tables survives on the runtime."""
     assert not hasattr(MainAgentRuntime, "_WAITING_STATES")
     assert is_waiting("calendar_approval_required")
     assert not is_waiting("saved_jobs_found")
-    assert response_type_for("mock_interview_result_found") == "interview_report"
 
 
 def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
@@ -407,6 +417,25 @@ def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
         assert found is not None, "explicit interaction must name a reviewable state"
         explicit_states.add(found.group(1))
     assert explicit_states == {"resume_analysis_ready"}
+
+
+def test_a_match_receipt_must_embed_the_value_a_scenario_decides_on() -> None:
+    """The one accepted receipt-wording dependency, made to fail loudly.
+
+    `weak_match_routes_to_resume_tailoring` decides on
+    ``tool_observations.0.message`` because ``overall_fit`` fits in the receipt,
+    and the registration rule says a value the receipt can carry is not
+    duplicated into ``facts``. That leaves the wording load-bearing: rewrite the
+    line without the value and the scenario keeps passing while testing nothing.
+    This asserts every emitter of that state interpolates the fit rather than
+    describing it, so the drift is a red test instead of a silent one.
+    """
+    source = _TOOLS_SOURCE.read_text()
+    receipts = re.findall(r'message=f"[^"]*整体匹配度为[^"]*"', source)
+
+    assert receipts, "no resume_job_match receipt found; did the wording change?"
+    for receipt in receipts:
+        assert "{stored.result.overall_fit}" in receipt, receipt
 
 
 def test_failure_disposition_is_intentional_and_not_waiting() -> None:
@@ -494,6 +523,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
             user_message="继续",
         )
         turn = MainAgentTurnResult(
+            decision_source="model",
             decision=AgentDecision(action="final", message="请继续。"),
             context=context,
             assistant_message="请继续。",
@@ -590,6 +620,16 @@ def _states_that_attach_a_resource_ref() -> set[str]:
     added, and a new one has no test to exercise it yet. Matches each
     ``ToolObservation(...)`` construction that mentions
     ``ConversationResourceReference`` and takes the ``state=`` inside it.
+
+    Known blind spot: a conditional construction counts as attached even when
+    the ``else`` branch yields ``None``, because the scan only asks whether the
+    name appears in the block. That is the right trade for what this guard is
+    for — a new state that forgot a reference entirely — but it cannot see a
+    state whose reference is merely usually present. No live instance remains:
+    ``mock_interview_completed`` was the last, and the graph now raises rather
+    than projecting a completed run without its report. Exercising the branch
+    is what ``_graph_states_with_a_reference`` does, for the states where the
+    distinction matters.
     """
     source = _TOOLS_SOURCE.read_text()
     states = set()
@@ -646,7 +686,8 @@ def _graph_states_with_a_reference() -> set[str]:
         observation = MainAgentToolRegistry._mock_interview_observation(
             MockInterviewGraphResult(
                 session_id="sess-1", state=graph_state, message="…", **kwargs
-            )
+            ),
+            "start_mock_interview",
         )
         if observation.resource_ref is not None:
             states.add(observation.state)

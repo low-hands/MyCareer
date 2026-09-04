@@ -67,6 +67,15 @@ def test_daily_brief_selection_projects_internal_action_id(tmp_path) -> None:
         user_id="u1", conversation_id="c1", user_message="看看今天的待办，第一个完成了"
     )
 
+    brief = next(
+        item for item in result.tool_results if item.state == "daily_brief_ready"
+    )
+    # The receipt gives the total; the split is what a follow-up turns on, and
+    # the handler declares it from the typed brief it already holds.
+    assert set(brief.facts) == {"overdue", "due_today", "waiting"}
+    assert brief.facts["overdue"] == len(brief.payload["overdue"])
+    assert brief.facts["due_today"] == len(brief.payload["due_today"])
+    assert brief.facts["waiting"] == len(brief.payload["no_due_date"])
     assert tools.capability_kind("get_daily_brief") == "atomic_tool"
     assert action_center.complete_calls == [
         {"user_id": "u1", "action_item_id": "action-1"}

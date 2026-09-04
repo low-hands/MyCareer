@@ -7,8 +7,10 @@ import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT
+from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
+from career_agent.agent.main_agent_runtime import _STREAM_SINK, MainAgentTurnResult, MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
@@ -277,7 +279,10 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
         "state": "job_search_page_ready",
         "message": "已准备打开 BOSS 搜索“AI Engineer”。请正常浏览，并只保存你感兴趣的岗位。",
         "facts": {},
-        "next_action": "browse_and_save_job",
+        # What the model wrote, so two calls to one capability stay distinct.
+        # The projected form is not shown: it carries what the handler needs,
+        # including the ids the projection boundary keeps from the model.
+        "arguments": {"keyword": "AI Engineer"},
     }
     serialized = str(observation)
     assert "zhipin.com" not in serialized
@@ -299,7 +304,9 @@ def test_repeated_tool_call_is_stopped_without_duplicate_execution(tmp_path) -> 
     assert len(tools.calls) == 1
     assert [item.state for item in result.tool_results] == ["job_search_page_ready"]
     assert result.context.tool_observations[-1].state == "authorization_refused"
-    assert result.assistant_message.startswith("已准备打开 BOSS 搜索")
+    # F: the model, not the presenter, closes the turn it decided to end —
+    # here by telling the reader why the repeat was not issued.
+    assert result.assistant_message == "已有搜索页，不再重复打开。"
     assert len(decisions.contexts) == 3
 
 
@@ -336,7 +343,9 @@ def test_tool_loop_stops_at_configured_limit(tmp_path) -> None:
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="Research several roles.")
 
     assert [arguments["query"] for _, arguments in tools.calls] == ["Role A", "Role B"]
-    assert result.assistant_message == "已读取 Role B。"
+    # The refusal reached the model, and the model — not the harness —
+    # tells the reader why the turn stopped.
+    assert result.assistant_message == "本轮读取预算已经用完。"
     assert [item.state for item in result.tool_results] == [
         "saved_jobs_found",
         "saved_jobs_found",
@@ -559,6 +568,7 @@ def test_saved_job_exposes_only_the_bounded_presenter_body_not_internal_payload(
         "message": "已读取已保存岗位。",
         "body": sentinel,
         "facts": {},
+        "arguments": {},
         "next_action": "match_resume_to_job",
     }
     assert sentinel in observation.model_dump_json()
@@ -619,7 +629,9 @@ def test_condensed_result_body_is_bounded_and_matches_the_presenter() -> None:
     assert len(observation.body) == DECISION_OBSERVATION_BODY_LIMIT
     assert observation.body.endswith("…")
     assert observation.body == rendered[: DECISION_OBSERVATION_BODY_LIMIT - 1].rstrip() + "…"
-    assert observation.facts == {"overdue": 1, "due_today": 0, "waiting": 0}
+    # Facts travel from the declaring capability rather than being re-derived
+    # here, so a hand-built result carries whatever it declared — nothing.
+    assert observation.facts == {}
 
 
 def test_plain_result_does_not_carry_payload_as_body() -> None:
@@ -791,6 +803,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
             state="s" * 80,
             message="m" * DECISION_OBSERVATION_RECEIPT_LIMIT,
             next_action="n" * 80,
+            arguments={"a": "a" * 180},
         )
         for _ in range(MAX_DECISION_OBSERVATIONS - 1)
     ) + (
@@ -805,6 +818,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
                 "status": "superseded",
             },
             next_action="n" * 80,
+            arguments={"a": "a" * 180},
         ),
     )
 
@@ -812,7 +826,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
         MAX_DECISION_OBSERVATION_BODIES * DECISION_OBSERVATION_BODY_LIMIT
         + MAX_DECISION_OBSERVATIONS * DECISION_OBSERVATION_RECEIPT_LIMIT
     ) == 12_000
-    assert decision_observation_chars(observations) == 15_204
+    assert decision_observation_chars(observations) == 17_244
     assert decision_observation_chars(observations) <= (
         MAX_DECISION_OBSERVATION_CHARS
     )
@@ -837,70 +851,6 @@ def test_blank_receipt_degrades_after_a_tool_result_instead_of_raising() -> None
     assert observation.message == "工具已返回，但没有提供结果摘要。"
 
 
-@pytest.mark.parametrize(
-    ("result", "expected"),
-    (
-        (
-            ToolResult(
-                tool_name="get_daily_brief",
-                state="daily_brief_ready",
-                message="今日职业简报包含 13 个待办事项。",
-                payload={
-                    "overdue": [{}] * 6,
-                    "due_today": [{}] * 4,
-                    "no_due_date": [{}] * 3,
-                },
-            ),
-            {"overdue": 6, "due_today": 4, "waiting": 3},
-        ),
-        (
-            ToolResult(
-                tool_name="analyze_resume",
-                state="resume_analysis_ready",
-                message="已分析简历。",
-                payload={
-                    "records": [{}] * 12,
-                    "clarification_questions": ["请确认时间"],
-                    "warnings": [],
-                },
-            ),
-            {
-                "record_count": 12,
-                "clarification_count": 1,
-                "has_warnings": False,
-            },
-        ),
-        (
-            ToolResult(
-                tool_name="research_job",
-                state="job_research_ready",
-                message="已复用岗位研究。",
-                payload={
-                    "cached": True,
-                    "status": "current",
-                    "research": {"findings": [{}] * 8},
-                },
-            ),
-            {"cached": True, "finding_count": 8, "status": "current"},
-        ),
-        (
-            ToolResult(
-                tool_name="match_resume_to_job",
-                state="resume_job_match_ready",
-                message="已完成逐项匹配，整体匹配度为 moderate。",
-                payload={"result": {"overall_fit": "moderate"}},
-            ),
-            {},
-        ),
-    ),
-)
-def test_decision_facts_are_state_whitelisted(result, expected) -> None:
-    observation = MainAgentRuntime._tool_observation(result.tool_name, result)
-
-    assert observation.facts == expected
-    assert all(key != "id" and not key.endswith("_id") for key in observation.facts)
-
-
 def test_decision_facts_reject_nested_values_ids_and_unbounded_shapes() -> None:
     base = {
         "tool_name": "get_daily_brief",
@@ -916,8 +866,15 @@ def test_decision_facts_reject_nested_values_ids_and_unbounded_shapes() -> None:
         DecisionObservation.model_validate(
             {**base, "facts": {f"fact_{index}": index for index in range(9)}}
         )
+    # A partial set is no longer rejected: membership moved to the capability
+    # that declares it, and the contract now bounds shape rather than schema.
+    assert DecisionObservation.model_validate(
+        {**base, "facts": {"overdue": 1}}
+    ).facts == {"overdue": 1}
     with pytest.raises(ValidationError):
-        DecisionObservation.model_validate({**base, "facts": {"overdue": 1}})
+        DecisionObservation.model_validate(
+            {**base, "facts": {"anchor": "a" * 32}}
+        )
 
 
 def test_internal_tool_result_requires_a_durable_receipt() -> None:
@@ -930,7 +887,604 @@ def test_internal_tool_result_requires_a_durable_receipt() -> None:
         )
 
 
-def test_final_model_message_cannot_characterize_an_opaque_tool_result() -> None:
+def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
+    tmp_path,
+) -> None:
+    """Live delivery and the reloaded transcript must name the same reports.
+
+    This is the invariant the plural ``resource_refs`` exists for, and it is not
+    implied by the card test above: emitting every card while committing only
+    ``tool_results[-1]`` passes that one and still shows two cards live and one
+    after refresh. Pinning both sides against the *same* turn is what makes the
+    regression impossible to reintroduce quietly.
+    """
+
+    class TwoReportRegistry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            kinds = {
+                "get_job_research": ("job_research_report", "report-1"),
+                "get_resume_job_match": ("resume_job_match", "match-1"),
+            }
+            kind, resource_id = kinds[name]
+            extra = (
+                {"status_at_delivery": "current", "anchored_by_other_job": False}
+                if kind == "job_research_report"
+                else {}
+            )
+            return ToolResult(
+                tool_name=name,
+                state=(
+                    "job_research_ready"
+                    if kind == "job_research_report"
+                    else "resume_job_match_ready"
+                ),
+                message=f"已读取 {kind}。",
+                resource_ref=ConversationResourceReference(
+                    kind=kind, resource_id=resource_id, **extra
+                ),
+            )
+
+    class DirectRuntime(MainAgentRuntime):
+        """Argument projection is not what this test is about."""
+
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return dict(arguments)
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="get_job_research", arguments={}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="get_resume_job_match", arguments={}),
+        ),
+        AgentDecision(action="final", message="两份都读好了。"),
+    )
+    runtime = DirectRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=TwoReportRegistry(),
+    )
+
+    events: list[object] = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="调研和匹配都看看",
+        event_sink=events.append,
+    )
+
+    shown = [
+        event.resource_id for event in events if event.type == "report_ready"
+    ]
+    stored = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    ).recent_messages[-1]
+    kept = [reference.resource_id for reference in stored.resource_refs]
+
+    assert shown == ["report-1", "match-1"]
+    assert kept == shown
+
+
+def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
+    """A turn that succeeds at ``first_tool`` and is then killed by a hard refusal.
+
+    The second decision names a capability projection does not know, which
+    ``_reraise_security_refusal`` throws straight through the turn — the real
+    path, not a synthetic error.
+    """
+
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolResult(
+                tool_name=name,
+                state="application_created",
+                message="已创建投递记录。",
+            )
+
+    class DirectRuntime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            if name == "get_daily_brief":
+                raise ValueError("Unknown capability: get_daily_brief")
+            return dict(arguments)
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = DirectRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name=first_tool, arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="get_daily_brief", arguments={}),
+            ),
+        ),
+        tools=Registry(),
+    )
+    return runtime, manager
+
+
+def test_a_turn_killed_after_a_write_still_leaves_the_write_in_the_conversation(
+    tmp_path,
+) -> None:
+    """A durable write must never be invisible at the conversation layer.
+
+    The turn runs to completion and commits afterwards, so an exception in the
+    middle used to drop the entire conversation record — the user's own message
+    included — while the application it had already created stayed in its store.
+    Three states disagreed: the store said it happened, the conversation had zero
+    messages, and the task still said no application was active.
+
+    The record was never lost; ``list_applications`` would still find it. What
+    was missing is any reason for the model to look. ``max_write_calls = 1``
+    makes a write deliberate, and this path made a deliberate write vanish.
+
+    The boundary itself stays hard: the refusal is recorded, then re-raised.
+    """
+    runtime, manager = _interrupted_turn_runtime(
+        tmp_path, first_tool="create_application"
+    )
+
+    with pytest.raises(ValueError, match="Unknown capability"):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="帮我记一下这次投递，再看看今天的待办",
+        )
+
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+    stored = context.recent_messages
+    # The user's turn survives, and the note names what already landed.
+    assert [message.role for message in stored[-2:]] == ["user", "assistant"]
+    assert "create_application" in stored[-1].content
+    assert "帮我记一下这次投递" in stored[-2].content
+
+
+def test_the_mock_interview_ingress_reports_its_write_too(tmp_path) -> None:
+    """The one durable write that never passes through ``_act``.
+
+    This ingress takes over the whole turn, so the ledger populated in ``_act``
+    stays empty for it and its ``_commit_interrupted_turn`` wrapper had nothing
+    to say. The write is real, and the code says so itself:
+    ``retry_mock_interview`` exists because the answer is persisted before the
+    step that consumes it can fail. That is exactly the window this test drives.
+
+    G removes the takeover, at which point this stops being a special case.
+    """
+
+    class Tools:
+        def handle_mock_interview_input(self, *, user_id, session_id, message):
+            return ToolObservation(
+                tool_name="start_mock_interview", state="ok", message="下一题。"
+            )
+
+    class ExplodingRuntime(MainAgentRuntime):
+        def _update_mock_interview_task(self, context, result):
+            raise RuntimeError("checkpoint store unavailable")
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seeded = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="开始模拟面试"
+    )
+    manager.commit_turn(
+        context=seeded,
+        task=ConversationTaskState(
+            active_workflow="mock_interview", run_id="s1", phase="mock_interview_running"
+        ),
+        assistant_message="第一题：介绍一下你自己。",
+    )
+
+    runtime = ExplodingRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(),
+        tools=Tools(),
+    )
+
+    with pytest.raises(RuntimeError, match="checkpoint store unavailable"):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="我做过检索系统的端到端优化。",
+        )
+
+    stored = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    ).recent_messages
+    assert "handle_mock_interview_input" in stored[-1].content
+    # The note rides on the context as loaded, so workflow-owned input stays
+    # withheld: reconciling a durable write must not become a way to leak the
+    # candidate's answer into the main transcript.
+    assert stored[-2].role == "user"
+    assert "我做过检索系统的端到端优化。" not in stored[-2].content
+
+
+def test_a_write_that_failed_is_not_reported_as_written(tmp_path) -> None:
+    """``WRITE`` is what the tool may do, not what this call did.
+
+    ``execute_calendar_proposal`` is a WRITE that can return
+    ``calendar_write_failed`` with nothing changed on the calendar. Recording it
+    on effect alone made the note claim an effect that never happened — the
+    original bug with its sign flipped. The trajectory is ordinary:
+    ``_after_observe`` sends a failed result back to ``decide``, so "the write
+    fails, the model tries something else, that hard-throws" is a normal turn.
+
+    "请先核对这些记录的实际状态" would cover for it, but only by asking the user
+    to look up something ``result.disposition`` already answered.
+    """
+
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolResult(
+                tool_name=name,
+                state="calendar_write_failed",
+                message="日历写入失败，日程未创建。",
+            )
+
+    class DirectRuntime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            if name == "get_daily_brief":
+                raise ValueError("Unknown capability: get_daily_brief")
+            return dict(arguments)
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = DirectRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="get_daily_brief", arguments={}),
+            ),
+        ),
+        tools=Registry(),
+    )
+
+    with pytest.raises(ValueError, match="Unknown capability"):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="把面试加进日历，再看看今天的待办",
+        )
+
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+    # Nothing happened, so there is no disagreement to reconcile and no note.
+    assert context.recent_messages == ()
+
+
+def test_a_turn_killed_before_any_write_leaves_the_conversation_clean(
+    tmp_path,
+) -> None:
+    """No write, no disagreement — and a clean retry beats a failure note.
+
+    The row exists to reconcile a domain effect with a conversation that does not
+    mention it. A read-only turn has no such effect, so writing a note would add
+    a permanent apology to the recent window for something the user can simply
+    send again.
+    """
+    runtime, manager = _interrupted_turn_runtime(
+        tmp_path, first_tool="list_applications"
+    )
+
+    with pytest.raises(ValueError, match="Unknown capability"):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="看看我的投递和今天的待办",
+        )
+
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+    assert context.recent_messages == ()
+
+
+def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
+    tmp_path,
+) -> None:
+    """The card ceiling is a property of the turn, and three forks must agree.
+
+    ``_present`` learned this when the reply limit was fixed; the other two
+    forks kept asking ``tool_results[-1]``. A turn that reads a JD (no card) and
+    then a research report (card) ends with a card-backed last result, so:
+
+    * the stream handed delivery to the card and never wrote the JD out — the
+      body had nowhere else to go, so it was simply lost;
+    * the row re-clamped an already-bounded reply to card length, storing 600
+      characters of an answer the reader was shown in full.
+
+    Both are invisible in a single-result turn, which is why every existing test
+    passed. This one is mixed on purpose.
+    """
+    jd_body = "岗位职责\n\n" + "负责端到端的检索系统。" * 60
+    reply = "先说 JD：" + "这个岗位要求的是检索与排序的工程能力。" * 40
+
+    class MixedRegistry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            if name == "get_saved_job":
+                return ToolResult(
+                    tool_name=name,
+                    state="saved_job_ready",
+                    message="已读取该岗位的 JD。",
+                    payload={"jd_snapshot": {"content": jd_body}},
+                )
+            return ToolResult(
+                tool_name=name,
+                state="job_research_ready",
+                message="已读取公司调研。",
+                resource_ref=ConversationResourceReference(
+                    kind="job_research_report",
+                    resource_id="report-1",
+                    status_at_delivery="current",
+                    anchored_by_other_job=False,
+                ),
+            )
+
+    class DirectRuntime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return dict(arguments)
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = DirectRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="get_saved_job", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="get_job_research", arguments={}),
+            ),
+            AgentDecision(action="final", message=reply),
+        ),
+        tools=MixedRegistry(),
+    )
+
+    events: list[object] = []
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="看下 JD 和调研",
+        event_sink=events.append,
+    )
+
+    streamed = "".join(
+        event.delta for event in events if event.type == "content_delta"
+    )
+    stored = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    ).recent_messages[-1]
+
+    # Fork one: the JD has no card behind it, so the stream is the only place it
+    # can appear. A card elsewhere in the turn does not excuse dropping it.
+    assert jd_body in streamed
+    # Fork two: the reply was already cut at the ceiling this turn earns.
+    assert len(reply) > DELIVERY_SUMMARY_LIMIT
+    assert result.model_message == reply
+    assert stored.content == reply
+
+
+def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
+    """One card per report, not one per turn.
+
+    Four card-backed reads fit inside the read budget, so a turn can end holding
+    two stored reports. Emitting only ``tool_results[-1]`` would leave a durable
+    report the reader is never handed — the same last-result assumption that
+    dropped composed prose, in the delivery layer.
+    """
+
+    def _card(kind: str, resource_id: str, state: str, tool: str) -> ToolResult:
+        # Only job research carries delivery-time render metadata; the other
+        # kinds derive current state when read.
+        extra = (
+            {"status_at_delivery": "current", "anchored_by_other_job": False}
+            if kind == "job_research_report"
+            else {}
+        )
+        return ToolResult(
+            tool_name=tool,
+            state=state,
+            message=f"已读取 {kind}。",
+            resource_ref=ConversationResourceReference(
+                kind=kind, resource_id=resource_id, **extra
+            ),
+        )
+
+    events: list[object] = []
+    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
+    result = MainAgentTurnResult(
+            decision_source="model",
+        decision=AgentDecision(action="final", message="两份都给你了。"),
+        context=MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="调研和匹配都看看",
+        ),
+        assistant_message="两份都给你了。",
+        model_message="两份都给你了。",
+        tool_results=(
+            _card(
+                "job_research_report",
+                "report-1",
+                "job_research_ready",
+                "get_job_research",
+            ),
+            _card(
+                "resume_job_match",
+                "match-1",
+                "resume_job_match_ready",
+                "get_resume_job_match",
+            ),
+        ),
+    )
+    result.tool_result = result.tool_results[-1]
+
+    token = _STREAM_SINK.set(events.append)
+    try:
+        runtime._deliver_stream_events(
+            result=result, turn_id="t1", conversation_id="c1"
+        )
+    finally:
+        _STREAM_SINK.reset(token)
+
+    cards = [event for event in events if event.type == "report_ready"]
+    assert [(item.kind, item.resource_id) for item in cards] == [
+        ("job_research_report", "report-1"),
+        ("resume_job_match", "match-1"),
+    ]
+
+
+def test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last() -> None:
+    """Pins ``_present``/``_undelivered_bodies`` against a last-result relapse.
+
+    Two condensed states with no card in one turn — reading a JD, then the daily
+    brief — each hold a body nothing else will ever show. Delivering only
+    ``tool_results[-1]`` silently drops the first, which is precisely what the
+    presenter used to do to composed turns.
+    """
+    jd = ToolResult(
+        tool_name="get_saved_job",
+        state="saved_job_ready",
+        message="已读取完整 JD。",
+        payload={"jd_snapshot": {"content": "JD BODY: 精通 Rust。"}},
+    )
+    brief = ToolResult(
+        tool_name="get_daily_brief",
+        state="daily_brief_ready",
+        message="今日没有待办事项。",
+        payload={
+            "timezone": "Asia/Shanghai",
+            "generated_at": "2026-09-02T00:00:00+00:00",
+            "overdue": [],
+            "due_today": [],
+            "upcoming": [],
+            "no_due_date": [],
+        },
+    )
+
+    update = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="两件事都看过了。"),
+            "tool_results": (jd, brief),
+        }
+    )
+
+    assert update["model_message"] == "两件事都看过了。"
+    assert "JD BODY: 精通 Rust。" in update["assistant_message"]
+    assert "今日职业简报" in update["assistant_message"]
+    assert update["assistant_message"].index("JD BODY") < update[
+        "assistant_message"
+    ].index("今日职业简报")
+
+
+def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
+    """The card ceiling applies to prose about a card, not to every answer.
+
+    The old writer only ever restated card-backed reports, so its 600-character
+    limit never touched an ordinary reply. Applying it to everything would
+    truncate explanations and multi-step answers the writer never saw, so the
+    bound follows the whole turn: prose beside cards keeps the card ceiling,
+    and an answer that *is* part of the delivery gets the message bound.
+    """
+    plain = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="长" * 5_000),
+            "tool_results": (),
+        }
+    )
+    assert len(plain["assistant_message"]) == 5_000
+
+    huge = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="长" * 20_000),
+            "tool_results": (),
+        }
+    )
+    assert len(huge["assistant_message"]) == MODEL_REPLY_LIMIT
+    assert huge["assistant_message"].endswith("…")
+
+    card = ToolResult(
+        tool_name="research_job",
+        state="job_research_ready",
+        message="已完成岗位研究。",
+        resource_ref=ConversationResourceReference(
+            kind="job_research_report",
+            resource_id="report-1",
+            status_at_delivery="current",
+            anchored_by_other_job=False,
+        ),
+    )
+    carded = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="长" * 5_000),
+            "tool_results": (card,),
+        }
+    )
+    assert len(carded["assistant_message"]) == DELIVERY_SUMMARY_LIMIT
+
+    # A turn that mixes a card with a body nothing else delivers is no longer
+    # "prose about a card": the reply has to introduce that body too, so the
+    # ceiling follows the whole turn rather than its last result.
+    mixed = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="长" * 5_000),
+            "tool_results": (
+                ToolResult(
+                    tool_name="get_saved_job",
+                    state="saved_job_ready",
+                    message="已读取完整 JD。",
+                    payload={"jd_snapshot": {"content": "JD BODY"}},
+                ),
+                card,
+            ),
+        }
+    )
+    assert len(mixed["model_message"]) == 5_000
+    assert "JD BODY" in mixed["assistant_message"]
+
+
+def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
+    """F: the answer is the model's; the presenter covers turns without one.
+
+    Before H the model had never seen the result it was answering about, so
+    ``_present`` overrode its prose unconditionally — an override that also
+    dropped every result but the last, which is what made a composed turn
+    deliver half an answer. The model now sees the same bounded presenter text
+    the reader will, so it narrates; grounding is enforced by what reaches its
+    context, not by taking away the pen.
+    """
     result = ToolResult(
         tool_name="analyze_resume",
         state="resume_analysis_ready",
@@ -938,18 +1492,64 @@ def test_final_model_message_cannot_characterize_an_opaque_tool_result() -> None
         payload={"records": [{"title": "PRIVATE RESULT"}]},
     )
 
-    update = MainAgentRuntime._present(
+    answered = MainAgentRuntime._present(
         {
             "decision": AgentDecision(
                 action="final",
-                message="看起来很不错，经历非常有竞争力。",
+                message="已提取 1 段候选经历，等你确认。",
             ),
             "tool_results": (result,),
         }
     )
+    # A condensed state with no card has nowhere else to put its body, so the
+    # reply introduces it rather than standing in for it. The row keeps only
+    # the reply — that is what ``model_message`` carries separately.
+    assert answered["model_message"] == "已提取 1 段候选经历，等你确认。"
+    assert answered["assistant_message"].startswith("已提取 1 段候选经历，等你确认。")
+    assert result.message in answered["assistant_message"]
 
-    assert update["assistant_message"] == result.message
-    assert "很不错" not in update["assistant_message"]
+    # No prose from the model — the authoritative presenter still delivers.
+    silent = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message=""),
+            "tool_results": (result,),
+        }
+    )
+    assert silent["assistant_message"] == result.message
+
+
+def test_a_blank_reply_is_no_reply_at_all() -> None:
+    """``model_message`` is non-empty exactly when the model wrote the answer.
+
+    Downstream code reads that flag as the whole answer to "did the model
+    narrate this turn?" — ``_durable_screen`` picks the row's text from it, and
+    the trace records ``composed`` from it. A truthiness guard let a
+    whitespace-only message through: the branch fired, clamp stripped it to "",
+    and the flag said no while the branch said yes. The answer landed in the
+    right place by accident, with a blank line in front of the body. An
+    invariant the code states has to hold, or the next reader builds on it.
+    """
+    result = ToolResult(
+        tool_name="analyze_resume",
+        state="resume_analysis_ready",
+        message="已分析简历并生成待确认候选事实。",
+        payload={"records": []},
+    )
+
+    blank = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="   \n  "),
+            "tool_results": (result,),
+        }
+    )
+
+    # The presenter path leaves the flag unset rather than writing an empty one,
+    # so both readings of "the model did not narrate" agree.
+    assert blank.get("model_message", "") == ""
+    # Same delivery as an absent message: the presenter body alone, with no
+    # blank line where a stripped-away reply used to sit.
+    assert blank["assistant_message"] == MainAgentRuntime._assistant_message(result)
+    assert not blank["assistant_message"].startswith("\n")
 
 
 def test_decision_tool_schema_recursively_removes_internal_ids() -> None:
@@ -1052,7 +1652,7 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
     assert len(tool_result.payload["items"]) == 1
     assert result.context.model_context()["task"]["saved_jobs"][0]["selection_index"] == 1
     assert "PRIVATE SAVED JD" not in observation.model_dump_json()
-    assert result.assistant_message == "找到 1 个已保存职位。"
+    assert result.assistant_message == "找到了以前看过的岗位。"
 
 
 def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> None:
@@ -1115,7 +1715,13 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     assert observation.body == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["analysis"]["required_skills"] == ["Python"]
-    assert result.assistant_message == "PRIVATE SAVED JD: Build production RAG systems."
+    # The JD reaches the model as an observation body (H). It reaches the reader
+    # here and nowhere else — saved_job_ready has no card — so the model's reply
+    # introduces the body rather than replacing it.
+    assert result.model_message == "这是该岗位的完整 JD。"
+    assert result.assistant_message == (
+        "这是该岗位的完整 JD。\n\nPRIVATE SAVED JD: Build production RAG systems."
+    )
 
 
 @pytest.mark.parametrize("tool_name,arguments", [
@@ -1369,3 +1975,283 @@ def test_unresumable_mock_interview_returns_control_to_main_agent(
 
     assert len(decision_maker.contexts) == 1
     assert result.assistant_message == "我来处理你的新请求。"
+
+
+def _reference(kind: str, resource_id: str) -> ConversationResourceReference:
+    # Job research alone carries delivery-time render context; the contract
+    # rejects it both missing here and present on any other kind.
+    extra = (
+        {"status_at_delivery": "current", "anchored_by_other_job": False}
+        if kind == "job_research_report"
+        else {}
+    )
+    return ConversationResourceReference(kind=kind, resource_id=resource_id, **extra)
+
+
+def test_a_report_made_this_turn_can_be_named_before_the_turn_is_stored() -> None:
+    """The number has to exist while the turn is still running.
+
+    A reference lives on a conversation row, and that row is written when the
+    turn commits. Mid-turn the report is already durable and the line that would
+    name it is not, so an observation could only say "a report exists". With
+    ``MAX_DECISION_OBSERVATION_BODIES = 1`` the next call clears its body, and
+    the model that wanted to re-read it had nothing to select it with — it could
+    only call the read tool bare and hope the active resource was still the one
+    it meant. Inferring, in a loop whose whole direction has been to stop making
+    the model infer.
+    """
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="研究一下这两个岗位",
+        recent_messages=(
+            ConversationMessageContext(
+                role="assistant",
+                content="上次的调研。",
+                created_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+                resource_refs=(_reference("job_research_report", "old-1"),),
+            ),
+        ),
+        tool_observations=(
+            DecisionObservation(
+                tool_name="research_job",
+                state="job_research_ready",
+                message="岗位研究已完成。",
+                resource_ref=_reference("job_research_report", "new-1"),
+            ),
+        ),
+    )
+
+    projected = context.model_context()["tool_observations"][0]
+
+    # The handle names this turn's report, not last turn's, and resolves to it.
+    # The one failure mode that matters here is silent: being handed a different
+    # report.
+    assert projected["reference"].startswith("report_")
+    assert (
+        context.resolve_reference(
+            reference=projected["reference"], kind="job_research_report"
+        )
+        == "new-1"
+    )
+
+
+def test_a_report_read_back_in_the_same_turn_keeps_one_number() -> None:
+    """Producing and re-reading one report must not mint two handles.
+
+    ``research_job`` then ``get_job_research`` land on the same resource. Two
+    numbers for one report is the drift ``referenced_resources`` exists to
+    prevent, and it is silent: every index after the duplicate shifts.
+    """
+    reference = _reference("job_research_report", "r-1")
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="再看一眼那份调研",
+        tool_observations=(
+            DecisionObservation(
+                tool_name="research_job",
+                state="job_research_ready",
+                message="岗位研究已完成。",
+                resource_ref=reference,
+            ),
+            DecisionObservation(
+                tool_name="get_job_research",
+                state="job_research_ready",
+                message="已读取这份调研。",
+                resource_ref=reference,
+            ),
+        ),
+    )
+
+    observations = context.model_context()["tool_observations"]
+
+    handles = {line["reference"] for line in observations}
+    assert len(handles) == 1
+    assert len(context.referenced_resources()) == 1
+    assert (
+        context.resolve_reference(
+            reference=handles.pop(), kind="job_research_report"
+        )
+        == "r-1"
+    )
+
+
+def test_every_number_the_model_is_shown_resolves_to_what_it_was_shown_for() -> None:
+    """The projection and the resolver must never be two walks that can drift.
+
+    They are now one: ``reference_handles`` is derived from
+    ``referenced_resources``, which is what ``resolve_reference`` reads.
+    This checks the property across a mixed context rather than the wiring, so
+    it keeps holding if either side is rewritten.
+    """
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="继续",
+        archived_resources=(
+            ConversationMessageContext(
+                role="assistant",
+                content="很久以前的调研。",
+                created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+                resource_refs=(_reference("job_research_report", "arch-1"),),
+            ),
+        ),
+        recent_messages=(
+            ConversationMessageContext(
+                role="assistant",
+                content="上一轮的两份。",
+                created_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+                resource_refs=(
+                    _reference("job_research_report", "recent-1"),
+                    _reference("interview_preparation", "recent-2"),
+                ),
+            ),
+        ),
+        tool_observations=(
+            DecisionObservation(
+                tool_name="research_job",
+                state="job_research_ready",
+                message="岗位研究已完成。",
+                resource_ref=_reference("job_research_report", "turn-1"),
+            ),
+        ),
+    )
+
+    projection = context.model_context()
+    shown = {
+        line["reference"]: line["kind"] for line in projection["archived_reports"]
+    }
+    for message in projection["recent_messages"]:
+        for resource in message.get("resources", ()):
+            shown[resource["reference"]] = resource["kind"]
+    for line in projection["tool_observations"]:
+        if "reference" in line:
+            shown[line["reference"]] = "job_research_report"
+
+    expected = ["arch-1", "recent-1", "recent-2", "turn-1"]
+    assert len(shown) == len(expected)
+    assert [
+        context.resolve_reference(reference=handle, kind=kind)
+        for handle, kind in shown.items()
+    ] == expected
+
+
+def test_two_calls_to_one_capability_stay_distinct_after_the_body_is_cleared(
+    tmp_path,
+) -> None:
+    """Researching job 1 then job 2 must not project as two identical lines.
+
+    ``MAX_DECISION_OBSERVATION_BODIES = 1`` clears the first body as soon as the
+    second call lands. Without arguments, what remained was tool_name, state and
+    a receipt — identical for both — so the model could not tell which
+    observation was which job, or even reconstruct what it had just done.
+
+    Anthropic's context editing keeps the ``tool_use`` block, arguments and all,
+    and clears only the result. This is that record. It answers a different
+    question from the resource handle: arguments say what was done, the handle
+    says where the output is.
+    """
+    observations = ()
+    for index in (1, 2):
+        result = ToolObservation(
+            tool_name="research_job",
+            state="job_research_ready",
+            message="岗位研究已完成。",
+        )
+        observations = append_decision_observation(
+            observations,
+            MainAgentRuntime._tool_observation(
+                "research_job", result, {"job_selection_index": index}
+            ),
+        )
+
+    projected = decision_observation_projection(observations)
+
+    assert [line["arguments"] for line in projected] == [
+        {"job_selection_index": 1},
+        {"job_selection_index": 2},
+    ]
+    # The first body is gone, exactly as designed; the call record is not.
+    assert "body" not in projected[0]
+
+
+def test_an_oversized_argument_set_is_dropped_rather_than_half_recorded() -> None:
+    """Arguments are model-authored, so nothing upstream bounds them.
+
+    Ten observations carrying an unbounded dict would break the character budget
+    this contract declares. Truncating instead would be worse than dropping: a
+    half-recorded call reads as a call made with different arguments, and the
+    whole point of the record is that the model can trust what it says.
+    """
+    observation = DecisionObservation(
+        tool_name="research_job",
+        state="job_research_ready",
+        message="岗位研究已完成。",
+        arguments={"note": "n" * OBSERVATION_ARGUMENTS_LIMIT},
+    )
+
+    assert observation.arguments == {}
+
+
+def test_the_catalogue_and_the_window_are_numbered_by_the_same_walk() -> None:
+    """Not "they agree today" — they must come from one walk.
+
+    ``model_context`` used to number the archived catalogue with a local
+    ``enumerate`` and the recent window with its own counter, while
+    ``resolve_reference`` read a third construction. All three agreed, and
+    only because each happened to expand messages in the same order. That is the
+    state ``referenced_resources`` warns about: the day one of them changes, the
+    model picks index 2 and is handed index 3's report, silently.
+
+    This checks the property from the outside — every number the projection
+    shows resolves to the resource it was shown for — so it survives a rewrite
+    of either side.
+    """
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="继续",
+        archived_resources=(
+            ConversationMessageContext(
+                role="assistant",
+                content="旧的两份。",
+                created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+                resource_refs=(
+                    _reference("job_research_report", "arch-1"),
+                    _reference("interview_preparation", "arch-2"),
+                ),
+            ),
+        ),
+        recent_messages=(
+            ConversationMessageContext(
+                role="assistant",
+                content="没有产出物的一行。",
+                created_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            ),
+            ConversationMessageContext(
+                role="assistant",
+                content="上一轮的两份。",
+                created_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+                resource_refs=(
+                    _reference("job_research_report", "recent-1"),
+                    _reference("resume_job_match", "recent-2"),
+                ),
+            ),
+        ),
+    )
+
+    projection = context.model_context()
+    shown: list[tuple[str, str]] = [
+        (line["reference"], line["kind"]) for line in projection["archived_reports"]
+    ]
+    for message in projection["recent_messages"]:
+        for resource in message.get("resources", ()):
+            shown.append((resource["reference"], resource["kind"]))
+
+    expected = ["arch-1", "arch-2", "recent-1", "recent-2"]
+    assert [
+        context.resolve_reference(reference=handle, kind=kind)
+        for handle, kind in shown
+    ] == expected
+    assert set(context.reference_handles().values()) == set(expected)

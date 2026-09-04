@@ -2,9 +2,9 @@
   "scenario": "research_is_not_started_as_part_of_matching",
   "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "64ef2fdc8b449ae75f59bfe53d58f3673986e52260050354358ec7514ff970e3",
-  "context_shape_fingerprint": "68a94f7bd879e626671afb0c8fe28c4803d067804db860795a216df13815ae83",
-  "recorded_at": "2026-09-02T03:04:19.008173+00:00",
+  "prompt_fingerprint": "0298228c7573ad0f60517fccde680feb645f23f572a801da0eb0e47f103c173a",
+  "context_shape_fingerprint": "b4b884cf22a6fd266ccf27de30cbc10aa7811ecd8dc4539401d5da687c5737f8",
+  "recorded_at": "2026-09-04T02:20:52.187710+00:00",
   "steps": [
     {
       "tool_call": {

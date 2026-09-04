@@ -2,9 +2,11 @@
 
 Several store classes write tables into one file: seven share `resumes.sqlite3`
 and two share `applications.sqlite3`. SQLite's `PRAGMA user_version` is a single
-integer per *file*, so it cannot describe them. Today only `ResumeStore` sets it,
-which means the number silently claims to describe a file that six other stores
-also own.
+integer per *file*, so it cannot describe them. `ResumeStore` used to set it, which
+meant the number silently claimed to describe a file that six other stores also
+own — and that nothing reconciled the two records when a component version moved.
+No store writes it any more; `tests/storage/test_schema_version.py` keeps it that
+way, so this registry is the only version record these files carry.
 
 This registry gives each component its own row, and refuses to open a file whose
 component version is newer than the running code expects. Without that check, an

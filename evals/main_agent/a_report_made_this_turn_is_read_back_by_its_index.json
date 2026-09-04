@@ -1,0 +1,18 @@
+{
+  "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+  "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "a786c0efe56edfae9780473a2a0f8262726b5cfb04f3c5421c39173e688c141b",
+  "context_shape_fingerprint": "cc909916e870b83eade01dcfd7305ccbf2654fed024ed5dffc7c5f6049a1d550",
+  "recorded_at": "2026-09-04T02:43:51.759296+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_job_research",
+        "arguments": {
+          "reference": "report_440400"
+        }
+      }
+    }
+  ]
+}

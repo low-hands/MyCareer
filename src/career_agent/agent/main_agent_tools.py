@@ -553,7 +553,7 @@ class MainAgentToolRegistry:
                             "name": "get_job_research",
                             "description": (
                                 "Read a persisted job-research report without running web "
-                                "research again. Pass reference_index to read the report a "
+                                "research again. Pass reference to read the report a "
                                 "specific earlier message produced, selection_index to read "
                                 "the numbered saved job's report, or omit both to use the "
                                 "active one."
@@ -834,7 +834,7 @@ class MainAgentToolRegistry:
                             "name": "get_interview_preparation",
                             "description": (
                                 "Read one persisted interview preparation result without "
-                                "re-reading full source documents. Pass reference_index to "
+                                "re-reading full source documents. Pass reference to "
                                 "read the material a specific earlier message produced, or "
                                 "omit it to use the active preparation."
                             ),
@@ -886,7 +886,7 @@ class MainAgentToolRegistry:
                     "function": {
                         "name": "get_mock_interview_result",
                         "description": (
-                            "Read back a finished mock interview. Pass reference_index to "
+                            "Read back a finished mock interview. Pass reference to "
                             "read the exact run a specific earlier message reported, "
                             "application_selection_index for the latest run on a numbered "
                             "application, or omit both for the latest run on the active "
@@ -1076,7 +1076,11 @@ class MainAgentToolRegistry:
                 f"已同步 {result.accounts_synced} 个邮箱，检查 {result.messages_seen} 封新邮件，"
                 f"识别 {len(result.events_created)} 个求职事件，其中 {len(pending)} 个需要确认。"
             ),
-            next_action="confirm_email_events" if pending else "track_application_progress",
+            next_action=(
+                "这些事件要用户逐条确认，别替他决定哪些算数。"
+                if pending
+                else None
+            ),
             payload={
                 "accounts_synced": result.accounts_synced,
                 "messages_seen": result.messages_seen,
@@ -1141,7 +1145,7 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result)
+        return self._mock_interview_observation(result, "start_mock_interview")
 
     def resume_mock_interview(
         self, *, user_id: str, session_id: str, answer: str
@@ -1150,6 +1154,7 @@ class MainAgentToolRegistry:
         if self._mock_interview_graph is None:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
+            tool_name="resume_mock_interview",
             session_id=session_id,
             drive=lambda graph: graph.resume(
                 user_id=user_id,
@@ -1165,6 +1170,7 @@ class MainAgentToolRegistry:
         if self._mock_interview_graph is None:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
+            tool_name="handle_mock_interview_input",
             session_id=session_id,
             drive=lambda graph: graph.handle_input(
                 user_id=user_id,
@@ -1187,6 +1193,7 @@ class MainAgentToolRegistry:
         if self._mock_interview_graph is None:
             raise ValueError("Mock interview workflow is not configured")
         return self._drive_mock_interview(
+            tool_name="retry_mock_interview",
             session_id=session_id,
             drive=lambda graph: graph.retry(
                 user_id=user_id,
@@ -1197,21 +1204,29 @@ class MainAgentToolRegistry:
     def _drive_mock_interview(
         self,
         *,
+        tool_name: str,
         session_id: str,
         drive: Callable[[Any], MockInterviewGraphResult],
     ) -> ToolObservation:
-        """Run one graph advance and map its failures to a closed observation."""
+        """Run one graph advance and map its failures to a closed observation.
+
+        ``tool_name`` is the entry that was actually called, not the capability
+        that started the run. Every branch here reports it, because this string
+        is what ``_tool_observation`` puts in front of the decision model: a
+        hardcoded ``start_mock_interview`` told the model a call had been made
+        that never happened, on the very turn its answer was being consumed.
+        """
         try:
             result = drive(self._mock_interview_graph)
         except MockInterviewInputRoutingError as error:
             return ToolObservation(
-                tool_name="start_mock_interview",
+                tool_name=tool_name,
                 state="mock_interview_input_retry_required",
                 message=(
                     "暂时无法判断这条消息是面试回答还是退出请求。"
                     "这条消息尚未保存，请重新发送。"
                 ),
-                next_action="retry_mock_interview_input",
+                next_action="这条消息没有被保存，也没有进入面试记录。请用户重发一次即可。",
                 payload={
                     "session_id": session_id,
                     "error_code": error.code,
@@ -1220,27 +1235,27 @@ class MainAgentToolRegistry:
             )
         except MockInterviewCheckpointMissingError:
             return ToolObservation(
-                tool_name="start_mock_interview",
+                tool_name=tool_name,
                 state="mock_interview_checkpoint_missing",
                 message=(
                     "模拟面试的业务记录仍在，但执行断点已经丢失，当前会话无法继续。"
                 ),
-                next_action="restart_mock_interview",
+                next_action="这场面试已经无法恢复，重试同一个调用不会有用。只能重新开一场。",
                 payload={"session_id": session_id, "retryable": False},
             )
         except MockInterviewGraphVersionError:
             return ToolObservation(
-                tool_name="start_mock_interview",
+                tool_name=tool_name,
                 state="mock_interview_graph_incompatible",
                 message=(
                     "这次模拟面试由不兼容的旧版流程创建，不能用当前版本安全恢复。"
                 ),
-                next_action="restart_mock_interview",
+                next_action="这场面试已经无法恢复，重试同一个调用不会有用。只能重新开一场。",
                 payload={"session_id": session_id, "retryable": False},
             )
         except (AgentWorkerError, ValueError) as error:
             return ToolObservation(
-                tool_name="start_mock_interview",
+                tool_name=tool_name,
                 state="failed",
                 message=(
                     "这次模拟面试回答暂时无法处理。你的回答已经保存，"
@@ -1260,11 +1275,12 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result)
+        return self._mock_interview_observation(result, tool_name)
 
     @staticmethod
     def _mock_interview_observation(
         result: MockInterviewGraphResult,
+        tool_name: str,
     ) -> ToolObservation:
         state = {
             "awaiting_answer": "mock_interview_answer_required",
@@ -1284,21 +1300,21 @@ class MainAgentToolRegistry:
             else render_mock_interview_turn(result)
         )
         return ToolObservation(
-            tool_name="start_mock_interview",
+            tool_name=tool_name,
             state=state,
             message=message,
-            next_action=(
-                "answer_mock_interview_question"
-                if result.state == "awaiting_answer"
-                else None
-            ),
             payload=result.model_dump(mode="json"),
             resource_ref=(
+                # ``completed`` now guarantees a report: the graph raises rather
+                # than projecting one without it, so the second half of this
+                # condition could only ever have hidden that failure. The state
+                # test stays because this builder also serves the running,
+                # awaiting and cancelled results, which have no report at all.
                 ConversationResourceReference(
                     kind="mock_interview_report",
                     resource_id=result.report_id,
                 )
-                if result.state == "completed" and result.report_id is not None
+                if result.state == "completed"
                 else None
             ),
         )
@@ -1355,7 +1371,7 @@ class MainAgentToolRegistry:
                     "旧的模拟面试已经安全结束，但替代面试暂时启动失败。"
                     "你可以稍后重新开始一场模拟面试。"
                 ),
-                next_action="start_mock_interview",
+                next_action="旧的面试已经安全结束，替代面试没起来。可以稍后重新开一场。",
                 payload={
                     "error_code": (
                         error.code
@@ -1369,7 +1385,7 @@ class MainAgentToolRegistry:
                     ),
                 },
             )
-        return self._mock_interview_observation(result)
+        return self._mock_interview_observation(result, "restart_mock_interview")
 
     def _get_mock_interview_result(self, arguments: dict[str, Any]) -> ToolObservation:
         """Read back a finished run the conversation only holds a reference to.
@@ -1758,7 +1774,6 @@ class MainAgentToolRegistry:
             tool_name="complete_interview",
             state="interview_ready",
             message="已将这场面试标记为完成。",
-            next_action="offer_interview_retro",
             payload=self._interview_payload(interview),
         )
 
@@ -1811,7 +1826,6 @@ class MainAgentToolRegistry:
             tool_name="record_interview_retro",
             state="interview_retro_recorded",
             message="真实面试复盘报告已保存；结论仅基于你的复述。",
-            next_action="review_interview_retro",
             payload=self._interview_retro_payload(report),
             resource_ref=ConversationResourceReference(
                 kind="interview_retro_report",
@@ -1851,7 +1865,6 @@ class MainAgentToolRegistry:
             tool_name="prepare_interview",
             state="interview_preparation_ready",
             message=summarize_interview_preparation(preparation.result),
-            next_action="review_interview_preparation",
             payload=self._interview_preparation_payload(preparation),
             resource_ref=ConversationResourceReference(
                 kind="interview_preparation",
@@ -1935,6 +1948,14 @@ class MainAgentToolRegistry:
             tool_name="get_daily_brief",
             state="daily_brief_ready",
             message=f"今日职业简报包含 {count} 个待办事项。" if count else "今日没有待办事项。",
+            # The receipt can only carry the total without becoming the report,
+            # but the split is what a follow-up turns on. ``waiting`` is an open
+            # item with no due date; the domain has no separate waiting bucket.
+            facts={
+                "overdue": len(brief.overdue),
+                "due_today": len(brief.due_today),
+                "waiting": len(brief.no_due_date),
+            },
             payload={
                 "timezone": brief.timezone,
                 "generated_at": brief.generated_at.isoformat(),
@@ -2149,7 +2170,6 @@ class MainAgentToolRegistry:
             tool_name="prepare_interview_calendar_sync",
             state="calendar_approval_required",
             message="Calendar 变更预览已生成；执行前需要用户明确确认。",
-            next_action="ask_calendar_approval",
             payload=self._calendar_proposal_payload(proposal),
         )
 
@@ -2400,7 +2420,6 @@ class MainAgentToolRegistry:
                 f"已准备打开 BOSS 搜索“{keyword}”{scope}。"
                 "请正常浏览，并只保存你感兴趣的岗位。"
             ),
-            next_action="browse_and_save_job",
             payload={
                 "platform": "boss",
                 "keyword": keyword,
@@ -2452,13 +2471,17 @@ class MainAgentToolRegistry:
             message=summarize_job_research(
                 result.report.summary, cached=result.cached
             ),
-            next_action="review_job_research",
+            facts=MainAgentToolRegistry._job_research_facts(result),
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
             ),
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                # What the catalogue shows to tell twelve reports apart. The key
+                # is the company name with only case and whitespace folded, so
+                # for the names this project sees it reads as written.
+                label=result.report.company_key or "",
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=(
                     result.report.job_posting_id
@@ -2496,11 +2519,15 @@ class MainAgentToolRegistry:
             tool_name="retry_job_research",
             state="job_research_ready",
             message=summarize_job_research(result.report.summary, cached=False),
-            next_action="review_job_research",
+            facts=MainAgentToolRegistry._job_research_facts(result),
             payload=self._job_research_payload(result),
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                # What the catalogue shows to tell twelve reports apart. The key
+                # is the company name with only case and whitespace folded, so
+                # for the names this project sees it reads as written.
+                label=result.report.company_key or "",
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=False,
             ),
@@ -2532,12 +2559,17 @@ class MainAgentToolRegistry:
             # cached wording would misdescribe it even though the service marks
             # every stored report as cached.
             message=summarize_job_research(result.report.summary, cached=False),
+            facts=MainAgentToolRegistry._job_research_facts(result),
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
             ),
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                # What the catalogue shows to tell twelve reports apart. The key
+                # is the company name with only case and whitespace folded, so
+                # for the names this project sees it reads as written.
+                label=result.report.company_key or "",
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=bool(
                     self._job_research_payload(
@@ -2558,7 +2590,6 @@ class MainAgentToolRegistry:
             tool_name=tool_name,
             state="job_research_failed",
             message="岗位研究暂未完成，可以从已保存的断点重试。",
-            next_action=("retry_job_research" if error.retryable else None),
             payload={
                 "run_id": error.run_id,
                 "job_posting_id": job_posting_id,
@@ -2566,6 +2597,19 @@ class MainAgentToolRegistry:
                 "retryable": error.retryable,
             },
         )
+
+    @staticmethod
+    def _job_research_facts(result) -> dict[str, bool | int | str]:
+        """Whether the report was reused, how much it found, and how current.
+
+        The receipt is the report's own headline; it cannot state a three-valued
+        status precisely enough for a conditional follow-up to turn on it.
+        """
+        return {
+            "cached": bool(result.cached),
+            "finding_count": len(result.report.findings),
+            "status": str(result.report.status),
+        }
 
     @staticmethod
     def _job_research_payload(
@@ -2819,7 +2863,14 @@ class MainAgentToolRegistry:
             state="resume_analysis_ready",
             disposition="interaction_required",
             message=f"已分析该简历版本，提取出 {len(draft.result.records)} 段候选经历。",
-            next_action="review_and_confirm_extracted_career_facts",
+            # Whether to ask the candidate anything before confirming turns on
+            # the clarification and warning counts, which the receipt cannot
+            # carry without listing them.
+            facts={
+                "record_count": len(draft.result.records),
+                "clarification_count": len(draft.result.clarification_questions),
+                "has_warnings": bool(draft.result.warnings),
+            },
             payload={
                 "analysis_id": draft.id,
                 "resume_version_id": model_arguments.resume_version_id,
@@ -2856,7 +2907,7 @@ class MainAgentToolRegistry:
             state="resume_analysis_ready",
             message=f"已读取这次简历分析，其中有 {len(draft.result.records)} 段候选经历。",
             next_action=(
-                "review_and_confirm_extracted_career_facts"
+                "这份分析还没确认。确认由用户在界面上完成，你不能代他确认。"
                 if draft.status == "pending"
                 else None
             ),
@@ -2952,7 +3003,6 @@ class MainAgentToolRegistry:
             tool_name="propose_job_intent",
             state="job_intent_proposed",
             message=self._job_intent_readback(update, scope=scope),
-            next_action="await_user_confirmation",
             payload={"update": update.model_dump(mode="json", exclude_none=True)},
         )
 
@@ -2976,7 +3026,6 @@ class MainAgentToolRegistry:
                 tool_name="confirm_job_intent",
                 state="job_intent_recorded",
                 message=self._job_intent_readback(update, scope=role.title, saved=True),
-                next_action="continue_requested_task",
                 payload={"target_role": role.model_dump(mode="json")},
             )
         # Re-read rather than trusting the projected copy: the stored profile is
@@ -2990,7 +3039,6 @@ class MainAgentToolRegistry:
             tool_name="confirm_job_intent",
             state="job_intent_recorded",
             message=self._job_intent_readback(update, scope=None, saved=True),
-            next_action="continue_requested_task",
             payload={"profile": updated.model_dump(mode="json")},
         )
 
@@ -3047,7 +3095,6 @@ class MainAgentToolRegistry:
             tool_name="compare_saved_jobs",
             state="saved_jobs_compared",
             message=f"已对比 {len(comparison.rows)} 个已保存岗位。",
-            next_action="discuss_comparison_or_match_missing_jobs",
             payload={"comparison": comparison.model_dump(mode="json")},
         )
 
@@ -3095,7 +3142,6 @@ class MainAgentToolRegistry:
             tool_name="match_resume_to_job",
             state="resume_job_match_ready",
             message=f"已完成逐项匹配，整体匹配度为 {stored.result.overall_fit}。",
-            next_action="explain_match_or_offer_resume_tailoring",
             payload={
                 "match_id": stored.id,
                 "resume_version_id": model_arguments.resume_version_id,
@@ -3134,7 +3180,6 @@ class MainAgentToolRegistry:
             tool_name="get_resume_job_match",
             state="resume_job_match_ready",
             message=f"已读取匹配结果，整体匹配度为 {stored.result.overall_fit}。",
-            next_action="explain_match_or_offer_resume_tailoring",
             payload={
                 "match_id": stored.id,
                 "resume_version_id": stored.resume_version_id,
@@ -3381,7 +3426,6 @@ class MainAgentToolRegistry:
                 if finalized.created
                 else "这份定制草稿已经生成过简历版本，已返回原结果。"
             ),
-            next_action="offer_resume_export_or_review",
             payload={
                 "draft_id": finalized.draft_id,
                 "resume_id": finalized.resume.id,
@@ -3421,7 +3465,6 @@ class MainAgentToolRegistry:
             tool_name="export_resume_artifact",
             state="resume_artifact_ready",
             message=f"简历文件 {artifact.filename} 已准备好。",
-            next_action="deliver_artifact",
             payload={
                 "artifact_id": artifact.id,
                 "resume_version_id": artifact.resume_version_id,
@@ -3471,7 +3514,6 @@ class MainAgentToolRegistry:
                 if result.created
                 else "这个岗位已有进行中的投递记录，已返回原记录。"
             ),
-            next_action="track_application_progress",
             payload={
                 **self._application_payload(result.application, detail.job),
                 "created": result.created,
@@ -3528,7 +3570,6 @@ class MainAgentToolRegistry:
             tool_name="update_application_status",
             state="application_ready",
             message=f"投递状态已更新为 {application.status}。",
-            next_action="track_application_progress",
             payload=self._application_payload(application, detail.job),
         )
 
@@ -3585,7 +3626,6 @@ class MainAgentToolRegistry:
             tool_name="get_application",
             state="application_ready",
             message=f"已读取 {detail.job.posting.company_name} 的投递记录。",
-            next_action="track_application_progress",
             payload={
                 **self._application_payload(detail.application, detail.job),
                 "events": [
@@ -3628,7 +3668,6 @@ class MainAgentToolRegistry:
             tool_name=tool_name,
             state="resume_tailoring_draft_ready",
             message=message,
-            next_action="review_tailoring_changes",
             payload={
                 "draft_id": draft.id,
                 "match_id": draft.match_id,

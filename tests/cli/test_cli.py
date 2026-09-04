@@ -29,9 +29,54 @@ class Runtime:
         self.closed = True
 
 
+def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None:
+    """The JSON must not claim a call that never happened.
+
+    ``decision.tool_name`` is machine-readable output. For the two ingresses
+    that fabricate an ``AgentDecision`` — the bound interaction receipt and the
+    mock interview takeover — publishing the invented values stated, in a form
+    another program would act on, that the model chose a capability it was
+    never even consulted about. What did happen is in ``tool_results``.
+    """
+    context = type("Context", (), {"task": None})()
+    turn = MainAgentTurnResult(
+        decision_source="runtime",
+        decision=AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="handle_mock_interview_input", arguments={}),
+        ),
+        context=context,
+        assistant_message="下一题。",
+        tool_result=ToolObservation(
+            tool_name="handle_mock_interview_input",
+            state="mock_interview_running",
+            message="下一题。",
+        ),
+    )
+    output = StringIO()
+
+    code = main(
+        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "我的回答"],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+
+    assert code == 0
+    assert payload["decision"] == {
+        "source": "runtime",
+        "action": None,
+        "tool_name": None,
+    }
+    # The turn is still fully reported — through the results, which are real.
+    assert payload["tool_result"]["state"] == "mock_interview_running"
+
+
 def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
     context = type("Context", (), {"task": None})()
     turn = MainAgentTurnResult(
+        decision_source="model",
         decision=AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
         context=context,
         assistant_message="已准备打开 BOSS 搜索“AI Engineer”。",
@@ -67,7 +112,11 @@ def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
     assert runtime.calls == [("u1", "s1", "Find work")]
     assert runtime.closed is True
     assert payload["assistant_message"] == "已准备打开 BOSS 搜索“AI Engineer”。"
-    assert payload["decision"] == {"action": "tool_call", "tool_name": "open_job_search"}
+    assert payload["decision"] == {
+        "source": "model",
+        "action": "tool_call",
+        "tool_name": "open_job_search",
+    }
     assert payload["tool_result"]["state"] == "job_search_page_ready"
     assert payload["tool_result"]["payload"]["client_action"]["url"] == (
         "https://www.zhipin.com/web/geek/job?query=AI+Engineer"
@@ -86,6 +135,7 @@ def test_chat_emits_artifact_metadata_without_attachment_bytes() -> None:
         created_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
     )
     turn = MainAgentTurnResult(
+        decision_source="model",
         decision=AgentDecision(action="final", message="文件已准备好。"),
         context=context,
         assistant_message="文件已准备好。",
@@ -141,6 +191,7 @@ def test_chat_emits_all_tool_results_in_execution_order() -> None:
         payload={"versions": [{"selection_index": 1, "version_number": 2}]},
     )
     turn = MainAgentTurnResult(
+        decision_source="model",
         decision=AgentDecision(action="final", message=None),
         context=type("Context", (), {"task": None})(),
         assistant_message=second.message,

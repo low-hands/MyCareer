@@ -50,8 +50,49 @@ class CareerContextStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "agent_context", 1, self._migrate)
+            apply_schema(
+                connection,
+                "agent_context",
+                2,
+                self._migrate,
+                {2: self._upgrade_to_v2},
+            )
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        """One turn can store two reports, so the row keeps a list.
+
+        This is the *only* place that knows the singular shape ever existed.
+        ``ConversationMessageContext`` deliberately has no compatibility shim:
+        a permanent reader for both shapes would contradict this migration and
+        leave every predicate here, and every future reader, asking two
+        questions — which is how the live stream and the reloaded transcript
+        drifted apart in the first place. The migration runs before any read
+        (``apply_schema`` in ``__init__``), so a stored row is always converted
+        by the time the contract sees it.
+
+        Pinned by ``tests/storage/test_context_resource_refs_migration.py``,
+        which builds a real v1 file and reads it back.
+        """
+        connection.execute(
+            """
+            UPDATE conversation_messages
+            SET payload = json_set(
+                json_remove(payload, '$.resource_ref'),
+                '$.resource_refs',
+                json_array(json_extract(payload, '$.resource_ref'))
+            )
+            WHERE json_extract(payload, '$.resource_ref') IS NOT NULL
+            """
+        )
+        connection.execute(
+            """
+            UPDATE conversation_messages
+            SET payload = json_remove(payload, '$.resource_ref')
+            WHERE json_type(payload, '$.resource_ref') = 'null'
+            """
+        )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -220,7 +261,9 @@ class CareerContextStore:
                 """
                 SELECT payload FROM conversation_messages
                 WHERE user_id = ? AND conversation_id = ? AND sequence <= ?
-                  AND json_extract(payload, '$.resource_ref') IS NOT NULL
+                  AND json_array_length(
+                        COALESCE(json_extract(payload, '$.resource_refs'), json_array())
+                      ) > 0
                 ORDER BY sequence DESC LIMIT ?
                 """,
                 (user_id, conversation_id, through_sequence, limit),
@@ -229,6 +272,31 @@ class CareerContextStore:
             ConversationMessageContext.model_validate_json(row[0])
             for row in reversed(rows)
         )
+
+    def count_archived_resources(
+        self, *, user_id: str, conversation_id: str, through_sequence: int
+    ) -> int:
+        """How many resources the catalogue would hold if it were not capped.
+
+        Counted rather than inferred from the capped list, which can only ever
+        say "at least twelve". The model needs the difference: a list of twelve
+        with nothing else said reads as the complete set, so a report that
+        scrolled past the cap looks like it should be in there somewhere.
+
+        Counts references, not messages — one turn can deliver two reports.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COALESCE(SUM(json_array_length(
+                    COALESCE(json_extract(payload, '$.resource_refs'), json_array())
+                )), 0)
+                FROM conversation_messages
+                WHERE user_id = ? AND conversation_id = ? AND sequence <= ?
+                """,
+                (user_id, conversation_id, through_sequence),
+            ).fetchone()
+        return int(row[0])
 
     def get_conversation_summary(
         self, *, user_id: str, conversation_id: str
@@ -364,7 +432,9 @@ class CareerContextStore:
                   ON s.user_id = m.user_id
                  AND s.conversation_id = m.conversation_id
                 WHERE m.user_id = ? {clause} AND m.sequence <= s.through_sequence
-                  AND json_extract(m.payload, '$.resource_ref') IS NULL
+                  AND json_array_length(
+                        COALESCE(json_extract(m.payload, '$.resource_refs'), json_array())
+                      ) = 0
                 """,
                 parameters,
             ).fetchone()
@@ -402,7 +472,12 @@ class CareerContextStore:
                       -- it costs almost nothing, while dropping it would make
                       -- the report unreachable to the agent while the UI still
                       -- shows the card.
-                      AND json_extract(m.payload, '$.resource_ref') IS NULL
+                      AND json_array_length(
+                            COALESCE(
+                                json_extract(m.payload, '$.resource_refs'),
+                                json_array()
+                            )
+                          ) = 0
                 )
                 """,
                 parameters,

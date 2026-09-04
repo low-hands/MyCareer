@@ -407,10 +407,6 @@ class ResumeStore:
             )
             """
         )
-        # user_version is per-file and this file has seven owners, so it cannot
-        # describe any one of them. Keep writing it for backward compatibility
-        # with files created before the registry existed.
-        connection.execute("PRAGMA user_version = 3")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

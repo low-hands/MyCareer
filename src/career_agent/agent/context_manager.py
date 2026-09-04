@@ -23,9 +23,16 @@ class ContextManager:
         if not 1 <= per_message_context_chars <= max_recent_context_chars:
             raise ValueError("recent per-message budget is invalid")
         if not 0 <= archived_resource_limit <= 12:
-            # Capped at the contract's own bound: each entry costs a kind, a
-            # timestamp, and one condensed line, and the catalogue is carried
-            # every turn for the whole life of the conversation.
+            # Capped at the contract's own bound, which counts *messages*, not
+            # catalogue entries: a message can carry several references since a
+            # turn can store two reports, so twelve messages project to at most
+            # twelve times that many entries. Each entry costs a kind, a
+            # timestamp and one condensed line, and the catalogue is carried
+            # every turn for the whole life of the conversation — so the real
+            # ceiling is looser than a per-entry reading of this number
+            # suggests. Left as a message bound because that is what the store
+            # can filter on; tighten it to entries if a conversation is ever
+            # observed storing enough multi-report turns for it to matter.
             raise ValueError("archived resource limit is invalid")
         if compacted_message_warning_threshold < 1:
             raise ValueError("compacted message warning threshold must be positive")
@@ -103,6 +110,19 @@ class ContextManager:
                 if summary is not None and self._archived_resource_limit
                 else ()
             ),
+            # Sent alongside the capped list so the model can tell a complete
+            # catalogue from a window onto a longer one. Without it twelve
+            # entries read as everything there is, and a report past the cap
+            # looks like it must be one of them.
+            archived_resource_total=(
+                self._store.count_archived_resources(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    through_sequence=summary.through_sequence,
+                )
+                if summary is not None and self._archived_resource_limit
+                else 0
+            ),
             conversation_summary=summary.content if summary else None,
             user_message=self._truncate(user_message),
         )
@@ -134,14 +154,14 @@ class ContextManager:
             user_message="[workflow-owned input withheld]",
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_ref: ConversationResourceReference | None = None) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = ()) -> None:
         now = datetime.now(timezone.utc)
         self._store.commit_turn(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
-            assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_ref=assistant_resource_ref),
+            assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
         )
         self._maybe_summarize(
             user_id=context.profile.user_id,
@@ -173,7 +193,7 @@ class ContextManager:
         context: MainAgentContext,
         task: ConversationTaskState,
         assistant_message: str,
-        assistant_resource_ref: ConversationResourceReference | None = None,
+        assistant_resource_refs: tuple[ConversationResourceReference, ...] = (),
     ) -> None:
         """Write the whole run as the request that began it and the reply.
 
@@ -202,7 +222,7 @@ class ContextManager:
             context=context.model_copy(update={"user_message": entry}),
             task=task.model_copy(update={"workflow_entry_message": None}),
             assistant_message=assistant_message,
-            assistant_resource_ref=assistant_resource_ref,
+            assistant_resource_refs=assistant_resource_refs,
         )
 
     def commit_workflow_turn(
