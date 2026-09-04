@@ -27,6 +27,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewQuestionResult,
     MockInterviewReport,
 )
+from career_agent.harness.observability import InMemoryTraceRecorder
 from career_agent.services.applications import ApplicationService
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.context import CareerContextStore
@@ -180,7 +181,9 @@ def test_projection_selects_application_by_index_and_rejects_internal_ids() -> N
         project_mock_interview_arguments(context, {"application_id": "app-2"})
 
 
-def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) -> None:
+def test_runtime_starts_then_resumes_mock_interview_through_the_main_graph(
+    tmp_path,
+) -> None:
     service, application = _application_setup(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -241,14 +244,18 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     ]
     assert after_start.task.workflow_entry_message == "开始技术模拟面试"
 
+    recorder = InMemoryTraceRecorder()
+    events: list[object] = []
     completed = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decision_maker,
         tools=tools,
+        trace_recorder=recorder,
     ).run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="我负责设计离线评估集，并监控召回率。",
+        event_sink=events.append,
     )
 
     assert decision_maker.calls == 1
@@ -261,6 +268,17 @@ def test_runtime_starts_then_directly_resumes_active_mock_interview(tmp_path) ->
     ]
     assert completed.context.task.active_workflow == "none"
     assert completed.context.task.run_id is None
+    assert completed.delegated_write_count == 1
+    trace = recorder.snapshot(events[0].turn_id)
+    turn_completed = next(
+        event for event in trace.events if event.event_type == "turn_completed"
+    )
+    assert turn_completed.details["write_call_count"] == 1
+    assert not [
+        event
+        for event in trace.events
+        if event.model_call_category == "orchestrator_decision"
+    ]
     assert completed.assistant_message.startswith("模拟面试完成。")
     assert "补充验证指标" in completed.assistant_message
     # The run's own turns stay out of the main thread, but its outcome does not:
@@ -300,6 +318,24 @@ def test_start_schema_exposes_only_selection_indexes_not_internal_ids(tmp_path) 
     assert "application_selection_index" in properties
     assert "interview_selection_index" in properties
     assert all(not key.endswith("_id") for key in properties)
+
+
+def test_runtime_mock_interview_entries_are_not_model_tools(tmp_path) -> None:
+    service, _ = _application_setup(tmp_path)
+    tools = MainAgentToolRegistry(
+        application_service=service,
+        mock_interview_graph=FakeMockInterviewGraph(),
+    )
+
+    public_names = {item["function"]["name"] for item in tools.schemas()}
+    assert "handle_mock_interview_input" not in public_names
+    assert "retry_mock_interview" not in public_names
+    assert "handle_mock_interview_input" not in tools.names
+    assert "retry_mock_interview" not in tools.names
+    assert set(tools.runtime_workflow_names) == {
+        "handle_mock_interview_input",
+        "retry_mock_interview",
+    }
 
 
 class ReplayDecisions:
@@ -668,19 +704,7 @@ def test_every_entry_reports_the_call_that_actually_happened(tmp_path) -> None:
 
 
 def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
-    """``decision`` is the model's choice, and two ingresses fabricate one.
-
-    The mock interview takeover invents a ``tool_call`` and the interaction
-    receipt invents a ``final``; both then travelled as ordinary
-    ``AgentDecision`` values with nothing marking them apart, so every consumer
-    read all three ingresses as one thing. The CLI published the invented
-    ``tool_name`` as machine-readable JSON — a call that never happened.
-
-    Marking the source is deliberately not the same as routing these through the
-    graph. The receipt *should* bypass the graph: its contract was sealed when
-    the interaction was issued, and re-asking the model would only let it
-    overrule an explicit click. Only the mock interview takeover is G.
-    """
+    """A bound workflow action uses the graph without consulting Main Agent."""
     class RetryableGraph(FakeMockInterviewGraph):
         def retry(self, *, user_id, session_id):
             return self.resume(user_id=user_id, session_id=session_id, answer="stored")
@@ -701,41 +725,85 @@ def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
         task=ConversationTaskState(
             active_workflow="mock_interview", run_id="s1", phase="mock_interview_running"
         ),
-        user_message="我做过检索系统的端到端优化。",
+        user_message="[workflow-owned input withheld]",
     )
 
-    result = runtime._run_active_mock_interview(
+    result = runtime._run_owned_workflow_turn(
         context=context, user_message="我做过检索系统的端到端优化。"
     )
 
     assert result.decision_source == "runtime"
-    # The fabricated call names the entry that ran, so that if anything does
-    # read it, it reads the truth rather than the capability that began the run.
     assert result.decision.tool_call.name == "handle_mock_interview_input"
+    assert result.delegated_write_count == 1
+    assert result.context.tool_observations[-1].arguments == {}
+    assert "我做过检索系统的端到端优化。" not in str(
+        result.context.model_context()
+    )
+
+
+def test_runtime_workflow_action_obeys_the_standard_write_budget(tmp_path) -> None:
+    graph = FakeMockInterviewGraph()
+    service, _ = _application_setup(tmp_path)
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(CareerContextStore(tmp_path / "ctx.sqlite3")),
+        decision_maker=_never_called_decision_maker(),
+        tools=MainAgentToolRegistry(
+            application_service=service,
+            mock_interview_graph=graph,
+        ),
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="s1",
+            phase="mock_interview_running",
+        ),
+        user_message="[workflow-owned input withheld]",
+    )
+    decision = AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(name="handle_mock_interview_input", arguments={}),
+    )
+
+    state = runtime._graph.invoke(
+        {
+            "context": context,
+            "decision": decision,
+            "pending": {
+                "name": "handle_mock_interview_input",
+                "runtime_owned": True,
+                "arguments": {"message": "PRIVATE ANSWER"},
+            },
+            "tool_results": (),
+            "artifact_ids": (),
+            "control": {
+                "read_calls": 0,
+                "write_calls": 1,
+                "projection_refusals": 0,
+                "authorization_refusals": 0,
+                "fingerprints": (),
+                "retryable_fingerprints": (),
+                "retry_counts": {},
+            },
+        }
+    )
+
+    assert graph.resumes == []
+    assert state["control"]["write_calls"] == 1
+    assert state["control"]["authorization_refusals"] == 1
+    assert "预算已经用完" in state["assistant_message"]
+    assert "PRIVATE ANSWER" not in str(state["context"].model_context())
 
 
 class _never_called_decision_maker:
     def decide(self, context, schemas):  # pragma: no cover - must not be reached
-        raise AssertionError("the takeover consults no model")
+        raise AssertionError("a workflow-owned turn consults no Main Agent model")
 
 
 def test_the_progress_events_name_the_entry_that_actually_ran(tmp_path) -> None:
-    """The last place still announcing a call that never happened.
-
-    ``_drive_mock_interview``, the observation and the fabricated ``decision``
-    were all corrected to report the real entry; the ingress kept emitting
-    ``capability_started("start_mock_interview")`` because ``entry`` was derived
-    inside ``_run_active_mock_interview`` and the ingress could not see it.
-
-    User-visible text is unaffected — ``_public_capability`` maps every mock
-    interview entry to ``interview``, which is exactly why the label cannot be
-    what this test reads. It asserts on the name handed to the emitters, the
-    same claim the other three sites were fixed for.
-
-    The fix derives ``entry`` once, at the top of the takeover, and lets the
-    completion read the name back off the observation rather than deriving it a
-    second time from a second copy of the task.
-    """
+    """The standard act node announces the runtime entry that actually ran."""
     announced: list[str] = []
 
     class RecordingRuntime(MainAgentRuntime):
