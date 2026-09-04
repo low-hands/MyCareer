@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit, urlunsplit
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +29,15 @@ from career_agent.harness.streaming import (
     PublicStreamEvent,
     astream_turn_events,
 )
+from career_agent.security.authentication import require_scope
 from career_agent.services.action_center import ActionCenterService
+from career_agent.storage.api_keys import (
+    ApiKeyPrincipal,
+    ApiKeyStore,
+    CAPTURE_WRITE,
+    CHAT_WRITE,
+    SQLiteApiKeyStore,
+)
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
@@ -39,7 +47,10 @@ class ChatStreamRequest(BaseModel):
         str_strip_whitespace=True,
     )
 
-    user_id: str = Field(min_length=1, max_length=200)
+    # No ``user_id``. Identity comes from the API key, so a request cannot name
+    # a user it does not hold a credential for — a stronger property than
+    # checking that a stated user matches the token, because there is nothing to
+    # state. Same discipline as the projection boundary refusing internal ids.
     conversation_id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=100_000)
     interaction_response: InteractionResponse | None = None
@@ -51,7 +62,6 @@ class BrowserJobCaptureRequest(BaseModel):
         str_strip_whitespace=True,
     )
 
-    user_id: str = Field(min_length=1, max_length=200)
     source_url: str = Field(min_length=1, max_length=2_000)
     title: str = Field(min_length=1, max_length=500)
     company_name: str = Field(min_length=1, max_length=500)
@@ -146,6 +156,7 @@ async def _sse_stream(
     runtime: MainAgentRuntime,
     request: ChatStreamRequest,
     *,
+    user_id: str,
     heartbeat_seconds: float,
     synthetic_content_delay_seconds: float = 0.025,
     on_turn_finished: Callable[[], Awaitable[None]] | None = None,
@@ -157,7 +168,7 @@ async def _sse_stream(
         try:
             async for event in astream_turn_events(
                 runtime,
-                user_id=request.user_id,
+                user_id=user_id,
                 conversation_id=request.conversation_id,
                 user_message=request.message,
                 interaction_response=request.interaction_response,
@@ -205,9 +216,16 @@ async def _sse_stream(
             )
 
 
+def build_api_key_store() -> ApiKeyStore:
+    return SQLiteApiKeyStore(
+        Path(os.environ.get("CAREER_AGENT_DATA_DIR", "data")) / "api_keys.sqlite3"
+    )
+
+
 def create_app(
     *,
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
+    api_key_store_factory: Callable[[], ApiKeyStore] | None = None,
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
     action_center_factory: Callable[[], ActionCenterService] | None = None,
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
@@ -232,6 +250,7 @@ def create_app(
     # Built on first use, not at import: constructing it opens the local
     # databases, and creating an app must not touch the real store paths.
     application_router = build_read_router(read_factory, workspace_factory)
+    key_store_factory = api_key_store_factory or build_api_key_store
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -250,6 +269,11 @@ def create_app(
         app.state.runtime = runtime
         app.state.startup_error = startup_error
         app.state.run_gate = ConversationRunGate()
+        # Opened before anything is served. Unlike the model runtime, a missing
+        # credential store is not a degraded mode the dashboard can survive: it
+        # is the difference between an authenticated API and an open one, so
+        # ``authenticate`` refuses every request rather than assuming a default.
+        app.state.api_key_store = key_store_factory()
         app.state.capture_repository = None
         app.state.action_center = None
         try:
@@ -280,7 +304,10 @@ def create_app(
         return {"status": "ready"}
 
     @application.post("/v1/chat/stream")
-    async def chat_stream(request: ChatStreamRequest) -> StreamingResponse:
+    async def chat_stream(
+        request: ChatStreamRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(CHAT_WRITE)),
+    ) -> StreamingResponse:
         runtime: MainAgentRuntime | None = application.state.runtime
         if runtime is None:
             raise HTTPException(
@@ -290,7 +317,7 @@ def create_app(
 
         gate: ConversationRunGate = application.state.run_gate
         try:
-            await gate.acquire(request.user_id, request.conversation_id)
+            await gate.acquire(principal.user_id, request.conversation_id)
         except ConversationBusyError as error:
             raise HTTPException(
                 status_code=409,
@@ -301,12 +328,13 @@ def create_app(
             ) from error
 
         async def release_gate() -> None:
-            await gate.release(request.user_id, request.conversation_id)
+            await gate.release(principal.user_id, request.conversation_id)
 
         async def generate() -> AsyncIterator[str]:
             async for chunk in _sse_stream(
                 runtime,
                 request,
+                user_id=principal.user_id,
                 heartbeat_seconds=heartbeat_seconds,
                 synthetic_content_delay_seconds=synthetic_content_delay_seconds,
                 on_turn_finished=release_gate,
@@ -329,13 +357,20 @@ def create_app(
     )
     async def capture_job(
         request: BrowserJobCaptureRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(CAPTURE_WRITE)),
         capture_version: str | None = Header(
             default=None,
             alias="X-Career-Agent-Capture",
         ),
     ) -> BrowserJobCaptureResponse:
+        # The header stays, demoted to what it always was: a payload-shape
+        # version marker. It never was access control — anyone could send it —
+        # and leaving it as the only gate while every other route gained one
+        # would keep the weakest door open.
         if capture_version != "v1":
-            raise HTTPException(status_code=403, detail="Browser capture header is required")
+            raise HTTPException(
+                status_code=422, detail="Unsupported browser capture version"
+            )
         try:
             source_url, source_job_id = _canonical_boss_job_url(request.source_url)
         except ValueError as error:
@@ -370,7 +405,7 @@ def create_app(
         )
         try:
             saved = repository.save_captured_detail(
-                user_id=request.user_id,
+                user_id=principal.user_id,
                 detail=detail,
             )
         except ValueError as error:

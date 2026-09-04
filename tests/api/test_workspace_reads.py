@@ -189,26 +189,27 @@ class _WorkspaceReader:
         )
 
 
-def test_workspace_read_endpoints_scope_data_and_build_dashboard() -> None:
+def test_workspace_read_endpoints_scope_data_and_build_dashboard(api_keys, auth) -> None:
     reader = _WorkspaceReader()
     app = create_app(
+        api_key_store_factory=lambda: api_keys,
         runtime_factory=_Runtime,
         action_center_factory=_ActionCenter,
         workspace_reader_factory=lambda: reader,
     )
 
     with TestClient(app) as client:
-        applications = client.get("/v1/applications", params={"user_id": "u1"})
-        jobs = client.get("/v1/jobs", params={"user_id": "u1"})
-        conversations = client.get("/v1/conversations", params={"user_id": "u1"})
+        applications = client.get("/v1/applications", headers=auth)
+        jobs = client.get("/v1/jobs", headers=auth)
+        conversations = client.get("/v1/conversations", headers=auth)
         transcript = client.get(
             "/v1/conversations/conversation-1/messages",
-            params={"user_id": "u1"},
+            headers=auth,
         )
-        resumes = client.get("/v1/resumes", params={"user_id": "u1"})
-        calendar = client.get("/v1/calendar", params={"user_id": "u1"})
-        research = client.get("/v1/company-research", params={"user_id": "u1"})
-        dashboard = client.get("/v1/dashboard", params={"user_id": "u1"})
+        resumes = client.get("/v1/resumes", headers=auth)
+        calendar = client.get("/v1/calendar", headers=auth)
+        research = client.get("/v1/company-research", headers=auth)
+        dashboard = client.get("/v1/dashboard", headers=auth)
 
     assert applications.json()[0]["title"] == "AI 产品经理"
     assert jobs.json()[1]["application_status"] is None
@@ -235,9 +236,10 @@ def test_workspace_read_endpoints_scope_data_and_build_dashboard() -> None:
     assert {call[1] for call in reader.calls} == {"u1"}
 
 
-def test_workspace_read_limits_are_validated_before_store_access() -> None:
+def test_workspace_read_limits_are_validated_before_store_access(api_keys, auth) -> None:
     reader = _WorkspaceReader()
     app = create_app(
+        api_key_store_factory=lambda: api_keys,
         runtime_factory=_Runtime,
         action_center_factory=_ActionCenter,
         workspace_reader_factory=lambda: reader,
@@ -246,7 +248,7 @@ def test_workspace_read_limits_are_validated_before_store_access() -> None:
     with TestClient(app) as client:
         response = client.get(
             "/v1/company-research",
-            params={"user_id": "u1", "limit": 0},
+            headers=auth, params={"limit": 0},
         )
 
     assert response.status_code == 422

@@ -3,11 +3,22 @@
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "b4b884cf22a6fd266ccf27de30cbc10aa7811ecd8dc4539401d5da687c5737f8",
-  "recorded_at": "2026-09-04T04:48:36.549483+00:00",
+  "context_shape_fingerprint": "7e4581566a16afdbfa09f9fb3c4dfdcd514baa59f430ce91409a20351e35d2ca",
+  "recorded_at": "2026-09-04T07:41:54.077968+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你是已经在招聘平台上实际提交了这个岗位的申请，还是只是准备投递？如果已提交，请告诉我提交成功，我再为该岗位建立申请记录。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请先在外部招聘平台完成投递。投递成功后告诉我“已投递”，我再为“示例科技·算法工程师”创建申请记录。\"}"
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:41:54.077968+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请先在外部招聘平台完成投递。投递成功后告诉我“已投递”，我再为“示例科技·算法工程师”创建申请记录。\"}"
+        }
+      ]
     }
   ]
 }

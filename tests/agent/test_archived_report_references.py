@@ -118,7 +118,7 @@ def test_the_catalogue_uses_resource_metadata_not_delivery_prose(tmp_path) -> No
         user_id="u1", conversation_id="c1", user_message="继续"
     ).model_context()
 
-    entry = projected["archived_reports"][0]
+    entry = projected["archived_reports"]["items"][0]
     assert entry["kind"] == "job_research_report"
     assert entry["reference"].startswith("report_")
     # Delivery prose belongs to the conversation, not to the resource index.
@@ -157,7 +157,7 @@ def test_the_catalogue_and_the_window_name_reports_the_same_way(tmp_path) -> Non
     )
     projected = context.model_context()
     shown = [
-        entry["reference"] for entry in projected["archived_reports"]
+        entry["reference"] for entry in projected["archived_reports"]["items"]
     ] + [
         entry["reference"]
         for message in projected["recent_messages"]
@@ -297,11 +297,12 @@ def test_a_capped_catalogue_says_how_much_it_is_not_showing(tmp_path) -> None:
     )
     projected = context.model_context()
 
-    assert len(projected["archived_reports"]) == 12
-    assert projected["archived_reports_total"] == 15
+    catalogue = projected["archived_reports"]
+    assert len(catalogue["items"]) == 12
+    assert catalogue["unlisted"] == "另有 3 份更早的调研未列出，无法按引用取回。"
     # The three it cannot show are genuinely unreachable, not merely unlisted:
     # nothing else in the projection names them either.
-    named = {entry["reference"] for entry in projected["archived_reports"]}
+    named = {entry["reference"] for entry in catalogue["items"]}
     assert set(context.reference_handles()) >= named
     assert len(context.reference_handles()) < 15
 
@@ -318,4 +319,6 @@ def test_a_complete_catalogue_says_so_by_agreeing_with_itself(tmp_path) -> None:
         user_id="u1", conversation_id="c1", user_message="继续"
     ).model_context()
 
-    assert projected["archived_reports_total"] == len(projected["archived_reports"])
+    catalogue = projected["archived_reports"]
+    assert len(catalogue["items"]) == 3
+    assert catalogue["unlisted"] is None

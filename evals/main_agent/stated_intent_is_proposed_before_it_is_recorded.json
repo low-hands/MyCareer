@@ -3,8 +3,8 @@
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "f6c05f5b678c52e1dce76c7ac630b2ae1cf2117b93e2030ef2a93ff93064016f",
-  "context_shape_fingerprint": "91a6c46327c38db2201e0111e13357edb03adf6b09726bca1cf8d681f69210e9",
-  "recorded_at": "2026-09-04T04:47:56.462104+00:00",
+  "context_shape_fingerprint": "716bf705bd93c1e215e5d7c5a761e4bb4a9d7c2e1f3b011791c5011ebcc8375b",
+  "recorded_at": "2026-09-04T07:41:43.746276+00:00",
   "steps": [
     {
       "tool_call": {
@@ -21,6 +21,30 @@
           "target_role_selection_index": 1
         }
       }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:41:43.746276+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          }
+        },
+        {
+          "tool_call": {
+            "name": "propose_job_intent",
+            "arguments": {
+              "city": "上海",
+              "salary_expectation": "40K 以上",
+              "target_role_selection_index": 1
+            }
+          }
+        }
+      ]
     }
   ]
 }

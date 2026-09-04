@@ -3,8 +3,8 @@
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "a22644975adb8f0e7d0198e5321f6a4eaefe853654008185ba4762ca13b7d954",
-  "context_shape_fingerprint": "96540d2323fde95adba8973a4e3aaaba0ca62e66ef898527603edbf8b96c8fed",
-  "recorded_at": "2026-09-04T04:50:00.884552+00:00",
+  "context_shape_fingerprint": "16a0b886ad7eef00ac0b4444f065aa3a2e4e7c178e60c7ffa494f10515cea6fe",
+  "recorded_at": "2026-09-04T07:43:51.284837+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,6 +13,22 @@
           "selection_index": 1
         }
       }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:43:51.284837+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview",
+            "arguments": {
+              "selection_index": 1
+            }
+          }
+        }
+      ]
     }
   ]
 }

@@ -3,17 +3,38 @@
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "1918238a34bd0f1272865059dfc3302f8d6d01622302d80c7667ec7df2b5291f",
-  "recorded_at": "2026-09-04T04:57:36.714592+00:00",
+  "context_shape_fingerprint": "cf5ae1cd43a5d26c044172ce3245f748e77cdd9a4eab1d7af261415fa2c5fb5a",
+  "recorded_at": "2026-09-04T07:47:50.536431+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：识别该公司的主要竞争对手，比较其产品、业务定位、市场差异与对该岗位可能相关的竞争环境。",
-          "max_sources": 8
+          "focus": "竞争对手、竞争格局与主要可比公司",
+          "max_sources": 8,
+          "selection_index": null,
+          "user_provided_context": null
         }
       }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:47:50.536431+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手、竞争格局与主要可比公司",
+              "max_sources": 8,
+              "selection_index": null,
+              "user_provided_context": null
+            }
+          }
+        }
+      ]
     }
   ]
 }

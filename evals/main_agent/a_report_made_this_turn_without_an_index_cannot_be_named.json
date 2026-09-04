@@ -1,10 +1,10 @@
 {
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
-  "policy": "Never pass a resource reference the projection did not give you. Without one there is no way to name a report that is not the active one, and guessing a number would select whichever resource happens to hold it.",
+  "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "b1d223f1491c3f8dbe7a2c1a1270e636287f57bd60d7484bbc2fd4c27fbd34b0",
-  "recorded_at": "2026-09-04T04:51:49.146216+00:00",
+  "context_shape_fingerprint": "1380b12af4fbcce1a3fec015731eaca2a1b76d75d4e0472a636424fd505edd0d",
+  "recorded_at": "2026-09-04T07:46:34.534430+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,6 +13,49 @@
           "selection_index": 1
         }
       }
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-09-04T07:46:25.681510+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "selection_index": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:46:31.615393+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": null,
+              "selection_index": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-04T07:46:34.534430+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
+            }
+          }
+        }
+      ]
     }
   ]
 }

@@ -1000,6 +1000,7 @@ class MainAgentContext(ContractModel):
             for message in self.archived_resources
             for reference in message.resource_refs
         ]
+        unlisted_count = max(0, self.archived_resource_total - len(archived))
         for message in self.recent_messages:
             projected = {
                 "role": message.role,
@@ -1025,7 +1026,6 @@ class MainAgentContext(ContractModel):
                 projected["resources"] = resources
             model_messages.append(projected)
         return {
-            "archived_reports_total": self.archived_resource_total,
             "career_profile": {
                 "default_city": self.profile.default_city,
                 # Role-scoped intent reaches the model through
@@ -1182,7 +1182,14 @@ class MainAgentContext(ContractModel):
             # Internal resource IDs stay in durable messages for the UI and
             # projection layer. The decision model receives only turn-local
             # indexes, matching every other selectable object contract.
-            "archived_reports": tuple(archived),
+            "archived_reports": {
+                "items": tuple(archived),
+                "unlisted": (
+                    f"另有 {unlisted_count} 份更早的调研未列出，无法按引用取回。"
+                    if unlisted_count
+                    else None
+                ),
+            },
             "recent_messages": tuple(model_messages),
             "tool_observations": decision_observation_projection(
                 self.tool_observations,

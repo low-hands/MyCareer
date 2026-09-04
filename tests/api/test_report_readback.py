@@ -77,10 +77,11 @@ def _args(tmp_path: Path) -> argparse.Namespace:
     )
 
 
-def _client(tmp_path: Path) -> TestClient:
+def _client(tmp_path: Path, api_keys) -> TestClient:
     args = _args(tmp_path)
     return TestClient(
         create_app(
+            api_key_store_factory=lambda: api_keys,
             runtime_factory=_Runtime,
             action_center_factory=lambda: None,
             workspace_reader_factory=lambda: build_workspace_reader(args),
@@ -323,24 +324,24 @@ def _interview_preparation(tmp_path: Path) -> str:
     return stored.id
 
 
-def test_each_report_kind_reads_back_its_full_rendered_body(tmp_path) -> None:
+def test_each_report_kind_reads_back_its_full_rendered_body(tmp_path, auth, api_keys) -> None:
     """All three kinds, because a reference the UI cannot follow is worse than none."""
     research_id = _job_research_report(tmp_path)
     mock_id = _mock_interview_report(tmp_path)
     preparation_id = _interview_preparation(tmp_path)
 
-    with _client(tmp_path) as client:
+    with _client(tmp_path, api_keys) as client:
         research = client.get(
             f"/v1/reports/job_research_report/{research_id}",
-            params={"user_id": "u1"},
+            headers=auth,
         ).json()
         mock = client.get(
             f"/v1/reports/mock_interview_report/{mock_id}",
-            params={"user_id": "u1"},
+            headers=auth,
         ).json()
         preparation = client.get(
             f"/v1/reports/interview_preparation/{preparation_id}",
-            params={"user_id": "u1"},
+            headers=auth,
         ).json()
 
     # The body is the report itself, not the one-line summary the row kept.
@@ -358,15 +359,15 @@ def test_each_report_kind_reads_back_its_full_rendered_body(tmp_path) -> None:
     assert preparation["subtitle"] == "示例科技 RAG 工程师 · 1 个可能问题"
 
 
-def test_job_research_replays_delivery_time_warnings(tmp_path) -> None:
+def test_job_research_replays_delivery_time_warnings(tmp_path, api_keys, auth) -> None:
     """A card renders the historical turn, not today's mutable report state."""
     research_id = _job_research_report(tmp_path)
 
-    with _client(tmp_path) as client:
+    with _client(tmp_path, api_keys) as client:
         response = client.get(
             f"/v1/reports/job_research_report/{research_id}",
+            headers=auth,
             params={
-                "user_id": "u1",
                 "status_at_delivery": "outdated",
                 "anchored_by_other_job": "true",
             },
@@ -378,7 +379,7 @@ def test_job_research_replays_delivery_time_warnings(tmp_path) -> None:
     assert "已超过当前时效窗口" in body
 
 
-def test_another_users_report_is_not_readable(tmp_path) -> None:
+def test_another_users_report_is_not_readable(tmp_path, api_keys, issue_key) -> None:
     """The id in a transcript is not authorization; the owner filter is."""
     ids = {
         "job_research_report": _job_research_report(tmp_path),
@@ -386,15 +387,15 @@ def test_another_users_report_is_not_readable(tmp_path) -> None:
         "interview_preparation": _interview_preparation(tmp_path),
     }
 
-    with _client(tmp_path) as client:
+    with _client(tmp_path, api_keys) as client:
         for kind, resource_id in ids.items():
             response = client.get(
-                f"/v1/reports/{kind}/{resource_id}", params={"user_id": "u2"}
+                f"/v1/reports/{kind}/{resource_id}", headers=issue_key("u2")
             )
             assert response.status_code == 404, kind
 
 
-def test_a_kind_the_transcript_never_produces_is_not_dispatched(tmp_path) -> None:
+def test_a_kind_the_transcript_never_produces_is_not_dispatched(tmp_path, auth, api_keys) -> None:
     """An unknown kind must not fall through to a lookup in another store.
 
     Ids are unique per store, not globally, so a kind that resolved by trying
@@ -402,10 +403,10 @@ def test_a_kind_the_transcript_never_produces_is_not_dispatched(tmp_path) -> Non
     """
     mock_id = _mock_interview_report(tmp_path)
 
-    with _client(tmp_path) as client:
+    with _client(tmp_path, api_keys) as client:
         assert (
             client.get(
-                f"/v1/reports/resume_analysis/{mock_id}", params={"user_id": "u1"}
+                f"/v1/reports/resume_analysis/{mock_id}", headers=auth
             ).status_code
             == 404
         )
@@ -414,17 +415,17 @@ def test_a_kind_the_transcript_never_produces_is_not_dispatched(tmp_path) -> Non
         assert (
             client.get(
                 f"/v1/reports/mock_interview_report/{mock_id}",
-                params={"user_id": "u1"},
+                headers=auth,
             ).status_code
             == 200
         )
 
 
-def test_an_unknown_id_is_a_missing_report_not_an_error(tmp_path) -> None:
-    with _client(tmp_path) as client:
+def test_an_unknown_id_is_a_missing_report_not_an_error(tmp_path, auth, api_keys) -> None:
+    with _client(tmp_path, api_keys) as client:
         response = client.get(
             "/v1/reports/mock_interview_report/rep-missing",
-            params={"user_id": "u1"},
+            headers=auth,
         )
 
     assert response.status_code == 404
