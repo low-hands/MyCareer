@@ -1119,6 +1119,9 @@ class MainAgentRuntime:
                 )
         decision = result.model_decision
         if decision is not None and decision.action == "ask_user":
+            # Options are grounded only in the tool result that loaded them.
+            # Prompt wording is model output, not a trustworthy data-source
+            # discriminator and must never change the model's decision.
             options = MainAgentRuntime._selection_options(tool_result, task)
             if options:
                 return InteractionRequiredEvent(
@@ -1358,7 +1361,6 @@ class MainAgentRuntime:
             or last.execution_outcome == "unknown"
             else "FAILED"
             if last.execution_outcome == "not_committed"
-            or (last.execution_outcome is None and is_failed(last.state))
             else "EXECUTED"
         )
         store.settle(
@@ -2053,6 +2055,10 @@ class MainAgentRuntime:
             result = self._act_request_anchored_write(state)
         else:
             result = self._invoke_pending(pending)
+        if pending.get("effect") == "WRITE" and result.execution_outcome is None:
+            raise ValueError(
+                f"WRITE capability {name!r} returned without execution_outcome"
+            )
         self._emit_capability_completed(name, result.state)
         return {"pending": {**pending, "result": result}}
 
@@ -2134,6 +2140,7 @@ class MainAgentRuntime:
                 next_action=(
                     "告诉用户有一次未确认的操作需要先核对，不要重试这次调用。"
                 ),
+                execution_outcome="unknown",
             )
         if not created:
             if execution.status == "SUCCEEDED":
@@ -2157,6 +2164,7 @@ class MainAgentRuntime:
                     state="action_execution_replayed",
                     message="这一步此前已经完成，没有再次执行。",
                     next_action="按回执中的引用或标识读取持久结果，不要重做写操作。",
+                    execution_outcome="committed",
                 )
             if execution.status == "FAILED":
                 raise ActionExecutionAlreadyFailedError(
@@ -2172,11 +2180,11 @@ class MainAgentRuntime:
                         "这个操作重复执行无法撤销，所以在核对清楚之前不能再执行一次。"
                     ),
                     next_action="告诉用户有一次未确认的操作需要先核对，不要重试这次调用。",
+                    execution_outcome="unknown",
                 )
 
         result = self._invoke_pending(pending)
-        # A declared execution outcome always wins over the state, and the order
-        # is the whole point. ``state``/``disposition`` say whether the
+        # ``state``/``disposition`` say whether the
         # capability and the control flow failed; ``execution_outcome`` says
         # whether the side effect committed. They are independent axes, so
         # ``committed`` with a failed state is a real situation and not a
@@ -2184,21 +2192,19 @@ class MainAgentRuntime:
         # handling, receipt parse or presentation then failed. Settling that as
         # FAILED because the state is failed would record that nothing happened
         # when something did — the same class of lie, pointed the other way, as
-        # the delivery-derived ledger this replaced. Inferring from ``state`` is
-        # the fallback for capabilities that have not declared the axis yet.
+        # the delivery-derived ledger this replaced. Every WRITE producer must
+        # declare this axis; leaving the intent PENDING and failing loudly is
+        # safer than recreating state-derived settlement here.
+        if result.execution_outcome is None:
+            raise ValueError(
+                f"WRITE capability {name!r} returned without execution_outcome"
+            )
         if result.execution_outcome == "unknown":
             # The capability has returned, but the effect has not. PENDING is
             # precisely the durable representation of that ambiguity; closing
             # it as FAILED would make it disappear from reconciliation.
             return result
         if result.execution_outcome == "not_committed":
-            self._action_execution_store.fail(
-                action_id=execution.action_id,
-                error_code=result.state.upper(),
-                error_detail=result.message,
-            )
-            return result
-        if result.execution_outcome is None and is_failed(result.state):
             self._action_execution_store.fail(
                 action_id=execution.action_id,
                 error_code=result.state.upper(),

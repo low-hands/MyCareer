@@ -29,6 +29,7 @@ from career_agent.api.reads import (
     build_read_router,
     build_workspace_reader,
 )
+from career_agent.api.integrations import build_integration_router
 from career_agent.harness.streaming import (
     InteractionResponse,
     PublicStreamEvent,
@@ -36,6 +37,7 @@ from career_agent.harness.streaming import (
 )
 from career_agent.security.authentication import require_scope
 from career_agent.services.action_center import ActionCenterService
+from career_agent.services.integrations import IntegrationConnectionService
 from career_agent.storage.api_keys import (
     ApiKeyPrincipal,
     ApiKeyStore,
@@ -46,6 +48,10 @@ from career_agent.storage.api_keys import (
     SQLiteApiKeyStore,
 )
 from career_agent.storage.context import OwnerSettingsConflictError, OwnerSettingsEvent
+from career_agent.storage.connector_secrets import KeyringConnectorSecretStore
+from career_agent.storage.oauth_flows import SQLiteOAuthFlowStore
+from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
@@ -185,6 +191,32 @@ def build_owner_settings_store() -> CareerContextStore:
     return CareerContextStore(Path(args.context_store).expanduser())
 
 
+def build_integration_service() -> IntegrationConnectionService:
+    args = _runtime_args_from_env()
+    return IntegrationConnectionService.from_env(
+        email_store=SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
+        calendar_store=SQLiteCalendarStore(Path(args.calendar_store).expanduser()),
+        flow_store=SQLiteOAuthFlowStore(Path(args.context_store).expanduser()),
+        secret_store=KeyringConnectorSecretStore(),
+    )
+
+
+class JobClosureRequest(BaseModel):
+    """A saved posting the user just found closed. Only the page's own URL:
+    identity comes from the credential, and the rest from what is stored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
+class JobClosureResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    matched: bool
+    job_posting_id: str | None = None
+
+
 def _canonical_boss_job_url(raw_url: str) -> tuple[str, str | None]:
     try:
         parsed = urlsplit(raw_url)
@@ -288,6 +320,7 @@ def create_app(
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
     action_center_factory: Callable[[], ActionCenterService] | None = None,
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
+    integration_service_factory: Callable[[], IntegrationConnectionService] | None = None,
     owner_settings_store_factory: Callable[[], CareerContextStore] | None = None,
     heartbeat_seconds: float = 15.0,
     synthetic_content_delay_seconds: float = 0.025,
@@ -310,6 +343,9 @@ def create_app(
     # Built on first use, not at import: constructing it opens the local
     # databases, and creating an app must not touch the real store paths.
     application_router = build_read_router(read_factory, workspace_factory)
+    integration_router = build_integration_router(
+        integration_service_factory or build_integration_service
+    )
     key_store_factory = api_key_store_factory or build_api_key_store
     settings_factory = owner_settings_store_factory or build_owner_settings_store
 
@@ -353,6 +389,7 @@ def create_app(
 
 
     application.include_router(application_router)
+    application.include_router(integration_router)
 
     @application.get("/health")
     async def health() -> dict[str, str]:
@@ -516,6 +553,61 @@ def create_app(
                 user_id=principal.user_id
             )
         )
+
+    @application.post(
+        "/v1/browser-captures/job-closures",
+        response_model=JobClosureResponse,
+    )
+    async def report_job_closure(
+        request: JobClosureRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(CAPTURE_WRITE)),
+        capture_version: str | None = Header(
+            default=None, alias="X-Career-Agent-Capture"
+        ),
+    ) -> JobClosureResponse:
+        """Record that a saved posting was found closed on the site.
+
+        This is the only way ``availability_status`` ever leaves ``active``.
+        Nothing here polls: the extension reports a page the user opened
+        themselves, which is why the field can be trusted and why it is often
+        simply unknown. Re-fetching every saved posting on a schedule is what
+        got the earlier API search blocked, and it would also make the field a
+        claim about the site rather than an observation of it.
+
+        Reported through ``capture:write`` — the same credential, in the same
+        weak storage, saying the same class of thing about the same page. A
+        separate scope would suggest this carries more authority than a
+        capture, and it carries less: one status field on a job the user has
+        already saved.
+        """
+
+        if capture_version != "v1":
+            raise HTTPException(
+                status_code=422, detail="Unsupported browser capture version"
+            )
+        try:
+            source_url, source_job_id = _canonical_boss_job_url(request.source_url)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        repository = capture_factory()
+        job_posting_id = repository.find_by_source(
+            user_id=principal.user_id,
+            source_name="boss",
+            source_job_id=source_job_id,
+            source_url=source_url,
+        )
+        if job_posting_id is None:
+            # Not an error: a closed page for a posting that was never saved is
+            # simply not about anything this workspace holds. Reporting it as a
+            # failure would put a red banner on the user's screen for a page
+            # they had no stake in.
+            return JobClosureResponse(matched=False)
+        repository.mark_availability(
+            user_id=principal.user_id,
+            job_posting_id=job_posting_id,
+            status="closed",
+        )
+        return JobClosureResponse(matched=True, job_posting_id=job_posting_id)
 
     @application.post(
         "/v1/browser-captures/jobs",

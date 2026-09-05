@@ -24,6 +24,8 @@
       .hint { margin: 9px 0 12px; color: #66736c; font-size: 12px; }
       .save { width: 100%; border: 0; border-radius: 9px; padding: 10px 12px; background: #255f43; color: white; font-weight: 700; }
       .save:disabled { cursor: wait; opacity: .65; }
+      .report-closed { width: 100%; border: 1px solid #d8ded9; border-radius: 9px; padding: 10px 12px; background: transparent; color: #526158; font-weight: 700; }
+      .report-closed:disabled { cursor: wait; opacity: .65; }
       .status { min-height: 18px; margin: 8px 0 0; font-size: 12px; color: #526158; }
       .status.error { color: #a13a32; }
     </style>
@@ -32,6 +34,7 @@
       <h2></h2><p class="company"></p><div class="meta"></div>
       <p class="hint">仅预览当前详情；点击后才会保存 JD，不会自动投递或联系招聘者。</p>
       <button class="save" type="button">保存到 Career Agent</button>
+      <button class="report-closed" type="button" hidden>标记为已下架</button>
       <p class="status" role="status"></p>
     </section>`;
   document.documentElement.appendChild(host);
@@ -41,8 +44,11 @@
   const company = shadow.querySelector(".company");
   const meta = shadow.querySelector(".meta");
   const save = shadow.querySelector(".save");
+  const reportClosed = shadow.querySelector(".report-closed");
+  const hint = shadow.querySelector(".hint");
   const status = shadow.querySelector(".status");
   let currentJob = null;
+  let closedUrl = null;
   let dismissedFingerprint = "";
   let lastFingerprint = "";
   let timer = null;
@@ -54,11 +60,24 @@
   function refresh() {
     timer = null;
     const result = parser.extract(document, window.location);
+    // A closed posting has no JD left to capture, so the ordinary card would
+    // simply disappear — and the one fact this page still carries, that the
+    // job is gone, would go with it. Nothing else in the system can observe
+    // that: it is never polled, only seen when the user opens the page.
+    if (result.status === "closed") {
+      showClosed();
+      return;
+    }
     if (result.status !== "ready" || !result.job.source_url) {
       currentJob = null;
+      closedUrl = null;
       card.hidden = true;
       return;
     }
+    reportClosed.hidden = true;
+    save.hidden = false;
+    closedUrl = null;
+    hint.textContent = "仅预览当前详情；点击后才会保存 JD，不会自动投递或联系招聘者。";
     const nextFingerprint = fingerprint(result.job);
     if (nextFingerprint === dismissedFingerprint) return;
     currentJob = result.job;
@@ -79,6 +98,56 @@
     status.textContent = "";
     status.classList.remove("error");
   }
+
+  function showClosed() {
+    const url = parser.canonicalPageUrl(window.location.href);
+    // Only a job detail page. A closed-looking search page or company page is
+    // not evidence about any particular posting.
+    if (!url || !/\/job_detail\//i.test(url)) {
+      card.hidden = true;
+      return;
+    }
+    if (closedUrl === url) return;
+    closedUrl = url;
+    currentJob = null;
+    card.hidden = false;
+    title.textContent = "这个岗位已经关闭";
+    company.textContent = "";
+    meta.replaceChildren();
+    hint.textContent = "如果它在你的岗位库里，可以标记为已下架，之后不会再被当成候选。";
+    save.hidden = true;
+    reportClosed.hidden = false;
+    reportClosed.disabled = false;
+    reportClosed.textContent = "标记为已下架";
+    status.textContent = "";
+    status.classList.remove("error");
+  }
+
+  reportClosed.addEventListener("click", async () => {
+    if (!closedUrl || reportClosed.disabled) return;
+    reportClosed.disabled = true;
+    reportClosed.textContent = "正在标记…";
+    status.textContent = "";
+    status.classList.remove("error");
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "CAREER_AGENT_REPORT_CLOSED",
+        source_url: closedUrl,
+      });
+      if (!response?.ok) throw new Error(response?.message || "标记失败");
+      reportClosed.textContent = "已标记";
+      // Said plainly when it matched nothing, rather than reporting a success
+      // that changed no record the user has.
+      status.textContent = response.result?.matched
+        ? "岗位库里的这条已标记为已下架"
+        : "这个岗位不在你的岗位库里，没有改动任何记录";
+    } catch (error) {
+      reportClosed.disabled = false;
+      reportClosed.textContent = "重新标记";
+      status.textContent = error instanceof Error ? error.message : "标记失败";
+      status.classList.add("error");
+    }
+  });
 
   function scheduleRefresh() {
     if (timer !== null) return;

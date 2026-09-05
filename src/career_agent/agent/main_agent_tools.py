@@ -92,12 +92,14 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_reachability import reachable
+from career_agent.agent.tool_effects import effect_for
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.services.resume_analysis import (
     ResumeAnalysisNotFoundError,
     ResumeAnalysisNotPendingError,
     ResumeAnalysisService,
+    ResumeAnalysisWorkerNotCommittedError,
     ResumeVersionNotFoundError,
 )
 from career_agent.services.applications import (
@@ -1203,7 +1205,7 @@ class MainAgentToolRegistry:
         handler = self._workflow_handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown main-agent workflow: {name}")
-        return handler(arguments)
+        return self._require_write_execution_outcome(name, handler(arguments))
 
     def invoke_runtime_workflow(
         self, name: str, arguments: dict[str, Any]
@@ -1211,7 +1213,19 @@ class MainAgentToolRegistry:
         handler = self._runtime_workflow_handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown runtime-owned workflow: {name}")
-        return handler(arguments)
+        return self._require_write_execution_outcome(name, handler(arguments))
+
+    @staticmethod
+    def _require_write_execution_outcome(
+        name: str, result: MainAgentToolOutput
+    ) -> MainAgentToolOutput:
+        """Reject a WRITE whose producer omitted the independent effect axis."""
+
+        if effect_for(name) == "WRITE" and result.execution_outcome is None:
+            raise ValueError(
+                f"WRITE capability {name!r} returned without execution_outcome"
+            )
+        return result
 
     def _sync_application_emails(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._email_tracking_service is None:
@@ -1230,6 +1244,7 @@ class MainAgentToolRegistry:
                 tool_name="sync_application_emails",
                 state="email_account_not_found",
                 message="没有找到可用的邮箱账号，请先连接 Gmail 或 QQ 邮箱。",
+                execution_outcome="not_committed",
             )
         except (EmailCredentialError, GmailAPIError, RuntimeError, AgentWorkerError) as error:
             return ToolObservation(
@@ -1244,6 +1259,9 @@ class MainAgentToolRegistry:
                     ),
                     "retryable": isinstance(error, (GmailAPIError, AgentWorkerError)),
                 },
+                # Sync persists messages and events incrementally. An error can
+                # arrive after an earlier message or account was committed.
+                execution_outcome="unknown",
             )
         pending = [event for event in result.events_created if event.status == "pending_confirmation"]
         return ToolObservation(
@@ -1264,6 +1282,7 @@ class MainAgentToolRegistry:
                 "candidate_messages": result.candidate_messages,
                 "events": [self._email_event_payload(event) for event in result.events_created],
             },
+            execution_outcome="committed",
         )
 
     def _start_mock_interview(
@@ -1321,6 +1340,17 @@ class MainAgentToolRegistry:
                         else False
                     ),
                 },
+                # Missing application input is rejected before graph start.
+                # Worker failure happens after graph start has created (and
+                # then cancelled) a durable session. A generic ValueError can
+                # arise on either side of that boundary.
+                execution_outcome=(
+                    "not_committed"
+                    if isinstance(error, ApplicationInputNotFoundError)
+                    else "committed"
+                    if isinstance(error, AgentWorkerError)
+                    else "unknown"
+                ),
             )
         return self._mock_interview_observation(
             result, "start_mock_interview", user_id=workflow_input.user_id
@@ -1430,6 +1460,7 @@ class MainAgentToolRegistry:
                     "error_code": error.code,
                     "retryable": error.retryable,
                 },
+                execution_outcome="not_committed",
             )
         except MockInterviewCheckpointMissingError:
             return ToolObservation(
@@ -1440,6 +1471,7 @@ class MainAgentToolRegistry:
                 ),
                 next_action="这场面试已经无法恢复，重试同一个调用不会有用。只能重新开一场。",
                 payload={"session_id": session_id, "retryable": False},
+                execution_outcome="not_committed",
             )
         except MockInterviewGraphVersionError:
             return ToolObservation(
@@ -1450,6 +1482,7 @@ class MainAgentToolRegistry:
                 ),
                 next_action="这场面试已经无法恢复，重试同一个调用不会有用。只能重新开一场。",
                 payload={"session_id": session_id, "retryable": False},
+                execution_outcome="not_committed",
             )
         except (AgentWorkerError, ValueError) as error:
             return ToolObservation(
@@ -1472,6 +1505,12 @@ class MainAgentToolRegistry:
                         else False
                     ),
                 },
+                # Evaluation failures happen after the answer is persisted.
+                # ValueError can also arise on either side of that boundary,
+                # so the producer cannot safely claim no write occurred.
+                execution_outcome=(
+                    "committed" if isinstance(error, AgentWorkerError) else "unknown"
+                ),
             )
         return self._mock_interview_observation(result, tool_name, user_id=user_id)
 
@@ -1524,6 +1563,7 @@ class MainAgentToolRegistry:
             tool_name=tool_name,
             state=state,
             message=message,
+            execution_outcome="committed",
             payload=result.model_dump(mode="json"),
             resource_ref=(
                 # ``completed`` now guarantees a report: the graph raises rather
@@ -1563,6 +1603,7 @@ class MainAgentToolRegistry:
                 tool_name="restart_mock_interview",
                 state="no_mock_interview_to_restart",
                 message="没有卡住的模拟面试，直接开始一场新的即可。",
+                execution_outcome="not_committed",
             )
         # Cancel through the graph, not the store: the graph also deletes the
         # checkpoint thread, and for a version-incompatible run that thread is
@@ -1607,6 +1648,9 @@ class MainAgentToolRegistry:
                         else False
                     ),
                 },
+                # The old run was durably cancelled even though its replacement
+                # did not start.
+                execution_outcome="committed",
             )
         return self._mock_interview_observation(
             result, "restart_mock_interview", user_id=user_id
@@ -1834,6 +1878,7 @@ class MainAgentToolRegistry:
                 tool_name="resolve_email_event",
                 state="email_event_not_found",
                 message="没有找到这个邮件事件，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except EmailEventResolutionError as error:
             return ToolObservation(
@@ -1841,12 +1886,16 @@ class MainAgentToolRegistry:
                 state="email_event_resolution_conflict",
                 message="该邮件事件暂时不能应用到投递记录。",
                 payload={"reason": str(error)},
+                # Applying an event spans the interview, application, and email
+                # stores. A later conflict can follow an earlier local commit.
+                execution_outcome="unknown",
             )
         return ToolObservation(
             tool_name="resolve_email_event",
             state="email_event_resolved",
             message="邮件事件已应用。" if event.status == "applied" else "邮件事件已忽略。",
             payload=self._email_event_payload(event),
+            execution_outcome="committed",
         )
 
     def _list_interviews(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1938,12 +1987,14 @@ class MainAgentToolRegistry:
                 state="interview_application_conflict",
                 message="无法为这条投递创建面试安排。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="create_interview",
             state="interview_ready",
             message=f"已记录系统中的第 {interview.sequence_number} 场面试。",
             payload=self._interview_payload(interview),
+            execution_outcome="committed",
         )
 
     def _update_interview(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1965,18 +2016,21 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="update_interview", state="interview_not_found",
                 message="没有找到这场面试，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except InterviewApplicationConflictError as error:
             return ToolObservation(
                 tool_name="update_interview", state="interview_update_conflict",
                 message="这场面试当前不能按该方式更新。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="update_interview",
             state="interview_ready",
             message="面试安排已更新，原安排仍保留在事件历史中。",
             payload=self._interview_payload(interview),
+            execution_outcome="committed",
         )
 
     def _complete_interview(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -1998,18 +2052,21 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="complete_interview", state="interview_not_found",
                 message="没有找到这场面试，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except InterviewApplicationConflictError as error:
             return ToolObservation(
                 tool_name="complete_interview", state="interview_completion_conflict",
                 message="这场面试当前不能标记为完成。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="complete_interview",
             state="interview_ready",
             message="已将这场面试标记为完成。",
             payload=self._interview_payload(interview),
+            execution_outcome="committed",
         )
 
     def _record_interview_retro(
@@ -2043,6 +2100,7 @@ class MainAgentToolRegistry:
                 tool_name="record_interview_retro",
                 state="interview_not_found",
                 message="没有找到这场面试，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except InterviewApplicationConflictError as error:
             return ToolObservation(
@@ -2050,6 +2108,7 @@ class MainAgentToolRegistry:
                 state="interview_retro_conflict",
                 message="这场面试当前不能记录复盘报告。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         if self._action_center_service is not None:
             self._action_center_service.complete_source_action(
@@ -2083,6 +2142,7 @@ class MainAgentToolRegistry:
             state="interview_retro_recorded",
             message="真实面试复盘报告已保存；结论仅基于你的复述。",
             payload=self._interview_retro_payload(report),
+            execution_outcome="committed",
             resource_ref=ConversationResourceReference(
                 kind="interview_retro_report",
                 resource_id=report.id,
@@ -2113,6 +2173,7 @@ class MainAgentToolRegistry:
                 state="interview_preparation_input_not_found",
                 message="无法读取这场面试对应的完整准备输入。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         except InterviewPreparationNotAvailableError as error:
             return ToolObservation(
@@ -2120,6 +2181,7 @@ class MainAgentToolRegistry:
                 state="interview_preparation_not_available",
                 message="当前面试状态不适合生成准备材料。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         title, description = self._job_resource_metadata(
             user_id=user_id,
@@ -2132,6 +2194,7 @@ class MainAgentToolRegistry:
             state="interview_preparation_ready",
             message=summarize_interview_preparation(preparation.result),
             payload=self._interview_preparation_payload(preparation),
+            execution_outcome="committed",
             resource_ref=ConversationResourceReference(
                 kind="interview_preparation",
                 resource_id=preparation.id,
@@ -2308,12 +2371,14 @@ class MainAgentToolRegistry:
                 tool_name=f"{action}_action_item",
                 state="action_item_not_found",
                 message="没有找到这个行动事项，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name=f"{action}_action_item",
             state="action_item_resolved",
             message="行动事项已完成。" if action == "complete" else "行动事项已忽略。",
             payload=self._action_payload(item),
+            execution_outcome="committed",
         )
 
     def _snooze_action_item(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2336,6 +2401,7 @@ class MainAgentToolRegistry:
                 tool_name="snooze_action_item",
                 state="action_item_not_found",
                 message="没有找到这个行动事项，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except InvalidActionTransitionError as error:
             return ToolObservation(
@@ -2343,12 +2409,14 @@ class MainAgentToolRegistry:
                 state="invalid_action_transition",
                 message="无法将该行动事项稍后提醒。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="snooze_action_item",
             state="action_item_snoozed",
             message="行动事项已设置为稍后提醒。",
             payload=self._action_payload(item),
+            execution_outcome="committed",
         )
 
     def _list_calendar_accounts(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2434,6 +2502,7 @@ class MainAgentToolRegistry:
                 state="calendar_account_required",
                 message="需要先配置或选择一个 Calendar 账户。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         except CalendarSyncNotAvailableError as error:
             return ToolObservation(
@@ -2441,12 +2510,14 @@ class MainAgentToolRegistry:
                 state="calendar_sync_not_available",
                 message="当前面试没有需要执行的 Calendar 变更。",
                 payload={"reason": str(error), "retryable": False},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="prepare_interview_calendar_sync",
             state="calendar_approval_required",
             message="Calendar 变更预览已生成；执行前需要用户明确确认。",
             payload=self._calendar_proposal_payload(proposal),
+            execution_outcome="committed",
         )
 
     def _get_calendar_proposal(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2654,7 +2725,7 @@ class MainAgentToolRegistry:
         handler = self._atomic_handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown main-agent atomic tool: {name}")
-        return handler(arguments)
+        return self._require_write_execution_outcome(name, handler(arguments))
 
     def resolve_resume_analysis_confirmation(
         self,
@@ -2715,6 +2786,9 @@ class MainAgentToolRegistry:
                     "label": f"在 BOSS 搜索 {keyword}",
                 },
             },
+            # This capability commits the client action into the turn result;
+            # it does not claim the remote page itself loaded successfully.
+            execution_outcome="committed",
         )
 
     def _research_job(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2739,6 +2813,7 @@ class MainAgentToolRegistry:
                 tool_name="research_job",
                 state="job_research_not_found",
                 message="没有找到要研究的已保存岗位。",
+                execution_outcome="not_committed",
             )
         except JobResearchExecutionError as error:
             return self._job_research_failure(
@@ -2774,6 +2849,7 @@ class MainAgentToolRegistry:
                     != model_arguments.job_posting_id
                 ),
             ),
+            execution_outcome="committed",
         )
 
     def _retry_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2795,6 +2871,7 @@ class MainAgentToolRegistry:
                 tool_name="retry_job_research",
                 state="job_research_not_retryable",
                 message="当前没有可以恢复的岗位研究任务。",
+                execution_outcome="not_committed",
             )
         except JobResearchExecutionError as error:
             return self._job_research_failure(
@@ -2818,6 +2895,7 @@ class MainAgentToolRegistry:
                 status_at_delivery=result.report.status,
                 anchored_by_other_job=False,
             ),
+            execution_outcome="committed",
         )
 
     def _get_job_research(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -2884,6 +2962,8 @@ class MainAgentToolRegistry:
                 "error_code": error.code,
                 "retryable": error.retryable,
             },
+            # The failed run and its retry coordinates were durably recorded.
+            execution_outcome="committed",
         )
 
     @staticmethod
@@ -2957,6 +3037,10 @@ class MainAgentToolRegistry:
             user_id=user_id,
             query=model_arguments.query,
             limit=model_arguments.limit,
+            # A job the user removed from the library must not come back
+            # through the agent's own search: re-surfacing it is the exact
+            # thing the removal was about.
+            include_dismissed=False,
         )
         payload = {
             "items": [item.model_dump(mode="json") for item in items],
@@ -3134,8 +3218,9 @@ class MainAgentToolRegistry:
                 state="resume_version_not_found",
                 message="没有找到这个简历版本，或它不属于当前用户。",
                 payload={"resume_version_id": model_arguments.resume_version_id},
+                execution_outcome="not_committed",
             )
-        except AgentWorkerError as error:
+        except ResumeAnalysisWorkerNotCommittedError as error:
             return ToolObservation(
                 tool_name="analyze_resume",
                 state="failed",
@@ -3145,6 +3230,19 @@ class MainAgentToolRegistry:
                     "error_code": error.code,
                     "retryable": error.retryable,
                 },
+                execution_outcome="not_committed",
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="analyze_resume",
+                state="failed",
+                message="简历分析结果是否已保存无法确认，请先核对再重试。",
+                payload={
+                    "resume_version_id": model_arguments.resume_version_id,
+                    "error_code": error.code,
+                    "retryable": error.retryable,
+                },
+                execution_outcome="unknown",
             )
         return ToolObservation(
             tool_name="analyze_resume",
@@ -3167,6 +3265,7 @@ class MainAgentToolRegistry:
                 "clarification_questions": draft.result.clarification_questions,
                 "warnings": draft.result.warnings,
             },
+            execution_outcome="committed",
         )
 
     def _get_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3315,6 +3414,7 @@ class MainAgentToolRegistry:
                 state="job_intent_recorded",
                 message=self._job_intent_readback(update, scope=role.title, saved=True),
                 payload={"target_role": role.model_dump(mode="json")},
+                execution_outcome="committed",
             )
         # Re-read rather than trusting the projected copy: the stored profile is
         # the thing being changed, and it may have moved since the readback.
@@ -3328,6 +3428,7 @@ class MainAgentToolRegistry:
             state="job_intent_recorded",
             message=self._job_intent_readback(update, scope=None, saved=True),
             payload={"profile": updated.model_dump(mode="json")},
+            execution_outcome="committed",
         )
 
     _JOB_INTENT_LABELS = {
@@ -3413,6 +3514,7 @@ class MainAgentToolRegistry:
                     "resume_version_id": model_arguments.resume_version_id,
                     "job_posting_id": model_arguments.job_posting_id,
                 },
+                execution_outcome="not_committed",
             )
         except AgentWorkerError as error:
             return ToolObservation(
@@ -3425,6 +3527,7 @@ class MainAgentToolRegistry:
                     "error_code": error.code,
                     "retryable": error.retryable,
                 },
+                execution_outcome="not_committed",
             )
         title, description = self._resume_match_metadata(
             user_id=user_id, stored=stored
@@ -3446,6 +3549,7 @@ class MainAgentToolRegistry:
                 title=title,
                 description=description,
             ),
+            execution_outcome="committed",
         )
 
     def _get_resume_job_match(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3512,6 +3616,7 @@ class MainAgentToolRegistry:
                 state="resume_job_match_not_found",
                 message="没有找到可用于定制的匹配结果，或它不属于当前用户。",
                 payload={"match_id": model_arguments.match_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringReviewBlockedError as error:
             return ToolObservation(
@@ -3519,6 +3624,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_review_blocked",
                 message="自动审核未能产出安全的简历修改草稿，需要调整目标或人工确认。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         except AgentWorkerError as error:
             return ToolObservation(
@@ -3526,12 +3632,14 @@ class MainAgentToolRegistry:
                 state="failed",
                 message="简历定制暂时失败，请稍后重试。" if error.retryable else "简历定制失败。",
                 payload={"error_code": error.code, "retryable": error.retryable},
+                execution_outcome="not_committed",
             )
         return self._tailoring_observation(
             user_id=user_id,
             tool_name="draft_resume_tailoring",
             draft=draft,
             message=f"已生成 {len(draft.result.changes)} 条待审阅的简历修改建议。",
+            execution_outcome="committed",
         )
 
     def _get_resume_tailoring_draft(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3585,6 +3693,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_draft_not_found",
                 message="没有找到这份简历定制草稿，或它已经过期。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringAlreadyFinalizedError:
             return ToolObservation(
@@ -3592,6 +3701,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_already_finalized",
                 message="这份草稿已经生成了新简历版本，审阅决定不能再修改。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringSupersededError:
             return ToolObservation(
@@ -3599,6 +3709,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_superseded",
                 message="该草稿已有更新版本，请审阅当前最新草稿。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         return self._tailoring_observation(
             user_id=user_id,
@@ -3609,6 +3720,7 @@ class MainAgentToolRegistry:
                 if draft.status == "reviewed"
                 else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理。"
             ),
+            execution_outcome="committed",
         )
 
     def _revise_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3632,6 +3744,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_draft_not_found",
                 message="没有找到要修改的简历草稿，或它已经过期。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringAlreadyFinalizedError:
             return ToolObservation(
@@ -3639,6 +3752,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_already_finalized",
                 message="该草稿已经生成简历版本；如需继续修改，应基于新版本重新匹配和定制。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringSupersededError:
             return ToolObservation(
@@ -3646,6 +3760,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_superseded",
                 message="该草稿已有更新版本，请基于当前最新草稿继续反馈。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringReviewBlockedError as error:
             return ToolObservation(
@@ -3653,6 +3768,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_review_blocked",
                 message="根据用户反馈生成的新草稿未通过自动审核，原草稿保持不变。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         except AgentWorkerError as error:
             return ToolObservation(
@@ -3660,6 +3776,7 @@ class MainAgentToolRegistry:
                 state="failed",
                 message="重新生成简历草稿暂时失败，请稍后重试。" if error.retryable else "重新生成简历草稿失败。",
                 payload={"error_code": error.code, "retryable": error.retryable},
+                execution_outcome="not_committed",
             )
         return self._tailoring_observation(
             user_id=user_id,
@@ -3669,6 +3786,7 @@ class MainAgentToolRegistry:
                 f"已根据反馈生成第 {draft.revision_number} 版草稿；"
                 "旧审批决定未继承，请重新逐条审阅。"
             ),
+            execution_outcome="committed",
         )
 
     def _finalize_resume_tailoring(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3691,6 +3809,7 @@ class MainAgentToolRegistry:
                 state="resume_tailoring_draft_not_found",
                 message="没有找到这份简历定制草稿，或它已经过期。",
                 payload={"draft_id": model_arguments.draft_id},
+                execution_outcome="not_committed",
             )
         except ResumeTailoringNotReadyError as error:
             return ToolObservation(
@@ -3702,6 +3821,7 @@ class MainAgentToolRegistry:
                     "reason": str(error),
                     "retryable": False,
                 },
+                execution_outcome="not_committed",
             )
         except ResumeFinalReviewBlockedError as error:
             return ToolObservation(
@@ -3712,6 +3832,7 @@ class MainAgentToolRegistry:
                     "draft_id": model_arguments.draft_id,
                     "reason": str(error),
                 },
+                execution_outcome="not_committed",
             )
         except AgentWorkerError as error:
             return ToolObservation(
@@ -3719,6 +3840,7 @@ class MainAgentToolRegistry:
                 state="failed",
                 message="生成新简历版本暂时失败，请稍后重试。" if error.retryable else "生成新简历版本失败。",
                 payload={"error_code": error.code, "retryable": error.retryable},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="finalize_resume_tailoring",
@@ -3740,6 +3862,7 @@ class MainAgentToolRegistry:
                 "warnings": finalized.warnings,
                 "created": finalized.created,
             },
+            execution_outcome="committed",
         )
 
     def _export_resume_artifact(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3762,6 +3885,7 @@ class MainAgentToolRegistry:
                 state="resume_version_not_found",
                 message="没有找到可导出的简历版本，或它不属于当前用户。",
                 payload={"resume_version_id": model_arguments.resume_version_id},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="export_resume_artifact",
@@ -3775,6 +3899,7 @@ class MainAgentToolRegistry:
                 "byte_size": artifact.byte_size,
                 "created_at": artifact.created_at.isoformat(),
             },
+            execution_outcome="committed",
         )
 
     def _create_application(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -3910,6 +4035,7 @@ class MainAgentToolRegistry:
                 state="application_not_found",
                 message="没有找到这条投递记录，或它不属于当前用户。",
                 payload={"application_id": model_arguments.application_id},
+                execution_outcome="not_committed",
             )
         except InvalidApplicationTransitionError as error:
             return ToolObservation(
@@ -3920,6 +4046,7 @@ class MainAgentToolRegistry:
                     "application_id": model_arguments.application_id,
                     "reason": str(error),
                 },
+                execution_outcome="not_committed",
             )
         except ConcurrentApplicationUpdateError:
             return ToolObservation(
@@ -3927,12 +4054,14 @@ class MainAgentToolRegistry:
                 state="application_update_conflict",
                 message="这条投递记录刚刚发生了变化，请重新读取后再更新。",
                 payload={"application_id": model_arguments.application_id},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="update_application_status",
             state="application_ready",
             message=f"投递状态已更新为 {application.status}。",
             payload=self._application_payload(application, detail.job),
+            execution_outcome="committed",
         )
 
     def _list_applications(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -4026,6 +4155,7 @@ class MainAgentToolRegistry:
         tool_name: str,
         draft: StoredResumeTailoringDraft,
         message: str,
+        execution_outcome: Literal["committed", "not_committed", "unknown"] | None = None,
     ) -> ToolObservation:
         title, description = self._tailoring_metadata(
             user_id=user_id, draft=draft
@@ -4034,6 +4164,7 @@ class MainAgentToolRegistry:
             tool_name=tool_name,
             state="resume_tailoring_draft_ready",
             message=message,
+            execution_outcome=execution_outcome,
             payload={
                 "draft_id": draft.id,
                 "match_id": draft.match_id,

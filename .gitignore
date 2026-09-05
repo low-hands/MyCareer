@@ -4,6 +4,7 @@
 
 # Local runtime secrets
 .env
+/web/.env
 
 # Local and Python-generated files
 .DS_Store
@@ -13,6 +14,7 @@ __pycache__/
 *.egg-info/
 
 # React client build output
+/node_modules/
 /web/node_modules/
 /web/dist/
 /web/.vite/

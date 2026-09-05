@@ -5,6 +5,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.resume_analysis_contracts import (
     ResumeAnalysisResult,
     ResumeAnalysisWorker,
@@ -26,6 +27,10 @@ class ResumeAnalysisNotFoundError(ValueError):
 
 class ResumeAnalysisNotPendingError(ValueError):
     """Raised when a one-time analysis decision was already consumed."""
+
+
+class ResumeAnalysisWorkerNotCommittedError(AgentWorkerError):
+    """A worker failed before the draft store was called."""
 
 
 class ResumeAnalysisDraft(BaseModel):
@@ -92,7 +97,15 @@ class ResumeAnalysisService:
             raise ResumeVersionNotFoundError(
                 "Resume version not found or does not belong to the current user"
             )
-        result = self._worker.analyze(document)
+        try:
+            result = self._worker.analyze(document)
+        except AgentWorkerError as error:
+            raise ResumeAnalysisWorkerNotCommittedError(
+                error.code,
+                str(error),
+                retryable=error.retryable,
+                detail=error.detail,
+            ) from error
         return self._draft_store.create(
             user_id=user_id,
             resume_version_id=resume_version_id,

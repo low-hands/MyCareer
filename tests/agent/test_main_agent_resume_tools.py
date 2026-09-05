@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
 from career_agent.agent.main_agent_runtime import MainAgentRuntime, InteractionReceipt
@@ -298,6 +299,46 @@ def test_analyze_resume_tool_hides_foreign_version(tmp_path) -> None:
     )
     assert observation.state == "resume_version_not_found"
     assert worker.documents == []
+
+
+def test_analyze_resume_worker_failure_is_known_not_committed(tmp_path) -> None:
+    class FailingWorker:
+        def analyze(self, document):
+            raise AgentWorkerError("RESUME_ANALYSIS_FAILED", "worker failed")
+
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    _, _, _, version = seed_resume(store)
+    drafts = SQLiteResumeAnalysisDraftStore(tmp_path / "drafts.sqlite3")
+    tools = MainAgentToolRegistry(
+        resume_analysis_service=ResumeAnalysisService(
+            store,
+            FailingWorker(),
+            drafts,
+            CareerHistoryStore(tmp_path / "resumes.sqlite3"),
+        )
+    )
+
+    observation = tools.invoke_atomic_tool(
+        "analyze_resume",
+        {"user_id": "u1", "resume_version_id": version.id},
+    )
+
+    assert observation.execution_outcome == "not_committed"
+
+
+def test_analyze_resume_service_failure_after_worker_boundary_is_unknown() -> None:
+    class AmbiguousService:
+        def analyze_version(self, **_):
+            raise AgentWorkerError("RESUME_ANALYSIS_STORE_FAILED", "store failed")
+
+    tools = MainAgentToolRegistry(resume_analysis_service=AmbiguousService())
+
+    observation = tools.invoke_atomic_tool(
+        "analyze_resume",
+        {"user_id": "u1", "resume_version_id": "version-1"},
+    )
+
+    assert observation.execution_outcome == "unknown"
 
 
 def test_analyze_resume_tool_rejects_model_supplied_user_id(tmp_path) -> None:

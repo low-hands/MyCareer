@@ -1,7 +1,6 @@
 import { parsePublicStreamEvent, type PublicStreamEvent } from "../chat/events";
 
 export interface ChatStreamRequest {
-  user_id: string;
   conversation_id: string;
   message: string;
   interaction_response?: InteractionResponse;

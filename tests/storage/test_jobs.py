@@ -62,8 +62,8 @@ def test_browser_capture_persists_without_creating_a_discovery_run_link(tmp_path
         user_id="u1",
         job_posting_id=saved.posting.id,
     ) == saved
-    assert repository.count_jobs(user_id="u1") == 1
-    assert repository.count_jobs(user_id="u2") == 0
+    assert repository.count_jobs(user_id="u1", include_dismissed=False) == 1
+    assert repository.count_jobs(user_id="u2", include_dismissed=False) == 0
     with sqlite3.connect(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM job_run_links").fetchone()[0] == 0
 
@@ -144,6 +144,53 @@ def test_changed_jd_requires_analysis_for_the_new_snapshot(tmp_path) -> None:
     assert repository.get_latest_analysis(user_id="u1", job_posting_id=changed.posting.id) is None
 
 
+def test_permanent_delete_removes_the_whole_owned_jd_tree(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite3"
+    repository = SQLiteJobPostingRepository(path)
+    first = repository.save_detail(
+        user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1,
+        detail=detail(),
+    )
+    repository.save_analysis(
+        user_id="u1",
+        jd_snapshot_id=first.snapshot.id,
+        analyzer_version="jd-analysis-v1",
+        analysis=analysis_payload(),
+    )
+    repository.save_detail(
+        user_id="u1", run_id="run-2", result_ref="ref-2", selection_index=1,
+        detail=detail(description="A changed JD with a second snapshot."),
+    )
+
+    assert repository.delete_job(
+        user_id="u1", job_posting_id=first.posting.id
+    ) is True
+    assert repository.get_job(
+        user_id="u1", job_posting_id=first.posting.id
+    ) is None
+    assert repository.search_saved_jobs(
+        user_id="u1", query="Acme", include_dismissed=True
+    ) == ()
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM job_postings").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM jd_snapshots").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM jd_analyses").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM job_run_links").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM job_posting_fts").fetchone()[0] == 0
+
+
+def test_permanent_delete_is_owner_scoped(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = repository.save_captured_detail(user_id="u1", detail=detail())
+
+    assert repository.delete_job(
+        user_id="u2", job_posting_id=saved.posting.id
+    ) is False
+    assert repository.get_job(
+        user_id="u1", job_posting_id=saved.posting.id
+    ) is not None
+
+
 def test_analysis_write_and_read_are_user_scoped(tmp_path) -> None:
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     saved = repository.save_detail(user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1, detail=detail())
@@ -176,11 +223,11 @@ def test_search_uses_metadata_and_full_jd_with_user_isolation(tmp_path) -> None:
     repository.save_detail(user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1, detail=detail())
     repository.save_detail(user_id="u2", run_id="run-2", result_ref="ref-2", selection_index=1, detail=detail(source_job_id="boss-2"))
 
-    assert [item.company_name for item in repository.search_saved_jobs(user_id="u1", query="Acme")] == ["Acme"]
-    assert [item.title for item in repository.search_saved_jobs(user_id="u1", query="RAG")] == ["AI Engineer"]
-    assert [item.city for item in repository.search_saved_jobs(user_id="u1", query="Shanghai")] == ["Shanghai"]
-    assert repository.search_saved_jobs(user_id="other", query="RAG") == ()
-    assert repository.get_job(user_id="u2", job_posting_id=repository.list_jobs(user_id="u1")[0].job_posting_id) is None
+    assert [item.company_name for item in repository.search_saved_jobs(user_id="u1", query="Acme", include_dismissed=False)] == ["Acme"]
+    assert [item.title for item in repository.search_saved_jobs(user_id="u1", query="RAG", include_dismissed=False)] == ["AI Engineer"]
+    assert [item.city for item in repository.search_saved_jobs(user_id="u1", query="Shanghai", include_dismissed=False)] == ["Shanghai"]
+    assert repository.search_saved_jobs(user_id="other", query="RAG", include_dismissed=False) == ()
+    assert repository.get_job(user_id="u2", job_posting_id=repository.list_jobs(user_id="u1", include_dismissed=False)[0].job_posting_id) is None
 
 
 def test_availability_distinguishes_closed_from_unknown(tmp_path) -> None:
@@ -188,7 +235,7 @@ def test_availability_distinguishes_closed_from_unknown(tmp_path) -> None:
     saved = repository.save_detail(user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1, detail=detail())
 
     assert repository.mark_availability(user_id="u1", job_posting_id=saved.posting.id, status="unknown", checked_at=NOW)
-    assert repository.list_jobs(user_id="u1")[0].availability_status == "unknown"
+    assert repository.list_jobs(user_id="u1", include_dismissed=False)[0].availability_status == "unknown"
     assert repository.mark_availability(user_id="u1", job_posting_id=saved.posting.id, status="closed", checked_at=NOW)
-    assert repository.list_jobs(user_id="u1")[0].availability_status == "closed"
+    assert repository.list_jobs(user_id="u1", include_dismissed=False)[0].availability_status == "closed"
     assert not repository.mark_availability(user_id="other", job_posting_id=saved.posting.id, status="closed", checked_at=NOW)

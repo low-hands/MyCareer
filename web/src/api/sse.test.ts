@@ -37,7 +37,6 @@ describe("streamChat", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     for await (const _event of streamChat({
-      user_id: "u1",
       conversation_id: "c1",
       message: "确认并导入",
       interaction_response: {
@@ -49,7 +48,10 @@ describe("streamChat", () => {
       // Consume the response so the request completes.
     }
 
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+    const request = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(String(request?.body))).toEqual({
+      conversation_id: "c1",
+      message: "确认并导入",
       interaction_response: {
         interaction_id: "interaction_0123456789abcdef0123",
         scope: "resume_analysis_confirmation",
@@ -79,7 +81,6 @@ describe("streamChat", () => {
 
     const events = [];
     for await (const event of streamChat({
-      user_id: "u1",
       conversation_id: "c1",
       message: "你好",
     })) {
@@ -110,7 +111,6 @@ describe("streamChat", () => {
 
     const consume = async () => {
       for await (const _event of streamChat({
-        user_id: "u1",
         conversation_id: "c1",
         message: "再次发送",
       })) {
@@ -135,7 +135,6 @@ describe("streamChat", () => {
 
     const consume = async () => {
       for await (const _event of streamChat({
-        user_id: "u1",
         conversation_id: "c1",
         message: "你好",
       })) {

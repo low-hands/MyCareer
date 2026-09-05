@@ -197,6 +197,11 @@ class ApplicationService:
             summaries.append(ApplicationSummary(application=application, job=job))
         return tuple(summaries)
 
+    def list_job_posting_ids(self, *, user_id: str) -> frozenset[str]:
+        """Return the unpaginated application boundary for derived views."""
+
+        return self._application_store.list_job_posting_ids(user_id=user_id)
+
     def get_application(
         self, *, user_id: str, application_id: str
     ) -> ApplicationDetail:

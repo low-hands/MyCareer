@@ -66,3 +66,49 @@ test("does not treat a search page as a complete job", () => {
 test("rejects non-BOSS URLs", () => {
   assert.equal(parser.canonicalPageUrl("https://example.com/job_detail/abc.html"), "");
 });
+
+test("a closed posting is reported as such instead of being captured", () => {
+  // The one fact a closed page still carries. Nothing else in the system can
+  // observe it: postings are re-read only when the user opens them, never
+  // polled.
+  const documentRef = documentFixture(
+    { ".job-title": "AI 产品经理" },
+    "该职位已关闭，看看其他机会",
+  );
+
+  const result = parser.extract(documentRef, {
+    href: "https://www.zhipin.com/job_detail/abc.html",
+  });
+
+  assert.equal(result.status, "closed");
+  assert.equal(result.job, undefined);
+});
+
+test("a page we were not allowed to see is never read as a closure", () => {
+  // Being blocked says nothing about whether the job is still open. Recording
+  // "closed" from a login wall or a captcha would turn our own lack of access
+  // into an employer decision.
+  for (const [text, expected] of [
+    ["请登录后查看该职位", "login_required"],
+    ["请完成安全验证后继续", "security_check"],
+  ]) {
+    const documentRef = documentFixture({ ".job-title": "AI 产品经理" }, text);
+    assert.equal(parser.pageBarrier(documentRef), expected);
+  }
+});
+
+test("closure wording variants are all recognised", () => {
+  for (const text of [
+    "职位已关闭",
+    "该职位已下线",
+    "职位已下架",
+    "该职位已失效",
+    "职位不存在",
+  ]) {
+    assert.equal(parser.closedPosting(documentFixture({}, text)), true, text);
+  }
+  assert.equal(
+    parser.closedPosting(documentFixture({}, "职位描述：负责 AI 产品规划")),
+    false,
+  );
+});

@@ -13,8 +13,13 @@ ActionType = Literal[
     "material_submission",
     "interview_reminder",
     "interview_retro",
+    # One item for the whole library, never one per job — see
+    # ``ActionCenterService._stale_job_candidate``.
+    "saved_job_review",
 ]
-ActionSourceType = Literal["application", "email_event", "interview_round"]
+ActionSourceType = Literal[
+    "application", "email_event", "interview_round", "saved_job_library"
+]
 # "completed" means the user did the thing; "obsolete" means the condition that
 # generated the item went away on its own. Collapsing the two would let the
 # history claim credit for work nobody did.

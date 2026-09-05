@@ -17,6 +17,8 @@ dependencies = [
     "deepagents>=0.7.6,<0.8",
     "langchain-openai>=1.1,<2",
     "fastapi>=0.115,<1",
+    "python-multipart>=0.0.20,<1",
+    "keyring>=25,<26",
     "uvicorn>=0.34,<1",
 ]
 

@@ -55,6 +55,15 @@ DEFAULT_EXPIRY_DAYS = 90
 WORKSPACE_READ = "workspace:read"
 CHAT_WRITE = "chat:write"
 CAPTURE_WRITE = "capture:write"
+WORKSPACE_WRITE = "workspace:write"
+"""Acting on what the workspace already holds, from the workspace's own screens.
+
+Separate from ``chat:write`` because it is a different kind of act: triaging a
+shortlist is direct manipulation of existing records, not a conversation that
+may reason its way into a capability. A dashboard that can tidy the job list
+does not thereby gain the ability to run the agent.
+"""
+
 SETTINGS_WRITE = "settings:write"
 """Changing the owner's rules, which no other key may do.
 
@@ -64,7 +73,9 @@ not be the credential that can relax them — otherwise anything that can talk t
 the agent is one persuasive message away from the settings that bound it.
 """
 
-KNOWN_SCOPES = frozenset({WORKSPACE_READ, CHAT_WRITE, CAPTURE_WRITE, SETTINGS_WRITE})
+KNOWN_SCOPES = frozenset(
+    {WORKSPACE_READ, WORKSPACE_WRITE, CHAT_WRITE, CAPTURE_WRITE, SETTINGS_WRITE}
+)
 """Every scope the API knows how to require.
 
 Closed rather than free-form: a key issued with a typo'd scope would otherwise
@@ -143,7 +154,13 @@ class SQLiteApiKeyStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
-            apply_schema(connection, "api_keys", 1, self._migrate)
+            apply_schema(
+                connection,
+                "api_keys",
+                3,
+                self._migrate,
+                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
+            )
         os.chmod(self.path, 0o600)
 
     def _connect(self) -> sqlite3.Connection:
@@ -169,6 +186,38 @@ class SQLiteApiKeyStore:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS api_keys_user_idx ON api_keys(user_id)"
         )
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        """Add expiry to stores created before expiring keys existed.
+
+        Existing keys remain non-expiring. Inventing an expiry during migration
+        would revoke a credential at a date its issuer never agreed to; newly
+        issued keys still receive the normal 90-day default.
+        """
+
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(api_keys)")
+        }
+        if "expires_at" not in columns:
+            connection.execute("ALTER TABLE api_keys ADD COLUMN expires_at TEXT")
+
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        """Grant documented first-party web keys their new write scope."""
+
+        rows = connection.execute(
+            "SELECT key_id, scopes_json FROM api_keys "
+            "WHERE lower(name) = 'web' AND revoked_at IS NULL"
+        ).fetchall()
+        for key_id, scopes_json in rows:
+            scopes = set(json.loads(scopes_json))
+            if {WORKSPACE_READ, CHAT_WRITE}.issubset(scopes):
+                scopes.add(WORKSPACE_WRITE)
+                connection.execute(
+                    "UPDATE api_keys SET scopes_json = ? WHERE key_id = ?",
+                    (json.dumps(sorted(scopes)), key_id),
+                )
 
     def issue(
         self,

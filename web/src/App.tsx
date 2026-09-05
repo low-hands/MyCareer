@@ -2,9 +2,11 @@ import { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, useEffect,
 
 import {
   type ConversationView,
+  deleteConversation,
   fetchConversationMessages,
   fetchConversations,
 } from "./api/client";
+import { seedCaptureApiKey } from "./api/auth";
 import { streamChat, type InteractionResponse } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import { InteractionCard } from "./components/InteractionCard";
@@ -12,10 +14,12 @@ import { ReportCard } from "./components/ReportCard";
 import { MarkdownContent } from "./components/MarkdownContent";
 import { AppIcon, type AppIconName } from "./components/AppIcon";
 import { DailyBriefPanel } from "./pages/DailyBrief";
+import { consumeGoogleOAuthCallback } from "./oauthCallback";
 import {
   ApplicationsPanel,
   CalendarPanel,
   DashboardPanel,
+  EmailPanel,
   JobsPanel,
   ResearchPanel,
   ResumesPanel,
@@ -26,6 +30,7 @@ type View =
   | "chat"
   | "jobs"
   | "applications"
+  | "email"
   | "brief"
   | "calendar"
   | "resumes"
@@ -48,6 +53,7 @@ const VIEW_GROUPS: {
     views: [
       { id: "jobs", label: "岗位库", description: "JD 与结构化分析", icon: "search" },
       { id: "applications", label: "投递记录", description: "岗位申请与状态", icon: "applications" },
+      { id: "email", label: "邮件追踪", description: "招聘邮件与待确认事件", icon: "mail" },
       { id: "calendar", label: "面试日历", description: "面试安排与同步", icon: "calendar" },
       { id: "resumes", label: "简历管理", description: "简历家族与版本", icon: "document" },
       { id: "research", label: "公司研究", description: "业务和产品资料", icon: "building" },
@@ -56,6 +62,7 @@ const VIEW_GROUPS: {
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+const GOOGLE_OAUTH_CALLBACK = consumeGoogleOAuthCallback();
 
 function localId(key: string, prefix: string): string {
   const existing = window.localStorage.getItem(key);
@@ -81,20 +88,26 @@ function isAllowedJobSearchUrl(value: string): boolean {
   }
 }
 
+// Provision the separately scoped extension credential before its bridge's
+// first synchronization attempt. The bridge retries, but a deterministic
+// initial state avoids making startup timing part of authentication.
+seedCaptureApiKey();
+
 export default function App() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
   const [draft, setDraft] = useState("");
-  const [userId] = useState(() => localId("career-agent:user-id", "user"));
   const [conversationId, setConversationId] = useState(() =>
     localId("career-agent:conversation-id", "conversation"),
   );
-  const [view, setView] = useState<View>("chat");
+  const [view, setView] = useState<View>(GOOGLE_OAUTH_CALLBACK?.view ?? "chat");
+  const [integrationNotice, setIntegrationNotice] = useState(GOOGLE_OAUTH_CALLBACK);
   // Bumped when a turn ends so panels refetch: acting in chat has to show up on
   // the board without the user reloading the page.
   const [completedTurns, setCompletedTurns] = useState(0);
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [conversationListError, setConversationListError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const [conversationPanelWidth, setConversationPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
     return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
@@ -107,7 +120,7 @@ export default function App() {
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     const request = new AbortController();
-    void fetchConversations(userId, { apiBaseUrl: API_BASE_URL, signal: request.signal })
+    void fetchConversations({ apiBaseUrl: API_BASE_URL, signal: request.signal })
       .then((items) => {
         setConversations(items);
         setConversationListError(null);
@@ -118,11 +131,11 @@ export default function App() {
         }
       });
     return () => request.abort();
-  }, [userId, completedTurns]);
+  }, [completedTurns]);
   useEffect(() => {
     const request = new AbortController();
     setHistoryLoading(true);
-    void fetchConversationMessages(userId, conversationId, {
+    void fetchConversationMessages(conversationId, {
       apiBaseUrl: API_BASE_URL,
       signal: request.signal,
     })
@@ -167,7 +180,7 @@ export default function App() {
         if (!request.signal.aborted) setHistoryLoading(false);
       });
     return () => request.abort();
-  }, [userId, conversationId]);
+  }, [conversationId]);
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
@@ -197,7 +210,6 @@ export default function App() {
     try {
       for await (const event of streamChat(
         {
-          user_id: userId,
           conversation_id: conversationId,
           message,
           interaction_response: interactionResponse,
@@ -246,9 +258,13 @@ export default function App() {
     setView("chat");
   }
 
-  function askAgent(prompt: string): void {
-    setDraft(prompt);
+  function startAgentTask(prompt: string): void {
     setView("chat");
+    if (busy || historyLoading) {
+      setDraft(prompt);
+      return;
+    }
+    void sendMessage(prompt);
   }
 
   function openConversation(nextConversationId: string): void {
@@ -257,6 +273,28 @@ export default function App() {
     if (nextConversationId === conversationId) return;
     window.localStorage.setItem("career-agent:conversation-id", nextConversationId);
     setConversationId(nextConversationId);
+  }
+
+  async function removeConversation(item: ConversationView): Promise<void> {
+    if (busy || deletingConversationId) return;
+    if (!window.confirm(`确定删除会话“${item.title}”的聊天记录吗？执行审计记录会继续保留，此操作无法撤销。`)) return;
+    setDeletingConversationId(item.id);
+    try {
+      await deleteConversation(item.id, { apiBaseUrl: API_BASE_URL });
+      setConversations((current) => current.filter((entry) => entry.id !== item.id));
+      setConversationListError(null);
+      if (item.id === conversationId) {
+        const next = `conversation-${crypto.randomUUID()}`;
+        window.localStorage.setItem("career-agent:conversation-id", next);
+        setConversationId(next);
+        dispatch({ type: "reset" });
+        setDraft("");
+      }
+    } catch (cause) {
+      setConversationListError(cause instanceof Error ? cause.message : "删除会话失败。");
+    } finally {
+      setDeletingConversationId(null);
+    }
   }
 
   function beginConversationPanelResize(event: ReactPointerEvent<HTMLButtonElement>): void {
@@ -290,6 +328,15 @@ export default function App() {
 
   return (
     <main className="app-shell">
+      {integrationNotice ? (
+        <div
+          className={`oauth-callback-banner is-${integrationNotice.status}`}
+          role={integrationNotice.status === "connected" ? "status" : "alert"}
+        >
+          <span>{integrationNotice.message}</span>
+          <button type="button" onClick={() => setIntegrationNotice(null)} aria-label="关闭提示">×</button>
+        </div>
+      ) : null}
       <aside className="app-sidebar">
         <div className="brand">
           <span className="brand-mark"><AppIcon name="sparkles" size={23} /></span>
@@ -323,20 +370,30 @@ export default function App() {
             <span className="nav-group-label">最近对话</span>
             {conversationListError ? <small className="history-error">暂时无法读取</small> : null}
             {conversations.length > 0 ? conversations.map((item) => (
-              <button
-                type="button"
-                className={`conversation-item ${item.id === conversationId ? "is-current" : ""}`}
-                key={item.id}
-                disabled={busy}
-                onClick={() => openConversation(item.id)}
-                title={item.title}
-              >
-                <span className="conversation-dot" />
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</small>
-                </span>
-              </button>
+              <div className="mobile-conversation-item-row" key={item.id}>
+                <button
+                  type="button"
+                  className={`conversation-item ${item.id === conversationId ? "is-current" : ""}`}
+                  disabled={busy || deletingConversationId === item.id}
+                  onClick={() => openConversation(item.id)}
+                  title={item.title}
+                >
+                  <span className="conversation-dot" />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="mobile-conversation-delete"
+                  disabled={busy || deletingConversationId !== null}
+                  onClick={() => void removeConversation(item)}
+                  aria-label={`删除会话：${item.title}`}
+                >
+                  <AppIcon name="trash" size={14} />
+                </button>
+              </div>
             )) : <small className="history-empty">完成第一轮对话后会出现在这里</small>}
           </div>
         </nav>
@@ -355,52 +412,51 @@ export default function App() {
 
       <div className="app-content">
         <DashboardPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "dashboard"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
         />
         <ApplicationsPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "applications"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
         />
         <JobsPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "jobs"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
         />
         <DailyBriefPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "brief"}
         />
         <CalendarPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "calendar"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
+        />
+        <EmailPanel
+          apiBaseUrl={API_BASE_URL}
+          refreshToken={completedTurns}
+          hidden={view !== "email"}
+          onAskAgent={startAgentTask}
         />
         <ResumesPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "resumes"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
         />
         <ResearchPanel
-          userId={userId}
           apiBaseUrl={API_BASE_URL}
           refreshToken={completedTurns}
           hidden={view !== "research"}
-          onAskAgent={askAgent}
+          onAskAgent={startAgentTask}
         />
 
         <section
@@ -429,21 +485,32 @@ export default function App() {
               ) : null}
               {conversationListError ? <div className="conversation-panel-error">暂时无法读取历史对话</div> : null}
               {conversations.map((item) => (
-                <button
-                  type="button"
-                  className={`conversation-panel-item ${item.id === conversationId ? "is-current" : ""}`}
-                  key={item.id}
-                  disabled={busy}
-                  onClick={() => openConversation(item.id)}
-                >
-                  <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
-                  <span>
-                    <strong>{item.title}</strong>
-                    <small>{item.last_message_preview}</small>
-                    <time>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</time>
-                  </span>
-                  {item.id === conversationId ? <span className="conversation-current-mark" /> : null}
-                </button>
+                <div className="conversation-panel-row" key={item.id}>
+                  <button
+                    type="button"
+                    className={`conversation-panel-item ${item.id === conversationId ? "is-current" : ""}`}
+                    disabled={busy || deletingConversationId === item.id}
+                    onClick={() => openConversation(item.id)}
+                  >
+                    <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.last_message_preview}</small>
+                      <time>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</time>
+                    </span>
+                    {item.id === conversationId ? <span className="conversation-current-mark" /> : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="conversation-delete"
+                    disabled={busy || deletingConversationId !== null}
+                    onClick={() => void removeConversation(item)}
+                    aria-label={`删除会话：${item.title}`}
+                    title="删除会话"
+                  >
+                    <AppIcon name="trash" size={15} />
+                  </button>
+                </div>
               ))}
             </div>
             <div className="conversation-panel-status">
@@ -483,7 +550,13 @@ export default function App() {
 
             {historyLoading ? <div className="history-loading"><span className="spinner" /> 正在恢复对话…</div> : null}
 
-            {state.messages.map((message) => (
+            {state.messages.filter((message) =>
+              Boolean(
+                message.content
+                || message.resource
+                || (message.role === "assistant" && busy),
+              )
+            ).map((message) => (
               <article className={`message message-${message.role}`} key={message.id}>
                 <span className="message-role">{message.role === "user" ? "你" : "Career Agent"}</span>
                 <div className="message-content">
@@ -500,7 +573,6 @@ export default function App() {
                 {message.resource ? (
                   <ReportCard
                     resource={message.resource}
-                    userId={userId}
                     apiBaseUrl={API_BASE_URL}
                   />
                 ) : null}
@@ -512,16 +584,6 @@ export default function App() {
                 <span className="spinner" aria-hidden="true" />
                 {state.progress}
               </div>
-            ) : null}
-
-            {state.interaction ? (
-              <InteractionCard
-                interaction={state.interaction}
-                disabled={busy}
-                onReply={(reply) =>
-                  void sendMessage(reply.message, reply.interactionResponse)
-                }
-              />
             ) : null}
 
             {state.artifacts.map((artifact) => (
@@ -554,27 +616,39 @@ export default function App() {
             {state.error ? <div className="error-banner" role="alert">{state.error}</div> : null}
           </div>
 
-          <form className="composer" onSubmit={submit}>
-            <label htmlFor="message">给 Career Agent 发消息</label>
-            <div className="composer-box">
-              <textarea
-                id="message"
-                rows={2}
-                value={draft}
+          <div className={`composer ${state.interaction ? "has-interaction" : ""}`}>
+            {state.interaction ? (
+              <InteractionCard
+                interaction={state.interaction}
                 disabled={busy}
-                placeholder={state.phase === "awaiting_input" ? "输入你的选择或回答…" : "描述你现在想完成的事情…"}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey && canSubmit) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
+                apiBaseUrl={API_BASE_URL}
+                onReply={(reply) =>
+                  void sendMessage(reply.message, reply.interactionResponse)
+                }
               />
-              <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
-            </div>
-            <small>Enter 发送 · Shift + Enter 换行</small>
-          </form>
+            ) : null}
+            <form className="composer-entry" onSubmit={submit}>
+              <label htmlFor="message">给 Career Agent 发消息</label>
+              <div className="composer-box">
+                <textarea
+                  id="message"
+                  rows={2}
+                  value={draft}
+                  disabled={busy}
+                  placeholder={state.phase === "awaiting_input" ? "输入你的选择或回答…" : "描述你现在想完成的事情…"}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey && canSubmit) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                />
+                <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
+              </div>
+              <small>Enter 发送 · Shift + Enter 换行</small>
+            </form>
+          </div>
           </section>
         </section>
       </div>

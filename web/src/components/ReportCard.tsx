@@ -7,7 +7,6 @@ import { MarkdownContent } from "./MarkdownContent";
 
 interface ReportCardProps {
   resource: MessageResource;
-  userId: string;
   apiBaseUrl: string;
 }
 
@@ -28,7 +27,7 @@ const KIND_LABELS: Record<MessageResource["kind"], string> = {
  * not pull all of them. Nothing here is cached across collapses, which keeps a
  * reopened card showing the current stored report rather than a stale copy.
  */
-export function ReportCard({ resource, userId, apiBaseUrl }: ReportCardProps) {
+export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [report, setReport] = useState<ReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +36,7 @@ export function ReportCard({ resource, userId, apiBaseUrl }: ReportCardProps) {
     if (!expanded) return;
     const request = new AbortController();
     setError(null);
-    void fetchReport(userId, resource.kind, resource.resourceId, {
+    void fetchReport(resource.kind, resource.resourceId, {
       statusAtDelivery: resource.statusAtDelivery,
       anchoredByOtherJob: resource.anchoredByOtherJob,
     }, {
@@ -51,7 +50,7 @@ export function ReportCard({ resource, userId, apiBaseUrl }: ReportCardProps) {
         }
       });
     return () => request.abort();
-  }, [expanded, userId, resource.kind, resource.resourceId, resource.statusAtDelivery, resource.anchoredByOtherJob, apiBaseUrl]);
+  }, [expanded, resource.kind, resource.resourceId, resource.statusAtDelivery, resource.anchoredByOtherJob, apiBaseUrl]);
 
   return (
     <div className="report-card">

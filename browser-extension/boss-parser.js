@@ -81,7 +81,18 @@
     const bodyText = oneLine(documentRef.body?.innerText || "").slice(0, 5_000);
     if (/安全验证|请完成安全验证|请滑动|访问行为异常|账号存在风险/i.test(bodyText)) return "security_check";
     if (/请登录|登录后查看|立即登录|扫码登录/i.test(bodyText)) return "login_required";
+    if (closedPosting(documentRef)) return "closed";
     return null;
+  }
+
+  // Read as a barrier because it is one: there is no JD left to capture. It
+  // is checked last so a login wall or a captcha never reads as a closure —
+  // a page we were not allowed to see says nothing about whether the job is
+  // still open, and recording "closed" from it would be inventing an
+  // employer decision out of our own lack of access.
+  function closedPosting(documentRef) {
+    const bodyText = oneLine(documentRef.body?.innerText || "").slice(0, 5_000);
+    return /职位已关闭|该职位已下线|职位已下架|职位不存在|该职位已失效|岗位已关闭/i.test(bodyText);
   }
 
   function firstMatch(value, pattern) {
@@ -135,5 +146,5 @@
     };
   }
 
-  return { canonicalPageUrl, extract, pageBarrier };
+  return { canonicalPageUrl, closedPosting, extract, pageBarrier };
 });

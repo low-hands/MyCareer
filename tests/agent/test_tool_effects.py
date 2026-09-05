@@ -5,6 +5,9 @@ import inspect
 import re
 from pathlib import Path
 
+import pytest
+
+from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.tool_effects import TOOL_EFFECTS, effect_for
 
@@ -94,3 +97,81 @@ def test_read_and_write_sets_are_disjoint_and_nonempty() -> None:
     assert reads
     assert writes
     assert reads & writes == set()
+
+
+def test_a_new_write_handler_cannot_omit_the_execution_outcome_axis() -> None:
+    registry = MainAgentToolRegistry()
+    registry._atomic_handlers["create_application"] = lambda arguments: ToolObservation(
+        tool_name="create_application",
+        state="application_ready",
+        message="遗漏了执行结果轴。",
+    )
+
+    with pytest.raises(ValueError, match="returned without execution_outcome"):
+        registry.invoke_atomic_tool("create_application", {})
+
+
+def test_every_write_handler_result_constructor_declares_execution_outcome() -> None:
+    """Keep branch-level coverage from regressing to a capability-name count.
+
+    The registry boundary above is the runtime backstop. This source check makes
+    an omitted branch fail before that branch needs a perfectly shaped fixture
+    to execute it; merely adding one declaration somewhere in the handler is
+    deliberately insufficient.
+    """
+
+    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    registry = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "MainAgentToolRegistry"
+    )
+    handlers = {
+        node.name.removeprefix("_"): node
+        for node in registry.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
+    }
+    shared_result_producers = {
+        "resolve_action_item",
+        "drive_mock_interview",
+        "mock_interview_observation",
+        "job_research_failure",
+        "tailoring_observation",
+    }
+    missing: list[tuple[str, int]] = []
+    producers = {
+        name: handlers[name]
+        for name, effect in TOOL_EFFECTS.items()
+        if effect == "WRITE"
+    } | {name: handlers[name] for name in shared_result_producers}
+    for name, producer in producers.items():
+        for call in ast.walk(producer):
+            if not (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Name)
+                and call.func.id in {"ToolObservation", "ToolResult"}
+            ):
+                continue
+            if not any(
+                keyword.arg == "execution_outcome" for keyword in call.keywords
+            ):
+                missing.append((name, call.lineno))
+
+    # This helper is deliberately shared with a READ, so it cannot declare a
+    # constant outcome itself. Every WRITE caller must pass the axis through.
+    for name, effect in TOOL_EFFECTS.items():
+        if effect != "WRITE":
+            continue
+        for call in ast.walk(handlers[name]):
+            if not (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and call.func.attr == "_tailoring_observation"
+            ):
+                continue
+            if not any(
+                keyword.arg == "execution_outcome" for keyword in call.keywords
+            ):
+                missing.append((name, call.lineno))
+
+    assert missing == []
