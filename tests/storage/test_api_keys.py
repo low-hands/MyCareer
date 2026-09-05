@@ -15,6 +15,7 @@ from career_agent.storage.api_keys import (
     CHAT_WRITE,
     SQLiteApiKeyStore,
     WORKSPACE_READ,
+    WORKSPACE_WRITE,
     hash_secret,
 )
 
@@ -85,7 +86,7 @@ def test_two_users_keys_never_resolve_to_each_other(tmp_path: Path) -> None:
         ("", "desktop", frozenset({CHAT_WRITE})),
         ("u1", "", frozenset({CHAT_WRITE})),
         ("u1", "desktop", frozenset()),
-        ("u1", "desktop", frozenset({"workspace:write"})),
+        ("u1", "desktop", frozenset({"workspace:admin"})),
     ),
 )
 def test_an_unusable_key_is_refused_at_issue_time(
@@ -150,6 +151,74 @@ def test_a_key_expires_by_default_and_permanence_is_deliberate(tmp_path: Path) -
     assert default.expires_at is not None
     assert (default.expires_at - default.created_at).days == DEFAULT_EXPIRY_DAYS
     assert permanent.expires_at is None
+
+
+def test_a_pre_expiry_store_upgrades_without_revoking_existing_keys(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "api_keys.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE api_keys (
+                key_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                secret_hash TEXT NOT NULL UNIQUE,
+                scopes_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT,
+                revoked_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            "CREATE TABLE schema_versions (component TEXT PRIMARY KEY, version INTEGER NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "INSERT INTO schema_versions(component, version) VALUES ('api_keys', 1)"
+        )
+        connection.execute(
+            "INSERT INTO api_keys(key_id, user_id, name, secret_hash, scopes_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "key-1",
+                "u1",
+                "legacy",
+                hash_secret("cak_legacy"),
+                '["chat:write"]',
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+
+    store = SQLiteApiKeyStore(path)
+
+    assert store.verify("cak_legacy") is not None
+    assert store.list_keys()[0].expires_at is None
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT version FROM schema_versions WHERE component = 'api_keys'"
+        ).fetchone()[0] == 3
+
+
+def test_existing_first_party_web_key_gains_workspace_write_on_upgrade(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "api_keys.sqlite3"
+    store = SQLiteApiKeyStore(path)
+    issued = store.issue(
+        user_id="u1",
+        name="web",
+        scopes=frozenset({WORKSPACE_READ, CHAT_WRITE}),
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE schema_versions SET version = 2 WHERE component = 'api_keys'"
+        )
+
+    upgraded = SQLiteApiKeyStore(path).verify(issued.secret)
+
+    assert upgraded is not None
+    assert upgraded.allows(WORKSPACE_WRITE)
 
 
 def test_an_expired_key_stops_working_without_being_revoked(tmp_path: Path) -> None:

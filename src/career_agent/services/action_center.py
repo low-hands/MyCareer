@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -42,6 +43,7 @@ class ActionCenterService:
     }
 
     _MANAGED_TYPES: tuple[ActionType, ...] = (
+        "saved_job_review",
         "application_follow_up",
         "email_event_confirmation",
         "interview_preparation",
@@ -59,11 +61,17 @@ class ActionCenterService:
         *,
         follow_up_cadence: Mapping[str, tuple[int, int]] | None = None,
         interview_window_days: int = 7,
+        job_repository: Any | None = None,
+        stale_job_days: int = 30,
     ) -> None:
         self._store = store
         self._application_service = application_service
         self._email_tracking_service = email_tracking_service
         self._interview_service = interview_service
+        # Optional: a deployment without a job library simply produces no
+        # library reminders, rather than failing to produce a brief at all.
+        self._job_repository = job_repository
+        self._stale_job_days = stale_job_days
         self._follow_up_cadence = dict(
             self._FOLLOW_UP_CADENCE if follow_up_cadence is None else follow_up_cadence
         )
@@ -233,6 +241,59 @@ class ActionCenterService:
             raise ActionItemNotFoundError(action_item_id)
         return item
 
+    def _stale_job_candidate(
+        self, *, user_id: str, now: datetime
+    ) -> ActionCandidate | None:
+        """One reminder for the whole library, never one per job.
+
+        The bound is the point, and it is the same lesson as
+        ``_FOLLOW_UP_CADENCE`` above: a shortlist of twenty untouched jobs would
+        otherwise put twenty rows in the brief, burying the things that actually
+        have to happen today under a list the reader can already see for
+        themselves in the library.
+
+        It says what was observed — how long since these pages were last read —
+        and not "these are closed". Nothing in this system checks whether a
+        posting is still live: the extension refreshes a job only when the user
+        happens to open it again, and polling the site is what got the earlier
+        search approach blocked. Stating a closure we cannot see would be
+        inventing an employer decision, which this codebase refuses everywhere
+        else and refuses here.
+        """
+
+        if self._job_repository is None:
+            return None
+        cutoff = now - timedelta(days=self._stale_job_days)
+        applied_job_ids = self._application_service.list_job_posting_ids(
+            user_id=user_id
+        )
+        count, oldest = self._job_repository.stale_open_job_stats(
+            user_id=user_id,
+            checked_before=cutoff,
+            excluded_job_posting_ids=applied_job_ids,
+        )
+        if count == 0 or oldest is None:
+            return None
+        oldest = self._aware(oldest, timezone.utc)
+        days = (now - oldest).days
+        return ActionCandidate(
+            # Keyed on the count, so the item is re-raised only when the number
+            # changes. Completing/dismissing it is an explicit USER_RESOLVED
+            # decision: with the same count it stays resolved even if the
+            # library was not tidied. This intentionally favors respecting the
+            # user's decision over periodically nagging about unchanged state.
+            stable_key=f"saved_job_review:{count}",
+            action_type="saved_job_review",
+            source_type="saved_job_library",
+            source_id="saved_job_library",
+            title=f"岗位库有 {count} 个岗位很久没看了",
+            summary=(
+                f"最久的一个已经 {days} 天没再打开过原页面。"
+                "去岗位库确认还投不投，不投的可以标掉。"
+            ),
+            due_at=now,
+        )
+
     def _candidates(
         self,
         *,
@@ -241,6 +302,9 @@ class ActionCenterService:
         local_zone: ZoneInfo,
     ) -> tuple[ActionCandidate, ...]:
         candidates: list[ActionCandidate] = []
+        stale_jobs = self._stale_job_candidate(user_id=user_id, now=now)
+        if stale_jobs is not None:
+            candidates.append(stale_jobs)
         interviews = self._interview_service.list_interviews(
             user_id=user_id,
             limit=200,

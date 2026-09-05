@@ -7,10 +7,10 @@ The person looking at their own dashboard is under no such restriction: it is
 their data, and withholding it from them would be a bug, not a safeguard.
 
 What the two boundaries share is that neither may become a way around the
-other. Nothing here is reachable by the model, and nothing here writes domain
-state on the user's behalf: these endpoints answer "what do I have", and every
-change still goes through the agent, where it gets confirmation and an audit
-trail.
+other. Nothing here is reachable by the model. Most routes answer "what do I
+have"; the small workspace-write surface records direct, reversible UI facts
+such as "ignore this job" or "I observed this posting closed". Those are not
+agent decisions and therefore do not detour through the model.
 
 Identity is the API key the caller presents, never a ``user_id`` they send. It
 used to be the latter, with this docstring warning that it was a scoping key and
@@ -25,19 +25,31 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.security.authentication import require_scope
-from career_agent.storage.api_keys import ApiKeyPrincipal, WORKSPACE_READ
+from career_agent.storage.api_keys import (
+    ApiKeyPrincipal,
+    WORKSPACE_READ,
+    WORKSPACE_WRITE,
+)
 from career_agent.domain.action_center import ActionItem, DailyBrief
 from career_agent.services.action_center import ActionCenterService
-from career_agent.services.applications import ApplicationService
+from career_agent.services.applications import (
+    ApplicationInputNotFoundError,
+    ApplicationService,
+)
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
+from career_agent.services.resume_import import (
+    MAX_RESUME_IMPORT_BYTES,
+    validate_resume_document,
+)
 from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.calendar import SQLiteCalendarStore
@@ -80,6 +92,7 @@ from career_agent.domain.job_research import (
     JobResearchSourceDraft,
 )
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
+from career_agent.storage.connector_secrets import KeyringConnectorSecretStore
 
 
 class ActionItemView(BaseModel):
@@ -147,6 +160,15 @@ class ApplicationView(BaseModel):
     updated_at: datetime
 
 
+class ApplicationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    job_posting_id: str = Field(min_length=1, max_length=200)
+    resume_version_id: str = Field(min_length=1, max_length=200)
+    submitted_at: datetime | None = None
+    note: str | None = Field(default=None, max_length=2_000)
+
+
 class SavedJobView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -158,6 +180,7 @@ class SavedJobView(BaseModel):
     source_name: str
     source_url: str | None = None
     availability_status: str
+    pursuit_status: Literal["open", "dismissed"] = "open"
     captured_at: datetime
     last_checked_at: datetime
     application_status: str | None = None
@@ -228,10 +251,64 @@ class ResumeView(BaseModel):
     target_role: str
     status: str
     latest_version_number: int
+    latest_version_id: str
     version_count: int
     document_format: str
     byte_size: int
     updated_at: datetime
+
+
+class TargetRoleView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    title: str
+    priority: int
+    status: str
+
+
+class ResumeImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    resume_id: str
+    resume_version_id: str
+    name: str
+    version_number: int
+    document_format: str
+    byte_size: int
+
+
+class EmailAccountView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    provider: str
+    email_address: str
+    status: str
+    connection_status: str = "connected"
+    needs_reauthorization: bool = False
+    last_synced_at: datetime | None = None
+
+
+class EmailEventView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    event_type: str
+    status: str
+    summary: str
+    confidence: float
+    application_id: str | None = None
+    application_title: str | None = None
+    company_name: str | None = None
+    occurred_at: datetime
+
+
+class EmailWorkspaceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    accounts: tuple[EmailAccountView, ...] = ()
+    events: tuple[EmailEventView, ...] = ()
 
 
 class CalendarAccountView(BaseModel):
@@ -242,6 +319,8 @@ class CalendarAccountView(BaseModel):
     email_address: str
     calendar_id: str
     status: str
+    connection_status: str = "connected"
+    needs_reauthorization: bool = False
     updated_at: datetime
 
 
@@ -250,6 +329,20 @@ class CalendarEventView(BaseModel):
 
     id: str
     interview_round_id: str
+    application_id: str | None = None
+    company_name: str | None = None
+    job_title: str | None = None
+    employer_label: str | None = None
+    sequence_number: int | None = None
+    interview_status: str | None = None
+    scheduled_start: datetime | None = None
+    scheduled_end: datetime | None = None
+    timezone: str | None = None
+    interview_format: str | None = None
+    location: str | None = None
+    meeting_url: str | None = None
+    contact_summary: str | None = None
+    sync_status: str = "synced"
     status: str
     external_html_link: str | None = None
     updated_at: datetime
@@ -260,6 +353,8 @@ class CalendarWorkspaceResponse(BaseModel):
 
     accounts: tuple[CalendarAccountView, ...] = ()
     events: tuple[CalendarEventView, ...] = ()
+    month: str | None = None
+    timezone: str = "Asia/Shanghai"
 
 
 class CompanyResearchView(BaseModel):
@@ -330,6 +425,12 @@ class WorkspaceReader:
             self._resumes,
         )
         self._calendar = SQLiteCalendarStore(Path(args.calendar_store).expanduser())
+        email_store = getattr(
+            args,
+            "email_store",
+            Path(args.context_store).expanduser().with_name("email.sqlite3"),
+        )
+        self._email = SQLiteEmailTrackingStore(Path(email_store).expanduser())
         self._research = SQLiteJobResearchStore(
             Path(args.job_research_store).expanduser()
         )
@@ -376,7 +477,93 @@ class WorkspaceReader:
             )
         )
 
-    def jobs(self, *, user_id: str, limit: int = 100) -> tuple[SavedJobView, ...]:
+    def create_application(
+        self,
+        *,
+        user_id: str,
+        job_posting_id: str,
+        resume_version_id: str,
+        submitted_at: datetime | None,
+        note: str | None,
+    ) -> ApplicationView:
+        created = self._applications.create_application(
+            user_id=user_id,
+            job_posting_id=job_posting_id,
+            resume_version_id=resume_version_id,
+            submitted_at=submitted_at,
+            note=note,
+        )
+        detail = self._applications.get_application(
+            user_id=user_id,
+            application_id=created.application.id,
+        )
+        return ApplicationView(
+            id=detail.application.id,
+            status=detail.application.status,
+            title=detail.job.posting.title,
+            company_name=detail.job.posting.company_name,
+            city=detail.job.city,
+            salary=detail.job.salary,
+            submitted_at=detail.application.submitted_at,
+            updated_at=detail.application.updated_at,
+        )
+
+    def set_job_availability(
+        self, *, user_id: str, job_posting_id: str, status: str
+    ) -> bool:
+        return self._jobs.mark_availability(
+            user_id=user_id, job_posting_id=job_posting_id, status=status
+        )
+
+    def set_job_pursuit(
+        self, *, user_id: str, job_posting_id: str, status: str
+    ) -> bool:
+        return self._jobs.set_pursuit_status(
+            user_id=user_id, job_posting_id=job_posting_id, status=status
+        )
+
+    def delete_job(self, *, user_id: str, job_posting_id: str) -> Literal[
+        "deleted", "not_found", "has_application"
+    ]:
+        # An application keeps the exact posting and JD snapshot as part of
+        # its audit trail.  Deleting that input would make the application
+        # unreadable, so permanent deletion is limited to library-only jobs.
+        if job_posting_id in self._applications.list_job_posting_ids(
+            user_id=user_id
+        ):
+            return "has_application"
+        if self._jobs.delete_job(
+            user_id=user_id, job_posting_id=job_posting_id
+        ):
+            return "deleted"
+        return "not_found"
+
+    def job_detail(
+        self, *, user_id: str, job_posting_id: str
+    ) -> SavedJobDetailView | None:
+        record = self._jobs.get_job(
+            user_id=user_id, job_posting_id=job_posting_id
+        )
+        if record is None:
+            return None
+        return SavedJobDetailView(
+            id=record.posting.id,
+            title=record.posting.title,
+            company_name=record.posting.company_name,
+            city=record.city,
+            salary=record.salary,
+            source_name=record.posting.source_name,
+            source_url=record.posting.source_url,
+            availability_status=record.availability_status,
+            pursuit_status=record.pursuit_status,
+            jd_text=record.snapshot.content,
+            jd_version=record.snapshot.version,
+            captured_at=record.snapshot.captured_at,
+        )
+
+    def jobs(
+        self, *, user_id: str, limit: int = 100, include_dismissed: bool = False
+    ) -> tuple[SavedJobView, ...]:
         applications_by_job = {
             item.application.job_posting_id: item.application.status
             for item in self._applications.list_applications(
@@ -385,7 +572,9 @@ class WorkspaceReader:
             )
         }
         views = []
-        for item in self._jobs.list_jobs(user_id=user_id, limit=limit):
+        for item in self._jobs.list_jobs(
+            user_id=user_id, limit=limit, include_dismissed=include_dismissed
+        ):
             analysis = self._jobs.get_latest_analysis(
                 user_id=user_id,
                 job_posting_id=item.job_posting_id,
@@ -397,6 +586,7 @@ class WorkspaceReader:
                 city=item.city,
                 salary=item.salary,
                 source_name=item.source_name,
+                pursuit_status=item.pursuit_status,
                 source_url=item.source_url,
                 availability_status=item.availability_status,
                 captured_at=item.captured_at,
@@ -416,7 +606,7 @@ class WorkspaceReader:
         return tuple(views)
 
     def job_count(self, *, user_id: str) -> int:
-        return self._jobs.count_jobs(user_id=user_id)
+        return self._jobs.count_jobs(user_id=user_id, include_dismissed=False)
 
     def conversations(
         self, *, user_id: str, limit: int = 50
@@ -438,6 +628,12 @@ class WorkspaceReader:
                 )
             )
         return tuple(views)
+
+    def delete_conversation(self, *, user_id: str, conversation_id: str) -> bool:
+        return self._context.delete_conversation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
 
     def conversation_messages(
         self,
@@ -544,6 +740,7 @@ class WorkspaceReader:
                     ),
                     status=resume.status,
                     latest_version_number=latest.version_number,
+                    latest_version_id=latest.id,
                     version_count=len(versions),
                     document_format=latest.document_format,
                     byte_size=latest.byte_size,
@@ -552,7 +749,194 @@ class WorkspaceReader:
             )
         return tuple(views)
 
-    def calendar(self, *, user_id: str) -> CalendarWorkspaceResponse:
+    def target_roles(self, *, user_id: str) -> tuple[TargetRoleView, ...]:
+        return tuple(
+            TargetRoleView(
+                id=role.id,
+                title=role.title,
+                priority=role.priority,
+                status=role.status,
+            )
+            for role in self._resumes.list_target_roles(user_id=user_id)
+        )
+
+    def create_target_role(self, *, user_id: str, title: str) -> TargetRoleView:
+        normalized = title.strip()
+        existing = self._resumes.list_target_roles(user_id=user_id)
+        role = next(
+            (item for item in existing if item.title.casefold() == normalized.casefold()),
+            None,
+        )
+        if role is None:
+            role = self._resumes.create_target_role(
+                user_id=user_id,
+                title=normalized,
+                priority=len(existing),
+            )
+        return TargetRoleView(
+            id=role.id,
+            title=role.title,
+            priority=role.priority,
+            status=role.status,
+        )
+
+    def import_resume(
+        self,
+        *,
+        user_id: str,
+        content: bytes,
+        document_format: str,
+        name: str | None,
+        resume_id: str | None,
+        target_role_id: str | None,
+    ) -> ResumeImportResponse:
+        resume, version = self._resumes.import_document(
+            user_id=user_id,
+            content=content,
+            document_format=document_format,
+            name=name,
+            resume_id=resume_id,
+            target_role_id=target_role_id,
+        )
+        return ResumeImportResponse(
+            resume_id=resume.id,
+            resume_version_id=version.id,
+            name=resume.name,
+            version_number=version.version_number,
+            document_format=version.document_format,
+            byte_size=version.byte_size,
+        )
+
+    def email(self, *, user_id: str, limit: int = 100) -> EmailWorkspaceResponse:
+        applications = {
+            item.application.id: item
+            for item in self._applications.list_applications(
+                user_id=user_id,
+                limit=500,
+            )
+        }
+        return EmailWorkspaceResponse(
+            accounts=tuple(
+                EmailAccountView(
+                    id=account.id,
+                    provider=account.provider,
+                    email_address=account.email_address,
+                    status=account.status,
+                    connection_status=(
+                        "connected" if account.status == "active" else account.status
+                    ),
+                    needs_reauthorization=account.status == "error",
+                    last_synced_at=(
+                        cursor.updated_at
+                        if (cursor := self._email.get_cursor(account_id=account.id))
+                        else None
+                    ),
+                )
+                for account in self._email.list_accounts(user_id=user_id)
+            ),
+            events=tuple(
+                EmailEventView(
+                    id=event.id,
+                    event_type=event.event_type,
+                    status=event.status,
+                    summary=event.summary,
+                    confidence=event.confidence,
+                    application_id=event.application_id,
+                    application_title=(
+                        applications[event.application_id].job.posting.title
+                        if event.application_id in applications
+                        else None
+                    ),
+                    company_name=(
+                        applications[event.application_id].job.posting.company_name
+                        if event.application_id in applications
+                        else None
+                    ),
+                    occurred_at=event.occurred_at,
+                )
+                for event in self._email.list_events(user_id=user_id, limit=limit)
+            ),
+        )
+
+    def calendar(
+        self,
+        *,
+        user_id: str,
+        month: str | None = None,
+        timezone_name: str = "Asia/Shanghai",
+    ) -> CalendarWorkspaceResponse:
+        zone = ZoneInfo(timezone_name)
+        selected_month = month or datetime.now(zone).strftime("%Y-%m")
+        year, month_number = (int(part) for part in selected_month.split("-"))
+        range_start = datetime(year, month_number, 1, tzinfo=zone)
+        range_end = (
+            datetime(year + 1, 1, 1, tzinfo=zone)
+            if month_number == 12
+            else datetime(year, month_number + 1, 1, tzinfo=zone)
+        )
+        links = {
+            item.interview_round_id: item
+            for item in self._calendar.list_links(user_id=user_id)
+        }
+        proposals = {
+            item.interview_round_id: item
+            for item in self._calendar.list_latest_proposals(user_id=user_id)
+        }
+        applications = {
+            item.application.id: item
+            for item in self._applications.list_applications(user_id=user_id, limit=500)
+        }
+        events = []
+        for interview in self._interviews.list_scheduled_between(
+            user_id=user_id,
+            range_start=range_start.astimezone(timezone.utc),
+            range_end=range_end.astimezone(timezone.utc),
+        ):
+            link = links.get(interview.id)
+            proposal = proposals.get(interview.id)
+            sync_status = "not_synced"
+            if proposal is not None and proposal.status in {
+                "pending",
+                "executing",
+                "reconciliation_required",
+                "failed",
+            }:
+                sync_status = {
+                    "pending": "pending_approval",
+                    "executing": "syncing",
+                    "reconciliation_required": "reconciliation_required",
+                    "failed": "failed",
+                }[proposal.status]
+            elif link is not None and link.status == "active":
+                sync_status = "synced"
+            elif link is not None and link.status == "cancelled":
+                sync_status = "cancelled"
+            application = applications.get(interview.application_id)
+            events.append(
+                CalendarEventView(
+                    id=link.id if link else interview.id,
+                    interview_round_id=interview.id,
+                    application_id=interview.application_id,
+                    company_name=(
+                        application.job.posting.company_name if application else None
+                    ),
+                    job_title=application.job.posting.title if application else None,
+                    employer_label=interview.employer_label,
+                    sequence_number=interview.sequence_number,
+                    interview_status=interview.status,
+                    scheduled_start=interview.scheduled_start,
+                    scheduled_end=interview.scheduled_end,
+                    timezone=interview.timezone or timezone_name,
+                    interview_format=interview.interview_format,
+                    location=interview.location,
+                    meeting_url=interview.meeting_url,
+                    contact_summary=interview.contact_summary,
+                    sync_status=sync_status,
+                    status=link.status if link else interview.status,
+                    external_html_link=link.external_html_link if link else None,
+                    updated_at=link.updated_at if link else interview.updated_at,
+                )
+            )
         return CalendarWorkspaceResponse(
             accounts=tuple(
                 CalendarAccountView(
@@ -561,20 +945,17 @@ class WorkspaceReader:
                     email_address=item.email_address,
                     calendar_id=item.calendar_id,
                     status=item.status,
+                    connection_status=(
+                        "connected" if item.status == "active" else item.status
+                    ),
+                    needs_reauthorization=item.status == "error",
                     updated_at=item.updated_at,
                 )
                 for item in self._calendar.list_accounts(user_id=user_id)
             ),
-            events=tuple(
-                CalendarEventView(
-                    id=item.id,
-                    interview_round_id=item.interview_round_id,
-                    status=item.status,
-                    external_html_link=item.external_html_link,
-                    updated_at=item.updated_at,
-                )
-                for item in self._calendar.list_links(user_id=user_id)
-            ),
+            events=tuple(events),
+            month=selected_month,
+            timezone=timezone_name,
         )
 
     def research(
@@ -875,7 +1256,9 @@ def build_action_center_service(args: argparse.Namespace) -> ActionCenterService
     email_tracking_service = EmailTrackingService(
         SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
         application_service,
-        EnvironmentEmailConnectorResolver(),
+        EnvironmentEmailConnectorResolver(
+            secret_store=KeyringConnectorSecretStore()
+        ),
         interview_service=interview_service,
     )
     return ActionCenterService(
@@ -883,7 +1266,101 @@ def build_action_center_service(args: argparse.Namespace) -> ActionCenterService
         application_service,
         email_tracking_service,
         interview_service,
+        job_repository=job_repository,
     )
+
+
+class SavedJobDetailView(BaseModel):
+    """One saved job with the JD text itself.
+
+    Separate from ``SavedJobView`` and fetched on demand rather than folded
+    into the list. A JD runs to thousands of characters, and the library lists
+    up to a hundred of them; carrying every body through every refresh would
+    make the page slow to serve the one card the reader actually opened.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    title: str
+    company_name: str
+    city: str | None = None
+    salary: str | None = None
+    source_name: str
+    source_url: str | None = None
+    availability_status: str
+    pursuit_status: Literal["open", "dismissed"]
+    jd_text: str
+    """The stored snapshot, verbatim.
+
+    The same bytes ``get_saved_job`` hands the reader in conversation — the
+    agent returns this snapshot without a model rewriting it, so the two
+    surfaces cannot disagree about what the posting says. That property is why
+    both paths can exist: they are two ways to reach one document, not two
+    renderings of it.
+    """
+    jd_version: int
+    captured_at: datetime
+
+
+class AvailabilityUpdate(BaseModel):
+    """What the user saw on the posting's own page.
+
+    The employer's state, not the user's decision — the same field the
+    extension writes, through a different door. The extension was never a
+    separate source of truth: it reports what the person in front of the page
+    saw, and this is that same report without the shortcut. One field, one
+    meaning, whichever way it arrives.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    availability_status: Literal["active", "closed", "unknown"]
+
+
+class AvailabilityResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_posting_id: str
+    availability_status: Literal["active", "closed", "unknown"]
+    changed: bool
+
+
+class PursuitStatusUpdate(BaseModel):
+    """The user's own decision about a saved job. No ``user_id``: identity
+    comes from the credential, like every other route."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pursuit_status: Literal["open", "dismissed"]
+
+
+class PursuitStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_posting_id: str
+    pursuit_status: Literal["open", "dismissed"]
+    changed: bool
+
+
+class JobDeletionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_posting_id: str
+    deleted: Literal[True] = True
+
+
+class ConversationDeletionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    conversation_id: str
+    deleted: Literal[True] = True
+
+
+class TargetRoleCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=200)
 
 
 def build_read_router(
@@ -928,12 +1405,179 @@ def build_read_router(
     ) -> tuple[ApplicationView, ...]:
         return workspace().applications(user_id=principal.user_id, limit=limit)
 
+    @router.post("/applications", response_model=ApplicationView)
+    async def create_application(
+        request: ApplicationCreateRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ApplicationView:
+        try:
+            return workspace().create_application(
+                user_id=principal.user_id,
+                job_posting_id=request.job_posting_id,
+                resume_version_id=request.resume_version_id,
+                submitted_at=request.submitted_at,
+                note=request.note,
+            )
+        except ApplicationInputNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "APPLICATION_INPUT_NOT_FOUND",
+                    "message": "没有找到对应的已保存岗位或简历版本。",
+                },
+            ) from error
+
     @router.get("/jobs", response_model=tuple[SavedJobView, ...])
     async def jobs(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=100, ge=1, le=100),
+        include_dismissed: bool = Query(default=False),
     ) -> tuple[SavedJobView, ...]:
-        return workspace().jobs(user_id=principal.user_id, limit=limit)
+        return workspace().jobs(
+            user_id=principal.user_id,
+            limit=limit,
+            include_dismissed=include_dismissed,
+        )
+
+    @router.get("/jobs/{job_posting_id}", response_model=SavedJobDetailView)
+    async def job_detail(
+        job_posting_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> SavedJobDetailView:
+        """The JD itself, so reading a stored document does not need the agent.
+
+        Asking a model to read back a file the user already has costs a model
+        call, and until this existed it was the only way: the list carried the
+        analysis but never the posting. Both routes now reach the same
+        snapshot, which is what makes "ask, or go look" a real choice rather
+        than one path with a detour.
+        """
+
+        detail = workspace().job_detail(
+            user_id=principal.user_id, job_posting_id=job_posting_id
+        )
+        if detail is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "SAVED_JOB_NOT_FOUND",
+                    "message": "没有找到这个已保存职位。",
+                },
+            )
+        return detail
+
+    @router.put(
+        "/jobs/{job_posting_id}/availability", response_model=AvailabilityResponse
+    )
+    async def set_job_availability(
+        job_posting_id: str,
+        request: AvailabilityUpdate,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> AvailabilityResponse:
+        """Record a closure by hand, for when the extension cannot.
+
+        It fails in ordinary ways — the site changes its wording, the page is
+        behind a login, the extension is not installed on this machine — and
+        every one of them would otherwise leave a job the user knows is gone
+        sitting in the shortlist as a live candidate.
+
+        Reversible in both directions, because "unknown" and "active" are real
+        answers too: a posting can be relisted, and a misclick should cost one
+        click rather than being permanent.
+        """
+
+        changed = workspace().set_job_availability(
+            user_id=principal.user_id,
+            job_posting_id=job_posting_id,
+            status=request.availability_status,
+        )
+        if not changed and workspace().job_detail(
+            user_id=principal.user_id, job_posting_id=job_posting_id
+        ) is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "SAVED_JOB_NOT_FOUND",
+                    "message": "没有找到这个已保存职位。",
+                },
+            )
+        return AvailabilityResponse(
+            job_posting_id=job_posting_id,
+            availability_status=request.availability_status,
+            changed=changed,
+        )
+
+    @router.put("/jobs/{job_posting_id}/pursuit", response_model=PursuitStatusResponse)
+    async def set_job_pursuit(
+        job_posting_id: str,
+        request: PursuitStatusUpdate,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> PursuitStatusResponse:
+        """Rule a saved job out of the shortlist, or put it back.
+
+        The only decision the shortlist cannot derive. Everything else about it
+        follows from what is stored — saved, applied to, closed by the employer
+        — but "I looked at this and I am not going to apply" exists nowhere
+        except in the user's head until they say so.
+
+        Idempotent: setting the status it already has reports ``changed:
+        false`` rather than failing, because a double-click on a card is a
+        double-click, not an error.
+        """
+
+        changed = workspace().set_job_pursuit(
+            user_id=principal.user_id,
+            job_posting_id=job_posting_id,
+            status=request.pursuit_status,
+        )
+        if not changed and workspace().job_detail(
+            user_id=principal.user_id, job_posting_id=job_posting_id
+        ) is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "SAVED_JOB_NOT_FOUND",
+                    "message": "没有找到这个已保存职位。",
+                },
+            )
+        return PursuitStatusResponse(
+            job_posting_id=job_posting_id,
+            pursuit_status=request.pursuit_status,
+            changed=changed,
+        )
+
+    @router.delete("/jobs/{job_posting_id}", response_model=JobDeletionResponse)
+    async def delete_job(
+        job_posting_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> JobDeletionResponse:
+        """Permanently delete a library-only job and all of its stored JDs.
+
+        This is intentionally different from dismissal: there is no deleted
+        status and no restore path.  Applied jobs are refused because their JD
+        snapshot is part of the application record's historical input.
+        """
+
+        result = workspace().delete_job(
+            user_id=principal.user_id, job_posting_id=job_posting_id
+        )
+        if result == "has_application":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "JOB_HAS_APPLICATION",
+                    "message": "这个岗位已有投递记录，不能删除其 JD。",
+                },
+            )
+        if result == "not_found":
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "SAVED_JOB_NOT_FOUND",
+                    "message": "没有找到这个已保存职位。",
+                },
+            )
+        return JobDeletionResponse(job_posting_id=job_posting_id)
 
     @router.get("/conversations", response_model=tuple[ConversationView, ...])
     async def conversations(
@@ -957,17 +1601,111 @@ def build_read_router(
             limit=limit,
         )
 
+    @router.delete(
+        "/conversations/{conversation_id}",
+        response_model=ConversationDeletionResponse,
+    )
+    async def delete_conversation(
+        conversation_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ConversationDeletionResponse:
+        """Forget chat/session content while retaining execution audit records."""
+        if not workspace().delete_conversation(
+            user_id=principal.user_id,
+            conversation_id=conversation_id,
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "CONVERSATION_NOT_FOUND",
+                    "message": "没有找到这个会话。",
+                },
+            )
+        return ConversationDeletionResponse(conversation_id=conversation_id)
+
     @router.get("/resumes", response_model=tuple[ResumeView, ...])
     async def resumes(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
     ) -> tuple[ResumeView, ...]:
         return workspace().resumes(user_id=principal.user_id)
 
+    @router.get("/target-roles", response_model=tuple[TargetRoleView, ...])
+    async def target_roles(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> tuple[TargetRoleView, ...]:
+        return workspace().target_roles(user_id=principal.user_id)
+
+    @router.post("/target-roles", response_model=TargetRoleView)
+    async def create_target_role(
+        request: TargetRoleCreateRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> TargetRoleView:
+        try:
+            return workspace().create_target_role(
+                user_id=principal.user_id,
+                title=request.title,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_TARGET_ROLE", "message": str(error)},
+            ) from error
+
+    @router.post("/resumes/import", response_model=ResumeImportResponse)
+    async def import_resume(
+        file: UploadFile = File(...),
+        name: str | None = Form(default=None),
+        resume_id: str | None = Form(default=None),
+        target_role_id: str | None = Form(default=None),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ResumeImportResponse:
+        try:
+            content = await file.read(MAX_RESUME_IMPORT_BYTES + 1)
+            content, document_format = validate_resume_document(
+                file.filename or "",
+                content,
+            )
+            return workspace().import_resume(
+                user_id=principal.user_id,
+                content=content,
+                document_format=document_format,
+                name=name,
+                resume_id=resume_id,
+                target_role_id=target_role_id,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_RESUME_IMPORT", "message": str(error)},
+            ) from error
+        finally:
+            await file.close()
+
+    @router.get("/email", response_model=EmailWorkspaceResponse)
+    async def email(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> EmailWorkspaceResponse:
+        return workspace().email(user_id=principal.user_id, limit=limit)
+
     @router.get("/calendar", response_model=CalendarWorkspaceResponse)
     async def calendar(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        month: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+        timezone_name: str = Query(
+            default="Asia/Shanghai", alias="timezone", min_length=1, max_length=100
+        ),
     ) -> CalendarWorkspaceResponse:
-        return workspace().calendar(user_id=principal.user_id)
+        try:
+            if month is None and timezone_name == "Asia/Shanghai":
+                return workspace().calendar(user_id=principal.user_id)
+            return workspace().calendar(
+                user_id=principal.user_id,
+                month=month,
+                timezone_name=timezone_name,
+            )
+        except (ValueError, ZoneInfoNotFoundError) as error:
+            raise HTTPException(status_code=422, detail="Invalid calendar month or timezone") from error
 
     @router.get("/company-research", response_model=tuple[CompanyResearchView, ...])
     async def company_research(

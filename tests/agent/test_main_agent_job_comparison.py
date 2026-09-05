@@ -27,7 +27,7 @@ NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
 
 class Jobs:
-    def search_saved_jobs(self, *, user_id, query, limit=20):
+    def search_saved_jobs(self, *, user_id, query, limit=20, include_dismissed=False):
         return tuple(
             StoredJobSummary(
                 job_posting_id=job_posting_id,

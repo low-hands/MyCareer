@@ -1,21 +1,34 @@
-const API_ENDPOINTS = [
-  "http://127.0.0.1:8000/v1/browser-captures/jobs",
-  "http://localhost:8000/v1/browser-captures/jobs",
-];
+const API_HOSTS = ["http://127.0.0.1:8000", "http://localhost:8000"];
+const API_ENDPOINTS = API_HOSTS.map((host) => `${host}/v1/browser-captures/jobs`);
+const CLOSURE_ENDPOINTS = API_HOSTS.map(
+  (host) => `${host}/v1/browser-captures/job-closures`,
+);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === "CAREER_AGENT_SET_USER") {
-    const userId = String(message.user_id || "").trim();
-    if (!userId || userId.length > 200) {
-      sendResponse({ ok: false, code: "INVALID_USER_CONTEXT" });
+  if (message?.type === "CAREER_AGENT_SET_CAPTURE_CREDENTIAL") {
+    const apiKey = String(message.api_key || "").trim();
+    if (!apiKey.startsWith("cak_")) {
+      sendResponse({ ok: false, code: "INVALID_CAPTURE_CREDENTIAL" });
       return false;
     }
-    chrome.storage.local.set({ careerAgentUserId: userId }).then(() => {
+    chrome.storage.local.set({
+      careerAgentCaptureApiKey: apiKey,
+    }).then(() => {
       sendResponse({ ok: true });
     });
     return true;
   }
 
+  if (message?.type === "CAREER_AGENT_REPORT_CLOSED") {
+    reportClosed(message.source_url, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({
+        ok: false,
+        code: error.code || "CLOSURE_FAILED",
+        message: error.message || "标记失败",
+      }));
+    return true;
+  }
   if (message?.type !== "CAREER_AGENT_SAVE_JOB") return false;
   saveJob(message.job, sender)
     .then((result) => sendResponse({ ok: true, result }))
@@ -32,12 +45,13 @@ async function saveJob(job, sender) {
   if (!isBossUrl(senderUrl) || !job || !isBossUrl(job.source_url)) {
     throw captureError("UNTRUSTED_PAGE", "只能从 BOSS 直聘页面保存岗位");
   }
-  const { careerAgentUserId } = await chrome.storage.local.get("careerAgentUserId");
-  if (!careerAgentUserId) {
-    throw captureError("USER_CONTEXT_MISSING", "请先打开 Career Agent 页面，再回来保存");
+  const { careerAgentCaptureApiKey } = await chrome.storage.local.get(
+    "careerAgentCaptureApiKey",
+  );
+  if (!careerAgentCaptureApiKey) {
+    throw captureError("CAPTURE_CREDENTIAL_MISSING", "请先为 Career Agent 配置扩展密钥，再回来保存");
   }
   const payload = {
-    user_id: careerAgentUserId,
     source_url: String(job.source_url || ""),
     title: String(job.title || "").slice(0, 500),
     company_name: String(job.company_name || "").slice(0, 500),
@@ -59,11 +73,54 @@ async function saveJob(job, sender) {
         headers: {
           "Content-Type": "application/json",
           "X-Career-Agent-Capture": "v1",
+          Authorization: `Bearer ${careerAgentCaptureApiKey}`,
         },
         body: JSON.stringify(payload),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw captureError("API_REJECTED", body.detail || `保存失败（HTTP ${response.status}）`);
+      return body;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError?.code === "API_REJECTED") throw lastError;
+  throw captureError("API_UNREACHABLE", "无法连接本地 Career Agent，请确认后端已启动");
+}
+
+/** Report a saved posting the user found closed.
+ *
+ * Carries only the page URL: what job that is, and whether it is even in the
+ * library, is the server's to resolve from what it already stores. Sending an
+ * id the page does not have would mean guessing one.
+ */
+async function reportClosed(sourceUrl, sender) {
+  const senderUrl = sender.tab?.url || "";
+  if (!isBossUrl(senderUrl) || !isBossUrl(sourceUrl)) {
+    throw captureError("UNTRUSTED_PAGE", "只能从 BOSS 直聘页面标记岗位");
+  }
+  const { careerAgentCaptureApiKey } = await chrome.storage.local.get(
+    "careerAgentCaptureApiKey",
+  );
+  if (!careerAgentCaptureApiKey) {
+    throw captureError("CAPTURE_CREDENTIAL_MISSING", "请先为 Career Agent 配置扩展密钥，再回来标记");
+  }
+  let lastError = null;
+  for (const endpoint of CLOSURE_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Career-Agent-Capture": "v1",
+          Authorization: `Bearer ${careerAgentCaptureApiKey}`,
+        },
+        body: JSON.stringify({ source_url: String(sourceUrl) }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw captureError("API_REJECTED", body.detail || `标记失败（HTTP ${response.status}）`);
+      }
       return body;
     } catch (error) {
       lastError = error;

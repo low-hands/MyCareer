@@ -22,12 +22,10 @@ function dueLabel(item: ActionItemView, timezone: string): string {
 }
 
 export function DailyBriefPanel({
-  userId,
   apiBaseUrl,
   refreshToken,
   hidden,
 }: {
-  userId: string;
   apiBaseUrl: string;
   /** Changes when a chat turn finishes, so acting in chat updates the board. */
   refreshToken: number;
@@ -40,7 +38,7 @@ export function DailyBriefPanel({
   const load = useCallback(
     (signal?: AbortSignal) => {
       setLoading(true);
-      return fetchDailyBrief(userId, { apiBaseUrl, signal })
+      return fetchDailyBrief({ apiBaseUrl, signal })
         .then((next) => {
           setBrief(next);
           setError(null);
@@ -53,7 +51,7 @@ export function DailyBriefPanel({
           if (!signal?.aborted) setLoading(false);
         });
     },
-    [userId, apiBaseUrl],
+    [apiBaseUrl],
   );
 
   useEffect(() => {

@@ -294,6 +294,33 @@ class SQLiteInterviewStore:
             rows = connection.execute(query, tuple(params)).fetchall()
         return tuple(self._round(row) for row in rows)
 
+    def list_scheduled_between(
+        self,
+        *,
+        user_id: str,
+        range_start: datetime,
+        range_end: datetime,
+        limit: int = 300,
+    ) -> tuple[InterviewRound, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._ROUND_SELECT
+                + """
+                WHERE user_id = ? AND scheduled_start IS NOT NULL
+                  AND julianday(scheduled_start) >= julianday(?)
+                  AND julianday(scheduled_start) < julianday(?)
+                ORDER BY julianday(scheduled_start), sequence_number
+                LIMIT ?
+                """,
+                (
+                    user_id,
+                    range_start.isoformat(),
+                    range_end.isoformat(),
+                    limit,
+                ),
+            ).fetchall()
+        return tuple(self._round(row) for row in rows)
+
     def list_events(
         self, *, user_id: str, interview_round_id: str
     ) -> tuple[InterviewRoundEvent, ...]:

@@ -26,6 +26,23 @@ from career_agent.storage.schema import apply_schema
 
 
 AvailabilityStatus = Literal["active", "closed", "unknown"]
+"""Whether the posting is still live **on the platform**."""
+
+PursuitStatus = Literal["open", "dismissed"]
+"""Whether the user is still considering this posting.
+
+Deliberately separate from ``availability_status``: one is the employer's
+state, the other is the user's decision, and they move for unrelated reasons.
+A live posting the user ruled out and a closed posting they still want to
+remember are both real, and one field cannot say both.
+
+Only *exclusion* is stated. Every saved job is under consideration until it is
+either applied to or dismissed, because that is what a saved job already means —
+requiring an "I might apply" mark would ask the user to re-state something they
+said by saving it. What the derivation cannot know is when they stopped
+considering one, so that is the single thing they have to tell us. Without it
+the list only grows, which is how a shortlist stops being read at all.
+"""
 
 
 class JDAnalysisPayload(BaseModel):
@@ -57,6 +74,7 @@ class StoredJobRecord(BaseModel):
     city: str | None = None
     salary: str | None = None
     availability_status: AvailabilityStatus
+    pursuit_status: PursuitStatus
     last_checked_at: datetime
     closed_at: datetime | None = None
     analysis: StoredJDAnalysis | None = None
@@ -73,6 +91,7 @@ class StoredJobSummary(BaseModel):
     source_name: str
     source_url: str | None = None
     availability_status: AvailabilityStatus
+    pursuit_status: PursuitStatus = "open"
     captured_at: datetime
     last_checked_at: datetime
 
@@ -95,11 +114,23 @@ class JobPostingRepository(Protocol):
         detail: JobDetail,
     ) -> StoredJobRecord: ...
 
-    def list_jobs(self, *, user_id: str, limit: int = 20) -> tuple[StoredJobSummary, ...]: ...
+    def list_jobs(self, *, user_id: str, limit: int = 20, include_dismissed: bool) -> tuple[StoredJobSummary, ...]: ...
 
-    def count_jobs(self, *, user_id: str) -> int: ...
+    def set_pursuit_status(self, *, user_id: str, job_posting_id: str, status: PursuitStatus) -> bool: ...
 
-    def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20) -> tuple[StoredJobSummary, ...]: ...
+    def delete_job(self, *, user_id: str, job_posting_id: str) -> bool: ...
+
+    def count_jobs(self, *, user_id: str, include_dismissed: bool) -> int: ...
+
+    def stale_open_job_stats(
+        self,
+        *,
+        user_id: str,
+        checked_before: datetime,
+        excluded_job_posting_ids: frozenset[str] = frozenset(),
+    ) -> tuple[int, datetime | None]: ...
+
+    def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20, include_dismissed: bool) -> tuple[StoredJobSummary, ...]: ...
 
     def get_job(self, *, user_id: str, job_posting_id: str) -> StoredJobRecord | None: ...
 
@@ -126,6 +157,8 @@ class JobPostingRepository(Protocol):
 
     def mark_availability(self, *, user_id: str, job_posting_id: str, status: AvailabilityStatus, checked_at: datetime | None = None) -> bool: ...
 
+    def find_by_source(self, *, user_id: str, source_name: str, source_job_id: str | None, source_url: str | None) -> str | None: ...
+
 
 class SQLiteJobPostingRepository:
     def __init__(self, path: Path) -> None:
@@ -134,8 +167,34 @@ class SQLiteJobPostingRepository:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "job_postings", 1, self._migrate)
+            apply_schema(
+                connection,
+                "job_postings",
+                2,
+                self._migrate,
+                {2: self._upgrade_to_v2},
+            )
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        """Add the user's own decision beside the platform's.
+
+        Existing rows default to ``open``: a job saved before this column
+        existed was never ruled out, so treating it as still under
+        consideration is the truthful reading, not a convenient one.
+        """
+
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(job_postings)")
+        }
+        if "pursuit_status" not in columns:
+            connection.execute(
+                "ALTER TABLE job_postings ADD COLUMN pursuit_status TEXT NOT NULL "
+                "DEFAULT 'open' CHECK(pursuit_status IN ('open', 'dismissed'))"
+            )
+        if "dismissed_at" not in columns:
+            connection.execute("ALTER TABLE job_postings ADD COLUMN dismissed_at TEXT")
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -153,6 +212,8 @@ class SQLiteJobPostingRepository:
                 city TEXT,
                 salary TEXT,
                 availability_status TEXT NOT NULL CHECK(availability_status IN ('active', 'closed', 'unknown')),
+                pursuit_status TEXT NOT NULL DEFAULT 'open' CHECK(pursuit_status IN ('open', 'dismissed')),
+                dismissed_at TEXT,
                 persisted_at TEXT NOT NULL,
                 last_seen_at TEXT NOT NULL,
                 last_checked_at TEXT NOT NULL,
@@ -360,31 +421,174 @@ class SQLiteJobPostingRepository:
             city=detail.city,
             salary=detail.salary,
             availability_status="active",
+            pursuit_status="open",
             last_checked_at=now,
         )
 
-    def list_jobs(self, *, user_id: str, limit: int = 20) -> tuple[StoredJobSummary, ...]:
-        self._validate_limit(limit)
+    def set_pursuit_status(
+        self, *, user_id: str, job_posting_id: str, status: PursuitStatus
+    ) -> bool:
+        """Record that the user is, or is no longer, considering this posting.
+
+        Reversible on purpose, and the row is never deleted. A dismissed job
+        stays queryable so "why is this not in my list" has an answer, and a
+        misclick costs one click rather than a re-capture. Same posture as a
+        settled confirmation: no longer shown, still there.
+        """
+
         with self._connect() as connection:
-            rows = connection.execute(self._SUMMARY_SELECT + " WHERE p.user_id = ? ORDER BY p.last_checked_at DESC LIMIT ?", (user_id, limit)).fetchall()
+            cursor = connection.execute(
+                "UPDATE job_postings SET pursuit_status = ?, dismissed_at = ? "
+                "WHERE id = ? AND user_id = ? AND pursuit_status != ?",
+                (
+                    status,
+                    datetime.now(timezone.utc).isoformat()
+                    if status == "dismissed"
+                    else None,
+                    job_posting_id,
+                    user_id,
+                    status,
+                ),
+            )
+            return cursor.rowcount == 1
+
+    def delete_job(self, *, user_id: str, job_posting_id: str) -> bool:
+        """Permanently remove one owned posting and its stored JD tree.
+
+        Ignore is deliberately reversible; this is deliberately not.  The
+        ownership check and every dependent delete share one transaction so a
+        wrong user cannot touch the row and an interrupted deletion cannot
+        leave half a JD behind.  Cross-store records are checked by the
+        workspace service before this method is called.
+        """
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            owned = connection.execute(
+                "SELECT 1 FROM job_postings WHERE id = ? AND user_id = ?",
+                (job_posting_id, user_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            snapshot_ids = tuple(
+                row[0]
+                for row in connection.execute(
+                    "SELECT id FROM jd_snapshots WHERE job_posting_id = ?",
+                    (job_posting_id,),
+                ).fetchall()
+            )
+            if snapshot_ids:
+                placeholders = ",".join("?" for _ in snapshot_ids)
+                connection.execute(
+                    f"DELETE FROM jd_analyses WHERE jd_snapshot_id IN ({placeholders})",
+                    snapshot_ids,
+                )
+            connection.execute(
+                "DELETE FROM job_run_links WHERE job_posting_id = ?",
+                (job_posting_id,),
+            )
+            connection.execute(
+                "DELETE FROM job_posting_fts WHERE job_posting_id = ?",
+                (job_posting_id,),
+            )
+            connection.execute(
+                "DELETE FROM jd_snapshots WHERE job_posting_id = ?",
+                (job_posting_id,),
+            )
+            cursor = connection.execute(
+                "DELETE FROM job_postings WHERE id = ? AND user_id = ?",
+                (job_posting_id, user_id),
+            )
+            return cursor.rowcount == 1
+
+    def list_jobs(
+        self,
+        *,
+        user_id: str,
+        limit: int = 20,
+        include_dismissed: bool,
+    ) -> tuple[StoredJobSummary, ...]:
+        """The shortlist, and every caller says whether ignored jobs belong in it.
+
+        Required rather than defaulted, because the alternative was tried and
+        failed here: the filter was added to this one method and four other
+        read paths kept returning ignored jobs — the agent's own search, the
+        dashboard count, the CLI listing. A default would have hidden all four,
+        since each looked correct in isolation.
+
+        Same device as ``pending_for_conversation``'s policy view: the answer
+        is occasionally "yes, show them", and the way to keep that from
+        happening by accident is to make forgetting a ``TypeError``.
+        """
+
+        self._validate_limit(limit)
+        clause = "" if include_dismissed else " AND p.pursuit_status = 'open'"
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._SUMMARY_SELECT
+                + f" WHERE p.user_id = ?{clause}"
+                + " ORDER BY p.last_checked_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
         return tuple(self._summary_from_row(row) for row in rows)
 
-    def count_jobs(self, *, user_id: str) -> int:
+    def count_jobs(self, *, user_id: str, include_dismissed: bool) -> int:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT COUNT(*) FROM job_postings WHERE user_id = ?",
+                "SELECT COUNT(*) FROM job_postings WHERE user_id = ?"
+                + ("" if include_dismissed else " AND pursuit_status = 'open'"),
                 (user_id,),
             ).fetchone()
         return int(row[0])
 
-    def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20) -> tuple[StoredJobSummary, ...]:
+    def stale_open_job_stats(
+        self,
+        *,
+        user_id: str,
+        checked_before: datetime,
+        excluded_job_posting_ids: frozenset[str] = frozenset(),
+    ) -> tuple[int, datetime | None]:
+        """Summarize every stale shortlist row without a display-list cap.
+
+        ``list_jobs`` is deliberately bounded and newest-first for rendering.
+        Reusing it for a library-wide condition hides exactly the oldest rows
+        once the library grows past that bound. This query is therefore an
+        aggregate source, not another presentation path.
+
+        Applied jobs are excluded by identity supplied by the application
+        store. An application is already a stronger statement than "still
+        deciding whether to apply", and Action Center has its own follow-up
+        lifecycle for it.
+        """
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT id, last_checked_at FROM job_postings "
+                "WHERE user_id = ? AND pursuit_status = 'open' "
+                "AND julianday(last_checked_at) < julianday(?)",
+                (user_id, checked_before.isoformat()),
+            ).fetchall()
+        eligible = [
+            datetime.fromisoformat(row[1])
+            for row in rows
+            if row[0] not in excluded_job_posting_ids
+        ]
+        return (len(eligible), min(eligible) if eligible else None)
+
+    def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20, include_dismissed: bool) -> tuple[StoredJobSummary, ...]:
         self._validate_limit(limit)
         normalized_query = query.strip()
         if not normalized_query:
-            return self.list_jobs(user_id=user_id, limit=limit)
+            return self.list_jobs(
+                user_id=user_id, limit=limit, include_dismissed=include_dismissed
+            )
         like = f"%{normalized_query}%"
         tokens = tuple(dict.fromkeys(re.findall(r"[\w+#.-]+", normalized_query, flags=re.UNICODE)))
         fts_query = " OR ".join(json.dumps(token, ensure_ascii=False) for token in tokens)
+        # Applied to both branches. An ignored job must not come back through
+        # the agent's own search after the user removed it from the library —
+        # that is precisely the job the removal was about.
+        ignored_clause = "" if include_dismissed else " AND p.pursuit_status = 'open'"
         if fts_query:
             sql = (
                 "WITH fts_hits AS ("
@@ -394,6 +598,7 @@ class SQLiteJobPostingRepository:
                 + self._SUMMARY_SELECT
                 + " LEFT JOIN fts_hits f ON f.job_posting_id = p.id"
                 + " WHERE p.user_id = ? AND (p.title LIKE ? OR p.company_name LIKE ? OR COALESCE(p.city, '') LIKE ? OR s.content LIKE ? OR f.job_posting_id IS NOT NULL)"
+                + ignored_clause
                 + " ORDER BY CASE WHEN lower(p.title) = lower(?) THEN 0 WHEN p.title LIKE ? THEN 1 WHEN p.company_name LIKE ? THEN 2 WHEN COALESCE(p.city, '') LIKE ? THEN 3 ELSE 4 END,"
                 + " COALESCE(f.relevance, 1000000.0) ASC, p.last_checked_at DESC LIMIT ?"
             )
@@ -405,6 +610,7 @@ class SQLiteJobPostingRepository:
             sql = (
                 self._SUMMARY_SELECT
                 + " WHERE p.user_id = ? AND (p.title LIKE ? OR p.company_name LIKE ? OR COALESCE(p.city, '') LIKE ? OR s.content LIKE ?)"
+                + ignored_clause
                 + " ORDER BY p.last_checked_at DESC LIMIT ?"
             )
             params = (user_id, like, like, like, like, limit)
@@ -516,6 +722,38 @@ class SQLiteJobPostingRepository:
             row = connection.execute(sql, params).fetchone()
         return self._analysis_from_row(job_posting_id, row) if row else None
 
+    def find_by_source(
+        self,
+        *,
+        user_id: str,
+        source_name: str,
+        source_job_id: str | None,
+        source_url: str | None,
+    ) -> str | None:
+        """The saved job a page belongs to, resolved the way capture resolves it.
+
+        The extension knows a URL, never the internal id, so anything it reports
+        about a posting has to be matched by source identity — and by the *same*
+        identity capture writes, or a report would land on nothing while the job
+        sits in the library under a different key.
+        """
+
+        if source_job_id:
+            identity = f"source_job_id:{source_job_id}"
+        elif source_url:
+            identity = "source_url:" + hashlib.sha256(
+                source_url.encode("utf-8")
+            ).hexdigest()
+        else:
+            return None
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM job_postings WHERE user_id = ? AND source_name = ? "
+                "AND source_identity = ?",
+                (user_id, source_name, identity),
+            ).fetchone()
+        return row[0] if row else None
+
     def mark_availability(self, *, user_id: str, job_posting_id: str, status: AvailabilityStatus, checked_at: datetime | None = None) -> bool:
         if status not in {"active", "closed", "unknown"}:
             raise ValueError("Unsupported availability status")
@@ -561,13 +799,14 @@ class SQLiteJobPostingRepository:
     @classmethod
     def _record_from_row(cls, row: tuple) -> StoredJobRecord:
         posting = cls._posting_from_row(row[:13])
-        snapshot = cls._snapshot_from_row(posting.id, row[17:])
+        snapshot = cls._snapshot_from_row(posting.id, row[18:])
         return StoredJobRecord(
             posting=posting,
             snapshot=snapshot,
             city=row[13],
             salary=row[14],
             availability_status=posting.external_status,
+            pursuit_status=row[17],
             last_checked_at=row[15],
             closed_at=row[16],
         )
@@ -576,7 +815,8 @@ class SQLiteJobPostingRepository:
     def _summary_from_row(row: tuple) -> StoredJobSummary:
         return StoredJobSummary(
             job_posting_id=row[0], title=row[1], company_name=row[2], city=row[3], salary=row[4],
-            source_name=row[5], source_url=row[6], availability_status=row[7], captured_at=row[8], last_checked_at=row[9],
+            source_name=row[5], source_url=row[6], availability_status=row[7],
+            pursuit_status=row[8], captured_at=row[9], last_checked_at=row[10],
         )
 
     @classmethod
@@ -616,7 +856,8 @@ class SQLiteJobPostingRepository:
 
     _SUMMARY_SELECT = """
         SELECT p.id, p.title, p.company_name, p.city, p.salary, p.source_name,
-               p.source_url, p.availability_status, s.captured_at, p.last_checked_at
+               p.source_url, p.availability_status, p.pursuit_status,
+               s.captured_at, p.last_checked_at
         FROM job_postings p
         JOIN jd_snapshots s ON s.id = p.latest_snapshot_id
     """
@@ -625,6 +866,7 @@ class SQLiteJobPostingRepository:
                p.title, p.company_name, p.availability_status, p.persisted_at,
                p.last_seen_at, p.latest_snapshot_id, p.company_title_fingerprint,
                p.content_fingerprint, p.city, p.salary, p.last_checked_at, p.closed_at,
+               p.pursuit_status,
                s.id, s.version, s.content, s.content_hash,
                s.captured_at, s.provenance_json, s.normalizer_version
         FROM job_postings p
@@ -635,6 +877,7 @@ class SQLiteJobPostingRepository:
                p.title, p.company_name, p.availability_status, p.persisted_at,
                p.last_seen_at, p.latest_snapshot_id, p.company_title_fingerprint,
                p.content_fingerprint, p.city, p.salary, p.last_checked_at, p.closed_at,
+               p.pursuit_status,
                s.id, s.version, s.content, s.content_hash,
                s.captured_at, s.provenance_json, s.normalizer_version
         FROM job_run_links l

@@ -67,3 +67,27 @@ def test_conversation_listing_uses_persisted_first_and_last_messages(tmp_path) -
     assert conversations[0].last_message_preview == "已经完成岗位分析。"
     assert conversations[0].message_count == 2
     assert store.list_conversations(user_id="u2") == ()
+
+
+def test_delete_conversation_removes_only_the_owners_session_memory(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    for user_id in ("u1", "u2"):
+        context = manager.load_for_turn(
+            user_id=user_id,
+            conversation_id="shared-id",
+            user_message=f"{user_id} message",
+        )
+        manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"{user_id} reply",
+        )
+
+    assert store.delete_conversation(user_id="u1", conversation_id="shared-id")
+    assert store.get_session("u1", "shared-id") is None
+    assert store.get_task("u1", "shared-id") is None
+    assert store.list_messages("u1", "shared-id", limit=10) == ()
+    assert store.get_session("u2", "shared-id") is not None
+    assert len(store.list_messages("u2", "shared-id", limit=10)) == 2
+    assert not store.delete_conversation(user_id="u1", conversation_id="shared-id")

@@ -270,11 +270,12 @@ def test_a_recorded_calendar_preview_suspends_without_an_extra_model_decision(
         tmp_path,
         responses=(_tool_call("prepare_interview_calendar_sync"),),
         results=(
-            ToolObservation(
-                tool_name="prepare_interview_calendar_sync",
-                state="calendar_approval_required",
-                message="日历变更预览已准备好。",
-                payload={
+                ToolObservation(
+                    tool_name="prepare_interview_calendar_sync",
+                    state="calendar_approval_required",
+                    message="日历变更预览已准备好。",
+                    execution_outcome="committed",
+                    payload={
                     "proposal_id": "proposal-1",
                     "interview_round_id": "interview-1",
                     "operation": "create",
@@ -322,11 +323,12 @@ def test_an_uncertain_calendar_write_returns_to_the_model_and_is_not_reissued(
             ),
         ),
         results=(
-            ToolObservation(
-                tool_name="execute_calendar_proposal",
-                state="calendar_write_failed",
-                message="Calendar 写入结果暂时无法确认。",
-                payload={
+                ToolObservation(
+                    tool_name="execute_calendar_proposal",
+                    state="calendar_write_failed",
+                    message="Calendar 写入结果暂时无法确认。",
+                    execution_outcome="unknown",
+                    payload={
                     "error_code": "GOOGLE_CALENDAR_TRANSPORT_ERROR",
                     "retryable": False,
                     "outcome_unknown": True,

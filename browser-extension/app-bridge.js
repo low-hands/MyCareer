@@ -1,15 +1,15 @@
-(function syncCareerAgentUser() {
-  const STORAGE_KEY = "career-agent:user-id";
-  let lastSyncedUserId = "";
+(function syncCareerAgentCredential() {
+  const CAPTURE_KEY_STORAGE_KEY = "career-agent:capture-api-key";
+  let lastSyncedApiKey = "";
 
   function sync() {
-    const userId = window.localStorage.getItem(STORAGE_KEY);
-    if (!userId || userId === lastSyncedUserId) return;
+    const apiKey = window.localStorage.getItem(CAPTURE_KEY_STORAGE_KEY);
+    if (!apiKey || apiKey === lastSyncedApiKey) return;
     chrome.runtime.sendMessage({
-      type: "CAREER_AGENT_SET_USER",
-      user_id: userId,
+      type: "CAREER_AGENT_SET_CAPTURE_CREDENTIAL",
+      api_key: apiKey,
     }).then((response) => {
-      if (response?.ok) lastSyncedUserId = userId;
+      if (response?.ok) lastSyncedApiKey = apiKey;
     }).catch(() => undefined);
   }
 
@@ -18,10 +18,10 @@
   const retry = window.setInterval(() => {
     sync();
     attempts += 1;
-    if (lastSyncedUserId || attempts >= 10) window.clearInterval(retry);
+    if (lastSyncedApiKey || attempts >= 10) window.clearInterval(retry);
   }, 500);
   window.addEventListener("focus", sync);
   window.addEventListener("storage", (event) => {
-    if (event.key === STORAGE_KEY) sync();
+    if (event.key === CAPTURE_KEY_STORAGE_KEY) sync();
   });
 })();

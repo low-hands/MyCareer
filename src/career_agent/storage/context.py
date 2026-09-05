@@ -134,12 +134,7 @@ class CareerContextStore:
     def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
         """Handle a pre-registry database, for which apply_schema skips upgrades."""
 
-        present = connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' "
-            "AND name='agent_preferences_context'"
-        ).fetchone()
-        if present is not None:
-            CareerContextStore._upgrade_to_v3(connection)
+        CareerContextStore._upgrade_to_v3(connection)
         connection.execute(
             """
             UPDATE conversation_messages
@@ -214,6 +209,37 @@ class CareerContextStore:
         if session is None:
             return None
         return self.upsert_session(session.model_copy(update={"status": "closed"}))
+
+    def delete_conversation(self, *, user_id: str, conversation_id: str) -> bool:
+        """Delete one user's chat memory, but retain security/audit records.
+
+        Capability confirmations, action executions, and telemetry are not UI
+        conversation content. They remain durable so a hidden conversation
+        cannot erase evidence of an external write or make it replayable.
+        """
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            present = connection.execute(
+                "SELECT 1 FROM sessions WHERE user_id = ? AND session_id = ?",
+                (user_id, conversation_id),
+            ).fetchone()
+            if present is None:
+                return False
+            for table in (
+                "conversation_summaries",
+                "conversation_messages",
+                "conversation_task_state",
+            ):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE user_id = ? AND conversation_id = ?",
+                    (user_id, conversation_id),
+                )
+            connection.execute(
+                "DELETE FROM sessions WHERE user_id = ? AND session_id = ?",
+                (user_id, conversation_id),
+            )
+        return True
 
     def list_conversations(
         self, *, user_id: str, limit: int = 50

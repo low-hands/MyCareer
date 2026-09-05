@@ -439,7 +439,7 @@ def test_browser_capture_requires_a_capture_scoped_credential(
     assert missing_header.status_code == 422
     assert cross_site.status_code == 422
     assert workspace_via_capture_key.status_code == 403
-    assert repository.list_jobs(user_id="u1") == ()
+    assert repository.list_jobs(user_id="u1", include_dismissed=True) == ()
 
 
 def _brief_app(tmp_path, api_keys, *, applications=(), interviews=(), events=()):

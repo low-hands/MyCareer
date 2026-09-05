@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { InteractionRequiredEvent } from "../chat/types";
 import type { InteractionResponse } from "../api/sse";
+import { ResumeImporter } from "./ResumeImporter";
 
 export interface InteractionReply {
   message: string;
@@ -11,6 +12,7 @@ export interface InteractionReply {
 interface InteractionCardProps {
   interaction: InteractionRequiredEvent;
   disabled: boolean;
+  apiBaseUrl: string;
   onReply: (reply: InteractionReply) => void;
 }
 
@@ -19,7 +21,7 @@ function optionValue(option: InteractionRequiredEvent["options"][number]): strin
   return option.value ?? option.label;
 }
 
-export function InteractionCard({ interaction, disabled, onReply }: InteractionCardProps) {
+export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: InteractionCardProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const isMultiple = interaction.kind === "multiple_selection";
   const selectedMessage = useMemo(() => [...selected].join(", "), [selected]);
@@ -27,22 +29,29 @@ export function InteractionCard({ interaction, disabled, onReply }: InteractionC
   if (interaction.kind === "free_text") {
     return (
       <div className="interaction-card" aria-labelledby={interaction.interaction_id}>
+        <span className="interaction-kicker">需要你的回答</span>
         <p id={interaction.interaction_id}>{interaction.prompt}</p>
-        <span className="interaction-hint">请在下方输入框中回答后继续。</span>
       </div>
     );
   }
   if (interaction.kind === "file_upload") {
     return (
       <div className="interaction-card" aria-labelledby={interaction.interaction_id}>
+        <span className="interaction-kicker">需要文件</span>
         <p id={interaction.interaction_id}>{interaction.prompt}</p>
-        <span className="interaction-hint">当前客户端尚未接入文件上传，请先使用文本说明。</span>
+        <ResumeImporter
+          apiBaseUrl={apiBaseUrl}
+          onImported={(result) => onReply({
+            message: `已导入简历“${result.name}”v${result.version_number}，请继续处理。`,
+          })}
+        />
       </div>
     );
   }
 
   return (
     <div className="interaction-card" aria-labelledby={interaction.interaction_id}>
+      <span className="interaction-kicker">请选择后继续</span>
       <p id={interaction.interaction_id}>{interaction.prompt}</p>
       <div className="interaction-options">
         {interaction.options.map((option) => {

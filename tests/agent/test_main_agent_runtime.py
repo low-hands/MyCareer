@@ -94,6 +94,33 @@ def test_main_graph_uses_one_authorize_act_path_for_every_capability(tmp_path) -
     }
 
 
+def test_runtime_does_not_rewrite_a_model_question_from_prompt_wording(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    context = manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我记录一次投递",
+    )
+
+    decision = AgentDecision(
+        action="ask_user",
+        message="请告诉我这次实际投递的是哪个已保存职位。",
+    )
+
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(decision),
+        tools=MainAgentToolRegistry(),
+    )
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录投递"
+    )
+
+    assert result.model_decision == decision
+    assert result.model_decision.action == "ask_user"
+
+
 def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
     graph = agent._graph.get_graph()
@@ -127,6 +154,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
                     "status": "submitted",
                     "created": True,
                 },
+                execution_outcome="committed",
             )
 
     class Runtime(MainAgentRuntime):
@@ -352,9 +380,6 @@ def test_a_replayed_interaction_write_does_not_recreate_the_old_interaction(
         # and the local handling failed afterwards. Recording FAILED here would
         # tell a reconciler to redo a write that already committed.
         ("calendar_write_failed", "committed", "SUCCEEDED"),
-        # Only where nothing was declared does the state decide. That is the
-        # fallback for capabilities not yet migrated to the axis, not the rule.
-        ("calendar_write_failed", None, "FAILED"),
     ),
 )
 def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
@@ -403,6 +428,51 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
         user_id="u1", conversation_id="c1", anchor="request-1"
     )[0]
     assert execution.status == expected_status
+
+
+def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) -> None:
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="结果遗漏了执行轴。",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / "undeclared.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(database)
+
+    with pytest.raises(ValueError, match="returned without execution_outcome"):
+        Runtime(
+            context_manager=manager,
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(
+                    action="tool_call",
+                    tool_call=ToolCall(name="create_application", arguments={}),
+                )
+            ),
+            tools=Registry(),
+            action_execution_store=ledger,
+        ).run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="记录投递",
+            request_id="request-1",
+        )
+
+    assert ledger.list_for_anchor(
+        user_id="u1", conversation_id="c1", anchor="request-1"
+    )[0].status == "PENDING"
 
 
 @pytest.mark.parametrize(
@@ -1133,6 +1203,7 @@ def test_non_streaming_interrupt_enforces_renderer_completeness(
                 tool_name=name,
                 state="calendar_approval_required",
                 message="需要确认。",
+                execution_outcome="committed",
             )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
@@ -1394,6 +1465,7 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
                 tool_name=name,
                 state="application_created",
                 message="已创建投递记录。",
+                execution_outcome="committed",
             )
 
     class DirectRuntime(MainAgentRuntime):
@@ -1474,7 +1546,10 @@ def test_the_mock_interview_graph_path_reports_its_write(tmp_path) -> None:
 
         def handle_mock_interview_input(self, *, user_id, session_id, message):
             return ToolObservation(
-                tool_name="handle_mock_interview_input", state="ok", message="下一题。"
+                tool_name="handle_mock_interview_input",
+                state="ok",
+                message="下一题。",
+                execution_outcome="committed",
             )
 
         def invoke_runtime_workflow(self, name, arguments):
@@ -1551,6 +1626,7 @@ def test_a_write_that_failed_is_not_reported_as_written(tmp_path) -> None:
                 tool_name=name,
                 state="calendar_write_failed",
                 message="日历写入失败，日程未创建。",
+                execution_outcome="not_committed",
             )
 
     class DirectRuntime(MainAgentRuntime):
@@ -2315,12 +2391,20 @@ def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
         def handle_mock_interview_input(self, *, user_id, session_id, message):
             self.calls.append(("resume", message))
             return ToolObservation(
-                tool_name="handle_mock_interview_input", state="ok", message="m"
+                tool_name="handle_mock_interview_input",
+                state="ok",
+                message="m",
+                execution_outcome="committed",
             )
 
         def retry_mock_interview(self, *, user_id, session_id):
             self.calls.append(("retry", None))
-            return ToolObservation(tool_name="retry_mock_interview", state="ok", message="m")
+            return ToolObservation(
+                tool_name="retry_mock_interview",
+                state="ok",
+                message="m",
+                execution_outcome="committed",
+            )
 
         def invoke_runtime_workflow(self, name, arguments):
             if name == "retry_mock_interview":
@@ -2792,6 +2876,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
                 state="interview_ready" if "interview" in name else "application_ready",
                 message="完成。",
                 payload={"interview_round_id": "round-1", "application_id": "app-1"},
+                execution_outcome="committed",
             )
 
     class Runtime(MainAgentRuntime):
@@ -2987,6 +3072,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
                 state="application_ready",
                 message="已创建投递记录。",
                 payload={"application_id": "app-1"},
+                execution_outcome="committed",
             )
 
     class Runtime(MainAgentRuntime):

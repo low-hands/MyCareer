@@ -109,6 +109,24 @@ class SQLiteEmailTrackingStore:
             ).fetchall()
         return tuple(self._account(row) for row in rows)
 
+    def disable_account(self, *, user_id: str, account_id: str) -> EmailAccount | None:
+        with self._connect() as connection:
+            changed = connection.execute(
+                "UPDATE email_accounts SET status = 'disabled', updated_at = ? "
+                "WHERE id = ? AND user_id = ?",
+                (datetime.now(timezone.utc).isoformat(), account_id, user_id),
+            ).rowcount
+        return self.get_account(user_id=user_id, account_id=account_id) if changed else None
+
+    def active_credential_ref_count(self, credential_ref: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM email_accounts "
+                "WHERE credential_ref = ? AND status != 'disabled'",
+                (credential_ref,),
+            ).fetchone()
+        return int(row[0])
+
     def get_cursor(self, *, account_id: str) -> EmailSyncCursor | None:
         with self._connect() as connection:
             row = connection.execute(

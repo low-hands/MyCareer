@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import stat
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -50,6 +49,10 @@ from career_agent.services.job_research import JobResearchService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
+from career_agent.services.resume_import import (
+    MAX_RESUME_IMPORT_BYTES,
+    validate_resume_document,
+)
 from career_agent.services.resume_tailoring import ResumeTailoringService
 from career_agent.storage.api_keys import (
     DEFAULT_EXPIRY_DAYS,
@@ -57,6 +60,7 @@ from career_agent.storage.api_keys import (
     SQLiteApiKeyStore,
 )
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.connector_secrets import KeyringConnectorSecretStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.action_center import SQLiteActionItemStore
@@ -90,7 +94,6 @@ EXIT_ARGUMENT_ERROR = 2
 EXIT_CONFIGURATION_ERROR = 3
 EXIT_WORKFLOW_ERROR = 5
 EXIT_UNKNOWN_ERROR = 6
-MAX_RESUME_IMPORT_BYTES = 1_048_576
 
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
@@ -118,10 +121,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         SQLiteInterviewStore(Path(args.application_store).expanduser()),
         application_service,
     )
+    connector_secrets = KeyringConnectorSecretStore()
     email_tracking_service = EmailTrackingService(
         SQLiteEmailTrackingStore(Path(args.email_store).expanduser()),
         application_service,
-        EnvironmentEmailConnectorResolver(),
+        EnvironmentEmailConnectorResolver(secret_store=connector_secrets),
         OpenAIEmailTrackingWorker(resume_analysis_config),
         interview_service,
     )
@@ -130,12 +134,13 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         application_service,
         email_tracking_service,
         interview_service,
+        job_repository=job_repository,
     )
     calendar_service = CalendarService(
         SQLiteCalendarStore(Path(args.calendar_store).expanduser()),
         interview_service,
         application_service,
-        EnvironmentCalendarConnectorResolver(),
+        EnvironmentCalendarConnectorResolver(secret_store=connector_secrets),
     )
     interview_context_factory = InterviewPreparationContextFactory(
         interviews=interview_service,
@@ -254,43 +259,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
 
 
 def _read_resume_import(path: Path) -> tuple[bytes, str]:
-    if path.is_symlink() or not path.is_file() or not stat.S_ISREG(path.stat().st_mode):
+    if path.is_symlink() or not path.is_file():
         raise ValueError("--file must be a regular non-symlink file.")
-    suffix = path.suffix.casefold()
-    document_format = "pdf" if suffix == ".pdf" else "text" if suffix == ".txt" else "markdown" if suffix in {".md", ".markdown"} else None
-    if document_format is None:
-        raise ValueError("Resume import supports only .pdf, .txt, .md, and .markdown files.")
-    if path.stat().st_size > 5 * MAX_RESUME_IMPORT_BYTES:
+    if path.stat().st_size > MAX_RESUME_IMPORT_BYTES:
         raise ValueError("Resume file exceeds the 5 MiB import limit.")
-    content = path.read_bytes()
-    if not content:
-        raise ValueError("Resume file must not be empty.")
-    if document_format == "pdf":
-        if not content.startswith(b"%PDF-"):
-            raise ValueError("Resume PDF has an invalid header.")
-        try:
-            from pypdf import PdfReader
-            from io import BytesIO
-
-            reader = PdfReader(BytesIO(content), strict=False)
-            if reader.is_encrypted:
-                raise ValueError("Encrypted resume PDFs are not supported.")
-            if not reader.pages:
-                raise ValueError("Resume PDF contains no pages.")
-        except ValueError:
-            raise
-        except Exception as error:
-            raise ValueError("Resume PDF is malformed or unreadable.") from error
-        return content, document_format
-    if b"\x00" in content:
-        raise ValueError("Resume text must not contain NUL bytes.")
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise ValueError("Resume text must be UTF-8 encoded.") from error
-    if not text.strip():
-        raise ValueError("Resume text must contain non-whitespace content.")
-    return content, document_format
+    return validate_resume_document(path.name, path.read_bytes())
 
 
 def _resume_payload(resume, versions=()) -> dict[str, object]:
@@ -1303,9 +1276,9 @@ def main(
         try:
             repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
             if args.job_command == "list":
-                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.list_jobs(user_id=args.user_id, limit=args.limit)]}
+                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.list_jobs(user_id=args.user_id, limit=args.limit, include_dismissed=False)]}
             elif args.job_command == "find":
-                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.search_saved_jobs(user_id=args.user_id, query=args.query, limit=args.limit)]}
+                payload = {"jobs": [_stored_job_summary_payload(item) for item in repository.search_saved_jobs(user_id=args.user_id, query=args.query, limit=args.limit, include_dismissed=False)]}
             else:
                 by_posting = bool(args.job_posting_id)
                 by_run = bool(args.run_id or args.selection_index is not None)

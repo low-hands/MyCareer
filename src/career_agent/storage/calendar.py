@@ -117,6 +117,33 @@ class SQLiteCalendarStore:
             ).fetchall()
         return tuple(self._account(row) for row in rows)
 
+    def disable_account(
+        self, *, user_id: str, calendar_account_id: str
+    ) -> CalendarAccount | None:
+        account = self.get_account(
+            user_id=user_id,
+            calendar_account_id=calendar_account_id,
+        )
+        if account is None:
+            return None
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE calendar_accounts SET status = 'disabled', updated_at = ? "
+                "WHERE id = ? AND user_id = ?",
+                (now.isoformat(), calendar_account_id, user_id),
+            )
+        return account.model_copy(update={"status": "disabled", "updated_at": now})
+
+    def active_credential_ref_count(self, credential_ref: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM calendar_accounts "
+                "WHERE credential_ref = ? AND status != 'disabled'",
+                (credential_ref,),
+            ).fetchone()
+        return int(row[0])
+
     def get_link(
         self, *, user_id: str, calendar_account_id: str, interview_round_id: str
     ) -> CalendarEventLink | None:
@@ -196,6 +223,26 @@ class SQLiteCalendarStore:
                 (proposal_id, user_id),
             ).fetchone()
         return self._proposal(row) if row else None
+
+    def list_latest_proposals(
+        self, *, user_id: str
+    ) -> tuple[CalendarChangeProposal, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._PROPOSAL_SELECT
+                + """
+                AS proposal
+                WHERE proposal.user_id = ?
+                  AND proposal.created_at = (
+                    SELECT MAX(newer.created_at)
+                    FROM calendar_change_proposals AS newer
+                    WHERE newer.user_id = proposal.user_id
+                      AND newer.interview_round_id = proposal.interview_round_id
+                  )
+                """,
+                (user_id,),
+            ).fetchall()
+        return tuple(self._proposal(row) for row in rows)
 
     def set_proposal_status(
         self,

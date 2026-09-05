@@ -132,6 +132,21 @@ class SQLiteApplicationStore:
             rows = connection.execute(query, tuple(params)).fetchall()
         return tuple(self._application(row) for row in rows)
 
+    def list_job_posting_ids(self, *, user_id: str) -> frozenset[str]:
+        """All jobs that have crossed from consideration into application.
+
+        This deliberately has no UI pagination limit. It feeds derived
+        conditions such as the saved-job review reminder, where omitting an
+        older application would recreate a task the user has already done.
+        """
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT job_posting_id FROM applications WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+        return frozenset(row[0] for row in rows)
+
     def list_events(
         self, *, user_id: str, application_id: str
     ) -> tuple[ApplicationEvent, ...]:

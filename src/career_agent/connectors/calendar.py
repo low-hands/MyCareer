@@ -18,6 +18,10 @@ from career_agent.domain.calendar import (
     CalendarEventPayload,
     CalendarOperation,
 )
+from career_agent.storage.connector_secrets import (
+    ConnectorSecretError,
+    ConnectorSecretStore,
+)
 
 
 class CalendarConnectorError(RuntimeError):
@@ -332,8 +336,13 @@ class GoogleCalendarConnector:
 
 
 class EnvironmentCalendarConnectorResolver:
-    def __init__(self, environ: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        environ: Mapping[str, str] | None = None,
+        secret_store: ConnectorSecretStore | None = None,
+    ) -> None:
         self._environ = environ if environ is not None else os.environ
+        self._secret_store = secret_store
         self._providers: dict[str, GoogleOAuthTokenProvider] = {}
 
     def resolve(self, account: CalendarAccount) -> CalendarConnector:
@@ -341,27 +350,39 @@ class EnvironmentCalendarConnectorResolver:
             raise CalendarConnectorError(
                 "UNSUPPORTED_CALENDAR_PROVIDER", account.provider
             )
-        prefix = "env:"
-        if not account.credential_ref.startswith(prefix):
+        if account.credential_ref.startswith("keyring:"):
+            if self._secret_store is None:
+                raise CalendarConnectorError(
+                    "INVALID_CALENDAR_CREDENTIAL_REF",
+                    "System keyring resolver is unavailable",
+                )
+            try:
+                secret = self._secret_store.get(account.credential_ref)
+            except ConnectorSecretError as error:
+                raise CalendarConnectorError(
+                    "CALENDAR_CREDENTIAL_UNAVAILABLE", str(error)
+                ) from error
+        elif account.credential_ref.startswith("env:"):
+            name = account.credential_ref[len("env:"):]
+            if not name or not name.replace("_", "").isalnum():
+                raise CalendarConnectorError(
+                    "INVALID_CALENDAR_CREDENTIAL_REF", "Invalid environment variable name"
+                )
+            secret = self._environ.get(name, "")
+            if not secret:
+                raise CalendarConnectorError(
+                    "CALENDAR_CREDENTIAL_UNAVAILABLE",
+                    f"Credential environment variable is unavailable: {name}",
+                )
+        else:
             raise CalendarConnectorError(
                 "INVALID_CALENDAR_CREDENTIAL_REF",
-                "Only env: credential references are supported",
-            )
-        name = account.credential_ref[len(prefix):]
-        if not name or not name.replace("_", "").isalnum():
-            raise CalendarConnectorError(
-                "INVALID_CALENDAR_CREDENTIAL_REF", "Invalid environment variable name"
-            )
-        secret = self._environ.get(name, "")
-        if not secret:
-            raise CalendarConnectorError(
-                "CALENDAR_CREDENTIAL_UNAVAILABLE",
-                f"Credential environment variable is unavailable: {name}",
+                "Unsupported credential reference",
             )
         provider = self._providers.get(account.credential_ref)
         if provider is None:
             try:
-                provider = GoogleOAuthTokenProvider(secret)
+                provider = GoogleOAuthTokenProvider(secret, environ=self._environ)
             except EmailCredentialError as error:
                 raise CalendarConnectorError(
                     "CALENDAR_CREDENTIAL_ERROR", str(error)
