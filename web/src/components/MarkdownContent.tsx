@@ -14,11 +14,16 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
         remarkPlugins={[remarkGfm]}
         skipHtml
         components={{
-          a: ({ children, ...props }) => (
-            <a {...props} target="_blank" rel="noreferrer noopener">
-              {children}
-            </a>
-          ),
+          a: ({ children, href, ...props }) => {
+            if (!href || !/^https?:\/\//i.test(href)) {
+              return <span>{children}</span>;
+            }
+            return (
+              <a {...props} href={href} target="_blank" rel="noreferrer noopener">
+                {children}
+              </a>
+            );
+          },
           img: ({ alt }) => <span>{alt ? `[图片：${alt}]` : "[图片]"}</span>,
         }}
       >

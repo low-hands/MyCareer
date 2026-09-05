@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from career_agent.api.app import create_app
 from career_agent.api.reads import (
+    ApplicationMockInterviewsResponse,
     ApplicationView,
     CalendarAccountView,
     CalendarWorkspaceResponse,
@@ -18,11 +21,27 @@ from career_agent.api.reads import (
     ConversationView,
     ResumeView,
     ResumeImportResponse,
+    MockInterviewSessionView,
     TargetRoleView,
     SavedJobDetailView,
     SavedJobView,
+    build_workspace_reader,
 )
 from career_agent.domain.action_center import ActionItem, DailyBrief
+from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.domain.mock_interviews import (
+    MockInterviewAnswerEvaluation,
+    MockInterviewPlan,
+    MockInterviewPlanItem,
+    MockInterviewQuestionResult,
+    MockInterviewReport,
+    MockInterviewScoreDimension,
+)
+from career_agent.services.applications import ApplicationService
+from career_agent.storage.applications import SQLiteApplicationStore
+from career_agent.storage.jobs import SQLiteJobPostingRepository
+from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
+from career_agent.storage.resumes import ResumeStore
 
 
 NOW = datetime(2026, 8, 31, 2, 0, tzinfo=timezone.utc)
@@ -74,6 +93,41 @@ class _WorkspaceReader:
                 salary="25-35K",
                 submitted_at=NOW,
                 updated_at=NOW,
+            ),
+        )
+
+    def application_mock_interviews(
+        self, *, user_id: str, application_id: str, limit: int = 50
+    ):
+        self.calls.append((f"mock:{application_id}", user_id, limit))
+        return ApplicationMockInterviewsResponse(
+            application_id=application_id,
+            title="AI 产品经理",
+            company_name="示例科技",
+            sessions=(
+                MockInterviewSessionView(
+                    session_id="mock-session-1",
+                    status="completed",
+                    interview_type="role_specific",
+                    interview_type_label="专业面",
+                    question_count=4,
+                    max_primary_questions=6,
+                    report_id="mock-report-1",
+                    summary="结构清晰，需要补充量化结果。",
+                    created_at=NOW,
+                    completed_at=NOW,
+                    updated_at=NOW,
+                ),
+                MockInterviewSessionView(
+                    session_id="mock-session-active",
+                    status="active",
+                    interview_type="behavioral",
+                    interview_type_label="行为面",
+                    question_count=2,
+                    max_primary_questions=5,
+                    created_at=NOW,
+                    updated_at=NOW,
+                ),
             ),
         )
 
@@ -260,6 +314,326 @@ def test_workspace_read_limits_are_validated_before_store_access(api_keys, auth)
 
     assert response.status_code == 422
     assert reader.calls == []
+
+
+def test_application_mock_interviews_are_owner_scoped_and_bounded(
+    api_keys, issue_key
+) -> None:
+    from career_agent.storage.api_keys import WORKSPACE_READ
+
+    reader = _WorkspaceReader()
+    app = create_app(
+        api_key_store_factory=lambda: api_keys,
+        runtime_factory=_Runtime,
+        action_center_factory=_ActionCenter,
+        workspace_reader_factory=lambda: reader,
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/v1/applications/app-1/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+            params={"limit": 10},
+        )
+        invalid = client.get(
+            "/v1/applications/app-1/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+            params={"limit": 101},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["sessions"][0] == {
+        "session_id": "mock-session-1",
+        "status": "completed",
+        "interview_type": "role_specific",
+        "interview_type_label": "专业面",
+        "question_count": 4,
+        "max_primary_questions": 6,
+        "report_id": "mock-report-1",
+        "summary": "结构清晰，需要补充量化结果。",
+        "created_at": NOW.isoformat().replace("+00:00", "Z"),
+        "completed_at": NOW.isoformat().replace("+00:00", "Z"),
+        "updated_at": NOW.isoformat().replace("+00:00", "Z"),
+    }
+    assert invalid.status_code == 422
+    assert ("mock:app-1", "owner-1", 10) in reader.calls
+
+
+def test_application_mock_interviews_hide_missing_and_other_owner_records(
+    api_keys, issue_key
+) -> None:
+    from career_agent.services.applications import ApplicationInputNotFoundError
+    from career_agent.storage.api_keys import WORKSPACE_READ
+
+    class _OwnedReader(_WorkspaceReader):
+        def application_mock_interviews(
+            self, *, user_id: str, application_id: str, limit: int = 50
+        ):
+            if user_id != "owner-1" or application_id != "app-1":
+                raise ApplicationInputNotFoundError("application")
+            return ApplicationMockInterviewsResponse(
+                application_id=application_id,
+                title="AI 产品经理",
+                company_name="示例科技",
+            )
+
+    app = create_app(
+        api_key_store_factory=lambda: api_keys,
+        runtime_factory=_Runtime,
+        action_center_factory=_ActionCenter,
+        workspace_reader_factory=_OwnedReader,
+    )
+
+    with TestClient(app) as client:
+        empty = client.get(
+            "/v1/applications/app-1/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+        )
+        other_owner = client.get(
+            "/v1/applications/app-1/mock-interviews",
+            headers=issue_key("owner-2", WORKSPACE_READ),
+        )
+        missing = client.get(
+            "/v1/applications/missing/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+        )
+
+    assert empty.status_code == 200
+    assert empty.json()["sessions"] == []
+    assert other_owner.status_code == 404
+    assert missing.status_code == 404
+
+
+def test_application_mock_interviews_route_uses_real_owned_stores(
+    tmp_path: Path, api_keys, issue_key
+) -> None:
+    from career_agent.storage.api_keys import WORKSPACE_READ
+
+    args = argparse.Namespace(
+        job_store=str(tmp_path / "jobs.sqlite3"),
+        resume_store=str(tmp_path / "resumes.sqlite3"),
+        application_store=str(tmp_path / "applications.sqlite3"),
+        calendar_store=str(tmp_path / "calendar.sqlite3"),
+        job_research_store=str(tmp_path / "research.sqlite3"),
+        context_store=str(tmp_path / "context.sqlite3"),
+        mock_interview_store=str(tmp_path / "mock.sqlite3"),
+    )
+    resumes = ResumeStore(Path(args.resume_store))
+    role = resumes.create_target_role(
+        user_id="owner-1", title="AI Engineer", priority=1
+    )
+    _, resume_version = resumes.import_document(
+        user_id="owner-1",
+        target_role_id=role.id,
+        name="AI Resume",
+        content=b"PRIVATE RESUME",
+        document_format="text",
+    )
+    jobs = SQLiteJobPostingRepository(Path(args.job_store))
+    stored_job = jobs.save_detail(
+        user_id="owner-1",
+        run_id="run-1",
+        result_ref="result-1",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="test",
+            source_job_id="job-1",
+            title="RAG Engineer",
+            company_name="Acme",
+            description="PRIVATE JD",
+            captured_at=NOW,
+            provenance=Provenance(
+                source_name="test",
+                source_job_id="job-1",
+                captured_at=NOW,
+                operation="detail",
+                adapter_version="test-v1",
+            ),
+        ),
+    )
+    application = ApplicationService(
+        SQLiteApplicationStore(Path(args.application_store)), jobs, resumes
+    ).create_application(
+        user_id="owner-1",
+        job_posting_id=stored_job.posting.id,
+        resume_version_id=resume_version.id,
+    ).application
+    mock_store = SQLiteMockInterviewStore(Path(args.mock_interview_store))
+    completed_session = mock_store.create_session(
+        user_id="owner-1",
+        application_id=application.id,
+        job_posting_id=application.job_posting_id,
+        jd_snapshot_id=application.jd_snapshot_id,
+        resume_version_id=application.resume_version_id,
+        interview_type="technical",
+        max_primary_questions=2,
+    )
+    mock_store.save_plan(
+        session=completed_session,
+        plan=MockInterviewPlan(
+            session_id=completed_session.id,
+            summary="两道技术题",
+            items=tuple(
+                MockInterviewPlanItem(
+                    sequence_number=index,
+                    question_type="project_deep_dive",
+                    difficulty="intermediate",
+                    focus=f"技术主题 {index}",
+                    rationale="验证真实存储读回",
+                )
+                for index in (1, 2)
+            ),
+            created_at=NOW,
+        ),
+    )
+    completed_session = mock_store.start(session=completed_session)
+    question_results = []
+    for index in (1, 2):
+        completed_session, turn = mock_store.ask(
+            session=completed_session,
+            plan_item_number=index,
+            question_type="project_deep_dive",
+            question=f"第 {index} 个问题",
+        )
+        completed_session, turn = mock_store.record_answer(
+            session=completed_session,
+            turn=turn,
+            answer=f"第 {index} 个回答",
+        )
+        completed_session, _ = mock_store.record_evaluation(
+            session=completed_session,
+            turn=turn,
+            evaluation=MockInterviewAnswerEvaluation(
+                rating="adequate",
+                summary=f"第 {index} 题反馈",
+                dimensions=(
+                    MockInterviewScoreDimension(
+                        dimension="specificity",
+                        score=3,
+                        feedback="信息足够具体",
+                    ),
+                ),
+                next_action="next_question",
+                next_action_reason="继续下一题",
+            ),
+        )
+        question_results.append(
+            MockInterviewQuestionResult(
+                plan_item_number=index,
+                question=f"第 {index} 个问题",
+                final_rating="adequate",
+                summary=f"第 {index} 题反馈",
+                follow_up_count=0,
+            )
+        )
+    completed_session, report = mock_store.complete(
+        session=completed_session,
+        report=MockInterviewReport(
+            id="mock-report-completed",
+            session_id=completed_session.id,
+            completion_reason="plan_completed",
+            summary="完成两道题",
+            question_results=tuple(question_results),
+            created_at=NOW,
+        ),
+    )
+    active_session = mock_store.create_session(
+        user_id="owner-1",
+        application_id=application.id,
+        job_posting_id=application.job_posting_id,
+        jd_snapshot_id=application.jd_snapshot_id,
+        resume_version_id=application.resume_version_id,
+        interview_type="behavioral",
+        max_primary_questions=3,
+    )
+    mock_store.save_plan(
+        session=active_session,
+        plan=MockInterviewPlan(
+            session_id=active_session.id,
+            summary="一道行为题",
+            items=(
+                MockInterviewPlanItem(
+                    sequence_number=1,
+                    question_type="project_deep_dive",
+                    difficulty="intermediate",
+                    focus="行为主题",
+                    rationale="验证未完成场次计数",
+                ),
+            ),
+            created_at=NOW,
+        ),
+    )
+    active_session = mock_store.start(session=active_session)
+    active_session, active_turn = mock_store.ask(
+        session=active_session,
+        plan_item_number=1,
+        question_type="project_deep_dive",
+        question="进行中的问题",
+    )
+    active_session, active_turn = mock_store.record_answer(
+        session=active_session,
+        turn=active_turn,
+        answer="进行中的回答",
+    )
+    active_session, _ = mock_store.record_evaluation(
+        session=active_session,
+        turn=active_turn,
+        evaluation=MockInterviewAnswerEvaluation(
+            rating="strong",
+            summary="进行中的反馈",
+            dimensions=(
+                MockInterviewScoreDimension(
+                    dimension="specificity",
+                    score=4,
+                    feedback="回答具体",
+                ),
+            ),
+            next_action="next_question",
+            next_action_reason="继续下一题",
+        ),
+    )
+    app = create_app(
+        api_key_store_factory=lambda: api_keys,
+        runtime_factory=_Runtime,
+        action_center_factory=_ActionCenter,
+        workspace_reader_factory=lambda: build_workspace_reader(args),
+    )
+
+    with TestClient(app) as client:
+        owned = client.get(
+            f"/v1/applications/{application.id}/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+            params={"limit": 2},
+        )
+        bounded = client.get(
+            f"/v1/applications/{application.id}/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+            params={"limit": 1},
+        )
+        other_owner = client.get(
+            f"/v1/applications/{application.id}/mock-interviews",
+            headers=issue_key("owner-2", WORKSPACE_READ),
+        )
+        missing = client.get(
+            "/v1/applications/missing/mock-interviews",
+            headers=issue_key("owner-1", WORKSPACE_READ),
+        )
+
+    assert owned.status_code == 200
+    assert owned.json()["application_id"] == application.id
+    sessions = {item["session_id"]: item for item in owned.json()["sessions"]}
+    assert sessions[completed_session.id]["status"] == "completed"
+    assert sessions[completed_session.id]["question_count"] == len(
+        report.question_results
+    )
+    assert sessions[completed_session.id]["report_id"] == report.id
+    assert sessions[active_session.id]["status"] == "active"
+    assert sessions[active_session.id]["question_count"] == 1
+    assert sessions[active_session.id]["report_id"] is None
+    assert bounded.status_code == 200
+    assert len(bounded.json()["sessions"]) == 1
+    assert other_owner.status_code == 404
+    assert missing.status_code == 404
 
 
 def test_application_creation_requires_write_scope(api_keys, issue_key) -> None:

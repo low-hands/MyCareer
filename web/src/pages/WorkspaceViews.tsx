@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   type ApplicationView,
+  type ApplicationMockInterviews,
   type CalendarWorkspace,
   type CompanyResearchView,
   type Dashboard,
@@ -10,6 +11,7 @@ import {
   type SavedJobView,
   createApplication,
   fetchApplications,
+  fetchApplicationMockInterviews,
   fetchCalendar,
   connectQQ,
   disconnectIntegration,
@@ -262,6 +264,117 @@ export function DashboardPanel(props: PageProps) {
   );
 }
 
+const MOCK_INTERVIEW_STATUS_LABELS: Record<string, string> = {
+  created: "准备中",
+  active: "进行中",
+  paused: "已暂停",
+  completed: "已完成",
+  cancelled: "已取消",
+};
+
+function ApplicationPracticePanel({
+  application,
+  apiBaseUrl,
+  refreshToken,
+  onAskAgent,
+  onClose,
+}: {
+  application: ApplicationView;
+  apiBaseUrl: string;
+  refreshToken: number;
+  onAskAgent: (prompt: string) => void;
+  onClose: () => void;
+}) {
+  const load = useCallback(
+    (signal: AbortSignal) => fetchApplicationMockInterviews(
+      application.id,
+      { apiBaseUrl, signal },
+    ),
+    [apiBaseUrl, application.id],
+  );
+  const state = usePageData<ApplicationMockInterviews>(load, refreshToken, true);
+  const startPrompt = `基于投递记录中的「${application.company_name} · ${application.title}」开始一轮模拟面试；请先让我选择面试类型和题目数量。`;
+
+  return (
+    <section className="surface-card application-practice-panel">
+      <header>
+        <div>
+          <small>INTERVIEW PRACTICE</small>
+          <h2>面试与练习</h2>
+          <p>{application.company_name} · {application.title}</p>
+        </div>
+        <div>
+          <button type="button" className="soft-button" onClick={() => onAskAgent(startPrompt)}>
+            <AppIcon name="sparkles" size={15} /> 让 Agent 开始模拟面试
+          </button>
+          <button type="button" className="panel-close-button" onClick={onClose}>关闭</button>
+        </div>
+      </header>
+      <ErrorBanner message={state.error} />
+      {state.loading ? (
+        <div className="history-loading"><span className="spinner" /> 正在读取练习记录…</div>
+      ) : state.data && state.data.sessions.length > 0 ? (
+        <div className="mock-session-list">
+          {state.data.sessions.map((session) => (
+            <article className="mock-session-card" key={session.session_id}>
+              <div className="mock-session-heading">
+                <div>
+                  <span className="card-kicker">{session.interview_type_label}</span>
+                  <strong>{session.completed_at ? dateLabel(session.completed_at) : dateLabel(session.created_at)}</strong>
+                </div>
+                <span className={`status-pill status-${session.status}`}>
+                  {MOCK_INTERVIEW_STATUS_LABELS[session.status] ?? session.status}
+                </span>
+              </div>
+              <p>{session.summary ?? (
+                session.status === "active"
+                  ? "这轮模拟面试仍在原对话中进行。"
+                  : session.status === "paused"
+                    ? "这轮模拟面试已暂停，已有回答会保留，继续后才会生成最终总结。"
+                    : session.status === "cancelled"
+                      ? "这轮模拟面试已取消，不会生成最终总结。"
+                  : "这轮模拟面试尚未生成最终总结。"
+              )}</p>
+              <small>已完成 {session.question_count} / {session.max_primary_questions} 道主问题</small>
+              {session.report_id ? (
+                <ReportCard
+                  apiBaseUrl={apiBaseUrl}
+                  resource={{
+                    kind: "mock_interview_report",
+                    resourceId: session.report_id,
+                  }}
+                />
+              ) : null}
+              {session.status === "completed" ? (
+                <button
+                  type="button"
+                  className="card-agent-action"
+                  onClick={() => onAskAgent(
+                    `基于投递记录中的「${application.company_name} · ${application.title}」再进行一轮${session.interview_type_label}模拟面试。`,
+                  )}
+                >
+                  再练一轮同类型
+                </button>
+              ) : null}
+              {session.status === "active" || session.status === "paused" ? (
+                <small className="workflow-note">这轮练习只能在最初发起它的对话中继续；此处暂不支持直接跳转。</small>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon="sparkles"
+          title="还没有模拟面试记录"
+          description="模拟面试会在 Agent 对话中进行；完成后，本轮总结和每题反馈会保存在这里。"
+          action="让 Agent 开始模拟面试"
+          onAction={() => onAskAgent(startPrompt)}
+        />
+      )}
+    </section>
+  );
+}
+
 export function ApplicationsPanel(props: PageProps) {
   const load = useCallback(async (signal: AbortSignal) => {
     const options = { apiBaseUrl: props.apiBaseUrl, signal };
@@ -287,6 +400,7 @@ export function ApplicationsPanel(props: PageProps) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [practiceApplication, setPracticeApplication] = useState<ApplicationView | null>(null);
 
   async function submitApplication(): Promise<void> {
     setSaving(true);
@@ -318,7 +432,16 @@ export function ApplicationsPanel(props: PageProps) {
       </div>
       <ErrorBanner message={formError} />
       {showForm ? <section className="surface-card application-create-form"><div><label>已保存岗位<select value={jobId} onChange={(event) => setJobId(event.target.value)}><option value="">请选择岗位</option>{state.data?.jobs.map((job) => <option key={job.id} value={job.id}>{job.company_name} · {job.title}</option>)}</select></label><label>使用的简历<select value={resumeVersionId} onChange={(event) => setResumeVersionId(event.target.value)}><option value="">请选择简历版本</option>{state.data?.resumes.map((resume) => <option key={resume.latest_version_id} value={resume.latest_version_id}>{resume.name} · v{resume.latest_version_number}</option>)}</select></label><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && (state.data.jobs.length === 0 || state.data.resumes.length === 0) ? <p>记录前需要至少一个已保存岗位和一个简历版本。可以先前往岗位库/简历管理，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
-      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className="data-table-row" key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span></span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
+      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span></span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
+      {practiceApplication ? (
+        <ApplicationPracticePanel
+          application={practiceApplication}
+          apiBaseUrl={props.apiBaseUrl}
+          refreshToken={props.refreshToken}
+          onAskAgent={props.onAskAgent}
+          onClose={() => setPracticeApplication(null)}
+        />
+      ) : null}
     </section>
   );
 }

@@ -32,6 +32,27 @@ export interface ApplicationView {
   updated_at: string;
 }
 
+export interface MockInterviewSessionView {
+  session_id: string;
+  status: string;
+  interview_type: string;
+  interview_type_label: string;
+  question_count: number;
+  max_primary_questions: number;
+  report_id: string | null;
+  summary: string | null;
+  created_at: string;
+  completed_at: string | null;
+  updated_at: string;
+}
+
+export interface ApplicationMockInterviews {
+  application_id: string;
+  title: string;
+  company_name: string;
+  sessions: MockInterviewSessionView[];
+}
+
 export interface SavedJobView {
   id: string;
   title: string;
@@ -256,6 +277,17 @@ export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {
 
 export function fetchApplications(options: ReadOptions): Promise<ApplicationView[]> {
   return getJson<ApplicationView[]>("/v1/applications", {}, options);
+}
+
+export function fetchApplicationMockInterviews(
+  applicationId: string,
+  options: ReadOptions,
+): Promise<ApplicationMockInterviews> {
+  return getJson<ApplicationMockInterviews>(
+    `/v1/applications/${encodeURIComponent(applicationId)}/mock-interviews`,
+    {},
+    options,
+  );
 }
 
 export async function createApplication(

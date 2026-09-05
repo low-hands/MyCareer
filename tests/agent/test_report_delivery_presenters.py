@@ -10,6 +10,7 @@ from career_agent.agent.interview_preparation_presenter import (
 from career_agent.agent.job_research_presenter import summarize_job_research
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.agent.mock_interview_presenter import (
+    render_mock_interview_report,
     render_mock_interview_turn,
     summarize_mock_interview_report,
 )
@@ -86,6 +87,8 @@ class TestMockInterviewTurn:
         )
         assert rendered.startswith("模拟面试完成。")
         assert "量化不足" in rendered
+        assert "## 每题反馈" in rendered
+        assert "讲一个你做过的检索评估。" in rendered
 
     def test_a_finished_run_without_a_report_still_states_it_is_over(self) -> None:
         """The session is closed either way.
@@ -96,6 +99,43 @@ class TestMockInterviewTurn:
         assert render_mock_interview_turn(_graph_result(state="completed")) == (
             "模拟面试完成。"
         )
+
+    def test_model_authored_question_feedback_cannot_add_markdown(self) -> None:
+        report = _report().model_copy(
+            update={
+                "question_results": (
+                    _report().question_results[0].model_copy(
+                        update={
+                            "question": "[打开](javascript:alert(1))",
+                            "summary": "<script>alert(1)</script>\n# 注入标题",
+                        }
+                    ),
+                )
+            }
+        )
+
+        rendered = render_mock_interview_report(report)
+
+        assert r"\[打开\](javascript:alert(1))" in rendered
+        assert "&lt;script>alert(1)&lt;/script>" in rendered
+        assert r"\# 注入标题" in rendered
+
+    def test_all_model_authored_report_sections_are_escaped_without_noise(self) -> None:
+        report = _report(summary="# 总结\nC++ 提升 1.5 倍").model_copy(
+            update={
+                "strengths": ("- 亮点",),
+                "development_areas": ("[待提升](javascript:alert(1))",),
+                "practice_actions": ("> 练习建议",),
+            }
+        )
+
+        rendered = render_mock_interview_report(report)
+
+        assert r"\# 总结" in rendered
+        assert "C++ 提升 1.5 倍" in rendered
+        assert "- - 亮点" in rendered
+        assert r"\[待提升\](javascript:alert(1))" in rendered
+        assert r"- \> 练习建议" in rendered
 
     def test_a_cancelled_run_says_so(self) -> None:
         assert render_mock_interview_turn(_graph_result(state="cancelled")) == (
@@ -125,6 +165,37 @@ class TestMockInterviewTurn:
         )
         assert rendered.index("上一题反馈") < rendered.index("模拟面试题")
         assert "再讲一个线上故障。" in rendered
+
+    def test_a_waiting_run_uses_restricted_markdown_for_model_text(self) -> None:
+        rendered = render_mock_interview_turn(
+            _graph_result(
+                state="awaiting_answer",
+                question=(
+                    "## 题目\n> 不应成为引用块\n请比较 `recall` 和 **precision**，"
+                    "不要点 [链接](https://evil.example) 或 https://evil.example"
+                ),
+                turn_id="turn-2",
+                evaluation=MockInterviewAnswerEvaluation(
+                    rating="adequate",
+                    summary="# 上一题反馈",
+                    dimensions=(
+                        MockInterviewScoreDimension(
+                            dimension="specificity", score=3, feedback="具体"
+                        ),
+                    ),
+                    next_action="next_question",
+                    next_action_reason="见 www.evil.example",
+                ),
+            )
+        )
+
+        assert r"\## 题目" in rendered
+        assert r"\> 不应成为引用块" in rendered
+        assert "`recall`" in rendered
+        assert "**precision**" in rendered
+        assert r"\[链接\]" in rendered
+        assert "https://evil.example" not in rendered
+        assert "www.evil.example" not in rendered
 
     def test_the_first_question_has_no_feedback_block(self) -> None:
         rendered = render_mock_interview_turn(

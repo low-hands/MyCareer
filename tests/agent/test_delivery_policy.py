@@ -595,6 +595,47 @@ def test_a_readback_of_one_exchange_keeps_the_answer_off_the_row() -> None:
     assert "我设计了离线评估集。" in render_mock_interview_question(view)
 
 
+def test_mock_interview_readbacks_use_restricted_markdown_for_dynamic_text() -> None:
+    question_view = MockInterviewQuestionView(
+        question_number=1,
+        exchanges=(
+            MockInterviewExchange(
+                turn_type="primary",
+                question="## 题目 `code` [链接](https://evil.example)",
+                answer="**回答** www.evil.example",
+                rating="adequate",
+                evaluation_summary="<b>评价</b>",
+            ),
+        ),
+    )
+    result_view = MockInterviewResultView(
+        interview_type="technical",
+        status="completed",
+        questions=(
+            MockInterviewQuestionSummary(
+                plan_item_number=1,
+                question="## 题目 https://evil.example",
+                rating="adequate",
+                follow_up_count=0,
+            ),
+        ),
+        answered_count=1,
+        report_summary="[总结](https://evil.example)",
+    )
+
+    question_screen = render_mock_interview_question(question_view)
+    result_screen = render_mock_interview_result(result_view)
+
+    assert r"\## 题目" in question_screen
+    assert "`code`" in question_screen
+    assert "**回答**" in question_screen
+    assert "&lt;b>评价&lt;/b>" in question_screen
+    assert "https://evil.example" not in question_screen
+    assert "www.evil.example" not in question_screen
+    assert r"\[总结\]" in result_screen
+    assert "https://evil.example" not in result_screen
+
+
 def test_a_card_policy_without_a_reference_fails_open_to_the_full_body() -> None:
     """A broken observation must not turn a completed report into a receipt."""
     from career_agent.agent.main_agent_contracts import ToolObservation

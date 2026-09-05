@@ -30,4 +30,16 @@ describe("MarkdownContent", () => {
     expect(html).not.toContain("pixel.png");
     expect(html).toContain("[图片：tracking]");
   });
+
+  it("only makes http and https links clickable", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownContent
+        content={"[unsafe](javascript:alert(1)) [mail](mailto:a@example.com) [safe](https://example.com)"}
+      />,
+    );
+
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("mailto:");
+    expect(html).toContain('href="https://example.com"');
+  });
 });
