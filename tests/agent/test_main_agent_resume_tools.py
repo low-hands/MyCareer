@@ -4,7 +4,7 @@ import pytest
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_runtime import MainAgentRuntime, InteractionReceipt
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerEvidence,
@@ -422,6 +422,17 @@ def test_resume_analysis_can_be_reviewed_and_confirmed_across_turns(tmp_path) ->
     assert len(history_store.list_evidence(user_id="u1")) == 2
     assert confirmed.context.task.resume_analysis_status == "confirmed"
     assert confirm_decisions.contexts == []
+    # The user clicked an approval whose contract was sealed when the interaction
+    # was issued. The other non-model ingress — a workflow continuation the
+    # runtime routes on its own ownership rule — must not read the same, and it
+    # no longer can: they are different types, not one type with different
+    # labels. Both are ``requested_by="user"``, which is why that field alone
+    # never separated them.
+    assert confirmed.origin == InteractionReceipt(
+        scope="resume_analysis_confirmation", action="confirm"
+    )
+    assert confirmed.requested_by == "user"
+    assert confirmed.model_decision is None
 
     repeated = confirm_agent.run_turn(
         user_id="u1",

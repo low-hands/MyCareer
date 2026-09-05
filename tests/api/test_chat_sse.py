@@ -12,6 +12,7 @@ from career_agent.api.app import (
     ChatStreamRequest,
     ConversationBusyError,
     ConversationRunGate,
+    GateAwareStreamingResponse,
     _runtime_args_from_env,
     _sse_stream,
     create_app,
@@ -41,10 +42,12 @@ class Runtime:
         user_id,
         conversation_id,
         user_message,
+        request_id=None,
         interaction_response=None,
         event_sink=None,
     ):
         self.calls.append((user_id, conversation_id, user_message))
+        self.request_id = request_id
         self.interaction_response = interaction_response
         assert event_sink is not None
         event_sink(TurnStartedEvent(turn_id="turn-1"))
@@ -151,6 +154,23 @@ def test_chat_endpoint_transports_bound_interaction_response(api_keys, auth) -> 
     assert runtime.interaction_response == response_value
 
 
+def test_chat_endpoint_transports_the_idempotency_key_outside_model_input(
+    api_keys, auth
+) -> None:
+    runtime = Runtime()
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/chat/stream",
+            headers={**auth, "Idempotency-Key": "request-123"},
+            json={"conversation_id": "c1", "message": "记录投递"},
+        )
+
+    assert response.status_code == 200
+    assert runtime.request_id == "request-123"
+
+
 def test_sse_does_not_expose_raw_runtime_exception(api_keys, auth) -> None:
     runtime = Runtime(fail=True)
     app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
@@ -215,6 +235,40 @@ def test_disconnecting_observer_releases_gate_only_after_turn_finishes() -> None
         with pytest.raises(ConversationBusyError):
             await gate.acquire("u1", "c1")
         await asyncio.sleep(0.08)
+        await gate.acquire("u1", "c1")
+
+    asyncio.run(exercise())
+
+
+def test_a_response_closed_before_body_iteration_releases_its_gate() -> None:
+    class NeverStartsBody(GateAwareStreamingResponse):
+        async def stream_response(self, send) -> None:
+            return
+
+    async def exercise() -> None:
+        gate = ConversationRunGate()
+        await gate.acquire("u1", "c1")
+        started = False
+
+        async def body():
+            nonlocal started
+            started = True
+            yield b"unused"
+
+        async def release() -> None:
+            await gate.release("u1", "c1")
+
+        response = NeverStartsBody(
+            body(),
+            stream_started=lambda: started,
+            release_unstarted=release,
+        )
+        await response(
+            {"type": "http", "asgi": {"spec_version": "2.4"}},
+            lambda: None,
+            lambda message: None,
+        )
+
         await gate.acquire("u1", "c1")
 
     asyncio.run(exercise())
@@ -518,3 +572,40 @@ def test_reading_the_brief_needs_no_model_configuration(
 
     with TestClient(app) as client:
         assert client.get("/v1/daily-brief", headers=auth).status_code == 200
+
+
+def test_a_rejected_overlapping_turn_is_counted_not_only_refused(
+    tmp_path, api_keys, auth
+) -> None:
+    """Whether the process-local gate is enough is a question about contention.
+
+    A lease and an optimistic version number suit opposite contention levels,
+    and this deployment has never measured which one it has. The gate already
+    knows — it returns 409 — so the fact is recorded rather than discarded, and
+    the replacement can be chosen from data instead of from a guess.
+    """
+    class CountingRuntime(Runtime):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rejected = []
+
+        def record_rejected_turn(self, *, user_id, conversation_id):
+            self.rejected.append((user_id, conversation_id))
+
+    runtime = CountingRuntime()
+    app = create_app(
+        api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime
+    )
+
+    with TestClient(app) as client:
+        app.state.run_gate._active.add(("u1", "c1"))
+        response = client.post(
+            "/v1/chat/stream",
+            headers=auth,
+            json={"conversation_id": "c1", "message": "再来一次"},
+        )
+
+    assert response.status_code == 409
+    # The user comes from the credential, so a rejection is attributed to whoever
+    # actually holds the key rather than to a name the request supplied.
+    assert runtime.rejected == [("u1", "c1")]

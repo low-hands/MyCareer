@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryWorker
-from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, MainAgentContext
+from career_agent.agent.main_agent_contracts import OwnerSettingsContext, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, MainAgentContext
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
 from career_agent.storage.context import CareerContextStore
@@ -71,7 +71,7 @@ class ContextManager:
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
         self._maybe_summarize(user_id=user_id, conversation_id=conversation_id)
         profile = self._store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
-        preferences = self._store.get_preferences(user_id) or AgentPreferencesContext()
+        preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
         task = self._store.get_task(user_id, conversation_id) or ConversationTaskState()
         summary = self._store.get_conversation_summary(
             user_id=user_id,
@@ -143,7 +143,7 @@ class ContextManager:
         """Build a routing envelope without loading Main Agent memory."""
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
         profile = self._store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
-        preferences = self._store.get_preferences(user_id) or AgentPreferencesContext()
+        preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
         return MainAgentContext(
             conversation_id=conversation_id,
             profile=profile,
@@ -242,8 +242,35 @@ class ContextManager:
     def upsert_profile(self, profile: CareerProfileContext) -> None:
         self._store.upsert_profile(profile)
 
-    def upsert_preferences(self, *, user_id: str, preferences: AgentPreferencesContext) -> None:
+    def preferences(self, *, user_id: str) -> OwnerSettingsContext:
+        """The owner's rules, defaulted rather than absent.
+
+        A user who has never set one is not a user with no rules — the defaults
+        are the rules, and returning ``None`` would push that decision onto
+        every caller.
+        """
+
+        return self._store.get_owner_settings(user_id) or OwnerSettingsContext()
+
+    def upsert_preferences(self, *, user_id: str, preferences: OwnerSettingsContext) -> None:
         self._store.upsert_preferences(user_id, preferences)
+
+    def update_owner_settings(
+        self,
+        *,
+        user_id: str,
+        desired: OwnerSettingsContext,
+        expected_revision: int,
+        actor_type: str,
+        actor_id: str,
+    ) -> OwnerSettingsContext:
+        return self._store.update_owner_settings(
+            user_id=user_id,
+            desired=desired,
+            expected_revision=expected_revision,
+            actor_type=actor_type,
+            actor_id=actor_id,
+        )
 
     def _truncate(self, content: str) -> str:
         return content[:self._max_message_chars]

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import base64
 import json
-import re
 from typing import Any, Mapping
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
@@ -16,6 +15,7 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchResult,
     ResumeJobMatchWorker,
 )
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
@@ -23,21 +23,6 @@ from career_agent.storage.resumes import StoredResumeDocument
 def _base_url(endpoint: str) -> str:
     suffix = "/chat/completions"
     return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
-
-
-def _validation_detail(error: ValueError) -> str:
-    errors = getattr(error, "errors", lambda: ())()
-    if not isinstance(errors, list):
-        return type(error).__name__
-    return json.dumps(
-        [
-            {"type": item.get("type"), "loc": item.get("loc"), "msg": item.get("msg")}
-            for item in errors
-            if isinstance(item, dict)
-        ],
-        ensure_ascii=False,
-        sort_keys=True,
-    )
 
 
 class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
@@ -83,54 +68,18 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
         if not jd_text.strip():
             raise AgentWorkerError("RESUME_JOB_MATCH_EMPTY_JD", "Job description is empty.")
         content = self._document_content(document, jd_text, confirmed_facts)
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=self._system_prompt(),
-                input=[{"role": "user", "content": content}],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "resume_job_match_result",
-                        "schema": ResumeJobMatchResult.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=8192,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "RESUME_JOB_MATCH_RATE_LIMITED",
-                "Resume-job matching model is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "RESUME_JOB_MATCH_TRANSPORT_ERROR",
-                "Resume-job matching model transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"RESUME_JOB_MATCH_REJECTED_{error.status_code}{self._provider_code(error)}",
-                "Resume-job matching model rejected the request.",
-            ) from error
-
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError(
-                "RESUME_JOB_MATCH_EMPTY_RESPONSE",
-                "Resume-job matching model returned no structured output.",
-            )
-        try:
-            return ResumeJobMatchResult.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "RESUME_JOB_MATCH_INVALID_RESPONSE",
-                "Resume-job matching model returned invalid structured output.",
-                detail=_validation_detail(error),
-            ) from error
+        return structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=self._system_prompt(),
+            content=content,
+            output_type=ResumeJobMatchResult,
+            schema_name="resume_job_match_result",
+            max_output_tokens=8192,
+            code_prefix="RESUME_JOB_MATCH",
+            subject="Resume-job matching",
+        )
 
     @classmethod
     def _document_content(
@@ -216,15 +165,3 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             "requirement and unclear when the document or requirement is ambiguous. Preserve "
             "the source language, avoid numeric fit scores, and state important limitations."
         )
-
-    @staticmethod
-    def _provider_code(error: APIStatusError) -> str:
-        body = getattr(error, "body", None)
-        candidate = (
-            body.get("error", {}).get("code")
-            if isinstance(body, dict) and isinstance(body.get("error"), dict)
-            else None
-        )
-        if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", candidate):
-            return f"_{candidate}"
-        return ""

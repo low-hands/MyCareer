@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import base64
 import json
-import re
 from pathlib import Path
 from typing import Any, Mapping, TypeVar
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 from pydantic import BaseModel
 
 from career_agent.agent.mock_interview_contracts import (
@@ -35,6 +34,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewTurn,
 )
 from career_agent.storage.resumes import StoredResumeDocument
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 
 
@@ -44,25 +44,6 @@ T = TypeVar("T", bound=BaseModel)
 def _base_url(endpoint: str) -> str:
     suffix = "/chat/completions"
     return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
-
-
-def _validation_detail(error: ValueError) -> str:
-    errors = getattr(error, "errors", lambda: ())()
-    if not isinstance(errors, list):
-        return type(error).__name__
-    return json.dumps(
-        [
-            {
-                "type": item.get("type"),
-                "loc": item.get("loc"),
-                "msg": item.get("msg"),
-            }
-            for item in errors
-            if isinstance(item, dict)
-        ],
-        ensure_ascii=False,
-        sort_keys=True,
-    )
 
 
 class OpenAIMockInterviewWorker:
@@ -363,54 +344,19 @@ class OpenAIMockInterviewWorker:
         result_name: str,
         max_output_tokens: int,
     ) -> T:
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=instructions,
-                input=[{"role": "user", "content": content}],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": result_name,
-                        "schema": output_type.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=max_output_tokens,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "MOCK_INTERVIEW_RATE_LIMITED",
-                "Mock interview model is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "MOCK_INTERVIEW_TRANSPORT_ERROR",
-                "Mock interview model transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"MOCK_INTERVIEW_REJECTED_{error.status_code}{self._provider_code(error)}",
-                "Mock interview model rejected the request.",
-            ) from error
+        return structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=instructions,
+            content=content,
+            output_type=output_type,
+            schema_name=result_name,
+            max_output_tokens=max_output_tokens,
+            code_prefix="MOCK_INTERVIEW",
+            subject="Mock interview",
+        )
 
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError(
-                "MOCK_INTERVIEW_EMPTY_RESPONSE",
-                "Mock interview model returned no structured output.",
-            )
-        try:
-            return output_type.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "MOCK_INTERVIEW_INVALID_RESPONSE",
-                "Mock interview model returned invalid structured output.",
-                detail=_validation_detail(error),
-            ) from error
 
     @classmethod
     def _document_content(
@@ -505,15 +451,3 @@ class OpenAIMockInterviewWorker:
             ),
             "status": turn.status,
         }
-
-    @staticmethod
-    def _provider_code(error: APIStatusError) -> str:
-        body = getattr(error, "body", None)
-        candidate = (
-            body.get("error", {}).get("code")
-            if isinstance(body, dict) and isinstance(body.get("error"), dict)
-            else None
-        )
-        if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", candidate):
-            return f"_{candidate}"
-        return ""

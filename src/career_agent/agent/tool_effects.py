@@ -36,6 +36,7 @@ _WRITE_CAPABILITIES = frozenset(
         "sync_application_emails",
         "update_application_status",
         "update_interview",
+        "update_owner_settings",
         "restart_mock_interview",
         "retry_mock_interview",
     }
@@ -78,6 +79,41 @@ TOOL_EFFECTS: Mapping[str, ToolEffect] = MappingProxyType(
         **dict.fromkeys(_WRITE_CAPABILITIES, "WRITE"),
     }
 )
+
+
+_REPLAY_SAFE_CAPABILITIES = frozenset(
+    {
+        # UNIQUE(user_id, job_posting_id): a second call for the same posting
+        # returns the existing application rather than creating another.
+        "create_application",
+        # Carries its own idempotency key and a reconciliation path; the service
+        # treats an unsettled attempt as recovery rather than as a new write.
+        "execute_calendar_proposal",
+        # The handler keys the applied change by the bound confirmation id;
+        # a retry returns the audit event's recorded after-state.
+        "update_owner_settings",
+    }
+)
+"""Writes that may be invoked again for a slot whose outcome is unknown.
+
+Declared, never inferred. All writes record intent, but re-running one requires
+something downstream that collapses a second call into the original effect.
+
+``research_job`` is deliberately absent although it looks eligible. Its unique
+index is ``WHERE status = 'running'`` — a guard against two concurrent runs, not
+a deduplication of results. What actually collapses a repeat is the freshness
+cache (``find_completed(created_after=now - freshness)``), which holds for a
+crash-retry seconds later and stops holding once the window passes. Safety that
+depends on how long the operator took to retry is not the kind that belongs in
+this set.
+
+"""
+
+
+def replay_safe(name: str) -> bool:
+    """Whether re-invoking this capability cannot produce a second effect."""
+
+    return name in _REPLAY_SAFE_CAPABILITIES
 
 
 def effect_for(name: str) -> ToolEffect:

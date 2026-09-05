@@ -4,7 +4,7 @@ import base64
 import json
 from typing import Any
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 
 from career_agent.agent.interview_preparation_contracts import (
     InterviewPreparationContext,
@@ -14,6 +14,7 @@ from career_agent.agent.openai_compatible_client import (
     OpenAICompatibleAgentConfig,
 )
 from career_agent.domain.interview_preparation import InterviewPreparationResult
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
@@ -52,51 +53,19 @@ class OpenAIInterviewPreparationWorker:
             document=document,
             context=context,
         )
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=self._system_prompt(),
-                input=[{"role": "user", "content": content}],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "interview_preparation_result",
-                        "schema": InterviewPreparationResult.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=8192,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "INTERVIEW_PREPARATION_RATE_LIMITED",
-                "Interview preparation model is rate limited.", retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "INTERVIEW_PREPARATION_TRANSPORT_ERROR",
-                "Interview preparation model transport failed.", retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"INTERVIEW_PREPARATION_REJECTED_{error.status_code}",
-                "Interview preparation model rejected the request.",
-            ) from error
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError(
-                "INTERVIEW_PREPARATION_EMPTY_RESPONSE",
-                "Interview preparation model returned no structured output.",
-            )
-        try:
-            return InterviewPreparationResult.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "INTERVIEW_PREPARATION_INVALID_RESPONSE",
-                "Interview preparation model returned invalid structured output.",
-                detail=type(error).__name__,
-            ) from error
+        return structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=self._system_prompt(),
+            content=content,
+            output_type=InterviewPreparationResult,
+            schema_name="interview_preparation_result",
+            max_output_tokens=8192,
+            code_prefix="INTERVIEW_PREPARATION",
+            subject="Interview preparation",
+        )
+
 
     @classmethod
     def _document_content(

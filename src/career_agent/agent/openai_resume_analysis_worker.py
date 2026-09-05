@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import base64
-import json
-import re
 from typing import Any, Mapping
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
@@ -15,6 +13,7 @@ from career_agent.agent.resume_analysis_contracts import (
     ResumeAnalysisResult,
     ResumeAnalysisWorker,
 )
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 from career_agent.storage.resumes import StoredResumeDocument
 
@@ -22,25 +21,6 @@ from career_agent.storage.resumes import StoredResumeDocument
 def _base_url(endpoint: str) -> str:
     suffix = "/chat/completions"
     return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
-
-
-def _validation_detail(error: ValueError) -> str:
-    errors = getattr(error, "errors", lambda: ())()
-    if not isinstance(errors, list):
-        return type(error).__name__
-    return json.dumps(
-        [
-            {
-                "type": item.get("type"),
-                "loc": item.get("loc"),
-                "msg": item.get("msg"),
-            }
-            for item in errors
-            if isinstance(item, dict)
-        ],
-        ensure_ascii=False,
-        sort_keys=True,
-    )
 
 
 class OpenAIResumeAnalysisWorker(ResumeAnalysisWorker):
@@ -75,60 +55,18 @@ class OpenAIResumeAnalysisWorker(ResumeAnalysisWorker):
     @traced_model_call("resume_analysis")
     def analyze(self, document: StoredResumeDocument) -> ResumeAnalysisResult:
         content = self._document_content(document)
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=self._system_prompt(),
-                input=[
-                    {
-                        "role": "user",
-                        "content": content,
-                    }
-                ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "resume_analysis_result",
-                        "schema": ResumeAnalysisResult.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=8192,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "RESUME_ANALYSIS_RATE_LIMITED",
-                "Resume analysis model is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "RESUME_ANALYSIS_TRANSPORT_ERROR",
-                "Resume analysis model transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            provider_code = self._provider_code(error)
-            raise AgentWorkerError(
-                f"RESUME_ANALYSIS_REJECTED_{error.status_code}{provider_code}",
-                "Resume analysis model rejected the request.",
-            ) from error
-
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError(
-                "RESUME_ANALYSIS_EMPTY_RESPONSE",
-                "Resume analysis model returned no structured output.",
-            )
-        try:
-            return ResumeAnalysisResult.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "RESUME_ANALYSIS_INVALID_RESPONSE",
-                "Resume analysis model returned invalid structured output.",
-                detail=_validation_detail(error),
-            ) from error
+        return structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=self._system_prompt(),
+            content=content,
+            output_type=ResumeAnalysisResult,
+            schema_name="resume_analysis_result",
+            max_output_tokens=8192,
+            code_prefix="RESUME_ANALYSIS",
+            subject="Resume analysis",
+        )
 
     @staticmethod
     def _document_content(document: StoredResumeDocument) -> list[dict[str, str]]:
@@ -189,15 +127,3 @@ class OpenAIResumeAnalysisWorker(ResumeAnalysisWorker):
             "warnings for unreadable or incomplete content. Never invent internal IDs, user "
             "IDs, verification status, timestamps, or facts from outside the resume."
         )
-
-    @staticmethod
-    def _provider_code(error: APIStatusError) -> str:
-        body = getattr(error, "body", None)
-        candidate = (
-            body.get("error", {}).get("code")
-            if isinstance(body, dict) and isinstance(body.get("error"), dict)
-            else None
-        )
-        if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", candidate):
-            return f"_{candidate}"
-        return ""

@@ -27,6 +27,11 @@ EventType = Literal[
     "model_failed",
     "turn_completed",
     "turn_failed",
+    # A turn that never started: the conversation already had one running.
+    # Recorded because the gate that rejects it is process-local, and whether
+    # that is a real limitation depends on how often contention actually
+    # happens — which nothing currently measures.
+    "turn_rejected",
     "capability_failed",
     "presentation_degraded",
 ]

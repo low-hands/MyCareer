@@ -1,21 +1,31 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import StringIO
+import hashlib
+import json
+import sqlite3
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
+from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
-from career_agent.agent.main_agent_runtime import _STREAM_SINK, MainAgentTurnResult, MainAgentRuntime
+from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, RuntimeAction
+from career_agent.cli import main as cli_main
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
-from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent
+from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
+from career_agent.storage.action_executions import (
+    ActionExecutionConflictError,
+    SQLiteActionExecutionStore,
+)
+from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse
 
 
 class DecisionMaker:
@@ -58,6 +68,16 @@ def build_runtime(tmp_path, decision: AgentDecision):
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
 
 
+def _never_called_decision_maker():
+    """A decision maker whose being consulted is itself the failure."""
+
+    class Never:
+        def decide(self, context, tool_specs):
+            raise AssertionError("the model must not be consulted on this ingress")
+
+    return Never()
+
+
 def test_main_graph_uses_one_authorize_act_path_for_every_capability(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
 
@@ -80,6 +100,390 @@ def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None
 
     ends = {edge.source for edge in graph.edges if edge.target == "__end__"}
     assert ends == {"present", "interrupt"}
+
+
+def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
+    tmp_path,
+) -> None:
+    class Registry(MainAgentToolRegistry):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            assert name == "create_application"
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已创建投递记录。",
+                payload={
+                    "application_id": "application_123456",
+                    "job_posting_id": "job_123456",
+                    "resume_version_id": "resume_version_123456",
+                    "status": "submitted",
+                    "created": True,
+                },
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    registry = Registry()
+    ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
+
+    def run_once(note):
+        return Runtime(
+            context_manager=manager,
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(
+                    action="tool_call",
+                    tool_call=ToolCall(
+                        name="create_application", arguments={"note": note}
+                    ),
+                ),
+                AgentDecision(action="final", message="完成。"),
+            ),
+            tools=registry,
+            action_execution_store=ledger,
+        ).run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="记录投递",
+            request_id="request-1",
+        )
+
+    first = run_once("官网投递")
+    replay = run_once("官网投递")
+
+    assert registry.calls == 1
+    assert first.context.task.active_application_id == "application_123456"
+    assert replay.context.task.active_application_id == "application_123456"
+    assert "此前已经完成" in replay.tool_result.message
+    assert replay.tool_result.state == "action_execution_replayed"
+    assert replay.tool_result.payload == {}
+    assert ledger.list_pending(user_id="u1") == ()
+
+    with pytest.raises(ActionExecutionConflictError):
+        run_once("内推投递")
+    assert registry.calls == 1
+
+
+def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> None:
+    """A CLI finding becomes a reducer receipt, not arbitrary audit payload."""
+
+    class Registry(MainAgentToolRegistry):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - guarded
+            self.calls += 1
+            raise AssertionError("a settled action must not be executed again")
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(database)
+    projected_arguments = {"user_id": "u1"}
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"tool": "create_application", "arguments": projected_arguments},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+    execution, _ = ledger.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="create_application",
+        fingerprint=fingerprint,
+        policy_epoch=1,
+    )
+    stdout = StringIO()
+    assert cli_main(
+        [
+            "actions", "settle",
+            "--context-store", str(database),
+            "--action-id", execution.action_id,
+            "--executed",
+            "--output", "application_id=app-1",
+            "--output", "job_posting_id=job-1",
+            "--output", "resume_version_id=resume-1",
+            "--output", "status=submitted",
+        ],
+        stdout=stdout,
+        stderr=StringIO(),
+    ) == 0
+
+    registry = Registry()
+    turn = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(action="final", message="已恢复投递状态。"),
+        ),
+        tools=registry,
+        action_execution_store=ledger,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续",
+        request_id="request-1",
+    )
+
+    assert registry.calls == 0
+    assert turn.tool_result.state == "action_execution_replayed"
+    assert turn.context.task.active_application_id == "app-1"
+    assert turn.context.task.active_job_posting_id == "job-1"
+    assert turn.context.task.active_resume_version_id == "resume-1"
+    assert turn.context.task.active_application_status == "submitted"
+
+
+def test_a_replayed_interaction_write_does_not_recreate_the_old_interaction(
+    tmp_path,
+) -> None:
+    """Reducer repair and model observation have deliberately different states."""
+
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - guarded
+            raise AssertionError("a succeeded analysis must not run again")
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(database)
+    arguments = {"user_id": "u1"}
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"tool": "analyze_resume", "arguments": arguments},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+    execution, _ = ledger.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="analyze_resume",
+        fingerprint=fingerprint,
+        policy_epoch=1,
+    )
+    ledger.succeed(
+        action_id=execution.action_id,
+        output={
+            "__result_state__": "resume_analysis_ready",
+            "analysis_id": "analysis-1",
+            "resume_version_id": "resume-1",
+        },
+    )
+
+    turn = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="analyze_resume", arguments={}),
+            ),
+            AgentDecision(action="final", message="分析已经做过，可以读取结果。"),
+        ),
+        tools=Registry(),
+        action_execution_store=ledger,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续分析",
+        request_id="request-1",
+    )
+
+    assert turn.tool_result.state == "action_execution_replayed"
+    assert turn.context.task.active_resume_analysis_id == "analysis-1"
+    assert turn.context.task.active_resume_version_id == "resume-1"
+    assert turn.context.task.resume_analysis_status == "pending"
+    assert turn.model_decision.action == "final"
+
+
+@pytest.mark.parametrize(
+    ("state", "execution_outcome", "expected_status"),
+    (
+        # Two independent axes, so all four corners. ``state`` says whether the
+        # capability and the control flow failed; ``execution_outcome`` says
+        # whether the side effect committed. The ledger must record the second
+        # one, and the first two rows would each be settled the opposite way by
+        # reading the state.
+        ("application_input_not_found", "not_committed", "FAILED"),
+        ("application_input_not_found", "unknown", "PENDING"),
+        # The corner the dispatch order exists for: the external write landed
+        # and the local handling failed afterwards. Recording FAILED here would
+        # tell a reconciler to redo a write that already committed.
+        ("calendar_write_failed", "committed", "SUCCEEDED"),
+        # Only where nothing was declared does the state decide. That is the
+        # fallback for capabilities not yet migrated to the axis, not the rule.
+        ("calendar_write_failed", None, "FAILED"),
+    ),
+)
+def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
+    tmp_path, state, execution_outcome, expected_status
+) -> None:
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolObservation(
+                tool_name=name,
+                state=state,
+                message="这一步的结果见下。",
+                execution_outcome=execution_outcome,
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / f"{state}-{execution_outcome}.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(database)
+    Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(action="final", message="已说明。"),
+        ),
+        tools=Registry(),
+        action_execution_store=ledger,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="记录投递",
+        request_id="request-1",
+    )
+
+    execution = ledger.list_for_anchor(
+        user_id="u1", conversation_id="c1", anchor="request-1"
+    )[0]
+    assert execution.status == expected_status
+
+
+@pytest.mark.parametrize(
+    "origin",
+    (
+        ModelDecision(AgentDecision(action="final", message="好的。")),
+        InteractionReceipt(scope="resume_analysis_confirmation", action="confirm"),
+        RuntimeAction(workflow="mock_interview"),
+    ),
+)
+def test_accountability_is_derived_from_the_origin_and_cannot_be_stated(origin) -> None:
+    """The field is a property, so no construction site can contradict its type.
+
+    The predecessors of this design were both stated fields — ``decision_source``
+    and then ``requested_by``/``authority`` — sitting beside a ``decision`` that
+    was always an ``AgentDecision`` whether or not a model made one. A stated
+    field can be set wrongly at a new ingress, and the whole point of the union
+    is that the answer follows from the shape rather than from a value someone
+    remembered to pass.
+    """
+    turn = MainAgentTurnResult(origin=origin, context=None, assistant_message="")
+
+    assert turn.requested_by == origin.requested_by
+    assert (turn.model_decision is not None) is isinstance(origin, ModelDecision)
+    with pytest.raises(TypeError):
+        MainAgentTurnResult(
+            origin=origin,
+            requested_by="model",
+            context=None,
+            assistant_message="",
+        )
+
+
+def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> None:
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已记录。",
+                payload={"application_id": arguments["note"]},
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(database)
+    Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={"note": "one"}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={"note": "two"}),
+            ),
+            AgentDecision(action="final", message="完成。"),
+        ),
+        tools=Registry(),
+        action_execution_store=ledger,
+        max_read_calls=5,
+        max_write_calls=2,
+    ).run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录两次", request_id="request-1"
+    )
+
+    executions = ledger.list_for_anchor(
+        user_id="u1", conversation_id="c1", anchor="request-1"
+    )
+    assert [item.write_slot for item in executions] == [0, 1]
 
 
 def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None:
@@ -269,7 +673,7 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="帮我找工作")
 
-    assert result.decision.action == "ask_user"
+    assert result.model_decision.action == "ask_user"
     assert result.assistant_message == "搜索页已经打开，你想先看哪一个岗位？"
     assert len(tools.calls) == 1
     assert len(decisions.contexts) == 2
@@ -1014,6 +1418,12 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
             ),
         ),
         tools=Registry(),
+        # Preparation is what makes an interrupted write reportable: the record
+        # is read from the ledger, not from an in-process list that a killed
+        # process would take with it.
+        action_execution_store=SQLiteActionExecutionStore(
+            tmp_path / "context.sqlite3"
+        ),
     )
     return runtime, manager
 
@@ -1091,6 +1501,13 @@ def test_the_mock_interview_graph_path_reports_its_write(tmp_path) -> None:
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(),
         tools=Tools(),
+        # The record is read from the ledger now, so a runtime without one has
+        # nothing to write down. That is a true statement about the system
+        # rather than a test detail: preparation is what makes an interrupted
+        # write reportable at all.
+        action_execution_store=SQLiteActionExecutionStore(
+            tmp_path / "context.sqlite3"
+        ),
     )
 
     with pytest.raises(RuntimeError, match="checkpoint store unavailable"):
@@ -1321,8 +1738,7 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
     events: list[object] = []
     runtime = MainAgentRuntime.__new__(MainAgentRuntime)
     result = MainAgentTurnResult(
-            decision_source="model",
-        decision=AgentDecision(action="final", message="两份都给你了。"),
+        origin=ModelDecision(AgentDecision(action="final", message="两份都给你了。")),
         context=MainAgentContext(
             conversation_id="c1",
             profile=CareerProfileContext(user_id="u1"),
@@ -2271,3 +2687,808 @@ def test_the_catalogue_and_the_window_are_numbered_by_the_same_walk() -> None:
         for handle, kind in shown
     ] == expected
     assert set(context.reference_handles().values()) == set(expected)
+
+
+def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
+    tmp_path,
+) -> None:
+    """A slot whose outcome nobody knows refuses a different write, and says so.
+
+    Preparation records intent before the tool runs, so a process that dies
+    mid-flight leaves the row PENDING: the write may have reached the outside
+    and may not have. Starting a *different* write in that slot has to be
+    refused — but throwing would end the turn with a crash the user cannot act
+    on, and would leave the stuck row invisible.
+
+    So it is fed back as an observation, the same treatment projection and
+    authorization refusals already get: the model is told, explains, and does
+    not retry. The operator finds the row through ``actions reconcile``, which
+    is also why the action id stays out of the reply — it is a runtime-generated
+    internal identifier.
+    """
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - guarded
+            self.calls += 1
+            raise AssertionError("the blocked write must never reach the tool")
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
+    # What a crash between preparation and settlement leaves behind.
+    stranded, _ = ledger.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="create_application",
+        fingerprint="f" * 64,
+        policy_epoch=1,
+    )
+    registry = Registry()
+
+    result = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="create_application", arguments={"note": "内推投递"}
+                ),
+            ),
+            AgentDecision(action="final", message="有一次未确认的操作需要先核对。"),
+        ),
+        tools=registry,
+        action_execution_store=ledger,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="再记一次投递",
+        request_id="request-1",
+    )
+
+    assert registry.calls == 0
+    assert result.tool_result.state == "action_reconciliation_required"
+    # The turn completed rather than raising, and the model got to answer.
+    assert result.model_decision.action == "final"
+    # The stranded row is untouched: only reconciliation may settle it.
+    assert [item.action_id for item in ledger.list_pending()] == [stranded.action_id]
+    assert stranded.action_id not in result.assistant_message
+
+
+def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
+    tmp_path,
+) -> None:
+    """All writes register intent; only declared capabilities may be reissued.
+
+    ``create_application`` is replay-safe. ``create_interview`` still has a
+    durable PENDING row but cannot be reissued without reconciliation.
+    """
+    class Registry(MainAgentToolRegistry):
+        def __init__(self, tool: str) -> None:
+            super().__init__()
+            self.tool = tool
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(
+                tool_name=name,
+                state="interview_ready" if "interview" in name else "application_ready",
+                message="完成。",
+                payload={"interview_round_id": "round-1", "application_id": "app-1"},
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    outcomes = {}
+    for tool in ("create_application", "create_interview"):
+        manager = ContextManager(CareerContextStore(tmp_path / f"{tool}.sqlite3"))
+        manager.upsert_profile(CareerProfileContext(user_id="u1"))
+        ledger = SQLiteActionExecutionStore(tmp_path / f"{tool}.sqlite3")
+        # A crash between preparation and settlement, with the same arguments:
+        # the fingerprint matches, so this is a replay rather than a conflict.
+        registry = Registry(tool)
+
+        def run():
+            return Runtime(
+                context_manager=manager,
+                decision_maker=SequenceDecisionMaker(
+                    AgentDecision(
+                        action="tool_call",
+                        tool_call=ToolCall(name=tool, arguments={}),
+                    ),
+                    AgentDecision(action="final", message="完成。"),
+                ),
+                tools=registry,
+                action_execution_store=ledger,
+            ).run_turn(
+                user_id="u1",
+                conversation_id="c1",
+                user_message="执行",
+                request_id="request-1",
+            )
+
+        run()
+        with sqlite3.connect(tmp_path / f"{tool}.sqlite3") as connection:
+            connection.execute(
+                "UPDATE action_executions SET status='PENDING', settled_at=NULL"
+            )
+        before = registry.calls
+        replayed = run()
+        outcomes[tool] = (registry.calls - before, replayed.tool_result.state)
+
+    assert outcomes["create_application"] == (1, "application_ready")
+    assert outcomes["create_interview"] == (0, "action_reconciliation_required")
+
+
+def test_an_interrupted_turn_separates_confirmed_writes_from_unconfirmed_ones(
+    tmp_path,
+) -> None:
+    """"It was written" and "it may have been written" ask for different things.
+
+    The in-process list this replaced could only ever report the first: it
+    appended after the call returned, so a process that died *during* a call
+    left it empty — the case the record exists for. The ledger records intent
+    before the call, which is what makes "started, outcome unknown" expressible.
+
+    Conflating the two either invites a duplicate (treating unknown as done) or
+    hides a real effect (treating done as nothing happened).
+    """
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - unused
+            raise AssertionError("this turn is seeded, not executed")
+
+    class DirectRuntime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            raise ValueError("Unknown capability: get_daily_brief")
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
+    for slot, tool in ((0, "create_application"), (1, "create_interview")):
+        execution, _ = ledger.prepare(
+            user_id="u1",
+            conversation_id="c1",
+            anchor="request-1",
+            request_id="request-1",
+            write_slot=slot,
+            tool_name=tool,
+            fingerprint="a" * 64,
+            policy_epoch=1,
+        )
+        if tool == "create_application":
+            ledger.succeed(
+                action_id=execution.action_id, output={"application_id": "app-1"}
+            )
+
+    with pytest.raises(ValueError, match="Unknown capability"):
+        DirectRuntime(
+            context_manager=manager,
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(
+                    action="tool_call",
+                    tool_call=ToolCall(name="get_daily_brief", arguments={}),
+                ),
+            ),
+            tools=Registry(),
+            action_execution_store=ledger,
+        ).run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="继续",
+            request_id="request-1",
+        )
+
+    note = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="然后呢"
+    ).recent_messages[-1].content
+    assert "已经写入：create_application" in note
+    assert "没有确认结果" in note and "create_interview" in note
+    # The settled write is not described as uncertain, and the unsettled one is
+    # not described as done.
+    assert note.index("create_application") < note.index("没有确认结果")
+
+
+def test_a_rejected_turn_is_recorded_without_a_turn_of_its_own(tmp_path) -> None:
+    """The gate rejects before a turn exists, so the record cannot ride on one.
+
+    Measured rather than assumed: replacing the process-local gate with a lease
+    or with an optimistic version number are opposite answers, suited to
+    opposite contention levels, and nothing in this deployment has ever
+    established which it has.
+    """
+    from career_agent.storage.run_events import SQLiteTraceRecorder
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(CareerContextStore(tmp_path / "c.sqlite3")),
+        decision_maker=SequenceDecisionMaker(),
+        tools=MainAgentToolRegistry(),
+        trace_recorder=recorder,
+    )
+
+    runtime.record_rejected_turn(user_id="u1", conversation_id="c1")
+
+    with sqlite3.connect(tmp_path / "run_events.sqlite3") as connection:
+        rows = connection.execute(
+            "SELECT event_type, stage, outcome FROM run_events"
+        ).fetchall()
+    assert rows == [("turn_rejected", "gate", "interrupted")]
+
+
+def test_recording_a_rejection_never_turns_a_refusal_into_a_failure(tmp_path) -> None:
+    """Best effort, like every other trace write.
+
+    The turn is already refused with a 409. A telemetry store that cannot be
+    written must not escalate that into a 500 — the caller would then retry a
+    request that was correctly rejected.
+    """
+    class BrokenRecorder:
+        def record(self, *args, **kwargs):
+            raise RuntimeError("trace store unavailable")
+
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(CareerContextStore(tmp_path / "c.sqlite3")),
+        decision_maker=SequenceDecisionMaker(),
+        tools=MainAgentToolRegistry(),
+        trace_recorder=BrokenRecorder(),
+    )
+
+    runtime.record_rejected_turn(user_id="u1", conversation_id="c1")
+
+
+@pytest.mark.parametrize(
+    ("preference", "expected_state", "expected_calls"),
+    (
+        ("on_user_report", "application_ready", 1),
+        ("always_ask", "capability_confirmation_required", 0),
+    ),
+)
+def test_an_owner_rule_gates_a_capability_before_it_runs(
+    tmp_path, preference, expected_state, expected_calls
+) -> None:
+    """``review`` stops the action before any side effect and seals it."""
+
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已创建投递记录。",
+                payload={"application_id": "app-1"},
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    store.upsert_preferences(
+        "u1", AgentPreferencesContext(application_confirmation=preference)
+    )
+    registry = Registry()
+
+    result = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(action="final", message="好的。"),
+        ),
+        tools=registry,
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(
+            tmp_path / "context.sqlite3"
+        ),
+    ).run_turn(
+        user_id="u1", conversation_id="c1", user_message="记一下这次投递"
+    )
+
+    assert result.context.tool_observations[-1].state == expected_state
+    assert registry.calls == expected_calls
+
+
+def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path) -> None:
+    """The whole loop: set the rule, stop the action, confirm it, run it once.
+
+    This is the test the previous slice could not have passed. ``review`` was a
+    refusal plus a request that the model ask; the user would say yes, the next
+    turn would consult the same unchanged rule, and refuse again. A rule the
+    owner cannot satisfy is a permanent block, not a review gate.
+
+    Every runtime here is constructed fresh from the same files, because the
+    guarantee is about durable state and not about one process's memory: the
+    seal has to be answerable by a process that never saw it created.
+    """
+
+    database = tmp_path / "context.sqlite3"
+
+    class Registry(MainAgentToolRegistry):
+        calls: list[dict] = []
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            Registry.calls.append(arguments)
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已创建投递记录。",
+                payload={"application_id": "app-1"},
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    def runtime(*decisions):
+        return Runtime(
+            context_manager=ContextManager(CareerContextStore(database)),
+            decision_maker=SequenceDecisionMaker(*decisions),
+            tools=Registry(),
+            capability_confirmation_store=SQLiteCapabilityConfirmationStore(database),
+        )
+
+    Registry.calls = []
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+
+    # 1. The owner sets the rule, through the surface the model cannot reach.
+    manager.upsert_preferences(
+        user_id="u1",
+        preferences=AgentPreferencesContext(application_confirmation="always_ask"),
+    )
+
+    # 2. A fresh process proposes the action; the rule stops it before it runs.
+    stopped = runtime(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="create_application", arguments={"note": "n1"}),
+        ),
+        AgentDecision(action="final", message="好的。"),
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="记一下这次投递")
+
+    assert stopped.tool_result.state == "capability_confirmation_required"
+    assert Registry.calls == []
+    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
+
+    # 3. Another fresh process — nothing in memory — receives the owner's yes.
+    #    The decision maker would raise if consulted: confirming an action the
+    #    model already chose must not re-ask it.
+    confirmed = Runtime(
+        context_manager=ContextManager(CareerContextStore(database)),
+        decision_maker=_never_called_decision_maker(),
+        tools=Registry(),
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(database),
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert confirmed.tool_result.state == "application_ready"
+    assert confirmed.origin == InteractionReceipt(
+        scope="capability_confirmation", action="confirm"
+    )
+    # The sealed arguments, not a fresh guess: what ran is what was approved.
+    assert Registry.calls == [{"user_id": "u1", "note": "n1"}]
+
+    # 4. The same click again, from yet another process. The seal is spent, so
+    #    the action does not run a second time.
+    replayed = Runtime(
+        context_manager=ContextManager(CareerContextStore(database)),
+        decision_maker=_never_called_decision_maker(),
+        tools=Registry(),
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(database),
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert replayed.tool_result.state == "capability_confirmation_expired"
+    assert len(Registry.calls) == 1
+
+
+def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> None:
+    """"Cancel" has to be as durable as "confirm", or the gate leaks pending rows."""
+
+    database = tmp_path / "context.sqlite3"
+    store = SQLiteCapabilityConfirmationStore(database)
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    manager.upsert_preferences(
+        user_id="u1",
+        preferences=AgentPreferencesContext(application_confirmation="always_ask"),
+    )
+
+    class Registry(MainAgentToolRegistry):
+        calls: list[dict] = []
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            Registry.calls.append(arguments)
+            return ToolObservation(
+                tool_name=name, state="application_ready", message="已创建。"
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    Registry.calls = []
+    stopped = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(action="final", message="好的。"),
+        ),
+        tools=Registry(),
+        capability_confirmation_store=store,
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="记一下")
+    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+
+    declined = Runtime(
+        context_manager=ContextManager(CareerContextStore(database)),
+        decision_maker=_never_called_decision_maker(),
+        tools=Registry(),
+        capability_confirmation_store=store,
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="不要",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="cancel",
+        ),
+    )
+
+    assert declined.tool_result.state == "capability_confirmation_cancelled"
+    assert Registry.calls == []
+    # Settled, not merely unanswered: nothing is left pending for a later click.
+    assert store.pending_for_conversation(
+        user_id="u1", conversation_id="c1", policy_revision=None
+    ) == ()
+
+
+def test_default_owner_rule_does_not_expand_the_model_context() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="测试",
+    )
+    assert context.model_context()["preferences"] == {
+        "boss_search": "explicit_request_only"
+    }
+    assert "behavior_policy" not in context.model_context()
+
+    reviewed = context.model_copy(
+        update={
+            "preferences": AgentPreferencesContext(
+                application_confirmation="always_ask"
+            )
+        }
+    )
+    assert reviewed.model_context()["behavior_policy"]["application_confirmation"] == "always_ask"
+
+
+def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor(
+    tmp_path,
+) -> None:
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已创建投递记录。",
+                payload={"application_id": "app-1"},
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    path = tmp_path / "context.sqlite3"
+    context_store = CareerContextStore(path)
+    manager = ContextManager(context_store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    manager.upsert_preferences(
+        user_id="u1",
+        preferences=AgentPreferencesContext(application_confirmation="always_ask"),
+    )
+    confirmations = SQLiteCapabilityConfirmationStore(path)
+    ledger = SQLiteActionExecutionStore(path)
+    registry = Registry()
+    runtime = Runtime(
+        context_manager=manager,
+        decision_maker=DecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            )
+        ),
+        tools=registry,
+        capability_confirmation_store=confirmations,
+        action_execution_store=ledger,
+    )
+
+    held = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录投递"
+    )
+    event = runtime._interaction_event(result=held, conversation_id="c1")
+    executed = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=event.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+    replayed_click = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=event.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert registry.calls == 1
+    assert executed.tool_result.state == "application_ready"
+    assert replayed_click.tool_result.state == "capability_confirmation_expired"
+    confirmation_id = held.tool_result.payload["confirmation_id"]
+    assert confirmations.get(confirmation_id).status == "EXECUTED"
+    actions = ledger.list_for_anchor(
+        user_id="u1",
+        conversation_id="c1",
+        anchor=f"confirmation:{confirmation_id}",
+    )
+    assert len(actions) == 1 and actions[0].status == "SUCCEEDED"
+
+
+def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_path):
+    class Registry(MainAgentToolRegistry):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(tool_name=name, state="application_ready", message="done")
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id}
+
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    initial = manager.preferences(user_id="u1")
+    guarded = manager.update_owner_settings(
+        user_id="u1",
+        desired=initial.model_copy(
+            update={
+                "behavior_policy": initial.behavior_policy.model_copy(
+                    update={"application_confirmation": "always_ask"}
+                )
+            }
+        ),
+        expected_revision=0,
+        actor_type="cli",
+        actor_id="test",
+    )
+    confirmations = SQLiteCapabilityConfirmationStore(path)
+    registry = Registry()
+    runtime = Runtime(
+        context_manager=manager,
+        decision_maker=DecisionMaker(
+            AgentDecision(action="tool_call", tool_call=ToolCall(name="create_application", arguments={}))
+        ),
+        tools=registry,
+        capability_confirmation_store=confirmations,
+    )
+    held = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="记录")
+    event = runtime._interaction_event(result=held, conversation_id="c1")
+    manager.update_owner_settings(
+        user_id="u1",
+        desired=guarded.model_copy(
+            update={
+                "behavior_policy": guarded.behavior_policy.model_copy(
+                    update={"application_confirmation": "on_user_report"}
+                )
+            }
+        ),
+        expected_revision=guarded.revision,
+        actor_type="cli",
+        actor_id="test",
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=event.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert registry.calls == 0
+    assert result.tool_result.state == "capability_confirmation_expired"
+    assert "行为规则" in result.assistant_message
+
+
+def test_agent_can_only_propose_owner_settings_and_the_bound_confirmation_applies_them(
+    tmp_path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    confirmations = SQLiteCapabilityConfirmationStore(path)
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="update_owner_settings",
+                    arguments={"application_confirmation": "always_ask"},
+                ),
+            )
+        ),
+        tools=MainAgentToolRegistry(owner_settings_store=store),
+        capability_confirmation_store=confirmations,
+        action_execution_store=SQLiteActionExecutionStore(path),
+    )
+
+    proposal = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="以后记录投递前都问我",
+    )
+    assert proposal.tool_result.state == "capability_confirmation_required"
+    assert manager.preferences(user_id="u1").application_confirmation == "on_user_report"
+    event = runtime._interaction_event(result=proposal, conversation_id="c1")
+
+    applied = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=event.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    settings = manager.preferences(user_id="u1")
+    assert applied.tool_result.state == "owner_settings_updated"
+    assert settings.application_confirmation == "always_ask"
+    event_record = store.list_owner_settings_events(user_id="u1")[0]
+    assert event_record.actor_type == "confirmed_agent_proposal"
+    assert event_record.actor_id == proposal.tool_result.payload["confirmation_id"]
+
+
+def test_settings_review_is_a_system_invariant_not_an_owner_editable_rule() -> None:
+    settings = AgentPreferencesContext()
+
+    assert settings.behavior_policy.capability_verdict("update_owner_settings") == "permit"
+    assert settings.capability_verdict("update_owner_settings") == "review"
+
+
+def test_reproposing_an_applying_confirmation_reports_in_progress_not_waiting(
+    tmp_path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    confirmations = SQLiteCapabilityConfirmationStore(path)
+    arguments = {
+        "user_id": "u1",
+        "expected_revision": 0,
+        "application_confirmation": "always_ask",
+    }
+    sealed = confirmations.seal(
+        user_id="u1", conversation_id="c1", capability="update_owner_settings",
+        display_summary="准备更新持久设置。", arguments=arguments, policy_revision=0,
+    )
+    confirmations.claim(confirmation_id=sealed.confirmation_id, user_id="u1")
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="update_owner_settings",
+                    arguments={"application_confirmation": "always_ask"},
+                ),
+            ),
+            AgentDecision(action="final", message="操作仍在执行。"),
+        ),
+        tools=MainAgentToolRegistry(owner_settings_store=store),
+        capability_confirmation_store=confirmations,
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="再设置一次"
+    )
+
+    assert result.tool_results[0].state == "capability_confirmation_in_progress"
+    assert "正在执行" in result.tool_results[0].message
+    assert "等你确认" not in result.tool_results[0].message

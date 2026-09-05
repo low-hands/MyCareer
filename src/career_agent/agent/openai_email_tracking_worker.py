@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
@@ -15,6 +15,7 @@ from career_agent.domain.email_tracking import (
     RemoteEmailContent,
     RemoteEmailMetadata,
 )
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 
 
@@ -55,47 +56,23 @@ class OpenAIEmailTrackingWorker:
             },
             "application_candidates": [item.model_dump(mode="json") for item in applications],
         }
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=self._system_prompt(),
-                input=[{
-                    "role": "user",
-                    "content": [{
-                        "type": "input_text",
-                        "text": json.dumps(payload, ensure_ascii=False),
-                    }],
-                }],
-                text={"format": {
-                    "type": "json_schema",
-                    "name": "email_assessment",
-                    "schema": EmailAssessment.model_json_schema(),
-                    "strict": False,
-                }},
-                max_output_tokens=2048,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "EMAIL_TRACKING_RATE_LIMITED", "Email tracking model is rate limited.", retryable=True
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "EMAIL_TRACKING_TRANSPORT_ERROR", "Email tracking model transport failed.", retryable=True
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"EMAIL_TRACKING_REJECTED_{error.status_code}", "Email tracking model rejected the request."
-            ) from error
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError("EMAIL_TRACKING_EMPTY_RESPONSE", "Email tracking model returned no result.")
-        try:
-            assessment = EmailAssessment.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "EMAIL_TRACKING_INVALID_RESPONSE", "Email tracking model returned invalid structured output."
-            ) from error
+        assessment = structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=self._system_prompt(),
+            # This worker wraps its own content rather than passing a bare
+            # string, so the helper takes the content as given.
+            content=[{
+                "type": "input_text",
+                "text": json.dumps(payload, ensure_ascii=False),
+            }],
+            output_type=EmailAssessment,
+            schema_name="email_assessment",
+            max_output_tokens=2048,
+            code_prefix="EMAIL_TRACKING",
+            subject="Email tracking",
+        )
         allowed_ids = {item.application_id for item in applications}
         if assessment.application_id is not None and assessment.application_id not in allowed_ids:
             raise AgentWorkerError(

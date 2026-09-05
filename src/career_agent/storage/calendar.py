@@ -37,9 +37,9 @@ class SQLiteCalendarStore:
             apply_schema(
                 connection,
                 "calendar",
-                2,
+                3,
                 self._migrate,
-                {2: self._upgrade_to_v2},
+                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -177,9 +177,9 @@ class SQLiteCalendarStore:
                 INSERT INTO calendar_change_proposals(
                     id, user_id, calendar_account_id, interview_round_id,
                     operation, external_event_id, payload_json, payload_hash,
-                    status, created_at, expires_at, executed_at,
+                    policy_epoch, status, created_at, expires_at, executed_at,
                     error_code, error_detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._proposal_values(proposal),
             )
@@ -640,8 +640,8 @@ class SQLiteCalendarStore:
     )
     _PROPOSAL_SELECT = (
         "SELECT id, user_id, calendar_account_id, interview_round_id, "
-        "operation, external_event_id, payload_json, payload_hash, status, "
-        "created_at, expires_at, executed_at, error_code, error_detail "
+        "operation, external_event_id, payload_json, payload_hash, policy_epoch, "
+        "status, created_at, expires_at, executed_at, error_code, error_detail "
         "FROM calendar_change_proposals"
     )
     _LINK_SELECT = (
@@ -671,7 +671,8 @@ class SQLiteCalendarStore:
                 calendar_account_id TEXT NOT NULL REFERENCES calendar_accounts(id),
                 interview_round_id TEXT NOT NULL, operation TEXT NOT NULL,
                 external_event_id TEXT NOT NULL, payload_json TEXT,
-                payload_hash TEXT NOT NULL, status TEXT NOT NULL,
+                payload_hash TEXT NOT NULL, policy_epoch INTEGER NOT NULL,
+                status TEXT NOT NULL,
                 created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
                 executed_at TEXT, error_code TEXT, error_detail TEXT
             );
@@ -719,6 +720,23 @@ class SQLiteCalendarStore:
             "ON calendar_operation_executions(user_id, status, updated_at)"
         )
 
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        # Proposals created before policy versioning belong to the original
+        # execution policy. A future policy bump can then reject them without
+        # guessing from timestamps or payload shape.
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(calendar_change_proposals)"
+            )
+        }
+        if "policy_epoch" not in columns:
+            connection.execute(
+                "ALTER TABLE calendar_change_proposals "
+                "ADD COLUMN policy_epoch INTEGER NOT NULL DEFAULT 1"
+            )
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")
@@ -742,9 +760,9 @@ class SQLiteCalendarStore:
                 if row[6] is not None
                 else None
             ),
-            payload_hash=row[7], status=row[8], created_at=row[9],
-            expires_at=row[10], executed_at=row[11], error_code=row[12],
-            error_detail=row[13],
+            payload_hash=row[7], policy_epoch=row[8], status=row[9],
+            created_at=row[10], expires_at=row[11], executed_at=row[12],
+            error_code=row[13], error_detail=row[14],
         )
 
     @staticmethod
@@ -784,7 +802,7 @@ class SQLiteCalendarStore:
                 proposal.payload.model_dump_json()
                 if proposal.payload is not None
                 else None
-            ), proposal.payload_hash,
+            ), proposal.payload_hash, proposal.policy_epoch,
             proposal.status, proposal.created_at.isoformat(),
             proposal.expires_at.isoformat(),
             SQLiteCalendarStore._iso(proposal.executed_at), proposal.error_code,

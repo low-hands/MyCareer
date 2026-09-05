@@ -70,6 +70,14 @@ from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
+from career_agent.storage.capability_confirmations import (
+    CapabilityConfirmationSettledError,
+    SQLiteCapabilityConfirmationStore,
+)
+from career_agent.storage.action_executions import (
+    RESULT_STATE_RECEIPT_KEY,
+    SQLiteActionExecutionStore,
+)
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.services.job_comparison import JobComparisonService
@@ -182,6 +190,16 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
         trace_recorder=SQLiteTraceRecorder(Path(args.run_events_store).expanduser()),
+        action_execution_store=SQLiteActionExecutionStore(
+            Path(args.context_store).expanduser()
+        ),
+        # Same file as the context it gates: a sealed action and the rule that
+        # sealed it have no reason to live in different databases, and a
+        # deployment that loses one while keeping the other would enforce a rule
+        # it cannot let the owner satisfy.
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(
+            Path(args.context_store).expanduser()
+        ),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,
@@ -207,6 +225,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
             career_profile_store=context_store,
+            owner_settings_store=context_store,
             resume_job_match_service=ResumeJobMatchService(
                 resume_store,
                 job_repository,
@@ -342,10 +361,87 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--user-id", required=True, help="Stable user identifier.")
     chat.add_argument("--session-id", required=True, help="Conversation session identifier.")
     chat.add_argument("--message", required=True, help="Current user message.")
+    chat.add_argument(
+        "--request-id",
+        help=(
+            "Stable caller request identity for safe cross-process write replay. "
+            "Reuse it only when retrying the same logical turn."
+        ),
+    )
     chat.add_argument("--context-store", default="~/.career-agent/context.sqlite3", help="Local session and context store path.")
     chat.add_argument("--compacted-message-warning", type=int, default=200, help="Warn once this many summarised originals are still stored. They are never deleted automatically; use 'context prune'.")
     chat.add_argument("--main-agent-timeout-seconds", type=float, default=60.0, help="Main Agent model timeout (default: 60).")
     _add_runtime_options(chat)
+
+    actions = subparsers.add_parser(
+        "actions",
+        help="Inspect durable write actions that require reconciliation.",
+    )
+    action_subparsers = actions.add_subparsers(
+        dest="actions_command", required=True
+    )
+    reconcile = action_subparsers.add_parser(
+        "reconcile",
+        help="List uncertain actions without automatically replaying them.",
+    )
+    reconcile.add_argument("--user-id", required=True)
+    reconcile.add_argument(
+        "--context-store",
+        default="~/.career-agent/context.sqlite3",
+        help="Local context and action-execution store path.",
+    )
+    settle = action_subparsers.add_parser(
+        "settle",
+        help="Record what reconciliation established about one pending action.",
+        description=(
+            "Separate from 'reconcile' because the finding comes from outside "
+            "this system — a calendar checked, a record looked up, a provider's "
+            "own log read. Nothing here re-runs the action: an external write "
+            "cannot be rolled back or safely repeated from a CLI, so the only "
+            "honest operations are to look and to write down what was seen."
+        ),
+    )
+    settle.add_argument("--action-id", required=True)
+    settle_outcome = settle.add_mutually_exclusive_group(required=True)
+    settle_outcome.add_argument(
+        "--executed",
+        action="store_true",
+        help=(
+            "The effect did happen. Policy is not re-checked: the effect "
+            "already exists, and refusing to record it would leave the row "
+            "pending forever."
+        ),
+    )
+    settle_outcome.add_argument(
+        "--not-executed",
+        action="store_true",
+        help=(
+            "The effect never happened. The row becomes terminal, and a fresh "
+            "attempt needs a NEW request id: this identity now names a "
+            "finished fact."
+        ),
+    )
+    settle.add_argument(
+        "--output",
+        action="append",
+        default=None,
+        metavar="KEY=VALUE",
+        help=(
+            "Identifiers the action produced. Required only when the capability "
+            "declares a reducer receipt; otherwise they remain audit metadata. "
+            "Scalars only — report bodies stay in their own stores."
+        ),
+    )
+    settle.add_argument(
+        "--reason",
+        default=None,
+        help="Required with --not-executed. What the investigation established.",
+    )
+    settle.add_argument(
+        "--context-store",
+        default="~/.career-agent/context.sqlite3",
+        help="Local context and action-execution store path.",
+    )
 
     target_role = subparsers.add_parser("target-role", help="Manage resume target-role categories.", description="Create and list user-scoped resume categories.")
     target_role_subparsers = target_role.add_subparsers(dest="target_role_command", required=True)
@@ -532,6 +628,49 @@ def build_parser() -> argparse.ArgumentParser:
     revoke_keys.add_argument("--key-id", required=True)
     revoke_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
 
+    settings = subparsers.add_parser(
+        "settings",
+        help="Read and change the owner rules the runtime enforces.",
+        description=(
+            "These rules gate what the agent may do before it acts. They are "
+            "changed directly here, or through an agent proposal that remains "
+            "sealed until the owner confirms it. Conversation text alone cannot "
+            "relax the rule that constrains the agent."
+        ),
+    )
+    settings_subparsers = settings.add_subparsers(
+        dest="settings_command", required=True
+    )
+    settings_show = settings_subparsers.add_parser(
+        "show", help="Print the rules currently in force."
+    )
+    settings_set = settings_subparsers.add_parser(
+        "set", help="Change one rule. Takes effect on the next turn."
+    )
+    settings_history = settings_subparsers.add_parser(
+        "history", help="Show the append-only owner-settings change history."
+    )
+    settings_set.add_argument(
+        "--application-confirmation",
+        choices=("always_ask", "on_user_report"),
+        help=(
+            "always_ask holds every create_application for your confirmation "
+            "before it runs; on_user_report records it directly."
+        ),
+    )
+    settings_set.add_argument(
+        "--boss-search",
+        choices=("explicit_request_only", "allowed"),
+        help="Whether job search may run without being explicitly asked for.",
+    )
+    for sub in (settings_show, settings_set, settings_history):
+        sub.add_argument("--user-id", required=True, help="Whose rules to act on.")
+        sub.add_argument(
+            "--context-store",
+            default="~/.career-agent/context.sqlite3",
+            help="Local context store path.",
+        )
+
     context_command = subparsers.add_parser(
         "context",
         help="Inspect and reclaim summarised conversation history.",
@@ -611,24 +750,26 @@ def _write_chat_payload(
         (result for result in reversed(tool_results) if result.state == "failed"),
         None,
     )
+    model_decision = turn.model_decision
     payload = {
         "state": "failed" if failed_result else "completed",
         "user_id": user_id,
         "session_id": session_id,
         "assistant_message": turn.assistant_message,
-        # ``decision`` reports the model's choice, so a turn the model never
-        # decided reports none. Two runtime-owned ingresses use the same result
-        # envelope — a bound interaction receipt and a workflow continuation —
-        # but neither action was selected by the model. What actually executed
-        # is in ``tool_results``, which is where a reader should look for it.
+        # A turn the model never decided reports no decision. This used to be a
+        # flag check against a field that always held an ``AgentDecision``, so
+        # publishing an invented action and tool name was one forgotten
+        # condition away — and that is precisely the incident that happened. The
+        # decision is now absent rather than guarded: ``model_decision`` is
+        # ``None`` for both runtime-owned ingresses, and there is nothing to
+        # remember. What actually executed is in ``tool_results``.
         "decision": {
-            "source": turn.decision_source,
-            "action": (
-                turn.decision.action if turn.decision_source == "model" else None
-            ),
+            "origin": turn.origin.label,
+            "requested_by": turn.requested_by,
+            "action": model_decision.action if model_decision else None,
             "tool_name": (
-                turn.decision.tool_call.name
-                if turn.decision_source == "model" and turn.decision.tool_call
+                model_decision.tool_call.name
+                if model_decision and model_decision.tool_call
                 else None
             ),
         },
@@ -681,6 +822,126 @@ def _trajectory_tool_specs():
         "job_research_service",
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
+
+
+def _run_action_settle(args, stdout) -> int:
+    """Write down what an investigation found about one pending action.
+
+    Deliberately not "reconcile it for me": what happened lives in an external
+    system, and the four outcomes the ledger recognises are decided out there.
+    This only records the conclusion so the row stops being pending and task
+    state can be repaired from it.
+    """
+
+    def refuse(message: str) -> int:
+        stdout.write(json.dumps({"error": message}, ensure_ascii=False))
+        stdout.write("\n")
+        return EXIT_ARGUMENT_ERROR
+
+    store = SQLiteActionExecutionStore(Path(args.context_store).expanduser())
+    try:
+        if args.executed:
+            execution = store.get(action_id=args.action_id)
+            if execution is None:
+                return refuse("action execution not found")
+            if execution.status != "PENDING":
+                return refuse("action execution is no longer pending")
+            settlement_specs = {
+                "create_application": (
+                    "application_ready",
+                    frozenset(
+                        {
+                            "application_id",
+                            "job_posting_id",
+                            "resume_version_id",
+                            "status",
+                        }
+                    ),
+                )
+            }
+            spec = settlement_specs.get(execution.tool_name)
+            if spec is not None and not args.output:
+                return refuse(
+                    "--executed needs the required --output KEY=VALUE fields "
+                    "for this capability"
+                )
+            output: dict[str, str | int | float | bool | None] = {}
+            for pair in args.output or ():
+                key, separator, value = pair.partition("=")
+                if not separator or not key:
+                    return refuse(f"--output expects KEY=VALUE, got {pair!r}")
+                if key in output:
+                    return refuse(f"duplicate --output field: {key}")
+                if key == RESULT_STATE_RECEIPT_KEY:
+                    return refuse(
+                        f"{RESULT_STATE_RECEIPT_KEY} is reserved for the runtime"
+                    )
+                output[key] = value
+            if spec is None:
+                # The investigation may close any pending action, but only a
+                # declared capability receipt may drive a reducer. Arbitrary
+                # operator keys remain audit metadata under a no-op state.
+                result_state = "action_reconciled"
+            else:
+                result_state, required = spec
+                unknown = set(output) - required
+                missing = required - set(output)
+                if unknown:
+                    return refuse(
+                        "unsupported --output fields for "
+                        f"{execution.tool_name}: {', '.join(sorted(unknown))}"
+                    )
+                if missing:
+                    return refuse(
+                        "missing --output fields for "
+                        f"{execution.tool_name}: {', '.join(sorted(missing))}"
+                    )
+            output[RESULT_STATE_RECEIPT_KEY] = result_state
+            settled = store.succeed(action_id=args.action_id, output=output)
+        else:
+            if not args.reason:
+                return refuse(
+                    "--not-executed needs --reason: the row becomes terminal, and "
+                    "whoever retries it later has only this line to learn why the "
+                    "same request id now fails"
+                )
+            settled = store.fail(
+                action_id=args.action_id,
+                error_code="RECONCILED_NOT_EXECUTED",
+                error_detail=(
+                    f"{args.reason} — a fresh attempt needs a new request id; "
+                    "this identity now names a finished fact."
+                ),
+            )
+        confirmation_prefix = "confirmation:"
+        if settled.anchor.startswith(confirmation_prefix):
+            confirmation_id = settled.anchor[len(confirmation_prefix):]
+            SQLiteCapabilityConfirmationStore(
+                Path(args.context_store).expanduser()
+            ).reconcile(
+                confirmation_id=confirmation_id,
+                user_id=settled.user_id,
+                status="EXECUTED" if args.executed else "FAILED",
+            )
+    except (ValueError, CapabilityConfirmationSettledError) as error:
+        return refuse(str(error))
+
+    json.dump(
+        {
+            "action_id": settled.action_id,
+            "status": settled.status,
+            "output": settled.output,
+            "error_code": settled.error_code,
+            "settled_at": (
+                settled.settled_at.isoformat() if settled.settled_at else None
+            ),
+        },
+        stdout,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    stdout.write("\n")
+    return EXIT_OK
 
 
 def _run_api_keys(args, stdout) -> int:
@@ -1162,8 +1423,103 @@ def main(
             return EXIT_ARGUMENT_ERROR
     if args.command == "api-keys":
         return _run_api_keys(args, stdout)
+    if args.command == "actions" and args.actions_command == "settle":
+        return _run_action_settle(args, stdout)
+    if args.command == "actions":
+        try:
+            pending = SQLiteActionExecutionStore(
+                Path(args.context_store).expanduser()
+            ).list_pending(user_id=args.user_id)
+            json.dump(
+                {
+                    "state": "action_reconciliation_required"
+                    if pending
+                    else "no_action_reconciliation_required",
+                    "items": [
+                        {
+                            "action_id": item.action_id,
+                            "conversation_id": item.conversation_id,
+                            "tool": item.tool_name,
+                            "status": item.status,
+                            "retry_safe": item.retry_safe,
+                            "started_at": item.started_at.isoformat(),
+                        }
+                        for item in pending
+                    ],
+                },
+                stdout,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            return _write_chat_error(
+                error,
+                stdout,
+                code=EXIT_ARGUMENT_ERROR,
+                next_action="Check the action store path and user identity.",
+            )
     if args.command == "eval":
         return _run_trajectory_evaluation(args, stdout)
+    if args.command == "settings":
+        context_store = CareerContextStore(Path(args.context_store).expanduser())
+        manager = ContextManager(context_store)
+        current = manager.preferences(user_id=args.user_id)
+        if args.settings_command == "history":
+            stdout.write(
+                json.dumps(
+                    {
+                        "user_id": args.user_id,
+                        "events": [
+                            event.model_dump(mode="json")
+                            for event in context_store.list_owner_settings_events(
+                                user_id=args.user_id
+                            )
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            return EXIT_OK
+        if args.settings_command == "set":
+            if args.application_confirmation is None and args.boss_search is None:
+                stderr.write("settings set needs at least one rule to change\n")
+                return EXIT_ARGUMENT_ERROR
+            desired = current.model_copy(
+                update={
+                    "preferences": current.preferences.model_copy(
+                        update={
+                            "boss_search": args.boss_search
+                            or current.preferences.boss_search
+                        }
+                    ),
+                    "behavior_policy": current.behavior_policy.model_copy(
+                        update={
+                            "application_confirmation": (
+                                args.application_confirmation
+                                or current.behavior_policy.application_confirmation
+                            )
+                        }
+                    ),
+                }
+            )
+            current = manager.update_owner_settings(
+                user_id=args.user_id,
+                desired=desired,
+                expected_revision=current.revision,
+                actor_type="cli",
+                actor_id="local-cli",
+            )
+        stdout.write(
+            json.dumps(
+                {"user_id": args.user_id, "owner_settings": current.model_dump()},
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        return EXIT_OK
     if args.command == "context":
         try:
             store = CareerContextStore(Path(args.context_store).expanduser())
@@ -1203,7 +1559,12 @@ def main(
         runtime = None
         try:
             runtime = runtime_factory(args) if runtime_factory else build_main_agent_runtime(args)
-            turn = runtime.run_turn(user_id=args.user_id, conversation_id=args.session_id, user_message=args.message)
+            turn = runtime.run_turn(
+                user_id=args.user_id,
+                conversation_id=args.session_id,
+                user_message=args.message,
+                request_id=args.request_id,
+            )
             manager = getattr(runtime, "context_manager", None)
             notice = (
                 manager.compacted_message_notice(user_id=args.user_id)

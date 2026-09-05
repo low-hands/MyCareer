@@ -26,7 +26,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationTaskState,
     ToolObservation,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_runtime import MainAgentRuntime, RuntimeAction
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
@@ -302,7 +302,7 @@ def test_a_recorded_calendar_preview_suspends_without_an_extra_model_decision(
 
     assert len(client.requests) == 1
     assert tools.calls[0][0] == "prepare_interview_calendar_sync"
-    assert turn.decision.action == "tool_call"
+    assert turn.model_decision.action == "tool_call"
     assert turn.context.task.active_calendar_proposal_id == "proposal-1"
     assert any(isinstance(event, InteractionRequiredEvent) for event in public_events)
     assert isinstance(public_events[-1], TurnSuspendedEvent)
@@ -415,9 +415,16 @@ def test_an_owned_mock_interview_turn_uses_runtime_action_without_main_model(
             "message": "不练了，结束面试",
         }
     ]
-    assert turn.decision_source == "runtime"
-    assert turn.decision.tool_call is not None
-    assert turn.decision.tool_call.name == "handle_mock_interview_input"
+    # The origin says what actually happened: the user supplied the input, and
+    # the runtime routed it to the workflow it owns. It used to be reported as
+    # an ``AgentDecision`` naming this tool, which was a claim about a model
+    # call that never occurred — ``client.requests == []`` above is the proof.
+    # The business workflow, not the handler. ``handle_mock_interview_input``
+    # and ``retry_mock_interview`` are internal routing; publishing either would
+    # make an external surface change whenever that routing does.
+    assert turn.origin == RuntimeAction(workflow="mock_interview")
+    assert turn.requested_by == "user"
+    assert turn.model_decision is None
     assert turn.tool_result is not None
     assert turn.tool_result.state == "mock_interview_cancelled"
     assert turn.context.task.active_workflow == "none"

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from contextvars import ContextVar
 from time import perf_counter
-from typing import Any, Literal, TypedDict
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal, TypedDict
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
@@ -22,8 +24,16 @@ from career_agent.harness.observability import (
 from career_agent.agent.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
+    is_failed,
 )
-from career_agent.agent.tool_effects import ToolEffect, effect_for
+from career_agent.agent.tool_effects import ToolEffect, effect_for, replay_safe
+from career_agent.storage.capability_confirmations import (
+    CapabilityConfirmationExpiredError,
+    CapabilityConfirmationInProgressError,
+    CapabilityConfirmationSettledError,
+    SQLiteCapabilityConfirmationStore,
+    arguments_hash,
+)
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
@@ -81,7 +91,14 @@ from career_agent.harness.streaming import (
     TurnSuspendedEvent,
     interaction_id,
     iter_content_deltas,
+    capability_confirmation_event,
     resume_analysis_confirmation_event,
+)
+from career_agent.storage.action_executions import (
+    ActionExecutionAlreadyFailedError,
+    ActionExecutionReconciliationRequiredError,
+    RESULT_STATE_RECEIPT_KEY,
+    SQLiteActionExecutionStore,
 )
 
 _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
@@ -94,12 +111,119 @@ _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
 # workers can emit into the same run without importing this module.
 _TRACE_CONTEXT = ACTIVE_TRACE_CONTEXT
 
-_DURABLE_WRITES: ContextVar[list[str] | None] = ContextVar(
-    "main_agent_durable_writes",
+_ACTION_INVOCATION: ContextVar[tuple[str, str | None] | None] = ContextVar(
+    "main_agent_action_invocation",
     default=None,
 )
 
+ACTION_EXECUTION_POLICY_EPOCH = 1
+
 DEFAULT_MAX_READ_CALLS = 6
+_MAX_RECEIPT_KEYS = 20
+_MAX_RECEIPT_VALUE_CHARS = 500
+
+Originator = Literal["model", "user", "runtime"]
+"""Who asked for a turn. Derived from its origin variant, never set beside it."""
+
+OriginKind = Literal["model", "interaction", "workflow"]
+"""The union's tag, and the single source of each variant's ``label`` prefix.
+
+``isinstance`` is what narrows in this process. The tag exists so the prefix in
+``label`` — published by the CLI and hashed into interaction ids — comes from
+the class rather than from a loose string in each variant that happens to match
+its class name.
+
+It is a ``ClassVar``, so it is deliberately **not** a dataclass field: it cannot
+be passed to the constructor and therefore cannot be set to disagree with the
+variant it tags, for the same reason ``requested_by`` is a property. The cost is
+that it does not serialize — ``fields()`` and ``asdict()`` do not see it. That
+is fine while nothing crosses a process boundary as an origin: the CLI publishes
+``label``, a string it builds here. Reconstructing a variant from JSON would
+need a real discriminator — an instance field, a Pydantic tagged union, or an
+explicit codec — and this is not one.
+"""
+
+
+@dataclass(frozen=True)
+class ModelDecision:
+    """The model chose this turn's action, and this is the choice it made."""
+
+    decision: AgentDecision
+
+    kind: ClassVar[OriginKind] = "model"
+    requested_by: ClassVar[Originator] = "model"
+
+    @property
+    def label(self) -> str:
+        return f"{self.kind}:{self.decision.action}"
+
+
+@dataclass(frozen=True)
+class InteractionReceipt:
+    """The user answered an interaction whose contract was sealed when issued.
+
+    Named ``InteractionReceipt`` rather than ``InteractionResponse`` because
+    that name is already taken in this module by the inbound UI object; this is
+    what the turn became after resolving one.
+    """
+
+    scope: str
+    action: str
+
+    kind: ClassVar[OriginKind] = "interaction"
+    requested_by: ClassVar[Originator] = "user"
+
+    @property
+    def label(self) -> str:
+        return f"{self.kind}:{self.scope}"
+
+
+@dataclass(frozen=True)
+class RuntimeAction:
+    """The user's message went to a workflow the runtime owns.
+
+    The user supplied the input; the runtime, not the user and not the model,
+    decided that this input belongs to this workflow. That is a different kind
+    of thing from an explicit approval, and the variant is what says so —
+    previously it was a second enum field beside a decision the model never made.
+    """
+
+    workflow: Literal["job_discovery", "mock_interview"]
+    """The business workflow, not the handler that advanced it.
+
+    This is published through the CLI and hashed into interaction ids, so it has
+    to be a stable identity. ``handle_mock_interview_input`` and
+    ``retry_mock_interview`` are two internal handlers for one workflow: naming
+    them here would leak the runtime's own routing into an external surface and
+    make the reported origin change when that routing is refactored. Which
+    handler ran is already recoverable from the tool result and the trace, where
+    an internal name belongs.
+    """
+
+    kind: ClassVar[OriginKind] = "workflow"
+    requested_by: ClassVar[Originator] = "user"
+
+    @property
+    def label(self) -> str:
+        return f"{self.kind}:{self.workflow}"
+
+
+TurnOrigin = ModelDecision | InteractionReceipt | RuntimeAction
+"""How a turn came to exist.
+
+The three ingresses are not three shapes of one decision. Typing them as one
+``AgentDecision`` meant two of them had to fabricate a decision the model never
+made, and every consumer of ``turn.decision`` was reading a value that might be
+invented. A flag beside it (``decision_source``, later ``requested_by``) only
+moved the obligation onto the reader: the CLI still had to remember to check
+before publishing a tool name, and forgetting was the original incident.
+
+A discriminated union removes the value instead of guarding it. The ~20 shared
+fields stay on the envelope and need no narrowing; the three consumers that
+genuinely want the model's choice narrow to ``ModelDecision`` and cannot reach a
+fabricated one, because none exists.
+"""
+
 DEFAULT_MAX_WRITE_CALLS = 1
 DEFAULT_MAX_PROJECTION_REFUSALS = 2
 DEFAULT_MAX_AUTHORIZATION_REFUSALS = 1
@@ -111,9 +235,15 @@ class PendingAction(TypedDict, total=False):
     kind: Literal["atomic_tool", "workflow"]
     runtime_owned: bool
     effect: ToolEffect
+    reducer_result: MainAgentToolOutput
     arguments: dict[str, Any]
     result: MainAgentToolOutput
-    synthetic_kind: Literal["projection", "authorization"]
+    synthetic_kind: Literal["projection", "authorization", "confirmation"]
+    # Set only by the confirmation ingress, after a PENDING seal was consumed.
+    # It is the owner's answer carried into authorization, and the reason the
+    # owner rule is not re-judged for an action they have already approved.
+    owner_confirmed: bool
+    confirmation_id: str
 
 
 class LoopControl(TypedDict, total=False):
@@ -139,23 +269,30 @@ class MainAgentState(TypedDict, total=False):
 
 
 class MainAgentTurnResult:
-    def __init__(self, *, decision: AgentDecision, decision_source: Literal["model", "runtime"], context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
-        self.decision = decision
-        # Who chose this. ``decision`` is typed ``AgentDecision`` and named after
-        # the model's choice, but two ingresses construct one at runtime: the
-        # bound interaction receipt (the user clicked a button whose contract
-        # was sealed when the interaction was issued) and a bound workflow
-        # continuation. Both are legitimate — a receipt has no open semantic
-        # decision to make, and asking the model again would only let it
-        # overrule an explicit click — but neither is a model decision, and
-        # nothing used to say so, leaving every consumer to read all three as
-        # one thing.
-        #
-        # Required, not defaulted: "did the model decide this turn?" has to be
-        # answered at every construction site, including future ones. A default
-        # would answer it silently and wrongly for exactly the paths this field
-        # exists to distinguish.
-        self.decision_source = decision_source
+    """One completed turn: how it started, and what it produced.
+
+    ``origin`` is the only field that differs by ingress. Everything below it is
+    common to all three and is read by roughly twenty consumers that have no
+    reason to know which ingress ran — keeping those on the envelope is why this
+    is a union inside one result rather than three parallel result types.
+
+    Accountability lives in the variant, not beside it. ``requested_by`` is a
+    property derived from ``origin``, so it cannot disagree with the shape it
+    describes. There is deliberately no ``authority`` field: in this deployment
+    the runtime is the sole executor and policy enforcer for every turn, which
+    is exactly PCAA's *runtime* authority, so a per-turn field would be a
+    constant — and a constant is worse than an absence. What the old
+    ``authority`` was really trying to distinguish, an explicit human approval
+    from the runtime acting on its own ownership rule, is now the difference
+    between ``InteractionReceipt`` and ``RuntimeAction``.
+
+    Attribution here is still turn-level. A model turn can produce several tool
+    calls, some of them runtime-owned, and per-action provenance belongs on the
+    execution records rather than on this envelope; see 071 三-7.
+    """
+
+    def __init__(self, *, origin: TurnOrigin, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
+        self.origin = origin
         self.context = context
         self.assistant_message = assistant_message
         self.tool_result = tool_result
@@ -168,11 +305,27 @@ class MainAgentTurnResult:
         self.delegated_read_count = delegated_read_count
         self.delegated_write_count = delegated_write_count
 
+    @property
+    def requested_by(self) -> Originator:
+        return self.origin.requested_by
+
+    @property
+    def model_decision(self) -> AgentDecision | None:
+        """The model's choice, or ``None`` when the model made none.
+
+        The narrowing a consumer would otherwise write by hand. It differs from
+        the field it replaces in the only way that matters: a turn the model did
+        not decide yields nothing, instead of an invented ``final`` or an
+        invented tool name that reads as real.
+        """
+        return self.origin.decision if isinstance(self.origin, ModelDecision) else None
+
 
 class MainAgentRuntime:
     _INTERACTION_RENDERER_STATES = frozenset(
         {
             "calendar_approval_required",
+            "capability_confirmation_required",
             "email_events_pending",
             "mock_interview_answer_required",
             "mock_interview_running",
@@ -196,7 +349,7 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH) -> None:
         if max_read_calls < 1:
             raise ValueError("max_read_calls must be at least one")
         if max_write_calls < 1:
@@ -207,6 +360,8 @@ class MainAgentRuntime:
             raise ValueError("max_authorization_refusals must be at least one")
         if max_failure_retries < 0:
             raise ValueError("max_failure_retries cannot be negative")
+        if action_policy_epoch < 1:
+            raise ValueError("action_policy_epoch must be positive")
         if (
             max_read_calls
             + max_write_calls
@@ -230,6 +385,9 @@ class MainAgentRuntime:
         self._max_authorization_refusals = max_authorization_refusals
         self._max_failure_retries = max_failure_retries
         self._trace_recorder = trace_recorder
+        self._action_execution_store = action_execution_store
+        self._capability_confirmation_store = capability_confirmation_store
+        self._action_policy_epoch = action_policy_epoch
         self._owned_resources = owned_resources
         self._closed = False
 
@@ -285,11 +443,19 @@ class MainAgentRuntime:
 
     @staticmethod
     def _route_entry(state: MainAgentState) -> Literal["hydrate", "authorize"]:
-        """Enter at authorization for a bound runtime-owned workflow action."""
+        """Enter at authorization when the action is already decided.
 
+        Two ingresses arrive with the action in hand: a bound runtime-owned
+        workflow, and an owner confirming an action their own rule stopped. Both
+        skip ``decide`` for the same reason — there is nothing left to decide,
+        and consulting the model would let it revise a choice that was already
+        made (by the runtime's ownership rule, or by a person clicking confirm).
+        """
+
+        pending = state.get("pending", {})
         return (
             "authorize"
-            if state.get("pending", {}).get("runtime_owned")
+            if pending.get("runtime_owned") or pending.get("owner_confirmed")
             else "hydrate"
         )
 
@@ -384,6 +550,7 @@ class MainAgentRuntime:
         user_id: str,
         conversation_id: str,
         user_message: str,
+        request_id: str | None = None,
         interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
     ) -> MainAgentTurnResult:
@@ -394,8 +561,12 @@ class MainAgentRuntime:
         """
 
         turn_id = uuid4().hex
+        if request_id is not None:
+            request_id = request_id.strip()
+            if not request_id or len(request_id) > 200:
+                raise ValueError("request_id must contain 1 to 200 characters")
         sink_token = _STREAM_SINK.set(event_sink)
-        writes_token = _DURABLE_WRITES.set([])
+        action_token = _ACTION_INVOCATION.set((turn_id, request_id))
         trace_token = _TRACE_CONTEXT.set(
             (self._trace_recorder, turn_id) if self._trace_recorder is not None else None
         )
@@ -433,7 +604,7 @@ class MainAgentRuntime:
         finally:
             _STREAM_SINK.reset(sink_token)
             _TRACE_CONTEXT.reset(trace_token)
-            _DURABLE_WRITES.reset(writes_token)
+            _ACTION_INVOCATION.reset(action_token)
 
     @staticmethod
     def _emit_trace(
@@ -511,13 +682,41 @@ class MainAgentRuntime:
                     "read_call_count": result.delegated_read_count,
                     "write_call_count": result.delegated_write_count,
                     "final_state": (
-                        result.tool_result.state if result.tool_result is not None else result.decision.action
+                        result.tool_result.state if result.tool_result is not None else result.origin.label
                     ),
                 },
             )
         except Exception:
             # Telemetry is best-effort; a recorder that cannot write must not
             # roll back a turn whose business effects are already durable.
+            return
+
+    def record_rejected_turn(self, *, user_id: str, conversation_id: str) -> None:
+        """Note a turn the concurrency gate refused before it began.
+
+        Public because the gate lives in the transport, above the loop: by the
+        time a turn is rejected there is no turn id, no context and no runtime
+        state — only the fact that one conversation was asked to advance twice
+        at once.
+
+        Recorded because the choice of what to replace the process-local gate
+        with depends on how often that actually happens. A lease and an
+        optimistic version number suit opposite contention levels, and this
+        deployment has never measured which one it has. Best-effort like every
+        other trace write: a rejected turn is already refused, and failing to
+        record it must not turn a 409 into a 500.
+        """
+        if self._trace_recorder is None:
+            return
+        try:
+            self._trace_recorder.record(
+                uuid4().hex,
+                "turn_rejected",
+                "gate",
+                outcome="interrupted",
+                details={"conversation_id": conversation_id, "user_id": user_id},
+            )
+        except Exception:
             return
 
     def _record_turn_failed(
@@ -574,22 +773,54 @@ class MainAgentRuntime:
         unknown capabilities. That boundary stays hard — this does not catch the
         error, it only records what preceded it before re-raising.
 
-        Nothing is written when the turn made no durable write. There is then no
+        Read from the durable ledger rather than from an in-process list. The
+        list could only report writes that had already returned, because it
+        appended after the call — so the case this exists for, a process dying
+        during the call, left it empty, and a killed process lost it entirely.
+        The ledger records intent before the call, which is what makes
+        "started, outcome unknown" expressible at all.
+
+        The two are told apart in the message on purpose. "It was written" and
+        "it may have been written" ask the reader for different things, and
+        conflating them either invites a duplicate or hides a real effect.
+
+        Nothing is written when the turn opened no slot. There is then no
         disagreement to reconcile, and a clean retry is the better outcome. The
         task is committed as it was loaded: the transition this turn intended
         never finished, so claiming it did would be a second lie.
         """
-        writes = _DURABLE_WRITES.get() or []
-        if not writes:
+        invocation = _ACTION_INVOCATION.get()
+        if invocation is None or self._action_execution_store is None:
             return
-        executed = "、".join(dict.fromkeys(writes))
+        turn_id, request_id = invocation
+        executions = self._action_execution_store.list_for_anchor(
+            user_id=context.profile.user_id,
+            conversation_id=context.conversation_id,
+            anchor=request_id or turn_id,
+        )
+        settled = [item.tool_name for item in executions if item.status == "SUCCEEDED"]
+        unsettled = [item.tool_name for item in executions if item.status == "PENDING"]
+        if not settled and not unsettled:
+            return
+        sentences = []
+        if settled:
+            sentences.append(
+                "以下操作已经写入：" + "、".join(dict.fromkeys(settled)) + "。"
+            )
+        if unsettled:
+            sentences.append(
+                "以下操作已经开始但没有确认结果，可能已生效也可能没有："
+                + "、".join(dict.fromkeys(unsettled))
+                + "。"
+            )
         try:
             self._context_manager.commit_turn(
                 context=context,
                 task=context.task,
                 assistant_message=(
-                    f"本轮执行中断（{type(error).__name__}），但以下操作已经写入："
-                    f"{executed}。请先核对这些记录的实际状态，再决定是否重做。"
+                    f"本轮执行中断（{type(error).__name__}）。"
+                    + "".join(sentences)
+                    + "请先核对这些记录的实际状态，再决定是否重做。"
                 ),
             )
         except Exception:
@@ -830,10 +1061,19 @@ class MainAgentRuntime:
             task.active_workflow,
             task.run_id or "",
             task.phase or "",
-            tool_result.state if tool_result is not None else result.decision.action,
+            tool_result.state if tool_result is not None else result.origin.label,
         )
 
         if tool_result is not None:
+            if tool_result.state == "capability_confirmation_required":
+                # Built from the sealed row's id, not from anything about this
+                # turn, so a reload rebuilds the identical interaction — see the
+                # same call in ``api/reads.py``.
+                return capability_confirmation_event(
+                    conversation_id=conversation_id,
+                    confirmation_id=tool_result.payload["confirmation_id"],
+                    prompt=prompt,
+                )
             if (
                 tool_result.state == "resume_analysis_ready"
                 and task.resume_analysis_status == "pending"
@@ -877,7 +1117,8 @@ class MainAgentRuntime:
                     prompt=prompt,
                     allow_free_text=True,
                 )
-        if result.decision.action == "ask_user":
+        decision = result.model_decision
+        if decision is not None and decision.action == "ask_user":
             options = MainAgentRuntime._selection_options(tool_result, task)
             if options:
                 return InteractionRequiredEvent(
@@ -904,6 +1145,10 @@ class MainAgentRuntime:
     ) -> MainAgentTurnResult:
         """Resolve a capability-owned UI decision before the LLM sees it."""
 
+        if response.scope == "capability_confirmation":
+            return self._run_owner_confirmation(
+                context=context, conversation_id=conversation_id, response=response
+            )
         task = context.task
         analysis_id = task.active_resume_analysis_id
         expected_id = (
@@ -941,12 +1186,218 @@ class MainAgentRuntime:
                 in {"resume_analysis_confirmed", "resume_analysis_rejected"}
                 else context
             )
-        decision = AgentDecision(action="final", message=result.message)
         return MainAgentTurnResult(
-            decision=decision,
-            decision_source="runtime",
+            # The user clicked an approval whose contract was already sealed.
+            # This used to fabricate an ``AgentDecision(action="final")`` so the
+            # result could be typed as a model decision; nothing read its
+            # message, and everything that read its ``action`` read a fiction.
+            origin=InteractionReceipt(scope=response.scope, action=response.action),
             context=updated,
             assistant_message=self._assistant_message(result),
+            tool_result=result,
+            tool_results=(result,),
+        )
+
+    def _run_owner_confirmation(
+        self,
+        *,
+        context: MainAgentContext,
+        conversation_id: str,
+        response: InteractionResponse,
+    ) -> MainAgentTurnResult:
+        """Run the action the owner stopped, once, without re-asking the model.
+
+        The model is not consulted here on purpose. It already proposed this
+        action; the owner rule stopped it and the owner has now answered. Asking
+        the model again would let it revise or abandon an action a person
+        explicitly approved, and would make "confirm" mean "reconsider".
+
+        Consuming the seal is what makes it exactly once: the PENDING → CONFIRMED
+        transition is conditional in SQL, so a resent click, a duplicated
+        request or a second tab loses the race and is told the action is
+        already settled rather than running it twice.
+        """
+
+        store = self._capability_confirmation_store
+        user_id = context.profile.user_id
+        pending = (
+            store.active_for_conversation(
+                user_id=user_id, conversation_id=conversation_id
+            )
+            if store is not None
+            else ()
+        )
+        confirmation = next(
+            (
+                candidate
+                for candidate in pending
+                if interaction_id(
+                    conversation_id,
+                    "capability_confirmation",
+                    candidate.confirmation_id,
+                )
+                == response.interaction_id
+            ),
+            None,
+        )
+        if confirmation is None:
+            return self._settled_confirmation_turn(
+                context,
+                "这项确认已过期或已处理，请重新提出这个操作。",
+                state="capability_confirmation_expired",
+            )
+        if response.action == "cancel":
+            cancelled = store.cancel(
+                confirmation_id=confirmation.confirmation_id, user_id=user_id
+            )
+            if not cancelled:
+                return self._settled_confirmation_turn(
+                    context,
+                    "这项操作已经开始执行，取消没有改写它的状态；请等待结果或进行对账。",
+                    state="capability_confirmation_in_progress",
+                    action="cancel",
+                )
+            return self._settled_confirmation_turn(
+                context,
+                "已按你的选择取消，没有执行这个操作。",
+                state="capability_confirmation_cancelled",
+                action="cancel",
+            )
+        if (
+            confirmation.status == "PENDING"
+            and
+            confirmation.policy_revision
+            != context.preferences.behavior_policy.revision
+        ):
+            store.cancel(
+                confirmation_id=confirmation.confirmation_id, user_id=user_id
+            )
+            return self._settled_confirmation_turn(
+                context,
+                "你的行为规则在这项确认发出后已经变化；旧批准未执行，请重新提出操作。",
+                state="capability_confirmation_expired",
+            )
+        try:
+            sealed = store.claim(
+                confirmation_id=confirmation.confirmation_id, user_id=user_id
+            )
+        except CapabilityConfirmationExpiredError:
+            return self._settled_confirmation_turn(
+                context,
+                "这项确认已过期，没有执行。请重新提出这个操作。",
+                state="capability_confirmation_expired",
+            )
+        except CapabilityConfirmationSettledError:
+            return self._settled_confirmation_turn(
+                context,
+                "这项确认已经处理过，没有重复执行。",
+                state="capability_confirmation_expired",
+            )
+        except CapabilityConfirmationInProgressError:
+            return self._settled_confirmation_turn(
+                context,
+                "这项操作正在执行，没有重复启动。",
+                state="capability_confirmation_in_progress",
+            )
+        # Re-derived rather than trusted: the arguments are read back from the
+        # sealed row, and the hash they were sealed under has to still describe
+        # them. A row edited underneath us is a refusal, not an execution.
+        if arguments_hash(sealed.arguments) != sealed.arguments_hash:
+            return self._settled_confirmation_turn(
+                context,
+                "这项确认的内容已经无法核对，没有执行。",
+                state="capability_confirmation_expired",
+            )
+        invocation = _ACTION_INVOCATION.get()
+        if invocation is None:
+            raise RuntimeError("confirmation execution context is unavailable")
+        # The durable confirmation, not the HTTP retry that delivered the
+        # click, is the stable identity of the approved action. After a crash a
+        # reclaimed lease therefore reaches the same action-ledger slot.
+        action_token = _ACTION_INVOCATION.set(
+            (invocation[0], f"confirmation:{sealed.confirmation_id}")
+        )
+        try:
+            state = self._graph.invoke({
+                "context": context,
+                "decision": AgentDecision(
+                    action="tool_call",
+                    tool_call=ToolCall(name=sealed.capability, arguments={}),
+                ),
+                "pending": {
+                    "name": sealed.capability,
+                    "arguments": sealed.arguments,
+                    "owner_confirmed": True,
+                    "confirmation_id": sealed.confirmation_id,
+                },
+                "artifact_ids": (),
+                "tool_results": (),
+                "control": {
+                    "read_calls": 0,
+                    "write_calls": 0,
+                    "projection_refusals": 0,
+                    "authorization_refusals": 0,
+                    "fingerprints": (),
+                    "retryable_fingerprints": (),
+                    "retry_counts": {},
+                },
+            })
+        except Exception:
+            store.settle(
+                confirmation_id=sealed.confirmation_id,
+                user_id=user_id,
+                status="RECONCILIATION_REQUIRED",
+            )
+            raise
+        finally:
+            _ACTION_INVOCATION.reset(action_token)
+        last = self._last_result(state)
+        confirmation_status = (
+            "RECONCILIATION_REQUIRED"
+            if last.state == "action_reconciliation_required"
+            or last.execution_outcome == "unknown"
+            else "FAILED"
+            if last.execution_outcome == "not_committed"
+            or (last.execution_outcome is None and is_failed(last.state))
+            else "EXECUTED"
+        )
+        store.settle(
+            confirmation_id=sealed.confirmation_id,
+            user_id=user_id,
+            status=confirmation_status,
+        )
+        control = state.get("control", {})
+        return MainAgentTurnResult(
+            origin=InteractionReceipt(
+                scope="capability_confirmation", action=response.action
+            ),
+            context=state["context"],
+            assistant_message=state["assistant_message"],
+            tool_result=self._last_result(state),
+            tool_results=state.get("tool_results", ()),
+            delegated_read_count=control.get("read_calls", 0),
+            delegated_write_count=control.get("write_calls", 0),
+        )
+
+    def _settled_confirmation_turn(
+        self,
+        context: MainAgentContext,
+        message: str,
+        *,
+        state: str,
+        action: str = "confirm",
+    ) -> MainAgentTurnResult:
+        """A confirmation that resolved without running anything."""
+
+        result = ToolObservation(
+            tool_name="capability_confirmation", state=state, message=message
+        )
+        return MainAgentTurnResult(
+            origin=InteractionReceipt(
+                scope="capability_confirmation", action=action
+            ),
+            context=context,
+            assistant_message=message,
             tool_result=result,
             tool_results=(result,),
         )
@@ -1106,8 +1557,7 @@ class MainAgentRuntime:
         )
         control = state.get("control", {})
         return MainAgentTurnResult(
-            decision=state["decision"],
-            decision_source="model",
+            origin=ModelDecision(state["decision"]),
             context=state["context"],
             assistant_message=state["assistant_message"],
             tool_result=tool_result,
@@ -1194,6 +1644,12 @@ class MainAgentRuntime:
             if context.task.phase == "failed"
             else "handle_mock_interview_input"
         )
+        # Read before the graph runs: the reducer may close the workflow this
+        # very turn (a cancellation sets it to "none"), and the origin has to
+        # name the workflow that owned the input, not the state it left behind.
+        owned_workflow = context.task.active_workflow
+        if owned_workflow == "none":
+            raise ValueError("owned workflow turn requires an active workflow")
         decision = AgentDecision(
             action="tool_call",
             tool_call=ToolCall(name=entry, arguments={}),
@@ -1231,8 +1687,12 @@ class MainAgentRuntime:
         result = self._last_result(state)
         control = state.get("control", {})
         return MainAgentTurnResult(
-            decision=state["decision"],
-            decision_source="runtime",
+            # The user supplied the input; the runtime decided it belongs to
+            # the workflow it owns. The ``AgentDecision`` above is real graph
+            # input — it routes ``authorize``/``act`` — but it is the runtime's
+            # own construction, so it is not what this turn reports as its
+            # origin.
+            origin=RuntimeAction(workflow=owned_workflow),
             context=state["context"],
             assistant_message=state["assistant_message"],
             tool_result=result,
@@ -1330,6 +1790,7 @@ class MainAgentRuntime:
             raise ValueError("tool_call action requires tool_call arguments")
         name = decision.tool_call.name
         runtime_owned = bool(state.get("pending", {}).get("runtime_owned"))
+        owner_confirmed = bool(state.get("pending", {}).get("owner_confirmed"))
         if runtime_owned:
             if name not in self._tools.runtime_workflow_names:
                 raise ValueError(f"Unknown runtime-owned workflow: {name}")
@@ -1337,6 +1798,25 @@ class MainAgentRuntime:
         else:
             kind = self._tools.capability_kind(name)
         effect = effect_for(name)
+        # Owner rules are an authority beside budgets and reachability, and a
+        # confirmed seal is the owner having already exercised it: re-judging
+        # here would refuse the very action they just approved, which is how
+        # ``review`` degenerates into ``deny``.
+        verdict = (
+            "permit"
+            if runtime_owned or owner_confirmed
+            else state["context"].preferences.capability_verdict(name)
+        )
+        if verdict == "deny":
+            return self._authorization_refusal(
+                state,
+                name=name,
+                reason="你设置的偏好不允许这个操作。",
+                next_action="向用户说明这条设置，不要重试这次调用。",
+            )
+        # ``review`` is decided here but acted on after projection: what the
+        # owner approves has to be the concrete action, arguments included, and
+        # those do not exist yet.
         control = self._control(state)
         used = control.get("read_calls", 0) if effect == "READ" else control.get("write_calls", 0)
         limit = self._max_read_calls if effect == "READ" else self._max_write_calls
@@ -1384,7 +1864,13 @@ class MainAgentRuntime:
             control = {**control, "retry_counts": retry_counts}
         try:
             arguments = (
-                self._project_runtime_workflow_arguments(state, name)
+                # Taken from the seal, not re-projected. These arguments were
+                # projected once, hashed, and shown to the owner; re-deriving
+                # them from a decision the model did not make this turn would
+                # execute something other than what was approved.
+                state["pending"]["arguments"]
+                if owner_confirmed
+                else self._project_runtime_workflow_arguments(state, name)
                 if runtime_owned
                 else self._project_atomic_tool_arguments(
                     state["context"],
@@ -1398,6 +1884,11 @@ class MainAgentRuntime:
                     decision.tool_call.arguments,
                 )
             )
+            if owner_confirmed and name == "update_owner_settings":
+                arguments = {
+                    **arguments,
+                    "confirmation_id": state["pending"]["confirmation_id"],
+                }
         except ValueError as error:
             MainAgentRuntime._reraise_security_refusal(error)
             if (
@@ -1415,6 +1906,10 @@ class MainAgentRuntime:
                     "runtime_owned": runtime_owned,
                 },
             }
+        if verdict == "review":
+            return self._seal_for_owner_confirmation(
+                state, name=name, arguments=arguments
+            )
         return {
             "authorization_route": "act",
             "control": control,
@@ -1422,10 +1917,126 @@ class MainAgentRuntime:
                 "name": name,
                 "kind": kind,
                 "runtime_owned": runtime_owned,
+                "owner_confirmed": owner_confirmed,
                 "effect": effect,
                 "arguments": arguments,
             },
         }
+
+    def _seal_for_owner_confirmation(
+        self, state: MainAgentState, *, name: str, arguments: dict[str, Any]
+    ) -> MainAgentState:
+        """Hold the action the owner asked to see, bound to these arguments.
+
+        Everything else has already passed at this point — budgets, repetition,
+        projection — so the sealed action is exactly the one that would have
+        run. That is what makes the owner's "yes" executable next turn without
+        consulting the model again: there is nothing left to decide.
+
+        Without a store this refuses instead of silently proceeding. A rule the
+        deployment cannot durably enforce must not read as permission.
+        """
+
+        if self._capability_confirmation_store is None:
+            return self._authorization_refusal(
+                state,
+                name=name,
+                reason="你设置了这个操作需要先经你确认，但本次部署无法保存待确认动作。",
+                next_action="告诉用户这个操作被设置为需要确认，但当前无法记录确认请求。",
+            )
+        context = state["context"]
+        display_summary = self._owner_confirmation_summary(
+            context=context, name=name, arguments=arguments
+        )
+        confirmation = self._capability_confirmation_store.seal(
+            user_id=context.profile.user_id,
+            conversation_id=context.conversation_id,
+            capability=name,
+            display_summary=display_summary,
+            arguments=arguments,
+            policy_revision=context.preferences.behavior_policy.revision,
+        )
+        if confirmation.status == "APPLYING":
+            result = ToolObservation(
+                tool_name=name,
+                state="capability_confirmation_in_progress",
+                message="同一项已批准操作正在执行，没有再次发起确认或执行。",
+                next_action="告诉用户操作仍在处理中，不要重试。",
+            )
+            return {
+                "authorization_route": "observe",
+                "pending": {
+                    "name": name,
+                    "result": result,
+                    "synthetic_kind": "confirmation",
+                    "runtime_owned": False,
+                },
+            }
+        result = ToolObservation(
+            tool_name=name,
+            state="capability_confirmation_required",
+            message=f"{display_summary}\n你设置了此操作需要确认。是否执行？",
+            # The id is deliberately absent from the message: it is a runtime
+            # identifier and the model has no use for it. It travels in the
+            # payload, which the harness reads and the model's observation does
+            # not, because binding a button to this action is the harness's job.
+            next_action="向用户说明将要执行什么并等待确认；本轮不要重试这个操作。",
+            payload={"confirmation_id": confirmation.confirmation_id},
+        )
+        return {
+            "authorization_route": "observe",
+            "pending": {
+                "name": name,
+                "result": result,
+                "synthetic_kind": "confirmation",
+                "runtime_owned": False,
+                "confirmation_id": confirmation.confirmation_id,
+            },
+        }
+
+    @staticmethod
+    def _owner_confirmation_summary(
+        *, context: MainAgentContext, name: str, arguments: dict[str, Any]
+    ) -> str:
+        """Render only owner-readable facts; never expose sealed internal ids."""
+
+        if name == "create_application":
+            job = next(
+                (
+                    item
+                    for item in context.task.saved_job_candidates
+                    if item.job_posting_id == arguments.get("job_posting_id")
+                ),
+                None,
+            )
+            resume = next(
+                (
+                    item
+                    for item in context.task.resume_version_candidates
+                    if item.resume_version_id == arguments.get("resume_version_id")
+                ),
+                None,
+            )
+            target = (
+                f"{job.company_name} · {job.title}"
+                if job is not None
+                else "当前选中的岗位"
+            )
+            version = f"，使用简历版本 v{resume.version_number}" if resume else ""
+            submitted = arguments.get("submitted_at")
+            when = f"，投递时间 {submitted}" if submitted is not None else ""
+            return f"准备创建投递记录：{target}{version}{when}。"
+        if name == "update_owner_settings":
+            changes = []
+            if arguments.get("boss_search") is not None:
+                changes.append(f"岗位搜索偏好 → {arguments['boss_search']}")
+            if arguments.get("application_confirmation") is not None:
+                changes.append(
+                    "投递记录确认规则 → "
+                    f"{arguments['application_confirmation']}"
+                )
+            return "准备更新持久设置：" + "；".join(changes) + "。"
+        return f"准备执行 {name}。"
 
     @staticmethod
     def _after_authorize(
@@ -1438,49 +2049,197 @@ class MainAgentRuntime:
         name = pending["name"]
         arguments = pending["arguments"]
         self._emit_capability_started(name)
-        result = (
-            self._tools.invoke_runtime_workflow(name, arguments)
-            if pending.get("runtime_owned")
-            else (
-                self._tools.invoke_atomic_tool(name, arguments)
-                if pending["kind"] == "atomic_tool"
-                else self._tools.invoke_workflow(name, arguments)
-            )
-        )
+        if pending.get("effect") == "WRITE" and self._action_execution_store is not None:
+            result = self._act_request_anchored_write(state)
+        else:
+            result = self._invoke_pending(pending)
         self._emit_capability_completed(name, result.state)
-        if pending.get("effect") == "WRITE":
-            MainAgentRuntime._record_durable_write(name, result)
         return {"pending": {**pending, "result": result}}
 
-    @staticmethod
-    def _record_durable_write(name: str, result: MainAgentToolOutput) -> None:
-        """Note a call that reports it changed something durable.
+    def _invoke_pending(self, pending: PendingAction) -> MainAgentToolOutput:
+        name = pending["name"]
+        arguments = pending["arguments"]
+        if pending.get("runtime_owned"):
+            return self._tools.invoke_runtime_workflow(name, arguments)
+        if pending["kind"] == "atomic_tool":
+            return self._tools.invoke_atomic_tool(name, arguments)
+        return self._tools.invoke_workflow(name, arguments)
 
-        Called from ``_act`` for every graph-driven WRITE, including
-        runtime-owned workflow continuations.
+    def _act_request_anchored_write(
+        self, state: MainAgentState
+    ) -> MainAgentToolOutput:
+        """Prepare, execute, and settle every write in this turn.
+
+        Intent is recorded before the call and the outcome after it, so a
+        process that dies mid-flight leaves a row saying "this started and
+        nobody knows how it ended". Recording only after the fact cannot
+        express that state at all, which is the one state crash recovery cares
+        about.
+
+        Intent registration applies to every write so an interrupted effect is
+        enumerable. Only PENDING replay is capability-gated; Calendar retains
+        its proposal protocol underneath this correlation layer.
         """
-        if result.disposition == "failed":
-            # Called *after* the call returns, and silent for a call that
-            # reports it did nothing. ``WRITE`` is a declared capability of the
-            # tool, not a report about this invocation: a refused calendar write
-            # is a WRITE that changed nothing, and naming it as "already
-            # written" would be the original bug with its sign flipped —
-            # claiming an effect that never happened instead of hiding one that
-            # did. That path is ordinary, not exotic: ``_after_observe`` routes a
-            # failed result back to ``decide``, so "write fails, model tries
-            # something else, that something else hard-throws" is a normal
-            # trajectory.
+
+        invocation = _ACTION_INVOCATION.get()
+        if invocation is None or self._action_execution_store is None:
+            raise RuntimeError("request-anchored action context is unavailable")
+        turn_id, request_id = invocation
+        context = state["context"]
+        pending = state["pending"]
+        name = pending["name"]
+        arguments = pending["arguments"]
+        anchor = request_id or turn_id
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {"tool": name, "arguments": arguments},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode()
+        ).hexdigest()
+        try:
+            execution, created = self._action_execution_store.prepare(
+                user_id=context.profile.user_id,
+                conversation_id=context.conversation_id,
+                anchor=anchor,
+                request_id=request_id,
+                # Count writes, not all calls: preceding reads do not move the
+                # slot, while a deliberately larger write budget gets distinct
+                # durable identities instead of colliding at slot zero.
+                write_slot=self._control(state).get("write_calls", 0),
+                tool_name=name,
+                fingerprint=fingerprint,
+                policy_epoch=self._action_policy_epoch,
+                replay_allowed=replay_safe(name),
+            )
+        except ActionExecutionReconciliationRequiredError:
+            # Fed back rather than thrown. The slot holds an earlier write whose
+            # outcome nobody knows, so this turn must not start a different one —
+            # but killing the turn would leave the user with a crash and no way
+            # to learn what is stuck. A refusal the model can explain is the
+            # same treatment projection and authorization refusals already get.
             #
-            # ``disposition`` is the tool's own answer, so a write that landed
-            # externally and then failed to be recorded is still invisible here.
-            # That window is registered as 071 五-2 and belongs to the durable
-            # effect log, not to a best-effort ledger read after the fact.
-            return
-        # The ledger has to live outside the graph state: the very case it
-        # exists for is the one where the graph never returns.
-        ledger = _DURABLE_WRITES.get()
-        if ledger is not None:
-            ledger.append(name)
+            # The action id stays out of the message: it is a runtime-generated
+            # internal identifier, and the operator reads it from
+            # ``career-agent actions reconcile`` rather than from the model.
+            return ToolObservation(
+                tool_name=name,
+                state="action_reconciliation_required",
+                message=(
+                    "上一次同类操作还没有确认结果，可能已经写入，也可能没有。"
+                    "在核对清楚之前不能再执行一次，否则可能重复。"
+                ),
+                next_action=(
+                    "告诉用户有一次未确认的操作需要先核对，不要重试这次调用。"
+                ),
+            )
+        if not created:
+            if execution.status == "SUCCEEDED":
+                # The receipt repairs task state; the model sees a distinct,
+                # synthetic observation and can read the durable result by its
+                # returned identifiers. Reusing the original result state here
+                # would invoke a presenter whose report body is intentionally
+                # absent from the ledger, or recreate a one-shot interaction.
+                receipt = dict(execution.output)
+                replayed_state = str(
+                    receipt.pop(RESULT_STATE_RECEIPT_KEY, "") or ""
+                )
+                state["pending"]["reducer_result"] = ToolObservation(
+                    tool_name=name,
+                    state=replayed_state or "failed",
+                    message="持久执行回执用于修复任务状态。",
+                    payload=receipt,
+                )
+                return ToolObservation(
+                    tool_name=name,
+                    state="action_execution_replayed",
+                    message="这一步此前已经完成，没有再次执行。",
+                    next_action="按回执中的引用或标识读取持久结果，不要重做写操作。",
+                )
+            if execution.status == "FAILED":
+                raise ActionExecutionAlreadyFailedError(
+                    execution.error_detail
+                    or "this action already ended unsuccessfully; use a new request id"
+                )
+            if not replay_safe(name):
+                return ToolObservation(
+                    tool_name=name,
+                    state="action_reconciliation_required",
+                    message=(
+                        "上一次这个操作没有确认结果，可能已经生效，也可能没有。"
+                        "这个操作重复执行无法撤销，所以在核对清楚之前不能再执行一次。"
+                    ),
+                    next_action="告诉用户有一次未确认的操作需要先核对，不要重试这次调用。",
+                )
+
+        result = self._invoke_pending(pending)
+        # A declared execution outcome always wins over the state, and the order
+        # is the whole point. ``state``/``disposition`` say whether the
+        # capability and the control flow failed; ``execution_outcome`` says
+        # whether the side effect committed. They are independent axes, so
+        # ``committed`` with a failed state is a real situation and not a
+        # contradiction to reject: the external write landed and the local
+        # handling, receipt parse or presentation then failed. Settling that as
+        # FAILED because the state is failed would record that nothing happened
+        # when something did — the same class of lie, pointed the other way, as
+        # the delivery-derived ledger this replaced. Inferring from ``state`` is
+        # the fallback for capabilities that have not declared the axis yet.
+        if result.execution_outcome == "unknown":
+            # The capability has returned, but the effect has not. PENDING is
+            # precisely the durable representation of that ambiguity; closing
+            # it as FAILED would make it disappear from reconciliation.
+            return result
+        if result.execution_outcome == "not_committed":
+            self._action_execution_store.fail(
+                action_id=execution.action_id,
+                error_code=result.state.upper(),
+                error_detail=result.message,
+            )
+            return result
+        if result.execution_outcome is None and is_failed(result.state):
+            self._action_execution_store.fail(
+                action_id=execution.action_id,
+                error_code=result.state.upper(),
+                error_detail=result.message,
+            )
+            return result
+        self._action_execution_store.succeed(
+            action_id=execution.action_id,
+            output=MainAgentRuntime._execution_receipt(result),
+        )
+        return result
+
+    @staticmethod
+    def _execution_receipt(
+        result: MainAgentToolOutput,
+    ) -> dict[str, str | int | float | bool | None]:
+        """The identifiers a crashed turn would need to repair its task state.
+
+        Scalars only, which is a rule rather than a filter on names: a crashed
+        turn's reducer never ran, so ``active_*_id`` is empty and the ids are
+        what repairs it, while report bodies already live in their own stores
+        and a second copy here would be a second source of truth. Payloads for
+        writes are flat scalar dicts of exactly those ids plus a status, so the
+        rule keeps what is needed without knowing any capability's field names.
+
+        A capability whose payload yields nothing keeps an enumerable pending
+        row and no automatic repair — the coverage boundary, not a silent
+        failure.
+        """
+        receipt: dict[str, str | int | float | bool | None] = {
+            RESULT_STATE_RECEIPT_KEY: result.state
+        }
+        for key, value in result.payload.items():
+            if len(receipt) > _MAX_RECEIPT_KEYS:
+                break
+            if value is not None and not isinstance(value, (str, int, float, bool)):
+                continue
+            if isinstance(value, str) and len(value) > _MAX_RECEIPT_VALUE_CHARS:
+                continue
+            receipt[key] = value
+        return receipt
 
     @staticmethod
     def _project_runtime_workflow_arguments(
@@ -1602,7 +2361,15 @@ class MainAgentRuntime:
                     else None
                 ),
             )
-        if synthetic_kind is not None:
+        if synthetic_kind == "confirmation":
+            # A seal is not a refusal. The action was allowed; the owner asked
+            # to see it first, and the turn ends waiting for them. Counting it
+            # against the refusal budget would make a rule the owner set look
+            # like the model misbehaving, and would end the conversation early
+            # after a few legitimate confirmations. No capability ran, so no
+            # effect budget moves either.
+            updated = context
+        elif synthetic_kind is not None:
             updated = context
             refusal_key = (
                 "projection_refusals"
@@ -1619,7 +2386,9 @@ class MainAgentRuntime:
             }:
                 updated = self._update_mock_interview_task(context, result)
             else:
-                updated = self._update_atomic_task(context, result)
+                updated = self._update_atomic_task(
+                    context, pending.get("reducer_result", result)
+                )
             effect = pending["effect"]
             budget_key = "read_calls" if effect == "READ" else "write_calls"
             control[budget_key] = control.get(budget_key, 0) + 1
@@ -1665,7 +2434,10 @@ class MainAgentRuntime:
             if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
                 artifact_ids = (*artifact_ids, artifact_id)
         tool_results = state.get("tool_results", ())
-        if synthetic_kind is None:
+        # A refusal is an internal correction the model reads and moves past; a
+        # seal is this turn's actual outcome, and the interrupt path reads it
+        # from here to build the interaction the owner answers.
+        if synthetic_kind in (None, "confirmation"):
             tool_results = (*tool_results, result)
         return {
             "context": updated,
@@ -1689,6 +2461,12 @@ class MainAgentRuntime:
         # workflow result, and the raw input was intentionally withheld from
         # Main Agent context.
         if state.get("pending", {}).get("runtime_owned"):
+            return "present"
+        # An owner-confirmed action is finished the moment it runs. Handing the
+        # result back to the model would give it a turn it was never given: it
+        # proposed this action, a rule stopped it, and a person answered. The
+        # presenter reports what happened; nothing further is up for decision.
+        if state.get("pending", {}).get("owner_confirmed"):
             return "present"
         # A projection refusal always returns to the model, which then re-selects,
         # asks the user, or explains — its call, not a table's.
@@ -2249,6 +3027,23 @@ class MainAgentRuntime:
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        if name == "update_owner_settings":
+            proposed = UpdateOwnerSettingsToolArguments.model_validate(arguments)
+            changes = proposed.model_dump(exclude_none=True)
+            if all(
+                (
+                    value == context.preferences.boss_search
+                    if key == "boss_search"
+                    else value == context.preferences.application_confirmation
+                )
+                for key, value in changes.items()
+            ):
+                raise ValueError("owner-settings proposal does not change current settings")
+            return {
+                "user_id": context.profile.user_id,
+                "expected_revision": context.preferences.revision,
+                **changes,
+            }
         if name == "open_job_search":
             return project_open_job_search_arguments(context, arguments)
         if name in {

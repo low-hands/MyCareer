@@ -88,8 +88,145 @@ class JobIntentUpdate(ContractModel):
         return profile.model_copy(update={"default_city": self.city})
 
 
-class AgentPreferencesContext(ContractModel):
+RuleVerdict = Literal["permit", "review", "deny"]
+"""What an owner rule says about a capability, ordered least to most restrictive.
+
+``review`` is a first-class outcome, not a soft ``deny``: "you may do this, but
+show me first" is what a person means by "ask me before you apply", and it maps
+onto the bound interaction this system already has. Collapsing it into ``deny``
+would turn a request for oversight into a refusal, and collapsing it into
+``permit`` would silently drop the oversight.
+"""
+
+_VERDICT_ORDER: dict[str, int] = {"permit": 0, "review": 1, "deny": 2}
+
+
+def most_restrictive(*verdicts: RuleVerdict) -> RuleVerdict:
+    """Compose owner-rule verdicts conservatively: the strictest one wins.
+
+    Several of the owner's rules can bear on one capability, and they are
+    combined by taking the most restrictive rather than by order or precedence.
+    Precedence would mean a later rule could widen what an earlier one narrowed,
+    which is how a permission system stops being one.
+
+    Scoped to owner rules on purpose. Budgets and reachability also gate an
+    action, but they are not verdicts on the same lattice: they answer "not this
+    turn" and "not with this state", and folding them in here would suggest the
+    owner could permit past them.
+    """
+
+    return max(verdicts, key=lambda verdict: _VERDICT_ORDER[verdict], default="permit")
+
+
+def system_capability_verdict(capability: str) -> RuleVerdict:
+    """Non-negotiable runtime invariants, never sourced from owner settings.
+
+    The model may formulate a settings change, but it cannot authorize the
+    change that governs itself. Keeping this outside ``BehaviorPolicyContext``
+    prevents a future owner-facing field from accidentally weakening it.
+    """
+
+    return "review" if capability == "update_owner_settings" else "permit"
+
+
+class UserPreferencesContext(ContractModel):
+    """Soft owner preferences interpreted by the decision model.
+
+    These are deliberately not described as enforcement.  They depend on the
+    meaning of the current request (for example, whether search was explicitly
+    requested), so the deterministic runtime does not have enough information
+    to decide them without inventing a second intent classifier.
+    """
+
     boss_search: Literal["explicit_request_only", "allowed"] = "explicit_request_only"
+
+
+class BehaviorPolicyContext(ContractModel):
+    """Versioned rules the runtime can evaluate before a capability executes."""
+
+    revision: int = Field(default=0, ge=0)
+    application_confirmation: Literal["always_ask", "on_user_report"] = "on_user_report"
+
+    def _owner_rule_verdicts(self, capability: str) -> tuple[RuleVerdict, ...]:
+        """Only owner-editable rules; system invariants do not belong here."""
+
+        return tuple(
+            verdict
+            for applies, verdict in (
+                (
+                    capability == "create_application"
+                    and self.application_confirmation == "always_ask",
+                    "review",
+                ),
+            )
+            if applies
+        )
+
+    def capability_verdict(self, capability: str) -> RuleVerdict:
+        return most_restrictive(*self._owner_rule_verdicts(capability))
+
+
+class OwnerSettingsContext(ContractModel):
+    """Owner state, split into model preferences and runtime policy.
+
+    The two sections share one persisted document so a settings screen can
+    update them atomically, but they do not share semantics. ``preferences`` is
+    projected to the model. ``behavior_policy`` is evaluated by the runtime and
+    carries its own revision, which is sealed into approval records.
+
+    Owner-authorized: the authenticated settings endpoint and CLI may update it
+    directly. The model-facing tool can only create a bound proposal; a system
+    invariant forces that capability through Review, and the sealed change is
+    applied only after an owner interaction receipt. Thus conversation or
+    document wording cannot itself relax the rule that constrains the model.
+
+    ``revision`` protects the whole settings document from lost updates.
+    ``behavior_policy.revision`` changes only when an enforceable rule changes,
+    so editing a soft display/model preference does not invalidate an unrelated
+    approval already waiting for the owner.
+    """
+
+    revision: int = Field(default=0, ge=0)
+    preferences: UserPreferencesContext = UserPreferencesContext()
+    behavior_policy: BehaviorPolicyContext = BehaviorPolicyContext()
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_flat_preferences(cls, value: Any) -> Any:
+        """Read the pre-split JSON/constructor shape during the v3 migration."""
+
+        if not isinstance(value, dict):
+            return value
+        if "preferences" in value or "behavior_policy" in value:
+            return value
+        migrated = dict(value)
+        boss_search = migrated.pop("boss_search", "explicit_request_only")
+        confirmation = migrated.pop("application_confirmation", "on_user_report")
+        migrated["preferences"] = {"boss_search": boss_search}
+        migrated["behavior_policy"] = {
+            "revision": 0,
+            "application_confirmation": confirmation,
+        }
+        return migrated
+
+    @property
+    def boss_search(self) -> Literal["explicit_request_only", "allowed"]:
+        return self.preferences.boss_search
+
+    @property
+    def application_confirmation(self) -> Literal["always_ask", "on_user_report"]:
+        return self.behavior_policy.application_confirmation
+
+    def capability_verdict(self, capability: str) -> RuleVerdict:
+        return most_restrictive(
+            system_capability_verdict(capability),
+            self.behavior_policy.capability_verdict(capability),
+        )
+
+
+# Source compatibility for integrations importing the old name. New code and
+# persisted JSON use OwnerSettingsContext and its explicit two-section shape.
+AgentPreferencesContext = OwnerSettingsContext
 
 
 SelectionIndex = Annotated[int, Field(ge=1)]
@@ -547,6 +684,16 @@ class ToolResult(ContractModel):
         default="completed",
         exclude=True,
     )
+    execution_outcome: Literal["committed", "not_committed", "unknown"] | None = Field(
+        default=None,
+        exclude=True,
+    )
+    """What happened to a WRITE, independently from delivery control.
+
+    ``disposition`` answers where the graph goes next. This field answers what
+    the durable execution ledger may claim. They deliberately differ for a
+    recoverable input refusal and for an external write whose response was lost.
+    """
     # Declared by the capability, next to the typed objects it already holds.
     # Excluded like ``disposition``: it is a decision projection, not part of
     # the public result payload.
@@ -1037,7 +1184,20 @@ class MainAgentContext(ContractModel):
                     for record in self.career_memory.records
                 ],
             },
-            "preferences": self.preferences.model_dump(mode="json"),
+            "preferences": {
+                "boss_search": self.preferences.boss_search,
+            },
+            **(
+                {
+                    "behavior_policy": {
+                        "application_confirmation": (
+                            self.preferences.application_confirmation
+                        )
+                    }
+                }
+                if self.preferences.application_confirmation != "on_user_report"
+                else {}
+            ),
             "task": {
                 **self.task.active_resource_flags(),
                 "active_calendar_proposal_expires_at": (
@@ -1367,6 +1527,19 @@ class CreateApplicationToolArguments(ContractModel):
     resume_version_selection_index: SelectionIndex | None = None
     submitted_at: datetime | None = None
     note: str | None = Field(default=None, min_length=1, max_length=2000)
+
+
+class UpdateOwnerSettingsToolArguments(ContractModel):
+    """An agent proposal; the runtime always seals it for owner review."""
+
+    boss_search: Literal["explicit_request_only", "allowed"] | None = None
+    application_confirmation: Literal["always_ask", "on_user_report"] | None = None
+
+    @model_validator(mode="after")
+    def changes_something(self) -> "UpdateOwnerSettingsToolArguments":
+        if self.boss_search is None and self.application_confirmation is None:
+            raise ValueError("an owner-settings proposal must change at least one setting")
+        return self
 
 
 class UpdateApplicationStatusToolArguments(ContractModel):

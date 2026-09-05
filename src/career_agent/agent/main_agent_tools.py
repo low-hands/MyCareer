@@ -74,6 +74,7 @@ from career_agent.agent.main_agent_contracts import (
     ReviewResumeTailoringToolArguments,
     ReviseResumeTailoringToolArguments,
     UpdateApplicationStatusToolArguments,
+    UpdateOwnerSettingsToolArguments,
     ResolveEmailEventToolArguments,
     ResolveActionItemToolArguments,
     SnoozeActionItemToolArguments,
@@ -86,7 +87,9 @@ from career_agent.agent.main_agent_contracts import (
     UpdateInterviewToolArguments,
     ToolObservation,
     ConversationResourceReference,
+    OwnerSettingsContext,
 )
+from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_reachability import reachable
 from career_agent.connectors.email_accounts import EmailCredentialError
@@ -225,6 +228,7 @@ class MainAgentToolRegistry:
         mock_interview_graph: MockInterviewGraph | None = None,
         mock_interview_store: SQLiteMockInterviewStore | None = None,
         job_research_service: JobResearchService | None = None,
+        owner_settings_store: CareerContextStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -265,6 +269,9 @@ class MainAgentToolRegistry:
         self._mock_interview_graph = mock_interview_graph
         self._mock_interview_store = mock_interview_store
         self._job_research_service = job_research_service
+        self._owner_settings_store = owner_settings_store
+        if owner_settings_store is not None:
+            self._atomic_handlers["update_owner_settings"] = self._update_owner_settings
         if job_repository is not None:
             self._atomic_handlers.update(
                 {
@@ -872,6 +879,22 @@ class MainAgentToolRegistry:
                         },
                     },
                 ]
+            )
+        if self._owner_settings_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "update_owner_settings",
+                        "description": (
+                            "Propose a persistent owner setting change. The runtime "
+                            "always stops this call and shows the exact change to the "
+                            "owner; it takes effect only after the owner confirms the "
+                            "bound interaction. Never claim it changed before confirmation."
+                        ),
+                        "parameters": UpdateOwnerSettingsToolArguments.model_json_schema(),
+                    },
+                }
             )
         if self._email_tracking_service is not None:
             schemas.extend(
@@ -2470,6 +2493,7 @@ class MainAgentToolRegistry:
                 tool_name="execute_calendar_proposal",
                 state="calendar_proposal_not_found",
                 message="没有找到该 Calendar 变更预览，或它不属于当前用户。",
+                execution_outcome="not_committed",
             )
         except CalendarProposalConflictError as error:
             return ToolObservation(
@@ -2477,6 +2501,7 @@ class MainAgentToolRegistry:
                 state="calendar_approval_invalid",
                 message="该 Calendar 批准已失效，没有执行外部写入。",
                 payload={"reason": str(error)},
+                execution_outcome="not_committed",
             )
         except CalendarConnectorError as error:
             return ToolObservation(
@@ -2491,11 +2516,15 @@ class MainAgentToolRegistry:
                     "error_detail": str(error),
                     "retryable": False,
                 },
+                execution_outcome=(
+                    "unknown" if error.outcome_unknown else "not_committed"
+                ),
             )
         return ToolObservation(
             tool_name="execute_calendar_proposal",
             state="calendar_sync_complete",
             message="Calendar 变更已执行并获得成功确认。",
+            execution_outcome="committed",
             payload={
                 **self._calendar_proposal_payload(execution.proposal),
                 "calendar_link_id": execution.link.id,
@@ -3778,6 +3807,7 @@ class MainAgentToolRegistry:
                 state="application_input_not_found",
                 message="没有找到对应的已保存岗位或简历版本，或它不属于当前用户。",
                 payload={"missing_input": str(error)},
+                execution_outcome="not_committed",
             )
         return ToolObservation(
             tool_name="create_application",
@@ -3791,6 +3821,65 @@ class MainAgentToolRegistry:
                 **self._application_payload(result.application, detail.job),
                 "created": result.created,
             },
+            execution_outcome="committed",
+        )
+
+    def _update_owner_settings(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._owner_settings_store is None:
+            raise ValueError("Owner settings store is not configured")
+        user_id = str(arguments["user_id"])
+        expected_revision = int(arguments["expected_revision"])
+        actor_id = str(arguments["confirmation_id"])
+        model_arguments = UpdateOwnerSettingsToolArguments.model_validate(
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "expected_revision", "confirmation_id"}
+            }
+        )
+        current = self._owner_settings_store.get_owner_settings(user_id) or OwnerSettingsContext()
+        desired = current.model_copy(
+            update={
+                "preferences": current.preferences.model_copy(
+                    update={
+                        "boss_search": model_arguments.boss_search
+                        or current.preferences.boss_search
+                    }
+                ),
+                "behavior_policy": current.behavior_policy.model_copy(
+                    update={
+                        "application_confirmation": (
+                            model_arguments.application_confirmation
+                            or current.behavior_policy.application_confirmation
+                        )
+                    }
+                ),
+            }
+        )
+        try:
+            updated = self._owner_settings_store.update_owner_settings(
+                user_id=user_id,
+                desired=desired,
+                expected_revision=expected_revision,
+                actor_type="confirmed_agent_proposal",
+                actor_id=actor_id,
+            )
+        except OwnerSettingsConflictError:
+            return ToolObservation(
+                tool_name="update_owner_settings",
+                state="owner_settings_conflict",
+                message="设置在确认期间已被其他入口修改；旧提议没有覆盖新设置。",
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="update_owner_settings",
+            state="owner_settings_updated",
+            message="已按你的确认更新持久设置。",
+            payload={
+                "revision": updated.revision,
+                "policy_revision": updated.behavior_policy.revision,
+            },
+            execution_outcome="committed",
         )
 
     def _update_application_status(
