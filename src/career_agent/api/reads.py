@@ -169,6 +169,31 @@ class ApplicationCreateRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2_000)
 
 
+class MockInterviewSessionView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    session_id: str
+    status: str
+    interview_type: str
+    interview_type_label: str
+    question_count: int
+    max_primary_questions: int
+    report_id: str | None = None
+    summary: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    updated_at: datetime
+
+
+class ApplicationMockInterviewsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    application_id: str
+    title: str
+    company_name: str
+    sessions: tuple[MockInterviewSessionView, ...] = ()
+
+
 class SavedJobView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -475,6 +500,64 @@ class WorkspaceReader:
                 user_id=user_id,
                 limit=limit,
             )
+        )
+
+    def application_mock_interviews(
+        self,
+        *,
+        user_id: str,
+        application_id: str,
+        limit: int = 50,
+    ) -> ApplicationMockInterviewsResponse:
+        application = self._applications.get_application(
+            user_id=user_id,
+            application_id=application_id,
+        )
+        sessions = []
+        for session in self._mock_interviews.list_sessions(
+            user_id=user_id,
+            application_id=application_id,
+            limit=limit,
+        ):
+            report = self._mock_interviews.get_report(
+                user_id=user_id,
+                session_id=session.id,
+            )
+            completed_questions = (
+                len(report.question_results)
+                if report is not None
+                else sum(
+                    1
+                    for turn in self._mock_interviews.list_turns(
+                        user_id=user_id,
+                        session_id=session.id,
+                    )
+                    if turn.turn_type == "primary" and turn.status == "evaluated"
+                )
+            )
+            sessions.append(
+                MockInterviewSessionView(
+                    session_id=session.id,
+                    status=session.status,
+                    interview_type=session.interview_type,
+                    interview_type_label=INTERVIEW_TYPE_LABELS.get(
+                        session.interview_type,
+                        session.interview_type,
+                    ),
+                    question_count=completed_questions,
+                    max_primary_questions=session.max_primary_questions,
+                    report_id=report.id if report is not None else None,
+                    summary=report.summary if report is not None else None,
+                    created_at=session.created_at,
+                    completed_at=session.completed_at,
+                    updated_at=session.updated_at,
+                )
+            )
+        return ApplicationMockInterviewsResponse(
+            application_id=application.application.id,
+            title=application.job.posting.title,
+            company_name=application.job.posting.company_name,
+            sessions=tuple(sessions),
         )
 
     def create_application(
@@ -1404,6 +1487,30 @@ def build_read_router(
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[ApplicationView, ...]:
         return workspace().applications(user_id=principal.user_id, limit=limit)
+
+    @router.get(
+        "/applications/{application_id}/mock-interviews",
+        response_model=ApplicationMockInterviewsResponse,
+    )
+    async def application_mock_interviews(
+        application_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        limit: int = Query(default=50, ge=1, le=100),
+    ) -> ApplicationMockInterviewsResponse:
+        try:
+            return workspace().application_mock_interviews(
+                user_id=principal.user_id,
+                application_id=application_id,
+                limit=limit,
+            )
+        except ApplicationInputNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "APPLICATION_NOT_FOUND",
+                    "message": "没有找到这条投递记录。",
+                },
+            ) from error
 
     @router.post("/applications", response_model=ApplicationView)
     async def create_application(

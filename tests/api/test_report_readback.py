@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from career_agent.api.app import create_app
 from career_agent.api.reads import build_workspace_reader
 from career_agent.agent.main_agent_contracts import ConversationTaskState
+from career_agent.agent.mock_interview_presenter import render_mock_interview_report
 from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerEvidence,
     ExtractedCareerRecord,
@@ -353,6 +354,16 @@ def test_each_report_kind_reads_back_its_full_rendered_body(tmp_path, auth, api_
     assert "项目深度可以。" in mock["body"]
     assert "能讲清个人职责" in mock["body"]
     assert mock["subtitle"] == "技术面 · 1 题"
+    mock_store = SQLiteMockInterviewStore(Path(_args(tmp_path).mock_interview_store))
+    mock_session_id = mock_store.find_report_session_id(
+        user_id="u1", report_id=mock_id
+    )
+    assert mock_session_id is not None
+    stored_mock_report = mock_store.get_report(
+        user_id="u1", session_id=mock_session_id
+    )
+    assert stored_mock_report is not None
+    assert mock["body"] == render_mock_interview_report(stored_mock_report)
 
     assert "重点准备检索可靠性。" in preparation["body"]
     assert "你怎么衡量召回质量？" in preparation["body"]

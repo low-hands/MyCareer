@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deleteConversation,
   deleteSavedJob,
+  fetchApplicationMockInterviews,
   fetchEmailWorkspace,
   fetchSavedJobs,
   importResume,
@@ -88,6 +89,22 @@ describe("workspace client identity boundary", () => {
     await fetchEmailWorkspace({ apiBaseUrl: "/api" });
 
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/email");
+  });
+
+  it("reads mock interview history through the owned application", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(
+        '{"application_id":"app/1","title":"Engineer","company_name":"Example","sessions":[]}',
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchApplicationMockInterviews("app/1", { apiBaseUrl: "/api" });
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "/api/v1/applications/app%2F1/mock-interviews",
+    );
   });
 
   it("uploads a resume as multipart data", async () => {

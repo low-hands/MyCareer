@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewGraphResult,
     MockInterviewQuestionView,
@@ -7,6 +9,29 @@ from career_agent.agent.mock_interview_contracts import (
 )
 from career_agent.agent.summary_text import condense
 from career_agent.domain.mock_interviews.models import MockInterviewReport
+
+
+_MARKDOWN_LINK_BRACKET = re.compile(r"([\[\]])")
+_MARKDOWN_HEADING_PREFIX = re.compile(r"(?m)^([ \t]*)(#)(?=#*\s|$)")
+_MARKDOWN_BLOCKQUOTE_PREFIX = re.compile(r"(?m)^([ \t]*)(>)")
+_MARKDOWN_SETEXT_HEADING = re.compile(r"(?m)^([ \t]*)([=-])(?=\2{2,}[ \t]*$)")
+_MARKDOWN_HTTP_URL = re.compile(r"(?i)\b(https?):(?=//)")
+_MARKDOWN_WWW_URL = re.compile(r"(?i)\b(www\.)(?=[^\s]+)")
+
+
+def _escape_markdown_text(value: str) -> str:
+    """Allow useful emphasis/code/lists but not links, headings, or raw HTML."""
+    escaped_html = value.replace("&", "&amp;").replace("<", "&lt;")
+    escaped_links = _MARKDOWN_LINK_BRACKET.sub(r"\\\1", escaped_html)
+    escaped_headings = _MARKDOWN_HEADING_PREFIX.sub(r"\1\\\2", escaped_links)
+    escaped_headings = _MARKDOWN_BLOCKQUOTE_PREFIX.sub(
+        r"\1\\\2", escaped_headings
+    )
+    escaped_headings = _MARKDOWN_SETEXT_HEADING.sub(
+        r"\1\\\2", escaped_headings
+    )
+    escaped_urls = _MARKDOWN_HTTP_URL.sub(r"\1:" + "\u200b", escaped_headings)
+    return _MARKDOWN_WWW_URL.sub(r"\1" + "\u200b", escaped_urls)
 
 
 def render_mock_interview_report(report: MockInterviewReport) -> str:
@@ -23,9 +48,32 @@ def render_mock_interview_report(report: MockInterviewReport) -> str:
         ("练习建议", report.practice_actions),
     )
     blocks = [
-        title + "\n" + ("\n".join(f"- {item}" for item in items) or "- 暂无")
+        title
+        + "\n"
+        + (
+            "\n".join(f"- {_escape_markdown_text(item)}" for item in items)
+            or "- 暂无"
+        )
         for title, items in sections
     ]
+    rating_labels = {
+        "strong": "表现突出",
+        "adequate": "达到要求",
+        "weak": "需要加强",
+        "insufficient_evidence": "信息不足",
+    }
+    question_sections = "\n\n".join(
+        (
+            f"### 第 {item.plan_item_number} 题 · "
+            f"{rating_labels.get(item.final_rating, item.final_rating)}\n\n"
+            f"**问题**：{_escape_markdown_text(item.question)}\n\n"
+            f"{_escape_markdown_text(item.summary)}\n\n"
+            f"追问次数：{item.follow_up_count}"
+        )
+        for item in report.question_results
+    )
+    if question_sections:
+        blocks.append(f"## 每题反馈\n\n{question_sections}")
     return "\n\n".join(("模拟面试完成。", *blocks))
 
 
@@ -56,17 +104,18 @@ def render_mock_interview_turn(result: MockInterviewGraphResult) -> str:
         if result.evaluation is not None:
             blocks.append(
                 "上一题反馈：\n"
-                f"{result.evaluation.summary}\n"
-                f"下一步原因：{result.evaluation.next_action_reason}"
+                f"{_escape_markdown_text(result.evaluation.summary)}\n"
+                "下一步原因："
+                f"{_escape_markdown_text(result.evaluation.next_action_reason)}"
             )
-        blocks.append(f"模拟面试题：\n{result.question}")
+        blocks.append(f"模拟面试题：\n{_escape_markdown_text(result.question)}")
         return "\n\n".join(blocks)
     return result.message
 
 
 def summarize_mock_interview_report(report: MockInterviewReport) -> str:
     """State a finished run's outcome in the one line the transcript keeps."""
-    headline = condense(report.summary)
+    headline = _escape_markdown_text(condense(report.summary))
     return f"模拟面试完成。{headline}" if headline else "模拟面试完成。"
 
 
@@ -105,7 +154,7 @@ def render_mock_interview_result(view: MockInterviewResultView) -> str:
     lines = [
         f"{item.plan_item_number}. [{item.rating}"
         + (f"，追问 {item.follow_up_count} 次" if item.follow_up_count else "")
-        + f"] {item.question[:60]}"
+        + f"] {_escape_markdown_text(item.question[:60])}"
         for item in view.questions
     ]
     blocks = [
@@ -113,7 +162,7 @@ def render_mock_interview_result(view: MockInterviewResultView) -> str:
         "题目\n" + ("\n".join(lines) if lines else "暂无"),
     ]
     if view.report_summary is not None:
-        blocks.append(f"总结\n{view.report_summary}")
+        blocks.append(f"总结\n{_escape_markdown_text(view.report_summary)}")
     blocks.append("要看某题的完整问答，说题号。")
     return "\n\n".join(blocks)
 
@@ -128,7 +177,7 @@ def summarize_mock_interview_result(view: MockInterviewResultView) -> str:
     headline = _result_headline(view)
     if view.report_summary is None:
         return f"已读取{headline}。"
-    return f"已读取{headline}。{condense(view.report_summary)}"
+    return f"已读取{headline}。{_escape_markdown_text(condense(view.report_summary))}"
 
 
 def render_mock_interview_question(view: MockInterviewQuestionView) -> str:
@@ -136,12 +185,13 @@ def render_mock_interview_question(view: MockInterviewQuestionView) -> str:
     blocks = []
     for exchange in view.exchanges:
         label = "追问" if exchange.turn_type == "follow_up" else "主问题"
-        lines = [f"{label}\n{exchange.question}"]
+        lines = [f"{label}\n{_escape_markdown_text(exchange.question)}"]
         if exchange.answer is not None:
-            lines.append(f"你的回答\n{exchange.answer}")
+            lines.append(f"你的回答\n{_escape_markdown_text(exchange.answer)}")
         if exchange.evaluation_summary is not None:
             lines.append(
-                f"评价（{exchange.rating}）\n{exchange.evaluation_summary}"
+                f"评价（{exchange.rating}）\n"
+                f"{_escape_markdown_text(exchange.evaluation_summary)}"
             )
         blocks.append("\n\n".join(lines))
     header = f"第 {view.question_number} 题："
@@ -161,5 +211,5 @@ def summarize_mock_interview_question(view: MockInterviewQuestionView) -> str:
     suffix = f"，含 {follow_ups} 次追问" if follow_ups else ""
     return (
         f"已读取模拟面试第 {view.question_number} 题的完整问答{suffix}。"
-        f"{condense(view.exchanges[0].question)}"
+        f"{_escape_markdown_text(condense(view.exchanges[0].question))}"
     )

@@ -528,6 +528,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .status-pill { display: inline-flex; align-items: center; justify-content: center; padding: 5px 8px; color: #637083; background: #eef1f5; border-radius: 999px; font-size: 9px; font-weight: 650; white-space: nowrap; }
 .status-interviewing, .status-current, .status-active { color: #315fcc; background: #eaf1ff; }
 .status-offer { color: #087858; background: #e5f8f1; }
+.status-pill.status-completed { color: #087858; background: #e5f8f1; }
+.status-pill.status-paused { color: #9b6b2f; background: #fff2db; }
+.status-pill.status-created { color: #5f6b7e; background: #e9edf3; }
 .status-rejected, .status-cancelled { color: #b5474c; background: #fdecef; }
 .status-outdated { color: #b76b00; background: #fff2db; }
 
@@ -546,6 +549,27 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .data-table-row > div > span:last-child { min-width: 0; display: grid; gap: 3px; }
 .data-table-row strong { overflow: hidden; color: #344054; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .data-table-row small, .data-table-row time { color: #98a2b3; font-size: 10px; }
+.data-table-row.is-selected { background: #f7f9ff; }
+.row-detail-button { justify-self: start; padding: 0; color: #526fc5; background: transparent; border: 0; font-size: 10px; text-align: left; }
+.row-detail-button:hover { color: #315fcc; text-decoration: underline; }
+.application-practice-panel { margin-top: 16px; }
+.application-practice-panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.application-practice-panel > header small { color: #7d8ba7; font-size: 9px; font-weight: 750; letter-spacing: .09em; }
+.application-practice-panel > header h2 { margin: 4px 0; color: #344054; font-size: 19px; }
+.application-practice-panel > header p { margin: 0; color: #7d8799; font-size: 11px; }
+.application-practice-panel > header > div:last-child { display: flex; align-items: center; gap: 8px; }
+.application-practice-panel .soft-button { display: inline-flex; align-items: center; gap: 6px; }
+.panel-close-button { padding: 8px 10px; color: #7d8799; background: #f5f7fa; border: 0; border-radius: 9px; font-size: 10px; }
+.mock-session-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mock-session-card { min-width: 0; padding: 15px; border: 1px solid #e5eaf2; border-radius: 14px; background: #fbfcff; }
+.mock-session-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.mock-session-heading > div { min-width: 0; display: grid; gap: 4px; }
+.mock-session-heading strong { color: #344054; font-size: 12px; }
+.mock-session-card > p { margin: 11px 0 6px; color: #5f6b7e; font-size: 11px; line-height: 1.6; }
+.mock-session-card > small { color: #8b95a7; font-size: 9px; }
+.mock-session-card .report-card { margin: 12px 0 0; }
+.mock-session-card .card-agent-action { display: block; }
+.workflow-note { display: block; margin-top: 10px; color: #9b6b2f !important; }
 
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .resume-card { min-width: 0; overflow: hidden; }
@@ -730,6 +754,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .integration-help-columns { grid-template-columns: 1fr; }
   .application-create-form > div { grid-template-columns: 1fr; }
   .application-create-form label:last-child { grid-column: auto; }
+  .application-practice-panel > header { flex-direction: column; }
+  .application-practice-panel > header > div:last-child { width: 100%; justify-content: space-between; }
+  .mock-session-list { grid-template-columns: 1fr; }
   .data-table-card { overflow-x: auto; }
   .data-table-head, .data-table-row { min-width: 720px; }
 }
