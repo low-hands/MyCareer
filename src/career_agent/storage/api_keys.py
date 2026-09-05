@@ -55,8 +55,16 @@ DEFAULT_EXPIRY_DAYS = 90
 WORKSPACE_READ = "workspace:read"
 CHAT_WRITE = "chat:write"
 CAPTURE_WRITE = "capture:write"
+SETTINGS_WRITE = "settings:write"
+"""Changing the owner's rules, which no other key may do.
 
-KNOWN_SCOPES = frozenset({WORKSPACE_READ, CHAT_WRITE, CAPTURE_WRITE})
+Separate from ``chat:write`` on purpose. The rules exist to constrain what the
+agent may do in a conversation, so the credential a conversation runs under must
+not be the credential that can relax them — otherwise anything that can talk to
+the agent is one persuasive message away from the settings that bound it.
+"""
+
+KNOWN_SCOPES = frozenset({WORKSPACE_READ, CHAT_WRITE, CAPTURE_WRITE, SETTINGS_WRITE})
 """Every scope the API knows how to require.
 
 Closed rather than free-form: a key issued with a typo'd scope would otherwise

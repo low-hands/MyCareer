@@ -14,7 +14,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     project_mock_interview_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_runtime import MainAgentRuntime, RuntimeAction
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
 from career_agent.agent.mock_interview_graph import (
@@ -703,6 +703,53 @@ def test_every_entry_reports_the_call_that_actually_happened(tmp_path) -> None:
     assert refused.tool_name == "handle_mock_interview_input"
 
 
+@pytest.mark.parametrize(
+    ("phase", "handler"),
+    (
+        ("mock_interview_running", "handle_mock_interview_input"),
+        ("failed", "retry_mock_interview"),
+    ),
+)
+def test_the_origin_names_the_workflow_not_the_handler_that_advanced_it(
+    tmp_path, phase, handler
+) -> None:
+    """One workflow, two internal handlers, one reported origin.
+
+    ``origin.label`` is published by the CLI and hashed into interaction ids, so
+    it is an external surface. Naming the handler there would make that surface
+    change whenever the runtime's own routing is refactored, and would expose a
+    name that means nothing outside this module. Which handler ran is in the
+    tool result, where an internal name belongs — asserted here so the claim is
+    checked rather than assumed.
+    """
+    class RetryableGraph(FakeMockInterviewGraph):
+        def retry(self, *, user_id, session_id):
+            return self.resume(user_id=user_id, session_id=session_id, answer="stored")
+
+    service, _ = _application_setup(tmp_path)
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(CareerContextStore(tmp_path / f"{phase}.sqlite3")),
+        decision_maker=_never_called_decision_maker(),
+        tools=MainAgentToolRegistry(
+            application_service=service, mock_interview_graph=RetryableGraph()
+        ),
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_workflow="mock_interview", run_id="s1", phase=phase
+        ),
+        user_message="[workflow-owned input withheld]",
+    )
+
+    result = runtime._run_owned_workflow_turn(context=context, user_message="继续")
+
+    assert result.origin == RuntimeAction(workflow="mock_interview")
+    assert result.origin.label == "workflow:mock_interview"
+    assert result.tool_result.tool_name == handler
+
+
 def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
     """A bound workflow action uses the graph without consulting Main Agent."""
     class RetryableGraph(FakeMockInterviewGraph):
@@ -732,8 +779,13 @@ def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
         context=context, user_message="我做过检索系统的端到端优化。"
     )
 
-    assert result.decision_source == "runtime"
-    assert result.decision.tool_call.name == "handle_mock_interview_input"
+    # The user supplied the answer; the runtime, not the user and not the model,
+    # decided it belongs to the workflow it owns. That distinction is now the
+    # variant rather than a second enum beside a fabricated decision — and the
+    # fabrication is gone, so there is no model decision to misread.
+    assert result.origin == RuntimeAction(workflow="mock_interview")
+    assert result.requested_by == "user"
+    assert result.model_decision is None
     assert result.delegated_write_count == 1
     assert result.context.tool_observations[-1].arguments == {}
     assert "我做过检索系统的端到端优化。" not in str(

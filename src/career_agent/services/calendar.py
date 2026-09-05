@@ -44,6 +44,9 @@ class CalendarSyncNotAvailableError(ValueError):
     pass
 
 
+CALENDAR_EXECUTION_POLICY_EPOCH = 1
+
+
 @dataclass(frozen=True)
 class CalendarExecution:
     proposal: CalendarChangeProposal
@@ -60,6 +63,7 @@ class CalendarService:
         *,
         proposal_ttl: timedelta = timedelta(minutes=15),
         execution_lease: timedelta = timedelta(minutes=1),
+        policy_epoch: int = CALENDAR_EXECUTION_POLICY_EPOCH,
     ) -> None:
         self._store = store
         self._interview_service = interview_service
@@ -68,7 +72,10 @@ class CalendarService:
         self._proposal_ttl = proposal_ttl
         if execution_lease <= timedelta(0):
             raise ValueError("calendar execution lease must be positive")
+        if policy_epoch < 1:
+            raise ValueError("calendar policy epoch must be positive")
         self._execution_lease = execution_lease
+        self._policy_epoch = policy_epoch
 
     def list_accounts(self, *, user_id: str) -> tuple[CalendarAccount, ...]:
         return self._store.list_accounts(user_id=user_id)
@@ -135,6 +142,7 @@ class CalendarService:
             external_event_id=event_id,
             payload=payload,
             payload_hash=payload_hash,
+            policy_epoch=self._policy_epoch,
             status="pending",
             created_at=current,
             expires_at=current + self._proposal_ttl,
@@ -163,6 +171,22 @@ class CalendarService:
             if link is None:
                 raise CalendarProposalConflictError("executed proposal has no link")
             return CalendarExecution(proposal=proposal, link=link)
+        policy_changed = proposal.policy_epoch != self._policy_epoch
+        if policy_changed and proposal.status == "pending":
+            self._store.set_proposal_status(
+                user_id=user_id,
+                proposal_id=proposal.id,
+                status="superseded",
+                now=current,
+                error_detail=(
+                    "Calendar execution policy changed after this proposal "
+                    "was approved."
+                ),
+            )
+            raise CalendarProposalConflictError(
+                "calendar execution policy changed after approval; "
+                "prepare a new proposal"
+            )
         recovering = proposal.status in {"executing", "reconciliation_required"}
         if proposal.status not in {"pending", "executing", "reconciliation_required"}:
             raise CalendarProposalConflictError(
@@ -248,6 +272,7 @@ class CalendarService:
                     operation=proposal.operation,
                     calendar_id=account.calendar_id,
                     external_event_id=proposal.external_event_id,
+                    idempotency_key=execution.idempotency_key,
                     payload_hash=proposal.payload_hash,
                     prior_payload_hash=execution.prior_payload_hash,
                 )
@@ -292,6 +317,22 @@ class CalendarService:
                     "CALENDAR_RECONCILIATION_CONFLICT",
                     detail,
                     outcome_unknown=True,
+                )
+            if policy_changed:
+                detail = (
+                    "calendar execution policy changed after preparation; "
+                    "external state confirms the old write was not applied"
+                )
+                self._store.fail_execution(
+                    proposal=proposal,
+                    execution=execution,
+                    now=current,
+                    error_code="CALENDAR_POLICY_EPOCH_CHANGED",
+                    error_detail=detail,
+                )
+                raise CalendarProposalConflictError(
+                    "calendar execution policy changed after approval; "
+                    "prepare a new proposal"
                 )
 
         try:
@@ -401,6 +442,7 @@ class CalendarService:
                 operation=claimed.operation,
                 calendar_id=account.calendar_id,
                 external_event_id=claimed.external_event_id,
+                idempotency_key=execution.idempotency_key,
                 payload_hash=claimed.payload_hash,
                 prior_payload_hash=execution.prior_payload_hash,
             )

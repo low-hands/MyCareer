@@ -34,6 +34,10 @@ def test_google_calendar_create_uses_fixed_event_id_and_no_guest_updates(monkeyp
         return Response(json.dumps({
             "id": "ca12345", "etag": "etag-1",
             "htmlLink": "https://calendar.google.com/event",
+            "extendedProperties": {"private": {
+                "careerAgentExecutionKey": "proposal-1",
+                "careerAgentPayloadHash": "a" * 64,
+            }},
         }).encode())
 
     monkeypatch.setattr("career_agent.connectors.calendar.urlopen", fake_urlopen)
@@ -67,6 +71,36 @@ def test_google_calendar_create_uses_fixed_event_id_and_no_guest_updates(monkeyp
     assert result.external_event_id == "ca12345"
 
 
+def test_google_calendar_write_requires_the_provider_to_echo_its_markers(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        return Response(json.dumps({
+            "id": "ca12345",
+            "extendedProperties": {"private": {
+                "careerAgentExecutionKey": "some-other-proposal",
+                "careerAgentPayloadHash": "a" * 64,
+            }},
+        }).encode())
+
+    monkeypatch.setattr("career_agent.connectors.calendar.urlopen", fake_urlopen)
+    start = datetime(2026, 8, 28, tzinfo=timezone.utc)
+    payload = CalendarEventPayload(
+        title="面试 · Acme", description="岗位面试", start_at=start,
+        end_at=start + timedelta(hours=1), timezone="Asia/Shanghai",
+    )
+
+    with pytest.raises(CalendarConnectorError) as raised:
+        GoogleCalendarConnector(lambda: "access-token").apply(
+            operation="create", calendar_id="primary",
+            external_event_id="ca12345", payload=payload,
+            idempotency_key="proposal-1", payload_hash="a" * 64,
+        )
+
+    assert raised.value.code == "GOOGLE_CALENDAR_RECEIPT_MISMATCH"
+    assert raised.value.outcome_unknown is True
+
+
 def test_google_calendar_reconciles_applied_write_by_private_payload_hash(monkeypatch) -> None:
     methods = []
 
@@ -76,7 +110,10 @@ def test_google_calendar_reconciles_applied_write_by_private_payload_hash(monkey
             "id": "ca12345",
             "etag": "etag-1",
             "extendedProperties": {
-                "private": {"careerAgentPayloadHash": "b" * 64}
+                "private": {
+                    "careerAgentExecutionKey": "proposal-1",
+                    "careerAgentPayloadHash": "b" * 64,
+                }
             },
         }).encode())
 
@@ -89,12 +126,36 @@ def test_google_calendar_reconciles_applied_write_by_private_payload_hash(monkey
 
     result = GoogleCalendarConnector(lambda: "access-token").reconcile(
         operation="create", calendar_id="primary",
-        external_event_id="ca12345", payload_hash="b" * 64,
+        external_event_id="ca12345", idempotency_key="proposal-1",
+        payload_hash="b" * 64,
     )
 
     assert methods == ["GET"]
     assert result.outcome == "applied"
     assert result.write_result.external_event_id == "ca12345"
+
+
+def test_google_calendar_reconciliation_rejects_a_matching_hash_from_another_execution(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        return Response(json.dumps({
+            "id": "ca12345",
+            "extendedProperties": {"private": {
+                "careerAgentExecutionKey": "proposal-older",
+                "careerAgentPayloadHash": "b" * 64,
+            }},
+        }).encode())
+
+    monkeypatch.setattr("career_agent.connectors.calendar.urlopen", fake_urlopen)
+
+    result = GoogleCalendarConnector(lambda: "access-token").reconcile(
+        operation="create", calendar_id="primary",
+        external_event_id="ca12345", idempotency_key="proposal-current",
+        payload_hash="b" * 64,
+    )
+
+    assert result.outcome == "conflict"
 
 
 def test_google_calendar_reconciliation_refuses_an_unmarked_existing_event(monkeypatch) -> None:
@@ -105,7 +166,8 @@ def test_google_calendar_reconciliation_refuses_an_unmarked_existing_event(monke
 
     result = GoogleCalendarConnector(lambda: "access-token").reconcile(
         operation="create", calendar_id="primary",
-        external_event_id="ca12345", payload_hash="b" * 64,
+        external_event_id="ca12345", idempotency_key="proposal-1",
+        payload_hash="b" * 64,
     )
 
     assert result.outcome == "conflict"
@@ -124,7 +186,8 @@ def test_google_calendar_reconciliation_recognizes_update_not_applied(monkeypatc
 
     result = GoogleCalendarConnector(lambda: "access-token").reconcile(
         operation="update", calendar_id="primary",
-        external_event_id="ca12345", payload_hash="b" * 64,
+        external_event_id="ca12345", idempotency_key="proposal-2",
+        payload_hash="b" * 64,
         prior_payload_hash="a" * 64,
     )
 
@@ -139,7 +202,8 @@ def test_google_calendar_missing_event_is_not_applied_for_create(monkeypatch) ->
 
     result = GoogleCalendarConnector(lambda: "access-token").reconcile(
         operation="create", calendar_id="primary",
-        external_event_id="ca12345", payload_hash="b" * 64,
+        external_event_id="ca12345", idempotency_key="proposal-1",
+        payload_hash="b" * 64,
     )
 
     assert result.outcome == "not_applied"
@@ -153,7 +217,8 @@ def test_google_calendar_missing_event_confirms_cancel(monkeypatch) -> None:
 
     result = GoogleCalendarConnector(lambda: "access-token").reconcile(
         operation="cancel", calendar_id="primary",
-        external_event_id="ca12345", payload_hash="b" * 64,
+        external_event_id="ca12345", idempotency_key="proposal-1",
+        payload_hash="b" * 64,
     )
 
     assert result.outcome == "applied"

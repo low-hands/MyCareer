@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import sqlite3
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
+from career_agent.agent.main_agent_contracts import OwnerSettingsContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
     SUMMARY_SOURCE_MAX_CHARS,
@@ -29,6 +30,25 @@ class StoredConversationOverview(BaseModel):
     title: str
     last_message_preview: str
     message_count: int
+
+
+class OwnerSettingsConflictError(RuntimeError):
+    """The caller edited a stale settings revision."""
+
+
+class OwnerSettingsEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: int
+    user_id: str
+    revision: int
+    policy_revision: int
+    actor_type: Literal["api_key", "cli", "system", "confirmed_agent_proposal"]
+    actor_id: str
+    changed_fields: tuple[str, ...]
+    before: OwnerSettingsContext
+    after: OwnerSettingsContext
+    changed_at: datetime
 
 
 class CareerProfileStore(Protocol):
@@ -53,10 +73,11 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                2,
+                3,
                 self._migrate,
-                {2: self._upgrade_to_v2},
+                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
             )
+            self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
 
     @staticmethod
@@ -86,6 +107,39 @@ class CareerContextStore:
             WHERE json_extract(payload, '$.resource_ref') IS NOT NULL
             """
         )
+
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        """Split legacy preference JSON into soft preferences and hard policy."""
+
+        present = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='agent_preferences_context'"
+        ).fetchone()
+        if present is None:
+            return
+        rows = connection.execute(
+            "SELECT user_id, payload, updated_at FROM agent_preferences_context"
+        ).fetchall()
+        for user_id, payload, updated_at in rows:
+            settings = OwnerSettingsContext.model_validate_json(payload)
+            connection.execute(
+                "INSERT OR IGNORE INTO owner_settings_context"
+                "(user_id, payload, updated_at) VALUES (?, ?, ?)",
+                (user_id, settings.model_dump_json(), updated_at),
+            )
+        connection.execute("DROP TABLE agent_preferences_context")
+
+    @staticmethod
+    def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
+        """Handle a pre-registry database, for which apply_schema skips upgrades."""
+
+        present = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='agent_preferences_context'"
+        ).fetchone()
+        if present is not None:
+            CareerContextStore._upgrade_to_v3(connection)
         connection.execute(
             """
             UPDATE conversation_messages
@@ -99,7 +153,32 @@ class CareerContextStore:
         connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
         connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")
         connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
-        connection.execute("CREATE TABLE IF NOT EXISTS agent_preferences_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS owner_settings_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS owner_settings_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                revision INTEGER NOT NULL,
+                policy_revision INTEGER NOT NULL,
+                actor_type TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                changed_fields_json TEXT NOT NULL,
+                before_json TEXT NOT NULL,
+                after_json TEXT NOT NULL,
+                changed_at TEXT NOT NULL,
+                UNIQUE(user_id, revision)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS owner_settings_events_user_idx "
+            "ON owner_settings_events(user_id, revision DESC)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS owner_settings_events_actor_idx "
+            "ON owner_settings_events(user_id, actor_type, actor_id)"
+        )
         connection.execute("CREATE TABLE IF NOT EXISTS conversation_task_state (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id))")
         connection.execute("CREATE TABLE IF NOT EXISTS conversation_messages (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id, sequence))")
         connection.execute("CREATE INDEX IF NOT EXISTS conversation_messages_recent_idx ON conversation_messages(user_id, conversation_id, sequence DESC)")
@@ -201,11 +280,129 @@ class CareerContextStore:
     def upsert_profile(self, profile: CareerProfileContext) -> None:
         self._upsert_single("career_profile_context", profile.user_id, profile.model_dump_json())
 
-    def get_preferences(self, user_id: str) -> AgentPreferencesContext | None:
-        return self._get_single("agent_preferences_context", user_id, AgentPreferencesContext)
+    def get_owner_settings(self, user_id: str) -> OwnerSettingsContext | None:
+        return self._get_single("owner_settings_context", user_id, OwnerSettingsContext)
 
-    def upsert_preferences(self, user_id: str, preferences: AgentPreferencesContext) -> None:
-        self._upsert_single("agent_preferences_context", user_id, preferences.model_dump_json())
+    def update_owner_settings(
+        self,
+        *,
+        user_id: str,
+        desired: OwnerSettingsContext,
+        expected_revision: int,
+        actor_type: Literal["api_key", "cli", "system", "confirmed_agent_proposal"],
+        actor_id: str,
+    ) -> OwnerSettingsContext:
+        """Compare-and-swap one owner document and append the same transaction's audit."""
+
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if actor_type == "confirmed_agent_proposal":
+                replay = connection.execute(
+                    "SELECT after_json FROM owner_settings_events WHERE user_id=? "
+                    "AND actor_type=? AND actor_id=? ORDER BY revision DESC LIMIT 1",
+                    (user_id, actor_type, actor_id),
+                ).fetchone()
+                if replay is not None:
+                    return OwnerSettingsContext.model_validate_json(replay[0])
+            row = connection.execute(
+                "SELECT payload FROM owner_settings_context WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            before = (
+                OwnerSettingsContext.model_validate_json(row[0])
+                if row
+                else OwnerSettingsContext()
+            )
+            if before.revision != expected_revision:
+                raise OwnerSettingsConflictError(
+                    f"settings revision is {before.revision}, not {expected_revision}"
+                )
+            soft_changed = desired.preferences != before.preferences
+            policy_changed = desired.behavior_policy.model_copy(
+                update={"revision": before.behavior_policy.revision}
+            ) != before.behavior_policy
+            changed_fields = []
+            if soft_changed:
+                changed_fields.append("preferences")
+            if policy_changed:
+                changed_fields.append("behavior_policy")
+            if not changed_fields:
+                return before
+            after = desired.model_copy(
+                update={
+                    "revision": before.revision + 1,
+                    "behavior_policy": desired.behavior_policy.model_copy(
+                        update={
+                            "revision": before.behavior_policy.revision
+                            + int(policy_changed)
+                        }
+                    ),
+                }
+            )
+            connection.execute(
+                "INSERT INTO owner_settings_context(user_id, payload, updated_at) "
+                "VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET "
+                "payload=excluded.payload, updated_at=excluded.updated_at",
+                (user_id, after.model_dump_json(), now.isoformat()),
+            )
+            connection.execute(
+                "INSERT INTO owner_settings_events(user_id, revision, policy_revision, "
+                "actor_type, actor_id, changed_fields_json, before_json, after_json, changed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    user_id,
+                    after.revision,
+                    after.behavior_policy.revision,
+                    actor_type,
+                    actor_id,
+                    json.dumps(changed_fields),
+                    before.model_dump_json(),
+                    after.model_dump_json(),
+                    now.isoformat(),
+                ),
+            )
+        os.chmod(self.path, 0o600)
+        return after
+
+    def list_owner_settings_events(
+        self, *, user_id: str, limit: int = 100
+    ) -> tuple[OwnerSettingsEvent, ...]:
+        if limit < 1 or limit > 500:
+            raise ValueError("limit must be between 1 and 500")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT event_id, user_id, revision, policy_revision, actor_type, "
+                "actor_id, changed_fields_json, before_json, after_json, changed_at "
+                "FROM owner_settings_events WHERE user_id = ? "
+                "ORDER BY revision DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return tuple(
+            OwnerSettingsEvent(
+                event_id=row[0], user_id=row[1], revision=row[2],
+                policy_revision=row[3], actor_type=row[4], actor_id=row[5],
+                changed_fields=tuple(json.loads(row[6])),
+                before=OwnerSettingsContext.model_validate_json(row[7]),
+                after=OwnerSettingsContext.model_validate_json(row[8]),
+                changed_at=datetime.fromisoformat(row[9]),
+            )
+            for row in rows
+        )
+
+    # Compatibility for call sites/tests predating the semantic split.
+    def get_preferences(self, user_id: str) -> OwnerSettingsContext | None:
+        return self.get_owner_settings(user_id)
+
+    def upsert_preferences(self, user_id: str, preferences: OwnerSettingsContext) -> None:
+        current = self.get_owner_settings(user_id) or OwnerSettingsContext()
+        self.update_owner_settings(
+            user_id=user_id,
+            desired=preferences,
+            expected_revision=current.revision,
+            actor_type="system",
+            actor_id="legacy-upsert",
+        )
 
     def get_task(self, user_id: str, conversation_id: str) -> ConversationTaskState | None:
         with self._connect() as connection:

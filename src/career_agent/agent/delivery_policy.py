@@ -94,6 +94,10 @@ def _summarised() -> DeliveryPolicy:
 _POLICIES: dict[str, DeliveryPolicy] = {
     # Waiting on the user. Reaching ``decide`` with one of these ends the turn.
     "calendar_approval_required": _WAITING,
+    # An owner rule stopped this action and sealed it. The turn ends here by
+    # the same logic as every other gate: nothing further can be decided until
+    # the person answers, and the answer arrives as its own ingress.
+    "capability_confirmation_required": _WAITING,
     "email_events_pending": _WAITING,
     "mock_interview_answer_required": _WAITING,
     "mock_interview_running": _WAITING,
@@ -102,6 +106,19 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "resume_tailoring_superseded": _WAITING,
     # Failures return to the decision model with a bounded receipt and, when
     # known, an explicit retryability fact. Names are intentionally irrelevant.
+    # Nothing was written this turn, and retrying cannot change that: the slot
+    # holds an earlier action whose outcome only reconciliation can establish.
+    # Classified as failed so the loop returns to the model to explain, and
+    # without a ``retryable`` fact so the retry budget is not spent on it.
+    "action_reconciliation_required": _FAILED,
+    # A seal that resolved without running: expired, already settled, or
+    # cancelled by the owner. Plain rather than failed — nothing went wrong, and
+    # the turn has no model step to return to.
+    "capability_confirmation_cancelled": _PLAIN,
+    "capability_confirmation_expired": _PLAIN,
+    "capability_confirmation_in_progress": _PLAIN,
+    "owner_settings_updated": _PLAIN,
+    "owner_settings_conflict": _PLAIN,
     "calendar_sync_not_available": _FAILED,
     "calendar_write_failed": _FAILED,
     "failed": _FAILED,
@@ -143,6 +160,7 @@ _POLICIES.update(
             "action_item_resolved",
             "action_item_snoozed",
             "action_items_found",
+            "action_execution_replayed",
             "application_input_not_found",
             "application_not_found",
             "application_ready",

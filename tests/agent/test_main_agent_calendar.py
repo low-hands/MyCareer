@@ -27,7 +27,7 @@ class Calendar:
                 end_at=now + timedelta(days=1, hours=1),
                 timezone="Asia/Shanghai",
             ),
-            payload_hash="a" * 64, status="pending", created_at=now,
+            payload_hash="a" * 64, policy_epoch=1, status="pending", created_at=now,
             expires_at=now + timedelta(minutes=15),
         )
         self.execute_calls = []

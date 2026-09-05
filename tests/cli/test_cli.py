@@ -4,10 +4,18 @@ import json
 from datetime import datetime, timezone
 from io import StringIO
 
+import pytest
+
 from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall, ToolObservation
-from career_agent.agent.main_agent_runtime import MainAgentTurnResult
+from career_agent.agent.main_agent_runtime import (
+    InteractionReceipt,
+    MainAgentTurnResult,
+    ModelDecision,
+    RuntimeAction,
+)
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
 from career_agent.cli import EXIT_ARGUMENT_ERROR, EXIT_WORKFLOW_ERROR, main
+from career_agent.storage.action_executions import SQLiteActionExecutionStore
 
 
 class TTYBuffer(StringIO):
@@ -21,12 +29,56 @@ class Runtime:
         self.calls = []
         self.closed = False
 
-    def run_turn(self, *, user_id, conversation_id, user_message):
-        self.calls.append((user_id, conversation_id, user_message))
+    def run_turn(self, *, user_id, conversation_id, user_message, request_id=None):
+        self.calls.append((user_id, conversation_id, user_message, request_id))
         return self.turn
 
     def close(self):
         self.closed = True
+
+
+def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = SQLiteActionExecutionStore(path)
+    execution, _ = store.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="create_application",
+        fingerprint="a" * 64,
+        policy_epoch=1,
+        replay_allowed=True,
+    )
+    output = StringIO()
+
+    code = main(
+        [
+            "actions",
+            "reconcile",
+            "--user-id",
+            "u1",
+            "--context-store",
+            str(path),
+        ],
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    payload = json.loads(output.getvalue())
+    assert payload["state"] == "action_reconciliation_required"
+    assert payload["items"] == [
+        {
+            "action_id": execution.action_id,
+            "conversation_id": "c1",
+            "tool": "create_application",
+            "status": "PENDING",
+            "retry_safe": True,
+            "started_at": execution.started_at.isoformat(),
+        }
+    ]
 
 
 def test_trajectory_cli_reports_quality_as_an_independent_axis() -> None:
@@ -79,22 +131,39 @@ def test_trajectory_cli_keeps_intermittent_hard_gaps_red() -> None:
     }
 
 
-def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None:
+@pytest.mark.parametrize(
+    ("origin", "expected_origin"),
+    (
+        (
+            RuntimeAction(workflow="mock_interview"),
+            "workflow:mock_interview",
+        ),
+        (
+            InteractionReceipt(scope="resume_analysis_confirmation", action="confirm"),
+            "interaction:resume_analysis_confirmation",
+        ),
+    ),
+)
+def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided(
+    origin, expected_origin
+) -> None:
     """The JSON must not claim a call that never happened.
 
-    ``decision.tool_name`` is machine-readable output. For the two ingresses
-    that fabricate an ``AgentDecision`` — the bound interaction receipt and the
-    mock interview workflow continuation — publishing those values, in a form
-    another program would act on, that the model chose a capability it was
-    never even consulted about. What did happen is in ``tool_results``.
+    ``decision.tool_name`` is machine-readable output, and this test once
+    guarded a real incident: both runtime-owned ingresses fabricated an
+    ``AgentDecision`` so the result could be typed as one, and the CLI published
+    its invented tool name as though the model had chosen a capability it was
+    never consulted about.
+
+    What changed is where the guarantee comes from. The fix at the time was a
+    flag the CLI had to remember to check; now neither variant *has* a decision
+    to publish, so the assertion below holds by construction rather than by a
+    condition someone could drop. ``origin`` is asserted too, because a reader
+    is entitled to know which ingress ran — it is simply not a model decision.
     """
     context = type("Context", (), {"task": None})()
     turn = MainAgentTurnResult(
-        decision_source="runtime",
-        decision=AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(name="handle_mock_interview_input", arguments={}),
-        ),
+        origin=origin,
         context=context,
         assistant_message="下一题。",
         tool_result=ToolObservation(
@@ -114,11 +183,18 @@ def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None
     payload = json.loads(output.getvalue())
 
     assert code == 0
+    # The variant, not a second enum, is what separates these two: an explicit
+    # human approval and the runtime acting on its own ownership rule are
+    # different kinds of act, and they now have different types. Both are
+    # ``requested_by="user"``, which is true of each and distinguishes neither —
+    # the reason a per-turn "authority" field carried no information.
     assert payload["decision"] == {
-        "source": "runtime",
+        "origin": expected_origin,
+        "requested_by": "user",
         "action": None,
         "tool_name": None,
     }
+    assert turn.model_decision is None
     # The turn is still fully reported — through the results, which are real.
     assert payload["tool_result"]["state"] == "mock_interview_running"
 
@@ -126,8 +202,7 @@ def test_chat_publishes_no_decision_for_a_turn_the_model_never_decided() -> None
 def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
     context = type("Context", (), {"task": None})()
     turn = MainAgentTurnResult(
-        decision_source="model",
-        decision=AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"})),
+        origin=ModelDecision(AgentDecision(action="tool_call", tool_call=ToolCall(name="open_job_search", arguments={"keyword": "AI Engineer"}))),
         context=context,
         assistant_message="已准备打开 BOSS 搜索“AI Engineer”。",
         tool_result=ToolObservation(
@@ -159,11 +234,12 @@ def test_chat_forwards_message_to_runtime_and_emits_one_json_object() -> None:
 
     payload = json.loads(output.getvalue())
     assert code == 0
-    assert runtime.calls == [("u1", "s1", "Find work")]
+    assert runtime.calls == [("u1", "s1", "Find work", None)]
     assert runtime.closed is True
     assert payload["assistant_message"] == "已准备打开 BOSS 搜索“AI Engineer”。"
     assert payload["decision"] == {
-        "source": "model",
+        "origin": "model:tool_call",
+        "requested_by": "model",
         "action": "tool_call",
         "tool_name": "open_job_search",
     }
@@ -185,8 +261,7 @@ def test_chat_emits_artifact_metadata_without_attachment_bytes() -> None:
         created_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
     )
     turn = MainAgentTurnResult(
-        decision_source="model",
-        decision=AgentDecision(action="final", message="文件已准备好。"),
+        origin=ModelDecision(AgentDecision(action="final", message="文件已准备好。")),
         context=context,
         assistant_message="文件已准备好。",
         tool_result=ToolObservation(
@@ -241,8 +316,7 @@ def test_chat_emits_all_tool_results_in_execution_order() -> None:
         payload={"versions": [{"selection_index": 1, "version_number": 2}]},
     )
     turn = MainAgentTurnResult(
-        decision_source="model",
-        decision=AgentDecision(action="final", message=None),
+        origin=ModelDecision(AgentDecision(action="final", message=None)),
         context=type("Context", (), {"task": None})(),
         assistant_message=second.message,
         tool_result=second,

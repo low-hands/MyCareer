@@ -16,6 +16,7 @@ import pytest
 from career_agent.storage.api_keys import (
     CAPTURE_WRITE,
     CHAT_WRITE,
+    SETTINGS_WRITE,
     SQLiteApiKeyStore,
     WORKSPACE_READ,
 )
@@ -32,7 +33,7 @@ def issue_key(api_keys: SQLiteApiKeyStore):
 
     def issue(user_id: str = "u1", *scopes: str) -> dict[str, str]:
         granted = frozenset(scopes) or frozenset(
-            {WORKSPACE_READ, CHAT_WRITE, CAPTURE_WRITE}
+            {WORKSPACE_READ, CHAT_WRITE, CAPTURE_WRITE, SETTINGS_WRITE}
         )
         key = api_keys.issue(user_id=user_id, name="test", scopes=granted)
         return {"Authorization": f"Bearer {key.secret}"}

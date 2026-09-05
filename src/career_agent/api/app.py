@@ -7,6 +7,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+from typing import Any, Literal
+
+from career_agent.agent.context_manager import ContextManager
+from career_agent.storage.context import CareerContextStore
 import re
 from urllib.parse import urlsplit, urlunsplit
 
@@ -15,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_contracts import OwnerSettingsContext
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -36,8 +41,11 @@ from career_agent.storage.api_keys import (
     ApiKeyStore,
     CAPTURE_WRITE,
     CHAT_WRITE,
+    SETTINGS_WRITE,
+    WORKSPACE_READ,
     SQLiteApiKeyStore,
 )
+from career_agent.storage.context import OwnerSettingsConflictError, OwnerSettingsEvent
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
@@ -82,6 +90,28 @@ class BrowserJobCaptureResponse(BaseModel):
     company_name: str
 
 
+class OwnerSettingsPatchRequest(BaseModel):
+    """A conditional partial update; omitted fields retain their current value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=0)
+    boss_search: Literal["explicit_request_only", "allowed"] | None = None
+    application_confirmation: Literal["always_ask", "on_user_report"] | None = None
+
+
+class OwnerSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    owner_settings: OwnerSettingsContext
+
+
+class OwnerSettingsHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    events: tuple[OwnerSettingsEvent, ...]
+
+
 class ConversationBusyError(Exception):
     pass
 
@@ -105,6 +135,28 @@ class ConversationRunGate:
             self._active.discard((user_id, conversation_id))
 
 
+class GateAwareStreamingResponse(StreamingResponse):
+    """Release a gate if the ASGI server never starts the body iterator.
+
+    Once iteration starts, the detached business-turn producer owns release and
+    keeps the gate until the turn truly finishes, even after client disconnect.
+    Before iteration starts there is no producer, so this response owns the
+    otherwise-leaked admission.
+    """
+
+    def __init__(self, *args, stream_started, release_unstarted, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._stream_started = stream_started
+        self._release_unstarted = release_unstarted
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            if not self._stream_started():
+                await self._release_unstarted()
+
+
 def _runtime_args_from_env() -> argparse.Namespace:
     return build_parser().parse_args(
         [
@@ -126,6 +178,11 @@ def build_api_runtime() -> MainAgentRuntime:
 def build_capture_repository() -> JobPostingRepository:
     args = _runtime_args_from_env()
     return SQLiteJobPostingRepository(Path(args.job_store).expanduser())
+
+
+def build_owner_settings_store() -> CareerContextStore:
+    args = _runtime_args_from_env()
+    return CareerContextStore(Path(args.context_store).expanduser())
 
 
 def _canonical_boss_job_url(raw_url: str) -> tuple[str, str | None]:
@@ -157,6 +214,7 @@ async def _sse_stream(
     request: ChatStreamRequest,
     *,
     user_id: str,
+    request_id: str | None = None,
     heartbeat_seconds: float,
     synthetic_content_delay_seconds: float = 0.025,
     on_turn_finished: Callable[[], Awaitable[None]] | None = None,
@@ -171,6 +229,7 @@ async def _sse_stream(
                 user_id=user_id,
                 conversation_id=request.conversation_id,
                 user_message=request.message,
+                request_id=request_id,
                 interaction_response=request.interaction_response,
                 content_delay_seconds=synthetic_content_delay_seconds,
             ):
@@ -229,6 +288,7 @@ def create_app(
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
     action_center_factory: Callable[[], ActionCenterService] | None = None,
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
+    owner_settings_store_factory: Callable[[], CareerContextStore] | None = None,
     heartbeat_seconds: float = 15.0,
     synthetic_content_delay_seconds: float = 0.025,
 ) -> FastAPI:
@@ -251,6 +311,7 @@ def create_app(
     # databases, and creating an app must not touch the real store paths.
     application_router = build_read_router(read_factory, workspace_factory)
     key_store_factory = api_key_store_factory or build_api_key_store
+    settings_factory = owner_settings_store_factory or build_owner_settings_store
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -275,6 +336,7 @@ def create_app(
         # ``authenticate`` refuses every request rather than assuming a default.
         app.state.api_key_store = key_store_factory()
         app.state.capture_repository = None
+        app.state.owner_settings_store = None
         app.state.action_center = None
         try:
             yield
@@ -307,6 +369,12 @@ def create_app(
     async def chat_stream(
         request: ChatStreamRequest,
         principal: ApiKeyPrincipal = Depends(require_scope(CHAT_WRITE)),
+        idempotency_key: str | None = Header(
+            default=None,
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=200,
+        ),
     ) -> StreamingResponse:
         runtime: MainAgentRuntime | None = application.state.runtime
         if runtime is None:
@@ -319,6 +387,15 @@ def create_app(
         try:
             await gate.acquire(principal.user_id, request.conversation_id)
         except ConversationBusyError as error:
+            # Counted, not just refused. Whether a process-local gate is enough
+            # is a question about contention, and nothing else measures it.
+            if runtime is not None:
+                runtime.record_rejected_turn(
+                    user_id=principal.user_id,
+                    conversation_id=request.conversation_id,
+                )
+            # Counted, not just refused. Whether a process-local gate is enough
+            # is a question about contention, and nothing else measures it.
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -330,25 +407,114 @@ def create_app(
         async def release_gate() -> None:
             await gate.release(principal.user_id, request.conversation_id)
 
+        stream_started = False
+
         async def generate() -> AsyncIterator[str]:
+            nonlocal stream_started
+            stream_started = True
             async for chunk in _sse_stream(
                 runtime,
                 request,
                 user_id=principal.user_id,
+                request_id=idempotency_key,
                 heartbeat_seconds=heartbeat_seconds,
                 synthetic_content_delay_seconds=synthetic_content_delay_seconds,
                 on_turn_finished=release_gate,
             ):
                 yield chunk
 
-        return StreamingResponse(
+        return GateAwareStreamingResponse(
             generate(),
+            stream_started=lambda: stream_started,
+            release_unstarted=release_gate,
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache, no-transform",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },
+        )
+
+    def settings_store() -> CareerContextStore:
+        store: CareerContextStore | None = application.state.owner_settings_store
+        if store is None:
+            store = settings_factory()
+            application.state.owner_settings_store = store
+        return store
+
+    @application.get(
+        "/v1/settings",
+        response_model=OwnerSettingsResponse,
+    )
+    async def read_owner_settings(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> OwnerSettingsResponse:
+        current = settings_store().get_owner_settings(principal.user_id)
+        return OwnerSettingsResponse(
+            owner_settings=current or OwnerSettingsContext()
+        )
+
+    @application.put(
+        "/v1/settings",
+        response_model=OwnerSettingsResponse,
+    )
+    async def update_owner_settings(
+        request: OwnerSettingsPatchRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(SETTINGS_WRITE)),
+    ) -> OwnerSettingsResponse:
+        if request.boss_search is None and request.application_confirmation is None:
+            raise HTTPException(status_code=422, detail="At least one setting is required")
+        store = settings_store()
+        current = store.get_owner_settings(principal.user_id) or OwnerSettingsContext()
+        desired = current.model_copy(
+            update={
+                "preferences": current.preferences.model_copy(
+                    update={
+                        "boss_search": request.boss_search
+                        or current.preferences.boss_search
+                    }
+                ),
+                "behavior_policy": current.behavior_policy.model_copy(
+                    update={
+                        "application_confirmation": (
+                            request.application_confirmation
+                            or current.behavior_policy.application_confirmation
+                        )
+                    }
+                ),
+            }
+        )
+        try:
+            updated = store.update_owner_settings(
+                user_id=principal.user_id,
+                desired=desired,
+                expected_revision=request.expected_revision,
+                actor_type="api_key",
+                actor_id=principal.key_id,
+            )
+        except OwnerSettingsConflictError as error:
+            latest = store.get_owner_settings(principal.user_id) or OwnerSettingsContext()
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "OWNER_SETTINGS_REVISION_CONFLICT",
+                    "message": str(error),
+                    "current_revision": latest.revision,
+                },
+            ) from error
+        return OwnerSettingsResponse(owner_settings=updated)
+
+    @application.get(
+        "/v1/settings/history",
+        response_model=OwnerSettingsHistoryResponse,
+    )
+    async def read_owner_settings_history(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> OwnerSettingsHistoryResponse:
+        return OwnerSettingsHistoryResponse(
+            events=settings_store().list_owner_settings_events(
+                user_id=principal.user_id
+            )
         )
 
     @application.post(

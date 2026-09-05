@@ -504,6 +504,75 @@ def test_changed_interview_invalidates_fixed_payload_approval(tmp_path) -> None:
     assert store.get_proposal(user_id="u1", proposal_id=proposal.id).status == "superseded"
 
 
+def test_changed_execution_policy_invalidates_an_older_approval(tmp_path) -> None:
+    service, store, _, interviews, connector = build_service(tmp_path)
+    proposal = service.prepare_interview_sync(
+        user_id="u1", interview_round_id="interview-1", now=NOW,
+    )
+    assert proposal.policy_epoch == 1
+    upgraded = CalendarService(
+        store,
+        interviews,
+        Applications(),
+        Resolver(connector),
+        policy_epoch=2,
+    )
+
+    with pytest.raises(CalendarProposalConflictError, match="policy changed"):
+        upgraded.execute_proposal(
+            user_id="u1", proposal_id=proposal.id,
+            now=NOW + timedelta(minutes=1),
+        )
+
+    assert connector.calls == []
+    assert store.get_proposal(
+        user_id="u1", proposal_id=proposal.id
+    ).status == "superseded"
+
+
+def test_changed_policy_reconciles_a_prepared_action_but_never_reapplies_it(
+    tmp_path,
+) -> None:
+    service, store, _, interviews, connector = build_service(tmp_path)
+    proposal = service.prepare_interview_sync(
+        user_id="u1", interview_round_id="interview-1", now=NOW,
+    )
+
+    def timeout_before_remote_write(**kwargs):
+        raise CalendarConnectorError(
+            "GOOGLE_CALENDAR_TRANSPORT_ERROR",
+            "request outcome unavailable",
+            outcome_unknown=True,
+        )
+
+    connector.apply = timeout_before_remote_write
+    with pytest.raises(CalendarConnectorError):
+        service.execute_proposal(
+            user_id="u1",
+            proposal_id=proposal.id,
+            now=NOW + timedelta(minutes=1),
+        )
+    upgraded = CalendarService(
+        store,
+        interviews,
+        Applications(),
+        Resolver(connector),
+        policy_epoch=2,
+    )
+
+    with pytest.raises(CalendarProposalConflictError, match="policy changed"):
+        upgraded.execute_proposal(
+            user_id="u1",
+            proposal_id=proposal.id,
+            now=NOW + timedelta(minutes=2),
+        )
+
+    assert connector.reconcile_calls[-1]["idempotency_key"] == proposal.id
+    assert store.get_execution(
+        user_id="u1", proposal_id=proposal.id
+    ).status == "failed"
+
+
 def test_expired_proposal_never_calls_external_calendar(tmp_path) -> None:
     service, store, _, _, connector = build_service(tmp_path)
     proposal = service.prepare_interview_sync(

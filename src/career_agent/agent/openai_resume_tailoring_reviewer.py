@@ -4,12 +4,13 @@ import base64
 import json
 from typing import Any
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import OpenAI
 
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
+from career_agent.agent.structured_responses import structured_response
 from career_agent.harness.observability import traced_model_call
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
@@ -132,53 +133,21 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
         stage: str,
     ) -> ResumeReviewResult:
         content = self._document_content(document, context)
-        try:
-            response = self._client.responses.create(
-                model=self._config.model,
-                instructions=instructions,
-                input=[{"role": "user", "content": content}],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": f"resume_{stage}_review",
-                        "schema": ResumeReviewResult.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=8192,
-                timeout=self._config.timeout_seconds,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError(
-                "RESUME_REVIEW_RATE_LIMITED",
-                "Resume reviewer is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "RESUME_REVIEW_TRANSPORT_ERROR",
-                "Resume reviewer transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"RESUME_REVIEW_REJECTED_{error.status_code}",
-                "Resume reviewer rejected the request.",
-            ) from error
-        output_text = getattr(response, "output_text", None)
-        if not isinstance(output_text, str) or not output_text.strip():
-            raise AgentWorkerError(
-                "RESUME_REVIEW_EMPTY_RESPONSE",
-                "Resume reviewer returned no structured output.",
-            )
-        try:
-            return ResumeReviewResult.model_validate_json(output_text)
-        except ValueError as error:
-            raise AgentWorkerError(
-                "RESUME_REVIEW_INVALID_RESPONSE",
-                "Resume reviewer returned invalid structured output.",
-                detail=type(error).__name__,
-            ) from error
+        return structured_response(
+            self._client,
+            model=self._config.model,
+            timeout_seconds=self._config.timeout_seconds,
+            instructions=instructions,
+            content=content,
+            output_type=ResumeReviewResult,
+            # Named per stage, which is why the schema name is a parameter
+            # rather than a constant like the other workers'.
+            schema_name=f"resume_{stage}_review",
+            max_output_tokens=8192,
+            code_prefix="RESUME_REVIEW",
+            subject="Resume review",
+        )
+
 
     @staticmethod
     def _document_content(

@@ -61,6 +61,7 @@ class CalendarChangeProposal(CalendarContract):
     external_event_id: str = Field(min_length=1, max_length=1024)
     payload: CalendarEventPayload | None = None
     payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    policy_epoch: int = Field(ge=1)
     status: CalendarProposalStatus
     created_at: datetime
     expires_at: datetime

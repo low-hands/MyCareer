@@ -42,6 +42,7 @@ from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
@@ -65,12 +66,14 @@ from career_agent.agent.resume_job_match_presenter import render_resume_job_matc
 from career_agent.agent.resume_analysis_presenter import render_resume_analysis
 from career_agent.harness.streaming import (
     InteractionRequiredEvent,
+    capability_confirmation_event,
     resume_analysis_confirmation_event,
 )
 from career_agent.agent.resume_tailoring_presenter import (
     TailoringChangeReviewView,
     render_resume_tailoring,
 )
+from career_agent.agent.main_agent_contracts import OwnerSettingsContext
 from career_agent.domain.job_research import (
     JobResearchDraft,
     JobResearchFindingDraft,
@@ -331,6 +334,9 @@ class WorkspaceReader:
             Path(args.job_research_store).expanduser()
         )
         self._context = CareerContextStore(Path(args.context_store).expanduser())
+        self._capability_confirmations = SQLiteCapabilityConfirmationStore(
+            Path(args.context_store).expanduser()
+        )
         self._mock_interviews = SQLiteMockInterviewStore(
             Path(args.mock_interview_store).expanduser()
         )
@@ -453,6 +459,15 @@ class WorkspaceReader:
             and task.active_resume_analysis_id is not None
             else None
         )
+        owner_settings = self._context.get_owner_settings(user_id) or OwnerSettingsContext()
+        pending_confirmations = self._capability_confirmations.pending_for_conversation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            policy_revision=owner_settings.behavior_policy.revision,
+        )
+        pending_confirmation = (
+            pending_confirmations[0] if pending_confirmations else None
+        )
         return ConversationTranscriptResponse(
             messages=tuple(
                 ConversationMessageView(
@@ -478,7 +493,16 @@ class WorkspaceReader:
             active_workflow=task.active_workflow if task else None,
             phase=task.phase if task else None,
             pending_interaction=(
-                resume_analysis_confirmation_event(
+                capability_confirmation_event(
+                    conversation_id=conversation_id,
+                    confirmation_id=pending_confirmation.confirmation_id,
+                    prompt=(
+                        f"{pending_confirmation.display_summary}\n"
+                        "你设置了此操作需要确认。是否执行？"
+                    ),
+                )
+                if pending_confirmation is not None
+                else resume_analysis_confirmation_event(
                     conversation_id=conversation_id,
                     analysis_id=pending_analysis.id,
                 )
@@ -490,6 +514,7 @@ class WorkspaceReader:
                 render_resume_analysis(pending_analysis.result)
                 if pending_analysis is not None
                 and pending_analysis.status == "pending"
+                and pending_confirmation is None
                 else None
             ),
         )

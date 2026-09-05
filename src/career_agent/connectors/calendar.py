@@ -60,6 +60,7 @@ class CalendarConnector(Protocol):
         operation: CalendarOperation,
         calendar_id: str,
         external_event_id: str,
+        idempotency_key: str,
         payload_hash: str,
         prior_payload_hash: str | None = None,
     ) -> CalendarReconciliationResult: ...
@@ -164,6 +165,11 @@ class GoogleCalendarConnector:
                 "Calendar response did not confirm the fixed external event ID",
                 outcome_unknown=True,
             )
+        self._require_write_receipt(
+            result,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+        )
         return CalendarWriteResult(
             external_event_id=returned_id,
             etag=result.get("etag") if isinstance(result.get("etag"), str) else None,
@@ -180,6 +186,7 @@ class GoogleCalendarConnector:
         operation: CalendarOperation,
         calendar_id: str,
         external_event_id: str,
+        idempotency_key: str,
         payload_hash: str,
         prior_payload_hash: str | None = None,
     ) -> CalendarReconciliationResult:
@@ -246,7 +253,12 @@ class GoogleCalendarConnector:
             if isinstance(private, dict)
             else None
         )
-        if remote_hash == payload_hash:
+        remote_key = (
+            private.get("careerAgentExecutionKey")
+            if isinstance(private, dict)
+            else None
+        )
+        if remote_key == idempotency_key and remote_hash == payload_hash:
             return CalendarReconciliationResult(
                 outcome="applied",
                 write_result=CalendarWriteResult(
@@ -261,9 +273,33 @@ class GoogleCalendarConnector:
             )
         if operation == "update" and remote_hash == prior_payload_hash:
             return CalendarReconciliationResult(outcome="not_applied")
-        if remote_hash != payload_hash:
-            return CalendarReconciliationResult(outcome="conflict")
-        raise AssertionError("unreachable calendar reconciliation outcome")
+        return CalendarReconciliationResult(outcome="conflict")
+
+    @staticmethod
+    def _require_write_receipt(
+        result: object,
+        *,
+        idempotency_key: str,
+        payload_hash: str,
+    ) -> None:
+        extended = result.get("extendedProperties") if isinstance(result, dict) else None
+        private = extended.get("private") if isinstance(extended, dict) else None
+        returned_key = (
+            private.get("careerAgentExecutionKey")
+            if isinstance(private, dict)
+            else None
+        )
+        returned_hash = (
+            private.get("careerAgentPayloadHash")
+            if isinstance(private, dict)
+            else None
+        )
+        if returned_key != idempotency_key or returned_hash != payload_hash:
+            raise CalendarConnectorError(
+                "GOOGLE_CALENDAR_RECEIPT_MISMATCH",
+                "Calendar response did not echo the execution key and payload hash",
+                outcome_unknown=True,
+            )
 
     @staticmethod
     def _event_body(

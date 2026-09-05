@@ -15,7 +15,7 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     ConversationTaskState,
 )
-from career_agent.agent.main_agent_runtime import MainAgentTurnResult
+from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.cli import EXIT_ARGUMENT_ERROR, EXIT_OK, main
 from career_agent.storage.context import CareerContextStore
 
@@ -154,10 +154,11 @@ class _Runtime:
     def __init__(self, context_manager) -> None:
         self.context_manager = context_manager
 
-    def run_turn(self, *, user_id, conversation_id, user_message):
+    def run_turn(
+        self, *, user_id, conversation_id, user_message, request_id=None
+    ):
         return MainAgentTurnResult(
-            decision_source="model",
-            decision=AgentDecision(action="final", message="好的。"),
+            origin=ModelDecision(AgentDecision(action="final", message="好的。")),
             context=type("Context", (), {"task": None})(),
             assistant_message="好的。",
         )

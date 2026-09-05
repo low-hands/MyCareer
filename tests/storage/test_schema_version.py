@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from career_agent.storage.calendar import SQLiteCalendarStore
+from career_agent.storage.action_executions import SQLiteActionExecutionStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.interview_preparations import (
     SQLiteInterviewPreparationStore,
@@ -64,9 +65,10 @@ DECLARED_VERSIONS = {
     "resumes": 4,
     "career_history": 2,
     "action_center": 2,
+    "action_executions": 1,
     "applications": 1,
     "interviews": 2,
-    "calendar": 2,
+    "calendar": 3,
     "email_tracking": 1,
     "mock_interviews": 3,
     "resume_analysis": 1,
@@ -74,8 +76,9 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 2,
+    "agent_context": 3,
     "api_keys": 1,
+    "capability_confirmations": 2,
     "job_postings": 1,
     "job_research": 2,
     "run_events": 2,
@@ -329,8 +332,34 @@ def test_calendar_v1_store_upgrades_with_an_execution_ledger(tmp_path: Path) -> 
     with sqlite3.connect(path) as connection:
         assert connection.execute(
             "SELECT version FROM schema_versions WHERE component = 'calendar'"
-        ).fetchone() == (2,)
+        ).fetchone() == (3,)
         assert connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' "
             "AND name = 'calendar_operation_executions'"
         ).fetchone() == (1,)
+
+
+def test_calendar_v2_store_backfills_the_original_policy_epoch(tmp_path: Path) -> None:
+    path = tmp_path / "calendar.sqlite3"
+    SQLiteCalendarStore(path)
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "ALTER TABLE calendar_change_proposals DROP COLUMN policy_epoch"
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 2 WHERE component = 'calendar'"
+        )
+
+    SQLiteCalendarStore(path)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT version FROM schema_versions WHERE component = 'calendar'"
+        ).fetchone() == (3,)
+        columns = {
+            row[1]: row for row in connection.execute(
+                "PRAGMA table_info(calendar_change_proposals)"
+            )
+        }
+        assert columns["policy_epoch"][3] == 1
+        assert columns["policy_epoch"][4] == "1"

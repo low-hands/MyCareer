@@ -29,7 +29,7 @@ from career_agent.agent.delivery_policy import (
     policy_for,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_runtime import MainAgentTurnResult
+from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
@@ -502,6 +502,12 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
     for state in sorted(expected):
         task = ConversationTaskState()
         disposition = None
+        payload: dict[str, object] = {}
+        if state == "capability_confirmation_required":
+            # The durable seal is what the interaction is keyed on, so the
+            # renderer needs it. Supplied here for the same reason the analysis
+            # branch below supplies task state: the state alone is not the gate.
+            payload = {"confirmation_id": "c" * 32}
         if state == "resume_analysis_ready":
             task = task.model_copy(
                 update={
@@ -514,6 +520,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
             tool_name="analyze_resume" if disposition else "emitter",
             state=state,
             message="请继续。",
+            payload=payload,
             **({"disposition": disposition} if disposition else {}),
         )
         context = MainAgentContext(
@@ -523,8 +530,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
             user_message="继续",
         )
         turn = MainAgentTurnResult(
-            decision_source="model",
-            decision=AgentDecision(action="final", message="请继续。"),
+            origin=ModelDecision(AgentDecision(action="final", message="请继续。")),
             context=context,
             assistant_message="请继续。",
             tool_result=observation,

@@ -81,7 +81,7 @@ class InteractionResponse(StreamContract):
     """A UI response whose authority is bound to one durable interaction."""
 
     interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
-    scope: Literal["resume_analysis_confirmation"]
+    scope: Literal["resume_analysis_confirmation", "capability_confirmation"]
     action: Literal["confirm", "cancel"]
 
 
@@ -99,7 +99,7 @@ class InteractionRequiredEvent(StreamContract):
     prompt: str = Field(min_length=1, max_length=5000)
     options: tuple[InteractionOption, ...] = Field(default=(), max_length=50)
     allow_free_text: bool = False
-    scope: Literal["resume_analysis_confirmation"] | None = None
+    scope: Literal["resume_analysis_confirmation", "capability_confirmation"] | None = None
 
     @model_validator(mode="after")
     def _validate_options(self) -> "InteractionRequiredEvent":
@@ -219,6 +219,7 @@ class StreamableTurnRuntime(Protocol):
         user_id: str,
         conversation_id: str,
         user_message: str,
+        request_id: str | None = None,
         interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
     ) -> object: ...
@@ -229,6 +230,31 @@ def interaction_id(*durable_parts: object) -> str:
 
     canonical = "\x1f".join(str(part) for part in durable_parts)
     return f"interaction_{sha256(canonical.encode('utf-8')).hexdigest()[:20]}"
+
+
+def capability_confirmation_event(
+    *, conversation_id: str, confirmation_id: str, prompt: str
+) -> InteractionRequiredEvent:
+    """The gate an owner rule opened, rebuildable from durable state alone.
+
+    Keyed on the sealed confirmation rather than on anything about the turn, so
+    a reload — or a different process — offers the same interaction id the
+    pending seal answers to. An id derived from turn-local state would make the
+    owner's "yes" unroutable the moment the page was refreshed.
+    """
+
+    return InteractionRequiredEvent(
+        interaction_id=interaction_id(
+            conversation_id, "capability_confirmation", confirmation_id
+        ),
+        scope="capability_confirmation",
+        kind="approval",
+        prompt=prompt,
+        options=(
+            InteractionOption(value="confirm", label="确认执行"),
+            InteractionOption(value="cancel", label="不要执行"),
+        ),
+    )
 
 
 def resume_analysis_confirmation_event(
@@ -274,6 +300,7 @@ async def astream_turn_events(
     user_id: str,
     conversation_id: str,
     user_message: str,
+    request_id: str | None = None,
     interaction_response: InteractionResponse | None = None,
     content_delay_seconds: float = 0.0,
 ) -> AsyncIterator[PublicStreamEvent]:
@@ -308,6 +335,8 @@ async def astream_turn_events(
                 user_message=user_message,
                 event_sink=sink,
             )
+            if request_id is not None:
+                turn_arguments["request_id"] = request_id
             if interaction_response is not None:
                 turn_arguments["interaction_response"] = interaction_response
             runtime.run_turn(**turn_arguments)
