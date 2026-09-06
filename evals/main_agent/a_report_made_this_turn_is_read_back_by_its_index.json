@@ -2,15 +2,16 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "0910472016f183373f0c80c56f88f554d241c2bedcece93a4ab68b8ca2ce867f",
-  "recorded_at": "2026-09-04T07:46:21.559827+00:00",
+  "prompt_fingerprint": "be816c5677e90f654cb66fa772d5dc8bfd2af1d151b8e42898eef5f0a30942aa",
+  "context_shape_fingerprint": "40e88dedf469ff0e98bb5553a271423498df2f64bfaebea2e44e72334874fda3",
+  "recorded_at": "2026-09-06T09:50:35.521998+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "reference": "report_440400"
+          "reference": "report_440400",
+          "selection_index": null
         }
       }
     }
@@ -18,7 +19,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-04T07:45:28.648516+00:00",
+      "recorded_at": "2026-09-06T09:49:36.728812+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400",
+              "selection_index": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-06T09:49:55.527493+00:00",
       "steps": [
         {
           "tool_call": {
@@ -31,26 +46,13 @@
       ]
     },
     {
-      "recorded_at": "2026-09-04T07:45:39.909669+00:00",
+      "recorded_at": "2026-09-06T09:50:35.521998+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_440400"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-04T07:46:21.559827+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
+              "reference": "report_662e28"
             }
           }
         }

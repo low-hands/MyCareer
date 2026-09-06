@@ -2,21 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "7e4581566a16afdbfa09f9fb3c4dfdcd514baa59f430ce91409a20351e35d2ca",
-  "recorded_at": "2026-09-04T07:41:54.077968+00:00",
+  "prompt_fingerprint": "be816c5677e90f654cb66fa772d5dc8bfd2af1d151b8e42898eef5f0a30942aa",
+  "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
+  "recorded_at": "2026-09-06T09:48:45.357876+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请先在外部招聘平台完成投递。投递成功后告诉我“已投递”，我再为“示例科技·算法工程师”创建申请记录。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前没有“提交申请”工具，无法直接替你投递。你可以在该岗位页面点击“立即沟通”或“投递简历”完成申请。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-04T07:41:54.077968+00:00",
+      "recorded_at": "2026-09-06T09:48:45.357876+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请先在外部招聘平台完成投递。投递成功后告诉我“已投递”，我再为“示例科技·算法工程师”创建申请记录。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前没有“提交申请”工具，无法直接替你投递。你可以在该岗位页面点击“立即沟通”或“投递简历”完成申请。\"}"
         }
       ]
     }

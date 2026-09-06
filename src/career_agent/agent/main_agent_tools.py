@@ -16,6 +16,7 @@ from career_agent.agent.mock_interview_contracts import (
 from career_agent.agent.interview_preparation_presenter import (
     summarize_interview_preparation,
 )
+from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.job_research_presenter import summarize_job_research
 from career_agent.agent.summary_text import condense
 from career_agent.agent.mock_interview_presenter import (
@@ -35,6 +36,7 @@ from career_agent.agent.main_agent_contracts import (
     ConfirmResumeAnalysisToolArguments,
     CompleteInterviewToolArguments,
     RecordInterviewRetroToolArguments,
+    ReadConversationSpanToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -87,11 +89,12 @@ from career_agent.agent.main_agent_contracts import (
     UpdateInterviewToolArguments,
     ToolObservation,
     ConversationResourceReference,
+    DECISION_OBSERVATION_BODY_LIMIT,
     OwnerSettingsContext,
 )
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.tool_reachability import reachable
+from career_agent.agent.tool_reachability import reachable_in_context
 from career_agent.agent.tool_effects import effect_for
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
@@ -231,6 +234,7 @@ class MainAgentToolRegistry:
         mock_interview_store: SQLiteMockInterviewStore | None = None,
         job_research_service: JobResearchService | None = None,
         owner_settings_store: CareerContextStore | None = None,
+        conversation_store: CareerContextStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -272,6 +276,11 @@ class MainAgentToolRegistry:
         self._mock_interview_store = mock_interview_store
         self._job_research_service = job_research_service
         self._owner_settings_store = owner_settings_store
+        self._conversation_store = conversation_store
+        if conversation_store is not None:
+            self._atomic_handlers["read_conversation_span"] = (
+                self._read_conversation_span
+            )
         if owner_settings_store is not None:
             self._atomic_handlers["update_owner_settings"] = self._update_owner_settings
         if job_repository is not None:
@@ -566,6 +575,29 @@ class MainAgentToolRegistry:
 
     def schemas(self, context: MainAgentContext | None = None) -> tuple[dict[str, Any], ...]:
         schemas = []
+        if self._conversation_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "read_conversation_span",
+                        "description": (
+                            "The projection's through_sequence is the last message "
+                            "covered by conversation_summary, and recent_from_sequence "
+                            "is the first raw recent message. Read an exact inclusive "
+                            "sequence span from this same conversation only when those "
+                            "boundaries leave a relevant gap. Returns at most 8 oldest matching "
+                            "messages, clips each at 4000 characters, and reports "
+                            "returned/total plus clipping honestly. It never "
+                            "searches another conversation or substitutes nearby rows "
+                            "when the requested span is empty."
+                        ),
+                        "parameters": (
+                            ReadConversationSpanToolArguments.model_json_schema()
+                        ),
+                    },
+                }
+            )
         if "open_job_search" in self._atomic_handlers:
             schemas.append(
                 {
@@ -574,10 +606,12 @@ class MainAgentToolRegistry:
                         "name": "open_job_search",
                         "description": (
                             "Open a BOSS recruitment search page when the user asks to "
-                            "find new jobs. This only constructs a safe search URL for the "
-                            "client; it never reads results, automates browsing, calls BOSS "
-                            "APIs, or saves a job. The user browses normally and explicitly "
-                            "chooses which JD to save."
+                            "find new jobs. If neither the profile nor a target role supplies "
+                            "a city and the user did not give one this turn, ask for the city "
+                            "instead of guessing or searching nationwide. This only constructs "
+                            "a safe search URL for the client; it never reads results, "
+                            "automates browsing, calls BOSS APIs, or saves a job. The user "
+                            "browses normally and explicitly chooses which JD to save."
                         ),
                         "parameters": OpenJobSearchToolArguments.model_json_schema(),
                     },
@@ -708,10 +742,15 @@ class MainAgentToolRegistry:
                             "name": "get_job_research",
                             "description": (
                                 "Read a persisted job-research report without running web "
-                                "research again. Pass reference to read the report a "
-                                "specific earlier message produced, selection_index to read "
-                                "the numbered saved job's report, or omit both to use the "
-                                "active one."
+                                "research again. When a completed tool result carries a "
+                                "title and reference, match the requested company to that "
+                                "same result and pass its exact reference; never borrow a "
+                                "reference from an older chat resource or a differently "
+                                "titled result. If the matching result has no reference, use "
+                                "a grounded saved-job selection_index when one is available, "
+                                "otherwise explain that the report is not reachable. Use "
+                                "selection_index to read the numbered saved job's report, or "
+                                "omit both only when the user actually means the active one."
                             ),
                             "parameters": GetJobResearchToolArguments.model_json_schema(),
                         },
@@ -1155,7 +1194,13 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "execute_calendar_proposal",
-                            "description": "Execute exactly one unchanged, unexpired calendar proposal only after the user explicitly approves that displayed proposal. This is an external write.",
+                            "description": (
+                                "Execute exactly one unchanged, unexpired calendar proposal "
+                                "only after the user explicitly approves that displayed "
+                                "proposal. This is an external write. A failed or outcome-"
+                                "unknown execution must not be repeated or claimed successful; "
+                                "reconcile it, then prepare and approve a new preview."
+                            ),
                             "parameters": ExecuteCalendarProposalToolArguments.model_json_schema(),
                         },
                     },
@@ -1165,7 +1210,7 @@ class MainAgentToolRegistry:
             schemas = [
                 schema
                 for schema in schemas
-                if reachable(schema["function"]["name"], context.task)
+                if reachable_in_context(schema["function"]["name"], context)
             ]
         return tuple(self._decision_tool_schema(schema) for schema in schemas)
 
@@ -4063,6 +4108,52 @@ class MainAgentToolRegistry:
             payload=self._application_payload(application, detail.job),
             execution_outcome="committed",
         )
+
+    def _read_conversation_span(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._conversation_store is None:
+            raise ValueError("Conversation store is not configured")
+        user_id = str(arguments["user_id"])
+        conversation_id = str(arguments["conversation_id"])
+        model_arguments = ReadConversationSpanToolArguments.model_validate(
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "conversation_id"}
+            }
+        )
+        span = self._conversation_store.read_conversation_span(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            from_sequence=model_arguments.from_sequence,
+            through_sequence=model_arguments.through_sequence,
+        )
+        body_clipped = (
+            len(render_conversation_span(span)) > DECISION_OBSERVATION_BODY_LIMIT
+        )
+        if body_clipped:
+            span = span.model_copy(update={"body_clipped": True})
+        content_clipped = any(item.content_clipped for item in span.messages)
+        values = {
+            "tool_name": "read_conversation_span",
+            "message": (
+                f"已读取会话序号 {span.from_sequence}–{span.through_sequence}："
+                f"返回 {span.returned}/{span.total} 条。"
+            ),
+            "facts": {
+                "from_sequence": span.from_sequence,
+                "through_sequence": span.through_sequence,
+                "returned": span.returned,
+                "total": span.total,
+                "body_clipped": body_clipped,
+                "content_clipped": content_clipped,
+            },
+            "payload": span.model_dump(mode="json"),
+        }
+        if span.returned:
+            return ToolObservation(state="conversation_span_found", **values)
+        return ToolObservation(state="conversation_span_empty", **values)
 
     def _list_applications(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._application_service is None:

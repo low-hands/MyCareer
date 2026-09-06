@@ -12,13 +12,16 @@ from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.decision_messages import decision_context_chars
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     EventType,
     ModelCallCategory,
     TraceRecorder,
+    conversation_trace_key,
     record_active_trace,
 )
 from career_agent.agent.delivery_policy import (
@@ -1575,16 +1578,19 @@ class MainAgentRuntime:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
         context = state["context"]
         schemas = self._tools.schemas(context)
-        context_chars = len(
-            json.dumps(context.model_context(), ensure_ascii=False, sort_keys=True)
-        )
+        context_chars = decision_context_chars(context)
         tool_schema_chars = len(
             json.dumps(schemas, ensure_ascii=False, sort_keys=True)
         )
         details = {
+            "conversation_id": context.conversation_id,
+            "conversation_key": conversation_trace_key(
+                context.profile.user_id,
+                context.conversation_id,
+            ),
             "context_chars": context_chars,
-            # This helper serializes the same exclude-none projection used by
-            # model_context; the metric is the actual dynamic prompt growth.
+            # Observation cost stays separately visible even though its
+            # readable fields now use a low-authority turn-results message.
             "observation_chars": decision_observation_chars(
                 context.tool_observations
             ),
@@ -1615,12 +1621,25 @@ class MainAgentRuntime:
                 model_call_category="orchestrator_decision",
             )
             raise
+        decision_details = {**details, "decision_action": decision.action}
+        if decision.tool_call is not None:
+            decision_details.update(
+                {
+                    "tool_name": decision.tool_call.name,
+                    # Arguments can contain user text and opaque identifiers.
+                    # Persist only a stable digest; that is sufficient to spot
+                    # the same call being derived again after compaction.
+                    "tool_arguments_fingerprint": hashlib.sha256(
+                        self._tool_call_fingerprint(decision).encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
         self._record_trace_event(
             "model_succeeded",
             "main_agent_decide",
             outcome="succeeded",
             duration_ms=int((perf_counter() - started) * 1000),
-            details={**details, "decision_action": decision.action},
+            details=decision_details,
             model_call_category="orchestrator_decision",
         )
         return {"decision": decision}
@@ -2777,6 +2796,10 @@ class MainAgentRuntime:
                 content = snapshot.get("content")
                 if isinstance(content, str) and content.strip():
                     return content.strip()
+        if result.state in {"conversation_span_found", "conversation_span_empty"}:
+            view = MainAgentRuntime._validated(ConversationSpanView, result.payload)
+            if view is not None:
+                return render_conversation_span(view)
         if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
             # The workflow's own presenter handles every state a run can be
             # left in, including the terminal ones, so the payload is parsed
@@ -3033,6 +3056,15 @@ class MainAgentRuntime:
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        if name == "read_conversation_span":
+            model_arguments = ReadConversationSpanToolArguments.model_validate(
+                arguments
+            )
+            return {
+                "user_id": context.profile.user_id,
+                "conversation_id": context.conversation_id,
+                **model_arguments.model_dump(),
+            }
         if name == "update_owner_settings":
             proposed = UpdateOwnerSettingsToolArguments.model_validate(arguments)
             changes = proposed.model_dump(exclude_none=True)

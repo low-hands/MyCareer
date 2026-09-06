@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryWorker
 from career_agent.agent.main_agent_contracts import OwnerSettingsContext, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, MainAgentContext
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
-from career_agent.storage.context import CareerContextStore
+from career_agent.harness.observability import (
+    conversation_trace_key,
+    record_active_trace,
+)
+from career_agent.storage.context import CareerContextStore, StoredConversationMessage
 
 
 class ContextManager:
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -36,6 +41,8 @@ class ContextManager:
             raise ValueError("archived resource limit is invalid")
         if compacted_message_warning_threshold < 1:
             raise ValueError("compacted message warning threshold must be positive")
+        if not 0.7 <= compact_occupancy_threshold <= 0.9:
+            raise ValueError("compact occupancy threshold must be between 0.7 and 0.9")
         self._store = store
         self._sessions = session_manager or SessionManager(store)
         self._summary_worker = summary_worker
@@ -44,6 +51,7 @@ class ContextManager:
         self._max_message_chars = max_message_chars
         self._max_recent_context_chars = max_recent_context_chars
         self._max_recent_message_chars = per_message_context_chars
+        self._compact_occupancy_threshold = compact_occupancy_threshold
         self._compacted_message_warning_threshold = compacted_message_warning_threshold
         self._archived_resource_limit = archived_resource_limit
 
@@ -69,7 +77,11 @@ class ContextManager:
 
     def load_for_turn(self, *, user_id: str, conversation_id: str, user_message: str) -> MainAgentContext:
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
-        self._maybe_summarize(user_id=user_id, conversation_id=conversation_id)
+        self._maybe_summarize(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            trigger="occupancy",
+        )
         profile = self._store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
         task = self._store.get_task(user_id, conversation_id) or ConversationTaskState()
@@ -82,8 +94,8 @@ class ContextManager:
             if self._summary_worker is not None
             else self._recent_message_limit
         )
-        recent_messages = self._bound_recent_messages(
-            self._store.list_messages(
+        recent_records = self._bound_recent_messages(
+            self._store.list_message_records(
                 user_id,
                 conversation_id,
                 limit=raw_limit,
@@ -95,7 +107,11 @@ class ContextManager:
             profile=profile,
             preferences=preferences,
             task=task,
-            recent_messages=recent_messages,
+            recent_messages=tuple(record.message for record in recent_records),
+            through_sequence=summary.through_sequence if summary else 0,
+            recent_from_sequence=(
+                recent_records[0].sequence if recent_records else None
+            ),
             # Read from the messages the window has scrolled past, so a report
             # delivered weeks ago stays nameable. Skipped entirely before the
             # first summary exists, when nothing has scrolled past yet and the
@@ -154,7 +170,7 @@ class ContextManager:
             user_message="[workflow-owned input withheld]",
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = ()) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy") -> None:
         now = datetime.now(timezone.utc)
         self._store.commit_turn(
             user_id=context.profile.user_id,
@@ -166,6 +182,7 @@ class ContextManager:
         self._maybe_summarize(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
+            trigger=compaction_trigger,
         )
         self._sessions.touch(user_id=context.profile.user_id, session_id=context.conversation_id)
 
@@ -223,6 +240,7 @@ class ContextManager:
             task=task.model_copy(update={"workflow_entry_message": None}),
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
+            compaction_trigger="seam",
         )
 
     def commit_workflow_turn(
@@ -275,23 +293,63 @@ class ContextManager:
     def _truncate(self, content: str) -> str:
         return content[:self._max_message_chars]
 
-    def _maybe_summarize(self, *, user_id: str, conversation_id: str) -> None:
+    def _maybe_summarize(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        trigger: Literal["occupancy", "seam"],
+    ) -> None:
         if self._summary_worker is None:
             return
+        compacted = self._compact_one_batch(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            trigger=trigger,
+            require_occupancy=trigger == "occupancy",
+        )
+        if trigger != "seam" or not compacted:
+            return
+        while self._compact_one_batch(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            trigger="seam",
+            require_occupancy=True,
+        ):
+            pass
+
+    def _compact_one_batch(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        trigger: Literal["occupancy", "seam"],
+        require_occupancy: bool,
+    ) -> bool:
         previous = self._store.get_conversation_summary(
             user_id=user_id,
             conversation_id=conversation_id,
         )
         previous_through = previous.through_sequence if previous else 0
-        threshold = self._recent_message_limit + self._summary_batch_size
+        occupancy, projection_overflow = self._recent_pressure(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            after_sequence=previous_through,
+        )
+        if (
+            require_occupancy
+            and not projection_overflow
+            and occupancy < self._compact_occupancy_threshold
+        ):
+            return False
         messages = self._store.list_messages_after(
             user_id=user_id,
             conversation_id=conversation_id,
             after_sequence=previous_through,
-            limit=threshold,
+            limit=self._summary_batch_size,
         )
-        if len(messages) < threshold:
-            return
+        if len(messages) < self._summary_batch_size:
+            return False
         to_summarize = messages[: self._summary_batch_size]
         try:
             content = self._summary_worker.summarize(
@@ -299,27 +357,81 @@ class ContextManager:
                 messages=to_summarize,
             )
         except AgentWorkerError:
-            return
-        self._store.compact_conversation_summary(
+            return False
+        compacted = self._store.compact_conversation_summary(
             user_id=user_id,
             conversation_id=conversation_id,
             expected_previous_through_sequence=previous_through,
             content=content,
             through_sequence=to_summarize[-1].sequence,
         )
+        if not compacted:
+            return False
+        record_active_trace(
+            "context_compacted",
+            "conversation_summary",
+            outcome="succeeded",
+            details={
+                "conversation_id": conversation_id,
+                "conversation_key": conversation_trace_key(
+                    user_id, conversation_id
+                ),
+                "trigger": (
+                    "projection_overflow"
+                    if trigger == "occupancy" and projection_overflow
+                    else trigger
+                ),
+                "through_sequence": to_summarize[-1].sequence,
+                "occupancy": occupancy,
+                "projection_overflow": projection_overflow,
+                "batch_size": len(to_summarize),
+            },
+        )
+        return True
+
+    def _recent_pressure(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        after_sequence: int,
+    ) -> tuple[float, bool]:
+        raw_limit = self._recent_message_limit + self._summary_batch_size - 1
+        candidates = self._store.list_message_records(
+            user_id,
+            conversation_id,
+            # One extra row proves that the oldest unsummarised message would
+            # disappear from the projection before a watermark can name it.
+            limit=raw_limit + 1,
+            after_sequence=after_sequence,
+        )
+        projection_overflow = len(candidates) > raw_limit
+        recent = self._bound_recent_messages(
+            candidates[-raw_limit:]
+        )
+        used = sum(len(record.message.content) for record in recent)
+        return used / self._max_recent_context_chars, projection_overflow
 
     def _bound_recent_messages(
-        self, messages: tuple[ConversationMessageContext, ...]
-    ) -> tuple[ConversationMessageContext, ...]:
+        self, messages: tuple[StoredConversationMessage, ...]
+    ) -> tuple[StoredConversationMessage, ...]:
         selected = []
         used = 0
-        for message in reversed(messages):
+        for record in reversed(messages):
             remaining = self._max_recent_context_chars - used
             if remaining <= 0:
                 break
-            content = message.content[
+            content = record.message.content[
                 : min(remaining, self._max_recent_message_chars)
             ]
-            selected.append(message.model_copy(update={"content": content}))
+            selected.append(
+                record.model_copy(
+                    update={
+                        "message": record.message.model_copy(
+                            update={"content": content}
+                        )
+                    }
+                )
+            )
             used += len(content)
         return tuple(reversed(selected))

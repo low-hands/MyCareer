@@ -1,0 +1,40 @@
+{
+  "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
+  "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "d873558d356f975ff36875f449bf92ae8385754af383f9c26c4f711d549b4c55",
+  "context_shape_fingerprint": "07c76f32b07bfa44c04faa5572fa720fb57d9b88db3dc528015efb48c60c50be",
+  "recorded_at": "2026-09-06T09:55:52.304707+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-09-06T09:55:37.432020+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-06T09:54:03.737051+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-06T09:55:52.304707+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+        }
+      ]
+    }
+  ]
+}

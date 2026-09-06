@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -231,6 +232,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_comparison_service=JobComparisonService(job_repository, match_store),
             career_profile_store=context_store,
             owner_settings_store=context_store,
+            conversation_store=context_store,
             resume_job_match_service=ResumeJobMatchService(
                 resume_store,
                 job_repository,
@@ -527,9 +529,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--record",
         action="store_true",
         help=(
-            "Ask the live model and overwrite the cassettes. Needs MAIN_AGENT_* "
-            "configured. Cost is scenario steps multiplied by its sample count."
+            "Ask the live model and overwrite missing or stale cassettes. "
+            "Needs MAIN_AGENT_* configured. Independent samples run concurrently "
+            "up to --jobs; steps inside one sample stay sequential. Pass --force "
+            "to recut cassettes that are still current."
         ),
+    )
+    eval_trajectories.add_argument(
+        "--jobs",
+        type=int,
+        default=8,
+        help=(
+            "Max concurrent live model calls while recording (default: 8). "
+            "Use 1 to restore serial recuts."
+        ),
+    )
+    eval_trajectories.add_argument(
+        "--force",
+        action="store_true",
+        help="Recut cassettes even when prompt and context fingerprints still match.",
     )
     eval_trajectories.add_argument(
         "--main-agent-timeout-seconds",
@@ -551,6 +569,17 @@ def build_parser() -> argparse.ArgumentParser:
             "Set the live recording sample count for every selected scenario "
             "(1-5). It may increase, but not lower, a scenario's requirement."
         ),
+    )
+    eval_rederivation = eval_subparsers.add_parser(
+        "rederivation",
+        help="Count repeated tool calls across production compaction points.",
+    )
+    eval_rederivation.add_argument("--user-id", required=True)
+    eval_rederivation.add_argument("--session-id", required=True)
+    eval_rederivation.add_argument(
+        "--run-events-store",
+        default="~/.career-agent/run-events.sqlite3",
+        help="Local best-effort telemetry store path.",
     )
 
     keys_command = subparsers.add_parser(
@@ -792,7 +821,7 @@ def _trajectory_tool_specs():
         "application_service", "email_tracking_service", "interview_service",
         "interview_preparation_service", "action_center_service",
         "calendar_service", "mock_interview_graph", "mock_interview_store",
-        "job_research_service",
+        "job_research_service", "conversation_store",
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 
@@ -988,6 +1017,57 @@ def _run_api_keys(args, stdout) -> int:
     return EXIT_OK
 
 
+def _run_rederivation_evaluation(args, stdout) -> int:
+    from career_agent.evaluation.rederivation import summarize_rederivations
+
+    try:
+        events = SQLiteTraceRecorder(
+            Path(args.run_events_store).expanduser()
+        ).list_conversation_events(
+            user_id=args.user_id,
+            conversation_id=args.session_id,
+        )
+        summary = summarize_rederivations(events)
+        if summary.compaction_count == 0:
+            reason = "no_compaction_observed"
+        elif summary.tool_call_count == 0:
+            reason = "no_tool_calls_observed"
+        elif summary.post_compaction_tool_call_count == 0:
+            reason = "no_post_compaction_tool_calls"
+        elif not summary.measurable:
+            reason = "no_pre_compaction_tool_calls"
+        else:
+            reason = None
+        payload = {
+            "state": (
+                "rederivation_measured"
+                if summary.measurable
+                else "insufficient_rederivation_trace"
+            ),
+            "user_id": args.user_id,
+            "session_id": args.session_id,
+            "compaction_count": summary.compaction_count,
+            "tool_call_count": summary.tool_call_count,
+            "post_compaction_tool_call_count": (
+                summary.post_compaction_tool_call_count
+            ),
+            "rederivation_count": (
+                summary.rederivation_count if summary.measurable else None
+            ),
+            "reason": reason,
+        }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _write_chat_error(
+            error,
+            stdout,
+            code=EXIT_ARGUMENT_ERROR,
+            next_action="Check the run-events store path and conversation identity.",
+        )
+
+
 def _run_trajectory_evaluation(args, stdout) -> int:
     """Replay the scenario catalogue, or re-cut it against the live model.
 
@@ -1002,7 +1082,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         cassette_staleness,
         check_contract,
         load_cassette,
-        record,
+        record_catalogue,
         replay_cassette,
         replay_quality,
         known_gap_reproduction,
@@ -1048,17 +1128,18 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
                 timeout_seconds=args.main_agent_timeout_seconds,
             )
+            record_catalogue(
+                selected,
+                tool_specs=schemas,
+                config=config,
+                sample_count=args.samples,
+                jobs=args.jobs,
+                force=args.force,
+            )
 
         results = []
         for scenario in selected:
             contract = check_contract(scenario, tool_specs=schemas)
-            if args.record and not contract:
-                record(
-                    scenario,
-                    tool_specs=schemas,
-                    config=config,
-                    sample_count=args.samples,
-                )
             cassette = load_cassette(scenario.name)
             stale = (
                 cassette_staleness(
@@ -1434,6 +1515,8 @@ def main(
                 next_action="Check the action store path and user identity.",
             )
     if args.command == "eval":
+        if args.eval_command == "rederivation":
+            return _run_rederivation_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
     if args.command == "settings":
         context_store = CareerContextStore(Path(args.context_store).expanduser())

@@ -48,7 +48,12 @@ def test_pruning_removes_covered_rows_and_leaves_the_read_window_intact(
     tmp_path,
 ) -> None:
     """The read window survives a prune, because no summary covers it yet."""
-    context_manager = manager(tmp_path, limit=4, summary_worker=RecordingSummaryWorker())
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=RecordingSummaryWorker(),
+        max_recent_context_chars=32,
+    )
     _talk(context_manager, turns=20)
     before = context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="next"
@@ -73,7 +78,12 @@ def test_pruning_removes_covered_rows_and_leaves_the_read_window_intact(
 
 def test_pruning_one_conversation_leaves_the_others_alone(tmp_path) -> None:
     """Scoping matters: a summary in one session says nothing about another."""
-    context_manager = manager(tmp_path, limit=4, summary_worker=RecordingSummaryWorker())
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=RecordingSummaryWorker(),
+        max_recent_context_chars=32,
+    )
     _talk(context_manager, turns=12, conversation_id="c1")
     _talk(context_manager, turns=12, conversation_id="c2")
     other_before, _ = context_manager._store.count_compacted_messages(
@@ -138,6 +148,7 @@ def test_the_notice_appears_only_past_the_threshold_and_clears_after_pruning(
         tmp_path,
         limit=4,
         summary_worker=RecordingSummaryWorker(),
+        max_recent_context_chars=32,
         compacted_message_warning_threshold=20,
     )
     _talk(context_manager, turns=8)

@@ -15,9 +15,6 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.openai_compatible_main_agent import (
-    OpenAICompatibleMainAgentDecisionMaker,
-)
 from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.domain.job_research import (
     JobResearchDraft,
@@ -267,12 +264,11 @@ def test_job_research_is_described_as_an_explicit_optional_capability() -> None:
     )
     schemas = {item["function"]["name"]: item for item in tools.schemas()}
     description = schemas["research_job"]["function"]["description"]
-    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(tuple(schemas))
 
     assert "only when the user explicitly asks" in description
     assert "never start it automatically" in description
-    assert "optional user-requested add-on" in prompt
-    assert "generic JD does not prove" in prompt
+    assert "Optional current public-web research" in description
+    assert "A generic JD cannot establish" in description
     properties = schemas["research_job"]["function"]["parameters"]["properties"]
     assert "user_provided_context" in properties
 

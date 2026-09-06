@@ -2,32 +2,26 @@
   "scenario": "research_is_not_started_as_part_of_matching",
   "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "4a092a21307ca49191a51a2150f11fd1ee48222d7c59250a37e5ef15a5b34ba5",
-  "context_shape_fingerprint": "7e4581566a16afdbfa09f9fb3c4dfdcd514baa59f430ce91409a20351e35d2ca",
-  "recorded_at": "2026-09-04T07:41:33.568923+00:00",
+  "prompt_fingerprint": "255d0df665dd74476fbade6ec562bfecf4e6768126015995d2ede340c8cd8758",
+  "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
+  "recorded_at": "2026-09-06T09:50:50.130053+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "match_resume_to_job",
-        "arguments": {
-          "job_selection_index": null,
-          "resume_version_selection_index": null
-        }
+        "arguments": {}
       }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-04T07:41:33.568923+00:00",
+      "recorded_at": "2026-09-06T09:50:50.130053+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "match_resume_to_job",
-            "arguments": {
-              "job_selection_index": null,
-              "resume_version_selection_index": null
-            }
+            "arguments": {}
           }
         }
       ]
