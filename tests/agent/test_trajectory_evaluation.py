@@ -24,14 +24,19 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.main_agent_contracts import AgentDecision
+from career_agent.agent.main_agent_contracts import (
+    AgentDecision,
+    ConversationMessageContext,
+)
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
@@ -56,6 +61,7 @@ from career_agent.evaluation.trajectory import (
     load_cassette,
     prompt_fingerprint,
     record,
+    record_catalogue,
     replay,
     replay_cassette,
     replay_quality,
@@ -99,6 +105,7 @@ _SERVICE_PARAMETERS = (
     "mock_interview_graph",
     "mock_interview_store",
     "job_research_service",
+    "conversation_store",
 )
 
 
@@ -466,6 +473,211 @@ def test_record_does_not_retry_a_nonretryable_model_failure(
     assert not (tmp_path / f"{scenario.name}.json").exists()
 
 
+def test_record_runs_independent_samples_concurrently(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    scenario = replace(SCENARIOS[0], recording_samples=3)
+    barrier = threading.Barrier(3)
+    real_maker = OpenAICompatibleMainAgentDecisionMaker
+
+    class GatedMaker:
+        _system_prompt = staticmethod(real_maker._system_prompt)
+
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            barrier.wait(timeout=2)
+            return AgentDecision(action="ask_user", message="请补充城市。")
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        GatedMaker,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+
+    path = record(
+        scenario,
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+        max_workers=3,
+        sleeper=lambda _: pytest.fail("must not sleep"),
+    )
+    cassette = load_cassette(scenario.name, root=tmp_path)
+
+    assert path.exists()
+    assert cassette is not None
+    assert cassette.sample_count == 3
+
+
+def test_record_adds_retry_jitter_when_requested(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    scenario = SCENARIOS[0]
+    delays = []
+    calls = 0
+    real_maker = OpenAICompatibleMainAgentDecisionMaker
+
+    class FlakyMaker:
+        _system_prompt = staticmethod(real_maker._system_prompt)
+
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise AgentWorkerError(
+                    "MAIN_AGENT_TRANSPORT_ERROR",
+                    "temporary",
+                    retryable=True,
+                )
+            return AgentDecision(action="ask_user", message="请补充城市。")
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        FlakyMaker,
+    )
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory.random.random",
+        lambda: 1.0,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+
+    record(
+        scenario,
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+        retry_delay_seconds=0.25,
+        sleeper=delays.append,
+        jitter=True,
+    )
+
+    assert delays == [0.375]
+
+
+def test_record_catalogue_skips_a_current_cassette(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    scenario = replace(SCENARIOS[0], name="current_catalogue_cassette")
+    calls = 0
+    real_maker = OpenAICompatibleMainAgentDecisionMaker
+
+    class CountingMaker:
+        _system_prompt = staticmethod(real_maker._system_prompt)
+
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            nonlocal calls
+            calls += 1
+            return AgentDecision(action="ask_user", message="请补充城市。")
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        CountingMaker,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+    record(
+        scenario,
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+    )
+    assert calls == 1
+
+    record_catalogue(
+        (scenario,),
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+        jobs=1,
+    )
+    assert calls == 1
+
+    record_catalogue(
+        (scenario,),
+        tool_specs=schemas,
+        config=config,
+        root=tmp_path,
+        jobs=1,
+        force=True,
+    )
+    assert calls == 2
+
+
+def test_record_catalogue_keeps_finished_neighbours_when_one_scenario_fails(
+    offered, monkeypatch, tmp_path: Path
+) -> None:
+    _, schemas = offered
+    healthy = replace(SCENARIOS[0], name="catalogue_neighbour_healthy")
+    broken = replace(SCENARIOS[0], name="catalogue_neighbour_broken")
+    calls = 0
+    real_maker = OpenAICompatibleMainAgentDecisionMaker
+
+    class MixedMaker:
+        _system_prompt = staticmethod(real_maker._system_prompt)
+
+        def __init__(self, config) -> None:
+            pass
+
+        def decide(self, context, tool_specs):
+            nonlocal calls
+            calls += 1
+            if calls > 1:
+                raise AgentWorkerError(
+                    "MAIN_AGENT_INVALID_RESPONSE",
+                    "invalid",
+                    retryable=False,
+                )
+            return AgentDecision(action="ask_user", message="请补充城市。")
+
+    monkeypatch.setattr(
+        "career_agent.evaluation.trajectory."
+        "OpenAICompatibleMainAgentDecisionMaker",
+        MixedMaker,
+    )
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.invalid/v1/chat/completions",
+        api_key="test",
+        model="test",
+    )
+
+    with pytest.raises(AgentWorkerError, match="invalid"):
+        record_catalogue(
+            (healthy, broken),
+            tool_specs=schemas,
+            config=config,
+            root=tmp_path,
+            jobs=1,
+        )
+
+    assert (tmp_path / f"{healthy.name}.json").exists()
+    assert not (tmp_path / f"{broken.name}.json").exists()
+
+
 def test_changing_the_system_prompt_changes_its_fingerprint(
     offered, monkeypatch
 ) -> None:
@@ -525,15 +737,33 @@ def test_changing_model_context_keys_changes_the_shape_fingerprint(
     context_type = type(scenario.context)
     original = context_type.model_context
 
-    def without_phase(context):
+    def without_default_city(context):
         projection = original(context)
-        task = dict(projection["task"])
-        task.pop("phase")
-        return {**projection, "task": task}
+        career_profile = dict(projection["career_profile"])
+        career_profile.pop("default_city")
+        return {**projection, "career_profile": career_profile}
 
-    monkeypatch.setattr(context_type, "model_context", without_phase)
+    monkeypatch.setattr(context_type, "model_context", without_default_city)
 
     assert context_shape_fingerprint(scenario) != before
+
+
+def test_native_chat_roles_change_the_shape_fingerprint() -> None:
+    scenario = SCENARIOS[0]
+    before = context_shape_fingerprint(scenario)
+    context = scenario.context.model_copy(
+        update={
+            "recent_messages": (
+                ConversationMessageContext(
+                    role="assistant",
+                    content="A prior native turn.",
+                    created_at=datetime(2026, 9, 6, tzinfo=timezone.utc),
+                ),
+            )
+        }
+    )
+
+    assert context_shape_fingerprint(replace(scenario, context=context)) != before
 
 
 def test_a_known_gap_is_described_well_enough_to_act_on() -> None:
@@ -836,18 +1066,16 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         assert cassette_staleness(
             cassette, scenario=scenario, tool_specs=schemas
         ) is None
-    # The positive side is an invariant and is held to pass^k.
-    assert all(
-        not failures
-        for failures in replay_cassette(
+    # With handles kept out of system control, every fresh positive sample binds
+    # the matching tool-result reference rather than an older footer handle.
+    assert known_gap_reproduction(
+        replay_cassette(
             numbered, tool_specs=schemas, cassette=load_cassette(numbered.name)
         )
-    )
-    # The mirror is a known gap, and an intermittent one. A single recording
-    # showed it selecting correctly and read as resolved; three showed the
-    # borrowing return in one of them. Asserting the classification rather than
-    # "it fails" keeps the distinction the samples bought — a defect that stops
-    # reproducing at all still has to be noticed and retired.
+    ) == "resolved"
+    # Native tool results make the positive binding reliable. The synthetic
+    # mirror with no reference still intermittently borrows an older,
+    # differently titled handle, so keep that boundary defect explicit.
     assert known_gap_reproduction(
         replay_cassette(
             unnumbered, tool_specs=schemas, cassette=load_cassette(unnumbered.name)
@@ -864,29 +1092,28 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
                 reference=guess, kind="job_research_report"
             )
 
+    resolved = []
     for sample in load_cassette(numbered.name).recordings:
         numbered_call = sample[0].get("tool_call", {})
         assert numbered_call.get("name") == "get_job_research"
-        assert (
+        resolved.append(
             numbered.context.resolve_reference(
                 reference=numbered_call.get("arguments", {}).get("reference"),
                 kind="job_research_report",
             )
-            == "report-a"
         )
-    # Producer-owned titles narrowed the ambiguity without closing it. Two of
-    # three samples now select by ``selection_index``, naming nothing they were
-    # not given; the third still borrows a visible handle, and it resolves — to
-    # last week's research, silently. Recorded as evidence, not as expectation.
+    assert resolved.count("report-a") == numbered.recording_samples
+    assert resolved.count("report-h1") == 1
+    # Every sample borrows the same older handle despite its conflicting title.
     borrowed = [
         (sample[0].get("tool_call") or {}).get("arguments", {}).get("reference")
         for sample in load_cassette(unnumbered.name).recordings
     ]
-    assert borrowed.count(None) == 2
-    handed_back = next(handle for handle in borrowed if handle)
-    assert (
+    assert len(set(borrowed)) == 1
+    assert {
         unnumbered.context.resolve_reference(
-            reference=handed_back, kind="job_research_report"
+            reference=handle,
+            kind="job_research_report",
         )
-        == "report-h1"
-    )
+        for handle in borrowed
+    } == {"report-h1"}

@@ -12,6 +12,7 @@ from career_agent.harness.observability import (
     ModelCallCategory,
     RunEvent,
     RunTrace,
+    conversation_trace_key,
     safe_trace_fields,
     validate_model_call_category,
 )
@@ -122,6 +123,27 @@ class SQLiteTraceRecorder:
             run_id=run_id,
             events=tuple(self._event(row) for row in rows),
         )
+
+    def list_conversation_events(
+        self, *, user_id: str, conversation_id: str
+    ) -> tuple[RunEvent, ...]:
+        """Read compact/call events across turns in execution order."""
+
+        key = conversation_trace_key(user_id, conversation_id)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT run_id, sequence, event_type, stage, attempt, occurred_at,
+                       duration_ms, outcome, details_json, error_code,
+                       error_detail, recoverable, model_call_category
+                FROM run_events
+                WHERE event_type IN ('context_compacted', 'model_succeeded')
+                  AND json_extract(details_json, '$.conversation_key') = ?
+                ORDER BY occurred_at, rowid
+                """,
+                (key,),
+            ).fetchall()
+        return tuple(self._event(row) for row in rows)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

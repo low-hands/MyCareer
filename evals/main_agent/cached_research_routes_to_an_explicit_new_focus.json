@@ -2,15 +2,15 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "b32b29ae659d534a1e4feb6d0bd0552ba31f61d747cc13c629e23a5e3aaccd02",
-  "context_shape_fingerprint": "cf5ae1cd43a5d26c044172ce3245f748e77cdd9a4eab1d7af261415fa2c5fb5a",
-  "recorded_at": "2026-09-04T07:47:50.536431+00:00",
+  "prompt_fingerprint": "be816c5677e90f654cb66fa772d5dc8bfd2af1d151b8e42898eef5f0a30942aa",
+  "context_shape_fingerprint": "a60cfc0f6d7073008d2afe5d2bf1316b833fc805cda2566a7071b3dc7494bd57",
+  "recorded_at": "2026-09-06T09:51:20.325637+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手、竞争格局与主要可比公司",
+          "focus": "竞争对手：识别公司所在业务领域的主要竞争对手，比较其产品、市场定位、技术路线和近期动态，并说明对该岗位可能相关的竞争格局影响。",
           "max_sources": 8,
           "selection_index": null,
           "user_provided_context": null
@@ -21,13 +21,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-04T07:47:50.536431+00:00",
+      "recorded_at": "2026-09-06T09:51:20.325637+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手、竞争格局与主要可比公司",
+              "focus": "竞争对手：识别公司所在业务领域的主要竞争对手，比较其产品、市场定位、技术路线和近期动态，并说明对该岗位可能相关的竞争格局影响。",
               "max_sources": 8,
               "selection_index": null,
               "user_provided_context": null

@@ -6,16 +6,24 @@ from io import StringIO
 
 import pytest
 
+from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall, ToolObservation
 from career_agent.agent.main_agent_runtime import (
     InteractionReceipt,
+    MainAgentRuntime,
     MainAgentTurnResult,
     ModelDecision,
     RuntimeAction,
 )
+from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_ARGUMENT_ERROR, EXIT_WORKFLOW_ERROR, main
+from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
+from career_agent.evaluation.rederivation import tool_call_fingerprint
+from career_agent.harness.observability import conversation_trace_key
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
+from career_agent.storage.context import CareerContextStore
+from career_agent.storage.run_events import SQLiteTraceRecorder
 
 
 class TTYBuffer(StringIO):
@@ -108,27 +116,175 @@ def test_trajectory_cli_reports_quality_as_an_independent_axis() -> None:
     assert result["quality_wilson_95"] == [0.565518, 1.0]
 
 
-def test_trajectory_cli_keeps_intermittent_hard_gaps_red() -> None:
+def test_trajectory_record_parser_defaults_to_parallel_jobs() -> None:
+    args = build_parser().parse_args(["eval", "trajectories", "--record"])
+
+    assert args.jobs == 8
+    assert args.force is False
+
+
+def test_rederivation_eval_scans_production_turns(tmp_path) -> None:
+    path = tmp_path / "run-events.sqlite3"
+    recorder = SQLiteTraceRecorder(path)
+
+    class SummaryWorker:
+        def summarize(self, *, previous, messages):
+            return ConversationSummaryContent(user_goals=("keep continuity",))
+
+    class Decisions:
+        def __init__(self):
+            self._values = [
+                decision
+                for _ in range(3)
+                for decision in (
+                    AgentDecision(
+                        action="tool_call",
+                        tool_call=ToolCall(
+                            name="open_job_search",
+                            arguments={"keyword": "AI Engineer"},
+                        ),
+                    ),
+                    AgentDecision(action="final", message="继续。"),
+                )
+            ]
+
+        def decide(self, context, tool_specs):
+            return self._values.pop(0)
+
+    manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=SummaryWorker(),
+        recent_message_limit=2,
+        summary_batch_size=2,
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(),
+        tools=MainAgentToolRegistry(),
+        trace_recorder=recorder,
+    )
+    for index in range(3):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message=f"第 {index + 1} 次搜索",
+        )
     output = StringIO()
 
     code = main(
-        ["eval", "trajectories"],
+        [
+            "eval",
+            "rederivation",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "c1",
+            "--run-events-store",
+            str(path),
+        ],
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert json.loads(output.getvalue()) == {
+        "state": "rederivation_measured",
+        "user_id": "u1",
+        "session_id": "c1",
+        "compaction_count": 2,
+        "tool_call_count": 3,
+        "post_compaction_tool_call_count": 1,
+        "rederivation_count": 1,
+        "reason": None,
+    }
+
+
+@pytest.mark.parametrize(
+    ("shape", "reason"),
+    (
+        ((), "no_compaction_observed"),
+        (("compact",), "no_tool_calls_observed"),
+        (("call", "compact"), "no_post_compaction_tool_calls"),
+        (("compact", "call"), "no_pre_compaction_tool_calls"),
+    ),
+)
+def test_rederivation_eval_reports_insufficient_evidence_without_a_false_zero(
+    tmp_path, shape, reason
+) -> None:
+    path = tmp_path / f"{reason}.sqlite3"
+    recorder = SQLiteTraceRecorder(path)
+    key = conversation_trace_key("u1", "c1")
+    for index, item in enumerate(shape):
+        if item == "compact":
+            recorder.record(
+                f"run-{index}",
+                "context_compacted",
+                "conversation_summary",
+                outcome="succeeded",
+                details={"conversation_id": "c1", "conversation_key": key},
+            )
+        else:
+            recorder.record(
+                f"run-{index}",
+                "model_succeeded",
+                "main_agent_decide",
+                outcome="succeeded",
+                details={
+                    "conversation_id": "c1",
+                    "conversation_key": key,
+                    "tool_name": "find_saved_jobs",
+                    "tool_arguments_fingerprint": tool_call_fingerprint(
+                        "find_saved_jobs", {"query": "X"}
+                    ),
+                },
+                model_call_category="orchestrator_decision",
+            )
+    output = StringIO()
+
+    code = main(
+        [
+            "eval",
+            "rederivation",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "c1",
+            "--run-events-store",
+            str(path),
+        ],
         stdout=output,
         stderr=StringIO(),
     )
     payload = json.loads(output.getvalue())
-    intermittent = {
-        result["scenario"]
-        for result in payload["results"]
-        if result["known_gap_status"] == "intermittent"
-    }
 
-    assert code == EXIT_ARGUMENT_ERROR
-    assert payload["behaviour_failed"] == 2
-    assert intermittent == {
-        "a_report_made_this_turn_without_an_index_cannot_be_named",
-        "an_uncertain_calendar_write_is_not_reissued_or_claimed",
-    }
+    assert code == 0
+    assert payload["state"] == "insufficient_rederivation_trace"
+    assert payload["reason"] == reason
+    assert payload["rederivation_count"] is None
+
+
+def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:
+    output = StringIO()
+
+    code = main(
+        [
+            "eval",
+            "trajectories",
+            "--scenario",
+            "an_empty_conversation_span_is_not_filled_from_the_window",
+        ],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+    result = payload["results"][0]
+
+    assert code == 2
+    assert payload["behaviour_failed"] == 1
+    assert payload["stale"] == 0
+    assert result["behaviour"] == "failed"
+    assert result["samples_passed"] == 2
+    assert result["known_gap_status"] == "intermittent"
 
 
 @pytest.mark.parametrize(

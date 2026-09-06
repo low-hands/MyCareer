@@ -174,6 +174,23 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
 
     internal_id = "a" * 32
     cases = {
+        "conversation_span_found": (
+            {
+                "from_sequence": 1,
+                "through_sequence": 1,
+                "returned": 1,
+                "total": 1,
+                "messages": [
+                    {
+                        "sequence": 1,
+                        "role": "user",
+                        "content": "真实会话回读标记",
+                        "created_at": "2026-08-31T00:00:00Z",
+                    }
+                ],
+            },
+            "真实会话回读标记",
+        ),
         "daily_brief_ready": (
             {
                 "due_today": [

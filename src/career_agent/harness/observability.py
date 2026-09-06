@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import wraps
+import hashlib
 from threading import Lock
 from time import perf_counter
 from typing import Any, Callable, Literal, Protocol
@@ -34,6 +35,7 @@ EventType = Literal[
     "turn_rejected",
     "capability_failed",
     "presentation_degraded",
+    "context_compacted",
 ]
 
 ModelCallCategory = Literal[
@@ -99,6 +101,14 @@ ACTIVE_TRACE_CONTEXT: ContextVar[tuple[TraceRecorder, str] | None] = ContextVar(
     "active_agent_trace_context",
     default=None,
 )
+
+
+def conversation_trace_key(user_id: str, conversation_id: str) -> str:
+    """Pseudonymous join key for events from one owned conversation."""
+
+    return hashlib.sha256(
+        f"{user_id}\0{conversation_id}".encode("utf-8")
+    ).hexdigest()
 
 
 def record_active_trace(

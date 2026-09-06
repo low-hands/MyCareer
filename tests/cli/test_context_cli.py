@@ -36,6 +36,7 @@ def _seed(path, *, turns: int = 20) -> None:
         summary_worker=_Summariser(),
         recent_message_limit=4,
         summary_batch_size=2,
+        max_recent_context_chars=32,
     )
     for index in range(turns):
         context = context_manager.load_for_turn(

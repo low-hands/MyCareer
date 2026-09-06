@@ -24,6 +24,7 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.connectors.gmail_readonly import GmailAPIError
+from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
 from career_agent.harness.observability import InMemoryTraceRecorder
@@ -100,6 +101,14 @@ def test_a_capability_failure_is_recorded_with_its_error_code(tmp_path: Path) ->
     assert decisions[1].details["observation_chars"] > decisions[0].details[
         "observation_chars"
     ]
+    succeeded = [
+        event for event in events if event.event_type == "model_succeeded"
+    ]
+    assert succeeded[0].details["conversation_id"] == "c1"
+    assert succeeded[0].details["tool_name"] == "sync_application_emails"
+    assert succeeded[0].details["tool_arguments_fingerprint"] == (
+        tool_call_fingerprint("sync_application_emails", {})
+    )
 
 
 def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:

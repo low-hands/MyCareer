@@ -151,6 +151,10 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # that is what was asked for, and the answer it quotes runs to twenty
     # thousand characters, which the row cannot carry.
     "mock_interview_question_found": _summarised(),
+    # Historical rows are useful as a turn-local observation, but storing the
+    # rendered span would immediately put the recalled text back into every
+    # later recent window. Keep only the bounded receipt in conversation.
+    "conversation_span_found": _summarised(),
 }
 
 _POLICIES.update(
@@ -174,6 +178,7 @@ _POLICIES.update(
             "calendar_proposal_not_found",
             "calendar_proposal_ready",
             "calendar_sync_complete",
+            "conversation_span_empty",
             "compare_input_not_found",
             "email_account_not_found",
             "email_event_not_found",

@@ -20,6 +20,11 @@ from pathlib import Path
 from typing import Any
 
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.decision_messages import (
+    CONTROL_CONTEXT_LABEL,
+    CONTROL_REMINDER_TAG,
+    TURN_OBSERVATION_LABEL,
+)
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
@@ -122,8 +127,28 @@ def _runtime(
     return runtime, tools, client, manager, recorder
 
 
+def _turn_observation_payload(messages: Sequence[Mapping[str, Any]]) -> tuple:
+    observations = []
+    for message in messages:
+        if message["role"] != "tool":
+            continue
+        lines = message["content"].splitlines()
+        assert lines[0] == TURN_OBSERVATION_LABEL
+        observations.append(json.loads("\n".join(lines[2:-1])))
+    return tuple(observations)
+
+
 def _request_context(client: ReplayClient, index: int) -> dict[str, Any]:
-    return json.loads(client.requests[index]["messages"][1]["content"])
+    messages = client.requests[index]["messages"]
+    control_lines = messages[1]["content"].splitlines()
+    assert control_lines[0] == f"<{CONTROL_REMINDER_TAG}>"
+    assert control_lines[1] == CONTROL_CONTEXT_LABEL
+    assert control_lines[-1] == f"</{CONTROL_REMINDER_TAG}>"
+    control = json.loads("\n".join(control_lines[2:-1]))
+    lines = messages[2]["content"].splitlines()
+    data = json.loads("\n".join(lines[2:-1]))
+    observations = list(_turn_observation_payload(messages))
+    return {**control, **data, "tool_observations": observations}
 
 
 def _recorded_events(recorder: InMemoryTraceRecorder) -> tuple:

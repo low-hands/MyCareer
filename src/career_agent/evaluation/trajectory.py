@@ -23,13 +23,17 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import random
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import NormalDist
 from typing import Any, Callable, Mapping, Sequence
 
+from career_agent.agent.decision_messages import project_decision_messages
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     DecisionObservation,
@@ -45,6 +49,8 @@ from career_agent.agent.openai_compatible_main_agent import (
 )
 
 CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
+_MAX_RECORD_JOBS = 32
+_RECORD_MAKERS = threading.local()
 
 
 @dataclass(frozen=True)
@@ -316,21 +322,32 @@ def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
 
 
 def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
-    """Hash the key paths of every model context this scenario sends.
+    """Hash the authority split and native-message layout sent to the model.
 
-    Values are deliberately excluded: changing a count or user sentence is a
-    new example, not a projection schema change. Sequence elements share a
-    ``[]`` path, so candidate count also cannot make an otherwise identical
-    shape stale.
+    Values are deliberately excluded, but roles are not: moving prior dialogue
+    back into a JSON field must stale a cassette even if a merged contract view
+    still exposes the same facts. JSON sequence elements share a ``[]`` path,
+    so candidate count does not make an otherwise identical shape stale.
     """
     context = scenario.context
     step_shapes = []
     for index, step in enumerate(scenario.steps):
         context = _advance(context, step)
+        projection = project_decision_messages(context)
+        messages = projection.messages(system_prompt="[policy]")
         step_shapes.append(
             {
                 "step": index,
-                "paths": sorted(_key_paths(context.model_context())),
+                "control_paths": sorted(_key_paths(projection.control)),
+                "data_paths": sorted(_key_paths(projection.data)),
+                "turn_observation_paths": sorted(
+                    _key_paths({"tool_observations": projection.turn_observations})
+                ),
+                "message_roles": [message["role"] for message in messages],
+                "recent_resource_footers": [
+                    "\n[runtime resources:" in message["content"]
+                    for message in projection.recent_messages
+                ],
             }
         )
     encoded = json.dumps(
@@ -553,12 +570,12 @@ def _dynamic_schemas(
     Kept derived from the static universe so the full-name list stays in one
     place; only the set of offered tools shrinks per step.
     """
-    from career_agent.agent.tool_reachability import reachable
+    from career_agent.agent.tool_reachability import reachable_in_context
 
     return tuple(
         schema
         for schema in static_schemas
-        if reachable(schema["function"]["name"], context.task)
+        if reachable_in_context(schema["function"]["name"], context)
     )
 
 
@@ -781,24 +798,32 @@ def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContex
     return context.model_copy(update=update) if update else context
 
 
-def record(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
+def _decision_maker(
     config: OpenAICompatibleAgentConfig,
-    root: Path | None = None,
-    sample_count: int | None = None,
-    max_attempts: int = 3,
-    retry_delay_seconds: float = 1.0,
-    sleeper: Callable[[float], None] = time.sleep,
-) -> Path:
-    """Ask the live model and write the answers down.
+) -> OpenAICompatibleMainAgentDecisionMaker:
+    maker = getattr(_RECORD_MAKERS, "maker", None)
+    cached_config = getattr(_RECORD_MAKERS, "config", None)
+    if (
+        maker is None
+        or cached_config is not config
+        or type(maker) is not OpenAICompatibleMainAgentDecisionMaker
+    ):
+        maker = OpenAICompatibleMainAgentDecisionMaker(config)
+        _RECORD_MAKERS.maker = maker
+        _RECORD_MAKERS.config = config
+    return maker
 
-    Recording is the only thing that evaluates the model. Everything replay does
-    afterwards evaluates this project against a decision the model already made,
-    which is why a stale cassette is worth re-cutting whenever the prompt, the
-    projection, or the model changes.
-    """
+
+def _retry_wait(delay: float, attempt: int, *, jitter: bool) -> float:
+    wait = delay * (2 ** (attempt - 1))
+    if jitter:
+        wait *= 0.5 + random.random()
+    return wait
+
+
+def _requested_sample_count(
+    scenario: TrajectoryScenario, sample_count: int | None
+) -> int:
     requested_samples = (
         scenario.recording_samples if sample_count is None else sample_count
     )
@@ -811,43 +836,60 @@ def record(
             "quality scenarios must be recorded with exactly their declared "
             "sample count"
         )
-    if not 1 <= max_attempts <= 5:
-        raise ValueError("trajectory record attempts must be between 1 and 5")
-    if retry_delay_seconds < 0:
-        raise ValueError("trajectory retry delay cannot be negative")
+    return requested_samples
 
-    maker = OpenAICompatibleMainAgentDecisionMaker(config)
-    samples = []
-    for _ in range(requested_samples):
-        steps = []
-        context = scenario.context
-        for step in scenario.steps:
-            context = _advance(context, step)
-            schemas = _dynamic_schemas(tool_specs, context)
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    decision = maker.decide(context, schemas)
-                    break
-                except AgentWorkerError as error:
-                    if not error.retryable or attempt == max_attempts:
-                        raise
-                    sleeper(retry_delay_seconds * (2 ** (attempt - 1)))
-            steps.append(
-                {
-                    "tool_call": {
-                        "name": decision.tool_call.name,
-                        "arguments": decision.tool_call.arguments,
-                    }
-                }
-                if decision.tool_call is not None
-                else {"content": decision.model_dump_json(exclude_none=True)}
-            )
-        samples.append(
+
+def _record_one_sample(
+    scenario: TrajectoryScenario,
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    config: OpenAICompatibleAgentConfig,
+    max_attempts: int,
+    retry_delay_seconds: float,
+    sleeper: Callable[[float], None],
+    jitter: bool,
+) -> dict[str, Any]:
+    maker = _decision_maker(config)
+    steps = []
+    context = scenario.context
+    for step in scenario.steps:
+        context = _advance(context, step)
+        schemas = _dynamic_schemas(tool_specs, context)
+        decision = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                decision = maker.decide(context, schemas)
+                break
+            except AgentWorkerError as error:
+                if not error.retryable or attempt == max_attempts:
+                    raise
+                sleeper(_retry_wait(retry_delay_seconds, attempt, jitter=jitter))
+        if decision is None:
+            raise RuntimeError("trajectory record produced no decision")
+        steps.append(
             {
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
-                "steps": steps,
+                "tool_call": {
+                    "name": decision.tool_call.name,
+                    "arguments": decision.tool_call.arguments,
+                }
             }
+            if decision.tool_call is not None
+            else {"content": decision.model_dump_json(exclude_none=True)}
         )
+    return {
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "steps": steps,
+    }
+
+
+def _write_cassette(
+    scenario: TrajectoryScenario,
+    samples: Sequence[Mapping[str, Any]],
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    config: OpenAICompatibleAgentConfig,
+    root: Path | None,
+) -> Path:
     path = cassette_path(scenario.name, root=root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -864,8 +906,8 @@ def record(
                 # Keep the first sample under the legacy key so external readers
                 # do not break while the evaluator consumes every sample below.
                 "steps": samples[0]["steps"],
-                "sample_count": requested_samples,
-                "samples": samples,
+                "sample_count": len(samples),
+                "samples": list(samples),
             },
             ensure_ascii=False,
             indent=2,
@@ -873,3 +915,207 @@ def record(
         + "\n"
     )
     return path
+
+
+def scenarios_to_record(
+    scenarios: Sequence[TrajectoryScenario],
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    root: Path | None = None,
+    force: bool = False,
+) -> tuple[TrajectoryScenario, ...]:
+    """Scenarios whose cassettes are missing, stale, or forced to recut."""
+
+    selected = []
+    for scenario in scenarios:
+        if check_contract(scenario, tool_specs=tool_specs):
+            continue
+        cassette = load_cassette(scenario.name, root=root)
+        if force or cassette is None:
+            selected.append(scenario)
+            continue
+        if cassette_staleness(
+            cassette, scenario=scenario, tool_specs=tool_specs
+        ) is not None:
+            selected.append(scenario)
+    return tuple(selected)
+
+
+def record(
+    scenario: TrajectoryScenario,
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    config: OpenAICompatibleAgentConfig,
+    root: Path | None = None,
+    sample_count: int | None = None,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+    sleeper: Callable[[float], None] = time.sleep,
+    max_workers: int = 1,
+    jitter: bool | None = None,
+) -> Path:
+    """Ask the live model and write the answers down.
+
+    Recording is the only thing that evaluates the model. Everything replay does
+    afterwards evaluates this project against a decision the model already made,
+    which is why a stale cassette is worth re-cutting whenever the prompt, the
+    projection, or the model changes.
+
+    Independent samples may run concurrently. Steps inside one sample stay
+    sequential, because later hops depend on earlier observations.
+    """
+    requested_samples = _requested_sample_count(scenario, sample_count)
+    if not 1 <= max_attempts <= 5:
+        raise ValueError("trajectory record attempts must be between 1 and 5")
+    if retry_delay_seconds < 0:
+        raise ValueError("trajectory retry delay cannot be negative")
+    if not 1 <= max_workers <= _MAX_RECORD_JOBS:
+        raise ValueError(
+            f"trajectory record jobs must be between 1 and {_MAX_RECORD_JOBS}"
+        )
+    use_jitter = max_workers > 1 if jitter is None else jitter
+    workers = min(max_workers, requested_samples)
+
+    def capture_sample() -> dict[str, Any]:
+        return _record_one_sample(
+            scenario,
+            tool_specs=tool_specs,
+            config=config,
+            max_attempts=max_attempts,
+            retry_delay_seconds=retry_delay_seconds,
+            sleeper=sleeper,
+            jitter=use_jitter,
+        )
+
+    if workers == 1:
+        samples = [capture_sample() for _ in range(requested_samples)]
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(capture_sample) for _ in range(requested_samples)
+            ]
+            samples = [future.result() for future in futures]
+    return _write_cassette(
+        scenario,
+        samples,
+        tool_specs=tool_specs,
+        config=config,
+        root=root,
+    )
+
+
+def record_catalogue(
+    scenarios: Sequence[TrajectoryScenario],
+    *,
+    tool_specs: tuple[dict[str, Any], ...],
+    config: OpenAICompatibleAgentConfig,
+    root: Path | None = None,
+    sample_count: int | None = None,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+    sleeper: Callable[[float], None] = time.sleep,
+    jobs: int = 8,
+    force: bool = False,
+) -> tuple[Path, ...]:
+    """Recut every selected cassette that is missing or stale.
+
+    Work is one sample, not one scenario: a three-sample case can share the
+    pool with other scenarios. A scenario is written only after every sample
+    succeeds, so a mid-cut failure cannot leave a half cassette. Completed
+    neighbours are still written, so a long recut is not all-or-nothing.
+    """
+    if not 1 <= jobs <= _MAX_RECORD_JOBS:
+        raise ValueError(
+            f"trajectory record jobs must be between 1 and {_MAX_RECORD_JOBS}"
+        )
+    if not 1 <= max_attempts <= 5:
+        raise ValueError("trajectory record attempts must be between 1 and 5")
+    if retry_delay_seconds < 0:
+        raise ValueError("trajectory retry delay cannot be negative")
+
+    to_record = scenarios_to_record(
+        scenarios, tool_specs=tool_specs, root=root, force=force
+    )
+    if not to_record:
+        return ()
+
+    counts = {
+        scenario.name: _requested_sample_count(scenario, sample_count)
+        for scenario in to_record
+    }
+    by_name = {scenario.name: scenario for scenario in to_record}
+    work = [
+        (scenario, index)
+        for scenario in to_record
+        for index in range(counts[scenario.name])
+    ]
+    collected: dict[str, dict[int, dict[str, Any]]] = {
+        scenario.name: {} for scenario in to_record
+    }
+    failed: set[str] = set()
+    first_error: Exception | None = None
+    written: dict[str, Path] = {}
+    jitter = jobs > 1
+    workers = min(jobs, len(work))
+
+    def capture(scenario: TrajectoryScenario) -> dict[str, Any]:
+        return _record_one_sample(
+            scenario,
+            tool_specs=tool_specs,
+            config=config,
+            max_attempts=max_attempts,
+            retry_delay_seconds=retry_delay_seconds,
+            sleeper=sleeper,
+            jitter=jitter,
+        )
+
+    def accept(scenario: TrajectoryScenario, index: int, sample: dict[str, Any]) -> None:
+        if scenario.name in failed:
+            return
+        collected[scenario.name][index] = sample
+        if len(collected[scenario.name]) != counts[scenario.name]:
+            return
+        samples = [
+            collected[scenario.name][sample_index]
+            for sample_index in range(counts[scenario.name])
+        ]
+        written[scenario.name] = _write_cassette(
+            by_name[scenario.name],
+            samples,
+            tool_specs=tool_specs,
+            config=config,
+            root=root,
+        )
+
+    if workers == 1:
+        for scenario, index in work:
+            if scenario.name in failed:
+                continue
+            try:
+                sample = capture(scenario)
+            except Exception as error:
+                failed.add(scenario.name)
+                if first_error is None:
+                    first_error = error
+                continue
+            accept(scenario, index, sample)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(capture, scenario): (scenario, index)
+                for scenario, index in work
+            }
+            for future in as_completed(futures):
+                scenario, index = futures[future]
+                try:
+                    sample = future.result()
+                except Exception as error:
+                    failed.add(scenario.name)
+                    if first_error is None:
+                        first_error = error
+                    continue
+                accept(scenario, index, sample)
+
+    if first_error is not None:
+        raise first_error
+    return tuple(written[scenario.name] for scenario in to_record if scenario.name in written)

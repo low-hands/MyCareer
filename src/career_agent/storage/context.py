@@ -9,7 +9,15 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from career_agent.agent.main_agent_contracts import OwnerSettingsContext, CareerProfileContext, ConversationMessageContext, ConversationTaskState
+from career_agent.agent.main_agent_contracts import (
+    MAX_CONVERSATION_SPAN_MESSAGES,
+    CareerProfileContext,
+    ConversationMessageContext,
+    ConversationSpanMessage,
+    ConversationSpanView,
+    ConversationTaskState,
+    OwnerSettingsContext,
+)
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
     SUMMARY_SOURCE_MAX_CHARS,
@@ -30,6 +38,13 @@ class StoredConversationOverview(BaseModel):
     title: str
     last_message_preview: str
     message_count: int
+
+
+class StoredConversationMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    sequence: int
+    message: ConversationMessageContext
 
 
 class OwnerSettingsConflictError(RuntimeError):
@@ -451,13 +466,107 @@ class CareerContextStore:
             )
         os.chmod(self.path, 0o600)
 
-    def list_messages(self, user_id: str, conversation_id: str, *, limit: int, after_sequence: int = 0) -> tuple[ConversationMessageContext, ...]:
+    def list_message_records(
+        self,
+        user_id: str,
+        conversation_id: str,
+        *,
+        limit: int,
+        after_sequence: int = 0,
+    ) -> tuple[StoredConversationMessage, ...]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT payload FROM conversation_messages WHERE user_id = ? AND conversation_id = ? AND sequence > ? ORDER BY sequence DESC LIMIT ?",
+                "SELECT sequence, payload FROM conversation_messages WHERE user_id = ? AND conversation_id = ? AND sequence > ? ORDER BY sequence DESC LIMIT ?",
                 (user_id, conversation_id, after_sequence, limit),
             ).fetchall()
-        return tuple(ConversationMessageContext.model_validate_json(row[0]) for row in reversed(rows))
+        return tuple(
+            StoredConversationMessage(
+                sequence=row[0],
+                message=ConversationMessageContext.model_validate_json(row[1]),
+            )
+            for row in reversed(rows)
+        )
+
+    def list_messages(self, user_id: str, conversation_id: str, *, limit: int, after_sequence: int = 0) -> tuple[ConversationMessageContext, ...]:
+        return tuple(
+            record.message
+            for record in self.list_message_records(
+                user_id,
+                conversation_id,
+                limit=limit,
+                after_sequence=after_sequence,
+            )
+        )
+
+    def read_conversation_span(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        from_sequence: int,
+        through_sequence: int,
+    ) -> ConversationSpanView:
+        """Read only rows inside the requested inclusive span, oldest first.
+
+        The fixed output ceiling is not a nearest-neighbour search. A span
+        outside this owned conversation returns no rows, and a large matching
+        span returns its earliest rows plus the honest uncapped match count.
+
+        Resource references deliberately do not cross this readback. The
+        archived-resource catalogue remains their retrieval path once a
+        summary exists; a character-clipped recent window may page text back
+        in, but must not silently become a second report-handle catalogue.
+        """
+        if from_sequence < 1 or through_sequence < from_sequence:
+            raise ValueError("invalid conversation span")
+        with self._connect() as connection:
+            total = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*) FROM conversation_messages
+                    WHERE user_id = ? AND conversation_id = ?
+                      AND sequence BETWEEN ? AND ?
+                    """,
+                    (user_id, conversation_id, from_sequence, through_sequence),
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                """
+                SELECT sequence, payload FROM conversation_messages
+                WHERE user_id = ? AND conversation_id = ?
+                  AND sequence BETWEEN ? AND ?
+                ORDER BY sequence
+                LIMIT ?
+                """,
+                (
+                    user_id,
+                    conversation_id,
+                    from_sequence,
+                    through_sequence,
+                    MAX_CONVERSATION_SPAN_MESSAGES,
+                ),
+            ).fetchall()
+        messages = []
+        for row in rows:
+            message = ConversationMessageContext.model_validate_json(row[1])
+            messages.append(
+                ConversationSpanMessage(
+                    sequence=row[0],
+                    role=message.role,
+                    content=message.content[:SUMMARY_SOURCE_MAX_CHARS],
+                    content_clipped=(
+                        len(message.content) > SUMMARY_SOURCE_MAX_CHARS
+                    ),
+                    created_at=message.created_at,
+                )
+            )
+        return ConversationSpanView(
+            from_sequence=from_sequence,
+            through_sequence=through_sequence,
+            returned=len(messages),
+            total=total,
+            messages=tuple(messages),
+        )
 
     def list_archived_resource_messages(
         self,

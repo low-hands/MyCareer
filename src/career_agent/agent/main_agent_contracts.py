@@ -12,7 +12,10 @@ from pydantic import AliasChoices, Field, model_validator
 
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.delivery_policy import is_failed, is_waiting
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
+from career_agent.agent.conversation_memory_contracts import (
+    SUMMARY_SOURCE_MAX_CHARS,
+    ConversationSummaryContent,
+)
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
@@ -575,6 +578,38 @@ class ConversationMessageContext(ContractModel):
     """
 
 
+MAX_CONVERSATION_SPAN_MESSAGES = 8
+
+
+class ConversationSpanMessage(ContractModel):
+    sequence: int = Field(ge=1)
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=SUMMARY_SOURCE_MAX_CHARS)
+    content_clipped: bool = False
+    created_at: datetime
+
+
+class ConversationSpanView(ContractModel):
+    from_sequence: int = Field(ge=1)
+    through_sequence: int = Field(ge=1)
+    returned: int = Field(ge=0, le=MAX_CONVERSATION_SPAN_MESSAGES)
+    total: int = Field(ge=0)
+    body_clipped: bool = False
+    messages: tuple[ConversationSpanMessage, ...] = Field(
+        default=(), max_length=MAX_CONVERSATION_SPAN_MESSAGES
+    )
+
+    @model_validator(mode="after")
+    def counts_match_messages(self) -> "ConversationSpanView":
+        if self.from_sequence > self.through_sequence:
+            raise ValueError("conversation span must move forward")
+        if self.returned != len(self.messages):
+            raise ValueError("returned must match the messages provided")
+        if self.total < self.returned:
+            raise ValueError("total cannot be smaller than returned")
+        return self
+
+
 
 class CareerMemoryRecord(ContractModel):
     record_type: Literal[
@@ -947,6 +982,12 @@ class MainAgentContext(ContractModel):
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
     recent_messages: tuple[ConversationMessageContext, ...] = ()
+    through_sequence: int = Field(default=0, ge=0)
+    """Last durable message covered by ``conversation_summary``; zero if absent."""
+
+    recent_from_sequence: int | None = Field(default=None, ge=1)
+    """Sequence of the first raw message projected into the recent window."""
+
     archived_resource_total: int = Field(default=0, ge=0)
     """How many resources the catalogue would list uncapped.
 
@@ -989,6 +1030,10 @@ class MainAgentContext(ContractModel):
 
     @model_validator(mode="after")
     def observation_bodies_are_only_on_the_newest_item(self) -> "MainAgentContext":
+        if self.recent_from_sequence is not None and (
+            self.recent_from_sequence <= self.through_sequence
+        ):
+            raise ValueError("recent messages must begin after the summary boundary")
         stale = self.tool_observations[:-MAX_DECISION_OBSERVATION_BODIES]
         if any(item.body is not None for item in stale):
             raise ValueError(
@@ -1351,6 +1396,18 @@ class MainAgentContext(ContractModel):
                 ),
             },
             "recent_messages": tuple(model_messages),
+            **(
+                {
+                    "through_sequence": self.through_sequence,
+                    "recent_from_sequence": self.recent_from_sequence,
+                }
+                if self.through_sequence
+                or (
+                    self.recent_from_sequence is not None
+                    and self.recent_from_sequence > 1
+                )
+                else {}
+            ),
             "tool_observations": decision_observation_projection(
                 self.tool_observations,
                 {
@@ -1371,6 +1428,17 @@ class OpenJobSearchToolArguments(ContractModel):
     platform: Literal["boss"] = "boss"
     keyword: str = Field(min_length=1, max_length=100)
     city: str | None = Field(default=None, min_length=1, max_length=40)
+
+
+class ReadConversationSpanToolArguments(ContractModel):
+    from_sequence: int = Field(ge=1)
+    through_sequence: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def require_forward_span(self) -> "ReadConversationSpanToolArguments":
+        if self.from_sequence > self.through_sequence:
+            raise ValueError("from_sequence cannot exceed through_sequence")
+        return self
 
 
 class FindSavedJobsToolArguments(ContractModel):

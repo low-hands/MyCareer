@@ -2,37 +2,57 @@
   "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "c0f203d0264c7533db76118c6fd7983f59cb3d1b7ea34eeac9bbb2f1ec744a77",
-  "context_shape_fingerprint": "746ee12e8496a7ef711c1393e0ecaed7f3c57d4afdac9f058f165ee0f698be61",
-  "recorded_at": "2026-09-04T07:48:12.006626+00:00",
+  "prompt_fingerprint": "01642a0e5a5dcf30d41c66f6e0b36a4e1d56e985b804c486dd39af3e8eb83ee2",
+  "context_shape_fingerprint": "6b4ef535bac7651884ff29d06b27abb0645725ac1cf0019cea2426814000a0e5",
+  "recorded_at": "2026-09-06T09:51:33.111966+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法检索你保存过的 RAG 岗位。你可以稍后再试。\"}"
+      "tool_call": {
+        "name": "find_saved_jobs",
+        "arguments": {
+          "query": "RAG"
+        }
+      }
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-04T07:48:03.288995+00:00",
+      "recorded_at": "2026-09-06T09:54:42.263580+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法检索你保存过的 RAG 岗位。你可以稍后再试。\"}"
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-04T07:48:08.100055+00:00",
+      "recorded_at": "2026-09-06T09:51:29.478257+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法访问已保存岗位库，因此没能查到你保存过的 RAG 岗位。你可以稍后让我重试该查询。\"}"
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-04T07:48:12.006626+00:00",
+      "recorded_at": "2026-09-06T09:51:33.111966+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法找回你保存过的 RAG 岗位。\"}"
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          }
         }
       ]
     }

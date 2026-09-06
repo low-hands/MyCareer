@@ -21,7 +21,9 @@ from career_agent.harness.observability import (
     RunEvent,
     RunTrace,
     InMemoryTraceRecorder,
+    conversation_trace_key,
 )
+from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.security.redaction import redact_text
 from career_agent.storage.run_events import SQLiteTraceRecorder
 
@@ -110,6 +112,66 @@ def test_model_call_category_survives_sqlite_round_trip(tmp_path: Path) -> None:
 
     event = recorder.snapshot("run-1").events[0]
     assert event.model_call_category == "orchestrator_decision"
+
+
+def test_conversation_events_join_turns_without_crossing_users(tmp_path: Path) -> None:
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    key = conversation_trace_key("u1", "c1")
+    call_details = {
+        "conversation_id": "c1",
+        "conversation_key": key,
+        "tool_name": "find_saved_jobs",
+        "tool_arguments_fingerprint": tool_call_fingerprint(
+            "find_saved_jobs", {"query": "X"}
+        ),
+    }
+    recorder.record(
+        "turn-before",
+        "model_succeeded",
+        "main_agent_decide",
+        outcome="succeeded",
+        details=call_details,
+        model_call_category="orchestrator_decision",
+    )
+    recorder.record(
+        "other-user",
+        "context_compacted",
+        "conversation_summary",
+        outcome="succeeded",
+        details={
+            "conversation_id": "c1",
+            "conversation_key": conversation_trace_key("u2", "c1"),
+        },
+    )
+    recorder.record(
+        "turn-compact",
+        "context_compacted",
+        "conversation_summary",
+        outcome="succeeded",
+        details={"conversation_id": "c1", "conversation_key": key},
+    )
+    recorder.record(
+        "turn-after",
+        "model_succeeded",
+        "main_agent_decide",
+        outcome="succeeded",
+        details=call_details,
+        model_call_category="orchestrator_decision",
+    )
+    # Wall-clock precision is not a causal order. Force the collision that
+    # would sort "turn-after" before "turn-before" under a UUID/name tiebreak.
+    with sqlite3.connect(recorder.path) as connection:
+        connection.execute(
+            "UPDATE run_events SET occurred_at = '2026-09-06T09:00:00+00:00'"
+        )
+
+    events = recorder.list_conversation_events(user_id="u1", conversation_id="c1")
+
+    assert [event.run_id for event in events] == [
+        "turn-before",
+        "turn-compact",
+        "turn-after",
+    ]
 
 
 def test_v1_trace_store_is_upgraded_before_model_events_are_written(

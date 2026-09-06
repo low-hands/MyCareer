@@ -10,9 +10,11 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from pydantic import ValidationError
 
+from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
+from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
 from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, RuntimeAction
 from career_agent.cli import main as cli_main
@@ -47,6 +49,16 @@ class SequenceDecisionMaker:
         if not self.decisions:
             raise AssertionError("Main Agent requested more decisions than expected")
         return self.decisions.pop(0)
+
+
+class StaticSummaryWorker:
+    def summarize(self, *, previous, messages):
+        return ConversationSummaryContent(
+            user_goals=("保留会话连续性",),
+            confirmed_decisions=(),
+            unresolved_questions=(),
+            active_constraints=(),
+        )
 
 
 class CountingRegistry(MainAgentToolRegistry):
@@ -625,6 +637,8 @@ def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     assert [spec["function"]["name"] for spec in tools.schemas()] == [
         "open_job_search"
     ]
+    description = tools.schemas()[0]["function"]["description"]
+    assert "ask for the city instead of guessing or searching nationwide" in description
     assert result.tool_results[0].state == "job_search_page_ready"
     action = next(event for event in events if isinstance(event, ClientActionEvent))
     parsed = urlparse(action.url)
@@ -760,6 +774,268 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
     }
     serialized = str(observation)
     assert "zhipin.com" not in serialized
+
+
+def test_conversation_span_is_turn_local_observation_not_recent_history(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(
+        store,
+        recent_message_limit=2,
+        summary_batch_size=2,
+        summary_worker=StaticSummaryWorker(),
+        max_recent_context_chars=60,
+        compact_occupancy_threshold=0.7,
+    )
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    for index in range(3):
+        context = manager.load_for_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message=f"private-old-user-{index}",
+        )
+        manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"private-old-assistant-{index}",
+        )
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="read_conversation_span",
+                arguments={"from_sequence": 1, "through_sequence": 2},
+            ),
+        ),
+        AgentDecision(action="final", message="我已根据那段历史继续处理。"),
+    )
+    tools = CountingRegistry(conversation_store=store)
+    agent = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=tools,
+    )
+
+    agent.run_turn(
+        user_id="u1", conversation_id="c1", user_message="回看缺失的开头。"
+    )
+
+    assert decisions.contexts[0].through_sequence == 4
+    assert decisions.contexts[0].recent_from_sequence == 5
+    observation = decisions.contexts[1].tool_observations[-1]
+    assert observation.facts == {
+        "from_sequence": 1,
+        "through_sequence": 2,
+        "returned": 2,
+        "total": 2,
+        "body_clipped": False,
+        "content_clipped": False,
+    }
+    assert observation.body is not None
+    assert "private-old-user-0" in observation.body
+    assert "private-old-assistant-0" in observation.body
+    assert tools.calls == [
+        (
+            "read_conversation_span",
+            {
+                "user_id": "u1",
+                "conversation_id": "c1",
+                "from_sequence": 1,
+                "through_sequence": 2,
+            },
+        )
+    ]
+    recent = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    ).recent_messages
+    assert [message.content for message in recent] == [
+        "回看缺失的开头。",
+        "我已根据那段历史继续处理。",
+    ]
+    assert "private-old-user-0" not in str(recent)
+
+
+def test_conversation_span_tells_the_model_when_its_body_is_clipped(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    context = manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="u" * 5000,
+    )
+    manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="a" * 5000,
+    )
+    tools = MainAgentToolRegistry(conversation_store=store)
+
+    result = tools.invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "c1",
+            "from_sequence": 1,
+            "through_sequence": 2,
+        },
+    )
+    observation = MainAgentRuntime._tool_observation(
+        "read_conversation_span", result
+    )
+    projected = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        tool_observations=(observation,),
+        user_message="继续",
+    ).model_context()["tool_observations"][0]
+
+    assert result.facts["returned"] == result.facts["total"] == 2
+    assert result.facts["content_clipped"] is True
+    assert result.facts["body_clipped"] is True
+    assert all(len(item["content"]) == 4000 for item in result.payload["messages"])
+    assert observation.body is not None
+    assert len(observation.body) == DECISION_OBSERVATION_BODY_LIMIT
+    assert observation.body.endswith("…")
+    assert "不能视为完整回读" in observation.body
+    assert projected["facts"]["body_clipped"] is True
+
+
+def test_conversation_span_body_clipping_is_exact_at_the_observation_limit(
+    tmp_path,
+) -> None:
+    """The clip flag is measured on the unmarked render.
+
+    The warning sentence enters the presenter only after ``body_clipped`` is
+    True. Unmarked, the observation body is that same render: at 6000 it is
+    not warned and not clamped; at 6001 it is marked, then warned, then cut.
+    """
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+
+    def commit_pair(conversation_id: str, user: str, assistant: str) -> None:
+        context = manager.load_for_turn(
+            user_id="u1",
+            conversation_id=conversation_id,
+            user_message=user,
+        )
+        manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=assistant,
+        )
+
+    commit_pair("probe", "u", "a")
+    probe = store.read_conversation_span(
+        user_id="u1",
+        conversation_id="probe",
+        from_sequence=1,
+        through_sequence=2,
+    )
+    remaining = DECISION_OBSERVATION_BODY_LIMIT - len(
+        render_conversation_span(probe)
+    )
+    user_extra = min(3999, remaining)
+    assistant_extra = remaining - user_extra
+    assert 0 <= assistant_extra <= 3999
+
+    commit_pair("exact", "u" * (user_extra + 1), "a" * (assistant_extra + 1))
+    registry = MainAgentToolRegistry(conversation_store=store)
+    exact_span = store.read_conversation_span(
+        user_id="u1",
+        conversation_id="exact",
+        from_sequence=1,
+        through_sequence=2,
+    )
+    exact_predicted = render_conversation_span(exact_span)
+    exact = registry.invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "exact",
+            "from_sequence": 1,
+            "through_sequence": 2,
+        },
+    )
+    exact_observation = MainAgentRuntime._tool_observation(
+        "read_conversation_span", exact
+    )
+
+    assert len(exact_predicted) == DECISION_OBSERVATION_BODY_LIMIT
+    assert exact.facts["body_clipped"] is False
+    assert exact.facts["content_clipped"] is False
+    assert exact_observation.body == exact_predicted
+    assert "不能视为完整回读" not in exact_observation.body
+
+    commit_pair(
+        "over",
+        "u" * (user_extra + 1),
+        "a" * (assistant_extra + 2),
+    )
+    over_span = store.read_conversation_span(
+        user_id="u1",
+        conversation_id="over",
+        from_sequence=1,
+        through_sequence=2,
+    )
+    over_predicted = render_conversation_span(over_span)
+    over_marked = render_conversation_span(
+        over_span.model_copy(update={"body_clipped": True})
+    )
+    over = registry.invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "over",
+            "from_sequence": 1,
+            "through_sequence": 2,
+        },
+    )
+    over_observation = MainAgentRuntime._tool_observation(
+        "read_conversation_span", over
+    )
+
+    assert len(over_predicted) == DECISION_OBSERVATION_BODY_LIMIT + 1
+    assert over.facts["body_clipped"] is True
+    assert over.facts["content_clipped"] is False
+    assert "不能视为完整回读" not in over_predicted
+    assert "不能视为完整回读" in over_marked
+    assert over_observation.body == clamp(
+        over_marked, limit=DECISION_OBSERVATION_BODY_LIMIT
+    )
+    assert over_observation.body.endswith("…")
+
+
+def test_empty_conversation_span_does_not_substitute_a_nearby_message(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="nearest"
+    )
+    manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="also-nearby",
+    )
+
+    result = MainAgentToolRegistry(conversation_store=store).invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "c1",
+            "from_sequence": 100,
+            "through_sequence": 110,
+        },
+    )
+
+    assert result.state == "conversation_span_empty"
+    assert result.facts["returned"] == result.facts["total"] == 0
+    assert result.payload["messages"] == []
+    assert "nearest" not in result.model_dump_json()
 
 
 def test_repeated_tool_call_is_stopped_without_duplicate_execution(tmp_path) -> None:

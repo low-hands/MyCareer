@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from career_agent.agent.main_agent_contracts import ConversationTaskState
+from career_agent.agent.main_agent_contracts import MainAgentContext, ConversationTaskState
 
 Precondition = Callable[[ConversationTaskState], bool]
 
@@ -139,3 +139,16 @@ def reachable(name: str, task: ConversationTaskState) -> bool:
         return True
     precondition = PRECONDITIONS.get(name)
     return precondition(task) if precondition is not None else True
+
+
+def reachable_in_context(name: str, context: MainAgentContext) -> bool:
+    """Context-aware reachability for capabilities whose anchor is not task state."""
+    if name == "read_conversation_span":
+        return bool(
+            context.through_sequence
+            or (
+                context.recent_from_sequence is not None
+                and context.recent_from_sequence > 1
+            )
+        )
+    return reachable(name, context.task)

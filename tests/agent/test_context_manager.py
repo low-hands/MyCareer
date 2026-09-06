@@ -1,7 +1,14 @@
+import pytest
+
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationTaskState
+from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationResourceReference, ConversationTaskState
+from career_agent.harness.observability import (
+    ACTIVE_TRACE_CONTEXT,
+    InMemoryTraceRecorder,
+    conversation_trace_key,
+)
 from career_agent.storage.context import CareerContextStore
 
 
@@ -12,6 +19,7 @@ def manager(
     summary_worker=None,
     summary_batch_size: int = 2,
     max_recent_context_chars: int = 16000,
+    compact_occupancy_threshold: float = 0.75,
     compacted_message_warning_threshold: int = 200,
 ) -> ContextManager:
     return ContextManager(
@@ -21,6 +29,7 @@ def manager(
         summary_batch_size=summary_batch_size,
         max_message_chars=32,
         max_recent_context_chars=max_recent_context_chars,
+        compact_occupancy_threshold=compact_occupancy_threshold,
         compacted_message_warning_threshold=compacted_message_warning_threshold,
     )
 
@@ -44,6 +53,14 @@ class RecordingSummaryWorker:
         )
 
 
+@pytest.mark.parametrize("threshold", [0.69, 0.91])
+def test_compaction_occupancy_threshold_stays_in_the_measured_band(
+    tmp_path, threshold
+) -> None:
+    with pytest.raises(ValueError, match="between 0.7 and 0.9"):
+        manager(tmp_path, compact_occupancy_threshold=threshold)
+
+
 def test_loads_profile_preferences_task_and_bounded_history(tmp_path) -> None:
     context_manager = manager(tmp_path)
     context_manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
@@ -57,6 +74,10 @@ def test_loads_profile_preferences_task_and_bounded_history(tmp_path) -> None:
     assert loaded.preferences.boss_search == "allowed"
     assert loaded.task.run_id == "run-1"
     assert [message.content for message in loaded.recent_messages] == ["First message", "First response"]
+    assert loaded.through_sequence == 0
+    assert loaded.recent_from_sequence == 1
+    assert "through_sequence" not in loaded.model_context()
+    assert "recent_from_sequence" not in loaded.model_context()
     assert loaded.user_message == "Second message"
 
 
@@ -143,11 +164,47 @@ def test_messages_are_truncated_without_profile_mutation(tmp_path) -> None:
     assert loaded.profile.default_city == "Shanghai"
 
 
-def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
+def test_short_chat_below_occupancy_keeps_raw_messages_without_summary(
     tmp_path,
 ) -> None:
     worker = RecordingSummaryWorker()
     context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    for index in range(2):
+        context = context_manager.load_for_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message=f"user-{index}",
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    assert worker.calls == []
+    assert context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    ) is None
+    assert len(
+        context_manager._store.list_messages_after(
+            user_id="u1",
+            conversation_id="c1",
+            after_sequence=0,
+            limit=10,
+        )
+    ) == 4
+
+
+def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=worker,
+        max_recent_context_chars=60,
+    )
     for index in range(3):
         context = context_manager.load_for_turn(
             user_id="u1",
@@ -170,6 +227,10 @@ def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
     assert stored is not None
     assert stored.through_sequence == 2
     assert loaded.conversation_summary == stored.content
+    assert loaded.through_sequence == 2
+    assert loaded.recent_from_sequence == 3
+    assert loaded.model_context()["through_sequence"] == 2
+    assert loaded.model_context()["recent_from_sequence"] == 3
     assert [message.content for message in loaded.recent_messages] == [
         "user-1",
         "assistant-1",
@@ -187,6 +248,155 @@ def test_rolls_old_messages_into_structured_summary_and_keeps_recent_raw_window(
         limit=10,
     )
     assert [message.sequence for message in remaining] == [1, 2, 3, 4, 5, 6]
+
+
+def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=worker,
+        max_recent_context_chars=60,
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-1"))
+    try:
+        for index in range(2):
+            context = context_manager.load_for_turn(
+                user_id="u1",
+                conversation_id="c1",
+                user_message=f"user-{index}",
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message="a" * 20,
+            )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    compacted = [
+        event
+        for event in recorder.snapshot("turn-1").events
+        if event.event_type == "context_compacted"
+    ]
+    assert len(compacted) == 1
+    assert compacted[0].details == {
+        "conversation_id": "c1",
+        "conversation_key": conversation_trace_key("u1", "c1"),
+        "trigger": "occupancy",
+        "through_sequence": 2,
+        "occupancy": 52 / 60,
+        "projection_overflow": False,
+        "batch_size": 2,
+    }
+
+
+def test_default_short_chat_compacts_when_unsummarized_rows_leave_projection(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=worker,
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-1"))
+    try:
+        for _ in range(6):
+            context = context_manager.load_for_turn(
+                user_id="u1",
+                conversation_id="c1",
+                user_message="ok",
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message="ok",
+            )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.through_sequence == 4
+    compacted = [
+        event
+        for event in recorder.snapshot("turn-1").events
+        if event.event_type == "context_compacted"
+    ]
+    assert compacted[-1].details["trigger"] == "projection_overflow"
+    assert compacted[-1].details["projection_overflow"] is True
+    assert compacted[-1].details["occupancy"] < 0.01
+
+
+def test_workflow_exit_compacts_at_a_low_occupancy_seam(tmp_path) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    entry_context = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="开始模拟面试",
+    )
+    held = context_manager.commit_workflow_entry(
+        context=entry_context,
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+            phase="mock_interview_answer_required",
+        ),
+    )
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=held,
+    )
+
+    context_manager.commit_workflow_exit(
+        context=workflow_context,
+        task=ConversationTaskState(),
+        assistant_message="模拟面试已完成。",
+    )
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.through_sequence == 2
+    assert len(worker.calls) == 1
+
+
+def test_report_delivery_does_not_create_a_low_occupancy_seam(tmp_path) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    context = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="研究这个岗位",
+    )
+
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="岗位调研报告已生成。",
+        assistant_resource_refs=(
+            ConversationResourceReference(
+                kind="job_research_report",
+                resource_id="report-1",
+                status_at_delivery="current",
+                anchored_by_other_job=False,
+            ),
+        ),
+    )
+
+    assert worker.calls == []
+    assert context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    ) is None
 
 
 def test_a_conversation_without_a_summary_worker_still_keeps_every_message(
@@ -228,7 +438,12 @@ def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -
     able to decide instead.
     """
     worker = RecordingSummaryWorker()
-    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=worker,
+        max_recent_context_chars=32,
+    )
     window_sizes = []
     for index in range(40):
         context = context_manager.load_for_turn(
@@ -267,8 +482,6 @@ def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -
         user_id="u1", conversation_id="c1", user_message="next"
     )
     assert [message.content for message in loaded.recent_messages] == [
-        "user-38",
-        "assistant-38",
         "user-39",
         "assistant-39",
     ]
@@ -276,7 +489,12 @@ def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -
 
 def test_rolling_summary_merges_previous_summary_and_is_session_scoped(tmp_path) -> None:
     worker = RecordingSummaryWorker()
-    context_manager = manager(tmp_path, limit=2, summary_worker=worker)
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=worker,
+        max_recent_context_chars=32,
+    )
     for index in range(3):
         context = context_manager.load_for_turn(
             user_id="u1", conversation_id="c1", user_message=f"user-{index}"
@@ -318,6 +536,7 @@ def test_summary_worker_failure_preserves_recent_conversation(tmp_path) -> None:
         tmp_path,
         limit=2,
         summary_worker=FailingSummaryWorker(),
+        max_recent_context_chars=32,
     )
     for index in range(2):
         context = context_manager.load_for_turn(
@@ -360,6 +579,51 @@ def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> Non
     )
     assert sum(len(message.content) for message in loaded.recent_messages) == 40
     assert loaded.recent_messages[-1].content == "y" * 20
+    assert loaded.through_sequence == 0
+    assert loaded.recent_from_sequence == 3
+
+
+def test_conversation_span_is_exact_owned_bounded_and_reports_full_count(
+    tmp_path,
+) -> None:
+    context_manager = manager(tmp_path, limit=4)
+    for index in range(15):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+    other = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c2", user_message="other-conversation"
+    )
+    context_manager.commit_turn(
+        context=other,
+        task=ConversationTaskState(),
+        assistant_message="other-answer",
+    )
+
+    span = context_manager._store.read_conversation_span(
+        user_id="u1",
+        conversation_id="c1",
+        from_sequence=1,
+        through_sequence=30,
+    )
+    outside = context_manager._store.read_conversation_span(
+        user_id="u1",
+        conversation_id="c1",
+        from_sequence=100,
+        through_sequence=110,
+    )
+
+    assert span.returned == 8
+    assert span.total == 30
+    assert [message.sequence for message in span.messages] == list(range(1, 9))
+    assert all("other" not in message.content for message in span.messages)
+    assert outside.returned == outside.total == 0
+    assert outside.messages == ()
 
 
 def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None:
@@ -370,7 +634,7 @@ def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None
         recent_message_limit=2,
         summary_batch_size=2,
         max_message_chars=32000,
-        max_recent_context_chars=32000,
+        max_recent_context_chars=10000,
     )
     context = context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="u" * 8000
