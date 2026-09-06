@@ -17,12 +17,17 @@ from pathlib import Path
 import sqlite3
 
 from career_agent.harness.observability import (
+    ACTIVE_TRACE_CONTEXT,
     EventType,
     RunEvent,
     RunTrace,
     InMemoryTraceRecorder,
     conversation_trace_key,
 )
+from career_agent.domain.memory_scope import ScopeProposal
+from career_agent.services.canonical_scope import CanonicalScopeResolver
+from career_agent.services.memory_scope import MemoryScopeWriteGate
+from career_agent.storage.scope_resolution import SQLiteScopeResolutionStore
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.security.redaction import redact_text
 from career_agent.storage.run_events import SQLiteTraceRecorder
@@ -172,6 +177,61 @@ def test_conversation_events_join_turns_without_crossing_users(tmp_path: Path) -
         "turn-compact",
         "turn-after",
     ]
+
+
+def test_memory_events_require_the_join_key_on_each_producer(tmp_path: Path) -> None:
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    gate = MemoryScopeWriteGate(
+        CanonicalScopeResolver(),
+        SQLiteScopeResolutionStore(tmp_path / "context.sqlite3"),
+    )
+    proposal = ScopeProposal(
+        user_id="u1",
+        conversation_id="c1",
+        family="person_intent",
+        subject_id="self",
+        relation="default_city",
+        proposed_value="杭州",
+        source_kind="job_intent",
+        source_id="self:default_city",
+    )
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-1"))
+    try:
+        scope = gate.require(proposal)
+        gate.record_committed(((scope, "杭州"),), proposals=(proposal,))
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    key = conversation_trace_key("u1", "c1")
+    recorder.record(
+        "turn-1",
+        "memory_context_observed",
+        "main_agent_decide",
+        details={"conversation_key": key},
+    )
+    recorder.record(
+        "turn-1",
+        "memory_use_observed",
+        "main_agent_decide",
+        details={"conversation_key": key},
+    )
+    # Sharing a run id is insufficient. A producer that omits the key must be
+    # excluded so the missing instrumentation cannot be hidden by another event.
+    recorder.record(
+        "turn-1",
+        "memory_scope_unresolved",
+        "memory_scope",
+        details={"binding_profile": "p2"},
+    )
+
+    events = recorder.list_memory_events(user_id="u1", conversation_id="c1")
+
+    assert [event.event_type for event in events] == [
+        "memory_scope_resolved",
+        "memory_write_observed",
+        "memory_context_observed",
+        "memory_use_observed",
+    ]
+    assert all(event.details["conversation_key"] == key for event in events)
 
 
 def test_v1_trace_store_is_upgraded_before_model_events_are_written(

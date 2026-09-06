@@ -55,6 +55,9 @@ from career_agent.services.resume_import import (
     validate_resume_document,
 )
 from career_agent.services.resume_tailoring import ResumeTailoringService
+from career_agent.services.canonical_scope import CanonicalScopeResolver
+from career_agent.services.episode_reconciliation import EpisodeReconciler
+from career_agent.services.memory_scope import MemoryScopeWriteGate
 from career_agent.storage.api_keys import (
     DEFAULT_EXPIRY_DAYS,
     KNOWN_SCOPES,
@@ -67,6 +70,7 @@ from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
+from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
 from career_agent.storage.job_research import SQLiteJobResearchStore
@@ -75,6 +79,7 @@ from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
+from career_agent.storage.scope_resolution import SQLiteScopeResolutionStore
 from career_agent.storage.capability_confirmations import (
     CapabilityConfirmationSettledError,
     SQLiteCapabilityConfirmationStore,
@@ -100,6 +105,10 @@ EXIT_UNKNOWN_ERROR = 6
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
     context_store = CareerContextStore(Path(args.context_store).expanduser())
+    memory_scope_write_gate = MemoryScopeWriteGate(
+        CanonicalScopeResolver(),
+        SQLiteScopeResolutionStore(Path(args.context_store).expanduser()),
+    )
     context_manager = ContextManager(
         context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
@@ -113,13 +122,19 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
     job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
     match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
+    application_store = SQLiteApplicationStore(
+        Path(args.application_store).expanduser()
+    )
     application_service = ApplicationService(
-        SQLiteApplicationStore(Path(args.application_store).expanduser()),
+        application_store,
         job_repository,
         resume_store,
     )
+    interview_store = SQLiteInterviewStore(
+        Path(args.application_store).expanduser()
+    )
     interview_service = InterviewService(
-        SQLiteInterviewStore(Path(args.application_store).expanduser()),
+        interview_store,
         application_service,
     )
     connector_secrets = KeyringConnectorSecretStore()
@@ -161,9 +176,12 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     job_research_checkpoint_owner = SQLiteCheckpointOwner(
         Path(args.job_research_checkpoint_store).expanduser()
     )
+    job_research_store = SQLiteJobResearchStore(
+        Path(args.job_research_store).expanduser()
+    )
     job_research_service = JobResearchService(
         jobs=job_repository,
-        store=SQLiteJobResearchStore(Path(args.job_research_store).expanduser()),
+        store=job_research_store,
         worker=DeepAgentJobResearchWorker(
             resume_analysis_config,
             skills_root=Path(args.job_research_skills_dir),
@@ -193,6 +211,15 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     )
     return MainAgentRuntime(
         context_manager=context_manager,
+        episode_reconciler=EpisodeReconciler(
+            episodes=SQLiteCareerEpisodeStore(
+                Path(args.context_store).expanduser()
+            ),
+            applications=application_store,
+            interviews=interview_store,
+            mock_interviews=mock_interview_store,
+            job_research=job_research_store,
+        ),
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
         career_context_projector=CareerContextProjector(career_history_store),
         trace_recorder=SQLiteTraceRecorder(Path(args.run_events_store).expanduser()),
@@ -231,6 +258,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
             career_profile_store=context_store,
+            memory_scope_write_gate=memory_scope_write_gate,
             owner_settings_store=context_store,
             conversation_store=context_store,
             resume_job_match_service=ResumeJobMatchService(

@@ -145,6 +145,39 @@ class SQLiteTraceRecorder:
             ).fetchall()
         return tuple(self._event(row) for row in rows)
 
+    def list_memory_events(
+        self, *, user_id: str, conversation_id: str
+    ) -> tuple[RunEvent, ...]:
+        """Read P2 memory observations without claiming version comparability.
+
+        Every conversation-scoped producer must carry the same pseudonymous join
+        key. Filtering each event directly makes a missing producer key visible
+        in tests instead of letting an unrelated keyed event admit the whole run.
+        """
+
+        key = conversation_trace_key(user_id, conversation_id)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT run_id, sequence, event_type, stage, attempt, occurred_at,
+                       duration_ms, outcome, details_json, error_code,
+                       error_detail, recoverable, model_call_category
+                FROM run_events
+                WHERE event_type IN (
+                    'memory_scope_resolved',
+                    'memory_scope_unresolved',
+                    'memory_scope_transition',
+                    'memory_write_observed',
+                    'memory_context_observed',
+                    'memory_use_observed'
+                )
+                  AND json_extract(details_json, '$.conversation_key') = ?
+                ORDER BY occurred_at, rowid
+                """,
+                (key,),
+            ).fetchall()
+        return tuple(self._event(row) for row in rows)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")

@@ -350,6 +350,14 @@ def test_report_must_be_grounded_in_evaluated_answers(tmp_path) -> None:
     completed, stored = store.complete(session=active, report=report(1))
     assert completed.status == "completed" and completed.completed_at is not None
     assert store.get_report(user_id="u1", session_id=active.id) == stored
+    assert store.list_reports(
+        user_id="u1",
+        session_ids=("missing", active.id, active.id),
+    ) == (stored,)
+    assert store.list_reports(
+        user_id="u2",
+        session_ids=(active.id,),
+    ) == ()
     assert store.find_resumable(user_id="u1") is None
 
     fresh = create_session(store)

@@ -2011,6 +2011,7 @@ def project_job_intent_arguments(
         )
     return {
         "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
         "update": pending,
         "current": context.profile,
     }

@@ -514,6 +514,38 @@ class SQLiteMockInterviewStore:
             ).fetchone()
         return MockInterviewReport.model_validate_json(row[0]) if row else None
 
+    def list_reports(
+        self,
+        *,
+        user_id: str,
+        session_ids: tuple[str, ...],
+    ) -> tuple[MockInterviewReport, ...]:
+        """Read reconciliation reports in bounded batches, not one per session."""
+
+        ordered_ids = tuple(dict.fromkeys(session_ids))
+        if not ordered_ids:
+            return ()
+        reports_by_session: dict[str, MockInterviewReport] = {}
+        with self._connect() as connection:
+            for offset in range(0, len(ordered_ids), 500):
+                batch = ordered_ids[offset : offset + 500]
+                placeholders = ",".join("?" for _ in batch)
+                rows = connection.execute(
+                    "SELECT session_id, report_json "
+                    "FROM mock_interview_reports "
+                    f"WHERE user_id = ? AND session_id IN ({placeholders})",
+                    (user_id, *batch),
+                ).fetchall()
+                for session_id, payload in rows:
+                    reports_by_session[session_id] = (
+                        MockInterviewReport.model_validate_json(payload)
+                    )
+        return tuple(
+            reports_by_session[session_id]
+            for session_id in ordered_ids
+            if session_id in reports_by_session
+        )
+
     def find_report_session_id(
         self, *, user_id: str, report_id: str
     ) -> str | None:

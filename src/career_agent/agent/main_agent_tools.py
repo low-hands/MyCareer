@@ -177,6 +177,9 @@ from career_agent.services.job_comparison import (
 )
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
+from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
+from career_agent.services.canonical_scope import CanonicalScopeResolver
+from career_agent.services.memory_scope import MemoryScopeWriteGate
 
 
 MainAgentToolOutput = ToolObservation
@@ -234,6 +237,7 @@ class MainAgentToolRegistry:
         job_research_service: JobResearchService | None = None,
         owner_settings_store: CareerContextStore | None = None,
         conversation_store: CareerContextStore | None = None,
+        memory_scope_write_gate: MemoryScopeWriteGate | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -276,6 +280,8 @@ class MainAgentToolRegistry:
         self._job_research_service = job_research_service
         self._owner_settings_store = owner_settings_store
         self._conversation_store = conversation_store
+        self._memory_scope_write_gate = memory_scope_write_gate
+        self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
                 self._read_conversation_span
@@ -3443,6 +3449,14 @@ class MainAgentToolRegistry:
             raise ValueError("Career profile store is not configured")
         user_id = str(arguments["user_id"])
         update: JobIntentUpdate = arguments["update"]
+        conversation_id = arguments.get("conversation_id")
+        admitted_scopes, admitted_proposals = self._admit_job_intent_scopes(
+            user_id=user_id,
+            conversation_id=(
+                str(conversation_id) if conversation_id is not None else None
+            ),
+            update=update,
+        )
         if update.is_role_scoped:
             if self._resume_store is None:
                 raise ValueError("Resume store is not configured")
@@ -3453,6 +3467,9 @@ class MainAgentToolRegistry:
                 salary_expectation=update.salary_expectation,
                 experience=update.experience,
                 education=update.education,
+            )
+            MemoryScopeWriteGate.record_committed(
+                admitted_scopes, proposals=admitted_proposals
             )
             return ToolObservation(
                 tool_name="confirm_job_intent",
@@ -3468,6 +3485,9 @@ class MainAgentToolRegistry:
         )
         updated = update.apply_to_profile(stored)
         self._career_profile_store.upsert_profile(updated)
+        MemoryScopeWriteGate.record_committed(
+            admitted_scopes, proposals=admitted_proposals
+        )
         return ToolObservation(
             tool_name="confirm_job_intent",
             state="job_intent_recorded",
@@ -3475,6 +3495,50 @@ class MainAgentToolRegistry:
             payload={"profile": updated.model_dump(mode="json")},
             execution_outcome="committed",
         )
+
+    def _admit_job_intent_scopes(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str | None,
+        update: JobIntentUpdate,
+    ) -> tuple[
+        tuple[tuple[CanonicalScope, str], ...], tuple[ScopeProposal, ...]
+    ]:
+        values = update.model_dump(exclude_none=True)
+        values.pop("target_role_id", None)
+        family = "target_role_intent" if update.is_role_scoped else "person_intent"
+        subject_id = str(update.target_role_id) if update.is_role_scoped else "self"
+        admitted: list[tuple[CanonicalScope, str]] = []
+        proposals: list[ScopeProposal] = []
+        for field, value in values.items():
+            relation = (
+                "default_city"
+                if family == "person_intent" and field == "city"
+                else field
+            )
+            proposal = ScopeProposal(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                family=family,
+                subject_id=subject_id,
+                relation=relation,
+                proposed_value=str(value),
+                source_kind="job_intent",
+                source_id=f"{subject_id}:{relation}",
+            )
+            proposals.append(proposal)
+            if self._memory_scope_write_gate is not None:
+                scope = self._memory_scope_write_gate.require(proposal)
+            else:
+                resolution = self._canonical_scope_resolver.resolve(proposal)
+                if resolution.canonical_scope is None:
+                    raise ValueError(
+                        "Job intent cannot be written without a canonical scope."
+                    )
+                scope = resolution.canonical_scope
+            admitted.append((scope, str(value)))
+        return tuple(admitted), tuple(proposals)
 
     _JOB_INTENT_LABELS = {
         "city": "城市",

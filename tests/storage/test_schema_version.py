@@ -83,6 +83,8 @@ DECLARED_VERSIONS = {
     "job_postings": 2,
     "job_research": 2,
     "run_events": 2,
+    "memory_scope": 2,
+    "career_episodes": 3,
 }
 
 
