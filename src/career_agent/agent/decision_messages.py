@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import secrets
 from typing import Any
 
 from career_agent.agent.main_agent_contracts import MainAgentContext
@@ -85,9 +84,11 @@ class DecisionMessageProjection:
         self,
         *,
         system_prompt: str,
-        spotlight_nonce: str | None = None,
+        spotlight_nonce: str,
     ) -> tuple[dict[str, Any], ...]:
-        nonce = spotlight_nonce or secrets.token_hex(16)
+        nonce = spotlight_nonce
+        if not nonce:
+            raise ValueError("spotlight_nonce is required")
         control_json = json.dumps(
             self.control, ensure_ascii=False, sort_keys=True
         )
@@ -97,6 +98,7 @@ class DecisionMessageProjection:
                 "role": "system",
                 "content": system_prompt,
             },
+            *self.recent_messages,
             {
                 "role": "user",
                 "content": (
@@ -113,7 +115,6 @@ class DecisionMessageProjection:
                     + _spotlight(data_json, nonce=nonce)
                 ),
             },
-            *self.recent_messages,
             {"role": "user", "content": self.current_user_message},
         ]
         for index, observation in enumerate(self.turn_observations, start=1):
@@ -226,6 +227,8 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     recent_messages = []
     for message in context.recent_messages:
         content = message.content
+        if message.content_clipped:
+            content += "\n\n[runtime message metadata: content_clipped=true]"
         if message.resource_refs:
             footer = [
                 "[runtime resources: "
@@ -245,9 +248,12 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
 
 
 def assemble_decision_messages(
-    context: MainAgentContext, *, system_prompt: str
+    context: MainAgentContext, *, system_prompt: str, spotlight_nonce: str
 ) -> tuple[dict[str, str], ...]:
-    return project_decision_messages(context).messages(system_prompt=system_prompt)
+    return project_decision_messages(context).messages(
+        system_prompt=system_prompt,
+        spotlight_nonce=spotlight_nonce,
+    )
 
 
 def decision_context_chars(context: MainAgentContext) -> int:

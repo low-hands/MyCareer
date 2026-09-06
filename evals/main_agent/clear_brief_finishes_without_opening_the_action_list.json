@@ -2,21 +2,21 @@
   "scenario": "clear_brief_finishes_without_opening_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "01642a0e5a5dcf30d41c66f6e0b36a4e1d56e985b804c486dd39af3e8eb83ee2",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
   "context_shape_fingerprint": "65f47512226982e4c4d143678f1bfca53a4843264411a83ae3b7ad61d2cf0e22",
-  "recorded_at": "2026-09-06T09:50:47.106413+00:00",
+  "recorded_at": "2026-09-06T15:16:14.287497+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"简报中没有逾期事项，结束本次处理。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"简报显示没有逾期事项，已结束。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:50:47.106413+00:00",
+      "recorded_at": "2026-09-06T15:16:14.287497+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"简报中没有逾期事项，结束本次处理。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"简报显示没有逾期事项，已结束。\"}"
         }
       ]
     }

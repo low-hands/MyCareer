@@ -2,15 +2,16 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "d873558d356f975ff36875f449bf92ae8385754af383f9c26c4f711d549b4c55",
-  "context_shape_fingerprint": "49dcfafd4e19dc917feebb667161473e1405411ed3f4591967f206b0f9e270c8",
-  "recorded_at": "2026-09-06T09:55:32.231808+00:00",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "context_shape_fingerprint": "9896dbc394527be96a9e5894632f9f2334b5d761d16c0be178206b2f4c97dbab",
+  "recorded_at": "2026-09-06T15:18:31.216648+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
           "from_sequence": 1,
+          "query": "目标公司 公司 美团 全名 指定",
           "through_sequence": 8
         }
       }
@@ -19,13 +20,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:53:37.703530+00:00",
+      "recorded_at": "2026-09-06T15:18:05.195941+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
               "from_sequence": 1,
+              "query": "目标公司 公司 美团 全名 指定",
               "through_sequence": 8
             }
           }
@@ -33,28 +35,30 @@
       ]
     },
     {
-      "recorded_at": "2026-09-06T09:53:42.899923+00:00",
+      "recorded_at": "2026-09-06T15:18:08.149047+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
               "from_sequence": 1,
-              "through_sequence": 8
+              "through_sequence": 8,
+              "query": "目标公司 公司名 美团 算法工程师"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T09:55:32.231808+00:00",
+      "recorded_at": "2026-09-06T15:18:31.216648+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
               "from_sequence": 1,
-              "through_sequence": 8
+              "through_sequence": 8,
+              "query": "目标公司 公司全名 美团"
             }
           }
         }

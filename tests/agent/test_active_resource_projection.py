@@ -99,6 +99,6 @@ def test_the_prompt_tells_the_model_these_flags_are_the_only_signal() -> None:
         OpenAICompatibleMainAgentDecisionMaker,
     )
 
-    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(("a",))
+    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
     assert "has_active_*" in prompt
     assert "active_calendar_proposal_expires_at" in prompt

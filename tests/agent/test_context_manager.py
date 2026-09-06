@@ -81,6 +81,21 @@ def test_loads_profile_preferences_task_and_bounded_history(tmp_path) -> None:
     assert loaded.user_message == "Second message"
 
 
+def test_spotlight_nonce_is_stable_for_the_durable_session(tmp_path) -> None:
+    first = manager(tmp_path).load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="first"
+    )
+    rebuilt = manager(tmp_path).load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="second"
+    )
+    other = manager(tmp_path).load_for_turn(
+        user_id="u1", conversation_id="c2", user_message="other"
+    )
+
+    assert first.spotlight_nonce == rebuilt.spotlight_nonce
+    assert first.spotlight_nonce != other.spotlight_nonce
+
+
 def test_workflow_turn_updates_routing_without_loading_or_writing_main_memory(
     tmp_path,
 ) -> None:
@@ -290,8 +305,163 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "through_sequence": 2,
         "occupancy": 52 / 60,
         "projection_overflow": False,
+        "input_occupancy_numerator": None,
+        "input_occupancy_denominator": None,
+        "restored_constraints": 0,
+        "dropped_constraints": 0,
+        "omitted_active_constraint_count": 0,
         "batch_size": 2,
     }
+
+
+def test_complete_request_pressure_can_exceed_one_and_trigger_compaction(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=4,
+        summary_worker=worker,
+        max_recent_context_chars=16000,
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (3000, 1000)
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-token-pressure"))
+    try:
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="short"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message="short",
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert len(worker.calls) == 1
+    event = next(
+        event
+        for event in recorder.snapshot("turn-token-pressure").events
+        if event.event_type == "context_compacted"
+    )
+    assert event.details["occupancy"] == 3.0
+    assert event.details["input_occupancy_numerator"] == 3000
+    assert event.details["input_occupancy_denominator"] == 1000
+
+
+def test_static_request_over_half_the_input_budget_fails_during_wiring(
+    tmp_path,
+) -> None:
+    context_manager = manager(tmp_path)
+
+    with pytest.raises(ValueError, match="more than 50%"):
+        context_manager.configure_request_token_estimator(
+            lambda context: (8000, 10000),
+            static_input_tokens=5001,
+            max_input_tokens=10000,
+        )
+
+
+def test_normal_turns_catch_up_a_preexisting_summary_backlog(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(10):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        recent_message_limit=4,
+        summary_batch_size=4,
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (1000, 1000)
+    )
+    for index in range(3):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"new-{index}"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"answer-{index}",
+        )
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    total_messages = context_manager._store.list_messages_after(
+        user_id="u1", conversation_id="c1", after_sequence=0, limit=100
+    )
+    assert len(worker.calls) == 6
+    assert len(total_messages) - summary.through_sequence == 2
+
+
+def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
+    tmp_path,
+) -> None:
+    path = tmp_path / "bounded-backlog.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(10):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        recent_message_limit=4,
+        summary_batch_size=4,
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (1000, 1000)
+    )
+
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="first"
+    )
+    first = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert first is not None
+    assert first.through_sequence == 4
+    assert len(worker.calls) == 1
+    occupancy, projection_overflow, _, _ = context_manager._recent_pressure(
+        user_id="u1",
+        conversation_id="c1",
+        after_sequence=first.through_sequence,
+        user_message="probe",
+    )
+    assert occupancy == 1.0
+    assert projection_overflow is True
+
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="second"
+    )
+    second = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert second is not None
+    assert second.through_sequence == 8
+    assert len(worker.calls) == 2
 
 
 def test_default_short_chat_compacts_when_unsummarized_rows_leave_projection(
@@ -367,6 +537,36 @@ def test_workflow_exit_compacts_at_a_low_occupancy_seam(tmp_path) -> None:
     )
     assert summary is not None
     assert summary.through_sequence == 2
+    assert len(worker.calls) == 1
+
+
+def test_one_seam_never_runs_a_synchronous_summary_loop(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=20)
+    for index in range(5):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        recent_message_limit=4,
+        summary_batch_size=2,
+    )
+
+    context_manager._maybe_summarize(
+        user_id="u1",
+        conversation_id="c1",
+        trigger="seam",
+        user_message="continue",
+    )
+
     assert len(worker.calls) == 1
 
 
@@ -578,9 +778,40 @@ def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> Non
         user_id="u1", conversation_id="c1", user_message="next"
     )
     assert sum(len(message.content) for message in loaded.recent_messages) == 40
-    assert loaded.recent_messages[-1].content == "y" * 20
+    assert loaded.recent_messages[-1].content == "y" * 10
+    assert loaded.recent_messages[-1].content_clipped is True
     assert loaded.through_sequence == 0
-    assert loaded.recent_from_sequence == 3
+    assert loaded.recent_from_sequence == 1
+
+
+def test_recent_window_clears_only_older_exact_large_body_duplicates(tmp_path) -> None:
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        recent_message_limit=4,
+        max_message_chars=2000,
+        max_recent_context_chars=4000,
+    )
+    repeated = "JD body " * 100
+    for _ in range(2):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=repeated
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message="ack",
+        )
+
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="continue"
+    )
+
+    assert loaded.recent_messages[0].content.startswith("[duplicate content omitted")
+    assert loaded.recent_messages[2].content == repeated
+    stored = context_manager._store.list_messages(
+        "u1", "c1", limit=10
+    )
+    assert stored[0].content == stored[2].content == repeated
 
 
 def test_conversation_span_is_exact_owned_bounded_and_reports_full_count(
@@ -624,6 +855,139 @@ def test_conversation_span_is_exact_owned_bounded_and_reports_full_count(
     assert all("other" not in message.content for message in span.messages)
     assert outside.returned == outside.total == 0
     assert outside.messages == ()
+
+
+def test_long_conversation_span_can_page_in_by_content_without_blind_scanning(
+    tmp_path,
+) -> None:
+    context_manager = manager(tmp_path, limit=4)
+    for index in range(60):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"ordinary-{index}"
+        )
+        answer = (
+            "目标公司是星海科技，请记住。"
+            if index == 52
+            else f"assistant-{index}"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=answer,
+        )
+
+    span = context_manager._store.read_conversation_span(
+        user_id="u1",
+        conversation_id="c1",
+        from_sequence=1,
+        through_sequence=120,
+        query="目标公司",
+    )
+
+    assert span.returned == span.total == 1
+    assert span.messages[0].sequence == 106
+    assert "星海科技" in span.messages[0].content
+
+
+class DroppingConstraintWorker(RecordingSummaryWorker):
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        return ConversationSummaryContent(
+            user_goals=(f"through-{messages[-1].sequence}",),
+            active_constraints=(
+                ("Never send automatically",) if previous is None else ()
+            ),
+        )
+
+
+def test_incremental_summary_cannot_silently_drop_active_constraints(tmp_path) -> None:
+    worker = DroppingConstraintWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=worker,
+        max_recent_context_chars=32,
+    )
+    for index in range(3):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.content.active_constraints == ("Never send automatically",)
+
+
+class OverflowingConstraintWorker(RecordingSummaryWorker):
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        if previous is None:
+            return ConversationSummaryContent(
+                active_constraints=tuple(
+                    f"{index:02d}" + ("x" * 498) for index in range(12)
+                )
+            )
+        return ConversationSummaryContent(
+            active_constraints=("new-one", "new-two", "new-three")
+        )
+
+
+def test_constraint_truncation_is_counted_in_compaction_trace(tmp_path) -> None:
+    worker = OverflowingConstraintWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=worker,
+        max_recent_context_chars=32,
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-constraints"))
+    try:
+        for index in range(3):
+            context = context_manager.load_for_turn(
+                user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message=f"assistant-{index}",
+            )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    compacted = [
+        event
+        for event in recorder.snapshot("turn-constraints").events
+        if event.event_type == "context_compacted"
+    ]
+    assert compacted[-1].details["dropped_constraints"] == 3
+    assert compacted[-1].details["restored_constraints"] == 12
+    omitted_count = sum(
+        event.details["dropped_constraints"] for event in compacted
+    )
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.content.omitted_active_constraint_count == omitted_count
+    assert (
+        compacted[-1].details["omitted_active_constraint_count"]
+        == omitted_count
+    )
+    projected = context_manager._build_context(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    ).model_context()
+    assert (
+        projected["conversation_summary"]["omitted_active_constraint_count"]
+        == omitted_count
+    )
 
 
 def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None:

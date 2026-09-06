@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "01642a0e5a5dcf30d41c66f6e0b36a4e1d56e985b804c486dd39af3e8eb83ee2",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
   "context_shape_fingerprint": "7e6d9735f5042f4d3b005e494e92ba139773ec2868e80ecac5b2f09c9a3ff639",
-  "recorded_at": "2026-09-06T09:55:22.532963+00:00",
+  "recorded_at": "2026-09-06T15:14:17.663244+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找工作？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的职位（例如：产品经理、Java开发、数据分析师）和工作城市；如果有偏好的薪资范围或经验要求，也可以一并说明。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:55:22.532963+00:00",
+      "recorded_at": "2026-09-06T15:14:17.663244+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找工作？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的职位（例如：产品经理、Java开发、数据分析师）和工作城市；如果有偏好的薪资范围或经验要求，也可以一并说明。\"}"
         }
       ]
     }

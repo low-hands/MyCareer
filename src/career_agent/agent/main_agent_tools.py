@@ -94,7 +94,6 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.tool_reachability import reachable_in_context
 from career_agent.agent.tool_effects import effect_for
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
@@ -573,7 +572,7 @@ class MainAgentToolRegistry:
             return "atomic_tool"
         raise ValueError(f"Unknown main-agent capability: {name}")
 
-    def schemas(self, context: MainAgentContext | None = None) -> tuple[dict[str, Any], ...]:
+    def schemas(self) -> tuple[dict[str, Any], ...]:
         schemas = []
         if self._conversation_store is not None:
             schemas.append(
@@ -586,8 +585,11 @@ class MainAgentToolRegistry:
                             "covered by conversation_summary, and recent_from_sequence "
                             "is the first raw recent message. Read an exact inclusive "
                             "sequence span from this same conversation only when those "
-                            "boundaries leave a relevant gap. Returns at most 8 oldest matching "
-                            "messages, clips each at 4000 characters, and reports "
+                            "boundaries leave a relevant gap. For long gaps, pass focused "
+                            "query terms to search message content instead of walking spans "
+                            "eight rows at a time. Without query it returns the oldest rows "
+                            "in the exact span. Returns at most 8 matching messages, clips "
+                            "each at 4000 characters, and reports "
                             "returned/total plus clipping honestly. It never "
                             "searches another conversation or substitutes nearby rows "
                             "when the requested span is empty."
@@ -1206,12 +1208,10 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
-        if context is not None:
-            schemas = [
-                schema
-                for schema in schemas
-                if reachable_in_context(schema["function"]["name"], context)
-            ]
+        # Keep the model-facing tool prefix byte-stable across task-state
+        # changes. Runtime projection below remains the capability boundary:
+        # an unmet precondition produces a bounded soft refusal instead of
+        # making the schema array churn from one turn to the next.
         return tuple(self._decision_tool_schema(schema) for schema in schemas)
 
     @staticmethod
@@ -4123,12 +4123,15 @@ class MainAgentToolRegistry:
                 if key not in {"user_id", "conversation_id"}
             }
         )
-        span = self._conversation_store.read_conversation_span(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            from_sequence=model_arguments.from_sequence,
-            through_sequence=model_arguments.through_sequence,
-        )
+        span_arguments = {
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "from_sequence": model_arguments.from_sequence,
+            "through_sequence": model_arguments.through_sequence,
+        }
+        if model_arguments.query is not None:
+            span_arguments["query"] = model_arguments.query
+        span = self._conversation_store.read_conversation_span(**span_arguments)
         body_clipped = (
             len(render_conversation_span(span)) > DECISION_OBSERVATION_BODY_LIMIT
         )

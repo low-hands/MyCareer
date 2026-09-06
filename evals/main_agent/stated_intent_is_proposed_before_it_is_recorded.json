@@ -2,9 +2,9 @@
   "scenario": "stated_intent_is_proposed_before_it_is_recorded",
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "e304134107549758e979c15eab0d4f73fc9dcfc818e83e4edad3c83cd7c3fe32",
+  "prompt_fingerprint": "0aabecd6a776665d911bfec14bbe48a3e8464fe1b310cd87d8bde5c8d4e87136",
   "context_shape_fingerprint": "eb37dcebf3f708255b2a788a9c18321af57e663121c97c9f487a455a40de9da2",
-  "recorded_at": "2026-09-06T09:49:27.155110+00:00",
+  "recorded_at": "2026-09-06T15:15:57.913328+00:00",
   "steps": [
     {
       "tool_call": {
@@ -26,7 +26,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:49:27.155110+00:00",
+      "recorded_at": "2026-09-06T15:15:57.913328+00:00",
       "steps": [
         {
           "tool_call": {

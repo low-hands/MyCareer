@@ -45,7 +45,12 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             raise ValueError("Conversation summary requires messages")
         payload = {
             "previous_summary": (
-                previous.model_dump(mode="json") if previous else None
+                previous.model_dump(
+                    mode="json",
+                    exclude={"omitted_active_constraint_count"},
+                )
+                if previous
+                else None
             ),
             "new_messages": [message.model_dump(mode="json") for message in messages],
         }
@@ -108,5 +113,6 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             "local paths, opaque internal IDs, tool payloads, or long quotations. Summarize "
             "them only as a bounded task-level reference when necessary. This summary is "
             "session memory, not confirmed long-term user memory. Remove resolved questions "
-            "and superseded constraints when the new messages explicitly resolve them."
+            "when new messages explicitly resolve them. Copy every previous active_constraint "
+            "verbatim; constraint retirement is handled outside this lossy rewrite."
         )

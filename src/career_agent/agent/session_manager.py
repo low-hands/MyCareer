@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import secrets
 
 from career_agent.agent.session_contracts import AgentSession
 from career_agent.storage.context import CareerContextStore
@@ -18,7 +19,15 @@ class SessionManager:
         existing = self._store.get_session(user_id, session_id)
         if existing is None:
             now = datetime.now(timezone.utc)
-            return self._store.upsert_session(AgentSession(user_id=user_id, session_id=session_id, created_at=now, last_active_at=now))
+            return self._store.upsert_session(
+                AgentSession(
+                    user_id=user_id,
+                    session_id=session_id,
+                    created_at=now,
+                    last_active_at=now,
+                    spotlight_nonce=secrets.token_hex(16),
+                )
+            )
         if existing.status == "closed":
             raise ValueError("Session is closed")
         return self._store.upsert_session(existing.touch())

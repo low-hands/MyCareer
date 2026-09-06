@@ -12,6 +12,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.egg-info/
+/papers/pdf/*.pdf
 
 # React client build output
 /node_modules/

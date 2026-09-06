@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 from typing import Literal, Protocol
 
@@ -88,9 +89,13 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                3,
+                4,
                 self._migrate,
-                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
+                {
+                    2: self._upgrade_to_v2,
+                    3: self._upgrade_to_v3,
+                    4: self._upgrade_to_v4,
+                },
             )
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
@@ -146,6 +151,21 @@ class CareerContextStore:
         connection.execute("DROP TABLE agent_preferences_context")
 
     @staticmethod
+    def _upgrade_to_v4(connection: sqlite3.Connection) -> None:
+        """Give every durable session one stable randomized spotlight nonce."""
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(sessions)")
+        }
+        if "spotlight_nonce" not in columns:
+            connection.execute(
+                "ALTER TABLE sessions ADD COLUMN spotlight_nonce TEXT"
+            )
+        connection.execute(
+            "UPDATE sessions SET spotlight_nonce = lower(hex(randomblob(16))) "
+            "WHERE spotlight_nonce IS NULL"
+        )
+
+    @staticmethod
     def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
         """Handle a pre-registry database, for which apply_schema skips upgrades."""
 
@@ -160,7 +180,8 @@ class CareerContextStore:
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
-        connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
+        connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, spotlight_nonce TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
+        CareerContextStore._upgrade_to_v4(connection)
         connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")
         connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
         connection.execute("CREATE TABLE IF NOT EXISTS owner_settings_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
@@ -207,14 +228,14 @@ class CareerContextStore:
 
     def get_session(self, user_id: str, session_id: str) -> AgentSession | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT session_id, user_id, status, created_at, last_active_at FROM sessions WHERE session_id = ? AND user_id = ?", (session_id, user_id)).fetchone()
-        return AgentSession(session_id=row[0], user_id=row[1], status=row[2], created_at=row[3], last_active_at=row[4]) if row else None
+            row = connection.execute("SELECT session_id, user_id, status, created_at, last_active_at, spotlight_nonce FROM sessions WHERE session_id = ? AND user_id = ?", (session_id, user_id)).fetchone()
+        return AgentSession(session_id=row[0], user_id=row[1], status=row[2], created_at=row[3], last_active_at=row[4], spotlight_nonce=row[5]) if row else None
 
     def upsert_session(self, session: AgentSession) -> AgentSession:
         with self._connect() as connection:
             connection.execute(
-                "INSERT INTO sessions(session_id, user_id, status, created_at, last_active_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, session_id) DO UPDATE SET status=excluded.status, last_active_at=excluded.last_active_at",
-                (session.session_id, session.user_id, session.status, session.created_at.isoformat(), session.last_active_at.isoformat()),
+                "INSERT INTO sessions(session_id, user_id, status, created_at, last_active_at, spotlight_nonce) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, session_id) DO UPDATE SET status=excluded.status, last_active_at=excluded.last_active_at",
+                (session.session_id, session.user_id, session.status, session.created_at.isoformat(), session.last_active_at.isoformat(), session.spotlight_nonce),
             )
         os.chmod(self.path, 0o600)
         return session
@@ -505,12 +526,14 @@ class CareerContextStore:
         conversation_id: str,
         from_sequence: int,
         through_sequence: int,
+        query: str | None = None,
     ) -> ConversationSpanView:
         """Read only rows inside the requested inclusive span, oldest first.
 
-        The fixed output ceiling is not a nearest-neighbour search. A span
-        outside this owned conversation returns no rows, and a large matching
-        span returns its earliest rows plus the honest uncapped match count.
+        Without a query, a span outside this owned conversation returns no rows
+        and a large span returns its earliest rows plus the honest uncapped
+        count. With a query, exact owned rows are ranked by term matches before
+        the same output ceiling is applied.
 
         Resource references deliberately do not cross this readback. The
         archived-resource catalogue remains their retrieval path once a
@@ -530,22 +553,66 @@ class CareerContextStore:
                     (user_id, conversation_id, from_sequence, through_sequence),
                 ).fetchone()[0]
             )
-            rows = connection.execute(
-                """
-                SELECT sequence, payload FROM conversation_messages
-                WHERE user_id = ? AND conversation_id = ?
-                  AND sequence BETWEEN ? AND ?
-                ORDER BY sequence
-                LIMIT ?
-                """,
-                (
-                    user_id,
-                    conversation_id,
-                    from_sequence,
-                    through_sequence,
-                    MAX_CONVERSATION_SPAN_MESSAGES,
-                ),
-            ).fetchall()
+            if query is None:
+                rows = connection.execute(
+                    """
+                    SELECT sequence, payload FROM conversation_messages
+                    WHERE user_id = ? AND conversation_id = ?
+                      AND sequence BETWEEN ? AND ?
+                    ORDER BY sequence
+                    LIMIT ?
+                    """,
+                    (
+                        user_id,
+                        conversation_id,
+                        from_sequence,
+                        through_sequence,
+                        MAX_CONVERSATION_SPAN_MESSAGES,
+                    ),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT sequence, payload FROM conversation_messages
+                    WHERE user_id = ? AND conversation_id = ?
+                      AND sequence BETWEEN ? AND ?
+                    ORDER BY sequence
+                    """,
+                    (
+                        user_id,
+                        conversation_id,
+                        from_sequence,
+                        through_sequence,
+                    ),
+                ).fetchall()
+        if query is not None:
+            normalized_query = query.casefold().strip()
+            terms = tuple(
+                dict.fromkeys(
+                    (
+                        normalized_query,
+                        *re.findall(r"[\w\u3400-\u9fff]+", normalized_query),
+                    )
+                )
+            )
+            scored = []
+            for row in rows:
+                message = ConversationMessageContext.model_validate_json(row[1])
+                searchable = message.content.casefold()
+                score = sum(searchable.count(term) for term in terms if term)
+                if score:
+                    scored.append((score, row[0], row[1]))
+            total = len(scored)
+            # Prefer the strongest and newest matches, then restore chronology
+            # in the returned window so adjacent user/assistant facts read as
+            # a conversation rather than a search ranking.
+            rows = [
+                (sequence, payload)
+                for _, sequence, payload in sorted(
+                    scored, key=lambda item: (item[0], item[1]), reverse=True
+                )[:MAX_CONVERSATION_SPAN_MESSAGES]
+            ]
+            rows.sort(key=lambda row: row[0])
         messages = []
         for row in rows:
             message = ConversationMessageContext.model_validate_json(row[1])

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Mapping
+import math
+from typing import Literal, Mapping
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
@@ -26,6 +27,24 @@ class OpenAICompatibleAgentConfig:
     api_key: str
     model: str
     timeout_seconds: float = 30.0
+    max_input_tokens: int = 32000
+    prompt_cache: Literal["disabled", "implicit", "explicit"] = "implicit"
+    input_token_safety_factor: float = 1.1
+
+    def __post_init__(self) -> None:
+        if self.max_input_tokens < 1024:
+            raise ValueError("max_input_tokens must be at least 1024")
+        if self.prompt_cache not in {"disabled", "implicit", "explicit"}:
+            raise ValueError(
+                "prompt_cache must be disabled, implicit, or explicit"
+            )
+        if (
+            not math.isfinite(self.input_token_safety_factor)
+            or not 1.0 <= self.input_token_safety_factor <= 2.0
+        ):
+            raise ValueError(
+                "input_token_safety_factor must be between 1.0 and 2.0"
+            )
 
     @classmethod
     def from_env(cls, *, environ: Mapping[str, str] | None = None, prefix: str = "JOB_DISCOVERY_AGENT") -> "OpenAICompatibleAgentConfig":
@@ -43,4 +62,52 @@ class OpenAICompatibleAgentConfig:
         endpoint = base_url.rstrip("/")
         if not endpoint.endswith("/chat/completions"):
             endpoint = f"{endpoint}/chat/completions"
-        return cls(endpoint=endpoint, api_key=api_key, model=model)
+        raw_max_input_tokens = environ.get(
+            f"{prefix}_MAX_INPUT_TOKENS", "32000"
+        ).strip()
+        try:
+            max_input_tokens = int(raw_max_input_tokens)
+        except ValueError as error:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_MAX_INPUT_TOKENS must be an integer.",
+            ) from error
+        if max_input_tokens < 1024:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_MAX_INPUT_TOKENS must be at least 1024.",
+            )
+        prompt_cache = environ.get(
+            f"{prefix}_PROMPT_CACHE", "implicit"
+        ).strip().lower()
+        if prompt_cache not in {"disabled", "implicit", "explicit"}:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_PROMPT_CACHE must be disabled, implicit, or explicit.",
+            )
+        raw_safety_factor = environ.get(
+            f"{prefix}_INPUT_TOKEN_SAFETY_FACTOR", "1.1"
+        ).strip()
+        try:
+            input_token_safety_factor = float(raw_safety_factor)
+        except ValueError as error:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_INPUT_TOKEN_SAFETY_FACTOR must be a number.",
+            ) from error
+        if (
+            not math.isfinite(input_token_safety_factor)
+            or not 1.0 <= input_token_safety_factor <= 2.0
+        ):
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_INPUT_TOKEN_SAFETY_FACTOR must be between 1.0 and 2.0.",
+            )
+        return cls(
+            endpoint=endpoint,
+            api_key=api_key,
+            model=model,
+            max_input_tokens=max_input_tokens,
+            prompt_cache=prompt_cache,
+            input_token_safety_factor=input_token_safety_factor,
+        )

@@ -13,7 +13,10 @@ from career_agent.agent.decision_messages import (
 from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.openai_compatible_client import (
+    AgentConfigurationError,
+    AgentWorkerError,
+)
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 
 
@@ -49,6 +52,47 @@ class Client:
     def __init__(self) -> None:
         self.completions = Completions()
         self.chat = type("Chat", (), {"completions": self.completions})()
+
+
+def test_prompt_cache_policy_is_loaded_explicitly_from_environment() -> None:
+    config = OpenAICompatibleAgentConfig.from_env(
+        environ={
+            "MAIN_AGENT_BASE_URL": "https://compatible.example.test/v1",
+            "MAIN_AGENT_API_KEY": "test",
+            "MAIN_AGENT_MODEL": "provider-model-alias",
+            "MAIN_AGENT_PROMPT_CACHE": "explicit",
+        },
+        prefix="MAIN_AGENT",
+    )
+
+    assert config.prompt_cache == "explicit"
+
+
+def test_prompt_cache_and_estimate_margin_have_conservative_defaults() -> None:
+    config = OpenAICompatibleAgentConfig.from_env(
+        environ={
+            "MAIN_AGENT_BASE_URL": "https://compatible.example.test/v1",
+            "MAIN_AGENT_API_KEY": "test",
+            "MAIN_AGENT_MODEL": "provider-model-alias",
+        },
+        prefix="MAIN_AGENT",
+    )
+
+    assert config.prompt_cache == "implicit"
+    assert config.input_token_safety_factor == 1.1
+
+
+def test_invalid_prompt_cache_policy_fails_configuration() -> None:
+    with pytest.raises(AgentConfigurationError, match="PROMPT_CACHE"):
+        OpenAICompatibleAgentConfig.from_env(
+            environ={
+                "MAIN_AGENT_BASE_URL": "https://compatible.example.test/v1",
+                "MAIN_AGENT_API_KEY": "test",
+                "MAIN_AGENT_MODEL": "provider-model-alias",
+                "MAIN_AGENT_PROMPT_CACHE": "auto-detect",
+            },
+            prefix="MAIN_AGENT",
+        )
 
 
 def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> None:
@@ -99,9 +143,9 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
 
     messages = client.completions.kwargs["messages"]
     system_content = messages[0]["content"]
-    control_content = messages[1]["content"]
+    control_content = messages[3]["content"]
     control = _control_json(control_content)
-    data_content = messages[2]["content"]
+    data_content = messages[4]["content"]
     assert data_content.startswith(DATA_CONTEXT_LABEL + "\n")
     payload = _spotlight_json(data_content, label=DATA_CONTEXT_LABEL)
     assert decision.action == "ask_user"
@@ -110,10 +154,9 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert set(payload["career_profile"]) == {"default_city", "records"}
     assert payload["career_profile"]["default_city"] == "Shanghai"
     assert "resume_text" not in payload
-    assert "open_job_search" in system_content
+    assert "open_job_search" not in system_content
     assert (
-        "The user-role <system-reminder> immediately following this policy "
-        "is written by the harness"
+        "single <system-reminder> after native prior turns"
     ) in system_content
     assert CONTROL_CONTEXT_LABEL not in system_content
     assert "mock_interview" not in system_content
@@ -133,42 +176,406 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert payload["conversation_summary"]["confirmed_decisions"] == [
         "Use the current resume"
     ]
+    assert (
+        payload["conversation_summary"]["omitted_active_constraint_count"] == 0
+    )
     assert "tool_observations" not in control
     assert "tool_observations" not in payload
     assert payload["recent_resources"][0]["title"] == "External report title"
     assert [message["role"] for message in messages] == [
         "system",
         "user",
-        "user",
-        "user",
         "assistant",
         "user",
+        "user",
+        "user",
     ]
-    assert messages[3]["content"] == "Earlier user words."
-    assert messages[4]["content"].startswith("Earlier assistant words.\n\n")
-    assert "[runtime resources: report_" in messages[4]["content"]
-    assert "job_research_report]" in messages[4]["content"]
-    assert "External report title" not in messages[4]["content"]
+    assert messages[1]["content"] == "Earlier user words."
+    assert messages[2]["content"].startswith("Earlier assistant words.\n\n")
+    assert "[runtime resources: report_" in messages[2]["content"]
+    assert "job_research_report]" in messages[2]["content"]
+    assert "External report title" not in messages[2]["content"]
     assert messages[-1] == {"role": "user", "content": "Help me find work."}
 
 
-def test_untrusted_data_uses_a_fresh_matching_spotlight_nonce() -> None:
-    projection = project_decision_messages(
-        MainAgentContext(
-            conversation_id="c1",
-            profile=CareerProfileContext(user_id="u1"),
-            user_message="继续",
-        )
+def test_untrusted_data_uses_a_session_stable_matching_spotlight_nonce() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="继续",
     )
+    projection = project_decision_messages(context)
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=Client(),
+    )
+    nonce = maker._spotlight_nonce(context)
 
-    first = projection.messages(system_prompt="policy")[2]["content"]
-    second = projection.messages(system_prompt="policy")[2]["content"]
+    first = projection.messages(
+        system_prompt="policy", spotlight_nonce=nonce
+    )[2]["content"]
+    second = projection.messages(
+        system_prompt="policy", spotlight_nonce=maker._spotlight_nonce(context)
+    )[2]["content"]
 
     assert _spotlight_json(first, label=DATA_CONTEXT_LABEL) == _spotlight_json(
         second,
         label=DATA_CONTEXT_LABEL,
     )
-    assert first.splitlines()[1] != second.splitlines()[1]
+    assert first.splitlines()[1] == second.splitlines()[1]
+    other = context.model_copy(update={"conversation_id": "c2"})
+    assert maker._spotlight_nonce(other) != nonce
+
+
+def test_request_token_usage_counts_tools_and_weights_cjk() -> None:
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+            max_input_tokens=4096,
+        ),
+        client=Client(),
+    )
+    english = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="a" * 400,
+    )
+    chinese = english.model_copy(update={"user_message": "中" * 400})
+    small, limit = maker.request_token_usage(english, ())
+    with_tool, _ = maker.request_token_usage(
+        english,
+        (
+            {
+                "type": "function",
+                "function": {
+                    "name": "large_tool",
+                    "description": "d" * 4000,
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+        ),
+    )
+    cjk, _ = maker.request_token_usage(chinese, ())
+
+    assert limit == 4096
+    assert with_tool > small + 900
+    assert cjk > small + 250
+
+
+def test_request_and_static_token_estimates_apply_the_configured_margin() -> None:
+    config = {
+        "endpoint": "https://example.test/v1/chat/completions",
+        "api_key": "test",
+        "model": "test-model",
+        "max_input_tokens": 4096,
+    }
+    raw = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            **config,
+            input_token_safety_factor=1.0,
+        ),
+        client=Client(),
+    )
+    conservative = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            **config,
+            input_token_safety_factor=1.1,
+        ),
+        client=Client(),
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="continue",
+    )
+    tool_specs = (
+        {
+            "type": "function",
+            "function": {
+                "name": "large_tool",
+                "description": "d" * 4000,
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+    )
+
+    raw_request, limit = raw.request_token_usage(context, tool_specs)
+    adjusted_request, adjusted_limit = conservative.request_token_usage(
+        context, tool_specs
+    )
+    raw_static, _ = raw.static_request_token_usage(tool_specs)
+    adjusted_static, _ = conservative.static_request_token_usage(tool_specs)
+
+    assert adjusted_request == pytest.approx(raw_request * 1.1, abs=1)
+    assert adjusted_static == pytest.approx(raw_static * 1.1, abs=1)
+    assert limit == adjusted_limit == 4096
+
+
+def test_configured_implicit_cache_uses_a_stable_key_without_endpoint_sniffing() -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://compatible.example.test/v1/chat/completions",
+            api_key="test",
+            model="renamed-model",
+            prompt_cache="implicit",
+        ),
+        client=client,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="first",
+    )
+    maker.decide(context, ())
+    first = client.completions.kwargs["extra_body"]["prompt_cache_key"]
+    maker.decide(context.model_copy(update={"user_message": "second"}), ())
+    second = client.completions.kwargs["extra_body"]["prompt_cache_key"]
+
+    assert first == second
+
+
+def test_configured_explicit_cache_applies_breakpoint_without_model_sniffing() -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://compatible.example.test/v1/chat/completions",
+            api_key="test",
+            model="provider-model-alias",
+            prompt_cache="explicit",
+        ),
+        client=client,
+    )
+    maker.decide(
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="continue",
+        ),
+        (),
+    )
+
+    system_block = client.completions.kwargs["messages"][0]["content"][0]
+    assert system_block["prompt_cache_breakpoint"] == {"mode": "explicit"}
+    assert client.completions.kwargs["extra_body"]["prompt_cache_options"] == {
+        "mode": "explicit",
+        "ttl": "30m",
+    }
+
+
+def test_disabled_cache_is_visible_and_adds_no_provider_specific_fields() -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://api.openai.com/v1/chat/completions",
+            api_key="test",
+            model="gpt-6",
+            prompt_cache="disabled",
+        ),
+        client=client,
+    )
+
+    maker.decide(
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="continue",
+        ),
+        (),
+    )
+
+    assert "extra_body" not in client.completions.kwargs
+    assert maker.cache_configuration() == {
+        "prompt_cache_mode": "disabled",
+        "prompt_cache_key_applied": False,
+        "prompt_cache_breakpoint_applied": False,
+    }
+
+
+def test_cache_usage_is_exposed_as_a_hit_ratio() -> None:
+    client = Client()
+    original_create = client.completions.create
+
+    def create(**kwargs):
+        response = original_create(**kwargs)
+        details = type("Details", (), {"cached_tokens": 750})()
+        response.usage = type(
+            "Usage",
+            (),
+            {"prompt_tokens": 1000, "prompt_tokens_details": details},
+        )()
+        return response
+
+    client.completions.create = create
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+    maker.decide(
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="continue",
+        ),
+        (),
+    )
+
+    assert maker.consume_cache_metrics() == {
+        "cache_metrics_reported": True,
+        "cache_metrics_sample_count": 1,
+        "cache_metrics_unreported_count": 0,
+        "cache_metrics_unreported_ratio": 0.0,
+        "input_units": 1000,
+        "cached_input_units": 750,
+        "cache_hit_ratio": 0.75,
+    }
+    assert maker.consume_cache_metrics() == {}
+
+
+def test_missing_cached_token_usage_is_distinct_from_a_zero_hit_rate() -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+            prompt_cache="implicit",
+        ),
+        client=client,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="continue",
+    )
+    base_create = client.completions.create
+
+    def create_without_cached_tokens(**kwargs):
+        response = base_create(**kwargs)
+        response.usage = type(
+            "Usage",
+            (),
+            {
+                "prompt_tokens": 1000,
+                "prompt_tokens_details": type("Details", (), {})(),
+            },
+        )()
+        return response
+
+    client.completions.create = create_without_cached_tokens
+
+    maker.decide(context, ())
+    missing = maker.consume_cache_metrics()
+
+    def create(**kwargs):
+        response = base_create(**kwargs)
+        details = type("Details", (), {"cached_tokens": 0})()
+        response.usage = type(
+            "Usage",
+            (),
+            {"prompt_tokens": 1000, "prompt_tokens_details": details},
+        )()
+        return response
+
+    client.completions.create = create
+    maker.decide(context, ())
+    zero_hit = maker.consume_cache_metrics()
+
+    assert missing == {
+        "cache_metrics_reported": False,
+        "cache_metrics_sample_count": 1,
+        "cache_metrics_unreported_count": 1,
+        "cache_metrics_unreported_ratio": 1.0,
+        "input_units": 1000,
+    }
+    assert zero_hit["cache_metrics_reported"] is True
+    assert zero_hit["cached_input_units"] == 0
+    assert zero_hit["cache_hit_ratio"] == 0.0
+    assert zero_hit["cache_metrics_sample_count"] == 2
+    assert zero_hit["cache_metrics_unreported_ratio"] == 0.5
+
+
+def test_static_request_serialization_is_memoized_for_the_tool_universe(
+    monkeypatch,
+) -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+    specs = (
+        {
+            "type": "function",
+            "function": {
+                "name": "large_tool",
+                "description": "d" * 4000,
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="continue",
+    )
+    original_dumps = json.dumps
+    static_serializations = 0
+
+    def counting_dumps(value, *args, **kwargs):
+        nonlocal static_serializations
+        if "large_tool" in repr(value):
+            static_serializations += 1
+        return original_dumps(value, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "career_agent.agent.openai_compatible_main_agent.json.dumps",
+        counting_dumps,
+    )
+
+    maker.request_token_usage(context, specs)
+    first_count = static_serializations
+    maker.request_token_usage(
+        context.model_copy(update={"user_message": "a new turn"}), specs
+    )
+
+    assert first_count == 1
+    assert static_serializations == first_count
+
+
+def test_recent_message_clipping_is_visible_in_native_history() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        recent_messages=(
+            ConversationMessageContext(
+                role="user",
+                content="partial sentence",
+                content_clipped=True,
+                created_at=datetime(2026, 9, 6, tzinfo=timezone.utc),
+            ),
+        ),
+        user_message="continue",
+    )
+
+    messages = project_decision_messages(context).messages(
+        system_prompt="policy", spotlight_nonce="nonce"
+    )
+
+    assert messages[1]["content"].endswith("content_clipped=true]")
 
 
 def test_dynamic_control_does_not_change_the_static_system_message() -> None:
@@ -200,7 +607,7 @@ def test_dynamic_control_does_not_change_the_static_system_message() -> None:
         "role": "system",
         "content": "static policy",
     }
-    assert cold_messages[1]["content"] != active_messages[1]["content"]
+    assert cold_messages[-3]["content"] != active_messages[-3]["content"]
 
 
 def test_new_task_projection_fields_require_an_explicit_authority_classification() -> None:

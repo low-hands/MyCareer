@@ -1,0 +1,38 @@
+{
+  "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+  "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
+  "model": "gpt-5.6-luna",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "context_shape_fingerprint": "9896dbc394527be96a9e5894632f9f2334b5d761d16c0be178206b2f4c97dbab",
+  "recorded_at": "2026-09-06T15:18:22.684508+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "read_conversation_span",
+        "arguments": {
+          "from_sequence": 1,
+          "through_sequence": 120,
+          "query": "目标公司"
+        }
+      }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-06T15:18:22.684508+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "from_sequence": 1,
+              "through_sequence": 120,
+              "query": "目标公司"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

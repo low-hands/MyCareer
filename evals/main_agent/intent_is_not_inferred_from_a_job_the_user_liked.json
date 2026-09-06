@@ -2,21 +2,21 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "be816c5677e90f654cb66fa772d5dc8bfd2af1d151b8e42898eef5f0a30942aa",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
   "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
-  "recorded_at": "2026-09-06T09:48:53.849400+00:00",
+  "recorded_at": "2026-09-06T15:14:16.304902+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你希望我下一步怎么处理这个岗位？可以选择：查看完整职位描述、与已保存岗位对比，或研究公司/业务背景。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位是上海的算法工程师，薪资 30–50K。你希望我下一步帮你做哪一项：匹配简历、研究公司，还是定制简历？\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:48:53.849400+00:00",
+      "recorded_at": "2026-09-06T15:14:16.304902+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你希望我下一步怎么处理这个岗位？可以选择：查看完整职位描述、与已保存岗位对比，或研究公司/业务背景。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位是上海的算法工程师，薪资 30–50K。你希望我下一步帮你做哪一项：匹配简历、研究公司，还是定制简历？\"}"
         }
       ]
     }
