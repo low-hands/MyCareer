@@ -5,6 +5,7 @@ import hashlib
 from contextvars import ContextVar
 from time import perf_counter
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, ClassVar, Literal, TypedDict
 from uuid import uuid4
 
@@ -23,6 +24,10 @@ from career_agent.harness.observability import (
     TraceRecorder,
     conversation_trace_key,
     record_active_trace,
+)
+from career_agent.harness.memory_telemetry import (
+    memory_context_observation,
+    memory_use_observation,
 )
 from career_agent.agent.delivery_policy import (
     condenses_message,
@@ -75,6 +80,8 @@ from career_agent.domain.job_research import (
     JobResearchSourceDraft,
 )
 from career_agent.domain.resume import ResumeArtifactDelivery
+from career_agent.services.episode_consolidation import drafts_from_tool_results
+from career_agent.services.episode_reconciliation import EpisodeReconciler
 from career_agent.harness.streaming import (
     ArtifactReadyEvent,
     CapabilityCompletedEvent,
@@ -352,7 +359,7 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH, episode_reconciler: EpisodeReconciler | None = None) -> None:
         if max_read_calls < 1:
             raise ValueError("max_read_calls must be at least one")
         if max_write_calls < 1:
@@ -382,6 +389,10 @@ class MainAgentRuntime:
         self._decision_maker = decision_maker
         self._tools = tools
         self._career_context_projector = career_context_projector
+        self._episode_reconciler = episode_reconciler
+        self._reconciled_users: set[str] = set()
+        self._episode_reconcile_guard = Lock()
+        self._episode_reconcile_locks: dict[str, Any] = {}
         self._max_read_calls = max_read_calls
         self._max_write_calls = max_write_calls
         self._max_projection_refusals = max_projection_refusals
@@ -636,6 +647,7 @@ class MainAgentRuntime:
             )
             return result
         except Exception as error:
+            self._invalidate_episode_reconciliation(user_id)
             self._record_turn_failed(turn_id=turn_id, conversation_id=conversation_id, error=error)
             self._emit(
                 TurnFailedEvent(
@@ -873,6 +885,45 @@ class MainAgentRuntime:
             # a less informative one.
             return
 
+    def _reconcile_episodes(self, user_id: str) -> None:
+        """Replay durable domain state once per user and after a failed turn.
+
+        The sweep exists for the split-store failure where a domain row commits
+        and its episode does not, so it has to run before anything reads L1.
+        It does not belong on every turn: it is a full scan of four stores and
+        one report read per mock session, and after the first pass each seam
+        writes its own episode inside the conversation transaction.
+
+        Any failed turn invalidates the guard. The next turn scans again, which
+        closes the observable same-process split-store window without charging
+        every healthy turn or requiring four stores to expose watermarks.
+        Coordination is per user, so one owner's initial scan cannot block
+        another owner's first turn.
+        """
+
+        if self._episode_reconciler is None:
+            return
+        user_lock = self._episode_reconcile_user_lock(user_id)
+        with user_lock:
+            with self._episode_reconcile_guard:
+                if user_id in self._reconciled_users:
+                    return
+            self._episode_reconciler.reconcile_user(user_id=user_id)
+            with self._episode_reconcile_guard:
+                self._reconciled_users.add(user_id)
+
+    def _invalidate_episode_reconciliation(self, user_id: str) -> None:
+        if self._episode_reconciler is None:
+            return
+        user_lock = self._episode_reconcile_user_lock(user_id)
+        with user_lock:
+            with self._episode_reconcile_guard:
+                self._reconciled_users.discard(user_id)
+
+    def _episode_reconcile_user_lock(self, user_id: str):
+        with self._episode_reconcile_guard:
+            return self._episode_reconcile_locks.setdefault(user_id, Lock())
+
     def _run_and_commit_turn(
         self,
         *,
@@ -881,6 +932,7 @@ class MainAgentRuntime:
         user_message: str,
         interaction_response: InteractionResponse | None = None,
     ) -> MainAgentTurnResult:
+        self._reconcile_episodes(user_id)
         routing_task = self._context_manager.get_task(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -908,6 +960,12 @@ class MainAgentRuntime:
                     result.tool_result,
                     screen=result.assistant_message,
                     composed=False,
+                ),
+                episode_drafts=drafts_from_tool_results(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    tool_results=result.tool_results
+                    or ((result.tool_result,) if result.tool_result else ()),
                 ),
             )
             return result
@@ -975,6 +1033,12 @@ class MainAgentRuntime:
             held = self._context_manager.commit_workflow_entry(
                 context=context,
                 task=result.context.task,
+                episode_drafts=drafts_from_tool_results(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    tool_results=result.tool_results
+                    or ((result.tool_result,) if result.tool_result else ()),
+                ),
             )
             # Report the state that was stored, or the next turn would resume
             # from a task whose held request the caller never saw.
@@ -990,6 +1054,12 @@ class MainAgentRuntime:
                 ),
                 assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
                     result.tool_results
+                ),
+                episode_drafts=drafts_from_tool_results(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    tool_results=result.tool_results
+                    or ((result.tool_result,) if result.tool_result else ()),
                 ),
             )
         return result
@@ -1656,6 +1726,15 @@ class MainAgentRuntime:
             details=details,
             model_call_category="orchestrator_decision",
         )
+        self._record_trace_event(
+            "memory_context_observed",
+            "main_agent_decide",
+            outcome="succeeded",
+            details=memory_context_observation(
+                context,
+                career_memory_enabled=self._career_context_projector is not None,
+            ),
+        )
         try:
             decision = self._decision_maker.decide(context, schemas)
         except Exception as error:
@@ -1694,6 +1773,14 @@ class MainAgentRuntime:
                         self._tool_call_fingerprint(decision).encode("utf-8")
                     ).hexdigest(),
                 }
+            )
+        memory_use = memory_use_observation(context, decision)
+        if memory_use is not None:
+            self._record_trace_event(
+                "memory_use_observed",
+                "main_agent_decide",
+                outcome="succeeded",
+                details=memory_use,
             )
         self._record_trace_event(
             "model_succeeded",

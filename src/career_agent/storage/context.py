@@ -26,6 +26,11 @@ from career_agent.agent.conversation_memory_contracts import (
     SummaryMessage,
 )
 from career_agent.agent.session_contracts import AgentSession
+from career_agent.domain.episodes import CareerEpisodeDraft
+from career_agent.storage.episodes import (
+    SQLiteCareerEpisodeStore,
+    apply_episode_schema,
+)
 from career_agent.storage.schema import apply_schema
 
 
@@ -97,6 +102,7 @@ class CareerContextStore:
                     4: self._upgrade_to_v4,
                 },
             )
+            apply_episode_schema(connection)
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
 
@@ -477,14 +483,18 @@ class CareerContextStore:
         user_id: str,
         conversation_id: str,
         task: ConversationTaskState,
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
     ) -> None:
-        """Persist routing ownership without writing conversation messages."""
+        """Persist routing ownership and any episode at the same task seam."""
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "INSERT INTO conversation_task_state(user_id, conversation_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, conversation_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at",
                 (user_id, conversation_id, task.model_dump_json(), now),
             )
+            for draft in episode_drafts:
+                SQLiteCareerEpisodeStore.upsert_on(connection, draft)
         os.chmod(self.path, 0o600)
 
     def list_message_records(
@@ -893,6 +903,7 @@ class CareerContextStore:
         task: ConversationTaskState,
         user_message: ConversationMessageContext,
         assistant_message: ConversationMessageContext,
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
     ) -> None:
         """Append one turn. The transcript is never pruned here.
 
@@ -933,6 +944,8 @@ class CareerContextStore:
                     for offset, message in enumerate(messages)
                 ],
             )
+            for draft in episode_drafts:
+                SQLiteCareerEpisodeStore.upsert_on(connection, draft)
         os.chmod(self.path, 0o600)
 
     def _get_single(self, table: str, user_id: str, model):

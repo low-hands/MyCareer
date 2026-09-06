@@ -18,10 +18,12 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
+from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.harness.observability import (
     conversation_trace_key,
     record_active_trace,
 )
+from career_agent.services.episode_consolidation import mock_interview_exit_draft
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
 
 
@@ -242,7 +244,7 @@ class ContextManager:
             user_message="[workflow-owned input withheld]",
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy") -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = ()) -> None:
         now = datetime.now(timezone.utc)
         self._store.commit_turn(
             user_id=context.profile.user_id,
@@ -250,6 +252,7 @@ class ContextManager:
             task=task,
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
+            episode_drafts=episode_drafts,
         )
         self._maybe_summarize(
             user_id=context.profile.user_id,
@@ -260,7 +263,11 @@ class ContextManager:
         self._sessions.touch(user_id=context.profile.user_id, session_id=context.conversation_id)
 
     def commit_workflow_entry(
-        self, *, context: MainAgentContext, task: ConversationTaskState
+        self,
+        *,
+        context: MainAgentContext,
+        task: ConversationTaskState,
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
     ) -> ConversationTaskState:
         """Hold the request that started a workflow instead of writing it.
 
@@ -274,7 +281,11 @@ class ContextManager:
         request and must be the one the caller reports.
         """
         held = task.hold_entry_message(self._truncate(context.user_message))
-        self.commit_workflow_turn(context=context, task=held)
+        self.commit_workflow_turn(
+            context=context,
+            task=held,
+            episode_drafts=episode_drafts,
+        )
         return held
 
     def commit_workflow_exit(
@@ -298,11 +309,29 @@ class ContextManager:
         # releasing the slot clears the field, and that release is exactly what
         # brought us here.
         entry = context.task.workflow_entry_message
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = ()
+        if (
+            context.task.active_workflow == "mock_interview"
+            and context.task.run_id is not None
+        ):
+            episode_drafts = (
+                mock_interview_exit_draft(
+                    user_id=context.profile.user_id,
+                    conversation_id=context.conversation_id,
+                    source_run_id=context.task.run_id,
+                    assistant_message=assistant_message,
+                    resource_refs=assistant_resource_refs,
+                ),
+            )
         if entry is None:
             # Nothing claimed a request, so there is no exchange to close. This
             # is reachable when a run is adopted mid-flight rather than started
             # here, and dropping the reply beats inventing a request for it.
-            self.commit_workflow_turn(context=context, task=task)
+            self.commit_workflow_turn(
+                context=context,
+                task=task,
+                episode_drafts=episode_drafts,
+            )
             return
         # Clearing here rather than relying on the caller's transition: an exit
         # that keeps the slot to record why the run died would otherwise leave
@@ -314,16 +343,22 @@ class ContextManager:
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
             compaction_trigger="seam",
+            episode_drafts=episode_drafts,
         )
 
     def commit_workflow_turn(
-        self, *, context: MainAgentContext, task: ConversationTaskState
+        self,
+        *,
+        context: MainAgentContext,
+        task: ConversationTaskState,
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
     ) -> None:
         """Persist workflow ownership without copying child-agent transcripts."""
         self._store.upsert_task(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
+            episode_drafts=episode_drafts,
         )
         self._sessions.touch(
             user_id=context.profile.user_id,
