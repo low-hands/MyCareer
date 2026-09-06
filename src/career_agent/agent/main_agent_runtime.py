@@ -393,6 +393,47 @@ class MainAgentRuntime:
         self._action_policy_epoch = action_policy_epoch
         self._owned_resources = owned_resources
         self._closed = False
+        request_token_usage = getattr(decision_maker, "request_token_usage", None)
+        if callable(request_token_usage):
+            self._decision_tool_schemas = self._tools.schemas()
+            self._decision_tool_schema_chars = len(
+                json.dumps(
+                    self._decision_tool_schemas,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+
+            def estimate_complete_request(
+                context: MainAgentContext,
+            ) -> tuple[int, int]:
+                if self._career_context_projector is not None:
+                    context = context.model_copy(
+                        update={
+                            "career_memory": self._career_context_projector.project(
+                                user_id=context.profile.user_id,
+                                query=context.user_message,
+                            )
+                        }
+                    )
+                return request_token_usage(context, self._decision_tool_schemas)
+
+            static_request_token_usage = getattr(
+                decision_maker, "static_request_token_usage", None
+            )
+            if not callable(static_request_token_usage):
+                raise ValueError(
+                    "decision makers that report request token usage must also "
+                    "report static request token usage"
+                )
+            static_tokens, max_input_tokens = static_request_token_usage(
+                self._decision_tool_schemas
+            )
+            self._context_manager.configure_request_token_estimator(
+                estimate_complete_request,
+                static_input_tokens=static_tokens,
+                max_input_tokens=max_input_tokens,
+            )
 
         graph = StateGraph(MainAgentState)
         graph.add_node("hydrate", self._hydrate_career_context)
@@ -1577,11 +1618,15 @@ class MainAgentRuntime:
     def _decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
         context = state["context"]
-        schemas = self._tools.schemas(context)
+        schemas = getattr(self, "_decision_tool_schemas", None)
+        if schemas is None:
+            schemas = self._tools.schemas()
         context_chars = decision_context_chars(context)
-        tool_schema_chars = len(
-            json.dumps(schemas, ensure_ascii=False, sort_keys=True)
-        )
+        tool_schema_chars = getattr(self, "_decision_tool_schema_chars", None)
+        if tool_schema_chars is None:
+            tool_schema_chars = len(
+                json.dumps(schemas, ensure_ascii=False, sort_keys=True)
+            )
         details = {
             "conversation_id": context.conversation_id,
             "conversation_key": conversation_trace_key(
@@ -1598,6 +1643,11 @@ class MainAgentRuntime:
             "offered_tool_count": len(schemas),
             "tool_schema_chars": tool_schema_chars,
         }
+        cache_configuration = getattr(
+            self._decision_maker, "cache_configuration", None
+        )
+        if callable(cache_configuration):
+            details.update(cache_configuration())
         started = perf_counter()
         self._record_trace_event(
             "model_attempt",
@@ -1609,12 +1659,18 @@ class MainAgentRuntime:
         try:
             decision = self._decision_maker.decide(context, schemas)
         except Exception as error:
+            failure_details = dict(details)
+            consume_cache_metrics = getattr(
+                self._decision_maker, "consume_cache_metrics", None
+            )
+            if callable(consume_cache_metrics):
+                failure_details.update(consume_cache_metrics())
             self._record_trace_event(
                 "model_failed",
                 "main_agent_decide",
                 outcome="failed",
                 duration_ms=int((perf_counter() - started) * 1000),
-                details=details,
+                details=failure_details,
                 error_code=getattr(error, "code", "ORCHESTRATOR_DECISION_FAILED"),
                 error_detail=getattr(error, "detail", None) or type(error).__name__,
                 recoverable=getattr(error, "retryable", None),
@@ -1622,6 +1678,11 @@ class MainAgentRuntime:
             )
             raise
         decision_details = {**details, "decision_action": decision.action}
+        consume_cache_metrics = getattr(
+            self._decision_maker, "consume_cache_metrics", None
+        )
+        if callable(consume_cache_metrics):
+            decision_details.update(consume_cache_metrics())
         if decision.tool_call is not None:
             decision_details.update(
                 {
@@ -3063,7 +3124,7 @@ class MainAgentRuntime:
             return {
                 "user_id": context.profile.user_id,
                 "conversation_id": context.conversation_id,
-                **model_arguments.model_dump(),
+                **model_arguments.model_dump(exclude_none=True),
             }
         if name == "update_owner_settings":
             proposed = UpdateOwnerSettingsToolArguments.model_validate(arguments)

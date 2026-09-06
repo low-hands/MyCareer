@@ -1,27 +1,21 @@
-"""The reachability table that decides which tools are offered this turn.
+"""The precondition table that guides stable-universe tool calls.
 
 These tests hold two things:
 
-1. The table can never hide a tool that has no object to require, and never
-   names a tool the registry does not actually expose.
-2. The one class that must stay offered no matter what the task state says is
-   the reference-index readback, whose reachability lives in the conversation
-   window rather than in task state.
+1. The table classifies when a tool's prerequisites are met and never names a
+   tool the registry does not expose in its stable universe.
+2. The model schema universe remains stable; this table guides policy and
+   runtime projection rather than deleting entries from the request.
 """
 
 from __future__ import annotations
 
-from career_agent.agent.main_agent_contracts import (
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-)
+from career_agent.agent.main_agent_contracts import ConversationTaskState
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.tool_reachability import (
     PRECONDITIONS,
     _REFERENCE_READBACKS,
     reachable,
-    reachable_in_context,
 )
 
 
@@ -78,29 +72,27 @@ def test_a_reference_readback_is_never_hidden_by_task_state() -> None:
     assert reachable("get_mock_interview_result", task)
 
 
-def test_conversation_span_is_offered_only_when_durable_rows_are_omitted() -> None:
-    cold = MainAgentContext(
-        conversation_id="c1",
-        profile=CareerProfileContext(user_id="u1"),
-        user_message="继续",
-    )
-    summarized = cold.model_copy(update={"through_sequence": 4})
-    clipped = cold.model_copy(update={"recent_from_sequence": 5})
+def test_conversation_span_is_offered_on_every_turn_including_a_cold_one() -> None:
+    """The watermark gates the *call*, not the menu.
 
-    assert not reachable_in_context("read_conversation_span", cold)
-    assert reachable_in_context("read_conversation_span", summarized)
-    assert reachable_in_context("read_conversation_span", clipped)
+    ``read_conversation_span`` used to be withheld until a compaction watermark
+    proved there was omitted history. That hid it behind a schema array that
+    changed with task state, which is the one thing the cached prefix cannot
+    absorb. The tool is now always offered and the projection decides: a cold
+    turn simply has no ``through_sequence`` to name.
+    """
     registry = _registry()
-    assert "read_conversation_span" not in {
-        item["function"]["name"] for item in registry.schemas(cold)
+    assert "read_conversation_span" in {
+        item["function"]["name"] for item in registry.schemas()
     }
     schemas = {
-        item["function"]["name"]: item for item in registry.schemas(summarized)
+        item["function"]["name"]: item for item in registry.schemas()
     }
     parameters = schemas["read_conversation_span"]["function"]["parameters"]
     assert set(parameters["properties"]) == {
         "from_sequence",
         "through_sequence",
+        "query",
     }
 
 
@@ -116,6 +108,11 @@ def test_a_selected_candidate_makes_the_detail_tool_reachable() -> None:
     )
     assert reachable("get_saved_job", task)
     assert reachable("research_job", task)
+
+
+def test_schema_prefix_is_repeatable_without_task_state_input() -> None:
+    registry = _registry()
+    assert registry.schemas() == registry.schemas()
 
 
 def test_restart_mock_interview_only_after_a_stuck_run() -> None:

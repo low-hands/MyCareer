@@ -131,7 +131,7 @@ def test_create_interview_selects_an_application_candidate_without_exposing_ids(
     tools = MainAgentToolRegistry(interview_service=object())
     schema = next(
         spec["function"]
-        for spec in tools.schemas(context)
+        for spec in tools.schemas()
         if spec["function"]["name"] == "create_interview"
     )
     properties = schema["parameters"]["properties"]

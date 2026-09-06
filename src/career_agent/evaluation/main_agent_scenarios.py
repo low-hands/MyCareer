@@ -213,9 +213,10 @@ def compacted_span_context(
 ) -> MainAgentContext:
     """Compacted window: summary plus the post-watermark decoy.
 
-    ``page_in=True`` is production CE-1 (watermark projected, span tool
-    reachable). ``page_in=False`` is the pre-CE-1 ablation: the same summary
-    and decoy, but no pointer, so the model cannot page the hidden fact back.
+    ``page_in=True`` is production CE-1 (watermark projected, so the always-
+    offered span tool has a valid range). ``page_in=False`` is the pre-CE-1
+    ablation: the same summary and decoy, but no pointer, so the model cannot
+    validly page the hidden fact back.
     """
     if page_in:
         return _context(
@@ -662,12 +663,14 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                             "没有可用的对应引用",
                             "没有可用的匹配引用",
                             "无可用引用",
+                            "没有可用的报告引用",
                             "没有对应的报告引用",
                             "未提供可用引用",
                             "未提供对应的报告引用",
                             "找不到",
                             "没有可访问",
                             "没有对应的引用编号",
+                            "列表中没有 Shopee",
                         }
                     ),
                 ),
@@ -791,13 +794,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
-        known_gap=(
-            "With native tool-result messages, a this-turn research observation "
-            "that already carries the matching title and reference still caused "
-            "one of three fresh samples to pass a differently titled historical "
-            "footer handle (report-h1) instead of report-a. Keep this intermittent "
-            "join gap visible rather than promoting handles into system control."
-        ),
     ),
     TrajectoryScenario(
         name="a_report_made_this_turn_without_an_index_cannot_be_named",
@@ -879,6 +875,14 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
+        known_gap=(
+            "With the fixed full tool universe, one of three fresh samples for "
+            "this synthetic missing-reference result borrowed a differently "
+            "titled historical footer handle instead of using the grounded saved-"
+            "job selector. The production result normally carries its reference; "
+            "keep this intermittent join gap visible rather than promoting "
+            "handles into system control."
+        ),
     ),
     TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",
@@ -958,6 +962,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 ),
                 forbid_tools=frozenset({"get_daily_brief", "list_action_items"}),
             ),
+        ),
+        known_gap=(
+            "Across fresh recordings with the fixed full tool universe, the "
+            "model intermittently opens list_action_items after a bounded daily-"
+            "brief receipt even though the user requested only the brief and "
+            "the runtime presenter owns its omitted body."
         ),
     ),
     TrajectoryScenario(
@@ -1515,14 +1525,48 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         quality_min_pass_rate=0.6,
     ),
     TrajectoryScenario(
+        name="a_long_compacted_history_is_searched_in_one_page_in_call",
+        policy=(
+            "When omitted history is longer than the bounded read-call budget can "
+            "scan, call read_conversation_span with focused query terms inside "
+            "sequence 1 through through_sequence instead of walking positional "
+            "chunks or guessing."
+        ),
+        context=compacted_span_context(
+            user_message="我之前说过的目标公司叫什么？", page_in=True
+        ).model_copy(
+            update={"through_sequence": 120, "recent_from_sequence": 121}
+        ),
+        decisive_facts=(
+            "through_sequence",
+            "recent_from_sequence",
+            "conversation_summary",
+            "user_message",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="read_conversation_span",
+                expect_arguments={
+                    "from_sequence": 1,
+                    "through_sequence": 120,
+                },
+                forbid_tools=frozenset(
+                    {"research_job", "open_job_search", "find_saved_jobs"}
+                ),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="a_compacted_fact_without_page_in_is_not_invented",
         policy=(
             "Decide exactly one next action using only the supplied context. "
             "Never invent a proper name that was not shown to you."
         ),
         # Pre-CE-1 ablation of the same question: summary and decoy are
-        # present, the watermark and span tool are not. Mentioning the decoy
-        # to reject it is allowed; emitting the hidden name would be invention.
+        # present, but the watermark is not. The fixed schema universe still
+        # offers the span tool, so calling it would require inventing a range.
+        # Mentioning the decoy to reject it is allowed; emitting the hidden
+        # name would be invention.
         context=compacted_span_context(
             user_message=SPAN_HIDDEN_QUESTION, page_in=False
         ),

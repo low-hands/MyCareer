@@ -2,37 +2,37 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "01642a0e5a5dcf30d41c66f6e0b36a4e1d56e985b804c486dd39af3e8eb83ee2",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
   "context_shape_fingerprint": "6b4ef535bac7651884ff29d06b27abb0645725ac1cf0019cea2426814000a0e5",
-  "recorded_at": "2026-09-06T10:13:26.957455+00:00",
+  "recorded_at": "2026-09-06T15:17:33.368058+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，因此暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。此次查询失败不可重试。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T10:10:41.139114+00:00",
+      "recorded_at": "2026-09-06T15:17:15.846989+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，因此暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。此次查询失败不可重试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T10:12:41.160637+00:00",
+      "recorded_at": "2026-09-06T15:17:19.265559+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成这次查询，请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T10:13:26.957455+00:00",
+      "recorded_at": "2026-09-06T15:17:33.368058+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 RAG 岗位的查询，请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。此次查询不可重试。\"}"
         }
       ]
     }

@@ -18,7 +18,6 @@ from career_agent.agent.decision_messages import (
 )
 from career_agent.agent.main_agent_contracts import DECISION_OBSERVATION_BODY_LIMIT
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_reachability import reachable_in_context
 from career_agent.evaluation.main_agent_scenarios import (
     SCENARIOS,
     SPAN_HIDDEN_QUESTION,
@@ -56,13 +55,9 @@ def _projected_text(context) -> str:
     )
 
 
-def _offered(context) -> set[str]:
+def _offered() -> set[str]:
     registry = MainAgentToolRegistry(conversation_store=object())
-    return {
-        spec["function"]["name"]
-        for spec in registry.schemas(context)
-        if reachable_in_context(spec["function"]["name"], context)
-    }
+    return {spec["function"]["name"] for spec in registry.schemas()}
 
 
 def _scenario(name: str):
@@ -92,7 +87,14 @@ def test_the_hidden_company_is_only_in_the_stuffed_projection() -> None:
     assert SPAN_WINDOW_DECOY in stuffed_payload
 
 
-def test_page_in_is_offered_only_when_the_watermark_is_projected() -> None:
+def test_page_in_is_gated_by_the_watermark_not_by_the_tool_menu() -> None:
+    """Only the projection distinguishes these three contexts.
+
+    The menu deliberately does not: withholding a tool would make the schema
+    array move with task state and cost the cached prefix. So the tool is
+    present in all three, and what tells the model whether a span exists to
+    read is ``through_sequence`` in the control channel.
+    """
     ablation = compacted_span_context(
         user_message=SPAN_HIDDEN_QUESTION, page_in=False
     )
@@ -101,10 +103,9 @@ def test_page_in_is_offered_only_when_the_watermark_is_projected() -> None:
     )
     stuffed = stuffed_span_context(user_message=SPAN_HIDDEN_QUESTION)
 
-    assert "read_conversation_span" not in _offered(ablation)
-    assert "read_conversation_span" in _offered(page_in)
-    assert "read_conversation_span" not in _offered(stuffed)
+    assert "read_conversation_span" in _offered()
     assert "through_sequence" not in project_decision_messages(ablation).control
+    assert "through_sequence" not in project_decision_messages(stuffed).control
     assert project_decision_messages(page_in).control["through_sequence"] == 8
     assert project_decision_messages(page_in).control["recent_from_sequence"] == 9
 

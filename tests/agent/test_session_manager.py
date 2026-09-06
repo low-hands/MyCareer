@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import sqlite3
 
 import pytest
 
@@ -19,6 +20,34 @@ def test_session_is_created_and_reused_by_context_manager(tmp_path) -> None:
     assert first.conversation_id == second.conversation_id == "c1"
     assert session.user_id == "u1"
     assert session.status == "active"
+
+
+def test_v3_sessions_gain_one_persisted_spotlight_nonce(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    now = datetime.now(timezone.utc).isoformat()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE schema_versions(component TEXT PRIMARY KEY, "
+            "version INTEGER NOT NULL, updated_at TEXT NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO schema_versions VALUES ('agent_context', 3, ?)",
+            (now,),
+        )
+        connection.execute(
+            "CREATE TABLE sessions(session_id TEXT NOT NULL, user_id TEXT NOT NULL, "
+            "status TEXT NOT NULL, created_at TEXT NOT NULL, "
+            "last_active_at TEXT NOT NULL, PRIMARY KEY(user_id, session_id))"
+        )
+        connection.execute(
+            "INSERT INTO sessions VALUES ('c1', 'u1', 'active', ?, ?)",
+            (now, now),
+        )
+
+    session = CareerContextStore(path).get_session("u1", "c1")
+
+    assert session is not None
+    assert len(session.spotlight_nonce) == 32
 
 
 def test_same_session_id_is_isolated_by_user(tmp_path) -> None:

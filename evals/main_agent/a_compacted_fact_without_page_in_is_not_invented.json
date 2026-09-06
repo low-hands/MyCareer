@@ -2,37 +2,37 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "01642a0e5a5dcf30d41c66f6e0b36a4e1d56e985b804c486dd39af3e8eb83ee2",
-  "context_shape_fingerprint": "a499a35fadfacb8406515c60ee99ed6d0e95d2df4089f41280d039d619039c41",
-  "recorded_at": "2026-09-06T09:57:19.192518+00:00",
+  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "context_shape_fingerprint": "dcd8c7ff8c5000c8b415540d54eb235fe753e6f8790ab7c480ea50ced3114e3a",
+  "recorded_at": "2026-09-06T15:18:30.966985+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我这边当前可见的上下文里没有记录你一开始指定的目标公司全名，无法可靠判断。请把当时的公司名或相关岗位信息再发我一下。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有记录你一开始指定的目标公司全名，我无法可靠判断。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T09:55:25.975621+00:00",
+      "recorded_at": "2026-09-06T15:18:27.316828+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我这边当前可见的上下文里没有记录你一开始指定的目标公司全名，无法可靠判断。请把当时的公司名或相关岗位信息再发我一下。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有记录你一开始指定的目标公司全名，我无法可靠判断。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T09:54:29.785136+00:00",
+      "recorded_at": "2026-09-06T15:18:42.717840+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名，不能据此猜测。请再告诉我公司名称。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定目标公司的那条原始消息，现有上下文也没有记录公司名。请把公司简称或那条目标信息再发一次，我才能确认全名。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T09:57:19.192518+00:00",
+      "recorded_at": "2026-09-06T15:18:30.966985+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有记录你一开始指定的目标公司全名。请把当时的公司名或相关消息再发我。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"当前可见上下文里没有你一开始指定的目标公司全名；只能确认你刚才提到的是“美团”，但它被说明为窗口里的对照项，不能据此推断目标公司。\"}"
         }
       ]
     }

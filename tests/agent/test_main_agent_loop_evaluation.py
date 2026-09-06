@@ -207,6 +207,17 @@ def test_a_recorded_tool_choice_runs_the_whole_turn_before_model_delivery(
     assert history[-1].content == turn.assistant_message
     events = _recorded_events(recorder)
     assert [event.event_type for event in events].count("model_attempt") == 2
+    model_results = [
+        event for event in events if event.event_type == "model_succeeded"
+    ]
+    assert all(
+        event.details["prompt_cache_mode"] == "implicit"
+        and event.details["prompt_cache_key_applied"] is True
+        and event.details["prompt_cache_breakpoint_applied"] is False
+        and event.details["cache_metrics_reported"] is False
+        for event in model_results
+    )
+    assert model_results[-1].details["cache_metrics_unreported_ratio"] == 1.0
     assert events[-1].event_type == "turn_completed"
 
 

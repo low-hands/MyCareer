@@ -305,8 +305,8 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         scenario=scenario,
         tool_specs=schemas,
     ) == (
-        "cassette prompt_fingerprint does not match the current dynamic "
-        "prompt/tool menu; re-record it"
+        "cassette prompt_fingerprint does not match the current stable "
+        "prompt/tool universe; re-record it"
     )
     assert cassette_staleness(
         TrajectoryCassette(
@@ -687,13 +687,13 @@ def test_changing_the_system_prompt_changes_its_fingerprint(
     monkeypatch.setattr(
         OpenAICompatibleMainAgentDecisionMaker,
         "_system_prompt",
-        staticmethod(lambda names: original(names) + " changed"),
+        staticmethod(lambda: original() + " changed"),
     )
 
     assert prompt_fingerprint(schemas) != before
 
 
-def test_changing_a_step_menu_changes_the_trajectory_fingerprint(offered) -> None:
+def test_changing_task_state_does_not_change_the_tool_prefix_fingerprint(offered) -> None:
     _, schemas = offered
     scenario = SCENARIOS[0]
     before = trajectory_prompt_fingerprint(scenario, schemas)
@@ -707,10 +707,10 @@ def test_changing_a_step_menu_changes_the_trajectory_fingerprint(offered) -> Non
 
     assert trajectory_prompt_fingerprint(
         replace(scenario, context=context), schemas
-    ) != before
+    ) == before
 
 
-def test_contract_rejects_an_expected_tool_hidden_on_that_step(offered) -> None:
+def test_contract_accepts_a_state_gated_tool_from_the_stable_universe(offered) -> None:
     _, schemas = offered
     scenario = SCENARIOS[0]
     hidden_expectation = replace(
@@ -725,8 +725,7 @@ def test_contract_rejects_an_expected_tool_hidden_on_that_step(offered) -> None:
     )
 
     failures = check_contract(hidden_expectation, tool_specs=schemas)
-    assert len(failures) == 1
-    assert "hidden by the production menu" in failures[0]
+    assert failures == ()
 
 
 def test_changing_model_context_keys_changes_the_shape_fingerprint(
@@ -1103,13 +1102,21 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
             )
         )
     assert resolved.count("report-a") == numbered.recording_samples
-    assert resolved.count("report-h1") == 1
-    # Every sample borrows the same older handle despite its conflicting title.
-    borrowed = [
-        (sample[0].get("tool_call") or {}).get("arguments", {}).get("reference")
-        for sample in load_cassette(unnumbered.name).recordings
-    ]
-    assert len(set(borrowed)) == 1
+    assert resolved.count("report-h1") == 0
+    # The safe samples use the saved-job selector. Intermittent failures borrow
+    # an older handle despite its conflicting title.
+    borrowed = []
+    grounded_selector_count = 0
+    for sample in load_cassette(unnumbered.name).recordings:
+        arguments = (sample[0].get("tool_call") or {}).get("arguments", {})
+        reference = arguments.get("reference")
+        if reference is None:
+            assert arguments.get("selection_index") == 1
+            grounded_selector_count += 1
+        else:
+            borrowed.append(reference)
+    assert borrowed
+    assert grounded_selector_count
     assert {
         unnumbered.context.resolve_reference(
             reference=handle,

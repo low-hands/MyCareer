@@ -1,25 +1,26 @@
-"""Which tools should be on the menu this turn, from the current task state.
+"""When a tool's prerequisites are met, stated as a table over task state.
 
-This is menu, not capability. Hiding a tool here only removes it from what the
-decision model is *offered* this turn; it is never removed from the registry,
-whose handler still exists and still enforces its own preconditions through
-argument projection. So hiding too little is harmless — the projection guard
-fires with a soft result later — while hiding too much silently strands a legal
-path. The table below therefore errs toward offering: a tool is hidden only when
-there is provably no object it could name right now.
+This no longer selects what the model is offered. The schema array is kept
+byte-stable across task-state changes so the cached request prefix survives,
+and the capability boundary is each handler's own argument projection, which
+answers an unmet precondition with a bounded soft refusal.
 
-The one rule with no such argument is the reference-index readbacks. Their
-reachability lives in the conversation window (``recent_messages`` /
-``archived_resources``), not in ``ConversationTaskState``, so the task state can
-neither prove nor disprove that some report is still reachable. They are never
-hidden, even on a cold turn.
+What remains here is the declarative statement of those preconditions: one
+place to read what a tool needs, checked against the registry so it cannot name
+a tool that does not exist. Nothing in request assembly consumes it, so a wrong
+entry misleads a reader rather than stranding a legal path.
+
+Reference-index readbacks are the one case the table cannot express. Their
+anchor is the conversation window (``recent_messages`` / ``archived_resources``)
+rather than ``ConversationTaskState``, so task state can neither prove nor
+disprove that some report is still reachable.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from career_agent.agent.main_agent_contracts import MainAgentContext, ConversationTaskState
+from career_agent.agent.main_agent_contracts import ConversationTaskState
 
 Precondition = Callable[[ConversationTaskState], bool]
 
@@ -139,16 +140,3 @@ def reachable(name: str, task: ConversationTaskState) -> bool:
         return True
     precondition = PRECONDITIONS.get(name)
     return precondition(task) if precondition is not None else True
-
-
-def reachable_in_context(name: str, context: MainAgentContext) -> bool:
-    """Context-aware reachability for capabilities whose anchor is not task state."""
-    if name == "read_conversation_span":
-        return bool(
-            context.through_sequence
-            or (
-                context.recent_from_sequence is not None
-                and context.recent_from_sequence > 1
-            )
-        )
-    return reachable(name, context.task)

@@ -58,6 +58,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     previous = ConversationSummaryContent(
         user_goals=("Build a career agent",),
         confirmed_decisions=("Use SQLite",),
+        omitted_active_constraint_count=2,
     )
 
     result = worker.summarize(
@@ -71,6 +72,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     assert result.user_goals == ("Track applications",)
     request = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert request["previous_summary"]["confirmed_decisions"] == ["Use SQLite"]
+    assert "omitted_active_constraint_count" not in request["previous_summary"]
     assert request["new_messages"][0]["sequence"] == 9
     system = client.completions.kwargs["messages"][0]["content"]
     assert "not confirmed long-term user memory" in system

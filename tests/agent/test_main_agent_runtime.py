@@ -601,6 +601,26 @@ def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None
         )
 
 
+def test_runtime_rejects_an_unguarded_request_token_estimator(tmp_path) -> None:
+    class PartialEstimator:
+        @staticmethod
+        def request_token_usage(context, tool_specs):
+            return 1000, 32000
+
+        @staticmethod
+        def decide(context, tool_specs):
+            return AgentDecision(action="final", message="done")
+
+    with pytest.raises(ValueError, match="static request token usage"):
+        MainAgentRuntime(
+            context_manager=ContextManager(
+                CareerContextStore(tmp_path / "unguarded-token-estimator.sqlite3")
+            ),
+            decision_maker=PartialEstimator(),
+            tools=MainAgentToolRegistry(),
+        )
+
+
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     tmp_path,
 ) -> None:
@@ -2742,7 +2762,7 @@ def test_unresumable_mock_interview_returns_control_to_main_agent(
     )
 
     class NeverResumeTools:
-        def schemas(self, context=None):
+        def schemas(self):
             return ()
 
         def handle_mock_interview_input(self, **kwargs):

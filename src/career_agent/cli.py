@@ -809,8 +809,9 @@ def _trajectory_tool_specs():
     """Every tool the registry can offer, wired with placeholder services.
 
     Scenarios never execute a tool, so the services only have to exist. What
-    has to match production is the schema universe; trajectory evaluation then
-    applies the same per-step reachability filter as the runtime.
+    has to match production is the fixed schema universe offered on every
+    decision. Runtime handler preconditions still apply when a tool is actually
+    executed; there is no task-scoped model-window filter to reproduce here.
     """
     from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 

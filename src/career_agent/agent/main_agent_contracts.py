@@ -566,6 +566,14 @@ class ConversationResourceReference(ContractModel):
 class ConversationMessageContext(ContractModel):
     role: Literal["user", "assistant"]
     content: str
+    content_clipped: bool = False
+    """True only on an in-memory recent-window projection.
+
+    Stored messages are complete up to the durable per-message ceiling.  The
+    context manager sets this bit on a projected copy when the smaller live
+    window clips the content, so the decision prompt never presents a partial
+    sentence as the complete message.
+    """
     created_at: datetime
     resource_refs: tuple[ConversationResourceReference, ...] = ()
     """Every stored report this turn produced, in the order it produced them.
@@ -977,6 +985,8 @@ def decision_observation_chars(
 
 class MainAgentContext(ContractModel):
     conversation_id: str
+    spotlight_nonce: str | None = Field(default=None, min_length=32, max_length=32)
+    """Harness-only session delimiter; deliberately absent from model_context JSON."""
     profile: CareerProfileContext
     preferences: AgentPreferencesContext = AgentPreferencesContext()
     task: ConversationTaskState = ConversationTaskState()
@@ -1433,6 +1443,16 @@ class OpenJobSearchToolArguments(ContractModel):
 class ReadConversationSpanToolArguments(ContractModel):
     from_sequence: int = Field(ge=1)
     through_sequence: int = Field(ge=1)
+    query: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description=(
+            "Focused terms from the user's request, such as 目标公司 or Rust. "
+            "Use this for long omitted ranges; omit it only for an exact "
+            "sequence span the user named."
+        ),
+    )
 
     @model_validator(mode="after")
     def require_forward_span(self) -> "ReadConversationSpanToolArguments":
