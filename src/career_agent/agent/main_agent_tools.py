@@ -38,6 +38,8 @@ from career_agent.agent.main_agent_contracts import (
     RecordInterviewRetroToolArguments,
     ReadConversationSpanToolArguments,
     ResolveClaimSourceToolArguments,
+    GetCareerMemoryDetailToolArguments,
+    SearchCareerHistoryToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -95,6 +97,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.domain.career_history import career_evidence_lineage_ref
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_effects import effect_for
 from career_agent.connectors.email_accounts import EmailCredentialError
@@ -291,8 +294,12 @@ class MainAgentToolRegistry:
                 self._read_conversation_span
             )
         if career_history_store is not None:
-            self._atomic_handlers["resolve_claim_source"] = (
-                self._resolve_claim_source
+            self._atomic_handlers.update(
+                {
+                    "resolve_claim_source": self._resolve_claim_source,
+                    "get_career_memory_detail": self._get_career_memory_detail,
+                    "search_career_history": self._search_career_history,
+                }
             )
         if owner_settings_store is not None:
             self._atomic_handlers["update_owner_settings"] = self._update_owner_settings
@@ -615,8 +622,9 @@ class MainAgentToolRegistry:
                 }
             )
         if self._career_history_store is not None:
-            schemas.append(
-                {
+            schemas.extend(
+                (
+                    {
                     "type": "function",
                     "function": {
                         "name": "resolve_claim_source",
@@ -630,7 +638,41 @@ class MainAgentToolRegistry:
                             ResolveClaimSourceToolArguments.model_json_schema()
                         ),
                     },
-                }
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_career_memory_detail",
+                            "description": (
+                                "Expand one current career claim only when its "
+                                "projected detail_ref is relevant. Returns the "
+                                "current revision, direct support, and correction "
+                                "lineage without treating an old quotation as "
+                                "support for the corrected claim."
+                            ),
+                            "parameters": (
+                                GetCareerMemoryDetailToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "search_career_history",
+                            "description": (
+                                "Search superseded or rolled-back career claims "
+                                "for historical questions. Pass focused terms "
+                                "expected inside the earlier claim; this is the "
+                                "query-indexed history path, not source_ref lookup. "
+                                "When next_cursor is returned, pass it back with "
+                                "the identical query to read the next page."
+                            ),
+                            "parameters": (
+                                SearchCareerHistoryToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                )
             )
         if "open_job_search" in self._atomic_handlers:
             schemas.append(
@@ -4241,6 +4283,187 @@ class MainAgentToolRegistry:
             execution_outcome="committed",
         )
 
+    @staticmethod
+    def _career_claim_status(evidence: Any) -> str:
+        if evidence.rolled_back_at is not None:
+            return "rolled_back"
+        return "current" if evidence.is_current else "superseded"
+
+    def _get_career_memory_detail(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = GetCareerMemoryDetailToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        evidence = self._career_history_store.get_evidence_by_detail_ref(
+            user_id=user_id,
+            detail_ref=model_arguments.detail_ref,
+        )
+        if evidence is None or not evidence.is_current or evidence.scope_key is None:
+            return ToolObservation(
+                tool_name="get_career_memory_detail",
+                state="career_memory_detail_not_found",
+                message="没有找到这个当前职业声明详情；历史声明请改用历史查询。",
+                payload={"detail_ref": model_arguments.detail_ref},
+            )
+        lineage = self._career_history_store.list_evidence_lineage(
+            user_id=user_id,
+            scope_key=evidence.scope_key,
+        )
+        record = self._career_history_store.get_record(
+            user_id=user_id,
+            career_record_id=evidence.career_record_id,
+        )
+        lineage_ref = career_evidence_lineage_ref(
+            user_id=user_id,
+            scope_key=evidence.scope_key,
+        )
+        entries = []
+        for item in lineage:
+            status = self._career_claim_status(item)
+            changed_at = item.rolled_back_at or item.superseded_at
+            entries.append(
+                {
+                    "revision": item.revision,
+                    "claim": item.claim,
+                    "claim_status": status,
+                    "valid_from": (
+                        item.valid_from.isoformat() if item.valid_from else None
+                    ),
+                    **(
+                        {"status_changed_at": changed_at.isoformat()}
+                        if changed_at is not None
+                        else {}
+                    ),
+                }
+            )
+        supported_by = [evidence.source_ref] if evidence.source_ref else []
+        body = (
+            f"当前职业声明详情（revision {evidence.revision}）\n"
+            f"履历项：{record.title if record is not None else '未找到'}\n"
+            f"声明：{evidence.claim}\n"
+            f"直接支持：{', '.join(supported_by) if supported_by else '无直接来源引文'}\n"
+            f"谱系引用：{lineage_ref}\n"
+            "更正谱系：\n"
+            + "\n".join(
+                f"- r{item['revision']} [{item['claim_status']}] {item['claim']}"
+                + (
+                    f"（状态变更时间：{item['status_changed_at']}）"
+                    if "status_changed_at" in item
+                    else ""
+                )
+                for item in entries
+            )
+        )
+        body_clipped = len(body) > DECISION_OBSERVATION_BODY_LIMIT
+        if body_clipped:
+            body = clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT)
+        return ToolObservation(
+            tool_name="get_career_memory_detail",
+            state="career_memory_detail_found",
+            message=(
+                f"已读取当前职业声明 revision {evidence.revision}；"
+                f"谱系共 {len(entries)} 条。"
+            ),
+            facts={
+                "revision": evidence.revision or 1,
+                "support_count": len(supported_by),
+                "lineage_count": len(entries),
+                "body_clipped": body_clipped,
+            },
+            payload={
+                "detail_ref": model_arguments.detail_ref,
+                "lineage_ref": lineage_ref,
+                "supported_by": supported_by,
+                "lineage": entries,
+                "body": body,
+                "body_clipped": body_clipped,
+            },
+        )
+
+    def _search_career_history(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = SearchCareerHistoryToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            evidence, total, next_cursor = (
+                self._career_history_store.search_historical_evidence(
+                    user_id=user_id,
+                    query=model_arguments.query,
+                    limit=model_arguments.limit,
+                    cursor=model_arguments.cursor,
+                )
+            )
+        except ValueError:
+            return ToolObservation(
+                tool_name="search_career_history",
+                state="invalid_input",
+                message="历史查询词或分页游标无效；请用聚焦词重新从第一页查询。",
+                payload={"query": model_arguments.query},
+            )
+        items = []
+        for item in evidence:
+            status = self._career_claim_status(item)
+            changed_at = item.rolled_back_at or item.superseded_at
+            items.append(
+                {
+                    "claim": item.claim,
+                    "revision": item.revision,
+                    "claim_status": status,
+                    **(
+                        {"status_changed_at": changed_at.isoformat()}
+                        if changed_at is not None
+                        else {}
+                    ),
+                }
+            )
+        if not items:
+            return ToolObservation(
+                tool_name="search_career_history",
+                state="career_history_empty",
+                message="没有找到匹配的历史职业声明。",
+                payload={
+                    "query": model_arguments.query,
+                    "items": [],
+                    "total": total,
+                },
+            )
+        body = "历史职业声明（不能作为当前值使用）：\n" + "\n".join(
+            f"- r{item['revision']} [{item['claim_status']}] {item['claim']}"
+            f"（状态变更时间：{item.get('status_changed_at', '未记录')}）"
+            for item in items
+        )
+        body_clipped = len(body) > DECISION_OBSERVATION_BODY_LIMIT
+        if body_clipped:
+            body = clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT)
+        return ToolObservation(
+            tool_name="search_career_history",
+            state="career_history_found",
+            message=f"找到 {len(items)}/{total} 条匹配的历史职业声明。",
+            facts={
+                "returned": len(items),
+                "total": total,
+                "body_clipped": body_clipped,
+                **({"next_cursor": next_cursor} if next_cursor is not None else {}),
+            },
+            payload={
+                "query": model_arguments.query,
+                "items": items,
+                "total": total,
+                **({"next_cursor": next_cursor} if next_cursor is not None else {}),
+                "body": body,
+                "body_clipped": body_clipped,
+            },
+        )
+
     def _resolve_claim_source(
         self, arguments: dict[str, Any]
     ) -> ToolObservation:
@@ -4288,13 +4511,7 @@ class MainAgentToolRegistry:
                 source_quote,
                 limit=DECISION_OBSERVATION_BODY_LIMIT - len(heading),
             )
-        claim_status = (
-            "rolled_back"
-            if evidence.rolled_back_at is not None
-            else "current"
-            if evidence.is_current
-            else "superseded"
-        )
+        claim_status = self._career_claim_status(evidence)
         status_changed_at = evidence.rolled_back_at or evidence.superseded_at
         return ToolObservation(
             tool_name="resolve_claim_source",

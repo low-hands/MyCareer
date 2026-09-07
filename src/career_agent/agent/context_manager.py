@@ -30,11 +30,16 @@ from career_agent.storage.context import CareerContextStore, StoredConversationM
 
 
 class TargetRoleSource(Protocol):
-    def list_target_roles(self, *, user_id: str) -> tuple[TargetRole, ...]: ...
+    def list_target_roles(
+        self, *, user_id: str, limit: int | None = None
+    ) -> tuple[TargetRole, ...]: ...
+
+    def count_target_roles(self, *, user_id: str) -> int: ...
 
 
 class ContextManager:
     _MAX_STATIC_INPUT_FRACTION = 0.5
+    _TARGET_ROLE_SAFETY_LIMIT = 100
     _RECENT_DEDUP_MIN_CHARS = 512
     _RECENT_DUPLICATE_MARKER = (
         "[duplicate content omitted; identical to a newer visible message "
@@ -260,6 +265,23 @@ class ContextManager:
         profile = self._stored_profile_context(user_id)
         if self._target_role_source is None:
             return profile
+        try:
+            target_roles = self._target_role_source.list_target_roles(
+                user_id=user_id,
+                limit=self._TARGET_ROLE_SAFETY_LIMIT,
+            )
+        except TypeError:
+            # Structural test doubles written before the safety-limit argument
+            # still get bounded at the projection boundary.
+            target_roles = self._target_role_source.list_target_roles(
+                user_id=user_id
+            )[: self._TARGET_ROLE_SAFETY_LIMIT]
+        count_roles = getattr(self._target_role_source, "count_target_roles", None)
+        current_targets_total = (
+            int(count_roles(user_id=user_id))
+            if callable(count_roles)
+            else len(target_roles)
+        )
         current_targets = tuple(
             CurrentTargetContext(
                 title=role.title,
@@ -270,9 +292,14 @@ class ContextManager:
                 experience=role.experience,
                 education=role.education,
             )
-            for role in self._target_role_source.list_target_roles(user_id=user_id)
+            for role in target_roles
         )
-        return profile.model_copy(update={"current_targets": current_targets})
+        return profile.model_copy(
+            update={
+                "current_targets": current_targets,
+                "current_targets_total": current_targets_total,
+            }
+        )
 
     def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = ()) -> None:
         now = datetime.now(timezone.utc)

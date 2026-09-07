@@ -4,7 +4,10 @@ from career_agent.agent.main_agent_contracts import (
     CareerMemoryClaim,
     CareerMemoryContext,
     CareerMemoryRecord,
+    CareerProfileBudgets,
     CareerProfileContext,
+    CurrentTargetContext,
+    HardConstraintContext,
     MainAgentContext,
 )
 from career_agent.evaluation.memory_metrics import (
@@ -78,6 +81,8 @@ def test_query_reranking_churn_is_reported_per_slot_without_memory_writes() -> N
                                 claim=f"Worked on {title}",
                                 origin="user_input",
                                 recorded_at=recorded_at,
+                                    revision=1,
+                                    detail_ref="detail_" + "a" * 24,
                             ),
                         ),
                     ),
@@ -112,9 +117,142 @@ def test_query_reranking_churn_is_reported_per_slot_without_memory_writes() -> N
         "conversation_summary",
         "recent_messages",
     }
-    assert sum(latest["career_profile_chars"].values()) == (
+    composition = latest["career_profile_chars"]
+    assert (
+        composition["keys"]
+        + composition["values"]
+        + composition["punctuation"]
+        + composition["schema_chars"]
+    ) == latest["slot_chars"]["career_profile"]
+    assert composition["schema_chars"] == latest["career_profile_schema_chars"][
+        "label_chars"
+    ]
+    assert latest["career_profile_schema_chars"]["schema_chars"] > 0
+    assert latest["career_profile_schema_chars"]["label_chars"] > 0
+    assert sum(latest["career_profile_source_chars"].values()) == (
         latest["slot_chars"]["career_profile"]
     )
+    assert set(latest["career_profile_source_chars"]) == {
+        "records",
+        "current_targets",
+        "hard_constraints",
+        "shared",
+    }
+    assert latest["career_profile_source_chars"]["current_targets"] == 0
+    assert latest["career_profile_dynamic_ratio"] == (
+        latest["slot_chars"]["career_profile"]
+        / latest["dynamic_context_chars"]
+    )
+    assert latest["career_profile_delivery"]["records_returned"] == 1
+    assert latest["career_profile_delivery"]["records_dropped"] == 0
+    assert latest["career_profile_delivery"]["claims_returned"] == 1
+    assert latest["career_profile_delivery"]["claims_dropped"] == 0
+
+
+def test_profile_source_buckets_include_business_blocks_and_shared_framing() -> None:
+    context = MainAgentContext(
+        conversation_id="conversation-1",
+        profile=CareerProfileContext(
+            user_id="u1",
+            default_city="杭州",
+            hard_constraints=(
+                HardConstraintContext(
+                    relation="work_schedule",
+                    value="不接受 996",
+                ),
+            ),
+            current_targets=(
+                CurrentTargetContext(
+                    title="ML Engineer",
+                    priority=1,
+                    salary_expectation="40-60k",
+                ),
+            ),
+        ),
+        career_memory=CareerMemoryContext(
+            records=(
+                CareerMemoryRecord(
+                    record_type="project",
+                    title="Retrieval",
+                    confirmed_highlights=(
+                        CareerMemoryClaim(
+                            claim="Built a retriever",
+                            origin="user_input",
+                            recorded_at=datetime(
+                                2026, 9, 1, tzinfo=timezone.utc
+                            ),
+                            revision=1,
+                            detail_ref="detail_" + "a" * 24,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        user_message="帮我找岗位",
+    )
+
+    observation = memory_context_observation(
+        context,
+        career_memory_enabled=True,
+    )
+    buckets = observation["career_profile_source_chars"]
+
+    assert all(buckets[name] > 0 for name in buckets)
+    assert sum(buckets.values()) == observation["slot_chars"]["career_profile"]
+    # Person-level default_city and the outer JSON framing are deliberately
+    # shared rather than misattributed to the role-scoped target block.
+    assert buckets["shared"] >= len('"default_city": "杭州"')
+
+
+def test_zero_record_budget_keeps_dropped_counts_visible_in_telemetry() -> None:
+    context = MainAgentContext(
+        conversation_id="conversation-1",
+        profile=CareerProfileContext(
+            user_id="u1",
+            hard_constraints=(
+                HardConstraintContext(
+                    relation="work_arrangement",
+                    value="必须远程",
+                ),
+            ),
+        ),
+        career_memory=CareerMemoryContext(
+            records=(
+                CareerMemoryRecord(
+                    record_type="project",
+                    title="Retrieval",
+                    confirmed_highlights=(
+                        CareerMemoryClaim(
+                            claim="Built a retriever",
+                            origin="user_input",
+                            recorded_at=datetime(
+                                2026, 9, 1, tzinfo=timezone.utc
+                            ),
+                            revision=1,
+                            detail_ref="detail_" + "a" * 24,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        career_profile_budgets=CareerProfileBudgets(records_chars=0),
+        user_message="帮我找岗位",
+    )
+
+    observation = memory_context_observation(
+        context,
+        career_memory_enabled=True,
+    )
+    delivery = observation["career_profile_delivery"]
+
+    assert delivery["records_returned"] == 0
+    assert delivery["records_total"] == 1
+    assert delivery["records_dropped"] == 1
+    assert delivery["claims_returned"] == 0
+    assert delivery["claims_total"] == 1
+    assert delivery["claims_dropped"] == 1
+    assert delivery["hard_constraints_returned"] == 1
+    assert delivery["hard_constraints_dropped"] == 0
 
 
 def test_version_sensitive_metrics_fail_closed_in_m6a() -> None:

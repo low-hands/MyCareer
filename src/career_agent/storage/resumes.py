@@ -55,10 +55,28 @@ class ResumeStore:
             connection.execute("INSERT INTO target_roles(id, user_id, title, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (role.id, role.user_id, role.title, role.priority, role.status, role.created_at.isoformat(), role.updated_at.isoformat()))
         return role
 
-    def list_target_roles(self, *, user_id: str) -> tuple[TargetRole, ...]:
+    def list_target_roles(
+        self, *, user_id: str, limit: int | None = None
+    ) -> tuple[TargetRole, ...]:
+        if limit is not None and limit < 1:
+            raise ValueError("target-role limit must be positive")
+        query = "SELECT id, user_id, title, priority, status, city, salary_expectation, experience, education, created_at, updated_at FROM target_roles WHERE user_id = ? ORDER BY priority, created_at"
+        parameters: list[object] = [user_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            parameters.append(limit)
         with self._connect() as connection:
-            rows = connection.execute("SELECT id, user_id, title, priority, status, city, salary_expectation, experience, education, created_at, updated_at FROM target_roles WHERE user_id = ? ORDER BY priority, created_at", (user_id,)).fetchall()
+            rows = connection.execute(query, parameters).fetchall()
         return tuple(self._role(row) for row in rows)
+
+    def count_target_roles(self, *, user_id: str) -> int:
+        with self._connect() as connection:
+            return int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM target_roles WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()[0]
+            )
 
     def get_target_role(self, *, user_id: str, target_role_id: str) -> TargetRole | None:
         with self._connect() as connection:

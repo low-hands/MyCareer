@@ -3,8 +3,8 @@
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "9896dbc394527be96a9e5894632f9f2334b5d761d16c0be178206b2f4c97dbab",
-  "recorded_at": "2026-09-07T03:33:41.717554+00:00",
+  "context_shape_fingerprint": "466f984ec9f56e35bf1f113bcfa20aa2e3eb6a2cfbb28b9be42e634dba7652ab",
+  "recorded_at": "2026-09-07T06:36:00.011006+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 120,
-          "query": "目标公司 公司 美团 算法工程师"
+          "query": "目标公司 美团 公司"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:33:41.717554+00:00",
+      "recorded_at": "2026-09-07T06:36:00.011006+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,7 +28,7 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 120,
-              "query": "目标公司 公司 美团 算法工程师"
+              "query": "目标公司 美团 公司"
             }
           }
         }

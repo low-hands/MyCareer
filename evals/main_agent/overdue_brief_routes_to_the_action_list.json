@@ -3,18 +3,18 @@
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, use the overdue count rather than giving a generic answer or guessing the brief body.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "65f47512226982e4c4d143678f1bfca53a4843264411a83ae3b7ad61d2cf0e22",
-  "recorded_at": "2026-09-07T03:30:33.823955+00:00",
+  "context_shape_fingerprint": "9321d4c2e9f7584d1d89595a181024601a156b3da624415d1b38204e40376812",
+  "recorded_at": "2026-09-07T06:32:54.305740+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "list_action_items",
         "arguments": {
-          "limit": 50,
           "statuses": [
             "open",
             "snoozed"
           ],
+          "limit": 50,
           "timezone": "Asia/Shanghai"
         }
       }
@@ -23,17 +23,17 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:30:33.823955+00:00",
+      "recorded_at": "2026-09-07T06:32:54.305740+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "list_action_items",
             "arguments": {
-              "limit": 50,
               "statuses": [
                 "open",
                 "snoozed"
               ],
+              "limit": 50,
               "timezone": "Asia/Shanghai"
             }
           }

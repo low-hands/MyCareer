@@ -158,6 +158,8 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # Resume quotations are provenance readbacks, not durable conversation
     # memory. Keep the quote in the bounded turn-local observation only.
     "claim_source_found": _summarised(),
+    "career_memory_detail_found": _summarised(),
+    "career_history_found": _summarised(),
 }
 
 _POLICIES.update(
@@ -182,6 +184,8 @@ _POLICIES.update(
             "calendar_proposal_ready",
             "calendar_sync_complete",
             "claim_source_not_found",
+            "career_memory_detail_not_found",
+            "career_history_empty",
             "conversation_span_empty",
             "compare_input_not_found",
             "email_account_not_found",

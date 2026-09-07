@@ -62,6 +62,19 @@ DECLARED_FACTS = {
         },
         "reason": "来源元数据保持结构化；原始引文只进入低授权正文",
     },
+    "career_memory_detail_found": {
+        "keys": {
+            "revision",
+            "support_count",
+            "lineage_count",
+            "body_clipped",
+        },
+        "reason": "当前值与关系计数结构化；完整谱系只进入低授权正文",
+    },
+    "career_history_found": {
+        "keys": {"returned", "total", "body_clipped", "next_cursor"},
+        "reason": "历史查询必须显式报告有界结果、真实总数与可见分页",
+    },
 }
 
 
@@ -159,6 +172,8 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
         "resume_analysis_ready": {},
         "job_research_ready": {},
         "claim_source_found": {},
+        "career_memory_detail_found": {},
+        "career_history_found": {},
     }
     for state, spec in DECLARED_FACTS.items():
         facts = {

@@ -67,15 +67,27 @@ class CareerProfileContext(ContractModel):
     )
     current_targets: tuple[CurrentTargetContext, ...] = Field(
         default=(),
+        max_length=100,
         exclude=True,
     )
     """Read-time projection from TargetRole; never duplicated in profile storage."""
+    current_targets_total: int = Field(default=0, ge=0, exclude=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_current_target_total(cls, value: object) -> object:
+        if not isinstance(value, dict) or "current_targets_total" in value:
+            return value
+        targets = value.get("current_targets", ())
+        return {**value, "current_targets_total": len(targets)}
 
     @model_validator(mode="after")
     def hard_constraint_relations_are_unique(self) -> "CareerProfileContext":
         relations = [item.relation for item in self.hard_constraints]
         if len(relations) != len(set(relations)):
             raise ValueError("hard constraint relations must be unique")
+        if self.current_targets_total < len(self.current_targets):
+            raise ValueError("current_targets_total cannot be smaller than loaded roles")
         return self
 
 
@@ -698,6 +710,8 @@ class CareerMemoryClaim(ContractModel):
         default=None,
         pattern=r"^evidence_[a-f0-9]{24}$",
     )
+    revision: int = Field(ge=1)
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
 
 
 class CareerMemoryRecord(ContractModel):
@@ -720,6 +734,267 @@ class CareerMemoryRecord(ContractModel):
 
 class CareerMemoryContext(ContractModel):
     records: tuple[CareerMemoryRecord, ...] = ()
+    records_total: int = Field(default=0, ge=0)
+    claims_total: int = Field(default=0, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_totals(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        records = value.get("records", ())
+        updates: dict[str, object] = {}
+        if "records_total" not in value:
+            updates["records_total"] = len(records)
+        if "claims_total" not in value:
+            updates["claims_total"] = sum(
+                len(
+                    record.get("confirmed_highlights", ())
+                    if isinstance(record, dict)
+                    else record.confirmed_highlights
+                )
+                for record in records
+            )
+        return {**value, **updates}
+
+    @model_validator(mode="after")
+    def totals_cover_loaded_rows(self) -> "CareerMemoryContext":
+        loaded_claims = sum(
+            len(record.confirmed_highlights) for record in self.records
+        )
+        if self.records_total < len(self.records):
+            raise ValueError("records_total cannot be smaller than loaded records")
+        if self.claims_total < loaded_claims:
+            raise ValueError("claims_total cannot be smaller than loaded claims")
+        return self
+
+    def tier_one_projection(self, *, char_budget: int) -> dict[str, Any]:
+        """Render a bounded ONTO-style index with field names declared once.
+
+        The budget bounds the record and claim table payload. Delivery counters
+        are control metadata and remain visible even when their own encoding
+        exceeds the remaining budget; otherwise an empty budget is
+        indistinguishable from a user with no career memory.
+        """
+
+        if char_budget < 0:
+            raise ValueError("career-memory character budget cannot be negative")
+        if char_budget == 0:
+            return _career_memory_table(
+                record_rows=[],
+                claim_rows=[],
+                records_total=self.records_total,
+                claims_total=self.claims_total,
+            )
+
+        record_rows: list[list[Any]] = []
+        claim_rows: list[list[Any]] = []
+        stopped = False
+        for record in self.records:
+            next_record = [
+                record.record_type,
+                record.organization,
+                record.title,
+                record.start_year,
+                record.start_month,
+                record.end_year,
+                record.end_month,
+                record.is_current,
+            ]
+            candidate_records = [*record_rows, next_record]
+            candidate = _career_memory_table(
+                record_rows=candidate_records,
+                claim_rows=claim_rows,
+                records_total=self.records_total,
+                claims_total=self.claims_total,
+            )
+            if _serialized_chars(candidate) > char_budget:
+                break
+            record_rows = candidate_records
+            record_index = len(record_rows) - 1
+            for claim in record.confirmed_highlights:
+                serialized_claim = claim.model_dump(mode="json")
+                next_claim = [
+                    record_index,
+                    serialized_claim["claim"],
+                    serialized_claim["origin"],
+                    serialized_claim["recorded_at"],
+                    serialized_claim["source_ref"],
+                    serialized_claim["revision"],
+                    serialized_claim["detail_ref"],
+                ]
+                candidate_claims = [*claim_rows, next_claim]
+                candidate = _career_memory_table(
+                    record_rows=record_rows,
+                    claim_rows=candidate_claims,
+                    records_total=self.records_total,
+                    claims_total=self.claims_total,
+                )
+                if _serialized_chars(candidate) > char_budget:
+                    stopped = True
+                    break
+                claim_rows = candidate_claims
+            if stopped:
+                break
+        projected = _career_memory_table(
+            record_rows=record_rows,
+            claim_rows=claim_rows,
+            records_total=self.records_total,
+            claims_total=self.claims_total,
+        )
+        return (
+            projected
+            if _serialized_chars(projected) <= char_budget
+            else _career_memory_table(
+                record_rows=[],
+                claim_rows=[],
+                records_total=self.records_total,
+                claims_total=self.claims_total,
+            )
+        )
+
+
+class CareerProfileBudgets(ContractModel):
+    """Section payload ceilings; truncation counters are budget-exempt metadata.
+
+    Candidate safety limits live in stores.
+    """
+
+    records_chars: int = Field(default=2_800, ge=0)
+    current_targets_chars: int = Field(default=800, ge=0)
+    hard_constraints_chars: int = Field(default=600, ge=0)
+
+
+_CAREER_RECORD_FIELDS = (
+    "record_type",
+    "organization",
+    "title",
+    "start_year",
+    "start_month",
+    "end_year",
+    "end_month",
+    "is_current",
+)
+_CAREER_CLAIM_FIELDS = (
+    "record",
+    "claim",
+    "origin",
+    "recorded_at",
+    "source_ref",
+    "revision",
+    "detail_ref",
+)
+
+
+def _serialized_chars(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str))
+
+
+def _career_memory_table(
+    *,
+    record_rows: list[list[Any]],
+    claim_rows: list[list[Any]],
+    records_total: int,
+    claims_total: int,
+) -> dict[str, Any]:
+    projected: dict[str, Any] = {}
+    if record_rows:
+        projected["records"] = {
+            "fields": list(_CAREER_RECORD_FIELDS),
+            "rows": record_rows,
+        }
+    if claim_rows:
+        projected["claims"] = {
+            "fields": list(_CAREER_CLAIM_FIELDS),
+            "rows": claim_rows,
+        }
+    if len(record_rows) < records_total:
+        projected["records_returned"] = len(record_rows)
+        projected["records_total"] = records_total
+    if len(claim_rows) < claims_total:
+        projected["claims_returned"] = len(claim_rows)
+        projected["claims_total"] = claims_total
+    return projected
+
+
+def _bounded_hard_constraints(
+    constraints: tuple[HardConstraintContext, ...],
+    *,
+    char_budget: int,
+) -> dict[str, Any]:
+    total = len(constraints)
+    empty_delivery = (
+        {
+            "hard_constraints_returned": 0,
+            "hard_constraints_total": total,
+        }
+        if total
+        else {}
+    )
+    if char_budget <= 0 or not constraints:
+        return empty_delivery
+    rows: list[dict[str, Any]] = []
+    for constraint in constraints:
+        candidate_rows = [*rows, constraint.model_dump(mode="json")]
+        candidate: dict[str, Any] = {"hard_constraints": candidate_rows}
+        if len(candidate_rows) < total:
+            candidate["hard_constraints_returned"] = len(candidate_rows)
+            candidate["hard_constraints_total"] = total
+        if _serialized_chars(candidate) > char_budget:
+            break
+        rows = candidate_rows
+    projected: dict[str, Any] = {"hard_constraints": rows} if rows else {}
+    if len(rows) < total:
+        projected["hard_constraints_returned"] = len(rows)
+        projected["hard_constraints_total"] = total
+    return (
+        projected
+        if _serialized_chars(projected) <= char_budget
+        else empty_delivery
+    )
+
+
+def _bounded_current_targets(
+    targets: tuple[CurrentTargetContext, ...],
+    *,
+    total: int,
+    char_budget: int,
+) -> dict[str, Any]:
+    empty_delivery = (
+        {
+            "current_targets_returned": 0,
+            "current_targets_total": total,
+        }
+        if total
+        else {}
+    )
+    if char_budget <= 0 or not targets:
+        return empty_delivery
+    rows: list[dict[str, Any]] = []
+    for target in targets:
+        candidate_rows = [
+            *rows,
+            target.model_dump(mode="json", exclude_none=True),
+        ]
+        candidate_body: dict[str, Any] = {"roles": candidate_rows}
+        if len(candidate_rows) < total:
+            candidate_body.update(
+                roles_returned=len(candidate_rows),
+                roles_total=total,
+            )
+        candidate = {"current_targets": candidate_body}
+        if _serialized_chars(candidate) > char_budget:
+            break
+        rows = candidate_rows
+    body: dict[str, Any] = {"roles": rows}
+    if len(rows) < total:
+        body.update(roles_returned=len(rows), roles_total=total)
+    projected = {"current_targets": body} if rows else empty_delivery
+    return (
+        projected
+        if _serialized_chars(projected) <= char_budget
+        else empty_delivery
+    )
 
 
 MAX_DECISION_FACTS = 8
@@ -1103,6 +1378,10 @@ class MainAgentContext(ContractModel):
     preferences: AgentPreferencesContext = AgentPreferencesContext()
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
+    career_profile_budgets: CareerProfileBudgets = Field(
+        default_factory=CareerProfileBudgets,
+        exclude=True,
+    )
     recent_messages: tuple[ConversationMessageContext, ...] = ()
     through_sequence: int = Field(default=0, ge=0)
     """Last durable message covered by ``conversation_summary``; zero if absent."""
@@ -1344,36 +1623,23 @@ class MainAgentContext(ContractModel):
                 # ``resources`` in both cases so the model reads one shape.
                 projected["resources"] = resources
             model_messages.append(projected)
+        profile = {
+            "default_city": self.profile.default_city,
+            **_bounded_hard_constraints(
+                self.profile.hard_constraints,
+                char_budget=self.career_profile_budgets.hard_constraints_chars,
+            ),
+            **_bounded_current_targets(
+                self.profile.current_targets,
+                total=self.profile.current_targets_total,
+                char_budget=self.career_profile_budgets.current_targets_chars,
+            ),
+            **self.career_memory.tier_one_projection(
+                char_budget=self.career_profile_budgets.records_chars
+            ),
+        }
         return {
-            "career_profile": {
-                "default_city": self.profile.default_city,
-                **(
-                    {
-                        "hard_constraints": [
-                            constraint.model_dump(mode="json")
-                            for constraint in self.profile.hard_constraints
-                        ]
-                    }
-                    if self.profile.hard_constraints
-                    else {}
-                ),
-                **(
-                    {
-                        "current_targets": {
-                            "roles": [
-                                target.model_dump(mode="json", exclude_none=True)
-                                for target in self.profile.current_targets
-                            ],
-                        }
-                    }
-                    if self.profile.current_targets
-                    else {}
-                ),
-                "records": [
-                    record.model_dump(mode="json")
-                    for record in self.career_memory.records
-                ],
-            },
+            "career_profile": profile,
             "preferences": {
                 "boss_search": self.preferences.boss_search,
             },
@@ -1598,6 +1864,27 @@ class ReadConversationSpanToolArguments(ContractModel):
 
 class ResolveClaimSourceToolArguments(ContractModel):
     source_ref: str = Field(pattern=r"^evidence_[a-f0-9]{24}$")
+
+
+class GetCareerMemoryDetailToolArguments(ContractModel):
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+
+
+class SearchCareerHistoryToolArguments(ContractModel):
+    query: str = Field(
+        min_length=3,
+        max_length=200,
+        description=(
+            "Focused terms expected inside the earlier claim. Do not pass a "
+            "generic request such as 'what did I say before'."
+        ),
+    )
+    limit: int = Field(default=8, ge=1, le=20)
+    cursor: str | None = Field(
+        default=None,
+        pattern=r"^history_[a-f0-9]{8}_[a-f0-9]{8}$",
+        description="Opaque next-page cursor returned by an earlier identical query.",
+    )
 
 
 class FindSavedJobsToolArguments(ContractModel):

@@ -3,26 +3,20 @@
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
-  "recorded_at": "2026-09-07T03:29:39.886814+00:00",
+  "context_shape_fingerprint": "9090d13b6608286bb5554777242dad1809e195b8cf9b7c600b03f74a341c574f",
+  "recorded_at": "2026-09-07T06:32:18.838411+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "get_saved_job",
-        "arguments": {}
-      }
+      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位已在当前上下文中。要不要先用你的简历做一次岗位匹配，确认优势、缺口和投递建议？\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:29:39.886814+00:00",
+      "recorded_at": "2026-09-07T06:32:18.838411+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {}
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位已在当前上下文中。要不要先用你的简历做一次岗位匹配，确认优势、缺口和投递建议？\"}"
         }
       ]
     }

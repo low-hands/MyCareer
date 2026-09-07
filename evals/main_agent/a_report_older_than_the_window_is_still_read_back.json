@@ -3,8 +3,8 @@
   "policy": "A working-memory data entry or archived report may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "6990beb4ba7a97ca9bc55274c5abf27946d04c00bce676ed4366beb783fa4496",
-  "recorded_at": "2026-09-07T03:31:45.269997+00:00",
+  "context_shape_fingerprint": "4d5044858d3dbd50462fec27c3a596bb6f849af9c1a3c04c8fa9d13887af2f40",
+  "recorded_at": "2026-09-07T06:42:01.350589+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:31:45.269997+00:00",
+      "recorded_at": "2026-09-07T06:42:01.350589+00:00",
       "steps": [
         {
           "tool_call": {

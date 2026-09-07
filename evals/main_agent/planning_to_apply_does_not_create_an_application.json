@@ -3,26 +3,20 @@
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
-  "recorded_at": "2026-09-07T03:30:36.578019+00:00",
+  "context_shape_fingerprint": "9090d13b6608286bb5554777242dad1809e195b8cf9b7c600b03f74a341c574f",
+  "recorded_at": "2026-09-07T06:32:22.997873+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_resumes",
-        "arguments": {}
-      }
+      "content": "{\"action\":\"ask_user\",\"message\":\"好的。你提交成功后请明确告诉我“我已经投递了”，我再为这个岗位记录申请；目前我不会提前标记为已投递。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:30:36.578019+00:00",
+      "recorded_at": "2026-09-07T06:32:22.997873+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "list_resumes",
-            "arguments": {}
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的。你提交成功后请明确告诉我“我已经投递了”，我再为这个岗位记录申请；目前我不会提前标记为已投递。\"}"
         }
       ]
     }

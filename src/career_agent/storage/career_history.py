@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 from typing import Literal
 from uuid import uuid4
@@ -19,6 +20,7 @@ from career_agent.domain.career_history import (
     CareerEvidenceMutationSnapshot,
     CareerEvidencePreimage,
     CareerRecord,
+    career_evidence_detail_ref,
     career_evidence_scope_key,
     career_evidence_source_ref,
 )
@@ -30,6 +32,10 @@ from career_agent.storage.schema import apply_schema
 EvidenceOrigin = Literal["resume_extraction", "user_input", "agent_inference"]
 EvidenceStatus = Literal["pending", "confirmed", "rejected"]
 RecordType = Literal["education", "work", "internship", "project", "certification"]
+_HISTORY_CURSOR = re.compile(
+    r"^history_(?P<query>[a-f0-9]{8})_(?P<offset>[a-f0-9]{8})$"
+)
+_MAX_HISTORY_OFFSET = 10_000
 
 _EVIDENCE_FIELD_NAMES = (
     "id",
@@ -42,6 +48,7 @@ _EVIDENCE_FIELD_NAMES = (
     "source_locator",
     "source_quote",
     "source_ref",
+    "detail_ref",
     "scope_key",
     "update_id",
     "content_digest",
@@ -87,11 +94,12 @@ class CareerHistoryStore:
             apply_schema(
                 connection,
                 "career_history",
-                4,
+                5,
                 self._migrate,
                 upgrades={
                     3: self._upgrade_to_v3,
                     4: self._upgrade_to_v4,
+                    5: self._upgrade_to_v5,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -170,23 +178,38 @@ class CareerHistoryStore:
             ).fetchone()
         return self._record(row) if row else None
 
-    def list_records(self, *, user_id: str) -> tuple[CareerRecord, ...]:
+    def list_records(
+        self, *, user_id: str, limit: int | None = None
+    ) -> tuple[CareerRecord, ...]:
+        if limit is not None and limit < 1:
+            raise ValueError("record limit must be positive")
+        query = """
+            SELECT id, user_id, record_type, organization, title,
+                   start_year, start_month, end_year, end_month, is_current,
+                   created_at, updated_at
+            FROM career_records
+            WHERE user_id = ?
+            ORDER BY is_current DESC,
+                     COALESCE(start_year, 0) DESC,
+                     COALESCE(start_month, 0) DESC,
+                     created_at DESC
+        """
+        parameters: list[object] = [user_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            parameters.append(limit)
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, user_id, record_type, organization, title,
-                       start_year, start_month, end_year, end_month, is_current,
-                       created_at, updated_at
-                FROM career_records
-                WHERE user_id = ?
-                ORDER BY is_current DESC,
-                         COALESCE(start_year, 0) DESC,
-                         COALESCE(start_month, 0) DESC,
-                         created_at DESC
-                """,
-                (user_id,),
-            ).fetchall()
+            rows = connection.execute(query, parameters).fetchall()
         return tuple(self._record(row) for row in rows)
+
+    def count_records(self, *, user_id: str) -> int:
+        with self._connect() as connection:
+            return int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM career_records WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()[0]
+            )
 
     def create_evidence(
         self,
@@ -216,6 +239,10 @@ class CareerHistoryStore:
                 evidence_id=evidence_id,
                 source_resume_version_id=source_resume_version_id,
                 source_locator=source_locator,
+            ),
+            detail_ref=career_evidence_detail_ref(
+                user_id=user_id,
+                evidence_id=evidence_id,
             ),
             created_at=now,
             updated_at=now,
@@ -256,8 +283,9 @@ class CareerHistoryStore:
                 INSERT INTO career_evidence(
                     id, user_id, career_record_id, claim, origin,
                     verification_status, source_resume_version_id,
-                    source_locator, source_quote, source_ref, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_locator, source_quote, source_ref, detail_ref,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     evidence.id,
@@ -270,6 +298,7 @@ class CareerHistoryStore:
                     evidence.source_locator,
                     evidence.source_quote,
                     evidence.source_ref,
+                    evidence.detail_ref,
                     evidence.created_at.isoformat(),
                     evidence.updated_at.isoformat(),
                 ),
@@ -306,6 +335,102 @@ class CareerHistoryStore:
             ).fetchone()
         return self._evidence(row) if row else None
 
+    def get_evidence_by_detail_ref(
+        self, *, user_id: str, detail_ref: str
+    ) -> CareerEvidence | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE user_id = ? AND detail_ref = ?
+                  AND verification_status = 'confirmed'
+                """,
+                (user_id, detail_ref),
+            ).fetchone()
+        return self._evidence(row) if row else None
+
+    def search_historical_evidence(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 8,
+        cursor: str | None = None,
+    ) -> tuple[tuple[CareerEvidence, ...], int, str | None]:
+        """Search superseded or rolled-back claims through the bounded FTS index."""
+
+        if not 1 <= limit <= 20:
+            raise ValueError("historical evidence limit must be between 1 and 20")
+        tokens = tuple(
+            dict.fromkeys(
+                token.casefold()
+                for token in re.findall(r"[\w+#.-]{3,}", query.strip(), flags=re.UNICODE)
+            )
+        )
+        if not tokens:
+            raise ValueError("historical evidence query needs a term of 3+ characters")
+        normalized_query = " ".join(tokens)
+        query_digest = hashlib.sha256(normalized_query.encode("utf-8")).hexdigest()[:8]
+        offset = 0
+        if cursor is not None:
+            match = _HISTORY_CURSOR.fullmatch(cursor)
+            if match is None or match.group("query") != query_digest:
+                raise ValueError("historical evidence cursor does not match this query")
+            offset = int(match.group("offset"), 16)
+            if offset > _MAX_HISTORY_OFFSET:
+                raise ValueError("historical evidence cursor exceeds the safety limit")
+        match_query = " OR ".join(
+            json.dumps(token, ensure_ascii=False) for token in tokens
+        )
+        selected_columns = ", ".join(
+            f"evidence.{name}" for name in _EVIDENCE_FIELD_NAMES
+        )
+        with self._connect() as connection:
+            total = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM career_evidence_fts AS search
+                    JOIN career_evidence AS evidence
+                      ON evidence.id = search.evidence_id
+                    WHERE search.user_id = ?
+                      AND career_evidence_fts MATCH ?
+                      AND evidence.verification_status = 'confirmed'
+                      AND (
+                          evidence.superseded_by IS NOT NULL
+                          OR evidence.rolled_back_at IS NOT NULL
+                      )
+                    """,
+                    (user_id, match_query),
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                f"""
+                SELECT {selected_columns}
+                FROM career_evidence_fts AS search
+                JOIN career_evidence AS evidence
+                  ON evidence.id = search.evidence_id
+                WHERE search.user_id = ?
+                  AND career_evidence_fts MATCH ?
+                  AND evidence.verification_status = 'confirmed'
+                  AND (
+                      evidence.superseded_by IS NOT NULL
+                      OR evidence.rolled_back_at IS NOT NULL
+                  )
+                ORDER BY bm25(career_evidence_fts), evidence.created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (user_id, match_query, limit, offset),
+            ).fetchall()
+        next_offset = offset + len(rows)
+        next_cursor = (
+            f"history_{query_digest}_{next_offset:08x}"
+            if next_offset < total and next_offset <= _MAX_HISTORY_OFFSET
+            else None
+        )
+        return tuple(self._evidence(row) for row in rows), total, next_cursor
+
     def list_evidence(
         self,
         *,
@@ -314,7 +439,10 @@ class CareerHistoryStore:
         verification_status: EvidenceStatus | None = None,
         source_resume_version_id: str | None = None,
         include_historical: bool = False,
+        limit: int | None = None,
     ) -> tuple[CareerEvidence, ...]:
+        if limit is not None and limit < 1:
+            raise ValueError("evidence limit must be positive")
         query = f"""
             SELECT {_EVIDENCE_COLUMNS}
             FROM career_evidence
@@ -336,10 +464,33 @@ class CareerHistoryStore:
                 "(superseded_by IS NULL AND rolled_back_at IS NULL))"
             )
         query += " ORDER BY created_at, id"
+        if limit is not None:
+            query += " LIMIT ?"
+            parameters.append(limit)
 
         with self._connect() as connection:
             rows = connection.execute(query, parameters).fetchall()
         return tuple(self._evidence(row) for row in rows)
+
+    def count_evidence(
+        self,
+        *,
+        user_id: str,
+        verification_status: EvidenceStatus | None = None,
+        include_historical: bool = False,
+    ) -> int:
+        query = "SELECT COUNT(*) FROM career_evidence WHERE user_id = ?"
+        parameters: list[object] = [user_id]
+        if verification_status is not None:
+            query += " AND verification_status = ?"
+            parameters.append(verification_status)
+        if not include_historical:
+            query += (
+                " AND (verification_status != 'confirmed' OR "
+                "(superseded_by IS NULL AND rolled_back_at IS NULL))"
+            )
+        with self._connect() as connection:
+            return int(connection.execute(query, parameters).fetchone()[0])
 
     def confirm_evidence(
         self,
@@ -406,6 +557,22 @@ class CareerHistoryStore:
                 (user_id, scope_key),
             ).fetchone()
         return self._evidence(row) if row is not None else None
+
+    def list_evidence_lineage(
+        self, *, user_id: str, scope_key: str
+    ) -> tuple[CareerEvidence, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND verification_status = 'confirmed'
+                ORDER BY revision, created_at, id
+                """,
+                (user_id, scope_key),
+            ).fetchall()
+        return tuple(self._evidence(row) for row in rows)
 
     def correct_evidence(
         self,
@@ -495,6 +662,10 @@ class CareerHistoryStore:
                 claim=claim,
                 origin="user_input",
                 verification_status="confirmed",
+                detail_ref=career_evidence_detail_ref(
+                    user_id=user_id,
+                    evidence_id=replacement_id,
+                ),
                 scope_key=current.scope_key,
                 update_id=f"career_evidence_update_{uuid4().hex}",
                 content_digest=intent_content_digest(claim),
@@ -1158,6 +1329,10 @@ class CareerHistoryStore:
                             source_resume_version_id=resume_version_id,
                             source_locator=locator,
                         ),
+                        detail_ref=career_evidence_detail_ref(
+                            user_id=user_id,
+                            evidence_id=evidence_id,
+                        ),
                         scope_key=career_evidence_scope_key(evidence_id),
                         update_id=f"career_evidence_update_{uuid4().hex}",
                         content_digest=intent_content_digest(claim),
@@ -1171,10 +1346,10 @@ class CareerHistoryStore:
                         INSERT INTO career_evidence(
                             id, user_id, career_record_id, claim, origin,
                             verification_status, source_resume_version_id,
-                            source_locator, source_quote, source_ref,
+                            source_locator, source_quote, source_ref, detail_ref,
                             scope_key, update_id, content_digest, revision,
                             valid_from, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             evidence.id,
@@ -1187,6 +1362,7 @@ class CareerHistoryStore:
                             evidence.source_locator,
                             evidence.source_quote,
                             evidence.source_ref,
+                            evidence.detail_ref,
                             evidence.scope_key,
                             evidence.update_id,
                             evidence.content_digest,
@@ -1361,11 +1537,11 @@ class CareerHistoryStore:
             INSERT INTO career_evidence(
                 id, user_id, career_record_id, claim, origin,
                 verification_status, source_resume_version_id,
-                source_locator, source_quote, source_ref, scope_key, update_id,
-                content_digest, revision, valid_from, supersedes_id,
+                source_locator, source_quote, source_ref, detail_ref,
+                scope_key, update_id, content_digest, revision, valid_from, supersedes_id,
                 superseded_at, superseded_by, mutation_id, rolled_back_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 evidence.id,
@@ -1378,6 +1554,7 @@ class CareerHistoryStore:
                 evidence.source_locator,
                 evidence.source_quote,
                 evidence.source_ref,
+                evidence.detail_ref,
                 evidence.scope_key,
                 evidence.update_id,
                 evidence.content_digest,
@@ -1463,6 +1640,7 @@ class CareerHistoryStore:
                 source_locator TEXT,
                 source_quote TEXT,
                 source_ref TEXT,
+                detail_ref TEXT,
                 scope_key TEXT,
                 update_id TEXT,
                 content_digest TEXT,
@@ -1582,6 +1760,7 @@ class CareerHistoryStore:
         # Cumulative baseline adoption: pre-registry databases do not replay
         # numbered upgrades, so the idempotent backfill must run here as well.
         CareerHistoryStore._ensure_evidence_version_schema(connection)
+        CareerHistoryStore._ensure_m4b_read_schema(connection)
 
     @staticmethod
     def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
@@ -1590,6 +1769,81 @@ class CareerHistoryStore:
     @staticmethod
     def _upgrade_to_v4(connection: sqlite3.Connection) -> None:
         CareerHistoryStore._ensure_evidence_version_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
+        CareerHistoryStore._ensure_m4b_read_schema(connection)
+
+    @staticmethod
+    def _ensure_m4b_read_schema(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+        if "detail_ref" not in columns:
+            connection.execute("ALTER TABLE career_evidence ADD COLUMN detail_ref TEXT")
+        rows = connection.execute(
+            "SELECT id, user_id FROM career_evidence WHERE detail_ref IS NULL"
+        ).fetchall()
+        connection.executemany(
+            "UPDATE career_evidence SET detail_ref = ? WHERE id = ?",
+            (
+                (
+                    career_evidence_detail_ref(
+                        user_id=str(user_id),
+                        evidence_id=str(evidence_id),
+                    ),
+                    evidence_id,
+                )
+                for evidence_id, user_id in rows
+            ),
+        )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS career_evidence_detail_ref_unique_idx
+            ON career_evidence(detail_ref)
+            """
+        )
+        connection.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS career_evidence_fts USING fts5(
+                evidence_id UNINDEXED,
+                user_id UNINDEXED,
+                claim,
+                tokenize='trigram'
+            )
+            """
+        )
+        connection.executescript(
+            """
+            CREATE TRIGGER IF NOT EXISTS career_evidence_fts_insert
+            AFTER INSERT ON career_evidence BEGIN
+                INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+                VALUES (new.id, new.user_id, new.claim);
+            END;
+            CREATE TRIGGER IF NOT EXISTS career_evidence_fts_delete
+            AFTER DELETE ON career_evidence BEGIN
+                DELETE FROM career_evidence_fts WHERE evidence_id = old.id;
+            END;
+            CREATE TRIGGER IF NOT EXISTS career_evidence_fts_update
+            AFTER UPDATE OF claim, user_id ON career_evidence BEGIN
+                DELETE FROM career_evidence_fts WHERE evidence_id = old.id;
+                INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+                VALUES (new.id, new.user_id, new.claim);
+            END;
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+            SELECT evidence.id, evidence.user_id, evidence.claim
+            FROM career_evidence AS evidence
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM career_evidence_fts AS search
+                WHERE search.evidence_id = evidence.id
+            )
+            """
+        )
 
     @staticmethod
     def _ensure_evidence_version_schema(connection: sqlite3.Connection) -> None:
@@ -1800,18 +2054,19 @@ class CareerHistoryStore:
             source_locator=row[7],
             source_quote=row[8],
             source_ref=row[9],
-            scope_key=row[10],
-            update_id=row[11],
-            content_digest=row[12],
-            revision=row[13],
-            valid_from=row[14],
-            supersedes_id=row[15],
-            superseded_at=row[16],
-            superseded_by=row[17],
-            mutation_id=row[18],
-            rolled_back_at=row[19],
-            created_at=row[20],
-            updated_at=row[21],
+            detail_ref=row[10],
+            scope_key=row[11],
+            update_id=row[12],
+            content_digest=row[13],
+            revision=row[14],
+            valid_from=row[15],
+            supersedes_id=row[16],
+            superseded_at=row[17],
+            superseded_by=row[18],
+            mutation_id=row[19],
+            rolled_back_at=row[20],
+            created_at=row[21],
+            updated_at=row[22],
         )
 
     @staticmethod

@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerHistoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
@@ -2967,6 +2967,10 @@ class MainAgentRuntime:
                         f"原始证据引文：\n\n{source_quote}"
                     )
                 return f"原始证据引文：\n\n{source_quote}"
+        if result.state in {"career_memory_detail_found", "career_history_found"}:
+            body = result.payload.get("body")
+            if isinstance(body, str) and body.strip():
+                return body.strip()
         if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
             # The workflow's own presenter handles every state a run can be
             # left in, including the terminal ones, so the payload is parsed
@@ -3234,6 +3238,20 @@ class MainAgentRuntime:
             }
         if name == "resolve_claim_source":
             model_arguments = ResolveClaimSourceToolArguments.model_validate(arguments)
+            return {
+                "user_id": context.profile.user_id,
+                **model_arguments.model_dump(),
+            }
+        if name == "get_career_memory_detail":
+            model_arguments = GetCareerMemoryDetailToolArguments.model_validate(
+                arguments
+            )
+            return {
+                "user_id": context.profile.user_id,
+                **model_arguments.model_dump(),
+            }
+        if name == "search_career_history":
+            model_arguments = SearchCareerHistoryToolArguments.model_validate(arguments)
             return {
                 "user_id": context.profile.user_id,
                 **model_arguments.model_dump(),

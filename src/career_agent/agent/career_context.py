@@ -18,17 +18,25 @@ class CareerContextProjector:
         self,
         store: CareerHistoryStore,
         *,
-        max_records: int = 5,
-        max_highlights_per_record: int = 3,
+        candidate_record_limit: int = 100,
+        candidate_claim_limit_per_record: int = 100,
     ) -> None:
-        if max_records < 1 or max_highlights_per_record < 1:
-            raise ValueError("Career context limits must be positive")
+        if candidate_record_limit < 1 or candidate_claim_limit_per_record < 1:
+            raise ValueError("Career context safety limits must be positive")
         self._store = store
-        self._max_records = max_records
-        self._max_highlights_per_record = max_highlights_per_record
+        self._candidate_record_limit = candidate_record_limit
+        self._candidate_claim_limit_per_record = candidate_claim_limit_per_record
 
     def project(self, *, user_id: str, query: str) -> CareerMemoryContext:
-        records = self._store.list_records(user_id=user_id)
+        records_total = self._store.count_records(user_id=user_id)
+        claims_total = self._store.count_evidence(
+            user_id=user_id,
+            verification_status="confirmed",
+        )
+        records = self._store.list_records(
+            user_id=user_id,
+            limit=self._candidate_record_limit,
+        )
         query_terms = self._terms(query)
         candidates = []
         for recency, record in enumerate(records):
@@ -36,6 +44,7 @@ class CareerContextProjector:
                 user_id=user_id,
                 career_record_id=record.id,
                 verification_status="confirmed",
+                limit=self._candidate_claim_limit_per_record,
             )
             ranked_evidence = sorted(
                 evidence,
@@ -51,8 +60,10 @@ class CareerContextProjector:
                     origin=item.origin,
                     recorded_at=item.created_at,
                     source_ref=item.source_ref,
+                    revision=item.revision,
+                    detail_ref=item.detail_ref,
                 )
-                for item in ranked_evidence[: self._max_highlights_per_record]
+                for item in ranked_evidence
             )
             searchable = " ".join(
                 value
@@ -73,7 +84,7 @@ class CareerContextProjector:
                 -item[2],
                 item[3],
             ),
-        )[: self._max_records]
+        )
         return CareerMemoryContext(
             records=tuple(
                 CareerMemoryRecord(
@@ -88,7 +99,9 @@ class CareerContextProjector:
                     confirmed_highlights=highlights,
                 )
                 for record, highlights, _, _ in selected
-            )
+            ),
+            records_total=records_total,
+            claims_total=claims_total,
         )
 
     def resolve_source_ref(

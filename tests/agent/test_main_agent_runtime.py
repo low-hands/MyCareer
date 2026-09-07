@@ -689,6 +689,8 @@ def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
                                 recorded_at=datetime(
                                     2026, 9, 1, tzinfo=timezone.utc
                                 ),
+                                revision=1,
+                                detail_ref="detail_" + "a" * 24,
                             ),
                         ),
                     ),

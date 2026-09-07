@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import json
+
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.main_agent_contracts import (
+    CareerProfileBudgets,
     CareerProfileContext,
+    CurrentTargetContext,
+    HardConstraintContext,
     MainAgentContext,
     ToolObservation,
 )
@@ -10,6 +15,24 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
+
+
+def _decode_tier_one(projected: dict[str, object]) -> list[dict[str, object]]:
+    records_table = projected["records"]
+    claims_table = projected["claims"]
+    assert isinstance(records_table, dict)
+    assert isinstance(claims_table, dict)
+    records = [
+        dict(zip(records_table["fields"], row, strict=True))
+        for row in records_table["rows"]
+    ]
+    for record in records:
+        record["confirmed_highlights"] = []
+    for row in claims_table["rows"]:
+        claim = dict(zip(claims_table["fields"], row, strict=True))
+        record_index = claim.pop("record")
+        records[record_index]["confirmed_highlights"].append(claim)
+    return records
 
 
 def _confirmed_highlight(
@@ -81,12 +104,14 @@ def test_projector_injects_only_bounded_confirmed_career_memory(tmp_path) -> Non
         claim="Maintained payment services",
     )
 
-    memory = CareerContextProjector(store, max_records=1).project(
+    memory = CareerContextProjector(store, candidate_record_limit=1).project(
         user_id="u1",
         query="帮我匹配一个 RAG 岗位",
     )
 
     assert len(memory.records) == 1
+    assert memory.records_total == 2
+    assert memory.claims_total == 2
     assert memory.records[0].title == "RAG Evaluation Platform"
     assert len(memory.records[0].confirmed_highlights) == 1
     highlight = memory.records[0].confirmed_highlights[0]
@@ -127,12 +152,18 @@ def test_main_agent_model_context_contains_compact_provenance_without_quotes(
 
     projected = context.model_context()["career_profile"]
 
-    assert projected["records"][0]["title"] == "Product Manager"
-    highlight = projected["records"][0]["confirmed_highlights"][0]
+    records = _decode_tier_one(projected)
+    assert records[0]["title"] == "Product Manager"
+    highlight = records[0]["confirmed_highlights"][0]
     assert highlight["claim"] == "Led knowledge-base planning"
     assert highlight["origin"] == "user_input"
     assert "recorded_at" in highlight
     assert highlight["source_ref"] is None
+    assert highlight["revision"] == 1
+    assert str(highlight["detail_ref"]).startswith("detail_")
+    assert "supported_by" not in str(projected)
+    assert "superseded_by" not in str(projected)
+    assert "lineage_ref" not in str(projected)
     assert "source_quote" not in str(projected)
     assert "source_locator" not in str(projected)
     assert "user_id" not in str(projected)
@@ -279,6 +310,26 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
     corrected_highlight = corrected_memory.records[0].confirmed_highlights[0]
     assert corrected_highlight.claim == correction.current.claim
     assert corrected_highlight.source_ref is None
+    detail = tools.invoke_atomic_tool(
+        "get_career_memory_detail",
+        {"user_id": "u1", "detail_ref": corrected_highlight.detail_ref},
+    )
+    history = tools.invoke_atomic_tool(
+        "search_career_history",
+        {"user_id": "u1", "query": "retrieval", "limit": 8},
+    )
+    assert detail.state == "career_memory_detail_found"
+    assert detail.payload["supported_by"] == []
+    assert detail.payload["lineage_ref"].startswith("lineage_")
+    assert detail.payload["lineage_ref"] != highlight.source_ref
+    assert [item["claim_status"] for item in detail.payload["lineage"]] == [
+        "superseded",
+        "current",
+    ]
+    assert history.state == "career_history_found"
+    assert history.facts["returned"] == 1
+    assert history.payload["items"][0]["claim"] == confirmed.claim
+    assert history.payload["items"][0]["claim_status"] == "superseded"
 
     long_evidence = store.create_evidence(
         user_id="u1",
@@ -304,3 +355,340 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
 
     assert long_result.facts["body_clipped"] is True
     assert len(long_turn_observation.body or "") <= 6_000
+
+
+def test_columnar_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    for record_index in range(5):
+        record = store.create_record(
+            user_id="u1",
+            record_type="project",
+            title=f"Memory Evaluation {record_index}",
+        )
+        for claim_index in range(3):
+            _confirmed_highlight(
+                store,
+                user_id="u1",
+                career_record_id=record.id,
+                claim=(
+                    f"Built memory benchmark {record_index}-{claim_index} "
+                    + "x" * 80
+                ),
+            )
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="memory benchmark",
+    )
+    full = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        career_memory=memory,
+        career_profile_budgets=CareerProfileBudgets(records_chars=20_000),
+        user_message="memory",
+    ).model_context()["career_profile"]
+    decoded = _decode_tier_one(full)
+
+    expected = [
+        record.model_dump(mode="json")
+        for record in memory.records
+    ]
+    assert decoded == expected
+
+    memory_keys = {
+        "records",
+        "claims",
+        "records_returned",
+        "records_total",
+        "claims_returned",
+        "claims_total",
+    }
+    onto_memory = {
+        key: value for key, value in full.items() if key in memory_keys
+    }
+    naive_m4b = {"records": expected}
+    legacy_m4a = {
+        "records": [
+            {
+                **{
+                    key: value
+                    for key, value in record.items()
+                    if key != "confirmed_highlights"
+                },
+                "confirmed_highlights": [
+                    {
+                        key: value
+                        for key, value in claim.items()
+                        if key not in {"revision", "detail_ref"}
+                    }
+                    for claim in record["confirmed_highlights"]
+                ],
+            }
+            for record in expected
+        ]
+    }
+    onto_chars = len(json.dumps(onto_memory, ensure_ascii=False, sort_keys=True))
+    naive_chars = len(json.dumps(naive_m4b, ensure_ascii=False, sort_keys=True))
+    legacy_chars = len(json.dumps(legacy_m4a, ensure_ascii=False, sort_keys=True))
+    assert onto_chars <= naive_chars * 0.8
+    assert onto_chars <= legacy_chars * 1.1
+
+    budget = 700
+    bounded = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        career_memory=memory,
+        career_profile_budgets=CareerProfileBudgets(records_chars=budget),
+        user_message="memory",
+    ).model_context()["career_profile"]
+    bounded_memory = {
+        key: value for key, value in bounded.items() if key in memory_keys
+    }
+
+    assert len(json.dumps(bounded_memory, ensure_ascii=False, sort_keys=True)) <= budget
+    assert bounded_memory["claims_returned"] < bounded_memory["claims_total"]
+
+    zero_records = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(
+            user_id="u1",
+            hard_constraints=(
+                HardConstraintContext(
+                    relation="work_arrangement",
+                    value="必须远程",
+                ),
+            ),
+            current_targets=(
+                CurrentTargetContext(
+                    title="ML Engineer",
+                    priority=1,
+                    salary_expectation="40-60k",
+                ),
+            ),
+        ),
+        career_memory=memory,
+        career_profile_budgets=CareerProfileBudgets(records_chars=0),
+        user_message="memory",
+    ).model_context()["career_profile"]
+    assert {
+        key: zero_records[key]
+        for key in memory_keys
+        if key in zero_records
+    } == {
+        "records_returned": 0,
+        "records_total": 5,
+        "claims_returned": 0,
+        "claims_total": 15,
+    }
+    assert zero_records["hard_constraints"] == [
+        {"relation": "work_arrangement", "value": "必须远程"}
+    ]
+    assert zero_records["current_targets"]["roles"] == [
+        {
+            "title": "ML Engineer",
+            "priority": 1,
+            "salary_expectation": "40-60k",
+        }
+    ]
+
+    for budget in (0, 1):
+        exhausted = MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(
+                user_id="u1",
+                hard_constraints=(
+                    HardConstraintContext(
+                        relation="work_arrangement",
+                        value="必须远程",
+                    ),
+                ),
+                current_targets=(
+                    CurrentTargetContext(
+                        title="ML Engineer",
+                        priority=1,
+                    ),
+                ),
+            ),
+            career_memory=memory,
+            career_profile_budgets=CareerProfileBudgets(
+                records_chars=budget,
+                current_targets_chars=budget,
+                hard_constraints_chars=budget,
+            ),
+            user_message="memory",
+        ).model_context()["career_profile"]
+
+        assert not {"records", "claims", "hard_constraints", "current_targets"} & set(
+            exhausted
+        )
+        assert exhausted["records_returned"] == 0
+        assert exhausted["records_total"] == 5
+        assert exhausted["claims_returned"] == 0
+        assert exhausted["claims_total"] == 15
+        assert exhausted["hard_constraints_returned"] == 0
+        assert exhausted["hard_constraints_total"] == 1
+        assert exhausted["current_targets_returned"] == 0
+        assert exhausted["current_targets_total"] == 1
+
+
+def test_current_target_budget_reports_visible_truncation() -> None:
+    targets = tuple(
+        CurrentTargetContext(
+            title=f"Target role {index} " + "x" * 70,
+            priority=index,
+            salary_expectation="40-60k " + "y" * 70,
+        )
+        for index in range(3)
+    )
+    projected = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(
+            user_id="u1",
+            current_targets=targets,
+            current_targets_total=5,
+        ),
+        career_profile_budgets=CareerProfileBudgets(
+            current_targets_chars=400,
+        ),
+        user_message="compare tracks",
+    ).model_context()["career_profile"]
+    target_block = projected["current_targets"]
+
+    assert 0 < target_block["roles_returned"] < len(targets)
+    assert target_block["roles_total"] == 5
+    assert len(target_block["roles"]) == target_block["roles_returned"]
+    assert (
+        len(
+            json.dumps(
+                {"current_targets": target_block},
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        <= 400
+    )
+
+
+def test_tier_one_omits_unimplemented_and_historical_fields(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    first = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Retrieval Evaluation",
+    )
+    second = store.create_record(
+        user_id="u1",
+        record_type="work",
+        title="Backend Engineer",
+        organization="Example Inc.",
+    )
+    original = _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=first.id,
+        claim="Assisted with retrieval evaluation",
+    )
+    store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Led retrieval evaluation",
+        reason="User corrected ownership",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=second.id,
+        claim="Maintained payment services",
+    )
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="retrieval evaluation",
+    )
+    projected = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        career_memory=memory,
+        user_message="retrieval",
+    ).model_context()["career_profile"]
+    rendered = json.dumps(projected, ensure_ascii=False)
+    claims = [
+        dict(zip(projected["claims"]["fields"], row, strict=True))
+        for row in projected["claims"]["rows"]
+    ]
+
+    assert "supported_by" not in rendered
+    assert "superseded_by" not in rendered
+    assert "lineage_ref" not in rendered
+    assert original.claim not in rendered
+    values_by_field = {
+        field: {claim[field] for claim in claims}
+        for field in projected["claims"]["fields"]
+        if field != "record"
+    }
+    constant = {
+        field: values
+        for field, values in values_by_field.items()
+        if len(values) == 1
+    }
+    assert "revision" not in constant
+    assert "detail_ref" not in constant
+    assert "claim" not in constant
+
+
+def test_historical_tool_exposes_and_consumes_an_opaque_page_cursor(
+    tmp_path,
+) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    record = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Retrieval Evaluation",
+    )
+    for index in range(3):
+        original = _confirmed_highlight(
+            store,
+            user_id="u1",
+            career_record_id=record.id,
+            claim=f"Assisted with retrieval evaluation {index}",
+        )
+        store.correct_evidence(
+            user_id="u1",
+            career_evidence_id=original.id,
+            new_claim=f"Led retrieval evaluation {index}",
+            reason="User corrected ownership",
+        )
+    tools = MainAgentToolRegistry(career_history_store=store)
+
+    first = tools.invoke_atomic_tool(
+        "search_career_history",
+        {"user_id": "u1", "query": "retrieval", "limit": 2},
+    )
+    second = tools.invoke_atomic_tool(
+        "search_career_history",
+        {
+            "user_id": "u1",
+            "query": "retrieval",
+            "limit": 2,
+            "cursor": first.facts["next_cursor"],
+        },
+    )
+    invalid = tools.invoke_atomic_tool(
+        "search_career_history",
+        {
+            "user_id": "u1",
+            "query": "different",
+            "limit": 2,
+            "cursor": first.facts["next_cursor"],
+        },
+    )
+
+    assert first.state == "career_history_found"
+    assert first.facts["returned"] == 2
+    assert first.facts["total"] == 3
+    assert str(first.facts["next_cursor"]).startswith("history_")
+    assert second.state == "career_history_found"
+    assert second.facts == {
+        "returned": 1,
+        "total": 3,
+        "body_clipped": False,
+    }
+    assert invalid.state == "invalid_input"
