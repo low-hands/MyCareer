@@ -7,6 +7,7 @@ from career_agent.agent.decision_messages import (
     CONTROL_CONTEXT_LABEL,
     CONTROL_REMINDER_TAG,
     DATA_CONTEXT_LABEL,
+    STABLE_DATA_CONTEXT_LABEL,
     TURN_OBSERVATION_LABEL,
     project_decision_messages,
 )
@@ -80,6 +81,8 @@ def test_prompt_cache_and_estimate_margin_have_conservative_defaults() -> None:
 
     assert config.prompt_cache == "implicit"
     assert config.input_token_safety_factor == 1.1
+    assert config.cjk_tokens_per_char == 1.8
+    assert config.ascii_chars_per_token == 4.0
 
 
 def test_invalid_prompt_cache_policy_fails_configuration() -> None:
@@ -143,21 +146,26 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
 
     messages = client.completions.kwargs["messages"]
     system_content = messages[0]["content"]
-    control_content = messages[3]["content"]
+    stable_content = messages[1]["content"]
+    stable_payload = _spotlight_json(
+        stable_content,
+        label=STABLE_DATA_CONTEXT_LABEL,
+    )
+    control_content = messages[4]["content"]
     control = _control_json(control_content)
-    data_content = messages[4]["content"]
+    data_content = messages[5]["content"]
     assert data_content.startswith(DATA_CONTEXT_LABEL + "\n")
     payload = _spotlight_json(data_content, label=DATA_CONTEXT_LABEL)
     assert decision.action == "ask_user"
     # Role-scoped intent is rendered per track and never collapsed into one
     # person-level salary, experience, or education value.
-    assert set(payload["career_profile"]) == {"default_city"}
-    assert payload["career_profile"]["default_city"] == "Shanghai"
+    assert set(stable_payload["career_profile"]) == {"default_city"}
+    assert stable_payload["career_profile"]["default_city"] == "Shanghai"
     assert not {
         "salary_expectation",
         "experience",
         "education",
-    } & payload["career_profile"].keys()
+    } & stable_payload["career_profile"].keys()
     assert "resume_text" not in payload
     assert "open_job_search" not in system_content
     assert (
@@ -178,11 +186,11 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert "opaque-candidate-ref-do-not-leak" not in raw_context
     assert payload["task"]["candidates"][0]["selection_index"] == 1
     assert control["preferences"]["boss_search"] == "explicit_request_only"
-    assert payload["conversation_summary"]["confirmed_decisions"] == [
+    assert stable_payload["conversation_summary"]["confirmed_decisions"] == [
         "Use the current resume"
     ]
     assert (
-        payload["conversation_summary"]["omitted_active_constraint_count"] == 0
+        stable_payload["conversation_summary"]["omitted_active_constraint_count"] == 0
     )
     assert "tool_observations" not in control
     assert "tool_observations" not in payload
@@ -190,16 +198,17 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert [message["role"] for message in messages] == [
         "system",
         "user",
+        "user",
         "assistant",
         "user",
         "user",
         "user",
     ]
-    assert messages[1]["content"] == "Earlier user words."
-    assert messages[2]["content"].startswith("Earlier assistant words.\n\n")
-    assert "[runtime resources: report_" in messages[2]["content"]
-    assert "job_research_report]" in messages[2]["content"]
-    assert "External report title" not in messages[2]["content"]
+    assert messages[2]["content"] == "Earlier user words."
+    assert messages[3]["content"].startswith("Earlier assistant words.\n\n")
+    assert "[runtime resources: report_" in messages[3]["content"]
+    assert "job_research_report]" in messages[3]["content"]
+    assert "External report title" not in messages[3]["content"]
     assert messages[-1] == {"role": "user", "content": "Help me find work."}
 
 
@@ -279,14 +288,16 @@ def test_untrusted_data_uses_a_session_stable_matching_spotlight_nonce() -> None
 
     first = projection.messages(
         system_prompt="policy", spotlight_nonce=nonce
-    )[2]["content"]
+    )[1]["content"]
     second = projection.messages(
         system_prompt="policy", spotlight_nonce=maker._spotlight_nonce(context)
-    )[2]["content"]
+    )[1]["content"]
 
-    assert _spotlight_json(first, label=DATA_CONTEXT_LABEL) == _spotlight_json(
+    assert _spotlight_json(
+        first, label=STABLE_DATA_CONTEXT_LABEL
+    ) == _spotlight_json(
         second,
-        label=DATA_CONTEXT_LABEL,
+        label=STABLE_DATA_CONTEXT_LABEL,
     )
     assert first.splitlines()[1] == second.splitlines()[1]
     other = context.model_copy(update={"conversation_id": "c2"})
@@ -425,6 +436,8 @@ def test_configured_explicit_cache_applies_breakpoint_without_model_sniffing() -
 
     system_block = client.completions.kwargs["messages"][0]["content"][0]
     assert system_block["prompt_cache_breakpoint"] == {"mode": "explicit"}
+    stable_block = client.completions.kwargs["messages"][1]["content"][0]
+    assert stable_block["prompt_cache_breakpoint"] == {"mode": "explicit"}
     assert client.completions.kwargs["extra_body"]["prompt_cache_options"] == {
         "mode": "explicit",
         "ttl": "30m",
@@ -457,6 +470,10 @@ def test_disabled_cache_is_visible_and_adds_no_provider_specific_fields() -> Non
         "prompt_cache_mode": "disabled",
         "prompt_cache_key_applied": False,
         "prompt_cache_breakpoint_applied": False,
+        "prompt_cache_stable_slots": (
+            "career_identity",
+            "conversation_summary",
+        ),
     }
 
 
@@ -499,9 +516,54 @@ def test_cache_usage_is_exposed_as_a_hit_ratio() -> None:
         "cache_metrics_unreported_ratio": 0.0,
         "input_units": 1000,
         "cached_input_units": 750,
+        "cache_read_input_tokens": 750,
         "cache_hit_ratio": 0.75,
     }
     assert maker.consume_cache_metrics() == {}
+
+
+def test_anthropic_cache_read_input_tokens_are_reported_exactly() -> None:
+    client = Client()
+    original_create = client.completions.create
+
+    def create(**kwargs):
+        response = original_create(**kwargs)
+        response.usage = type(
+            "Usage",
+            (),
+            {
+                "input_tokens": 200,
+                "cache_creation_input_tokens": 100,
+                "cache_read_input_tokens": 700,
+            },
+        )()
+        return response
+
+    client.completions.create = create
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+
+    maker.decide(
+        MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            user_message="continue",
+        ),
+        (),
+    )
+
+    metrics = maker.consume_cache_metrics()
+    assert metrics["cache_read_input_tokens"] == 700
+    assert metrics["cache_creation_input_tokens"] == 100
+    assert metrics["uncached_input_tokens"] == 200
+    assert metrics["input_units"] == 1000
+    assert metrics["cache_hit_ratio"] == 0.7
 
 
 def test_missing_cached_token_usage_is_distinct_from_a_zero_hit_rate() -> None:
@@ -637,7 +699,7 @@ def test_recent_message_clipping_is_visible_in_native_history() -> None:
         system_prompt="policy", spotlight_nonce="nonce"
     )
 
-    assert messages[1]["content"].endswith("content_clipped=true]")
+    assert messages[2]["content"].endswith("content_clipped=true]")
 
 
 def test_dynamic_control_does_not_change_the_static_system_message() -> None:

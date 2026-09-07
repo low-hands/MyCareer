@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -126,16 +127,34 @@ def list_intent_versions(
     *,
     user_id: str,
     scope_key: str | None = None,
+    scope_keys: Sequence[str] | None = None,
+    active_only: bool = False,
+    limit: int | None = None,
 ) -> tuple[IntentMemoryVersion, ...]:
+    if scope_key is not None and scope_keys is not None:
+        raise ValueError("use either scope_key or scope_keys, not both")
+    if limit is not None and limit < 1:
+        raise ValueError("intent version limit must be positive")
     where = "WHERE user_id = ?"
-    parameters: tuple[str, ...] = (user_id,)
+    parameters: list[object] = [user_id]
     if scope_key is not None:
         where += " AND scope_key = ?"
-        parameters += (scope_key,)
-    rows = connection.execute(
-        _SELECT + where + " ORDER BY scope_key, revision",
-        parameters,
-    ).fetchall()
+        parameters.append(scope_key)
+    elif scope_keys is not None:
+        selected = tuple(dict.fromkeys(scope_keys))
+        if not selected:
+            return ()
+        if len(selected) > 400:
+            raise ValueError("at most 400 intent scopes may be read at once")
+        where += " AND scope_key IN (" + ",".join("?" for _ in selected) + ")"
+        parameters.extend(selected)
+    if active_only:
+        where += " AND superseded_at IS NULL"
+    query = _SELECT + where + " ORDER BY scope_key, revision"
+    if limit is not None:
+        query += " LIMIT ?"
+        parameters.append(limit)
+    rows = connection.execute(query, parameters).fetchall()
     return tuple(_version(row) for row in rows)
 
 

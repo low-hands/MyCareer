@@ -2967,7 +2967,11 @@ class MainAgentRuntime:
                         f"原始证据引文：\n\n{source_quote}"
                     )
                 return f"原始证据引文：\n\n{source_quote}"
-        if result.state in {"career_memory_detail_found", "career_history_found"}:
+        if result.state in {
+            "career_memory_detail_found",
+            "career_memory_search_found",
+            "career_history_found",
+        }:
             body = result.payload.get("body")
             if isinstance(body, str) and body.strip():
                 return body.strip()

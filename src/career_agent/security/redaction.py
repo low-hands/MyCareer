@@ -26,6 +26,13 @@ _SENSITIVE_KEY = re.compile(
     r"|api[_-]?key|access[_-]?key|private[_-]?key|session[_-]?id|otp|verification[_-]?code)",
     re.IGNORECASE,
 )
+_SAFE_NUMERIC_TOKEN_METRICS = frozenset(
+    {
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "uncached_input_tokens",
+    }
+)
 
 # Bare credential values that carry their own marker, so they are recognisable
 # without a surrounding key.
@@ -170,7 +177,14 @@ def redact(value: Any) -> Any:
     """Blank credential-shaped keys and scrub the strings underneath."""
     if isinstance(value, dict):
         return {
-            key: REDACTED if _SENSITIVE_KEY.search(str(key)) else redact(item)
+            key: (
+                item
+                if str(key) in _SAFE_NUMERIC_TOKEN_METRICS
+                and type(item) is int
+                else REDACTED
+                if _SENSITIVE_KEY.search(str(key))
+                else redact(item)
+            )
             for key, item in value.items()
         }
     if isinstance(value, (list, tuple)):

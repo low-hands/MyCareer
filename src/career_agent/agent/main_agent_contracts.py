@@ -5,6 +5,7 @@ import hashlib
 import hmac
 from datetime import datetime
 import json
+import math
 import re
 from typing import Annotated, Any, Literal, Protocol
 
@@ -32,6 +33,7 @@ from career_agent.domain.mock_interviews import MockInterviewType
 class CurrentTargetContext(ContractModel):
     """Current stored values of one user-created TargetRole."""
 
+    target_role_id: str | None = Field(default=None, exclude=True)
     title: str = Field(min_length=1)
     priority: int = Field(ge=0)
     status: Literal["active"] = Field(default="active", exclude=True)
@@ -46,6 +48,21 @@ class HardConstraintContext(ContractModel):
 
     relation: Literal["work_arrangement", "work_schedule"]
     value: str = Field(min_length=1, max_length=500)
+
+
+class MemoryTelemetryBinding(ContractModel):
+    """Version-bound value used only by P1 telemetry, never model projection."""
+
+    entry_id: str = Field(min_length=1, max_length=300)
+    update_id: str = Field(
+        pattern=(
+            r"^(?:intent_update|career_evidence_update)_[a-f0-9]{32}$"
+        )
+    )
+    content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    value: str = Field(min_length=1, max_length=32_000)
+    revision: int = Field(ge=1)
+    lifecycle_status: Literal["current", "superseded", "rolled_back"]
 
 
 class CareerProfileContext(ContractModel):
@@ -72,6 +89,12 @@ class CareerProfileContext(ContractModel):
     )
     """Read-time projection from TargetRole; never duplicated in profile storage."""
     current_targets_total: int = Field(default=0, ge=0, exclude=True)
+    telemetry_bindings: tuple[MemoryTelemetryBinding, ...] = Field(
+        default=(),
+        max_length=512,
+        exclude=True,
+    )
+    telemetry_inventory_complete: bool = Field(default=False, exclude=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -712,6 +735,10 @@ class CareerMemoryClaim(ContractModel):
     )
     revision: int = Field(ge=1)
     detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    telemetry_binding: MemoryTelemetryBinding | None = Field(
+        default=None,
+        exclude=True,
+    )
 
 
 class CareerMemoryRecord(ContractModel):
@@ -736,6 +763,12 @@ class CareerMemoryContext(ContractModel):
     records: tuple[CareerMemoryRecord, ...] = ()
     records_total: int = Field(default=0, ge=0)
     claims_total: int = Field(default=0, ge=0)
+    telemetry_bindings: tuple[MemoryTelemetryBinding, ...] = Field(
+        default=(),
+        max_length=512,
+        exclude=True,
+    )
+    telemetry_inventory_complete: bool = Field(default=False, exclude=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -768,7 +801,13 @@ class CareerMemoryContext(ContractModel):
             raise ValueError("claims_total cannot be smaller than loaded claims")
         return self
 
-    def tier_one_projection(self, *, char_budget: int) -> dict[str, Any]:
+    def tier_one_projection(
+        self,
+        *,
+        token_budget: int,
+        cjk_tokens_per_char: float = 1.8,
+        ascii_chars_per_token: float = 4.0,
+    ) -> dict[str, Any]:
         """Render a bounded ONTO-style index with field names declared once.
 
         The budget bounds the record and claim table payload. Delivery counters
@@ -777,9 +816,9 @@ class CareerMemoryContext(ContractModel):
         indistinguishable from a user with no career memory.
         """
 
-        if char_budget < 0:
-            raise ValueError("career-memory character budget cannot be negative")
-        if char_budget == 0:
+        if token_budget < 0:
+            raise ValueError("career-memory token budget cannot be negative")
+        if token_budget == 0:
             return _career_memory_table(
                 record_rows=[],
                 claim_rows=[],
@@ -808,7 +847,14 @@ class CareerMemoryContext(ContractModel):
                 records_total=self.records_total,
                 claims_total=self.claims_total,
             )
-            if _serialized_chars(candidate) > char_budget:
+            if (
+                _serialized_tokens(
+                    candidate,
+                    cjk_tokens_per_char=cjk_tokens_per_char,
+                    ascii_chars_per_token=ascii_chars_per_token,
+                )
+                > token_budget
+            ):
                 break
             record_rows = candidate_records
             record_index = len(record_rows) - 1
@@ -830,7 +876,14 @@ class CareerMemoryContext(ContractModel):
                     records_total=self.records_total,
                     claims_total=self.claims_total,
                 )
-                if _serialized_chars(candidate) > char_budget:
+                if (
+                    _serialized_tokens(
+                        candidate,
+                        cjk_tokens_per_char=cjk_tokens_per_char,
+                        ascii_chars_per_token=ascii_chars_per_token,
+                    )
+                    > token_budget
+                ):
                     stopped = True
                     break
                 claim_rows = candidate_claims
@@ -844,7 +897,12 @@ class CareerMemoryContext(ContractModel):
         )
         return (
             projected
-            if _serialized_chars(projected) <= char_budget
+            if _serialized_tokens(
+                projected,
+                cjk_tokens_per_char=cjk_tokens_per_char,
+                ascii_chars_per_token=ascii_chars_per_token,
+            )
+            <= token_budget
             else _career_memory_table(
                 record_rows=[],
                 claim_rows=[],
@@ -854,15 +912,39 @@ class CareerMemoryContext(ContractModel):
         )
 
 
+CAREER_RECORDS_TOKEN_BUDGET = 2_800
+CAREER_CURRENT_TARGETS_TOKEN_BUDGET = 800
+CAREER_HARD_CONSTRAINTS_TOKEN_BUDGET = 600
+
+
 class CareerProfileBudgets(ContractModel):
     """Section payload ceilings; truncation counters are budget-exempt metadata.
 
     Candidate safety limits live in stores.
     """
 
-    records_chars: int = Field(default=2_800, ge=0)
-    current_targets_chars: int = Field(default=800, ge=0)
-    hard_constraints_chars: int = Field(default=600, ge=0)
+    budget_unit: Literal["estimated_input_tokens"] = "estimated_input_tokens"
+    records_input_units: int = Field(
+        default=CAREER_RECORDS_TOKEN_BUDGET,
+        ge=0,
+    )
+    current_targets_input_units: int = Field(
+        default=CAREER_CURRENT_TARGETS_TOKEN_BUDGET,
+        ge=0,
+    )
+    hard_constraints_input_units: int = Field(
+        default=CAREER_HARD_CONSTRAINTS_TOKEN_BUDGET,
+        ge=0,
+    )
+    cjk_input_units_per_char: float = Field(default=1.8, ge=0.5, le=3.0)
+    ascii_chars_per_input_unit: float = Field(default=4.0, ge=1.0, le=8.0)
+
+    def estimate_tokens(self, value: Any) -> int:
+        return _serialized_tokens(
+            value,
+            cjk_tokens_per_char=self.cjk_input_units_per_char,
+            ascii_chars_per_token=self.ascii_chars_per_input_unit,
+        )
 
 
 _CAREER_RECORD_FIELDS = (
@@ -888,6 +970,28 @@ _CAREER_CLAIM_FIELDS = (
 
 def _serialized_chars(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str))
+
+
+def _serialized_tokens(
+    value: Any,
+    *,
+    cjk_tokens_per_char: float,
+    ascii_chars_per_token: float,
+) -> int:
+    """Estimate provider token cost from its configured language profile."""
+
+    rendered = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    non_ascii = sum(ord(character) > 127 for character in rendered)
+    ascii_chars = len(rendered) - non_ascii
+    return math.ceil(
+        non_ascii * cjk_tokens_per_char
+        + ascii_chars / ascii_chars_per_token
+    )
 
 
 def _career_memory_table(
@@ -920,45 +1024,93 @@ def _career_memory_table(
 def _bounded_hard_constraints(
     constraints: tuple[HardConstraintContext, ...],
     *,
-    char_budget: int,
+    token_budget: int,
+    cjk_tokens_per_char: float,
+    ascii_chars_per_token: float,
 ) -> dict[str, Any]:
-    total = len(constraints)
-    empty_delivery = (
-        {
-            "hard_constraints_returned": 0,
-            "hard_constraints_total": total,
+    if not constraints:
+        return {}
+    projected: dict[str, Any] = {
+        "hard_constraints": [
+            constraint.model_dump(mode="json") for constraint in constraints
+        ]
+    }
+    if (
+        _serialized_tokens(
+            projected,
+            cjk_tokens_per_char=cjk_tokens_per_char,
+            ascii_chars_per_token=ascii_chars_per_token,
+        )
+        > token_budget
+    ):
+        # Confirmed hard constraints are safety-critical and have no lower
+        # archive tool. Expand this small block in place instead of silently
+        # dropping a prohibition such as "不接受 996".
+        projected["hard_constraints_budget_expanded"] = True
+    return projected
+
+
+def _memory_overflow_notice(profile: Mapping[str, Any]) -> dict[str, Any]:
+    sections: list[dict[str, Any]] = []
+    records_returned = profile.get("records_returned")
+    records_total = profile.get("records_total")
+    claims_returned = profile.get("claims_returned")
+    claims_total = profile.get("claims_total")
+    records_overflow = (
+        type(records_returned) is int
+        and type(records_total) is int
+        and records_returned < records_total
+    )
+    claims_overflow = (
+        type(claims_returned) is int
+        and type(claims_total) is int
+        and claims_returned < claims_total
+    )
+    if records_overflow or claims_overflow:
+        sections.append(
+            {
+                "section": "career_memory",
+                "strategy": "archive_search",
+                "fetch_tool": "search_career_memory",
+            }
+        )
+    targets = profile.get("current_targets")
+    target_body = targets if isinstance(targets, Mapping) else {}
+    targets_returned = target_body.get(
+        "roles_returned", profile.get("current_targets_returned")
+    )
+    targets_total = target_body.get(
+        "roles_total", profile.get("current_targets_total")
+    )
+    if (
+        type(targets_returned) is int
+        and type(targets_total) is int
+        and targets_returned < targets_total
+    ):
+        sections.append(
+            {
+                "section": "current_targets",
+                "strategy": "archive_fetch",
+                "fetch_tool": "list_target_roles",
+            }
+        )
+    if not sections:
+        return {}
+    return {
+        "memory_overflow": {
+            "fetch_required": True,
+            "sections": sections,
         }
-        if total
-        else {}
-    )
-    if char_budget <= 0 or not constraints:
-        return empty_delivery
-    rows: list[dict[str, Any]] = []
-    for constraint in constraints:
-        candidate_rows = [*rows, constraint.model_dump(mode="json")]
-        candidate: dict[str, Any] = {"hard_constraints": candidate_rows}
-        if len(candidate_rows) < total:
-            candidate["hard_constraints_returned"] = len(candidate_rows)
-            candidate["hard_constraints_total"] = total
-        if _serialized_chars(candidate) > char_budget:
-            break
-        rows = candidate_rows
-    projected: dict[str, Any] = {"hard_constraints": rows} if rows else {}
-    if len(rows) < total:
-        projected["hard_constraints_returned"] = len(rows)
-        projected["hard_constraints_total"] = total
-    return (
-        projected
-        if _serialized_chars(projected) <= char_budget
-        else empty_delivery
-    )
+    }
 
 
 def _bounded_current_targets(
     targets: tuple[CurrentTargetContext, ...],
     *,
     total: int,
-    char_budget: int,
+    token_budget: int,
+    cjk_tokens_per_char: float,
+    ascii_chars_per_token: float,
 ) -> dict[str, Any]:
     empty_delivery = (
         {
@@ -968,7 +1120,7 @@ def _bounded_current_targets(
         if total
         else {}
     )
-    if char_budget <= 0 or not targets:
+    if token_budget <= 0 or not targets:
         return empty_delivery
     rows: list[dict[str, Any]] = []
     for target in targets:
@@ -983,7 +1135,14 @@ def _bounded_current_targets(
                 roles_total=total,
             )
         candidate = {"current_targets": candidate_body}
-        if _serialized_chars(candidate) > char_budget:
+        if (
+            _serialized_tokens(
+                candidate,
+                cjk_tokens_per_char=cjk_tokens_per_char,
+                ascii_chars_per_token=ascii_chars_per_token,
+            )
+            > token_budget
+        ):
             break
         rows = candidate_rows
     body: dict[str, Any] = {"roles": rows}
@@ -992,7 +1151,12 @@ def _bounded_current_targets(
     projected = {"current_targets": body} if rows else empty_delivery
     return (
         projected
-        if _serialized_chars(projected) <= char_budget
+        if _serialized_tokens(
+            projected,
+            cjk_tokens_per_char=cjk_tokens_per_char,
+            ascii_chars_per_token=ascii_chars_per_token,
+        )
+        <= token_budget
         else empty_delivery
     )
 
@@ -1627,17 +1791,40 @@ class MainAgentContext(ContractModel):
             "default_city": self.profile.default_city,
             **_bounded_hard_constraints(
                 self.profile.hard_constraints,
-                char_budget=self.career_profile_budgets.hard_constraints_chars,
+                token_budget=(
+                    self.career_profile_budgets.hard_constraints_input_units
+                ),
+                cjk_tokens_per_char=(
+                    self.career_profile_budgets.cjk_input_units_per_char
+                ),
+                ascii_chars_per_token=(
+                    self.career_profile_budgets.ascii_chars_per_input_unit
+                ),
             ),
             **_bounded_current_targets(
                 self.profile.current_targets,
                 total=self.profile.current_targets_total,
-                char_budget=self.career_profile_budgets.current_targets_chars,
+                token_budget=(
+                    self.career_profile_budgets.current_targets_input_units
+                ),
+                cjk_tokens_per_char=(
+                    self.career_profile_budgets.cjk_input_units_per_char
+                ),
+                ascii_chars_per_token=(
+                    self.career_profile_budgets.ascii_chars_per_input_unit
+                ),
             ),
             **self.career_memory.tier_one_projection(
-                char_budget=self.career_profile_budgets.records_chars
+                token_budget=self.career_profile_budgets.records_input_units,
+                cjk_tokens_per_char=(
+                    self.career_profile_budgets.cjk_input_units_per_char
+                ),
+                ascii_chars_per_token=(
+                    self.career_profile_budgets.ascii_chars_per_input_unit
+                ),
             ),
         }
+        profile.update(_memory_overflow_notice(profile))
         return {
             "career_profile": profile,
             "preferences": {
@@ -1868,6 +2055,23 @@ class ResolveClaimSourceToolArguments(ContractModel):
 
 class GetCareerMemoryDetailToolArguments(ContractModel):
     detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+
+
+class SearchCareerMemoryToolArguments(ContractModel):
+    query: str = Field(
+        min_length=3,
+        max_length=200,
+        description=(
+            "Focused terms expected inside active career claims omitted from "
+            "the bounded Tier-1 window."
+        ),
+    )
+    limit: int = Field(default=8, ge=1, le=20)
+    cursor: str | None = Field(
+        default=None,
+        pattern=r"^memory_[a-f0-9]{8}_[a-f0-9]{8}$",
+        description="Opaque next-page cursor returned by an earlier identical query.",
+    )
 
 
 class SearchCareerHistoryToolArguments(ContractModel):

@@ -71,6 +71,10 @@ DECLARED_FACTS = {
         },
         "reason": "当前值与关系计数结构化；完整谱系只进入低授权正文",
     },
+    "career_memory_search_found": {
+        "keys": {"returned", "total", "body_clipped", "next_cursor"},
+        "reason": "归档层查询必须显式报告有界结果、真实总数与可见分页",
+    },
     "career_history_found": {
         "keys": {"returned", "total", "body_clipped", "next_cursor"},
         "reason": "历史查询必须显式报告有界结果、真实总数与可见分页",
@@ -173,6 +177,7 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
         "job_research_ready": {},
         "claim_source_found": {},
         "career_memory_detail_found": {},
+        "career_memory_search_found": {},
         "career_history_found": {},
     }
     for state, spec in DECLARED_FACTS.items():

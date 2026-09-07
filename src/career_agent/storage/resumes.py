@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 import hashlib
 import os
@@ -150,13 +151,22 @@ class ResumeStore:
         return updated
 
     def list_target_role_intent_versions(
-        self, *, user_id: str, scope_key: str | None = None
+        self,
+        *,
+        user_id: str,
+        scope_key: str | None = None,
+        scope_keys: Sequence[str] | None = None,
+        active_only: bool = False,
+        limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]:
         with self._connect() as connection:
             return list_intent_versions(
                 connection,
                 user_id=user_id,
                 scope_key=scope_key,
+                scope_keys=scope_keys,
+                active_only=active_only,
+                limit=limit,
             )
 
     def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:

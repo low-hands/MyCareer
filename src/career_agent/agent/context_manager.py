@@ -9,12 +9,14 @@ from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryWorker,
 )
 from career_agent.agent.main_agent_contracts import (
+    CareerProfileBudgets,
     CareerProfileContext,
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,
     MainAgentContext,
     CurrentTargetContext,
+    MemoryTelemetryBinding,
     OwnerSettingsContext,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -36,17 +38,27 @@ class TargetRoleSource(Protocol):
 
     def count_target_roles(self, *, user_id: str) -> int: ...
 
+    def list_target_role_intent_versions(
+        self,
+        *,
+        user_id: str,
+        scope_keys: tuple[str, ...] | None = None,
+        active_only: bool = False,
+        limit: int | None = None,
+    ) -> tuple[object, ...]: ...
+
 
 class ContextManager:
     _MAX_STATIC_INPUT_FRACTION = 0.5
     _TARGET_ROLE_SAFETY_LIMIT = 100
+    _TELEMETRY_VERSION_LIMIT = 512
     _RECENT_DEDUP_MIN_CHARS = 512
     _RECENT_DUPLICATE_MARKER = (
         "[duplicate content omitted; identical to a newer visible message "
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -86,6 +98,9 @@ class ContextManager:
         self._compacted_message_warning_threshold = compacted_message_warning_threshold
         self._archived_resource_limit = archived_resource_limit
         self._target_role_source = target_role_source
+        self._career_profile_budgets = (
+            career_profile_budgets or CareerProfileBudgets()
+        )
         self._request_token_estimator: (
             Callable[[MainAgentContext], tuple[int, int]] | None
         ) = None
@@ -188,6 +203,7 @@ class ContextManager:
             conversation_id=conversation_id,
             spotlight_nonce=session.spotlight_nonce if session else None,
             profile=profile,
+            career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
             task=task,
             recent_messages=tuple(record.message for record in recent_records),
@@ -249,6 +265,7 @@ class ContextManager:
                 user_id=user_id, session_id=conversation_id
             ).spotlight_nonce,
             profile=profile,
+            career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
             task=task,
             recent_messages=(),
@@ -264,7 +281,10 @@ class ContextManager:
     def _profile_context(self, user_id: str) -> CareerProfileContext:
         profile = self._stored_profile_context(user_id)
         if self._target_role_source is None:
-            return profile
+            return self._with_intent_telemetry_bindings(
+                profile,
+                current_targets=(),
+            )
         try:
             target_roles = self._target_role_source.list_target_roles(
                 user_id=user_id,
@@ -284,6 +304,7 @@ class ContextManager:
         )
         current_targets = tuple(
             CurrentTargetContext(
+                target_role_id=role.id,
                 title=role.title,
                 priority=role.priority,
                 status=role.status,
@@ -294,10 +315,106 @@ class ContextManager:
             )
             for role in target_roles
         )
-        return profile.model_copy(
+        projected = profile.model_copy(
             update={
                 "current_targets": current_targets,
                 "current_targets_total": current_targets_total,
+            }
+        )
+        return self._with_intent_telemetry_bindings(
+            projected,
+            current_targets=current_targets,
+        )
+
+    def _with_intent_telemetry_bindings(
+        self,
+        profile: CareerProfileContext,
+        *,
+        current_targets: tuple[CurrentTargetContext, ...],
+    ) -> CareerProfileContext:
+        profile_scopes = (
+            {"person_intent/self/default_city"}
+            if profile.default_city
+            else set()
+        )
+        profile_scopes.update(
+            f"person_intent/self/{constraint.relation}"
+            for constraint in profile.hard_constraints
+        )
+        target_scopes = {
+            f"target_role_intent/{target.target_role_id}/{relation}"
+            for target in current_targets
+            if target.target_role_id is not None
+            for relation in ("city", "salary_expectation", "experience", "education")
+            if getattr(target, relation) is not None
+        }
+        limit = self._TELEMETRY_VERSION_LIMIT + 1
+        profile_versions = self._store.list_profile_intent_versions(
+            user_id=profile.user_id,
+            scope_keys=tuple(sorted(profile_scopes)),
+            limit=limit,
+        )
+        target_versions: tuple[object, ...] = ()
+        version_reader = getattr(
+            self._target_role_source,
+            "list_target_role_intent_versions",
+            None,
+        )
+        target_reader_available = callable(version_reader)
+        if target_scopes and target_reader_available:
+            target_versions = tuple(
+                version_reader(
+                    user_id=profile.user_id,
+                    scope_keys=tuple(sorted(target_scopes)),
+                    limit=limit,
+                )
+            )
+        versions = tuple(profile_versions) + target_versions
+        clipped = len(versions) > self._TELEMETRY_VERSION_LIMIT
+        selected = versions[: self._TELEMETRY_VERSION_LIMIT]
+        bindings = tuple(
+            MemoryTelemetryBinding(
+                entry_id=version.scope_key,
+                update_id=version.update_id,
+                content_digest=version.content_digest,
+                value=version.value,
+                revision=version.revision,
+                lifecycle_status=(
+                    "current"
+                    if version.superseded_at is None
+                    else "superseded"
+                ),
+            )
+            for version in selected
+            if all(
+                hasattr(version, name)
+                for name in (
+                    "scope_key",
+                    "update_id",
+                    "content_digest",
+                    "value",
+                    "revision",
+                    "superseded_at",
+                )
+            )
+            and len(version.value) <= 32_000
+        )
+        active_scopes = {
+            binding.entry_id
+            for binding in bindings
+            if binding.lifecycle_status == "current"
+        }
+        expected_scopes = profile_scopes | target_scopes
+        complete = (
+            not clipped
+            and len(bindings) == len(selected)
+            and expected_scopes <= active_scopes
+            and (not target_scopes or target_reader_available)
+        )
+        return profile.model_copy(
+            update={
+                "telemetry_bindings": bindings,
+                "telemetry_inventory_complete": complete,
             }
         )
 

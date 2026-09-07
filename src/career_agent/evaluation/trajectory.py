@@ -303,6 +303,23 @@ class TrajectoryCassette:
         return len(self.recordings)
 
 
+@dataclass(frozen=True)
+class PairedBudgetCassetteReplay:
+    """Direct paired replay result for one explicit budget change."""
+
+    baseline_budgets: tuple[int, int, int]
+    candidate_budgets: tuple[int, int, int]
+    pair_count: int
+    baseline_pass_count: int
+    candidate_pass_count: int
+    regressed_pair_count: int
+    improved_pair_count: int
+
+    @property
+    def candidate_noninferior(self) -> bool:
+        return self.regressed_pair_count == 0
+
+
 def cassette_path(name: str, *, root: Path | None = None) -> Path:
     return (root or CASSETTE_ROOT) / f"{name}.json"
 
@@ -340,6 +357,12 @@ def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
                 "step": index,
                 "control_paths": sorted(_key_paths(projection.control)),
                 "data_paths": sorted(_key_paths(projection.data)),
+                "stable_data_paths": sorted(
+                    _key_paths(projection.stable_data)
+                ),
+                "volatile_data_paths": sorted(
+                    _key_paths(projection.volatile_data)
+                ),
                 "turn_observation_paths": sorted(
                     _key_paths({"tool_observations": projection.turn_observations})
                 ),
@@ -673,6 +696,112 @@ def replay_quality(
             )
         graded.append(tuple(failures))
     return tuple(graded)
+
+
+def replay_budget_cassette_pair(
+    *,
+    baseline_scenario: TrajectoryScenario,
+    baseline_cassette: TrajectoryCassette,
+    candidate_scenario: TrajectoryScenario,
+    candidate_cassette: TrajectoryCassette,
+    tool_specs: tuple[dict[str, Any], ...],
+) -> PairedBudgetCassetteReplay:
+    """Validate a budget change from matched cassette samples, never telemetry.
+
+    The scenarios must differ only in ``career_profile_budgets``. Each sample
+    index is one pair, so a candidate regression remains visible instead of
+    being averaged into unrelated production traffic.
+    """
+
+    if baseline_scenario.known_gap or candidate_scenario.known_gap:
+        raise ValueError("budget pairs cannot use known-gap scenarios")
+    if (
+        baseline_scenario.name != candidate_scenario.name
+        or baseline_scenario.policy != candidate_scenario.policy
+        or baseline_scenario.steps != candidate_scenario.steps
+    ):
+        raise ValueError("budget pair scenarios must share policy and steps")
+    baseline_budgets = baseline_scenario.context.career_profile_budgets
+    candidate_budgets = candidate_scenario.context.career_profile_budgets
+    if baseline_budgets == candidate_budgets:
+        raise ValueError("budget pair must compare two different configurations")
+    normalized_baseline = baseline_scenario.context.model_copy(
+        update={"career_profile_budgets": candidate_budgets}
+    )
+    if normalized_baseline != candidate_scenario.context:
+        raise ValueError("budget pair scenarios may differ only in budgets")
+    for label, scenario, cassette in (
+        ("baseline", baseline_scenario, baseline_cassette),
+        ("candidate", candidate_scenario, candidate_cassette),
+    ):
+        stale = cassette_staleness(
+            cassette,
+            scenario=scenario,
+            tool_specs=tool_specs,
+        )
+        if stale is not None:
+            raise ValueError(f"{label} budget cassette is stale: {stale}")
+    if baseline_cassette.sample_count != candidate_cassette.sample_count:
+        raise ValueError("budget cassette arms must have the same sample count")
+
+    def passes(
+        scenario: TrajectoryScenario,
+        cassette: TrajectoryCassette,
+    ) -> tuple[bool, ...]:
+        invariant_failures = replay_cassette(
+            scenario,
+            tool_specs=tool_specs,
+            cassette=cassette,
+        )
+        quality_failures = replay_quality(
+            scenario,
+            tool_specs=tool_specs,
+            cassette=cassette,
+        )
+        if not quality_failures:
+            quality_failures = tuple(() for _ in invariant_failures)
+        return tuple(
+            not invariant and not quality
+            for invariant, quality in zip(
+                invariant_failures,
+                quality_failures,
+                strict=True,
+            )
+        )
+
+    baseline_passes = passes(baseline_scenario, baseline_cassette)
+    candidate_passes = passes(candidate_scenario, candidate_cassette)
+    return PairedBudgetCassetteReplay(
+        baseline_budgets=(
+            baseline_budgets.records_input_units,
+            baseline_budgets.current_targets_input_units,
+            baseline_budgets.hard_constraints_input_units,
+        ),
+        candidate_budgets=(
+            candidate_budgets.records_input_units,
+            candidate_budgets.current_targets_input_units,
+            candidate_budgets.hard_constraints_input_units,
+        ),
+        pair_count=len(baseline_passes),
+        baseline_pass_count=sum(baseline_passes),
+        candidate_pass_count=sum(candidate_passes),
+        regressed_pair_count=sum(
+            baseline and not candidate
+            for baseline, candidate in zip(
+                baseline_passes,
+                candidate_passes,
+                strict=True,
+            )
+        ),
+        improved_pair_count=sum(
+            candidate and not baseline
+            for baseline, candidate in zip(
+                baseline_passes,
+                candidate_passes,
+                strict=True,
+            )
+        ),
+    )
 
 
 def quality_shortfall(

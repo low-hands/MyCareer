@@ -2,16 +2,15 @@
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
   "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "520ecae849691301b978f97c3c16d358bf3b762dd017f612ac97d50122022aac",
-  "recorded_at": "2026-09-07T06:31:40.814011+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "80e98b1cd39ac7d7b36903224605a8e34993a98157353a276a6c454b6b978fc4",
+  "recorded_at": "2026-09-07T09:23:08.378941+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "reference": "report_9ca510",
-          "selection_index": null
+          "reference": "report_9ca510"
         }
       }
     }
@@ -19,14 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:31:40.814011+00:00",
+      "recorded_at": "2026-09-07T09:23:08.378941+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_9ca510",
-              "selection_index": null
+              "reference": "report_9ca510"
             }
           }
         }

@@ -39,6 +39,7 @@ from career_agent.agent.main_agent_contracts import (
     ReadConversationSpanToolArguments,
     ResolveClaimSourceToolArguments,
     GetCareerMemoryDetailToolArguments,
+    SearchCareerMemoryToolArguments,
     SearchCareerHistoryToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
@@ -298,6 +299,7 @@ class MainAgentToolRegistry:
                 {
                     "resolve_claim_source": self._resolve_claim_source,
                     "get_career_memory_detail": self._get_career_memory_detail,
+                    "search_career_memory": self._search_career_memory,
                     "search_career_history": self._search_career_history,
                 }
             )
@@ -652,6 +654,21 @@ class MainAgentToolRegistry:
                             ),
                             "parameters": (
                                 GetCareerMemoryDetailToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "search_career_memory",
+                            "description": (
+                                "Search active confirmed career claims omitted "
+                                "from the bounded Tier-1 window. Use this layered "
+                                "archive fetch when career_profile.memory_overflow "
+                                "names this tool; paginate with the returned cursor."
+                            ),
+                            "parameters": (
+                                SearchCareerMemoryToolArguments.model_json_schema()
                             ),
                         },
                     },
@@ -3541,8 +3558,27 @@ class MainAgentToolRegistry:
                 education=update.education,
                 source="confirmed_job_intent",
             )
+            version_reader = getattr(
+                self._resume_store,
+                "list_target_role_intent_versions",
+                None,
+            )
+            versions = (
+                version_reader(
+                    user_id=user_id,
+                    scope_keys=tuple(
+                        scope.scope_key for scope, _ in admitted_scopes
+                    ),
+                    active_only=True,
+                    limit=len(admitted_scopes),
+                )
+                if callable(version_reader)
+                else ()
+            )
             MemoryScopeWriteGate.record_committed(
-                admitted_scopes, proposals=admitted_proposals
+                admitted_scopes,
+                proposals=admitted_proposals,
+                versions=versions,
             )
             return ToolObservation(
                 tool_name="confirm_job_intent",
@@ -3561,8 +3597,27 @@ class MainAgentToolRegistry:
             updated,
             source="confirmed_job_intent",
         )
+        version_reader = getattr(
+            self._career_profile_store,
+            "list_profile_intent_versions",
+            None,
+        )
+        versions = (
+            version_reader(
+                user_id=user_id,
+                scope_keys=tuple(
+                    scope.scope_key for scope, _ in admitted_scopes
+                ),
+                active_only=True,
+                limit=len(admitted_scopes),
+            )
+            if callable(version_reader)
+            else ()
+        )
         MemoryScopeWriteGate.record_committed(
-            admitted_scopes, proposals=admitted_proposals
+            admitted_scopes,
+            proposals=admitted_proposals,
+            versions=versions,
         )
         return ToolObservation(
             tool_name="confirm_job_intent",
@@ -4379,6 +4434,77 @@ class MainAgentToolRegistry:
                 "lineage_ref": lineage_ref,
                 "supported_by": supported_by,
                 "lineage": entries,
+                "body": body,
+                "body_clipped": body_clipped,
+            },
+        )
+
+    def _search_career_memory(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = SearchCareerMemoryToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        try:
+            evidence, total, next_cursor = (
+                self._career_history_store.search_current_evidence(
+                    user_id=user_id,
+                    query=model_arguments.query,
+                    limit=model_arguments.limit,
+                    cursor=model_arguments.cursor,
+                )
+            )
+        except ValueError:
+            return ToolObservation(
+                tool_name="search_career_memory",
+                state="invalid_input",
+                message="职业记忆查询词或分页游标无效；请用聚焦词重新从第一页查询。",
+                payload={"query": model_arguments.query},
+            )
+        items = [
+            {
+                "claim": item.claim,
+                "revision": item.revision,
+                "detail_ref": item.detail_ref,
+                "source_ref": item.source_ref,
+            }
+            for item in evidence
+        ]
+        if not items:
+            return ToolObservation(
+                tool_name="search_career_memory",
+                state="career_memory_search_empty",
+                message="没有找到匹配的当前职业声明。",
+                payload={
+                    "query": model_arguments.query,
+                    "items": [],
+                    "total": total,
+                },
+            )
+        body = "当前职业声明（来自归档层）：\n" + "\n".join(
+            f"- r{item['revision']} {item['claim']}" for item in items
+        )
+        body_clipped = len(body) > DECISION_OBSERVATION_BODY_LIMIT
+        if body_clipped:
+            body = clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT)
+        return ToolObservation(
+            tool_name="search_career_memory",
+            state="career_memory_search_found",
+            message=f"从归档层找到 {len(items)}/{total} 条当前职业声明。",
+            facts={
+                "returned": len(items),
+                "total": total,
+                "body_clipped": body_clipped,
+                **({"next_cursor": next_cursor} if next_cursor is not None else {}),
+            },
+            payload={
+                "query": model_arguments.query,
+                "items": items,
+                "total": total,
+                **({"next_cursor": next_cursor} if next_cursor is not None else {}),
                 "body": body,
                 "body_clipped": body_clipped,
             },

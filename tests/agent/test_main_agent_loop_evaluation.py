@@ -140,15 +140,22 @@ def _turn_observation_payload(messages: Sequence[Mapping[str, Any]]) -> tuple:
 
 def _request_context(client: ReplayClient, index: int) -> dict[str, Any]:
     messages = client.requests[index]["messages"]
-    control_lines = messages[1]["content"].splitlines()
+    stable_lines = messages[1]["content"].splitlines()
+    stable = json.loads("\n".join(stable_lines[2:-1]))
+    control_lines = messages[2]["content"].splitlines()
     assert control_lines[0] == f"<{CONTROL_REMINDER_TAG}>"
     assert control_lines[1] == CONTROL_CONTEXT_LABEL
     assert control_lines[-1] == f"</{CONTROL_REMINDER_TAG}>"
     control = json.loads("\n".join(control_lines[2:-1]))
-    lines = messages[2]["content"].splitlines()
+    lines = messages[3]["content"].splitlines()
     data = json.loads("\n".join(lines[2:-1]))
     observations = list(_turn_observation_payload(messages))
-    return {**control, **data, "tool_observations": observations}
+    return {
+        **control,
+        **stable,
+        **data,
+        "tool_observations": observations,
+    }
 
 
 def _recorded_events(recorder: InMemoryTraceRecorder) -> tuple:

@@ -25,8 +25,10 @@ from career_agent.harness.observability import (
     conversation_trace_key,
 )
 from career_agent.domain.memory_scope import ScopeProposal
+from career_agent.agent.main_agent_contracts import CareerProfileContext
 from career_agent.services.canonical_scope import CanonicalScopeResolver
 from career_agent.services.memory_scope import MemoryScopeWriteGate
+from career_agent.storage.context import CareerContextStore
 from career_agent.storage.scope_resolution import SQLiteScopeResolutionStore
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.security.redaction import redact_text
@@ -234,6 +236,119 @@ def test_memory_events_require_the_join_key_on_each_producer(tmp_path: Path) -> 
     assert all(event.details["conversation_key"] == key for event in events)
 
 
+def test_committed_memory_write_carries_the_persisted_update_binding(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    context_store = CareerContextStore(path)
+    context_store.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="杭州"),
+        source="test",
+    )
+    versions = context_store.list_profile_intent_versions(
+        user_id="u1",
+        scope_keys=("person_intent/self/default_city",),
+        active_only=True,
+        limit=1,
+    )
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    gate = MemoryScopeWriteGate(
+        CanonicalScopeResolver(),
+        SQLiteScopeResolutionStore(path),
+    )
+    proposal = ScopeProposal(
+        user_id="u1",
+        conversation_id="c1",
+        family="person_intent",
+        subject_id="self",
+        relation="default_city",
+        proposed_value="杭州",
+        source_kind="job_intent",
+        source_id="self:default_city",
+    )
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-1"))
+    try:
+        scope = gate.require(proposal)
+        gate.record_committed(
+            ((scope, "杭州"),),
+            proposals=(proposal,),
+            versions=versions,
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    write = next(
+        event
+        for event in recorder.snapshot("turn-1").events
+        if event.event_type == "memory_write_observed"
+    )
+    assert write.details["binding_profile"] == "p1"
+    assert write.details["version_inventory_complete"] is True
+    assert write.details["entries"] == [
+        {
+            "entry_id": "person_intent/self/default_city",
+            "content_digest": versions[0].content_digest,
+            "update_id": versions[0].update_id,
+            "revision": 1,
+            "lifecycle_status": "current",
+        }
+    ]
+
+
+def test_memory_budget_events_join_outcomes_through_the_keyed_run(
+    tmp_path: Path,
+) -> None:
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    key = conversation_trace_key("u1", "c1")
+    recorder.record(
+        "turn-1",
+        "memory_context_observed",
+        "main_agent_decide",
+        outcome="succeeded",
+        details={
+            "conversation_key": key,
+            "career_profile_budgets": {"records_input_units": 2800},
+        },
+    )
+    recorder.record(
+        "turn-1",
+        "model_succeeded",
+        "main_agent_decide",
+        outcome="succeeded",
+        details={"decision_action": "final"},
+        model_call_category="orchestrator_decision",
+    )
+    recorder.record(
+        "turn-1",
+        "turn_completed",
+        "turn",
+        outcome="succeeded",
+        details={"conversation_id": "c1"},
+    )
+    recorder.record(
+        "other-turn",
+        "memory_context_observed",
+        "main_agent_decide",
+        outcome="succeeded",
+        details={
+            "conversation_key": conversation_trace_key("u2", "c1"),
+            "career_profile_budgets": {"records_input_units": 1},
+        },
+    )
+
+    events = recorder.list_memory_budget_events(
+        user_id="u1",
+        conversation_id="c1",
+    )
+
+    assert [event.event_type for event in events] == [
+        "memory_context_observed",
+        "model_succeeded",
+        "turn_completed",
+    ]
+    assert {event.run_id for event in events} == {"turn-1"}
+
+
 def test_v1_trace_store_is_upgraded_before_model_events_are_written(
     tmp_path: Path,
 ) -> None:
@@ -296,3 +411,41 @@ def test_v1_trace_store_is_upgraded_before_model_events_are_written(
     legacy = recorder.snapshot("legacy-run").events[0]
     assert legacy.event_type == "model_attempt"
     assert legacy.model_call_category is None
+
+
+def test_unregistered_v1_trace_table_is_adopted_with_the_v2_column(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "run_events.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE run_events (
+                run_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                attempt INTEGER,
+                occurred_at TEXT NOT NULL,
+                duration_ms INTEGER,
+                outcome TEXT NOT NULL,
+                details_json TEXT NOT NULL,
+                error_code TEXT,
+                error_detail TEXT,
+                recoverable INTEGER,
+                PRIMARY KEY(run_id, sequence)
+            )
+            """
+        )
+
+    recorder = SQLiteTraceRecorder(path)
+    recorder.record(
+        "run-1",
+        "model_attempt",
+        "main_agent_decide",
+        model_call_category="orchestrator_decision",
+    )
+
+    assert recorder.snapshot("run-1").events[0].model_call_category == (
+        "orchestrator_decision"
+    )

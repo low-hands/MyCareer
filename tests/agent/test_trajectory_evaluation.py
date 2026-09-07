@@ -32,9 +32,11 @@ from pathlib import Path
 
 import pytest
 
+import career_agent.evaluation.trajectory as trajectory_module
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
+    CareerProfileBudgets,
     ConversationMessageContext,
 )
 from career_agent.agent.openai_compatible_client import (
@@ -63,6 +65,7 @@ from career_agent.evaluation.trajectory import (
     record,
     record_catalogue,
     replay,
+    replay_budget_cassette_pair,
     replay_cassette,
     replay_quality,
     quality_shortfall,
@@ -85,6 +88,76 @@ def offered() -> tuple[frozenset[str], tuple[dict, ...]]:
     )
     schemas = registry.schemas()
     return frozenset(spec["function"]["name"] for spec in schemas), schemas
+
+
+def test_budget_change_validation_is_paired_by_cassette_sample(
+    offered,
+    monkeypatch,
+) -> None:
+    _, tool_specs = offered
+    source = next(scenario for scenario in SCENARIOS if not scenario.known_gap)
+    baseline = replace(
+        source,
+        context=source.context.model_copy(
+            update={
+                "career_profile_budgets": CareerProfileBudgets(
+                    records_input_units=5_040,
+                )
+            }
+        ),
+    )
+    candidate = replace(
+        source,
+        context=source.context.model_copy(
+            update={
+                "career_profile_budgets": CareerProfileBudgets(
+                    records_input_units=2_800,
+                )
+            }
+        ),
+    )
+    cassette = TrajectoryCassette(
+        steps=({"choices": []},),
+        prompt_fingerprint=None,
+        context_shape_fingerprint=None,
+        model="test",
+    )
+    monkeypatch.setattr(
+        trajectory_module,
+        "cassette_staleness",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        trajectory_module,
+        "replay_cassette",
+        lambda scenario, **kwargs: (
+            ((),)
+            if (
+                scenario.context.career_profile_budgets.records_input_units
+                == 5_040
+            )
+            else (("candidate regression",),)
+        ),
+    )
+    monkeypatch.setattr(
+        trajectory_module,
+        "replay_quality",
+        lambda *args, **kwargs: (),
+    )
+
+    result = replay_budget_cassette_pair(
+        baseline_scenario=baseline,
+        baseline_cassette=cassette,
+        candidate_scenario=candidate,
+        candidate_cassette=cassette,
+        tool_specs=tool_specs,
+    )
+
+    assert result.baseline_budgets == (5_040, 800, 600)
+    assert result.candidate_budgets == (2_800, 800, 600)
+    assert result.pair_count == 1
+    assert result.regressed_pair_count == 1
+    assert result.candidate_noninferior is False
 
 
 _SERVICE_PARAMETERS = (

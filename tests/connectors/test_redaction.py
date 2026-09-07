@@ -20,6 +20,22 @@ def test_redacts_sensitive_keys_and_values() -> None:
     assert redacted["title"] == "Backend"
 
 
+def test_cache_token_counts_are_not_mistaken_for_credentials() -> None:
+    redacted = redact(
+        {
+            "cache_read_input_tokens": 700,
+            "cache_creation_input_tokens": 100,
+            "uncached_input_tokens": 200,
+            "access_token": "secret",
+        }
+    )
+
+    assert redacted["cache_read_input_tokens"] == 700
+    assert redacted["cache_creation_input_tokens"] == 100
+    assert redacted["uncached_input_tokens"] == 200
+    assert redacted["access_token"] == REDACTED
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [

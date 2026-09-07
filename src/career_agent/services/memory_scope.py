@@ -112,24 +112,55 @@ class MemoryScopeWriteGate:
         scopes_and_values: tuple[tuple[CanonicalScope, str], ...],
         *,
         proposals: tuple[ScopeProposal, ...] = (),
+        versions: tuple[object, ...] = (),
     ) -> None:
         if not scopes_and_values:
             return
+        current_versions = {
+            version.scope_key: version
+            for version in versions
+            if all(
+                hasattr(version, name)
+                for name in (
+                    "scope_key",
+                    "update_id",
+                    "content_digest",
+                    "revision",
+                    "superseded_at",
+                )
+            )
+            and version.superseded_at is None
+        }
+        entries = []
+        for scope, value in scopes_and_values:
+            entry = {
+                "entry_id": scope.scope_key,
+                "content_digest": SQLiteScopeResolutionStore.content_digest(
+                    value
+                ),
+            }
+            version = current_versions.get(scope.scope_key)
+            if version is not None:
+                entry.update(
+                    {
+                        "update_id": version.update_id,
+                        "revision": version.revision,
+                        "lifecycle_status": "current",
+                    }
+                )
+            entries.append(entry)
+        complete = all(
+            scope.scope_key in current_versions
+            for scope, _ in scopes_and_values
+        )
         record_active_trace(
             "memory_write_observed",
             "memory_scope",
             outcome="succeeded",
             details={
-                "binding_profile": "p2",
+                "binding_profile": "p1" if complete else "p2",
+                "version_inventory_complete": complete,
                 **(_conversation_scope(proposals[0]) if proposals else {}),
-                "entries": [
-                    {
-                        "entry_id": scope.scope_key,
-                        "content_digest": SQLiteScopeResolutionStore.content_digest(
-                            value
-                        ),
-                    }
-                    for scope, value in scopes_and_values
-                ],
+                "entries": entries,
             },
         )
