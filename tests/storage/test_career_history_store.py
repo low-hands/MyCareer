@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from career_agent.agent.resume_analysis_contracts import (
@@ -117,6 +119,19 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
     )
 
     assert evidence.source_resume_version_id == version.id
+    assert evidence.source_ref is not None
+    assert store.get_evidence_by_source_ref(
+        user_id="u1", source_ref=evidence.source_ref
+    ) is None
+    confirmed = store.confirm_evidence(
+        user_id="u1", career_evidence_id=evidence.id
+    )
+    assert store.get_evidence_by_source_ref(
+        user_id="u1", source_ref=evidence.source_ref
+    ) == confirmed
+    assert store.get_evidence_by_source_ref(
+        user_id="u2", source_ref=evidence.source_ref
+    ) is None
     with pytest.raises(ValueError, match="Source resume version not found"):
         store.create_evidence(
             user_id="u1",
@@ -137,6 +152,42 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
             source_locator="line=1",
             source_quote="Cross-user source",
         )
+
+
+def test_v3_migration_backfills_stable_source_refs(tmp_path) -> None:
+    store, resumes, path = build_stores(tmp_path)
+    record = create_record(store)
+    role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
+    _, version = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="Base",
+        content=b"Resume body",
+        document_format="text",
+    )
+    evidence = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Built an AI product.",
+        origin="resume_extraction",
+        source_resume_version_id=version.id,
+        source_locator="line=1",
+        source_quote="Built an AI product.",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP INDEX career_evidence_source_ref_unique_idx")
+        connection.execute("ALTER TABLE career_evidence DROP COLUMN source_ref")
+        connection.execute(
+            "UPDATE schema_versions SET version = 2 WHERE component = 'career_history'"
+        )
+
+    migrated = CareerHistoryStore(path)
+    reread = migrated.get_evidence(
+        user_id="u1", career_evidence_id=evidence.id
+    )
+
+    assert reread is not None
+    assert reread.source_ref == evidence.source_ref
 
 
 def test_confirm_is_atomic_audited_and_idempotent(tmp_path) -> None:

@@ -2,6 +2,8 @@ import pytest
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationResourceReference, ConversationTaskState
 from career_agent.harness.observability import (
@@ -10,6 +12,7 @@ from career_agent.harness.observability import (
     conversation_trace_key,
 )
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.resumes import ResumeStore
 
 
 def manager(
@@ -32,6 +35,61 @@ def manager(
         compact_occupancy_threshold=compact_occupancy_threshold,
         compacted_message_warning_threshold=compacted_message_warning_threshold,
     )
+
+
+def test_profile_current_target_block_is_rendered_from_target_role_source(
+    tmp_path,
+) -> None:
+    context_store = CareerContextStore(tmp_path / "context.sqlite3")
+    context_store.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="杭州")
+    )
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = resumes.create_target_role(
+        user_id="u1",
+        title="ML Engineer",
+        priority=1,
+    )
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        city="上海",
+        salary_expectation="40-50k",
+        experience="5-7 years",
+        education="硕士",
+    )
+    context_manager = ContextManager(
+        context_store,
+        target_role_source=resumes,
+    )
+
+    context = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我当前的求职目标是什么？",
+    )
+    projected = context.model_context()["career_profile"]["current_targets"]
+
+    assert projected["roles"] == [
+        {
+            "title": "ML Engineer",
+            "priority": 1,
+            "city": "上海",
+            "salary_expectation": "40-50k",
+            "experience": "5-7 years",
+            "education": "硕士",
+        }
+    ]
+    assert "current_targets" not in context.profile.model_dump()
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+        ),
+    )
+    assert workflow_context.profile.current_targets == ()
 
 
 class RecordingSummaryWorker:
@@ -887,6 +945,112 @@ def test_long_conversation_span_can_page_in_by_content_without_blind_scanning(
     assert span.returned == span.total == 1
     assert span.messages[0].sequence == 106
     assert "星海科技" in span.messages[0].content
+
+
+def test_conversation_span_recovers_resource_refs_from_returned_rows(
+    tmp_path,
+) -> None:
+    context_manager = manager(tmp_path, limit=4)
+    context = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="研究这个岗位",
+    )
+    reference = ConversationResourceReference(
+        kind="job_research_report",
+        resource_id="report-1",
+        status_at_delivery="current",
+        anchored_by_other_job=False,
+        title="Example · AI Engineer",
+    )
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="岗位调研报告已生成。",
+        assistant_resource_refs=(reference,),
+    )
+
+    span = context_manager._store.read_conversation_span(
+        user_id="u1",
+        conversation_id="c1",
+        from_sequence=1,
+        through_sequence=2,
+    )
+
+    assert span.resource_refs == (reference,)
+    result = MainAgentToolRegistry(
+        conversation_store=context_manager._store
+    ).invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "c1",
+            "from_sequence": 1,
+            "through_sequence": 2,
+        },
+    )
+    observation = MainAgentRuntime._tool_observation(
+        "read_conversation_span",
+        result,
+    )
+    projected = context.model_copy(
+        update={"tool_observations": (observation,)}
+    ).model_context()["tool_observations"][0]
+
+    assert result.facts["resource_ref_count"] == 1
+    assert result.facts["resource_ref_total"] == 1
+    assert projected["facts"]["resource_refs"][0]["title"] == (
+        "Example · AI Engineer"
+    )
+    handle = projected["facts"]["resource_refs"][0]["reference"]
+    assert handle != reference.resource_id
+    assert context.model_copy(
+        update={"tool_observations": (observation,)}
+    ).resolve_reference(
+        reference=handle,
+        kind="job_research_report",
+    ) == reference.resource_id
+
+
+def test_conversation_span_caps_resource_refs_and_reports_total(tmp_path) -> None:
+    context_manager = manager(tmp_path, limit=4)
+    context = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="读取历史报告",
+    )
+    references = tuple(
+        ConversationResourceReference(
+            kind="mock_interview_report",
+            resource_id=f"report-{index}",
+            title=f"Mock report {index}",
+        )
+        for index in range(40)
+    )
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="报告已生成。",
+        assistant_resource_refs=references,
+    )
+
+    result = MainAgentToolRegistry(
+        conversation_store=context_manager._store
+    ).invoke_atomic_tool(
+        "read_conversation_span",
+        {
+            "user_id": "u1",
+            "conversation_id": "c1",
+            "from_sequence": 1,
+            "through_sequence": 2,
+        },
+    )
+
+    assert result.facts["resource_ref_count"] == 32
+    assert result.facts["resource_ref_total"] == 40
+    assert len(result.resource_refs) == 32
+    assert len(result.payload["resource_refs"]) == 32
+    assert result.payload["resource_ref_total"] == 40
 
 
 class DroppingConstraintWorker(RecordingSummaryWorker):

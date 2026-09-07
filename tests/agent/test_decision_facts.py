@@ -48,6 +48,16 @@ DECLARED_FACTS = {
         "keys": {"cached", "finding_count", "status"},
         "reason": "三值状态需要精确取值，散文收据说不准",
     },
+    "claim_source_found": {
+        "keys": {
+            "origin",
+            "recorded_at",
+            "source_locator",
+            "resume_version",
+            "body_clipped",
+        },
+        "reason": "来源元数据保持结构化；原始引文只进入低授权正文",
+    },
 }
 
 
@@ -77,6 +87,7 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
         "daily_brief_ready": {},
         "resume_analysis_ready": {},
         "job_research_ready": {},
+        "claim_source_found": {},
     }
     for state, spec in DECLARED_FACTS.items():
         facts = {

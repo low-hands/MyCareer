@@ -26,6 +26,7 @@ class MetricResult:
 class MemoryMetricsSummary:
     uptake_rate: MetricResult
     context_churn_rate: MetricResult
+    context_churn_by_slot: dict[str, MetricResult]
     staleness_exposure: MetricResult
     zombie_exposure: MetricResult
     supersedence_exposure: MetricResult
@@ -69,8 +70,8 @@ def summarize_memory_metrics(
     pending_writes: set[tuple[str, str]] = set()
     used_writes: set[tuple[str, str]] = set()
     previous_slots: dict[str, dict[str, str]] = {}
-    changed_slots = 0
-    compared_slots = 0
+    changed_slots = {name: 0 for name in _CONTEXT_SLOT_NAMES}
+    compared_slots = {name: 0 for name in _CONTEXT_SLOT_NAMES}
 
     for event in events:
         event_type = _event_type(event)
@@ -95,8 +96,10 @@ def summarize_memory_metrics(
             previous = previous_slots.get(key)
             if previous is not None:
                 for name in previous.keys() & current.keys():
-                    compared_slots += 1
-                    changed_slots += previous[name] != current[name]
+                    if name not in compared_slots:
+                        continue
+                    compared_slots[name] += 1
+                    changed_slots[name] += previous[name] != current[name]
             previous_slots[key] = current
 
     uptake = (
@@ -114,14 +117,20 @@ def summarize_memory_metrics(
             reason="No observable memory writes were supplied.",
         )
     )
+    total_changed = sum(changed_slots.values())
+    total_compared = sum(compared_slots.values())
     churn = (
         MetricResult(
-            value=changed_slots / compared_slots,
+            value=total_changed / total_compared,
             measurable=True,
-            comparability="BEST_EFFORT",
-            reason="Measures projected context-slot churn, not bound memory-version churn.",
+            comparability="NONCOMPARABLE",
+            reason=(
+                "Diagnostic aggregate only, not a memory-change signal. It measures "
+                "projected context-slot churn rather than bound memory versions, and "
+                "career_profile churn is primarily driven by query-relevance reranking."
+            ),
         )
-        if compared_slots
+        if total_compared
         else MetricResult(
             value=None,
             measurable=False,
@@ -129,6 +138,31 @@ def summarize_memory_metrics(
             reason="At least two context observations for one conversation are required.",
         )
     )
+    churn_by_slot = {
+        name: (
+            MetricResult(
+                value=changed_slots[name] / compared_slots[name],
+                measurable=True,
+                comparability="BEST_EFFORT",
+                reason=(
+                    "Projected career_profile churn is primarily driven by "
+                    "query-relevance reranking, not by memory writes."
+                    if name == "career_profile"
+                    else "Measures projected slot churn, not bound memory-version churn."
+                ),
+            )
+            if compared_slots[name]
+            else MetricResult(
+                value=None,
+                measurable=False,
+                comparability="NONCOMPARABLE",
+                reason=(
+                    "At least two observations containing this slot are required."
+                ),
+            )
+        )
+        for name in _CONTEXT_SLOT_NAMES
+    }
     unavailable = MetricResult(
         value=None,
         measurable=False,
@@ -138,6 +172,7 @@ def summarize_memory_metrics(
     return MemoryMetricsSummary(
         uptake_rate=uptake,
         context_churn_rate=churn,
+        context_churn_by_slot=churn_by_slot,
         staleness_exposure=unavailable,
         zombie_exposure=unavailable,
         supersedence_exposure=unavailable,
@@ -281,3 +316,11 @@ def _entry_identities(details: Mapping[str, Any]) -> tuple[tuple[str, str], ...]
 
 def _surface(value: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+_CONTEXT_SLOT_NAMES = (
+    "career_profile",
+    "task",
+    "conversation_summary",
+    "recent_messages",
+)

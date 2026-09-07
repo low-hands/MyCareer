@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
@@ -2871,6 +2871,7 @@ class MainAgentRuntime:
                 # The handle survives the body. Clearing keeps the reference for
                 # the same reason tool-result clearing keeps the tool_use record.
                 resource_ref=result.resource_ref,
+                resource_refs=result.resource_refs,
             )
         return DecisionObservation(
             tool_name=name,
@@ -2881,6 +2882,7 @@ class MainAgentRuntime:
             next_action=result.next_action,
             arguments=dict(arguments or {}),
             resource_ref=result.resource_ref,
+            resource_refs=result.resource_refs,
         )
 
     @staticmethod
@@ -2948,6 +2950,10 @@ class MainAgentRuntime:
             view = MainAgentRuntime._validated(ConversationSpanView, result.payload)
             if view is not None:
                 return render_conversation_span(view)
+        if result.state == "claim_source_found":
+            source_quote = result.payload.get("source_quote")
+            if isinstance(source_quote, str) and source_quote:
+                return f"原始证据引文：\n\n{source_quote}"
         if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
             # The workflow's own presenter handles every state a run can be
             # left in, including the terminal ones, so the payload is parsed
@@ -3212,6 +3218,12 @@ class MainAgentRuntime:
                 "user_id": context.profile.user_id,
                 "conversation_id": context.conversation_id,
                 **model_arguments.model_dump(exclude_none=True),
+            }
+        if name == "resolve_claim_source":
+            model_arguments = ResolveClaimSourceToolArguments.model_validate(arguments)
+            return {
+                "user_id": context.profile.user_id,
+                **model_arguments.model_dump(),
             }
         if name == "update_owner_settings":
             proposed = UpdateOwnerSettingsToolArguments.model_validate(arguments)

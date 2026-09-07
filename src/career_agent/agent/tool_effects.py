@@ -68,6 +68,7 @@ _READ_CAPABILITIES = frozenset(
         "list_target_roles",
         "propose_job_intent",
         "read_conversation_span",
+        "resolve_claim_source",
     }
 )
 

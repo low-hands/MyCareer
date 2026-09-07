@@ -364,6 +364,14 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实 JD 正文标记",
         ),
+        "claim_source_found": (
+            {
+                "source_quote": "真实来源引文标记",
+                "source_ref": f"evidence_{'b' * 24}",
+                "body_clipped": False,
+            },
+            "真实来源引文标记",
+        ),
     }
     condensed = {
         state

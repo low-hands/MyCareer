@@ -105,6 +105,7 @@ EXIT_UNKNOWN_ERROR = 6
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
     context_store = CareerContextStore(Path(args.context_store).expanduser())
+    resume_store = ResumeStore(Path(args.resume_store).expanduser())
     memory_scope_write_gate = MemoryScopeWriteGate(
         CanonicalScopeResolver(),
         SQLiteScopeResolutionStore(Path(args.context_store).expanduser()),
@@ -113,12 +114,12 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
         compacted_message_warning_threshold=args.compacted_message_warning,
+        target_role_source=resume_store,
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
         timeout_seconds=args.agent_timeout_seconds,
     )
-    resume_store = ResumeStore(Path(args.resume_store).expanduser())
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
     job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
     match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
@@ -238,6 +239,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_repository=job_repository,
             job_research_service=job_research_service,
             resume_store=resume_store,
+            career_history_store=career_history_store,
             resume_export_service=ResumeExportService(
                 resume_store,
                 SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),
