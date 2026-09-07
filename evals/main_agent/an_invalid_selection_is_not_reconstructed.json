@@ -3,36 +3,36 @@
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "979d73b967008e26ff260a9c1a68fdb4d6f8982b3c472f0694eadcbefd2b28b5",
-  "recorded_at": "2026-09-07T03:33:51.059651+00:00",
+  "context_shape_fingerprint": "01777271ce90f598626eecd2b4429fd599bcd996e526dafc5189847d6faa8521",
+  "recorded_at": "2026-09-07T06:34:06.502084+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，不存在第 2 个。请提供有效的岗位序号；如需查看现有岗位，请选择第 1 个。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请提供有效序号；第 1 个岗位是“示例科技｜算法工程师”。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:33:19.175105+00:00",
+      "recorded_at": "2026-09-07T06:34:57.311483+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，不存在第 2 个。请提供有效的岗位序号；如需查看现有岗位，请选择第 1 个。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请提供有效序号；第 1 个岗位是“示例科技｜算法工程师”。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:33:20.391135+00:00",
+      "recorded_at": "2026-09-07T06:34:58.562955+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个。请确认是否打开第 1 个岗位「示例科技｜算法工程师」的完整 JD。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个。请选择第 1 个岗位，或先提供/保存其他岗位后再打开。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:33:51.059651+00:00",
+      "recorded_at": "2026-09-07T06:34:06.502084+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个。请确认是否打开第 1 个岗位的完整 JD。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个。请告诉我是否打开第 1 个岗位的完整 JD，或先搜索/保存更多岗位。\"}"
         }
       ]
     }

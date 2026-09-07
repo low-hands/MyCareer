@@ -3,36 +3,36 @@
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "dcd8c7ff8c5000c8b415540d54eb235fe753e6f8790ab7c480ea50ced3114e3a",
-  "recorded_at": "2026-09-07T03:34:56.645310+00:00",
+  "context_shape_fingerprint": "3ae0c2c8f7e23ddbbcdf6fe86c81e6e1b40a5465f6a0c121efcc8ccab1c1813a",
+  "recorded_at": "2026-09-07T06:39:32.911051+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你最初指定的公司全名，不能凭空猜测。请把目标公司名称再发我一次。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有你最初指定的目标公司全名，无法可靠确认。请再提供一下公司名称。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:34:48.051096+00:00",
+      "recorded_at": "2026-09-07T06:39:27.849493+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你最初指定的公司全名，不能凭空猜测。请把目标公司名称再发我一次。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有你最初指定的目标公司全名，无法可靠确认。请再提供一下公司名称。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:34:47.114200+00:00",
+      "recorded_at": "2026-09-07T06:39:29.249438+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文没有记录你一开始指定的目标公司全名，无法可靠确认。请告诉我公司名称，或提供当时的岗位/JD。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可用上下文里没有记录你一开始指定的目标公司全名，无法可靠确认。请告诉我公司名称，或提供当时的岗位信息。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:34:56.645310+00:00",
+      "recorded_at": "2026-09-07T06:39:32.911051+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文没有记录你一开始指定的目标公司全名，我不能凭“美团”的对照关系反推。请告诉我公司名称，或提供当时的原话。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见记录里没有你最初指定的目标公司全名；我不能根据“美团”或上条表述猜测。请告诉我公司名，或把当时那句话再发一次。\"}"
         }
       ]
     }

@@ -39,6 +39,24 @@ def career_evidence_source_ref(
     return f"evidence_{digest[:24]}"
 
 
+def career_evidence_detail_ref(*, user_id: str, evidence_id: str) -> str:
+    """Construct an opaque lookup handle for one claim revision."""
+
+    digest = hashlib.sha256(
+        f"{user_id}\0{evidence_id}\0career-evidence-detail".encode("utf-8")
+    ).hexdigest()
+    return f"detail_{digest[:24]}"
+
+
+def career_evidence_lineage_ref(*, user_id: str, scope_key: str) -> str:
+    """Name a correction lineage without reusing a direct-support reference."""
+
+    digest = hashlib.sha256(
+        f"{user_id}\0{scope_key}\0career-evidence-lineage".encode("utf-8")
+    ).hexdigest()
+    return f"lineage_{digest[:24]}"
+
+
 def career_evidence_scope_key(evidence_id: str) -> str:
     """Anchor one correction lineage without hashing free-text claim semantics."""
 
@@ -121,6 +139,7 @@ class CareerEvidence(CareerHistoryContract):
         default=None,
         pattern=r"^evidence_[a-f0-9]{24}$",
     )
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
     scope_key: str | None = Field(
         default=None,
         pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$",
@@ -146,6 +165,23 @@ class CareerEvidence(CareerHistoryContract):
 
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_detail_ref(cls, value: object) -> object:
+        if not isinstance(value, dict) or value.get("detail_ref") is not None:
+            return value
+        user_id = value.get("user_id")
+        evidence_id = value.get("id")
+        if isinstance(user_id, str) and isinstance(evidence_id, str):
+            return {
+                **value,
+                "detail_ref": career_evidence_detail_ref(
+                    user_id=user_id,
+                    evidence_id=evidence_id,
+                ),
+            }
+        return value
 
     @model_validator(mode="after")
     def validate_source(self) -> CareerEvidence:

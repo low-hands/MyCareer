@@ -285,8 +285,9 @@ def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:
     assert payload["behaviour_failed"] == 1
     assert payload["stale"] == 0
     assert result["behaviour"] == "failed"
-    assert 0 < result["samples_passed"] < result["sample_count"]
-    assert result["known_gap_status"] == "intermittent"
+    assert result["samples_passed"] == 0
+    assert result["sample_count"] == 3
+    assert result["known_gap_status"] == "stable"
 
 
 @pytest.mark.parametrize(

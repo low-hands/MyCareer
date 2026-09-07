@@ -3,36 +3,36 @@
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "6b4ef535bac7651884ff29d06b27abb0645725ac1cf0019cea2426814000a0e5",
-  "recorded_at": "2026-09-07T03:32:14.025909+00:00",
+  "context_shape_fingerprint": "62b0b4031e23c15c60d3d10d2d2f9f8058620f71ee7e559a0480d9aecba82ad8",
+  "recorded_at": "2026-09-07T06:33:59.211784+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。是否重试查询已保存的 RAG 岗位？\"}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法检索你保存过的 RAG 岗位。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:33:17.488096+00:00",
+      "recorded_at": "2026-09-07T06:33:59.471149+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。是否重试查询已保存的 RAG 岗位？\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法检索你保存过的 RAG 岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:31:53.582802+00:00",
+      "recorded_at": "2026-09-07T06:33:54.273467+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法访问已保存岗位库，因此没能找到 RAG 岗位。你需要我重试查询吗？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。请明确回复“重试 RAG 岗位查询”，我再重新查询。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:32:14.025909+00:00",
+      "recorded_at": "2026-09-07T06:33:59.211784+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用，暂时找不到你保存过的 RAG 岗位。要我重试查询吗？\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法检索你保存过的 RAG 岗位。\"}"
         }
       ]
     }

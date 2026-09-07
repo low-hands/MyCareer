@@ -3,36 +3,36 @@
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-luna",
   "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "6b4ef535bac7651884ff29d06b27abb0645725ac1cf0019cea2426814000a0e5",
-  "recorded_at": "2026-09-07T03:32:36.992583+00:00",
+  "context_shape_fingerprint": "62b0b4031e23c15c60d3d10d2d2f9f8058620f71ee7e559a0480d9aecba82ad8",
+  "recorded_at": "2026-09-07T06:33:56.943132+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"抱歉，岗位库当前无法完成“RAG”岗位查询。你可以稍后再试。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T03:31:54.446766+00:00",
+      "recorded_at": "2026-09-07T06:33:08.744162+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"抱歉，岗位库当前无法完成“RAG”岗位查询。你可以稍后再试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:33:51.485609+00:00",
+      "recorded_at": "2026-09-07T06:33:55.272984+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对“RAG”保存岗位的查询，本次未找到结果。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T03:32:36.992583+00:00",
+      "recorded_at": "2026-09-07T06:33:56.943132+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法查询你保存过的 RAG 岗位，岗位库当前不可用。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对“RAG”岗位的查询。请稍后再试。\"}"
         }
       ]
     }

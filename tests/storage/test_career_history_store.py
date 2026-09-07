@@ -711,3 +711,135 @@ def test_v4_migration_rebuilds_the_event_log_for_lineage_events(
 
     assert correction.current.revision == 2
     assert migrated.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_v5_migration_backfills_detail_refs_and_history_index(tmp_path) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Assisted with retrieval evaluation",
+            origin="user_input",
+        ).id,
+    )
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Led retrieval evaluation",
+        reason="User corrected ownership",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            DROP TRIGGER career_evidence_fts_insert;
+            DROP TRIGGER career_evidence_fts_delete;
+            DROP TRIGGER career_evidence_fts_update;
+            DROP TABLE career_evidence_fts;
+            DROP INDEX career_evidence_detail_ref_unique_idx;
+            UPDATE career_evidence SET detail_ref = NULL;
+            UPDATE schema_versions SET version = 4
+            WHERE component = 'career_history';
+            """
+        )
+
+    migrated = CareerHistoryStore(path)
+    current = migrated.get_evidence(
+        user_id="u1",
+        career_evidence_id=correction.current.id,
+    )
+    history, total, cursor = migrated.search_historical_evidence(
+        user_id="u1",
+        query="retrieval",
+    )
+
+    assert current is not None
+    assert current.detail_ref.startswith("detail_")
+    assert migrated.get_evidence_by_detail_ref(
+        user_id="u1",
+        detail_ref=current.detail_ref,
+    ) == current
+    assert [item.id for item in history] == [original.id]
+    assert total == 1
+    assert cursor is None
+
+
+def test_historical_search_is_indexed_bounded_and_cursor_paginated(
+    tmp_path,
+) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    originals = []
+    for index in range(3):
+        original = store.confirm_evidence(
+            user_id="u1",
+            career_evidence_id=store.create_evidence(
+                user_id="u1",
+                career_record_id=record.id,
+                claim=f"Assisted with retrieval evaluation {index}",
+                origin="user_input",
+            ).id,
+        )
+        originals.append(original)
+        store.correct_evidence(
+            user_id="u1",
+            career_evidence_id=original.id,
+            new_claim=f"Led retrieval evaluation {index}",
+            reason="User corrected ownership",
+        )
+
+    first, total, cursor = store.search_historical_evidence(
+        user_id="u1",
+        query="retrieval",
+        limit=2,
+    )
+    assert len(first) == 2
+    assert total == 3
+    assert cursor is not None
+
+    second, second_total, next_cursor = store.search_historical_evidence(
+        user_id="u1",
+        query="retrieval",
+        limit=2,
+        cursor=cursor,
+    )
+    assert len(second) == 1
+    assert second_total == total
+    assert next_cursor is None
+    assert {item.id for item in (*first, *second)} == {
+        item.id for item in originals
+    }
+    with pytest.raises(ValueError, match="does not match this query"):
+        store.search_historical_evidence(
+            user_id="u1",
+            query="different",
+            cursor=cursor,
+        )
+
+    with sqlite3.connect(path) as connection:
+        plan = [
+            str(row[3])
+            for row in connection.execute(
+                """
+                EXPLAIN QUERY PLAN
+                SELECT evidence.id
+                FROM career_evidence_fts AS search
+                JOIN career_evidence AS evidence
+                  ON evidence.id = search.evidence_id
+                WHERE search.user_id = ?
+                  AND career_evidence_fts MATCH ?
+                  AND evidence.verification_status = 'confirmed'
+                  AND (
+                      evidence.superseded_by IS NOT NULL
+                      OR evidence.rolled_back_at IS NOT NULL
+                  )
+                ORDER BY bm25(career_evidence_fts), evidence.created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                ("u1", '"retrieval"', 2, 0),
+            )
+        ]
+    assert any("VIRTUAL TABLE INDEX" in step for step in plan)
+    assert not any("SCAN evidence" in step for step in plan)

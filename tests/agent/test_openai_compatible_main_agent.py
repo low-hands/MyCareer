@@ -151,7 +151,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert decision.action == "ask_user"
     # Role-scoped intent is rendered per track and never collapsed into one
     # person-level salary, experience, or education value.
-    assert set(payload["career_profile"]) == {"default_city", "records"}
+    assert set(payload["career_profile"]) == {"default_city"}
     assert payload["career_profile"]["default_city"] == "Shanghai"
     assert not {
         "salary_expectation",
@@ -233,7 +233,6 @@ def test_role_scoped_intent_stays_separate_in_current_targets() -> None:
     assert set(career_profile) == {
         "default_city",
         "current_targets",
-        "records",
     }
     assert [role["salary_expectation"] for role in career_profile["current_targets"]["roles"]] == [
         "40-50k",

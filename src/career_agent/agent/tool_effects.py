@@ -47,6 +47,7 @@ _READ_CAPABILITIES = frozenset(
         "compare_saved_jobs",
         "find_saved_jobs",
         "get_application",
+        "get_career_memory_detail",
         "get_calendar_proposal",
         "get_daily_brief",
         "get_interview",
@@ -69,6 +70,7 @@ _READ_CAPABILITIES = frozenset(
         "propose_job_intent",
         "read_conversation_span",
         "resolve_claim_source",
+        "search_career_history",
     }
 )
 

@@ -963,12 +963,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset({"get_daily_brief", "list_action_items"}),
             ),
         ),
-        known_gap=(
-            "Across fresh recordings with the fixed full tool universe, the "
-            "model intermittently opens list_action_items after a bounded daily-"
-            "brief receipt even though the user requested only the brief and "
-            "the runtime presenter owns its omitted body."
-        ),
+        recording_samples=3,
     ),
     TrajectoryScenario(
         name="overdue_brief_routes_to_the_action_list",
@@ -1663,11 +1658,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         recording_samples=3,
         known_gap=(
-            "With randomized spotlighting and native chat turns, the explicit "
-            "out-of-range request calls read_conversation_span in two of three "
-            "samples; one sample answers honestly from the projected watermark "
-            "without making the required read. No sample substitutes the recent "
-            "window decoy, so this is an intermittent tool-use gap."
+            "With randomized spotlighting and native chat turns, all three fresh "
+            "samples ask the user to identify an already explicit out-of-range "
+            "span instead of calling read_conversation_span. No sample substitutes "
+            "the recent-window decoy, so the unsafe answer remains blocked while "
+            "the required first-hop read gap is now stable."
         ),
     ),
 )
