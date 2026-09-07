@@ -2,15 +2,15 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "a60cfc0f6d7073008d2afe5d2bf1316b833fc805cda2566a7071b3dc7494bd57",
-  "recorded_at": "2026-09-06T15:18:24.452139+00:00",
+  "recorded_at": "2026-09-07T03:31:36.117167+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：识别该公司的主要竞争对手，比较其产品、技术路线、市场定位与竞争优势，并说明对该岗位求职准备的相关启示。"
+          "focus": "以竞争对手为重点，研究该岗位所属公司的主要竞争对手、竞争格局及相关产品或业务对比。"
         }
       }
     }
@@ -18,13 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:18:24.452139+00:00",
+      "recorded_at": "2026-09-07T03:31:36.117167+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手：识别该公司的主要竞争对手，比较其产品、技术路线、市场定位与竞争优势，并说明对该岗位求职准备的相关启示。"
+              "focus": "以竞争对手为重点，研究该岗位所属公司的主要竞争对手、竞争格局及相关产品或业务对比。"
             }
           }
         }

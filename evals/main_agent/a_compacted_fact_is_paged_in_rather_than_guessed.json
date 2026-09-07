@@ -2,17 +2,17 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "9896dbc394527be96a9e5894632f9f2334b5d761d16c0be178206b2f4c97dbab",
-  "recorded_at": "2026-09-06T15:18:31.216648+00:00",
+  "recorded_at": "2026-09-07T03:33:22.596378+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
           "from_sequence": 1,
-          "query": "目标公司 公司 美团 全名 指定",
-          "through_sequence": 8
+          "through_sequence": 8,
+          "query": "目标公司 指定 公司 美团 全名"
         }
       }
     }
@@ -20,22 +20,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:18:05.195941+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "read_conversation_span",
-            "arguments": {
-              "from_sequence": 1,
-              "query": "目标公司 公司 美团 全名 指定",
-              "through_sequence": 8
-            }
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-06T15:18:08.149047+00:00",
+      "recorded_at": "2026-09-07T03:33:21.594575+00:00",
       "steps": [
         {
           "tool_call": {
@@ -43,14 +28,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司名 美团 算法工程师"
+              "query": "目标公司 指定 公司 美团 全名"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T15:18:31.216648+00:00",
+      "recorded_at": "2026-09-07T03:34:05.391564+00:00",
       "steps": [
         {
           "tool_call": {
@@ -58,7 +43,22 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司全名 美团"
+              "query": "目标公司 美团 公司全名 指定"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-07T03:33:22.596378+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "from_sequence": 1,
+              "through_sequence": 8,
+              "query": "一开始 指定 目标公司 公司名"
             }
           }
         }

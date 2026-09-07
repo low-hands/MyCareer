@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,17 +12,50 @@ from uuid import uuid4
 
 from career_agent.domain.career_history import (
     CareerEvidence,
+    CareerEvidenceCorrection,
     CareerEvidenceEvent,
+    CareerEvidenceInvariantReport,
+    CareerEvidenceInvariantViolation,
+    CareerEvidenceMutationSnapshot,
+    CareerEvidencePreimage,
     CareerRecord,
+    career_evidence_scope_key,
     career_evidence_source_ref,
 )
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
+from career_agent.storage.intent_versions import intent_content_digest
 from career_agent.storage.schema import apply_schema
 
 
 EvidenceOrigin = Literal["resume_extraction", "user_input", "agent_inference"]
 EvidenceStatus = Literal["pending", "confirmed", "rejected"]
 RecordType = Literal["education", "work", "internship", "project", "certification"]
+
+_EVIDENCE_FIELD_NAMES = (
+    "id",
+    "user_id",
+    "career_record_id",
+    "claim",
+    "origin",
+    "verification_status",
+    "source_resume_version_id",
+    "source_locator",
+    "source_quote",
+    "source_ref",
+    "scope_key",
+    "update_id",
+    "content_digest",
+    "revision",
+    "valid_from",
+    "supersedes_id",
+    "superseded_at",
+    "superseded_by",
+    "mutation_id",
+    "rolled_back_at",
+    "created_at",
+    "updated_at",
+)
+_EVIDENCE_COLUMNS = ", ".join(_EVIDENCE_FIELD_NAMES)
 
 
 @dataclass(frozen=True)
@@ -30,8 +64,22 @@ class CareerHistoryImportResult:
     evidence: tuple[CareerEvidence, ...]
 
 
+class CareerEvidenceInvariantError(RuntimeError):
+    def __init__(self, report: CareerEvidenceInvariantReport) -> None:
+        super().__init__(
+            f"Career evidence invariant check failed with "
+            f"{len(report.violations)} violation(s)."
+        )
+        self.report = report
+
+
 class CareerHistoryStore:
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        validate_invariants: bool = True,
+    ) -> None:
         self.path = path.expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
@@ -39,11 +87,18 @@ class CareerHistoryStore:
             apply_schema(
                 connection,
                 "career_history",
-                3,
+                4,
                 self._migrate,
-                upgrades={3: self._upgrade_to_v3},
+                upgrades={
+                    3: self._upgrade_to_v3,
+                    4: self._upgrade_to_v4,
+                },
             )
         os.chmod(self.path, 0o600)
+        if validate_invariants:
+            report = self.detect_evidence_invariant_violations()
+            if not report.valid:
+                raise CareerEvidenceInvariantError(report)
 
     def create_record(
         self,
@@ -227,10 +282,8 @@ class CareerHistoryStore:
     ) -> CareerEvidence | None:
         with self._connect() as connection:
             row = connection.execute(
-                """
-                SELECT id, user_id, career_record_id, claim, origin,
-                       verification_status, source_resume_version_id,
-                       source_locator, source_quote, source_ref, created_at, updated_at
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
@@ -243,10 +296,8 @@ class CareerHistoryStore:
     ) -> CareerEvidence | None:
         with self._connect() as connection:
             row = connection.execute(
-                """
-                SELECT id, user_id, career_record_id, claim, origin,
-                       verification_status, source_resume_version_id,
-                       source_locator, source_quote, source_ref, created_at, updated_at
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
                 FROM career_evidence
                 WHERE user_id = ? AND source_ref = ?
                   AND verification_status = 'confirmed'
@@ -262,11 +313,10 @@ class CareerHistoryStore:
         career_record_id: str | None = None,
         verification_status: EvidenceStatus | None = None,
         source_resume_version_id: str | None = None,
+        include_historical: bool = False,
     ) -> tuple[CareerEvidence, ...]:
-        query = """
-            SELECT id, user_id, career_record_id, claim, origin,
-                   verification_status, source_resume_version_id,
-                   source_locator, source_quote, source_ref, created_at, updated_at
+        query = f"""
+            SELECT {_EVIDENCE_COLUMNS}
             FROM career_evidence
             WHERE user_id = ?
         """
@@ -280,6 +330,11 @@ class CareerHistoryStore:
         if source_resume_version_id is not None:
             query += " AND source_resume_version_id = ?"
             parameters.append(source_resume_version_id)
+        if not include_historical:
+            query += (
+                " AND (verification_status != 'confirmed' OR "
+                "(superseded_by IS NULL AND rolled_back_at IS NULL))"
+            )
         query += " ORDER BY created_at, id"
 
         with self._connect() as connection:
@@ -322,7 +377,8 @@ class CareerHistoryStore:
                 """
                 SELECT event.id, event.user_id, event.career_evidence_id,
                        event.event_type, event.previous_status, event.new_status,
-                       event.actor_type, event.reason, event.occurred_at
+                       event.actor_type, event.reason, event.mutation_id,
+                       event.related_evidence_id, event.occurred_at
                 FROM career_evidence_events AS event
                 JOIN career_evidence AS evidence
                   ON evidence.id = event.career_evidence_id
@@ -333,6 +389,662 @@ class CareerHistoryStore:
                 (career_evidence_id, user_id),
             ).fetchall()
         return tuple(self._event(row) for row in rows)
+
+    def get_current_evidence(
+        self, *, user_id: str, scope_key: str
+    ) -> CareerEvidence | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND verification_status = 'confirmed'
+                  AND superseded_by IS NULL
+                  AND rolled_back_at IS NULL
+                """,
+                (user_id, scope_key),
+            ).fetchone()
+        return self._evidence(row) if row is not None else None
+
+    def correct_evidence(
+        self,
+        *,
+        user_id: str,
+        career_evidence_id: str,
+        new_claim: str,
+        reason: str,
+    ) -> CareerEvidenceCorrection:
+        """Apply one source-bound correction with its durable preimage."""
+
+        claim = new_claim.strip()
+        correction_reason = reason.strip()
+        if not claim or not correction_reason:
+            raise ValueError("A correction requires a new claim and reason.")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE id = ? AND user_id = ?
+                """,
+                (career_evidence_id, user_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Career evidence not found.")
+            current = self._evidence(row)
+            if not current.is_current or current.scope_key is None:
+                raise ValueError("Only current confirmed evidence can be corrected.")
+            if self._claim_digest(current.claim) == self._claim_digest(claim):
+                raise ValueError("The corrected claim is unchanged.")
+
+            now = datetime.now(timezone.utc)
+            mutation_id = f"career_evidence_mutation_{uuid4().hex}"
+            replacement_id = f"career_evidence_{uuid4().hex}"
+            latest_revision = int(
+                connection.execute(
+                    """
+                    SELECT COALESCE(MAX(revision), 0)
+                    FROM career_evidence
+                    WHERE user_id = ? AND scope_key = ?
+                    """,
+                    (user_id, current.scope_key),
+                ).fetchone()[0]
+            )
+            preimage = CareerEvidencePreimage(
+                scope_key=current.scope_key,
+                active_evidence_id=current.id,
+                active_revision=current.revision,
+            )
+            snapshot = CareerEvidenceMutationSnapshot(
+                id=mutation_id,
+                user_id=user_id,
+                scope_key=current.scope_key,
+                mutation_type="correction",
+                status="applied",
+                preimage=preimage,
+                replacement_evidence_id=replacement_id,
+                reason=correction_reason,
+                created_at=now,
+            )
+            connection.execute(
+                """
+                INSERT INTO career_evidence_mutations(
+                    id, user_id, scope_key, mutation_type, status,
+                    preimage_json, replacement_evidence_id, reason,
+                    created_at, rolled_back_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (
+                    snapshot.id,
+                    snapshot.user_id,
+                    snapshot.scope_key,
+                    snapshot.mutation_type,
+                    snapshot.status,
+                    snapshot.preimage.model_dump_json(),
+                    snapshot.replacement_evidence_id,
+                    snapshot.reason,
+                    snapshot.created_at.isoformat(),
+                ),
+            )
+            replacement = CareerEvidence(
+                id=replacement_id,
+                user_id=user_id,
+                career_record_id=current.career_record_id,
+                claim=claim,
+                origin="user_input",
+                verification_status="confirmed",
+                scope_key=current.scope_key,
+                update_id=f"career_evidence_update_{uuid4().hex}",
+                content_digest=intent_content_digest(claim),
+                revision=latest_revision + 1,
+                valid_from=now,
+                supersedes_id=current.id,
+                mutation_id=mutation_id,
+                created_at=now,
+                updated_at=now,
+            )
+            connection.execute(
+                """
+                UPDATE career_evidence
+                SET superseded_at = ?, superseded_by = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                  AND superseded_by IS NULL AND rolled_back_at IS NULL
+                """,
+                (
+                    now.isoformat(),
+                    replacement.id,
+                    now.isoformat(),
+                    current.id,
+                    user_id,
+                ),
+            )
+            self._insert_evidence(connection, replacement)
+            superseded = current.model_copy(
+                update={
+                    "superseded_at": now,
+                    "superseded_by": replacement.id,
+                    "updated_at": now,
+                }
+            )
+            self._insert_event(
+                connection,
+                CareerEvidenceEvent(
+                    id=f"career_evidence_event_{uuid4().hex}",
+                    user_id=user_id,
+                    career_evidence_id=current.id,
+                    event_type="superseded",
+                    previous_status="confirmed",
+                    new_status="confirmed",
+                    actor_type="user",
+                    reason=correction_reason,
+                    mutation_id=mutation_id,
+                    related_evidence_id=replacement.id,
+                    occurred_at=now,
+                ),
+            )
+            self._insert_event(
+                connection,
+                CareerEvidenceEvent(
+                    id=f"career_evidence_event_{uuid4().hex}",
+                    user_id=user_id,
+                    career_evidence_id=replacement.id,
+                    event_type="corrected",
+                    previous_status="confirmed",
+                    new_status="confirmed",
+                    actor_type="user",
+                    reason=correction_reason,
+                    mutation_id=mutation_id,
+                    related_evidence_id=current.id,
+                    occurred_at=now,
+                ),
+            )
+        return CareerEvidenceCorrection(
+            previous=superseded,
+            current=replacement,
+            snapshot=snapshot,
+        )
+
+    def get_evidence_mutation(
+        self, *, user_id: str, mutation_id: str
+    ) -> CareerEvidenceMutationSnapshot | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, scope_key, mutation_type, status,
+                       preimage_json, replacement_evidence_id, reason,
+                       created_at, rolled_back_at
+                FROM career_evidence_mutations
+                WHERE id = ? AND user_id = ?
+                """,
+                (mutation_id, user_id),
+            ).fetchone()
+        return self._mutation(row) if row is not None else None
+
+    def list_evidence_mutations(
+        self, *, user_id: str, scope_key: str | None = None
+    ) -> tuple[CareerEvidenceMutationSnapshot, ...]:
+        query = """
+            SELECT id, user_id, scope_key, mutation_type, status,
+                   preimage_json, replacement_evidence_id, reason,
+                   created_at, rolled_back_at
+            FROM career_evidence_mutations
+            WHERE user_id = ?
+        """
+        parameters: list[str] = [user_id]
+        if scope_key is not None:
+            query += " AND scope_key = ?"
+            parameters.append(scope_key)
+        query += " ORDER BY created_at, id"
+        with self._connect() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return tuple(self._mutation(row) for row in rows)
+
+    def rollback_evidence_correction(
+        self,
+        *,
+        user_id: str,
+        mutation_id: str,
+        reason: str,
+    ) -> CareerEvidenceMutationSnapshot:
+        """Compensate the latest correction from its durable preimage."""
+
+        rollback_reason = reason.strip()
+        if not rollback_reason:
+            raise ValueError("Rollback reason is required.")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            mutation_row = connection.execute(
+                """
+                SELECT id, user_id, scope_key, mutation_type, status,
+                       preimage_json, replacement_evidence_id, reason,
+                       created_at, rolled_back_at
+                FROM career_evidence_mutations
+                WHERE id = ? AND user_id = ?
+                """,
+                (mutation_id, user_id),
+            ).fetchone()
+            if mutation_row is None:
+                raise ValueError("Career evidence mutation not found.")
+            snapshot = self._mutation(mutation_row)
+            if snapshot.status == "rolled_back":
+                return snapshot
+            replacement_row = connection.execute(
+                f"SELECT {_EVIDENCE_COLUMNS} FROM career_evidence WHERE id = ?",
+                (snapshot.replacement_evidence_id,),
+            ).fetchone()
+            previous_row = connection.execute(
+                f"SELECT {_EVIDENCE_COLUMNS} FROM career_evidence WHERE id = ?",
+                (snapshot.preimage.active_evidence_id,),
+            ).fetchone()
+            if replacement_row is None or previous_row is None:
+                raise ValueError("Correction snapshot references missing evidence.")
+            replacement = self._evidence(replacement_row)
+            previous = self._evidence(previous_row)
+            active_ids = {
+                str(row[0])
+                for row in connection.execute(
+                    """
+                    SELECT id FROM career_evidence
+                    WHERE user_id = ? AND scope_key = ?
+                      AND verification_status = 'confirmed'
+                      AND superseded_by IS NULL
+                      AND rolled_back_at IS NULL
+                    """,
+                    (user_id, snapshot.scope_key),
+                ).fetchall()
+            }
+            has_later_successor = (
+                replacement.superseded_by is not None
+                and replacement.superseded_by in {
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT id FROM career_evidence WHERE user_id = ?",
+                        (user_id,),
+                    ).fetchall()
+                }
+            )
+            if (
+                replacement.user_id != user_id
+                or previous.user_id != user_id
+                or replacement.scope_key != snapshot.scope_key
+                or previous.scope_key != snapshot.scope_key
+                or has_later_successor
+                or replacement.rolled_back_at is not None
+                or not active_ids.issubset({previous.id, replacement.id})
+            ):
+                raise ValueError(
+                    "Only the latest internally consistent correction can be rolled back."
+                )
+            now = datetime.now(timezone.utc)
+            connection.execute(
+                """
+                UPDATE career_evidence
+                SET rolled_back_at = ?, superseded_at = NULL,
+                    superseded_by = NULL, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (now.isoformat(), now.isoformat(), replacement.id, user_id),
+            )
+            connection.execute(
+                """
+                UPDATE career_evidence
+                SET superseded_at = NULL, superseded_by = NULL, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (now.isoformat(), previous.id, user_id),
+            )
+            connection.execute(
+                """
+                UPDATE career_evidence_mutations
+                SET status = 'rolled_back', rolled_back_at = ?
+                WHERE id = ? AND user_id = ? AND status = 'applied'
+                """,
+                (now.isoformat(), snapshot.id, user_id),
+            )
+            for evidence, event_type, related_id in (
+                (replacement, "rolled_back", previous.id),
+                (previous, "restored", replacement.id),
+            ):
+                self._insert_event(
+                    connection,
+                    CareerEvidenceEvent(
+                        id=f"career_evidence_event_{uuid4().hex}",
+                        user_id=user_id,
+                        career_evidence_id=evidence.id,
+                        event_type=event_type,
+                        previous_status="confirmed",
+                        new_status="confirmed",
+                        actor_type="system",
+                        reason=rollback_reason,
+                        mutation_id=snapshot.id,
+                        related_evidence_id=related_id,
+                        occurred_at=now,
+                    ),
+                )
+        return snapshot.model_copy(
+            update={"status": "rolled_back", "rolled_back_at": now}
+        )
+
+    def detect_evidence_invariant_violations(
+        self, *, user_id: str | None = None
+    ) -> CareerEvidenceInvariantReport:
+        """Check the durable M2b invariants without trusting model validation."""
+
+        with self._connect() as connection:
+            where = " WHERE user_id = ?" if user_id is not None else ""
+            parameters: tuple[str, ...] = (user_id,) if user_id is not None else ()
+            rows = connection.execute(
+                f"SELECT {_EVIDENCE_COLUMNS} FROM career_evidence{where}",
+                parameters,
+            ).fetchall()
+            event_rows = connection.execute(
+                """
+                SELECT event_type, career_evidence_id, mutation_id,
+                       related_evidence_id
+                FROM career_evidence_events
+                """
+                + (" WHERE user_id = ?" if user_id is not None else ""),
+                parameters,
+            ).fetchall()
+            mutation_rows = connection.execute(
+                """
+                SELECT id, user_id, scope_key, mutation_type, status,
+                       preimage_json, replacement_evidence_id, reason,
+                       created_at, rolled_back_at
+                FROM career_evidence_mutations
+                """
+                + (" WHERE user_id = ?" if user_id is not None else ""),
+                parameters,
+            ).fetchall()
+
+        items = {
+            str(row[0]): dict(zip(_EVIDENCE_FIELD_NAMES, row, strict=True))
+            for row in rows
+        }
+        events = {
+            (str(event_type), str(evidence_id), mutation_id, related_id)
+            for event_type, evidence_id, mutation_id, related_id in event_rows
+        }
+        # The store-open guard scans every user. Index event replay keys once
+        # so each evidence row does O(1) lookups instead of rescanning the
+        # complete event log and turning startup into O(n²).
+        event_types_by_evidence: dict[str, set[str]] = {}
+        superseded_event_links: set[tuple[str, str]] = set()
+        for event_type, evidence_id, _, related_id in events:
+            event_types_by_evidence.setdefault(evidence_id, set()).add(event_type)
+            if event_type == "superseded" and related_id is not None:
+                superseded_event_links.add((evidence_id, str(related_id)))
+        mutation_ids = {str(row[0]) for row in mutation_rows}
+        violations: list[CareerEvidenceInvariantViolation] = []
+        seen_update_ids: dict[str, str] = {}
+
+        def add(
+            code: str,
+            message: str,
+            *,
+            scope_key: str | None = None,
+            evidence_ids: tuple[str, ...] = (),
+            mutation_id: str | None = None,
+        ) -> None:
+            violations.append(
+                CareerEvidenceInvariantViolation(
+                    code=code,
+                    message=message,
+                    scope_key=scope_key,
+                    evidence_ids=evidence_ids,
+                    mutation_id=mutation_id,
+                )
+            )
+
+        for evidence_id, item in items.items():
+            version_parts = (
+                item["scope_key"],
+                item["update_id"],
+                item["content_digest"],
+                item["revision"],
+                item["valid_from"],
+            )
+            versioned = all(part is not None for part in version_parts)
+            if any(part is not None for part in version_parts) != versioned or (
+                item["verification_status"] == "confirmed"
+            ) != versioned:
+                add(
+                    "version_binding",
+                    "Version binding does not match confirmed evidence state.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id,),
+                )
+            if versioned and item["content_digest"] != intent_content_digest(
+                str(item["claim"])
+            ):
+                add(
+                    "version_binding",
+                    "Stored content digest does not match the evidence claim.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id,),
+                )
+            if item["update_id"] is not None:
+                update_id = str(item["update_id"])
+                prior_id = seen_update_ids.get(update_id)
+                if prior_id is not None:
+                    add(
+                        "version_binding",
+                        "Evidence update_id is not unique.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(prior_id, evidence_id),
+                    )
+                else:
+                    seen_update_ids[update_id] = evidence_id
+            for pointer_name in ("supersedes_id", "superseded_by"):
+                target_id = item[pointer_name]
+                if target_id is not None and str(target_id) not in items:
+                    add(
+                        "pointer_target_missing",
+                        f"{pointer_name} references a missing evidence row.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(evidence_id, str(target_id)),
+                        mutation_id=item["mutation_id"],
+                    )
+            predecessor_id = item["supersedes_id"]
+            if predecessor_id is not None and item["mutation_id"] not in mutation_ids:
+                add(
+                    "snapshot_binding",
+                    "Corrected evidence has no durable preimage snapshot.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id,),
+                    mutation_id=item["mutation_id"],
+                )
+            if predecessor_id is not None and str(predecessor_id) in items:
+                predecessor = items[str(predecessor_id)]
+                if item["rolled_back_at"] is None and (
+                    predecessor["superseded_by"] != evidence_id
+                ):
+                    add(
+                        "pointer_not_reciprocal",
+                        "Correction back-pointer is not reciprocated by its predecessor.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(str(predecessor_id), evidence_id),
+                        mutation_id=item["mutation_id"],
+                    )
+                if (
+                    predecessor["user_id"] != item["user_id"]
+                    or predecessor["scope_key"] != item["scope_key"]
+                    or predecessor["career_record_id"] != item["career_record_id"]
+                ):
+                    add(
+                        "scope_mismatch",
+                        "Linked evidence rows do not share owner, record, and scope.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(str(predecessor_id), evidence_id),
+                        mutation_id=item["mutation_id"],
+                    )
+                if (
+                    predecessor["revision"] is not None
+                    and item["revision"] is not None
+                    and int(item["revision"]) <= int(predecessor["revision"])
+                ):
+                    add(
+                        "revision_order",
+                        "Correction revision is not newer than its predecessor.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(str(predecessor_id), evidence_id),
+                        mutation_id=item["mutation_id"],
+                    )
+            successor_id = item["superseded_by"]
+            if successor_id is not None and str(successor_id) in items:
+                successor = items[str(successor_id)]
+                if successor["supersedes_id"] != evidence_id:
+                    add(
+                        "pointer_not_reciprocal",
+                        "Supersession forward-pointer is not reciprocated.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(evidence_id, str(successor_id)),
+                        mutation_id=successor["mutation_id"],
+                    )
+
+        by_scope: dict[tuple[str, str], list[dict[str, object]]] = {}
+        for item in items.values():
+            if (
+                item["verification_status"] == "confirmed"
+                and item["scope_key"] is not None
+            ):
+                by_scope.setdefault(
+                    (str(item["user_id"]), str(item["scope_key"])), []
+                ).append(item)
+        for (_, scope_key), scoped in by_scope.items():
+            revisions = sorted(
+                int(item["revision"])
+                for item in scoped
+                if item["revision"] is not None
+            )
+            if revisions != list(range(1, len(revisions) + 1)):
+                add(
+                    "revision_order",
+                    "Evidence revisions are not a contiguous chronology.",
+                    scope_key=scope_key,
+                    evidence_ids=tuple(str(item["id"]) for item in scoped),
+                )
+            active = [
+                item
+                for item in scoped
+                if item["superseded_by"] is None and item["rolled_back_at"] is None
+            ]
+            if len(active) != 1:
+                add(
+                    "active_count",
+                    "A versioned evidence scope must have exactly one active row.",
+                    scope_key=scope_key,
+                    evidence_ids=tuple(str(item["id"]) for item in active),
+                )
+
+        for evidence_id, item in items.items():
+            event_types = event_types_by_evidence.get(evidence_id, set())
+            expected = (
+                "rejected"
+                if item["verification_status"] == "rejected"
+                else "corrected"
+                if item["supersedes_id"] is not None
+                else "confirmed"
+                if item["verification_status"] == "confirmed"
+                else "created"
+            )
+            if expected not in event_types:
+                add(
+                    "event_replay",
+                    f"Evidence state has no matching {expected} event.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id,),
+                    mutation_id=item["mutation_id"],
+                )
+            if item["superseded_by"] is not None and (
+                evidence_id,
+                str(item["superseded_by"]),
+            ) not in superseded_event_links:
+                add(
+                    "event_replay",
+                    "Superseded evidence has no matching lineage event.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id, str(item["superseded_by"])),
+                    mutation_id=item["mutation_id"],
+                )
+            if item["rolled_back_at"] is not None and "rolled_back" not in event_types:
+                add(
+                    "event_replay",
+                    "Rolled-back evidence has no rollback event.",
+                    scope_key=item["scope_key"],
+                    evidence_ids=(evidence_id,),
+                    mutation_id=item["mutation_id"],
+                )
+
+        for mutation_row in mutation_rows:
+            try:
+                mutation = self._mutation(mutation_row)
+            except ValueError as error:
+                add("snapshot_binding", f"Invalid mutation snapshot: {error}")
+                continue
+            previous = items.get(mutation.preimage.active_evidence_id)
+            replacement = items.get(mutation.replacement_evidence_id)
+            if (
+                previous is None
+                or replacement is None
+                or replacement["scope_key"] != mutation.scope_key
+                or replacement["mutation_id"] != mutation.id
+                or replacement["supersedes_id"]
+                != mutation.preimage.active_evidence_id
+                or (
+                    previous is not None
+                    and previous["revision"] != mutation.preimage.active_revision
+                )
+            ):
+                add(
+                    "snapshot_binding",
+                    "Mutation snapshot does not bind its preimage and replacement.",
+                    scope_key=mutation.scope_key,
+                    evidence_ids=(
+                        mutation.preimage.active_evidence_id,
+                        mutation.replacement_evidence_id,
+                    ),
+                    mutation_id=mutation.id,
+                )
+            if mutation.status == "rolled_back":
+                restored = (
+                    "restored",
+                    mutation.preimage.active_evidence_id,
+                    mutation.id,
+                    mutation.replacement_evidence_id,
+                )
+                if replacement is None or replacement["rolled_back_at"] is None:
+                    add(
+                        "snapshot_binding",
+                        "Rolled-back mutation still has a visible replacement.",
+                        scope_key=mutation.scope_key,
+                        evidence_ids=(mutation.replacement_evidence_id,),
+                        mutation_id=mutation.id,
+                    )
+                if restored not in events:
+                    add(
+                        "event_replay",
+                        "Rolled-back mutation has no restoration event.",
+                        scope_key=mutation.scope_key,
+                        evidence_ids=(mutation.preimage.active_evidence_id,),
+                        mutation_id=mutation.id,
+                    )
+            elif replacement is not None and replacement["rolled_back_at"] is not None:
+                add(
+                    "snapshot_binding",
+                    "Applied mutation points to a rolled-back replacement.",
+                    scope_key=mutation.scope_key,
+                    evidence_ids=(mutation.replacement_evidence_id,),
+                    mutation_id=mutation.id,
+                )
+
+        return CareerEvidenceInvariantReport(
+            user_id=user_id,
+            checked_at=datetime.now(timezone.utc),
+            violations=tuple(violations),
+        )
 
     def import_confirmed_resume_analysis(
         self,
@@ -446,6 +1158,11 @@ class CareerHistoryStore:
                             source_resume_version_id=resume_version_id,
                             source_locator=locator,
                         ),
+                        scope_key=career_evidence_scope_key(evidence_id),
+                        update_id=f"career_evidence_update_{uuid4().hex}",
+                        content_digest=intent_content_digest(claim),
+                        revision=1,
+                        valid_from=now,
                         created_at=now,
                         updated_at=now,
                     )
@@ -455,8 +1172,9 @@ class CareerHistoryStore:
                             id, user_id, career_record_id, claim, origin,
                             verification_status, source_resume_version_id,
                             source_locator, source_quote, source_ref,
-                            created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            scope_key, update_id, content_digest, revision,
+                            valid_from, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             evidence.id,
@@ -469,6 +1187,11 @@ class CareerHistoryStore:
                             evidence.source_locator,
                             evidence.source_quote,
                             evidence.source_ref,
+                            evidence.scope_key,
+                            evidence.update_id,
+                            evidence.content_digest,
+                            evidence.revision,
+                            evidence.valid_from.isoformat(),
                             evidence.created_at.isoformat(),
                             evidence.updated_at.isoformat(),
                         ),
@@ -534,10 +1257,8 @@ class CareerHistoryStore:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                """
-                SELECT id, user_id, career_record_id, claim, origin,
-                       verification_status, source_resume_version_id,
-                       source_locator, source_quote, source_ref, created_at, updated_at
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
@@ -554,8 +1275,23 @@ class CareerHistoryStore:
                 )
 
             now = datetime.now(timezone.utc)
+            version_update = (
+                {
+                    "scope_key": career_evidence_scope_key(current.id),
+                    "update_id": f"career_evidence_update_{uuid4().hex}",
+                    "content_digest": intent_content_digest(current.claim),
+                    "revision": 1,
+                    "valid_from": now,
+                }
+                if new_status == "confirmed"
+                else {}
+            )
             updated = current.model_copy(
-                update={"verification_status": new_status, "updated_at": now}
+                update={
+                    "verification_status": new_status,
+                    "updated_at": now,
+                    **version_update,
+                }
             )
             event = CareerEvidenceEvent(
                 id=f"career_evidence_event_{uuid4().hex}",
@@ -571,11 +1307,21 @@ class CareerHistoryStore:
             connection.execute(
                 """
                 UPDATE career_evidence
-                SET verification_status = ?, updated_at = ?
+                SET verification_status = ?, scope_key = ?, update_id = ?,
+                    content_digest = ?, revision = ?, valid_from = ?, updated_at = ?
                 WHERE id = ? AND user_id = ? AND verification_status = 'pending'
                 """,
                 (
                     updated.verification_status,
+                    updated.scope_key,
+                    updated.update_id,
+                    updated.content_digest,
+                    updated.revision,
+                    (
+                        updated.valid_from.isoformat()
+                        if updated.valid_from is not None
+                        else None
+                    ),
                     updated.updated_at.isoformat(),
                     updated.id,
                     updated.user_id,
@@ -607,6 +1353,47 @@ class CareerHistoryStore:
         )
 
     @staticmethod
+    def _insert_evidence(
+        connection: sqlite3.Connection, evidence: CareerEvidence
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO career_evidence(
+                id, user_id, career_record_id, claim, origin,
+                verification_status, source_resume_version_id,
+                source_locator, source_quote, source_ref, scope_key, update_id,
+                content_digest, revision, valid_from, supersedes_id,
+                superseded_at, superseded_by, mutation_id, rolled_back_at,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                evidence.id,
+                evidence.user_id,
+                evidence.career_record_id,
+                evidence.claim,
+                evidence.origin,
+                evidence.verification_status,
+                evidence.source_resume_version_id,
+                evidence.source_locator,
+                evidence.source_quote,
+                evidence.source_ref,
+                evidence.scope_key,
+                evidence.update_id,
+                evidence.content_digest,
+                evidence.revision,
+                evidence.valid_from.isoformat() if evidence.valid_from else None,
+                evidence.supersedes_id,
+                evidence.superseded_at.isoformat() if evidence.superseded_at else None,
+                evidence.superseded_by,
+                evidence.mutation_id,
+                evidence.rolled_back_at.isoformat() if evidence.rolled_back_at else None,
+                evidence.created_at.isoformat(),
+                evidence.updated_at.isoformat(),
+            ),
+        )
+
+    @staticmethod
     def _insert_event(
         connection: sqlite3.Connection, event: CareerEvidenceEvent
     ) -> None:
@@ -614,8 +1401,9 @@ class CareerHistoryStore:
             """
             INSERT INTO career_evidence_events(
                 id, user_id, career_evidence_id, event_type,
-                previous_status, new_status, actor_type, reason, occurred_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                previous_status, new_status, actor_type, reason, mutation_id,
+                related_evidence_id, occurred_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event.id,
@@ -626,9 +1414,15 @@ class CareerHistoryStore:
                 event.new_status,
                 event.actor_type,
                 event.reason,
+                event.mutation_id,
+                event.related_evidence_id,
                 event.occurred_at.isoformat(),
             ),
         )
+
+    @staticmethod
+    def _claim_digest(value: str) -> str:
+        return intent_content_digest(value)
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -669,10 +1463,38 @@ class CareerHistoryStore:
                 source_locator TEXT,
                 source_quote TEXT,
                 source_ref TEXT,
+                scope_key TEXT,
+                update_id TEXT,
+                content_digest TEXT,
+                revision INTEGER,
+                valid_from TEXT,
+                supersedes_id TEXT REFERENCES career_evidence(id)
+                    DEFERRABLE INITIALLY DEFERRED,
+                superseded_at TEXT,
+                superseded_by TEXT REFERENCES career_evidence(id)
+                    DEFERRABLE INITIALLY DEFERRED,
+                mutation_id TEXT,
+                rolled_back_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 CHECK (source_locator IS NULL OR source_resume_version_id IS NOT NULL),
                 CHECK (source_quote IS NULL OR source_resume_version_id IS NOT NULL),
+                CHECK (
+                    (
+                        scope_key IS NULL AND update_id IS NULL
+                        AND content_digest IS NULL AND revision IS NULL
+                        AND valid_from IS NULL
+                    )
+                    OR (
+                        scope_key IS NOT NULL AND update_id IS NOT NULL
+                        AND content_digest IS NOT NULL AND revision IS NOT NULL
+                        AND valid_from IS NOT NULL
+                    )
+                ),
+                CHECK (
+                    (superseded_at IS NULL AND superseded_by IS NULL)
+                    OR (superseded_at IS NOT NULL AND superseded_by IS NOT NULL)
+                ),
                 CHECK (
                     origin != 'resume_extraction'
                     OR (
@@ -688,7 +1510,10 @@ class CareerHistoryStore:
                 user_id TEXT NOT NULL,
                 career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
                 event_type TEXT NOT NULL CHECK (
-                    event_type IN ('created', 'confirmed', 'rejected')
+                    event_type IN (
+                        'created', 'confirmed', 'rejected', 'superseded',
+                        'corrected', 'rolled_back', 'restored'
+                    )
                 ),
                 previous_status TEXT CHECK (
                     previous_status IS NULL
@@ -701,7 +1526,23 @@ class CareerHistoryStore:
                     actor_type IN ('user', 'agent', 'system')
                 ),
                 reason TEXT,
+                mutation_id TEXT,
+                related_evidence_id TEXT REFERENCES career_evidence(id),
                 occurred_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS career_evidence_mutations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                mutation_type TEXT NOT NULL CHECK (mutation_type = 'correction'),
+                status TEXT NOT NULL CHECK (status IN ('applied', 'rolled_back')),
+                preimage_json TEXT NOT NULL,
+                replacement_evidence_id TEXT NOT NULL REFERENCES career_evidence(id)
+                    DEFERRABLE INITIALLY DEFERRED,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                rolled_back_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS resume_analysis_career_imports (
@@ -719,6 +1560,8 @@ class CareerHistoryStore:
                 ON career_evidence(user_id, career_record_id, verification_status);
             CREATE INDEX IF NOT EXISTS career_evidence_events_evidence_idx
                 ON career_evidence_events(career_evidence_id, occurred_at);
+            CREATE INDEX IF NOT EXISTS career_evidence_mutations_user_idx
+                ON career_evidence_mutations(user_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS resume_analysis_career_imports_user_idx
                 ON resume_analysis_career_imports(user_id, created_at DESC);
             """
@@ -736,10 +1579,155 @@ class CareerHistoryStore:
             """
         )
         CareerHistoryStore._ensure_source_refs(connection)
+        # Cumulative baseline adoption: pre-registry databases do not replay
+        # numbered upgrades, so the idempotent backfill must run here as well.
+        CareerHistoryStore._ensure_evidence_version_schema(connection)
 
     @staticmethod
     def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
         CareerHistoryStore._ensure_source_refs(connection)
+
+    @staticmethod
+    def _upgrade_to_v4(connection: sqlite3.Connection) -> None:
+        CareerHistoryStore._ensure_evidence_version_schema(connection)
+
+    @staticmethod
+    def _ensure_evidence_version_schema(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+        additions = {
+            "scope_key": "TEXT",
+            "update_id": "TEXT",
+            "content_digest": "TEXT",
+            "revision": "INTEGER",
+            "valid_from": "TEXT",
+            "supersedes_id": (
+                "TEXT REFERENCES career_evidence(id) DEFERRABLE INITIALLY DEFERRED"
+            ),
+            "superseded_at": "TEXT",
+            "superseded_by": (
+                "TEXT REFERENCES career_evidence(id) DEFERRABLE INITIALLY DEFERRED"
+            ),
+            "mutation_id": "TEXT",
+            "rolled_back_at": "TEXT",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE career_evidence ADD COLUMN {name} {definition}"
+                )
+        CareerHistoryStore._ensure_lineage_event_schema(connection)
+        now = datetime.now(timezone.utc).isoformat()
+        legacy_rows = connection.execute(
+            """
+            SELECT id, claim
+            FROM career_evidence
+            WHERE verification_status = 'confirmed'
+              AND scope_key IS NULL
+              AND update_id IS NULL
+              AND content_digest IS NULL
+              AND revision IS NULL
+              AND valid_from IS NULL
+            """
+        ).fetchall()
+        for evidence_id, claim in legacy_rows:
+            migration_update_id = "career_evidence_update_" + hashlib.sha256(
+                f"{evidence_id}\0m2b-v4".encode("utf-8")
+            ).hexdigest()[:32]
+            connection.execute(
+                """
+                UPDATE career_evidence
+                SET scope_key = ?, update_id = ?, content_digest = ?,
+                    revision = 1, valid_from = ?
+                WHERE id = ?
+                """,
+                (
+                    career_evidence_scope_key(str(evidence_id)),
+                    migration_update_id,
+                    intent_content_digest(str(claim)),
+                    now,
+                    evidence_id,
+                ),
+            )
+        connection.executescript(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS career_evidence_scope_revision_idx
+                ON career_evidence(user_id, scope_key, revision)
+                WHERE scope_key IS NOT NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS career_evidence_update_id_idx
+                ON career_evidence(update_id)
+                WHERE update_id IS NOT NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS career_evidence_active_scope_idx
+                ON career_evidence(user_id, scope_key)
+                WHERE verification_status = 'confirmed'
+                  AND superseded_by IS NULL
+                  AND rolled_back_at IS NULL;
+            """
+        )
+
+    @staticmethod
+    def _ensure_lineage_event_schema(connection: sqlite3.Connection) -> None:
+        row = connection.execute(
+            """
+            SELECT sql FROM sqlite_master
+            WHERE type = 'table' AND name = 'career_evidence_events'
+            """
+        ).fetchone()
+        if row is not None and "corrected" in str(row[0]):
+            return
+        connection.execute(
+            "ALTER TABLE career_evidence_events RENAME TO career_evidence_events_v3"
+        )
+        connection.execute(
+            """
+            CREATE TABLE career_evidence_events (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
+                event_type TEXT NOT NULL CHECK (
+                    event_type IN (
+                        'created', 'confirmed', 'rejected', 'superseded',
+                        'corrected', 'rolled_back', 'restored'
+                    )
+                ),
+                previous_status TEXT CHECK (
+                    previous_status IS NULL
+                    OR previous_status IN ('pending', 'confirmed', 'rejected')
+                ),
+                new_status TEXT NOT NULL CHECK (
+                    new_status IN ('pending', 'confirmed', 'rejected')
+                ),
+                actor_type TEXT NOT NULL CHECK (
+                    actor_type IN ('user', 'agent', 'system')
+                ),
+                reason TEXT,
+                mutation_id TEXT,
+                related_evidence_id TEXT REFERENCES career_evidence(id),
+                occurred_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO career_evidence_events(
+                id, user_id, career_evidence_id, event_type,
+                previous_status, new_status, actor_type, reason,
+                mutation_id, related_evidence_id, occurred_at
+            )
+            SELECT id, user_id, career_evidence_id, event_type,
+                   previous_status, new_status, actor_type, reason,
+                   NULL, NULL, occurred_at
+            FROM career_evidence_events_v3
+            """
+        )
+        connection.execute("DROP TABLE career_evidence_events_v3")
+        connection.execute(
+            """
+            CREATE INDEX career_evidence_events_evidence_idx
+            ON career_evidence_events(career_evidence_id, occurred_at)
+            """
+        )
 
     @staticmethod
     def _ensure_source_refs(connection: sqlite3.Connection) -> None:
@@ -777,6 +1765,8 @@ class CareerHistoryStore:
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA synchronous=FULL")
         connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
@@ -810,8 +1800,18 @@ class CareerHistoryStore:
             source_locator=row[7],
             source_quote=row[8],
             source_ref=row[9],
-            created_at=row[10],
-            updated_at=row[11],
+            scope_key=row[10],
+            update_id=row[11],
+            content_digest=row[12],
+            revision=row[13],
+            valid_from=row[14],
+            supersedes_id=row[15],
+            superseded_at=row[16],
+            superseded_by=row[17],
+            mutation_id=row[18],
+            rolled_back_at=row[19],
+            created_at=row[20],
+            updated_at=row[21],
         )
 
     @staticmethod
@@ -825,7 +1825,24 @@ class CareerHistoryStore:
             new_status=row[5],
             actor_type=row[6],
             reason=row[7],
-            occurred_at=row[8],
+            mutation_id=row[8],
+            related_evidence_id=row[9],
+            occurred_at=row[10],
+        )
+
+    @staticmethod
+    def _mutation(row: tuple[object, ...]) -> CareerEvidenceMutationSnapshot:
+        return CareerEvidenceMutationSnapshot(
+            id=row[0],
+            user_id=row[1],
+            scope_key=row[2],
+            mutation_type=row[3],
+            status=row[4],
+            preimage=CareerEvidencePreimage.model_validate_json(row[5]),
+            replacement_evidence_id=row[6],
+            reason=row[7],
+            created_at=row[8],
+            rolled_back_at=row[9],
         )
 
     @classmethod
@@ -855,10 +1872,8 @@ class CareerHistoryStore:
         evidence_items = []
         for evidence_id in ids:
             row = connection.execute(
-                """
-                SELECT id, user_id, career_record_id, claim, origin,
-                       verification_status, source_resume_version_id,
-                       source_locator, source_quote, source_ref, created_at, updated_at
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
                 FROM career_evidence WHERE id = ?
                 """,
                 (evidence_id,),

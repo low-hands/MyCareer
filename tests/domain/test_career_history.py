@@ -135,6 +135,26 @@ def test_contracts_are_frozen() -> None:
         value.title = "Product Manager"
 
 
+def test_confirmed_evidence_requires_a_complete_version_binding() -> None:
+    binding = {
+        "scope_key": "career_evidence/evidence-1/claim",
+        "update_id": "career_evidence_update_" + "a" * 32,
+        "content_digest": "sha256:" + "b" * 64,
+        "revision": 1,
+        "valid_from": NOW,
+    }
+    value = evidence(verification_status="confirmed", **binding)
+
+    assert value.is_current
+    with pytest.raises(ValidationError, match="must either all"):
+        evidence(
+            verification_status="confirmed",
+            scope_key=binding["scope_key"],
+            revision=1,
+            valid_from=NOW,
+        )
+
+
 @pytest.mark.parametrize(
     ("event_type", "previous_status", "new_status"),
     [
@@ -172,3 +192,21 @@ def test_evidence_decision_requires_user_actor(event_type: str) -> None:
             new_status=new_status,
             actor_type="agent",
         )
+
+
+def test_lineage_event_requires_mutation_and_related_evidence() -> None:
+    with pytest.raises(ValidationError, match="mutation and related"):
+        evidence_event(
+            event_type="corrected",
+            previous_status="confirmed",
+            new_status="confirmed",
+        )
+
+    value = evidence_event(
+        event_type="corrected",
+        previous_status="confirmed",
+        new_status="confirmed",
+        mutation_id="career_evidence_mutation_" + "a" * 32,
+        related_evidence_id="evidence-0",
+    )
+    assert value.event_type == "corrected"

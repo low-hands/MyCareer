@@ -2,32 +2,26 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "c4b39557915b518d5d2c981144b39c17b688775510b01879e5f8a7855955fd92",
-  "recorded_at": "2026-09-06T15:16:12.416170+00:00",
+  "recorded_at": "2026-09-07T03:32:40.636343+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "match_resume_to_job",
-        "arguments": {
-          "job_selection_index": null,
-          "resume_version_selection_index": null
-        }
+        "arguments": {}
       }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:16:12.416170+00:00",
+      "recorded_at": "2026-09-07T03:32:40.636343+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "match_resume_to_job",
-            "arguments": {
-              "job_selection_index": null,
-              "resume_version_selection_index": null
-            }
+            "arguments": {}
           }
         }
       ]

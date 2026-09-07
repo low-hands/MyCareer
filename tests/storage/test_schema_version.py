@@ -4,9 +4,11 @@ from pathlib import Path
 
 import pytest
 
+from career_agent.agent.main_agent_contracts import CareerProfileContext
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.context import CareerContextStore
 from career_agent.storage.interview_preparations import (
     SQLiteInterviewPreparationStore,
 )
@@ -62,8 +64,8 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # — the numbers predate the registry — so raising one has to be a deliberate edit
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
-    "resumes": 4,
-    "career_history": 3,
+    "resumes": 5,
+    "career_history": 4,
     "action_center": 2,
     "action_executions": 1,
     "applications": 1,
@@ -77,7 +79,7 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 4,
+    "agent_context": 5,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
@@ -156,6 +158,62 @@ def test_opening_a_newer_schema_fails_instead_of_writing(tmp_path: Path) -> None
     with pytest.raises(SchemaVersionError) as error:
         ResumeStore(path)
     assert error.value.found == 99
+
+
+def test_context_v5_backfills_current_default_city(tmp_path: Path) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    store.upsert_profile(CareerProfileContext(user_id="u1", default_city="上海"))
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "DELETE FROM career_intent_versions WHERE user_id = 'u1'"
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 4 "
+            "WHERE component = 'agent_context'"
+        )
+
+    reopened = CareerContextStore(path)
+    versions = reopened.list_profile_intent_versions(user_id="u1")
+
+    assert [(item.scope_key, item.value, item.revision) for item in versions] == [
+        ("person_intent/self/default_city", "上海", 1)
+    ]
+    assert versions[0].source == "migration:career_profile_context"
+
+
+def test_resumes_v5_backfills_each_current_role_intent_field(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "resumes.sqlite3"
+    store = ResumeStore(path)
+    role = store.create_target_role(user_id="u1", title="Agent", priority=0)
+    store.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        city="北京",
+        salary_expectation="40K",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "DELETE FROM career_intent_versions WHERE user_id = 'u1'"
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 4 WHERE component = 'resumes'"
+        )
+
+    reopened = ResumeStore(path)
+    versions = reopened.list_target_role_intent_versions(user_id="u1")
+
+    assert [(item.scope_key, item.value, item.revision) for item in versions] == [
+        (f"target_role_intent/{role.id}/city", "北京", 1),
+        (
+            f"target_role_intent/{role.id}/salary_expectation",
+            "40K",
+            1,
+        ),
+    ]
+    assert {item.source for item in versions} == {"migration:target_roles"}
 
 
 def test_registration_is_idempotent_and_reports_the_previous_version(
