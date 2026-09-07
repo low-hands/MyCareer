@@ -811,6 +811,23 @@ def test_historical_search_is_indexed_bounded_and_cursor_paginated(
     assert {item.id for item in (*first, *second)} == {
         item.id for item in originals
     }
+    current, current_total, current_cursor = store.search_current_evidence(
+        user_id="u1",
+        query="retrieval",
+        limit=2,
+    )
+    assert len(current) == 2
+    assert current_total == 3
+    assert current_cursor is not None
+    current_rest, _, final_cursor = store.search_current_evidence(
+        user_id="u1",
+        query="retrieval",
+        limit=2,
+        cursor=current_cursor,
+    )
+    assert len(current_rest) == 1
+    assert final_cursor is None
+    assert all(item.is_current for item in (*current, *current_rest))
     with pytest.raises(ValueError, match="does not match this query"):
         store.search_historical_evidence(
             user_id="u1",

@@ -2,37 +2,37 @@
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "01777271ce90f598626eecd2b4429fd599bcd996e526dafc5189847d6faa8521",
-  "recorded_at": "2026-09-07T06:34:06.502084+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "1cb267b2af963555dc5b0e4596c36709b3928f9166014705817158e9d7e90724",
+  "recorded_at": "2026-09-07T09:27:00.407907+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请提供有效序号；第 1 个岗位是“示例科技｜算法工程师”。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，不存在第 2 个岗位。请选择第 1 个岗位，或先提供/保存其他岗位。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:34:57.311483+00:00",
+      "recorded_at": "2026-09-07T09:25:43.268295+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请提供有效序号；第 1 个岗位是“示例科技｜算法工程师”。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，不存在第 2 个岗位。请选择第 1 个岗位，或先提供/保存其他岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T06:34:58.562955+00:00",
+      "recorded_at": "2026-09-07T09:25:42.283448+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个。请选择第 1 个岗位，或先提供/保存其他岗位后再打开。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个。请告诉我是否打开第 1 个岗位的完整 JD，或先搜索/保存其他岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T06:34:06.502084+00:00",
+      "recorded_at": "2026-09-07T09:27:00.407907+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个。请告诉我是否打开第 1 个岗位的完整 JD，或先搜索/保存更多岗位。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，不存在第 2 个岗位。请提供有效的岗位序号。\"}"
         }
       ]
     }

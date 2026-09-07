@@ -5,7 +5,13 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.main_agent_contracts import AgentPreferencesContext, CareerProfileContext, ConversationResourceReference, ConversationTaskState
+from career_agent.agent.main_agent_contracts import (
+    AgentPreferencesContext,
+    CareerProfileBudgets,
+    CareerProfileContext,
+    ConversationResourceReference,
+    ConversationTaskState,
+)
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     InMemoryTraceRecorder,
@@ -35,6 +41,37 @@ def manager(
         compact_occupancy_threshold=compact_occupancy_threshold,
         compacted_message_warning_threshold=compacted_message_warning_threshold,
     )
+
+
+def test_configured_career_profile_budgets_reach_all_context_envelopes(
+    tmp_path,
+) -> None:
+    budgets = CareerProfileBudgets(
+        records_input_units=512,
+        current_targets_input_units=256,
+        hard_constraints_input_units=128,
+    )
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        career_profile_budgets=budgets,
+    )
+
+    turn = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="memory",
+    )
+    workflow = context_manager.load_for_workflow_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+        ),
+    )
+
+    assert turn.career_profile_budgets == budgets
+    assert workflow.career_profile_budgets == budgets
 
 
 def test_profile_current_target_block_is_rendered_from_target_role_source(

@@ -2,21 +2,21 @@
   "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
   "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "645bd814d0909d1dd7cf4a9386e71e4463a18941902e43a07c4e992b11311038",
-  "recorded_at": "2026-09-07T06:33:06.927899+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "2011953f1d49c8659c5c5ee51a8bf2b99ce751d3166d3892f1a693ba8a9518be",
+  "recorded_at": "2026-09-07T09:25:09.135014+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技正加大检索业务投入，竞争压力暂未显现，岗位处于扩张期。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"调研完成：该公司正加码独立检索业务并扩大招聘，所在赛道的公开直接竞品暂不明显。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:33:06.927899+00:00",
+      "recorded_at": "2026-09-07T09:25:09.135014+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技正加大检索业务投入，竞争压力暂未显现，岗位处于扩张期。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"调研完成：该公司正加码独立检索业务并扩大招聘，所在赛道的公开直接竞品暂不明显。\"}"
         }
       ]
     }

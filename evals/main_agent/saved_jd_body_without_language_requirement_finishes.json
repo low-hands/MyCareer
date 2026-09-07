@@ -2,21 +2,21 @@
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "c1f413629c120bf235d5ee5c3f12e3e74630394cb1ed62218ac1ecf55b500f0e",
-  "recorded_at": "2026-09-07T06:33:05.658244+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "3483be20dc89429ceb1e1bfe5b4c0d5b3b0dccfef3c1708f4cd4f6beae4a3f52",
+  "recorded_at": "2026-09-07T09:24:34.429708+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里，不继续匹配简历。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:33:05.658244+00:00",
+      "recorded_at": "2026-09-07T09:24:34.429708+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里，不继续匹配简历。\"}"
         }
       ]
     }

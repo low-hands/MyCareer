@@ -381,6 +381,15 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实职业声明详情标记",
         ),
+        "career_memory_search_found": (
+            {
+                "body": "真实当前职业声明标记",
+                "query": "retrieval",
+                "items": [],
+                "total": 1,
+            },
+            "真实当前职业声明标记",
+        ),
         "career_history_found": (
             {
                 "body": "真实历史声明标记",

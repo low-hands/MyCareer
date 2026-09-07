@@ -159,6 +159,7 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # memory. Keep the quote in the bounded turn-local observation only.
     "claim_source_found": _summarised(),
     "career_memory_detail_found": _summarised(),
+    "career_memory_search_found": _summarised(),
     "career_history_found": _summarised(),
 }
 
@@ -185,6 +186,7 @@ _POLICIES.update(
             "calendar_sync_complete",
             "claim_source_not_found",
             "career_memory_detail_not_found",
+            "career_memory_search_empty",
             "career_history_empty",
             "conversation_span_empty",
             "compare_input_not_found",

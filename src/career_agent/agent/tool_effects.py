@@ -70,6 +70,7 @@ _READ_CAPABILITIES = frozenset(
         "propose_job_intent",
         "read_conversation_span",
         "resolve_claim_source",
+        "search_career_memory",
         "search_career_history",
     }
 )

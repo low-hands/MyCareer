@@ -2,21 +2,21 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "9090d13b6608286bb5554777242dad1809e195b8cf9b7c600b03f74a341c574f",
-  "recorded_at": "2026-09-07T06:32:18.838411+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "0d4e787210455f1c43bef2259c20dcbf6620582b1b48d826b1b8fdc7321738b7",
+  "recorded_at": "2026-09-07T09:24:08.607107+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位已在当前上下文中。要不要先用你的简历做一次岗位匹配，确认优势、缺口和投递建议？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看看。你想先做哪一步：查看完整 JD、用简历匹配，还是研究公司背景？\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:32:18.838411+00:00",
+      "recorded_at": "2026-09-07T09:24:08.607107+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位已在当前上下文中。要不要先用你的简历做一次岗位匹配，确认优势、缺口和投递建议？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看看。你想先做哪一步：查看完整 JD、用简历匹配，还是研究公司背景？\"}"
         }
       ]
     }

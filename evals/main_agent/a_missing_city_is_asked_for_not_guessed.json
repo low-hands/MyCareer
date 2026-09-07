@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "c43227801fc03711d1c6d2f3c4077977fdeed45e801801061e61569201b1f3ea",
-  "recorded_at": "2026-09-07T06:39:24.407106+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "f16e9e81306f24bb5b5c69b55b716331202b9aab8d7530273eabc5e8bca653db",
+  "recorded_at": "2026-09-07T09:29:12.377796+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找、优先考虑什么岗位？例如“上海，后端开发”。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找工作？\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:39:24.407106+00:00",
+      "recorded_at": "2026-09-07T09:29:12.377796+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找、优先考虑什么岗位？例如“上海，后端开发”。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找工作？\"}"
         }
       ]
     }

@@ -2,15 +2,15 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "b998a457659a98fccbe0b87e4347db4dfa1469083c63973bf1b586168e9942a1",
-  "recorded_at": "2026-09-07T06:32:54.928850+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "c29c6e2a1fd3caec40c14501bff50bd9be97de0aac1bcbd3cc33bdcc79ce0b64",
+  "recorded_at": "2026-09-07T09:23:54.644900+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "selection_index": 1
+          "reference": "report_662e28"
         }
       }
     }
@@ -18,20 +18,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:32:34.626070+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "selection_index": 1
-            }
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-07T06:32:54.351840+00:00",
+      "recorded_at": "2026-09-07T09:23:45.648678+00:00",
       "steps": [
         {
           "tool_call": {
@@ -44,12 +31,26 @@
       ]
     },
     {
-      "recorded_at": "2026-09-07T06:32:54.928850+00:00",
+      "recorded_at": "2026-09-07T09:24:14.527963+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
+              "selection_index": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-07T09:23:54.644900+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": null,
               "selection_index": 1
             }
           }

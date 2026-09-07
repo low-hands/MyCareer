@@ -124,6 +124,272 @@ def test_projector_injects_only_bounded_confirmed_career_memory(tmp_path) -> Non
     assert "career_evidence_" not in serialized
 
 
+def test_tier_one_bm25_relevance_can_beat_a_newer_current_record(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    relevant = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Old retrieval project",
+        start_year=2018,
+    )
+    recent = store.create_record(
+        user_id="u1",
+        record_type="work",
+        title="Current payments role",
+        start_year=2026,
+        is_current=True,
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=relevant.id,
+        claim="Designed retrieval evaluation for multilingual search",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=recent.id,
+        claim="Maintained payment reconciliation services",
+    )
+
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="multilingual retrieval evaluation",
+    )
+
+    assert memory.records[0].title == "Old retrieval project"
+
+
+def test_empty_record_metadata_uses_the_same_bounded_score_scale(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    empty = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="支付清算系统重构项目",
+    )
+    evidenced = store.create_record(
+        user_id="u1",
+        record_type="work",
+        title="后端工程师",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=evidenced.id,
+        claim="负责支付清算系统重构",
+    )
+
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="支付清算系统重构",
+    )
+
+    assert [record.title for record in memory.records[:2]] == [
+        "后端工程师",
+        "支付清算系统重构项目",
+    ]
+    assert memory.records[1].confirmed_highlights == ()
+    assert (
+        CareerContextProjector._record_metadata_score(
+            query_terms=CareerContextProjector._terms("支付清算系统重构"),
+            record_metadata=empty.title or "",
+            record_is_current=False,
+        )
+        <= 1.0
+    )
+
+
+def test_current_record_and_one_claim_survive_depth_first_limit(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    retrieval = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="检索项目",
+    )
+    current = store.create_record(
+        user_id="u1",
+        record_type="work",
+        title="当前工作",
+        is_current=True,
+    )
+    for index in range(5):
+        _confirmed_highlight(
+            store,
+            user_id="u1",
+            career_record_id=retrieval.id,
+            claim=f"检索评估与召回优化成果 {index}",
+        )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=current.id,
+        claim="维护支付服务",
+    )
+
+    memory = CareerContextProjector(
+        store,
+        tier_one_claim_limit=5,
+    ).project(
+        user_id="u1",
+        query="检索评估召回优化",
+    )
+
+    assert [record.title for record in memory.records] == [
+        "检索项目",
+        "当前工作",
+    ]
+    assert len(memory.records[0].confirmed_highlights) == 4
+    assert len(memory.records[1].confirmed_highlights) == 1
+
+
+def test_short_query_fallback_uses_length_normalized_bm25(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    concise = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Concise",
+    )
+    verbose = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Verbose",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=concise.id,
+        claim="远程",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=verbose.id,
+        claim="这个岗位支持远程办公并提供完整的跨团队协作流程",
+    )
+
+    assert store.rank_current_evidence(user_id="u1", query="远程") == ()
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="远程",
+    )
+
+    assert memory.records[0].title == "Concise"
+
+
+def test_short_latin_query_uses_the_same_bounded_bm25_fallback(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    concise = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Concise",
+    )
+    verbose = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Verbose",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=concise.id,
+        claim="AI Go",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=verbose.id,
+        claim="Built AI services and Go systems across several platform teams",
+    )
+
+    assert store.rank_current_evidence(user_id="u1", query="AI Go") == ()
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="AI Go",
+    )
+
+    assert memory.records[0].title == "Concise"
+
+
+def test_tier_one_claim_limit_is_depth_first_after_reranking(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    retrieval = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Retrieval",
+    )
+    payments = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Payments",
+    )
+    for index in range(8):
+        _confirmed_highlight(
+            store,
+            user_id="u1",
+            career_record_id=retrieval.id,
+            claim=f"Retrieval evaluation result {index}",
+        )
+        _confirmed_highlight(
+            store,
+            user_id="u1",
+            career_record_id=payments.id,
+            claim=f"Payment migration result {index}",
+        )
+
+    memory = CareerContextProjector(
+        store,
+        tier_one_claim_limit=5,
+    ).project(
+        user_id="u1",
+        query="retrieval evaluation",
+    )
+
+    assert len(memory.records) == 1
+    assert memory.records[0].title == "Retrieval"
+    assert len(memory.records[0].confirmed_highlights) == 5
+    assert memory.claims_total == 16
+
+
+def test_tokenizer_calibration_changes_cjk_packing_at_one_budget(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    record = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="推荐系统",
+    )
+    for index in range(10):
+        _confirmed_highlight(
+            store,
+            user_id="u1",
+            career_record_id=record.id,
+            claim=f"负责推荐系统召回排序与离线评估方案第{index}版",
+        )
+    assert store.rank_current_evidence(
+        user_id="u1",
+        query="推荐系统评估",
+    )
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="推荐系统评估",
+    )
+
+    def returned(cjk_units: float) -> int:
+        profile = MainAgentContext(
+            conversation_id="c1",
+            profile=CareerProfileContext(user_id="u1"),
+            career_memory=memory,
+            career_profile_budgets=CareerProfileBudgets(
+                records_input_units=300,
+                cjk_input_units_per_char=cjk_units,
+            ),
+            user_message="推荐系统",
+        ).model_context()["career_profile"]
+        claims = profile.get("claims", {})
+        return len(claims.get("rows", ()))
+
+    assert returned(1.0) > returned(1.8)
+
+
 def test_main_agent_model_context_contains_compact_provenance_without_quotes(
     tmp_path,
 ) -> None:
@@ -200,6 +466,44 @@ def test_projector_exposes_only_the_current_evidence_revision(tmp_path) -> None:
 
     assert claims == [corrected.current.claim]
     assert original.claim not in memory.model_dump_json()
+    assert memory.telemetry_inventory_complete is True
+    assert {
+        binding.lifecycle_status for binding in memory.telemetry_bindings
+    } == {"current", "superseded"}
+    assert {
+        binding.update_id for binding in memory.telemetry_bindings
+    } == {
+        corrected.current.update_id,
+        corrected.previous.update_id,
+    }
+    assert all(
+        claim.telemetry_binding is not None
+        for projected_record in memory.records
+        for claim in projected_record.confirmed_highlights
+    )
+
+
+def test_unbound_oversized_claim_downgrades_version_inventory(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    record = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Large evidence",
+    )
+    _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=record.id,
+        claim="x" * 32_001,
+    )
+
+    memory = CareerContextProjector(store).project(
+        user_id="u1",
+        query="evidence",
+    )
+
+    assert memory.records[0].confirmed_highlights[0].telemetry_binding is None
+    assert memory.telemetry_inventory_complete is False
 
 
 def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
@@ -383,7 +687,7 @@ def test_columnar_projection_is_semantically_equivalent_and_budgeted(tmp_path) -
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1"),
         career_memory=memory,
-        career_profile_budgets=CareerProfileBudgets(records_chars=20_000),
+        career_profile_budgets=CareerProfileBudgets(records_input_units=20_000),
         user_message="memory",
     ).model_context()["career_profile"]
     decoded = _decode_tier_one(full)
@@ -437,14 +741,19 @@ def test_columnar_projection_is_semantically_equivalent_and_budgeted(tmp_path) -
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1"),
         career_memory=memory,
-        career_profile_budgets=CareerProfileBudgets(records_chars=budget),
+        career_profile_budgets=CareerProfileBudgets(records_input_units=budget),
         user_message="memory",
     ).model_context()["career_profile"]
     bounded_memory = {
         key: value for key, value in bounded.items() if key in memory_keys
     }
 
-    assert len(json.dumps(bounded_memory, ensure_ascii=False, sort_keys=True)) <= budget
+    assert (
+        CareerProfileBudgets(records_input_units=budget).estimate_tokens(
+            bounded_memory
+        )
+        <= budget
+    )
     assert bounded_memory["claims_returned"] < bounded_memory["claims_total"]
 
     zero_records = MainAgentContext(
@@ -466,7 +775,7 @@ def test_columnar_projection_is_semantically_equivalent_and_budgeted(tmp_path) -
             ),
         ),
         career_memory=memory,
-        career_profile_budgets=CareerProfileBudgets(records_chars=0),
+        career_profile_budgets=CareerProfileBudgets(records_input_units=0),
         user_message="memory",
     ).model_context()["career_profile"]
     assert {
@@ -510,24 +819,29 @@ def test_columnar_projection_is_semantically_equivalent_and_budgeted(tmp_path) -
             ),
             career_memory=memory,
             career_profile_budgets=CareerProfileBudgets(
-                records_chars=budget,
-                current_targets_chars=budget,
-                hard_constraints_chars=budget,
+                records_input_units=budget,
+                current_targets_input_units=budget,
+                hard_constraints_input_units=budget,
             ),
             user_message="memory",
         ).model_context()["career_profile"]
 
-        assert not {"records", "claims", "hard_constraints", "current_targets"} & set(
-            exhausted
-        )
+        assert not {"records", "claims", "current_targets"} & set(exhausted)
+        assert exhausted["hard_constraints"] == [
+            {"relation": "work_arrangement", "value": "必须远程"}
+        ]
+        assert exhausted["hard_constraints_budget_expanded"] is True
         assert exhausted["records_returned"] == 0
         assert exhausted["records_total"] == 5
         assert exhausted["claims_returned"] == 0
         assert exhausted["claims_total"] == 15
-        assert exhausted["hard_constraints_returned"] == 0
-        assert exhausted["hard_constraints_total"] == 1
         assert exhausted["current_targets_returned"] == 0
         assert exhausted["current_targets_total"] == 1
+        assert exhausted["memory_overflow"]["fetch_required"] is True
+        assert {
+            section["fetch_tool"]
+            for section in exhausted["memory_overflow"]["sections"]
+        } == {"search_career_memory", "list_target_roles"}
 
 
 def test_current_target_budget_reports_visible_truncation() -> None:
@@ -547,7 +861,7 @@ def test_current_target_budget_reports_visible_truncation() -> None:
             current_targets_total=5,
         ),
         career_profile_budgets=CareerProfileBudgets(
-            current_targets_chars=400,
+            current_targets_input_units=100,
         ),
         user_message="compare tracks",
     ).model_context()["career_profile"]
@@ -680,6 +994,10 @@ def test_historical_tool_exposes_and_consumes_an_opaque_page_cursor(
             "cursor": first.facts["next_cursor"],
         },
     )
+    current = tools.invoke_atomic_tool(
+        "search_career_memory",
+        {"user_id": "u1", "query": "retrieval", "limit": 2},
+    )
 
     assert first.state == "career_history_found"
     assert first.facts["returned"] == 2
@@ -692,3 +1010,10 @@ def test_historical_tool_exposes_and_consumes_an_opaque_page_cursor(
         "body_clipped": False,
     }
     assert invalid.state == "invalid_input"
+    assert current.state == "career_memory_search_found"
+    assert current.facts["returned"] == 2
+    assert current.facts["total"] == 3
+    assert all(
+        item["detail_ref"].startswith("detail_")
+        for item in current.payload["items"]
+    )

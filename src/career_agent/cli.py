@@ -11,7 +11,10 @@ from typing import Callable, Sequence, TextIO
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.main_agent_contracts import ToolObservation
+from career_agent.agent.main_agent_contracts import (
+    CareerProfileBudgets,
+    ToolObservation,
+)
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_graph import (
@@ -115,6 +118,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         summary_worker=OpenAIConversationSummaryWorker(main_config),
         compacted_message_warning_threshold=args.compacted_message_warning,
         target_role_source=resume_store,
+        career_profile_budgets=CareerProfileBudgets(
+            cjk_input_units_per_char=main_config.cjk_tokens_per_char,
+            ascii_chars_per_input_unit=main_config.ascii_chars_per_token,
+        ),
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
@@ -611,6 +618,52 @@ def build_parser() -> argparse.ArgumentParser:
         default="~/.career-agent/run-events.sqlite3",
         help="Local best-effort telemetry store path.",
     )
+    eval_memory_budget = eval_subparsers.add_parser(
+        "memory-budget",
+        help=(
+            "Describe production career-memory overflow, layered fetches, and "
+            "technical outcomes without inferring a budget floor."
+        ),
+    )
+    eval_memory_budget.add_argument(
+        "--user-id",
+        help="Optional owner filter; requires --session-id.",
+    )
+    eval_memory_budget.add_argument(
+        "--session-id",
+        help="Optional conversation filter; requires --user-id.",
+    )
+    eval_memory_budget.add_argument(
+        "--run-events-store",
+        default="~/.career-agent/run-events.sqlite3",
+        help="Local best-effort telemetry store path.",
+    )
+    eval_memory_budget.add_argument(
+        "--max-runs",
+        type=int,
+        default=10_000,
+        help="Bound the newest production turn cohorts read from telemetry.",
+    )
+    eval_memory_exposure = eval_subparsers.add_parser(
+        "memory-exposure",
+        help=(
+            "Measure P1 staleness and supersedence exposure; zombie exposure "
+            "remains unavailable until M3 tombstones."
+        ),
+    )
+    eval_memory_exposure.add_argument("--user-id", required=True)
+    eval_memory_exposure.add_argument("--session-id", required=True)
+    eval_memory_exposure.add_argument(
+        "--run-events-store",
+        default="~/.career-agent/run-events.sqlite3",
+        help="Local best-effort telemetry store path.",
+    )
+    eval_memory_exposure.add_argument(
+        "--max-events",
+        type=int,
+        default=10_000,
+        help="Bound the newest memory observations read from telemetry.",
+    )
 
     keys_command = subparsers.add_parser(
         "api-keys",
@@ -1099,6 +1152,90 @@ def _run_rederivation_evaluation(args, stdout) -> int:
         )
 
 
+def _run_memory_budget_evaluation(args, stdout) -> int:
+    from dataclasses import asdict
+
+    from career_agent.evaluation.memory_metrics import (
+        summarize_memory_budget_metrics,
+    )
+
+    try:
+        events = SQLiteTraceRecorder(
+            Path(args.run_events_store).expanduser()
+        ).list_memory_budget_events(
+            user_id=args.user_id,
+            conversation_id=args.session_id,
+            max_runs=args.max_runs,
+        )
+        summary = summarize_memory_budget_metrics(events)
+        payload = {
+            "state": "memory_delivery_observed",
+            **(
+                {
+                    "user_id": args.user_id,
+                    "session_id": args.session_id,
+                }
+                if args.user_id is not None
+                else {"scope": "all_redacted_production_runs"}
+            ),
+            **asdict(summary),
+        }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _write_chat_error(
+            error,
+            stdout,
+            code=EXIT_ARGUMENT_ERROR,
+            next_action="Check the run-events store path and scope filters.",
+        )
+
+
+def _run_memory_exposure_evaluation(args, stdout) -> int:
+    from dataclasses import asdict
+
+    from career_agent.evaluation.memory_metrics import summarize_memory_metrics
+
+    try:
+        events = SQLiteTraceRecorder(
+            Path(args.run_events_store).expanduser()
+        ).list_memory_events(
+            user_id=args.user_id,
+            conversation_id=args.session_id,
+            max_events=args.max_events,
+        )
+        summary = summarize_memory_metrics(events)
+        exposure_measurable = (
+            summary.staleness_exposure.measurable
+            and summary.supersedence_exposure.measurable
+        )
+        json.dump(
+            {
+                "state": (
+                    "memory_exposure_measured"
+                    if exposure_measurable
+                    else "insufficient_memory_version_binding"
+                ),
+                "user_id": args.user_id,
+                "session_id": args.session_id,
+                **asdict(summary),
+            },
+            stdout,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        stdout.write("\n")
+        return EXIT_OK
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _write_chat_error(
+            error,
+            stdout,
+            code=EXIT_ARGUMENT_ERROR,
+            next_action="Check the run-events store path and conversation identity.",
+        )
+
+
 def _run_trajectory_evaluation(args, stdout) -> int:
     """Replay the scenario catalogue, or re-cut it against the live model.
 
@@ -1548,6 +1685,10 @@ def main(
     if args.command == "eval":
         if args.eval_command == "rederivation":
             return _run_rederivation_evaluation(args, stdout)
+        if args.eval_command == "memory-budget":
+            return _run_memory_budget_evaluation(args, stdout)
+        if args.eval_command == "memory-exposure":
+            return _run_memory_exposure_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
     if args.command == "settings":
         context_store = CareerContextStore(Path(args.context_store).expanduser())

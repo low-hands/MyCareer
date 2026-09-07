@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from dataclasses import dataclass
 import hashlib
@@ -34,6 +35,9 @@ EvidenceStatus = Literal["pending", "confirmed", "rejected"]
 RecordType = Literal["education", "work", "internship", "project", "certification"]
 _HISTORY_CURSOR = re.compile(
     r"^history_(?P<query>[a-f0-9]{8})_(?P<offset>[a-f0-9]{8})$"
+)
+_MEMORY_CURSOR = re.compile(
+    r"^memory_(?P<query>[a-f0-9]{8})_(?P<offset>[a-f0-9]{8})$"
 )
 _MAX_HISTORY_OFFSET = 10_000
 
@@ -431,6 +435,132 @@ class CareerHistoryStore:
         )
         return tuple(self._evidence(row) for row in rows), total, next_cursor
 
+    def search_current_evidence(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 8,
+        cursor: str | None = None,
+    ) -> tuple[tuple[CareerEvidence, ...], int, str | None]:
+        """Search active confirmed claims in the archive through bounded FTS."""
+
+        if not 1 <= limit <= 20:
+            raise ValueError("current evidence limit must be between 1 and 20")
+        tokens = tuple(
+            dict.fromkeys(
+                token.casefold()
+                for token in re.findall(
+                    r"[\w+#.-]{3,}", query.strip(), flags=re.UNICODE
+                )
+            )
+        )
+        if not tokens:
+            raise ValueError("current evidence query needs a term of 3+ characters")
+        normalized_query = " ".join(tokens)
+        query_digest = hashlib.sha256(
+            normalized_query.encode("utf-8")
+        ).hexdigest()[:8]
+        offset = 0
+        if cursor is not None:
+            match = _MEMORY_CURSOR.fullmatch(cursor)
+            if match is None or match.group("query") != query_digest:
+                raise ValueError("current evidence cursor does not match this query")
+            offset = int(match.group("offset"), 16)
+            if offset > _MAX_HISTORY_OFFSET:
+                raise ValueError("current evidence cursor exceeds the safety limit")
+        match_query = " OR ".join(
+            json.dumps(token, ensure_ascii=False) for token in tokens
+        )
+        selected_columns = ", ".join(
+            f"evidence.{name}" for name in _EVIDENCE_FIELD_NAMES
+        )
+        where = """
+            search.user_id = ?
+            AND career_evidence_fts MATCH ?
+            AND evidence.verification_status = 'confirmed'
+            AND evidence.superseded_by IS NULL
+            AND evidence.rolled_back_at IS NULL
+        """
+        with self._connect() as connection:
+            total = int(
+                connection.execute(
+                    f"""
+                    SELECT COUNT(*)
+                    FROM career_evidence_fts AS search
+                    JOIN career_evidence AS evidence
+                      ON evidence.id = search.evidence_id
+                    WHERE {where}
+                    """,
+                    (user_id, match_query),
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                f"""
+                SELECT {selected_columns}
+                FROM career_evidence_fts AS search
+                JOIN career_evidence AS evidence
+                  ON evidence.id = search.evidence_id
+                WHERE {where}
+                ORDER BY bm25(career_evidence_fts), evidence.created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (user_id, match_query, limit, offset),
+            ).fetchall()
+        next_offset = offset + len(rows)
+        next_cursor = (
+            f"memory_{query_digest}_{next_offset:08x}"
+            if next_offset < total and next_offset <= _MAX_HISTORY_OFFSET
+            else None
+        )
+        return tuple(self._evidence(row) for row in rows), total, next_cursor
+
+    def rank_current_evidence(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 45,
+    ) -> tuple[CareerEvidence, ...]:
+        """Over-recall active claims from FTS for Tier-1 reranking."""
+
+        if not 1 <= limit <= 100:
+            raise ValueError("ranked evidence limit must be between 1 and 100")
+        normalized = query.strip().casefold()
+        latin_tokens = re.findall(r"[a-z0-9+#.-]{3,}", normalized)
+        cjk_tokens = [
+            chunk[index : index + 3]
+            for chunk in re.findall(r"[\u4e00-\u9fff]{3,}", normalized)
+            for index in range(len(chunk) - 2)
+        ]
+        tokens = tuple(dict.fromkeys((*latin_tokens, *cjk_tokens)))
+        if not tokens:
+            return ()
+        match_query = " OR ".join(
+            json.dumps(token, ensure_ascii=False) for token in tokens
+        )
+        selected_columns = ", ".join(
+            f"evidence.{name}" for name in _EVIDENCE_FIELD_NAMES
+        )
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT {selected_columns}
+                FROM career_evidence_fts AS search
+                JOIN career_evidence AS evidence
+                  ON evidence.id = search.evidence_id
+                WHERE search.user_id = ?
+                  AND career_evidence_fts MATCH ?
+                  AND evidence.verification_status = 'confirmed'
+                  AND evidence.superseded_by IS NULL
+                  AND evidence.rolled_back_at IS NULL
+                ORDER BY bm25(career_evidence_fts), evidence.created_at DESC
+                LIMIT ?
+                """,
+                (user_id, match_query, limit),
+            ).fetchall()
+        return tuple(self._evidence(row) for row in rows)
+
     def list_evidence(
         self,
         *,
@@ -470,6 +600,39 @@ class CareerHistoryStore:
 
         with self._connect() as connection:
             rows = connection.execute(query, parameters).fetchall()
+        return tuple(self._evidence(row) for row in rows)
+
+    def list_evidence_versions(
+        self,
+        *,
+        user_id: str,
+        scope_keys: Sequence[str],
+        limit: int,
+    ) -> tuple[CareerEvidence, ...]:
+        """Read bounded confirmed histories for explicitly selected lineages."""
+
+        selected = tuple(dict.fromkeys(scope_keys))
+        if not selected:
+            return ()
+        if limit < 1:
+            raise ValueError("evidence version limit must be positive")
+        if len(selected) > 400:
+            raise ValueError("at most 400 evidence scopes may be read at once")
+        placeholders = ",".join("?" for _ in selected)
+        query = f"""
+            SELECT {_EVIDENCE_COLUMNS}
+            FROM career_evidence
+            WHERE user_id = ?
+              AND verification_status = 'confirmed'
+              AND scope_key IN ({placeholders})
+            ORDER BY scope_key, revision, created_at, id
+            LIMIT ?
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                query,
+                (user_id, *selected, limit),
+            ).fetchall()
         return tuple(self._evidence(row) for row in rows)
 
     def count_evidence(

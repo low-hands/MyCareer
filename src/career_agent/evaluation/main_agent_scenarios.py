@@ -930,13 +930,14 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "An observation without body exposes only a bounded receipt and "
             "selected flat decision facts, not the internal payload. Use values "
             "explicitly present there, but never expand them into omitted "
-            "details; the runtime presenter remains the authoritative delivery."
+            "details; when the user asks only for the brief, the runtime "
+            "presenter remains the authoritative delivery."
         ),
         # Two steps: the model asks for the brief, then sees only its bounded
         # receipt and three approved counts. It may reason from those values,
         # but any claim about item contents or quality would still be invented.
         context=_context(
-            user_message="今天有什么要处理的",
+            user_message="只给我今天的职业简报，不要再打开行动清单",
             task=ConversationTaskState(
                 application_candidates=(
                     ApplicationCandidateContextItem(

@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import hashlib
 import json
+import re
 import unicodedata
 from typing import Any
 
-from career_agent.agent.decision_messages import decision_context_chars
+from career_agent.agent.decision_messages import (
+    context_churn_slot_values,
+    decision_context_chars,
+)
 from career_agent.harness.observability import conversation_trace_key
+
+
+_MIN_CJK_SUBSTRING_SURFACE_CHARS = 4
 
 
 def content_digest(value: Any) -> str:
@@ -29,21 +36,28 @@ def memory_context_observation(
     """Return P2-safe fingerprints without persisting projected user text."""
 
     projection = context.model_context()
-    slot_values = {
-        name: projection.get(name)
-        for name in _CONTEXT_SLOT_NAMES
-    }
+    career_profile = projection.get("career_profile")
+    slot_values = context_churn_slot_values(projection)
     slots = {
         name: content_digest(value) for name, value in slot_values.items()
     }
     slot_chars = {
         name: _serialized_chars(value) for name, value in slot_values.items()
     }
+    slot_chars["career_profile"] = _serialized_chars(career_profile)
     dynamic_context_chars = decision_context_chars(context)
     career_profile_chars = slot_chars["career_profile"]
-    entries: list[dict[str, str]] = []
+    delivery = _career_profile_delivery(
+        context,
+        career_profile,
+    )
+    bindings, inventory_complete = _telemetry_bindings(context)
+    entries = _bound_context_entries(bindings, slot_values)
     default_city = context.profile.default_city
-    if default_city:
+    if default_city and not any(
+        entry["entry_id"] == "person_intent/self/default_city"
+        for entry in entries
+    ):
         entries.append(
             {
                 "entry_id": "person_intent/self/default_city",
@@ -51,12 +65,12 @@ def memory_context_observation(
             }
         )
     observation = {
-        "conversation_id": context.conversation_id,
         "conversation_key": conversation_trace_key(
             context.profile.user_id, context.conversation_id
         ),
         "career_memory_enabled": career_memory_enabled,
-        "binding_profile": "p2",
+        "binding_profile": "p1" if inventory_complete else "p2",
+        "version_inventory_complete": inventory_complete,
         "slot_fingerprints": slots,
         "slot_chars": slot_chars,
         "dynamic_context_chars": dynamic_context_chars,
@@ -65,16 +79,20 @@ def memory_context_observation(
             if dynamic_context_chars
             else 0.0
         ),
-        "career_profile_chars": _json_char_composition(slot_values["career_profile"]),
+        "career_profile_chars": _json_char_composition(career_profile),
         "career_profile_source_chars": _career_profile_source_chars(
-            slot_values["career_profile"]
+            career_profile
         ),
         "career_profile_schema_chars": _onto_schema_chars(
-            slot_values["career_profile"]
+            career_profile
         ),
-        "career_profile_delivery": _career_profile_delivery(
-            context,
-            slot_values["career_profile"],
+        "career_profile_budgets": context.career_profile_budgets.model_dump(
+            mode="json"
+        ),
+        "career_profile_delivery": delivery,
+        "career_profile_truncation": _career_profile_truncation(
+            career_profile,
+            delivery,
         ),
         "entries": entries,
     }
@@ -84,15 +102,7 @@ def memory_context_observation(
 def memory_use_observation(context: Any, decision: Any) -> dict[str, Any] | None:
     """Detect exact use of currently typed values; deliberately BEST_EFFORT."""
 
-    values: tuple[tuple[str, str], ...] = tuple(
-        (entry_id, value)
-        for entry_id, value in (
-            ("person_intent/self/default_city", context.profile.default_city),
-        )
-        if isinstance(value, str) and value.strip()
-    )
-    if not values:
-        return None
+    bindings, inventory_complete = _telemetry_bindings(context)
     if hasattr(decision, "model_dump"):
         payload = decision.model_dump(mode="json")
     elif isinstance(decision, Mapping):
@@ -102,19 +112,44 @@ def memory_use_observation(context: Any, decision: Any) -> dict[str, Any] | None
     rendered = _surface(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     )
+    projection = context.model_context()
+    slot_values = context_churn_slot_values(projection)
+    visible_update_ids = {
+        entry["update_id"]
+        for entry in _bound_context_entries(
+            bindings,
+            slot_values,
+        )
+    }
     used = [
-        {"entry_id": entry_id, "content_digest": content_digest(value)}
-        for entry_id, value in values
-        if _surface(value) in rendered
+        _binding_entry(binding)
+        for binding in bindings
+        if binding.update_id in visible_update_ids
+        and _surface_matches(rendered, _surface(binding.value))
     ]
+    default_city = context.profile.default_city
+    if (
+        default_city
+        and _surface_matches(rendered, _surface(default_city))
+        and not any(
+            entry["entry_id"] == "person_intent/self/default_city"
+            for entry in used
+        )
+    ):
+        used.append(
+            {
+                "entry_id": "person_intent/self/default_city",
+                "content_digest": content_digest(default_city),
+            }
+        )
     if not used:
         return None
     return {
-        "conversation_id": context.conversation_id,
         "conversation_key": conversation_trace_key(
             context.profile.user_id, context.conversation_id
         ),
-        "binding_profile": "p2",
+        "binding_profile": "p1" if inventory_complete else "p2",
+        "version_inventory_complete": inventory_complete,
         "detection": "exact_surface",
         "entries": used,
     }
@@ -124,12 +159,165 @@ def _surface(value: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
-_CONTEXT_SLOT_NAMES = (
-    "career_profile",
-    "task",
-    "conversation_summary",
-    "recent_messages",
-)
+def _surface_matches(rendered: str, value: str) -> bool:
+    """Match normalized values without treating compounds as exact use."""
+
+    if not value:
+        return False
+    if any(character.isascii() and character.isalnum() for character in value):
+        return (
+            re.search(
+                rf"(?<![0-9a-z_]){re.escape(value)}(?![0-9a-z_])",
+                rendered,
+            )
+            is not None
+        )
+    cjk_characters = tuple(character for character in value if _is_cjk(character))
+    if cjk_characters and len(cjk_characters) == len(value.replace(" ", "")):
+        if len(cjk_characters) >= _MIN_CJK_SUBSTRING_SURFACE_CHARS:
+            return value in rendered
+        return any(
+            not _is_cjk(rendered[index - 1] if index else "")
+            and not _is_cjk(
+                rendered[index + len(value)]
+                if index + len(value) < len(rendered)
+                else ""
+            )
+            for index in _surface_occurrences(rendered, value)
+        )
+    return value in rendered
+
+
+def _surface_occurrences(rendered: str, value: str) -> tuple[int, ...]:
+    starts = []
+    offset = 0
+    while (index := rendered.find(value, offset)) >= 0:
+        starts.append(index)
+        offset = index + 1
+    return tuple(starts)
+
+
+def _is_cjk(character: str) -> bool:
+    return bool(character) and (
+        "\u3400" <= character <= "\u4dbf"
+        or "\u4e00" <= character <= "\u9fff"
+        or "\uf900" <= character <= "\ufaff"
+    )
+
+
+def _telemetry_bindings(context: Any) -> tuple[tuple[Any, ...], bool]:
+    profile_bindings = tuple(
+        getattr(context.profile, "telemetry_bindings", ())
+    )
+    career_bindings = tuple(
+        getattr(context.career_memory, "telemetry_bindings", ())
+    )
+    selected: dict[tuple[str, str], Any] = {}
+    update_ids_by_surface: dict[tuple[str, str], set[str]] = {}
+    for binding in (*profile_bindings, *career_bindings):
+        identity = (binding.entry_id, binding.content_digest)
+        update_ids_by_surface.setdefault(identity, set()).add(binding.update_id)
+        previous = selected.get(identity)
+        if (
+            previous is None
+            or binding.lifecycle_status == "current"
+            or (
+                previous.lifecycle_status != "current"
+                and binding.revision > previous.revision
+            )
+        ):
+            selected[identity] = binding
+    profile_has_versioned_values = bool(
+        context.profile.default_city
+        or context.profile.hard_constraints
+        or any(
+            value is not None
+            for target in context.profile.current_targets
+            for value in (
+                target.city,
+                target.salary_expectation,
+                target.experience,
+                target.education,
+            )
+        )
+    )
+    profile_complete = bool(
+        getattr(context.profile, "telemetry_inventory_complete", False)
+    ) or not profile_has_versioned_values
+    career_complete = bool(
+        getattr(context.career_memory, "telemetry_inventory_complete", False)
+    ) or context.career_memory.claims_total == 0
+    entries_by_value: dict[str, set[str]] = {}
+    for binding in (*profile_bindings, *career_bindings):
+        value = _surface(binding.value)
+        entries_by_value.setdefault(value, set()).add(binding.entry_id)
+    ambiguous_lineage_surface = any(
+        len(update_ids) > 1
+        for update_ids in update_ids_by_surface.values()
+    )
+    overlapping_surface = any(
+        left != right and (left in right or right in left)
+        for left in entries_by_value
+        for right in entries_by_value
+    )
+    cross_scope_surface = any(
+        len(entry_ids) > 1 for entry_ids in entries_by_value.values()
+    )
+    low_entropy_surface = any(
+        len(value) < 2 for value in entries_by_value
+    )
+    return (
+        tuple(
+            sorted(
+                selected.values(),
+                key=lambda item: (item.entry_id, item.revision, item.update_id),
+            )
+        ),
+        profile_complete
+        and career_complete
+        and not ambiguous_lineage_surface
+        and not overlapping_surface
+        and not cross_scope_surface
+        and not low_entropy_surface,
+    )
+
+
+def _bound_context_entries(
+    bindings: tuple[Any, ...],
+    slot_values: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rendered_slots = {
+        name: _surface(
+            json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+        )
+        for name, value in slot_values.items()
+    }
+    entries = []
+    for binding in bindings:
+        value = _surface(binding.value)
+        surfaces = sorted(
+            name
+            for name, rendered in rendered_slots.items()
+            if _surface_matches(rendered, value)
+        )
+        if surfaces:
+            entries.append(
+                {
+                    **_binding_entry(binding),
+                    "surfaces": surfaces,
+                }
+            )
+    return entries
+
+
+def _binding_entry(binding: Any) -> dict[str, Any]:
+    return {
+        "entry_id": binding.entry_id,
+        "update_id": binding.update_id,
+        "content_digest": binding.content_digest,
+        "revision": binding.revision,
+        "lifecycle_status": binding.lifecycle_status,
+    }
 
 
 def _serialized_chars(value: Any) -> int:
@@ -192,6 +380,7 @@ def _career_profile_source_chars(value: Any) -> dict[str, int]:
             "hard_constraints",
             "hard_constraints_returned",
             "hard_constraints_total",
+            "hard_constraints_budget_expanded",
         },
     }
     totals = {name: 0 for name in groups}
@@ -262,6 +451,134 @@ def _career_profile_delivery(context: Any, value: Any) -> dict[str, int]:
             constraints_total - constraints_returned,
         ),
     }
+
+
+def _career_profile_truncation(
+    value: Any,
+    delivery: Mapping[str, int],
+) -> dict[str, Any]:
+    """Distinguish model-visible truncation from an operational dropped count."""
+
+    profile = value if isinstance(value, Mapping) else {}
+    targets = profile.get("current_targets")
+    target_body = targets if isinstance(targets, Mapping) else {}
+    overflow = profile.get("memory_overflow")
+    overflow_body = overflow if isinstance(overflow, Mapping) else {}
+    overflow_sections = overflow_body.get("sections")
+    fetch_tools = (
+        {
+            str(item.get("section")): str(item.get("fetch_tool"))
+            for item in overflow_sections
+            if isinstance(item, Mapping)
+            and isinstance(item.get("section"), str)
+            and isinstance(item.get("fetch_tool"), str)
+        }
+        if isinstance(overflow_sections, Sequence)
+        else {}
+    )
+    sections = {
+        "records": (
+            delivery["records_dropped"] > 0 or delivery["claims_dropped"] > 0,
+            all(
+                key in profile
+                for key in (
+                    "records_returned",
+                    "records_total",
+                    "claims_returned",
+                    "claims_total",
+                )
+            ),
+            delivery["records_total"] > 0,
+            delivery["records_returned"] == 0,
+            fetch_tools.get("career_memory"),
+        ),
+        "current_targets": (
+            delivery["current_targets_dropped"] > 0,
+            (
+                all(
+                    key in target_body
+                    for key in ("roles_returned", "roles_total")
+                )
+                or all(
+                    key in profile
+                    for key in (
+                        "current_targets_returned",
+                        "current_targets_total",
+                    )
+                )
+            ),
+            delivery["current_targets_total"] > 0,
+            delivery["current_targets_returned"] == 0,
+            fetch_tools.get("current_targets"),
+        ),
+        "hard_constraints": (
+            delivery["hard_constraints_dropped"] > 0,
+            all(
+                key in profile
+                for key in (
+                    "hard_constraints_returned",
+                    "hard_constraints_total",
+                )
+            ),
+            delivery["hard_constraints_total"] > 0,
+            delivery["hard_constraints_returned"] == 0,
+            None,
+        ),
+    }
+    result: dict[str, Any] = {}
+    for name, (
+        truncated,
+        counters_present,
+        has_stored,
+        returned_none,
+        fetch_tool,
+    ) in (
+        sections.items()
+    ):
+        visible = not truncated or counters_present
+        result[name] = {
+            "truncated": truncated,
+            "model_visible": visible,
+            "indistinguishable_from_empty": (
+                truncated and has_stored and returned_none and not counters_present
+            ),
+            "fetch_required": truncated and fetch_tool is not None,
+            **(
+                {"fetch_tool": fetch_tool}
+                if truncated and fetch_tool is not None
+                else {}
+            ),
+        }
+        if name == "hard_constraints":
+            result[name]["budget_expanded"] = (
+                profile.get("hard_constraints_budget_expanded") is True
+            )
+    any_truncated = any(
+        section["truncated"] for section in result.values()
+    )
+    all_visible = all(
+        section["model_visible"] for section in result.values()
+    )
+    any_fetch_required = any(
+        section["fetch_required"] for section in result.values()
+    )
+    any_budget_expanded = any(
+        bool(section.get("budget_expanded"))
+        for section in result.values()
+    )
+    result["any_truncated"] = any_truncated
+    result["any_fetch_required"] = any_fetch_required
+    result["any_budget_expanded"] = any_budget_expanded
+    result["required_fetch_tools"] = sorted(
+        {
+            section["fetch_tool"]
+            for section in result.values()
+            if isinstance(section, Mapping)
+            and isinstance(section.get("fetch_tool"), str)
+        }
+    )
+    result["all_truncation_model_visible"] = all_visible
+    return result
 
 
 def _onto_schema_chars(value: Any) -> dict[str, int]:

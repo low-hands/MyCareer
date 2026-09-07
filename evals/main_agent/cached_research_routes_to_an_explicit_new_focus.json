@@ -2,16 +2,15 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
-  "context_shape_fingerprint": "bda5110a9dc441f85dcf4c40a2661ebee7a34df73b425b56c5a4d23c1ee5db2e",
-  "recorded_at": "2026-09-07T06:34:00.056701+00:00",
+  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "context_shape_fingerprint": "991d30f859ad8d6d7094269630d35a418dc640d30311b5074cfa6d2e3604f24c",
+  "recorded_at": "2026-09-07T09:24:42.919001+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手",
-          "max_sources": 8
+          "focus": "竞争对手：识别示例科技所在业务领域的主要竞争对手，比较其产品、市场定位、技术方向与近期动态，并标注来源和不确定性。"
         }
       }
     }
@@ -19,14 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T06:34:00.056701+00:00",
+      "recorded_at": "2026-09-07T09:24:42.919001+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手",
-              "max_sources": 8
+              "focus": "竞争对手：识别示例科技所在业务领域的主要竞争对手，比较其产品、市场定位、技术方向与近期动态，并标注来源和不确定性。"
             }
           }
         }
