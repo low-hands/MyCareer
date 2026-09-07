@@ -3,9 +3,11 @@ from __future__ import annotations
 import re
 
 from career_agent.agent.main_agent_contracts import (
+    CareerMemoryClaim,
     CareerMemoryContext,
     CareerMemoryRecord,
 )
+from career_agent.domain.career_history import CareerEvidence
 from career_agent.storage.career_history import CareerHistoryStore
 
 
@@ -44,12 +46,21 @@ class CareerContextProjector:
                 ),
             )
             highlights = tuple(
-                item.claim
+                CareerMemoryClaim(
+                    claim=item.claim,
+                    origin=item.origin,
+                    recorded_at=item.created_at,
+                    source_ref=item.source_ref,
+                )
                 for item in ranked_evidence[: self._max_highlights_per_record]
             )
             searchable = " ".join(
                 value
-                for value in (record.title, record.organization, *highlights)
+                for value in (
+                    record.title,
+                    record.organization,
+                    *(highlight.claim for highlight in highlights),
+                )
                 if value
             )
             relevance = self._overlap(query_terms, self._terms(searchable))
@@ -78,6 +89,16 @@ class CareerContextProjector:
                 )
                 for record, highlights, _, _ in selected
             )
+        )
+
+    def resolve_source_ref(
+        self, *, user_id: str, source_ref: str
+    ) -> CareerEvidence | None:
+        """Dereference provenance only when a caller explicitly requests it."""
+
+        return self._store.get_evidence_by_source_ref(
+            user_id=user_id,
+            source_ref=source_ref,
         )
 
     @staticmethod

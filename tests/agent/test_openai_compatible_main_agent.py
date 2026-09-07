@@ -10,7 +10,7 @@ from career_agent.agent.decision_messages import (
     TURN_OBSERVATION_LABEL,
     project_decision_messages,
 )
-from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments
+from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_client import (
@@ -149,10 +149,15 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert data_content.startswith(DATA_CONTEXT_LABEL + "\n")
     payload = _spotlight_json(data_content, label=DATA_CONTEXT_LABEL)
     assert decision.action == "ask_user"
-    # Role-scoped intent reaches the model per track, not blended into one
-    # profile, so the person-level block carries only the person-level city.
+    # Role-scoped intent is rendered per track and never collapsed into one
+    # person-level salary, experience, or education value.
     assert set(payload["career_profile"]) == {"default_city", "records"}
     assert payload["career_profile"]["default_city"] == "Shanghai"
+    assert not {
+        "salary_expectation",
+        "experience",
+        "education",
+    } & payload["career_profile"].keys()
     assert "resume_text" not in payload
     assert "open_job_search" not in system_content
     assert (
@@ -196,6 +201,64 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert "job_research_report]" in messages[2]["content"]
     assert "External report title" not in messages[2]["content"]
     assert messages[-1] == {"role": "user", "content": "Help me find work."}
+
+
+def test_role_scoped_intent_stays_separate_in_current_targets() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(
+            user_id="u1",
+            default_city="杭州",
+            current_targets=(
+                CurrentTargetContext(
+                    title="ML Engineer",
+                    priority=1,
+                    salary_expectation="40-50k",
+                    experience="5-7 years",
+                ),
+                CurrentTargetContext(
+                    title="Product Manager",
+                    priority=2,
+                    city="上海",
+                    salary_expectation="30-40k",
+                    education="本科",
+                ),
+            ),
+        ),
+        user_message="比较我的两个方向",
+    )
+
+    career_profile = context.model_context()["career_profile"]
+
+    assert set(career_profile) == {
+        "default_city",
+        "current_targets",
+        "records",
+    }
+    assert [role["salary_expectation"] for role in career_profile["current_targets"]["roles"]] == [
+        "40-50k",
+        "30-40k",
+    ]
+    assert career_profile["current_targets"]["roles"] == [
+        {
+            "title": "ML Engineer",
+            "priority": 1,
+            "salary_expectation": "40-50k",
+            "experience": "5-7 years",
+        },
+        {
+            "title": "Product Manager",
+            "priority": 2,
+            "city": "上海",
+            "salary_expectation": "30-40k",
+            "education": "本科",
+        },
+    ]
+    assert not {
+        "salary_expectation",
+        "experience",
+        "education",
+    } & career_profile.keys()
 
 
 def test_untrusted_data_uses_a_session_stable_matching_spotlight_nonce() -> None:

@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
+from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
 from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, RuntimeAction
@@ -682,7 +682,15 @@ def test_graph_hydrates_career_memory_before_first_decision(tmp_path) -> None:
                         organization="Example Inc.",
                         title="Product Manager",
                         is_current=True,
-                        confirmed_highlights=("Led an AI product",),
+                        confirmed_highlights=(
+                            CareerMemoryClaim(
+                                claim="Led an AI product",
+                                origin="user_input",
+                                recorded_at=datetime(
+                                    2026, 9, 1, tzinfo=timezone.utc
+                                ),
+                            ),
+                        ),
                     ),
                 )
             )
@@ -851,6 +859,8 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
         "total": 2,
         "body_clipped": False,
         "content_clipped": False,
+            "resource_ref_count": 0,
+            "resource_ref_total": 0,
     }
     assert observation.body is not None
     assert "private-old-user-0" in observation.body

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Callable, Literal
+from typing import Callable, Literal, Protocol
 
 from career_agent.agent.conversation_memory_contracts import (
     SUMMARY_TEXT_MAX_CHARS as _SUMMARY_TEXT_BUDGET,
@@ -14,17 +14,23 @@ from career_agent.agent.main_agent_contracts import (
     ConversationResourceReference,
     ConversationTaskState,
     MainAgentContext,
+    CurrentTargetContext,
     OwnerSettingsContext,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
 from career_agent.domain.episodes import CareerEpisodeDraft
+from career_agent.domain.resume import TargetRole
 from career_agent.harness.observability import (
     conversation_trace_key,
     record_active_trace,
 )
 from career_agent.services.episode_consolidation import mock_interview_exit_draft
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
+
+
+class TargetRoleSource(Protocol):
+    def list_target_roles(self, *, user_id: str) -> tuple[TargetRole, ...]: ...
 
 
 class ContextManager:
@@ -35,7 +41,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -74,6 +80,7 @@ class ContextManager:
         self._compact_occupancy_threshold = compact_occupancy_threshold
         self._compacted_message_warning_threshold = compacted_message_warning_threshold
         self._archived_resource_limit = archived_resource_limit
+        self._target_role_source = target_role_source
         self._request_token_estimator: (
             Callable[[MainAgentContext], tuple[int, int]] | None
         ) = None
@@ -150,7 +157,7 @@ class ContextManager:
         self, *, user_id: str, conversation_id: str, user_message: str
     ) -> MainAgentContext:
         session = self._store.get_session(user_id, conversation_id)
-        profile = self._store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
+        profile = self._profile_context(user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
         task = self._store.get_task(user_id, conversation_id) or ConversationTaskState()
         summary = self._store.get_conversation_summary(
@@ -229,7 +236,7 @@ class ContextManager:
     ) -> MainAgentContext:
         """Build a routing envelope without loading Main Agent memory."""
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
-        profile = self._store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
+        profile = self._stored_profile_context(user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
         return MainAgentContext(
             conversation_id=conversation_id,
@@ -243,6 +250,29 @@ class ContextManager:
             conversation_summary=None,
             user_message="[workflow-owned input withheld]",
         )
+
+    def _stored_profile_context(self, user_id: str) -> CareerProfileContext:
+        return self._store.get_profile(user_id) or CareerProfileContext(
+            user_id=user_id
+        )
+
+    def _profile_context(self, user_id: str) -> CareerProfileContext:
+        profile = self._stored_profile_context(user_id)
+        if self._target_role_source is None:
+            return profile
+        current_targets = tuple(
+            CurrentTargetContext(
+                title=role.title,
+                priority=role.priority,
+                status=role.status,
+                city=role.city,
+                salary_expectation=role.salary_expectation,
+                experience=role.experience,
+                education=role.education,
+            )
+            for role in self._target_role_source.list_target_roles(user_id=user_id)
+        )
+        return profile.model_copy(update={"current_targets": current_targets})
 
     def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = ()) -> None:
         now = datetime.now(timezone.utc)

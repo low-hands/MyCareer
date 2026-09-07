@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -12,6 +13,30 @@ class CareerHistoryContract(BaseModel):
         frozen=True,
         str_strip_whitespace=True,
     )
+
+
+def career_evidence_source_ref(
+    *,
+    user_id: str,
+    evidence_id: str,
+    source_resume_version_id: str | None,
+    source_locator: str | None,
+) -> str | None:
+    """Construct the stable public pointer persisted with resume evidence."""
+
+    if source_resume_version_id is None:
+        return None
+    digest = hashlib.sha256(
+        "\0".join(
+            (
+                user_id,
+                evidence_id,
+                source_resume_version_id,
+                source_locator or "",
+            )
+        ).encode("utf-8")
+    ).hexdigest()
+    return f"evidence_{digest[:24]}"
 
 
 class CareerRecord(CareerHistoryContract):
@@ -84,6 +109,10 @@ class CareerEvidence(CareerHistoryContract):
     source_resume_version_id: str | None = Field(default=None, min_length=1)
     source_locator: str | None = Field(default=None, min_length=1)
     source_quote: str | None = Field(default=None, min_length=1)
+    source_ref: str | None = Field(
+        default=None,
+        pattern=r"^evidence_[a-f0-9]{24}$",
+    )
 
     created_at: datetime
     updated_at: datetime
@@ -104,6 +133,9 @@ class CareerEvidence(CareerHistoryContract):
 
         if self.source_quote is not None and self.source_resume_version_id is None:
             raise ValueError("source_quote requires source_resume_version_id")
+
+        if self.source_ref is not None and self.source_resume_version_id is None:
+            raise ValueError("source_ref requires source_resume_version_id")
 
         return self
 

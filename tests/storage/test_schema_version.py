@@ -63,7 +63,7 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
     "resumes": 4,
-    "career_history": 2,
+    "career_history": 3,
     "action_center": 2,
     "action_executions": 1,
     "applications": 1,

@@ -29,6 +29,18 @@ from career_agent.domain.job_discovery import ContractModel
 from career_agent.domain.mock_interviews import MockInterviewType
 
 
+class CurrentTargetContext(ContractModel):
+    """Current stored values of one user-created TargetRole."""
+
+    title: str = Field(min_length=1)
+    priority: int = Field(ge=0)
+    status: Literal["active"] = Field(default="active", exclude=True)
+    city: str | None = Field(default=None, min_length=1, max_length=40)
+    salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
+    experience: str | None = Field(default=None, min_length=1, max_length=100)
+    education: str | None = Field(default=None, min_length=1, max_length=100)
+
+
 class CareerProfileContext(ContractModel):
     """Person-level job intent only.
 
@@ -42,6 +54,11 @@ class CareerProfileContext(ContractModel):
 
     user_id: str
     default_city: str | None = None
+    current_targets: tuple[CurrentTargetContext, ...] = Field(
+        default=(),
+        exclude=True,
+    )
+    """Read-time projection from TargetRole; never duplicated in profile storage."""
 
 
 class JobIntentUpdate(ContractModel):
@@ -587,6 +604,7 @@ class ConversationMessageContext(ContractModel):
 
 
 MAX_CONVERSATION_SPAN_MESSAGES = 8
+MAX_CONVERSATION_SPAN_RESOURCE_REFS = 32
 
 
 class ConversationSpanMessage(ContractModel):
@@ -603,6 +621,10 @@ class ConversationSpanView(ContractModel):
     returned: int = Field(ge=0, le=MAX_CONVERSATION_SPAN_MESSAGES)
     total: int = Field(ge=0)
     body_clipped: bool = False
+    resource_ref_total: int = Field(default=0, ge=0)
+    resource_refs: tuple[ConversationResourceReference, ...] = Field(
+        default=(), max_length=MAX_CONVERSATION_SPAN_RESOURCE_REFS
+    )
     messages: tuple[ConversationSpanMessage, ...] = Field(
         default=(), max_length=MAX_CONVERSATION_SPAN_MESSAGES
     )
@@ -615,8 +637,23 @@ class ConversationSpanView(ContractModel):
             raise ValueError("returned must match the messages provided")
         if self.total < self.returned:
             raise ValueError("total cannot be smaller than returned")
+        if self.resource_ref_total < len(self.resource_refs):
+            raise ValueError("resource_ref_total cannot be smaller than returned refs")
         return self
 
+
+
+class CareerMemoryClaim(ContractModel):
+    """Confirmed L2 claim with bounded provenance, never an inline quotation."""
+
+    claim: str = Field(min_length=1)
+    origin: Literal["resume_extraction", "user_input", "agent_inference"]
+    recorded_at: datetime
+    """Storage observation time, not the claim's real-world effective date."""
+    source_ref: str | None = Field(
+        default=None,
+        pattern=r"^evidence_[a-f0-9]{24}$",
+    )
 
 
 class CareerMemoryRecord(ContractModel):
@@ -634,7 +671,7 @@ class CareerMemoryRecord(ContractModel):
     end_year: int | None = None
     end_month: int | None = None
     is_current: bool = False
-    confirmed_highlights: tuple[str, ...] = ()
+    confirmed_highlights: tuple[CareerMemoryClaim, ...] = ()
 
 
 class CareerMemoryContext(ContractModel):
@@ -749,6 +786,11 @@ class ToolResult(ContractModel):
     """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
     resource_ref: ConversationResourceReference | None = None
+    resource_refs: tuple[ConversationResourceReference, ...] = Field(
+        default=(),
+        max_length=MAX_CONVERSATION_SPAN_RESOURCE_REFS,
+        exclude=True,
+    )
 
     @model_validator(mode="after")
     def declared_facts_stay_bounded_and_identifier_free(self) -> "ToolResult":
@@ -871,6 +913,12 @@ class DecisionObservation(ContractModel):
     only ``MainAgentContext`` can assign — it depends on how many resources the
     conversation already carries. See ``referenced_resources``.
     """
+    resource_refs: tuple[ConversationResourceReference, ...] = Field(
+        default=(),
+        max_length=MAX_CONVERSATION_SPAN_RESOURCE_REFS,
+        exclude=True,
+    )
+    """Resources recovered by a readback, projected only as safe handles."""
     next_action: str | None = Field(
         default=None,
         max_length=NEXT_ACTION_LIMIT,
@@ -965,6 +1013,26 @@ def decision_observation_projection(
                     line["title"] = reference.title
                 if reference.description:
                     line["description"] = reference.description
+        if observation.resource_refs and reference_handles is not None:
+            resources = []
+            for recovered in observation.resource_refs:
+                handle = reference_handles.get(recovered.resource_id)
+                if handle is None:
+                    continue
+                resources.append(
+                    {
+                        "kind": recovered.kind,
+                        "reference": handle,
+                        **({"title": recovered.title} if recovered.title else {}),
+                        **(
+                            {"description": recovered.description}
+                            if recovered.description
+                            else {}
+                        ),
+                    }
+                )
+            if resources:
+                line.setdefault("facts", {})["resource_refs"] = resources
         projected.append(line)
     return tuple(projected)
 
@@ -1079,6 +1147,11 @@ class MainAgentContext(ContractModel):
                 observation.resource_ref
                 for observation in self.tool_observations
                 if observation.resource_ref is not None
+            ),
+            *(
+                reference
+                for observation in self.tool_observations
+                for reference in observation.resource_refs
             ),
         ):
             if reference.resource_id in seen:
@@ -1230,10 +1303,18 @@ class MainAgentContext(ContractModel):
         return {
             "career_profile": {
                 "default_city": self.profile.default_city,
-                # Role-scoped intent reaches the model through
-                # target_role_candidates, which carry it per track. Flattening
-                # it here would hand back the single blended profile this split
-                # exists to prevent.
+                **(
+                    {
+                        "current_targets": {
+                            "roles": [
+                                target.model_dump(mode="json", exclude_none=True)
+                                for target in self.profile.current_targets
+                            ],
+                        }
+                    }
+                    if self.profile.current_targets
+                    else {}
+                ),
                 "records": [
                     record.model_dump(mode="json")
                     for record in self.career_memory.records
@@ -1459,6 +1540,10 @@ class ReadConversationSpanToolArguments(ContractModel):
         if self.from_sequence > self.through_sequence:
             raise ValueError("from_sequence cannot exceed through_sequence")
         return self
+
+
+class ResolveClaimSourceToolArguments(ContractModel):
+    source_ref: str = Field(pattern=r"^evidence_[a-f0-9]{24}$")
 
 
 class FindSavedJobsToolArguments(ContractModel):

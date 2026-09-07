@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from career_agent.agent.main_agent_contracts import (
     MAX_CONVERSATION_SPAN_MESSAGES,
+    MAX_CONVERSATION_SPAN_RESOURCE_REFS,
     CareerProfileContext,
     ConversationMessageContext,
     ConversationSpanMessage,
@@ -545,10 +546,9 @@ class CareerContextStore:
         count. With a query, exact owned rows are ranked by term matches before
         the same output ceiling is applied.
 
-        Resource references deliberately do not cross this readback. The
-        archived-resource catalogue remains their retrieval path once a
-        summary exists; a character-clipped recent window may page text back
-        in, but must not silently become a second report-handle catalogue.
+        Resource references on returned rows cross with the text. This lets a
+        paged-in historical turn recover the same durable handles it originally
+        carried instead of returning prose that points to an unreachable report.
         """
         if from_sequence < 1 or through_sequence < from_sequence:
             raise ValueError("invalid conversation span")
@@ -624,8 +624,16 @@ class CareerContextStore:
             ]
             rows.sort(key=lambda row: row[0])
         messages = []
+        resource_refs = []
+        seen_resource_ids: set[str] = set()
         for row in rows:
             message = ConversationMessageContext.model_validate_json(row[1])
+            for reference in message.resource_refs:
+                if reference.resource_id in seen_resource_ids:
+                    continue
+                seen_resource_ids.add(reference.resource_id)
+                if len(resource_refs) < MAX_CONVERSATION_SPAN_RESOURCE_REFS:
+                    resource_refs.append(reference)
             messages.append(
                 ConversationSpanMessage(
                     sequence=row[0],
@@ -642,6 +650,8 @@ class CareerContextStore:
             through_sequence=through_sequence,
             returned=len(messages),
             total=total,
+            resource_ref_total=len(seen_resource_ids),
+            resource_refs=tuple(resource_refs),
             messages=tuple(messages),
         )
 

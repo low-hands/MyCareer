@@ -3,6 +3,7 @@ from career_agent.domain.career_history.models import (
     CareerEvidenceEvent,
     CareerHistoryContract,
     CareerRecord,
+    career_evidence_source_ref,
 )
 
 __all__ = [
@@ -10,4 +11,5 @@ __all__ = [
     "CareerEvidenceEvent",
     "CareerHistoryContract",
     "CareerRecord",
+    "career_evidence_source_ref",
 ]

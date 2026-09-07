@@ -13,6 +13,7 @@ from career_agent.domain.career_history import (
     CareerEvidence,
     CareerEvidenceEvent,
     CareerRecord,
+    career_evidence_source_ref,
 )
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
 from career_agent.storage.schema import apply_schema
@@ -35,7 +36,13 @@ class CareerHistoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
-            apply_schema(connection, "career_history", 2, self._migrate)
+            apply_schema(
+                connection,
+                "career_history",
+                3,
+                self._migrate,
+                upgrades={3: self._upgrade_to_v3},
+            )
         os.chmod(self.path, 0o600)
 
     def create_record(
@@ -138,8 +145,9 @@ class CareerHistoryStore:
         source_quote: str | None = None,
     ) -> CareerEvidence:
         now = datetime.now(timezone.utc)
+        evidence_id = f"career_evidence_{uuid4().hex}"
         evidence = CareerEvidence(
-            id=f"career_evidence_{uuid4().hex}",
+            id=evidence_id,
             user_id=user_id,
             career_record_id=career_record_id,
             claim=claim,
@@ -148,6 +156,12 @@ class CareerHistoryStore:
             source_resume_version_id=source_resume_version_id,
             source_locator=source_locator,
             source_quote=source_quote,
+            source_ref=career_evidence_source_ref(
+                user_id=user_id,
+                evidence_id=evidence_id,
+                source_resume_version_id=source_resume_version_id,
+                source_locator=source_locator,
+            ),
             created_at=now,
             updated_at=now,
         )
@@ -187,8 +201,8 @@ class CareerHistoryStore:
                 INSERT INTO career_evidence(
                     id, user_id, career_record_id, claim, origin,
                     verification_status, source_resume_version_id,
-                    source_locator, source_quote, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_locator, source_quote, source_ref, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     evidence.id,
@@ -200,6 +214,7 @@ class CareerHistoryStore:
                     evidence.source_resume_version_id,
                     evidence.source_locator,
                     evidence.source_quote,
+                    evidence.source_ref,
                     evidence.created_at.isoformat(),
                     evidence.updated_at.isoformat(),
                 ),
@@ -215,11 +230,28 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, career_record_id, claim, origin,
                        verification_status, source_resume_version_id,
-                       source_locator, source_quote, created_at, updated_at
+                       source_locator, source_quote, source_ref, created_at, updated_at
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
                 (career_evidence_id, user_id),
+            ).fetchone()
+        return self._evidence(row) if row else None
+
+    def get_evidence_by_source_ref(
+        self, *, user_id: str, source_ref: str
+    ) -> CareerEvidence | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, career_record_id, claim, origin,
+                       verification_status, source_resume_version_id,
+                       source_locator, source_quote, source_ref, created_at, updated_at
+                FROM career_evidence
+                WHERE user_id = ? AND source_ref = ?
+                  AND verification_status = 'confirmed'
+                """,
+                (user_id, source_ref),
             ).fetchone()
         return self._evidence(row) if row else None
 
@@ -234,7 +266,7 @@ class CareerHistoryStore:
         query = """
             SELECT id, user_id, career_record_id, claim, origin,
                    verification_status, source_resume_version_id,
-                   source_locator, source_quote, created_at, updated_at
+                   source_locator, source_quote, source_ref, created_at, updated_at
             FROM career_evidence
             WHERE user_id = ?
         """
@@ -397,8 +429,9 @@ class CareerHistoryStore:
                     if key in seen:
                         continue
                     seen.add(key)
+                    evidence_id = f"career_evidence_{uuid4().hex}"
                     evidence = CareerEvidence(
-                        id=f"career_evidence_{uuid4().hex}",
+                        id=evidence_id,
                         user_id=user_id,
                         career_record_id=record.id,
                         claim=claim,
@@ -407,6 +440,12 @@ class CareerHistoryStore:
                         source_resume_version_id=resume_version_id,
                         source_locator=locator,
                         source_quote=quote,
+                        source_ref=career_evidence_source_ref(
+                            user_id=user_id,
+                            evidence_id=evidence_id,
+                            source_resume_version_id=resume_version_id,
+                            source_locator=locator,
+                        ),
                         created_at=now,
                         updated_at=now,
                     )
@@ -415,8 +454,9 @@ class CareerHistoryStore:
                         INSERT INTO career_evidence(
                             id, user_id, career_record_id, claim, origin,
                             verification_status, source_resume_version_id,
-                            source_locator, source_quote, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            source_locator, source_quote, source_ref,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             evidence.id,
@@ -428,6 +468,7 @@ class CareerHistoryStore:
                             evidence.source_resume_version_id,
                             evidence.source_locator,
                             evidence.source_quote,
+                            evidence.source_ref,
                             evidence.created_at.isoformat(),
                             evidence.updated_at.isoformat(),
                         ),
@@ -496,7 +537,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, career_record_id, claim, origin,
                        verification_status, source_resume_version_id,
-                       source_locator, source_quote, created_at, updated_at
+                       source_locator, source_quote, source_ref, created_at, updated_at
                 FROM career_evidence
                 WHERE id = ? AND user_id = ?
                 """,
@@ -627,6 +668,7 @@ class CareerHistoryStore:
                 source_resume_version_id TEXT,
                 source_locator TEXT,
                 source_quote TEXT,
+                source_ref TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 CHECK (source_locator IS NULL OR source_resume_version_id IS NOT NULL),
@@ -693,6 +735,45 @@ class CareerHistoryStore:
             WHERE origin = 'resume_extraction' AND source_quote IS NULL
             """
         )
+        CareerHistoryStore._ensure_source_refs(connection)
+
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        CareerHistoryStore._ensure_source_refs(connection)
+
+    @staticmethod
+    def _ensure_source_refs(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+        if "source_ref" not in columns:
+            connection.execute("ALTER TABLE career_evidence ADD COLUMN source_ref TEXT")
+        rows = connection.execute(
+            """
+            SELECT id, user_id, source_resume_version_id, source_locator
+            FROM career_evidence
+            WHERE source_resume_version_id IS NOT NULL AND source_ref IS NULL
+            """
+        ).fetchall()
+        for evidence_id, user_id, resume_version_id, source_locator in rows:
+            connection.execute(
+                "UPDATE career_evidence SET source_ref = ? WHERE id = ?",
+                (
+                    career_evidence_source_ref(
+                        user_id=user_id,
+                        evidence_id=evidence_id,
+                        source_resume_version_id=resume_version_id,
+                        source_locator=source_locator,
+                    ),
+                    evidence_id,
+                ),
+            )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS career_evidence_source_ref_unique_idx
+            ON career_evidence(source_ref) WHERE source_ref IS NOT NULL
+            """
+        )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
@@ -728,8 +809,9 @@ class CareerHistoryStore:
             source_resume_version_id=row[6],
             source_locator=row[7],
             source_quote=row[8],
-            created_at=row[9],
-            updated_at=row[10],
+            source_ref=row[9],
+            created_at=row[10],
+            updated_at=row[11],
         )
 
     @staticmethod
@@ -776,7 +858,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, career_record_id, claim, origin,
                        verification_status, source_resume_version_id,
-                       source_locator, source_quote, created_at, updated_at
+                       source_locator, source_quote, source_ref, created_at, updated_at
                 FROM career_evidence WHERE id = ?
                 """,
                 (evidence_id,),

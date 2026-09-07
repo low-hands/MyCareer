@@ -18,7 +18,7 @@ from career_agent.agent.interview_preparation_presenter import (
 )
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.job_research_presenter import summarize_job_research
-from career_agent.agent.summary_text import condense
+from career_agent.agent.summary_text import clamp, condense
 from career_agent.agent.mock_interview_presenter import (
     render_mock_interview_turn,
     summarize_mock_interview_question,
@@ -37,6 +37,7 @@ from career_agent.agent.main_agent_contracts import (
     CompleteInterviewToolArguments,
     RecordInterviewRetroToolArguments,
     ReadConversationSpanToolArguments,
+    ResolveClaimSourceToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -93,6 +94,7 @@ from career_agent.agent.main_agent_contracts import (
     OwnerSettingsContext,
 )
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
+from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_effects import effect_for
 from career_agent.connectors.email_accounts import EmailCredentialError
@@ -237,6 +239,7 @@ class MainAgentToolRegistry:
         job_research_service: JobResearchService | None = None,
         owner_settings_store: CareerContextStore | None = None,
         conversation_store: CareerContextStore | None = None,
+        career_history_store: CareerHistoryStore | None = None,
         memory_scope_write_gate: MemoryScopeWriteGate | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
@@ -280,11 +283,16 @@ class MainAgentToolRegistry:
         self._job_research_service = job_research_service
         self._owner_settings_store = owner_settings_store
         self._conversation_store = conversation_store
+        self._career_history_store = career_history_store
         self._memory_scope_write_gate = memory_scope_write_gate
         self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
                 self._read_conversation_span
+            )
+        if career_history_store is not None:
+            self._atomic_handlers["resolve_claim_source"] = (
+                self._resolve_claim_source
             )
         if owner_settings_store is not None:
             self._atomic_handlers["update_owner_settings"] = self._update_owner_settings
@@ -602,6 +610,24 @@ class MainAgentToolRegistry:
                         ),
                         "parameters": (
                             ReadConversationSpanToolArguments.model_json_schema()
+                        ),
+                    },
+                }
+            )
+        if self._career_history_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "resolve_claim_source",
+                        "description": (
+                            "Read the original resume evidence for a confirmed "
+                            "career claim only when its projected source_ref is "
+                            "relevant to the user's request. The quotation is "
+                            "returned as a bounded turn-local result."
+                        ),
+                        "parameters": (
+                            ResolveClaimSourceToolArguments.model_json_schema()
                         ),
                     },
                 }
@@ -4173,6 +4199,73 @@ class MainAgentToolRegistry:
             execution_outcome="committed",
         )
 
+    def _resolve_claim_source(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = ResolveClaimSourceToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        evidence = self._career_history_store.get_evidence_by_source_ref(
+            user_id=user_id,
+            source_ref=model_arguments.source_ref,
+        )
+        if evidence is None:
+            return ToolObservation(
+                tool_name="resolve_claim_source",
+                state="claim_source_not_found",
+                message="没有找到这条已确认声明的来源证据。",
+                payload={"source_ref": model_arguments.source_ref},
+            )
+
+        resume_display_name = "已归档简历版本"
+        if (
+            self._resume_store is not None
+            and evidence.source_resume_version_id is not None
+        ):
+            source = self._resume_store.get_version(
+                user_id=user_id,
+                resume_version_id=evidence.source_resume_version_id,
+            )
+            if source is not None:
+                resume, version = source
+                resume_display_name = condense(
+                    f"{resume.name} · 第 {version.version_number} 版",
+                    limit=80,
+                )
+
+        source_quote = evidence.source_quote or ""
+        heading = "原始证据引文：\n\n"
+        body_clipped = (
+            len(heading) + len(source_quote) > DECISION_OBSERVATION_BODY_LIMIT
+        )
+        if body_clipped:
+            source_quote = clamp(
+                source_quote,
+                limit=DECISION_OBSERVATION_BODY_LIMIT - len(heading),
+            )
+        return ToolObservation(
+            tool_name="resolve_claim_source",
+            state="claim_source_found",
+            message="已读取这条声明对应的原始来源证据。",
+            facts={
+                "origin": evidence.origin,
+                "recorded_at": evidence.created_at.isoformat(),
+                "source_locator": condense(
+                    evidence.source_locator or "未提供", limit=80
+                ),
+                "resume_version": resume_display_name,
+                "body_clipped": body_clipped,
+            },
+            payload={
+                "source_ref": model_arguments.source_ref,
+                "source_quote": source_quote,
+                "body_clipped": body_clipped,
+            },
+        )
+
     def _read_conversation_span(
         self, arguments: dict[str, Any]
     ) -> ToolObservation:
@@ -4215,8 +4308,11 @@ class MainAgentToolRegistry:
                 "total": span.total,
                 "body_clipped": body_clipped,
                 "content_clipped": content_clipped,
+                "resource_ref_count": len(span.resource_refs),
+                "resource_ref_total": span.resource_ref_total,
             },
             "payload": span.model_dump(mode="json"),
+            "resource_refs": span.resource_refs,
         }
         if span.returned:
             return ToolObservation(state="conversation_span_found", **values)

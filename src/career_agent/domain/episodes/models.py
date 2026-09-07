@@ -32,7 +32,13 @@ class EpisodeResourceRef(EpisodeContract):
 
 
 class CareerEpisodeDraft(EpisodeContract):
-    """Deterministic write request. Code decides identity; text is retrieval-only."""
+    """Deterministic write request with a non-authoritative retrieval synopsis.
+
+    ``summary`` may locate a relevant past task, but it cannot authorize a
+    factual claim: consumers must dereference ``resource_refs`` and use the
+    provenance-bearing L2 claim. This is also why source revocation must purge
+    derived episode text rather than leaving the synopsis behind.
+    """
 
     user_id: str = Field(min_length=1)
     kind: EpisodeKind
