@@ -7,7 +7,11 @@ from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerRecord,
     ResumeAnalysisResult,
 )
-from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.career_history import (
+    CareerEvidenceInvariantError,
+    CareerHistoryStore,
+)
+from career_agent.storage.intent_versions import intent_content_digest
 from career_agent.storage.resumes import ResumeStore
 
 
@@ -210,6 +214,11 @@ def test_confirm_is_atomic_audited_and_idempotent(tmp_path) -> None:
     )
 
     assert confirmed.verification_status == "confirmed"
+    assert confirmed.scope_key == f"career_evidence/{confirmed.id}/claim"
+    assert confirmed.update_id is not None
+    assert confirmed.content_digest == intent_content_digest(confirmed.claim)
+    assert confirmed.revision == 1
+    assert confirmed.valid_from == confirmed.updated_at
     assert repeated == confirmed
     events = store.list_evidence_events(
         user_id="u1", career_evidence_id=evidence.id
@@ -326,3 +335,379 @@ def test_confirmed_resume_analysis_import_is_atomic_audited_and_idempotent(tmp_p
                 user_id="u1", career_evidence_id=evidence.id
             )
         ] == ["created", "confirmed"]
+
+
+def test_correction_writes_bidirectional_lineage_snapshot_and_events(
+    tmp_path,
+) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Built a retrieval pipeline.",
+            origin="user_input",
+        ).id,
+    )
+
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Led the retrieval evaluation pipeline.",
+        reason="User corrected ownership and scope.",
+    )
+
+    assert correction.previous.superseded_by == correction.current.id
+    assert correction.previous.superseded_at == correction.current.valid_from
+    assert correction.current.supersedes_id == original.id
+    assert correction.current.scope_key == original.scope_key
+    assert correction.current.update_id != original.update_id
+    assert correction.current.content_digest == intent_content_digest(
+        correction.current.claim
+    )
+    assert correction.current.revision == 2
+    assert correction.current.mutation_id == correction.snapshot.id
+    assert correction.snapshot.preimage.active_evidence_id == original.id
+    assert correction.snapshot.preimage.active_revision == 1
+    assert store.list_evidence_mutations(
+        user_id="u1", scope_key=original.scope_key
+    ) == (correction.snapshot,)
+    assert store.get_current_evidence(
+        user_id="u1", scope_key=original.scope_key
+    ) == correction.current
+    assert store.list_evidence(
+        user_id="u1", verification_status="confirmed"
+    ) == (correction.current,)
+    assert store.list_evidence(
+        user_id="u1",
+        verification_status="confirmed",
+        include_historical=True,
+    ) == (correction.previous, correction.current)
+    assert [
+        event.event_type
+        for event in store.list_evidence_events(
+            user_id="u1", career_evidence_id=original.id
+        )
+    ] == ["created", "confirmed", "superseded"]
+    assert [
+        event.event_type
+        for event in store.list_evidence_events(
+            user_id="u1", career_evidence_id=correction.current.id
+        )
+    ] == ["corrected"]
+    assert store.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_correction_admission_requires_current_confirmed_source_and_change(
+    tmp_path,
+) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    pending = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Built a retrieval pipeline.",
+        origin="user_input",
+    )
+    with pytest.raises(ValueError, match="current confirmed"):
+        store.correct_evidence(
+            user_id="u1",
+            career_evidence_id=pending.id,
+            new_claim="Led a retrieval pipeline.",
+            reason="Correction",
+        )
+    confirmed = store.confirm_evidence(
+        user_id="u1", career_evidence_id=pending.id
+    )
+    with pytest.raises(ValueError, match="unchanged"):
+        store.correct_evidence(
+            user_id="u1",
+            career_evidence_id=confirmed.id,
+            new_claim="Built\u3000a retrieval pipeline.",
+            reason="Whitespace only",
+        )
+    with pytest.raises(ValueError, match="new claim and reason"):
+        store.correct_evidence(
+            user_id="u1",
+            career_evidence_id=confirmed.id,
+            new_claim="Led a retrieval pipeline.",
+            reason=" ",
+        )
+
+
+def test_snapshot_rollback_restores_preimage_and_preserves_history(
+    tmp_path,
+) -> None:
+    store, _, _ = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Built version one.",
+            origin="user_input",
+        ).id,
+    )
+    second = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Built version two.",
+        reason="First correction",
+    )
+    third = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=second.current.id,
+        new_claim="Built version three.",
+        reason="Second correction",
+    )
+
+    rolled_back = store.rollback_evidence_correction(
+        user_id="u1",
+        mutation_id=third.snapshot.id,
+        reason="Detector requested compensation.",
+    )
+    repeated = store.rollback_evidence_correction(
+        user_id="u1",
+        mutation_id=third.snapshot.id,
+        reason="Replay",
+    )
+
+    assert rolled_back.status == "rolled_back"
+    assert repeated == rolled_back
+    assert store.get_current_evidence(
+        user_id="u1", scope_key=original.scope_key
+    ).id == second.current.id
+    history = store.list_evidence(
+        user_id="u1",
+        verification_status="confirmed",
+        include_historical=True,
+    )
+    assert [item.revision for item in history] == [1, 2, 3]
+    assert history[2].rolled_back_at is not None
+    assert store.detect_evidence_invariant_violations(user_id="u1").valid
+
+    fourth = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=second.current.id,
+        new_claim="Built version four after rollback.",
+        reason="Replacement correction",
+    )
+    assert fourth.current.revision == 4
+    assert store.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_detector_finds_corrupt_pointer_and_snapshot_rollback_repairs_it(
+    tmp_path,
+) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Original claim.",
+            origin="user_input",
+        ).id,
+    )
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Corrected claim.",
+        reason="User correction",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE career_evidence
+            SET superseded_at = datetime('now'), superseded_by = 'missing-evidence'
+            WHERE id = ?
+            """,
+            (correction.current.id,),
+        )
+
+    report = store.detect_evidence_invariant_violations(user_id="u1")
+
+    assert not report.valid
+    assert {"pointer_target_missing", "active_count"} <= {
+        item.code for item in report.violations
+    }
+    store.rollback_evidence_correction(
+        user_id="u1",
+        mutation_id=correction.snapshot.id,
+        reason="Repair corrupt active mapping.",
+    )
+    assert store.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_detector_finds_missing_lineage_event(tmp_path) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Original claim.",
+            origin="user_input",
+        ).id,
+    )
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Corrected claim.",
+        reason="User correction",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            DELETE FROM career_evidence_events
+            WHERE event_type = 'superseded' AND mutation_id = ?
+            """,
+            (correction.snapshot.id,),
+        )
+
+    report = store.detect_evidence_invariant_violations(user_id="u1")
+
+    assert "event_replay" in {item.code for item in report.violations}
+    with pytest.raises(CareerEvidenceInvariantError) as error:
+        CareerHistoryStore(path)
+    assert "event_replay" in {
+        item.code for item in error.value.report.violations
+    }
+
+    maintenance = CareerHistoryStore(path, validate_invariants=False)
+    maintenance.rollback_evidence_correction(
+        user_id="u1",
+        mutation_id=correction.snapshot.id,
+        reason="Startup detector requested compensation.",
+    )
+    assert CareerHistoryStore(path).detect_evidence_invariant_violations().valid
+
+
+def test_v4_migration_backfills_only_confirmed_evidence_versions(
+    tmp_path,
+) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    pending = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Pending claim.",
+        origin="user_input",
+    )
+    confirmed = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Confirmed claim.",
+            origin="user_input",
+        ).id,
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP INDEX career_evidence_active_scope_idx")
+        connection.execute("DROP INDEX career_evidence_scope_revision_idx")
+        connection.execute(
+            """
+            UPDATE career_evidence
+            SET scope_key = NULL, update_id = NULL, content_digest = NULL,
+                revision = NULL, valid_from = NULL
+            WHERE id = ?
+            """,
+            (confirmed.id,),
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 3 "
+            "WHERE component = 'career_history'"
+        )
+
+    migrated = CareerHistoryStore(path)
+    migrated_confirmed = migrated.get_evidence(
+        user_id="u1", career_evidence_id=confirmed.id
+    )
+    migrated_pending = migrated.get_evidence(
+        user_id="u1", career_evidence_id=pending.id
+    )
+
+    assert migrated_confirmed.revision == 1
+    assert migrated_confirmed.scope_key == (
+        f"career_evidence/{confirmed.id}/claim"
+    )
+    assert migrated_confirmed.valid_from is not None
+    assert migrated_pending.revision is None
+    assert migrated_pending.scope_key is None
+    assert migrated.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_v4_migration_rebuilds_the_event_log_for_lineage_events(
+    tmp_path,
+) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    evidence = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Confirmed claim.",
+            origin="user_input",
+        ).id,
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA foreign_keys=OFF")
+        connection.execute("DROP INDEX career_evidence_events_evidence_idx")
+        connection.execute(
+            "ALTER TABLE career_evidence_events "
+            "RENAME TO career_evidence_events_v4"
+        )
+        connection.execute(
+            """
+            CREATE TABLE career_evidence_events (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
+                event_type TEXT NOT NULL CHECK (
+                    event_type IN ('created', 'confirmed', 'rejected')
+                ),
+                previous_status TEXT,
+                new_status TEXT NOT NULL,
+                actor_type TEXT NOT NULL,
+                reason TEXT,
+                occurred_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO career_evidence_events
+            SELECT id, user_id, career_evidence_id, event_type,
+                   previous_status, new_status, actor_type, reason, occurred_at
+            FROM career_evidence_events_v4
+            """
+        )
+        connection.execute("DROP TABLE career_evidence_events_v4")
+        connection.execute(
+            """
+            CREATE INDEX career_evidence_events_evidence_idx
+            ON career_evidence_events(career_evidence_id, occurred_at)
+            """
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 3 "
+            "WHERE component = 'career_history'"
+        )
+
+    migrated = CareerHistoryStore(path)
+    correction = migrated.correct_evidence(
+        user_id="u1",
+        career_evidence_id=evidence.id,
+        new_claim="Corrected claim.",
+        reason="Migration accepted lineage event",
+    )
+
+    assert correction.current.revision == 2
+    assert migrated.detect_evidence_invariant_violations(user_id="u1").valid

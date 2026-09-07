@@ -4,6 +4,7 @@ from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.main_agent_contracts import (
     CareerProfileContext,
     MainAgentContext,
+    ToolObservation,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -28,6 +29,21 @@ def _confirmed_highlight(
         user_id=user_id,
         career_evidence_id=evidence.id,
     )
+
+
+def test_historical_source_presenter_never_renders_a_missing_timestamp() -> None:
+    result = ToolObservation(
+        tool_name="resolve_claim_source",
+        state="claim_source_found",
+        message="历史证据。",
+        facts={"claim_status": "superseded"},
+        payload={"source_quote": "Historical quote"},
+    )
+
+    rendered = MainAgentRuntime._assistant_message(result)
+
+    assert "状态变更时间：未记录" in rendered
+    assert "None" not in rendered
 
 
 def test_projector_injects_only_bounded_confirmed_career_memory(tmp_path) -> None:
@@ -122,6 +138,39 @@ def test_main_agent_model_context_contains_compact_provenance_without_quotes(
     assert "user_id" not in str(projected)
 
 
+def test_projector_exposes_only_the_current_evidence_revision(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    record = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Retrieval Evaluation",
+    )
+    original = _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Assisted with retrieval evaluation",
+    )
+    corrected = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Led retrieval evaluation",
+        reason="User corrected ownership",
+    )
+
+    memory = CareerContextProjector(store).project(
+        user_id="u1", query="retrieval evaluation"
+    )
+    claims = [
+        item.claim
+        for projected_record in memory.records
+        for item in projected_record.confirmed_highlights
+    ]
+
+    assert claims == [corrected.current.claim]
+    assert original.claim not in memory.model_dump_json()
+
+
 def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
     tmp_path,
 ) -> None:
@@ -193,6 +242,8 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
     assert evidence.source_quote not in str(observation.facts)
     assert observation.facts["source_locator"] == evidence.source_locator
     assert observation.facts["resume_version"] == "Primary · 第 1 版"
+    assert observation.facts["claim_status"] == "current"
+    assert "status_changed_at" not in observation.facts
     turn_observation = MainAgentRuntime._tool_observation(
         "resolve_claim_source",
         observation,
@@ -200,6 +251,34 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
     assert evidence.source_quote in (turn_observation.body or "")
     assert evidence.source_quote not in str(turn_observation.facts)
     assert missing.state == "claim_source_not_found"
+
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=confirmed.id,
+        new_claim="Contributed to retrieval evaluation",
+        reason="User corrected the level of ownership",
+    )
+    historical = tools.invoke_atomic_tool(
+        "resolve_claim_source",
+        {"user_id": "u1", "source_ref": highlight.source_ref},
+    )
+    historical_turn = MainAgentRuntime._tool_observation(
+        "resolve_claim_source",
+        historical,
+    )
+
+    assert historical.state == "claim_source_found"
+    assert historical.facts["claim_status"] == "superseded"
+    assert historical.facts["status_changed_at"] == (
+        correction.previous.superseded_at.isoformat()
+    )
+    assert "不能作为当前声明的支持" in historical.message
+    assert "已被更正声明的历史引文" in (historical_turn.body or "")
+    assert evidence.source_quote in (historical_turn.body or "")
+    corrected_memory = projector.project(user_id="u1", query="retrieval")
+    corrected_highlight = corrected_memory.records[0].confirmed_highlights[0]
+    assert corrected_highlight.claim == correction.current.claim
+    assert corrected_highlight.source_ref is None
 
     long_evidence = store.create_evidence(
         user_id="u1",

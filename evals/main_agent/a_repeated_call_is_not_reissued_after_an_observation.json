@@ -2,39 +2,39 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "0aabecd6a776665d911bfec14bbe48a3e8464fe1b310cd87d8bde5c8d4e87136",
+  "prompt_fingerprint": "781fc39b6cbee6e3d094f1b4226d9caafab50dd98a960acbd21c27c1b398b927",
   "context_shape_fingerprint": "a62634f05e4843ea65953d12d367d7333d6cab2b0d674ef5e4dc544c66d0f483",
-  "recorded_at": "2026-09-06T15:17:50.236142+00:00",
+  "recorded_at": "2026-09-07T03:32:15.868242+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "保存的岗位",
+          "query": "我保存的岗位",
           "limit": 20
         }
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. 示例科技｜算法工程师\\n   - 城市：上海\\n   - 薪资：30–50K\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师｜示例科技**\\n   - 城市：上海\\n   - 薪资：30–50K\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:17:50.236142+00:00",
+      "recorded_at": "2026-09-07T03:32:15.868242+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
             "arguments": {
-              "query": "保存的岗位",
+              "query": "我保存的岗位",
               "limit": 20
             }
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. 示例科技｜算法工程师\\n   - 城市：上海\\n   - 薪资：30–50K\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：\\n\\n1. **算法工程师｜示例科技**\\n   - 城市：上海\\n   - 薪资：30–50K\"}"
         }
       ]
     }

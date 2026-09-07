@@ -41,6 +41,13 @@ class CurrentTargetContext(ContractModel):
     education: str | None = Field(default=None, min_length=1, max_length=100)
 
 
+class HardConstraintContext(ContractModel):
+    """One confirmed person-level job constraint from a closed relation set."""
+
+    relation: Literal["work_arrangement", "work_schedule"]
+    value: str = Field(min_length=1, max_length=500)
+
+
 class CareerProfileContext(ContractModel):
     """Person-level job intent only.
 
@@ -54,11 +61,22 @@ class CareerProfileContext(ContractModel):
 
     user_id: str
     default_city: str | None = None
+    hard_constraints: tuple[HardConstraintContext, ...] = Field(
+        default=(),
+        max_length=8,
+    )
     current_targets: tuple[CurrentTargetContext, ...] = Field(
         default=(),
         exclude=True,
     )
     """Read-time projection from TargetRole; never duplicated in profile storage."""
+
+    @model_validator(mode="after")
+    def hard_constraint_relations_are_unique(self) -> "CareerProfileContext":
+        relations = [item.relation for item in self.hard_constraints]
+        if len(relations) != len(set(relations)):
+            raise ValueError("hard constraint relations must be unique")
+        return self
 
 
 class JobIntentUpdate(ContractModel):
@@ -81,10 +99,19 @@ class JobIntentUpdate(ContractModel):
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
+    hard_constraints: tuple[HardConstraintContext, ...] = Field(
+        default=(),
+        max_length=8,
+    )
 
     @model_validator(mode="after")
     def scope_must_match_the_fields(self) -> "JobIntentUpdate":
         role_scoped = (self.salary_expectation, self.experience, self.education)
+        if self.target_role_id is not None and self.hard_constraints:
+            raise ValueError("hard constraints belong to the person, not a target role")
+        relations = [item.relation for item in self.hard_constraints]
+        if len(relations) != len(set(relations)):
+            raise ValueError("hard constraint relations must be unique")
         if self.target_role_id is None and any(
             value is not None for value in role_scoped
         ):
@@ -94,7 +121,7 @@ class JobIntentUpdate(ContractModel):
             )
         if not any(
             value is not None for value in (self.city, *role_scoped)
-        ):
+        ) and not self.hard_constraints:
             raise ValueError("a job intent update must change at least one field")
         return self
 
@@ -103,9 +130,26 @@ class JobIntentUpdate(ContractModel):
         return self.target_role_id is not None
 
     def apply_to_profile(self, profile: CareerProfileContext) -> CareerProfileContext:
-        if self.is_role_scoped or self.city is None:
+        if self.is_role_scoped:
             return profile
-        return profile.model_copy(update={"default_city": self.city})
+        constraints = {
+            constraint.relation: constraint
+            for constraint in profile.hard_constraints
+        }
+        constraints.update(
+            {
+                constraint.relation: constraint
+                for constraint in self.hard_constraints
+            }
+        )
+        changes: dict[str, Any] = {
+            "hard_constraints": tuple(
+                constraints[relation] for relation in sorted(constraints)
+            )
+        }
+        if self.city is not None:
+            changes["default_city"] = self.city
+        return profile.model_copy(update=changes)
 
 
 RuleVerdict = Literal["permit", "review", "deny"]
@@ -1305,6 +1349,16 @@ class MainAgentContext(ContractModel):
                 "default_city": self.profile.default_city,
                 **(
                     {
+                        "hard_constraints": [
+                            constraint.model_dump(mode="json")
+                            for constraint in self.profile.hard_constraints
+                        ]
+                    }
+                    if self.profile.hard_constraints
+                    else {}
+                ),
+                **(
+                    {
                         "current_targets": {
                             "roles": [
                                 target.model_dump(mode="json", exclude_none=True)
@@ -1630,6 +1684,10 @@ class ProposeJobIntentToolArguments(ContractModel):
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
+    hard_constraints: tuple[HardConstraintContext, ...] = Field(
+        default=(),
+        max_length=8,
+    )
 
 
 class ConfirmJobIntentToolArguments(ContractModel):

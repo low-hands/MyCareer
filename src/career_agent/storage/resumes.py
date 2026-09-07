@@ -10,7 +10,13 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
+from career_agent.domain.intent_memory import IntentMemoryVersion
 from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
+from career_agent.storage.intent_versions import (
+    append_intent_version,
+    apply_intent_version_schema,
+    list_intent_versions,
+)
 from career_agent.storage.schema import apply_schema
 
 
@@ -31,9 +37,12 @@ class ResumeStore:
             apply_schema(
                 connection,
                 "resumes",
-                4,
+                5,
                 self._migrate,
-                upgrades={4: self._add_target_role_intent_columns},
+                upgrades={
+                    4: self._add_target_role_intent_columns,
+                    5: self._backfill_target_role_intent_versions,
+                },
             )
         os.chmod(self.path, 0o600)
 
@@ -65,15 +74,13 @@ class ResumeStore:
         salary_expectation: str | None = None,
         experience: str | None = None,
         education: str | None = None,
+        source: str = "target_role_intent_update",
     ) -> TargetRole:
         """Overwrite only the intent fields that were given.
 
         A user naming a salary this turn has not withdrawn the city they named
         last week, so None means "leave alone" rather than "clear".
         """
-        role = self.get_target_role(user_id=user_id, target_role_id=target_role_id)
-        if role is None:
-            raise ValueError("target role not found or does not belong to the user")
         changes = {
             key: value
             for key, value in (
@@ -84,18 +91,55 @@ class ResumeStore:
             )
             if value is not None
         }
-        if not changes:
-            return role
-        updated = role.model_copy(
-            update={**changes, "updated_at": datetime.now(timezone.utc)}
-        )
-        assignments = ", ".join(f"{key} = ?" for key in changes)
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT id, user_id, title, priority, status, city,
+                       salary_expectation, experience, education,
+                       created_at, updated_at
+                FROM target_roles
+                WHERE id = ? AND user_id = ?
+                """,
+                (target_role_id, user_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError(
+                    "target role not found or does not belong to the user"
+                )
+            role = self._role(row)
+            if not changes:
+                return role
+            updated = role.model_copy(
+                update={**changes, "updated_at": datetime.now(timezone.utc)}
+            )
+            assignments = ", ".join(f"{key} = ?" for key in changes)
             connection.execute(
                 f"UPDATE target_roles SET {assignments}, updated_at = ? WHERE id = ? AND user_id = ?",
                 (*changes.values(), updated.updated_at.isoformat(), target_role_id, user_id),
             )
+            for relation, value in changes.items():
+                append_intent_version(
+                    connection,
+                    user_id=user_id,
+                    scope_key=(
+                        f"target_role_intent/{target_role_id}/{relation}"
+                    ),
+                    value=value,
+                    source=source,
+                    valid_from=updated.updated_at,
+                )
         return updated
+
+    def list_target_role_intent_versions(
+        self, *, user_id: str, scope_key: str | None = None
+    ) -> tuple[IntentMemoryVersion, ...]:
+        with self._connect() as connection:
+            return list_intent_versions(
+                connection,
+                user_id=user_id,
+                scope_key=scope_key,
+            )
 
     def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:
         if bool(name) == bool(resume_id):
@@ -376,6 +420,44 @@ class ResumeStore:
                     f"ALTER TABLE target_roles ADD COLUMN {column} TEXT"
                 )
 
+    @staticmethod
+    def _backfill_target_role_intent_versions(
+        connection: sqlite3.Connection,
+    ) -> None:
+        backfilled_at = datetime.now(timezone.utc)
+        rows = connection.execute(
+            """
+            SELECT id, user_id, city, salary_expectation, experience,
+                   education
+            FROM target_roles
+            """
+        ).fetchall()
+        for (
+            target_role_id,
+            user_id,
+            city,
+            salary_expectation,
+            experience,
+            education,
+        ) in rows:
+            for relation, value in (
+                ("city", city),
+                ("salary_expectation", salary_expectation),
+                ("experience", experience),
+                ("education", education),
+            ):
+                if value is not None:
+                    append_intent_version(
+                        connection,
+                        user_id=user_id,
+                        scope_key=(
+                            f"target_role_intent/{target_role_id}/{relation}"
+                        ),
+                        value=value,
+                        source="migration:target_roles",
+                        valid_from=backfilled_at,
+                    )
+
     def _migrate(self, connection: sqlite3.Connection) -> None:
         has_resumes = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resumes'").fetchone() is not None
         if not has_resumes:
@@ -383,6 +465,12 @@ class ResumeStore:
             connection.execute("CREATE TABLE resume_versions (id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id), version_number INTEGER NOT NULL, source_type TEXT NOT NULL, document_format TEXT NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(resume_id, version_number))")
             connection.execute("CREATE TABLE resume_version_documents (resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id), content BLOB NOT NULL)")
         connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, city TEXT, salary_expectation TEXT, experience TEXT, education TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
+        self._add_target_role_intent_columns(connection)
+        apply_intent_version_schema(connection)
+        # Intentional cumulative-baseline exception: pre-registry databases do
+        # not replay numbered upgrades. This backfill is safe on every open
+        # because append_intent_version no-ops on the active value's digest.
+        self._backfill_target_role_intent_versions(connection)
         columns = {row[1] for row in connection.execute("PRAGMA table_info(resumes)").fetchall()}
         if "target_role_id" not in columns:
             connection.execute("ALTER TABLE resumes ADD COLUMN target_role_id TEXT")

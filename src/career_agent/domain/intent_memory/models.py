@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class IntentMemoryVersion(BaseModel):
+    """One immutable value in a canonical mutable-intent history."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    update_id: str = Field(pattern=r"^intent_update_[a-f0-9]{32}$")
+    user_id: str = Field(min_length=1)
+    scope_key: str = Field(
+        pattern=r"^[a-z_]+/[A-Za-z0-9_.:-]+/[a-z][a-z0-9_]*$"
+    )
+    value: str = Field(min_length=1, max_length=2000)
+    content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    revision: int = Field(ge=1)
+    valid_from: datetime
+    superseded_at: datetime | None = None
+    superseded_by: str | None = Field(
+        default=None,
+        pattern=r"^intent_update_[a-f0-9]{32}$",
+    )
+    source: str = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def supersession_fields_move_together(self) -> "IntentMemoryVersion":
+        if (self.superseded_at is None) != (self.superseded_by is None):
+            raise ValueError(
+                "superseded_at and superseded_by must either both be set or both be null"
+            )
+        return self

@@ -670,7 +670,11 @@ class MainAgentToolRegistry:
                                 "tracks wants different numbers for each. A city sent "
                                 "without a selection index is the person's default; "
                                 "sent with one it overrides that default for that role "
-                                "alone. This tool records intent only: skill and "
+                                "alone. Person-level hard constraints may use only "
+                                "the declared work_arrangement or work_schedule "
+                                "relations and must preserve the user's own wording "
+                                "(for example, 必须远程 or 不接受996); never infer one. "
+                                "This tool records intent only: skill and "
                                 "experience claims come from the resume, never from "
                                 "being told."
                             ),
@@ -3493,6 +3497,7 @@ class MainAgentToolRegistry:
                 salary_expectation=update.salary_expectation,
                 experience=update.experience,
                 education=update.education,
+                source="confirmed_job_intent",
             )
             MemoryScopeWriteGate.record_committed(
                 admitted_scopes, proposals=admitted_proposals
@@ -3510,7 +3515,10 @@ class MainAgentToolRegistry:
             CareerProfileContext(user_id=user_id)
         )
         updated = update.apply_to_profile(stored)
-        self._career_profile_store.upsert_profile(updated)
+        self._career_profile_store.upsert_profile(
+            updated,
+            source="confirmed_job_intent",
+        )
         MemoryScopeWriteGate.record_committed(
             admitted_scopes, proposals=admitted_proposals
         )
@@ -3533,6 +3541,7 @@ class MainAgentToolRegistry:
     ]:
         values = update.model_dump(exclude_none=True)
         values.pop("target_role_id", None)
+        constraints = values.pop("hard_constraints", ())
         family = "target_role_intent" if update.is_role_scoped else "person_intent"
         subject_id = str(update.target_role_id) if update.is_role_scoped else "self"
         admitted: list[tuple[CanonicalScope, str]] = []
@@ -3564,6 +3573,30 @@ class MainAgentToolRegistry:
                     )
                 scope = resolution.canonical_scope
             admitted.append((scope, str(value)))
+        for constraint in constraints:
+            relation = str(constraint["relation"])
+            value = str(constraint["value"])
+            proposal = ScopeProposal(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                family="person_intent",
+                subject_id="self",
+                relation=relation,
+                proposed_value=value,
+                source_kind="job_intent",
+                source_id=f"self:{relation}",
+            )
+            proposals.append(proposal)
+            if self._memory_scope_write_gate is not None:
+                scope = self._memory_scope_write_gate.require(proposal)
+            else:
+                resolution = self._canonical_scope_resolver.resolve(proposal)
+                if resolution.canonical_scope is None:
+                    raise ValueError(
+                        "Job intent cannot be written without a canonical scope."
+                    )
+                scope = resolution.canonical_scope
+            admitted.append((scope, value))
         return tuple(admitted), tuple(proposals)
 
     _JOB_INTENT_LABELS = {
@@ -3571,6 +3604,10 @@ class MainAgentToolRegistry:
         "salary_expectation": "薪资期望",
         "experience": "经验",
         "education": "学历",
+    }
+    _HARD_CONSTRAINT_LABELS = {
+        "work_arrangement": "办公方式硬约束",
+        "work_schedule": "工作时间硬约束",
     }
 
     @classmethod
@@ -3583,10 +3620,15 @@ class MainAgentToolRegistry:
     ) -> str:
         fields = update.model_dump(exclude_none=True)
         fields.pop("target_role_id", None)
+        constraints = fields.pop("hard_constraints", ())
         lines = [
             f"- {cls._JOB_INTENT_LABELS[field]}：{value}"
             for field, value in fields.items()
         ]
+        lines.extend(
+            f"- {cls._HARD_CONSTRAINT_LABELS[item['relation']]}：{item['value']}"
+            for item in constraints
+        )
         body = "\n".join(lines)
         where = f"目标岗位「{scope}」" if scope else "整体求职意向"
         if saved:
@@ -4246,10 +4288,24 @@ class MainAgentToolRegistry:
                 source_quote,
                 limit=DECISION_OBSERVATION_BODY_LIMIT - len(heading),
             )
+        claim_status = (
+            "rolled_back"
+            if evidence.rolled_back_at is not None
+            else "current"
+            if evidence.is_current
+            else "superseded"
+        )
+        status_changed_at = evidence.rolled_back_at or evidence.superseded_at
         return ToolObservation(
             tool_name="resolve_claim_source",
             state="claim_source_found",
-            message="已读取这条声明对应的原始来源证据。",
+            message=(
+                "已读取历史来源证据；它对应的声明已经回滚，不能作为当前声明的支持。"
+                if claim_status == "rolled_back"
+                else "已读取历史来源证据；它对应的声明已经被更正，不能作为当前声明的支持。"
+                if claim_status == "superseded"
+                else "已读取这条声明对应的原始来源证据。"
+            ),
             facts={
                 "origin": evidence.origin,
                 "recorded_at": evidence.created_at.isoformat(),
@@ -4257,6 +4313,12 @@ class MainAgentToolRegistry:
                     evidence.source_locator or "未提供", limit=80
                 ),
                 "resume_version": resume_display_name,
+                "claim_status": claim_status,
+                **(
+                    {"status_changed_at": status_changed_at.isoformat()}
+                    if status_changed_at is not None
+                    else {}
+                ),
                 "body_clipped": body_clipped,
             },
             payload={

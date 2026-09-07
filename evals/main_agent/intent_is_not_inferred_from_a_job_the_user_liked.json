@@ -2,21 +2,27 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "cfc1d103617eaebc9b9ceba40983cfc0d0ff2d3a34b0e652556acea904c44cc3",
-  "recorded_at": "2026-09-06T15:14:16.304902+00:00",
+  "recorded_at": "2026-09-07T03:29:39.886814+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位是上海的算法工程师，薪资 30–50K。你希望我下一步帮你做哪一项：匹配简历、研究公司，还是定制简历？\"}"
+      "tool_call": {
+        "name": "get_saved_job",
+        "arguments": {}
+      }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:14:16.304902+00:00",
+      "recorded_at": "2026-09-07T03:29:39.886814+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位是上海的算法工程师，薪资 30–50K。你希望我下一步帮你做哪一项：匹配简历、研究公司，还是定制简历？\"}"
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {}
+          }
         }
       ]
     }

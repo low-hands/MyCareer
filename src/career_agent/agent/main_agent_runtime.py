@@ -2953,6 +2953,19 @@ class MainAgentRuntime:
         if result.state == "claim_source_found":
             source_quote = result.payload.get("source_quote")
             if isinstance(source_quote, str) and source_quote:
+                claim_status = result.facts.get("claim_status")
+                if claim_status in {"superseded", "rolled_back"}:
+                    changed_at = result.facts.get("status_changed_at")
+                    status_label = (
+                        "已回滚声明"
+                        if claim_status == "rolled_back"
+                        else "已被更正声明"
+                    )
+                    return (
+                        f"注意：这是{status_label}的历史引文，不能作为当前声明的"
+                        f"支持（状态变更时间：{changed_at or '未记录'}）。\n\n"
+                        f"原始证据引文：\n\n{source_quote}"
+                    )
                 return f"原始证据引文：\n\n{source_quote}"
         if result.state in MainAgentRuntime._MOCK_INTERVIEW_GRAPH_STATES:
             # The workflow's own presenter handles every state a run can be

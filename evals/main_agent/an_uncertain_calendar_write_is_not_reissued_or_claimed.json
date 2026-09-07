@@ -2,21 +2,26 @@
   "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
   "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "f38ab2598f53072e7d1a0c5d4ab358f38c90da67c656ab6da7caf0895ccc9a59",
-  "recorded_at": "2026-09-06T15:17:38.018250+00:00",
+  "recorded_at": "2026-09-07T03:35:47.451418+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_calendar_links",
-        "arguments": {}
-      }
+      "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，因此我没有重复执行，避免造成重复日程。请先核对外部日历状态；确认后我可以生成新的变更预览，供你再次审批。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:17:40.414517+00:00",
+      "recorded_at": "2026-09-07T03:33:18.771201+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，因此我没有重复执行，避免造成重复日程。请先核对外部日历状态；确认后我可以生成新的变更预览，供你再次审批。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-07T03:35:53.010582+00:00",
       "steps": [
         {
           "tool_call": {
@@ -27,18 +32,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-06T15:18:27.884231+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "list_calendar_links",
-            "arguments": {}
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-06T15:17:38.018250+00:00",
+      "recorded_at": "2026-09-07T03:35:47.451418+00:00",
       "steps": [
         {
           "tool_call": {

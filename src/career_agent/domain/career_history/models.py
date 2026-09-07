@@ -39,6 +39,14 @@ def career_evidence_source_ref(
     return f"evidence_{digest[:24]}"
 
 
+def career_evidence_scope_key(evidence_id: str) -> str:
+    """Anchor one correction lineage without hashing free-text claim semantics."""
+
+    if not evidence_id.strip():
+        raise ValueError("evidence_id is required")
+    return f"career_evidence/{evidence_id}/claim"
+
+
 class CareerRecord(CareerHistoryContract):
     id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
@@ -113,6 +121,28 @@ class CareerEvidence(CareerHistoryContract):
         default=None,
         pattern=r"^evidence_[a-f0-9]{24}$",
     )
+    scope_key: str | None = Field(
+        default=None,
+        pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$",
+    )
+    update_id: str | None = Field(
+        default=None,
+        pattern=r"^career_evidence_update_[a-f0-9]{32}$",
+    )
+    content_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
+    revision: int | None = Field(default=None, ge=1)
+    valid_from: datetime | None = None
+    supersedes_id: str | None = Field(default=None, min_length=1)
+    superseded_at: datetime | None = None
+    superseded_by: str | None = Field(default=None, min_length=1)
+    mutation_id: str | None = Field(
+        default=None,
+        pattern=r"^career_evidence_mutation_[a-f0-9]{32}$",
+    )
+    rolled_back_at: datetime | None = None
 
     created_at: datetime
     updated_at: datetime
@@ -137,7 +167,45 @@ class CareerEvidence(CareerHistoryContract):
         if self.source_ref is not None and self.source_resume_version_id is None:
             raise ValueError("source_ref requires source_resume_version_id")
 
+        version_fields = (
+            self.scope_key,
+            self.update_id,
+            self.content_digest,
+            self.revision,
+            self.valid_from,
+        )
+        if any(item is None for item in version_fields) != all(
+            item is None for item in version_fields
+        ):
+            raise ValueError(
+                "scope_key, update_id, content_digest, revision, and valid_from "
+                "must either all be set or all be null"
+            )
+        if self.verification_status == "confirmed" and self.revision is None:
+            raise ValueError("confirmed evidence requires a version binding")
+        if self.verification_status != "confirmed" and self.revision is not None:
+            raise ValueError("only confirmed evidence may have a version binding")
+        if self.revision == 1 and self.supersedes_id is not None:
+            raise ValueError("revision 1 cannot supersede another evidence row")
+        if self.revision is not None and self.revision > 1 and self.supersedes_id is None:
+            raise ValueError("later revisions require a predecessor")
+        if (self.superseded_at is None) != (self.superseded_by is None):
+            raise ValueError(
+                "superseded_at and superseded_by must either both be set or both be null"
+            )
+        if self.mutation_id is None and (
+            self.supersedes_id is not None or self.rolled_back_at is not None
+        ):
+            raise ValueError("corrected or rolled-back evidence requires a mutation_id")
         return self
+
+    @property
+    def is_current(self) -> bool:
+        return (
+            self.verification_status == "confirmed"
+            and self.superseded_by is None
+            and self.rolled_back_at is None
+        )
 
 
 class CareerEvidenceEvent(CareerHistoryContract):
@@ -149,6 +217,10 @@ class CareerEvidenceEvent(CareerHistoryContract):
         "created",
         "confirmed",
         "rejected",
+        "superseded",
+        "corrected",
+        "rolled_back",
+        "restored",
     ]
     previous_status: Literal[
         "pending",
@@ -166,6 +238,11 @@ class CareerEvidenceEvent(CareerHistoryContract):
         "system",
     ]
     reason: str | None = Field(default=None, min_length=1)
+    mutation_id: str | None = Field(
+        default=None,
+        pattern=r"^career_evidence_mutation_[a-f0-9]{32}$",
+    )
+    related_evidence_id: str | None = Field(default=None, min_length=1)
     occurred_at: datetime
 
     @model_validator(mode="after")
@@ -174,6 +251,10 @@ class CareerEvidenceEvent(CareerHistoryContract):
             "created": (None, "pending"),
             "confirmed": ("pending", "confirmed"),
             "rejected": ("pending", "rejected"),
+            "superseded": ("confirmed", "confirmed"),
+            "corrected": ("confirmed", "confirmed"),
+            "rolled_back": ("confirmed", "confirmed"),
+            "restored": ("confirmed", "confirmed"),
         }
         if (self.previous_status, self.new_status) != expected_transitions[
             self.event_type
@@ -182,5 +263,76 @@ class CareerEvidenceEvent(CareerHistoryContract):
 
         if self.event_type in {"confirmed", "rejected"} and self.actor_type != "user":
             raise ValueError(f"{self.event_type} event requires user actor")
+        lineage_events = {"superseded", "corrected", "rolled_back", "restored"}
+        if self.event_type in lineage_events and (
+            self.mutation_id is None or self.related_evidence_id is None
+        ):
+            raise ValueError(
+                f"{self.event_type} event requires mutation and related evidence ids"
+            )
 
         return self
+
+
+class CareerEvidencePreimage(CareerHistoryContract):
+    """Application-visible active mapping captured before a correction."""
+
+    scope_key: str = Field(
+        pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$"
+    )
+    active_evidence_id: str = Field(min_length=1)
+    active_revision: int = Field(ge=1)
+
+
+class CareerEvidenceMutationSnapshot(CareerHistoryContract):
+    id: str = Field(pattern=r"^career_evidence_mutation_[a-f0-9]{32}$")
+    user_id: str = Field(min_length=1)
+    scope_key: str = Field(
+        pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$"
+    )
+    mutation_type: Literal["correction"]
+    status: Literal["applied", "rolled_back"]
+    preimage: CareerEvidencePreimage
+    replacement_evidence_id: str = Field(min_length=1)
+    reason: str = Field(min_length=1, max_length=2000)
+    created_at: datetime
+    rolled_back_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def rollback_time_matches_status(self) -> "CareerEvidenceMutationSnapshot":
+        if (self.status == "rolled_back") != (self.rolled_back_at is not None):
+            raise ValueError("rolled_back snapshots require rolled_back_at")
+        return self
+
+
+class CareerEvidenceCorrection(CareerHistoryContract):
+    previous: CareerEvidence
+    current: CareerEvidence
+    snapshot: CareerEvidenceMutationSnapshot
+
+
+class CareerEvidenceInvariantViolation(CareerHistoryContract):
+    code: Literal[
+        "version_binding",
+        "pointer_target_missing",
+        "pointer_not_reciprocal",
+        "scope_mismatch",
+        "revision_order",
+        "active_count",
+        "event_replay",
+        "snapshot_binding",
+    ]
+    message: str = Field(min_length=1)
+    scope_key: str | None = None
+    evidence_ids: tuple[str, ...] = ()
+    mutation_id: str | None = None
+
+
+class CareerEvidenceInvariantReport(CareerHistoryContract):
+    user_id: str | None = None
+    checked_at: datetime
+    violations: tuple[CareerEvidenceInvariantViolation, ...] = ()
+
+    @property
+    def valid(self) -> bool:
+        return not self.violations

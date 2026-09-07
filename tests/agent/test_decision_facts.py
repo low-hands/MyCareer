@@ -34,7 +34,9 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))
 
 
-# state -> the facts that state declares, and why the receipt cannot carry them.
+# state -> every fact the state may declare, and why the receipt cannot carry it.
+# Individual emissions may omit a fact that does not apply, such as
+# ``status_changed_at`` for a current claim.
 DECLARED_FACTS = {
     "daily_brief_ready": {
         "keys": {"overdue", "due_today", "waiting"},
@@ -54,6 +56,8 @@ DECLARED_FACTS = {
             "recorded_at",
             "source_locator",
             "resume_version",
+            "claim_status",
+            "status_changed_at",
             "body_clipped",
         },
         "reason": "来源元数据保持结构化；原始引文只进入低授权正文",
@@ -61,10 +65,22 @@ DECLARED_FACTS = {
 }
 
 
-def _states_declaring_facts() -> set[str]:
-    """Every state whose emitter passes ``facts=`` at construction."""
+def _fact_keys_by_state() -> dict[str, set[str]]:
+    """Every literal fact key, including keys hidden in conditional spreads."""
+
     tree = ast.parse(_TOOLS_SOURCE.read_text())
-    states: set[str] = set()
+    builders: dict[str, ast.expr] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        returns = [
+            item.value
+            for item in ast.walk(node)
+            if isinstance(item, ast.Return) and item.value is not None
+        ]
+        if len(returns) == 1:
+            builders[node.name] = returns[0]
+    keys_by_state: dict[str, set[str]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -73,12 +89,67 @@ def _states_declaring_facts() -> set[str]:
             continue
         state = kwargs.get("state")
         if isinstance(state, ast.Constant) and isinstance(state.value, str):
-            states.add(state.value)
-    return states
+            keys_by_state.setdefault(state.value, set()).update(
+                _literal_fact_keys(kwargs["facts"], builders=builders)
+            )
+    return keys_by_state
+
+
+def _literal_fact_keys(
+    node: ast.expr,
+    *,
+    builders: dict[str, ast.expr],
+) -> set[str]:
+    if isinstance(node, ast.Dict):
+        keys: set[str] = set()
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is None:
+                keys.update(_literal_fact_keys(value, builders=builders))
+            elif isinstance(key, ast.Constant) and isinstance(key.value, str):
+                keys.add(key.value)
+            else:
+                raise AssertionError(
+                    f"facts at line {node.lineno} contains a dynamic key"
+                )
+        return keys
+    if isinstance(node, ast.IfExp):
+        return _literal_fact_keys(
+            node.body, builders=builders
+        ) | _literal_fact_keys(node.orelse, builders=builders)
+    if isinstance(node, ast.Call):
+        builder_name = (
+            node.func.attr
+            if isinstance(node.func, ast.Attribute)
+            else node.func.id
+            if isinstance(node.func, ast.Name)
+            else None
+        )
+        if builder_name in builders:
+            return _literal_fact_keys(builders[builder_name], builders=builders)
+    raise AssertionError(
+        f"facts at line {node.lineno} is not a statically inspectable dict"
+    )
 
 
 def test_no_capability_declares_facts_without_appearing_here() -> None:
-    assert _states_declaring_facts() == set(DECLARED_FACTS)
+    assert set(_fact_keys_by_state()) == set(DECLARED_FACTS)
+
+
+def test_capabilities_only_emit_declared_fact_keys() -> None:
+    emitted = _fact_keys_by_state()
+    unexpected = {
+        state: keys - DECLARED_FACTS[state]["keys"]
+        for state, keys in emitted.items()
+        if keys - DECLARED_FACTS[state]["keys"]
+    }
+    missing = {
+        state: spec["keys"] - emitted[state]
+        for state, spec in DECLARED_FACTS.items()
+        if spec["keys"] - emitted[state]
+    }
+
+    assert unexpected == {}
+    assert missing == {}
 
 
 def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:

@@ -2,37 +2,37 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "6a36d3e0caeac3eb10004739da3a5b57d70942c123c5d267268fb7abd012738c",
+  "prompt_fingerprint": "bd4c050b560df9de505d69be7782178ff39cc2078068bd966bd7a5866c08a8f2",
   "context_shape_fingerprint": "dcd8c7ff8c5000c8b415540d54eb235fe753e6f8790ab7c480ea50ced3114e3a",
-  "recorded_at": "2026-09-06T15:18:30.966985+00:00",
+  "recorded_at": "2026-09-07T03:34:56.645310+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有记录你一开始指定的目标公司全名，我无法可靠判断。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你最初指定的公司全名，不能凭空猜测。请把目标公司名称再发我一次。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-06T15:18:27.316828+00:00",
+      "recorded_at": "2026-09-07T03:34:48.051096+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有记录你一开始指定的目标公司全名，我无法可靠判断。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你最初指定的公司全名，不能凭空猜测。请把目标公司名称再发我一次。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T15:18:42.717840+00:00",
+      "recorded_at": "2026-09-07T03:34:47.114200+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定目标公司的那条原始消息，现有上下文也没有记录公司名。请把公司简称或那条目标信息再发一次，我才能确认全名。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文没有记录你一开始指定的目标公司全名，无法可靠确认。请告诉我公司名称，或提供当时的岗位/JD。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-06T15:18:30.966985+00:00",
+      "recorded_at": "2026-09-07T03:34:56.645310+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"当前可见上下文里没有你一开始指定的目标公司全名；只能确认你刚才提到的是“美团”，但它被说明为窗口里的对照项，不能据此推断目标公司。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文没有记录你一开始指定的目标公司全名，我不能凭“美团”的对照关系反推。请告诉我公司名称，或提供当时的原话。\"}"
         }
       ]
     }

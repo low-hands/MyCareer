@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from career_agent.harness.memory_telemetry import content_digest
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
+    HardConstraintContext,
     JobIntentUpdate,
     ToolCall,
 )
@@ -251,9 +253,156 @@ def test_the_tool_cannot_be_used_to_record_skills(tmp_path) -> None:
         "salary_expectation",
         "experience",
         "education",
+        "hard_constraints",
     }
 
 
 def test_an_update_that_changes_nothing_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one field"):
         JobIntentUpdate()
+
+
+def test_default_city_updates_append_and_supersede_versions(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    store.upsert_profile(CareerProfileContext(user_id="u1", default_city="上海"))
+    store.upsert_profile(CareerProfileContext(user_id="u1", default_city="北京"))
+    store.upsert_profile(CareerProfileContext(user_id="u1", default_city="北京"))
+
+    versions = store.list_profile_intent_versions(
+        user_id="u1",
+        scope_key="person_intent/self/default_city",
+    )
+
+    assert [item.value for item in versions] == ["上海", "北京"]
+    assert [item.revision for item in versions] == [1, 2]
+    assert versions[0].superseded_by == versions[1].update_id
+    assert versions[0].superseded_at == versions[1].valid_from
+    assert versions[1].superseded_at is None
+    assert versions[1].content_digest == content_digest("北京")
+
+
+def test_role_intent_fields_have_independent_version_histories(tmp_path) -> None:
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = resumes.create_target_role(
+        user_id="u1", title="AI Agent 工程师", priority=0
+    )
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        city="北京",
+        salary_expectation="35K",
+    )
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        salary_expectation="40K",
+    )
+
+    salary_scope = f"target_role_intent/{role.id}/salary_expectation"
+    salary_versions = resumes.list_target_role_intent_versions(
+        user_id="u1",
+        scope_key=salary_scope,
+    )
+    city_versions = resumes.list_target_role_intent_versions(
+        user_id="u1",
+        scope_key=f"target_role_intent/{role.id}/city",
+    )
+
+    assert [item.value for item in salary_versions] == ["35K", "40K"]
+    assert [item.revision for item in salary_versions] == [1, 2]
+    assert salary_versions[0].superseded_by == salary_versions[1].update_id
+    assert [item.value for item in city_versions] == ["北京"]
+    assert city_versions[0].superseded_at is None
+
+
+def test_normalization_equivalent_intent_does_not_create_a_revision(
+    tmp_path,
+) -> None:
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = resumes.create_target_role(user_id="u1", title="Agent", priority=0)
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        salary_expectation="40k 60k",
+    )
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        salary_expectation="40k\u300060k",
+    )
+
+    versions = resumes.list_target_role_intent_versions(
+        user_id="u1",
+        scope_key=f"target_role_intent/{role.id}/salary_expectation",
+    )
+
+    assert [(item.revision, item.value) for item in versions] == [
+        (1, "40k 60k")
+    ]
+
+
+def test_confirmed_hard_constraint_is_versioned_and_projected(tmp_path) -> None:
+    constraint = HardConstraintContext(
+        relation="work_schedule",
+        value="不接受996",
+    )
+    runtime, proposal_store, _ = build(
+        tmp_path,
+        propose(hard_constraints=[constraint.model_dump()]),
+        final(),
+    )
+    proposed = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="不接受996",
+    )
+    assert "确认后才会保存" in proposed.assistant_message
+    assert proposal_store.get_profile("u1") is None
+
+    runtime, store, _ = build(tmp_path, confirm(), final())
+    confirmed = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+    )
+
+    assert "已记录" in confirmed.assistant_message
+    runtime, _, _ = build(tmp_path, final())
+    projected = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续",
+    )
+    assert projected.context.model_context()["career_profile"][
+        "hard_constraints"
+    ] == [{"relation": "work_schedule", "value": "不接受996"}]
+    versions = store.list_profile_intent_versions(
+        user_id="u1",
+        scope_key="person_intent/self/work_schedule",
+    )
+    assert [(item.revision, item.value) for item in versions] == [(1, "不接受996")]
+    assert versions[0].source == "confirmed_job_intent"
+
+
+def test_hard_constraints_cannot_be_role_scoped_or_silently_removed(
+    tmp_path,
+) -> None:
+    constraint = HardConstraintContext(
+        relation="work_arrangement",
+        value="必须远程",
+    )
+    with pytest.raises(ValueError, match="belong to the person"):
+        JobIntentUpdate(
+            target_role_id="role-1",
+            hard_constraints=(constraint,),
+        )
+
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    store.upsert_profile(
+        CareerProfileContext(
+            user_id="u1",
+            hard_constraints=(constraint,),
+        )
+    )
+    with pytest.raises(ValueError, match="M3 forget primitive"):
+        store.upsert_profile(CareerProfileContext(user_id="u1"))

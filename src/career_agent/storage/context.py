@@ -28,9 +28,15 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.session_contracts import AgentSession
 from career_agent.domain.episodes import CareerEpisodeDraft
+from career_agent.domain.intent_memory import IntentMemoryVersion
 from career_agent.storage.episodes import (
     SQLiteCareerEpisodeStore,
     apply_episode_schema,
+)
+from career_agent.storage.intent_versions import (
+    append_intent_version,
+    apply_intent_version_schema,
+    list_intent_versions,
 )
 from career_agent.storage.schema import apply_schema
 
@@ -82,7 +88,12 @@ class CareerProfileStore(Protocol):
 
     def get_profile(self, user_id: str) -> CareerProfileContext | None: ...
 
-    def upsert_profile(self, profile: CareerProfileContext) -> None: ...
+    def upsert_profile(
+        self,
+        profile: CareerProfileContext,
+        *,
+        source: str = "career_profile_upsert",
+    ) -> None: ...
 
 
 class CareerContextStore:
@@ -95,12 +106,13 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                4,
+                5,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
                     3: self._upgrade_to_v3,
                     4: self._upgrade_to_v4,
+                    5: self._upgrade_to_v5,
                 },
             )
             apply_episode_schema(connection)
@@ -173,6 +185,10 @@ class CareerContextStore:
         )
 
     @staticmethod
+    def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
+        CareerContextStore._backfill_profile_intent_versions(connection)
+
+    @staticmethod
     def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
         """Handle a pre-registry database, for which apply_schema skips upgrades."""
 
@@ -186,11 +202,43 @@ class CareerContextStore:
         )
 
     @staticmethod
+    def _backfill_profile_intent_versions(connection: sqlite3.Connection) -> None:
+        backfilled_at = datetime.now(timezone.utc)
+        rows = connection.execute(
+            "SELECT user_id, payload FROM career_profile_context"
+        ).fetchall()
+        for user_id, payload in rows:
+            profile = CareerProfileContext.model_validate_json(payload)
+            if profile.default_city is not None:
+                append_intent_version(
+                    connection,
+                    user_id=user_id,
+                    scope_key="person_intent/self/default_city",
+                    value=profile.default_city,
+                    source="migration:career_profile_context",
+                    valid_from=backfilled_at,
+                )
+            for constraint in profile.hard_constraints:
+                append_intent_version(
+                    connection,
+                    user_id=user_id,
+                    scope_key=f"person_intent/self/{constraint.relation}",
+                    value=constraint.value,
+                    source="migration:career_profile_context",
+                    valid_from=backfilled_at,
+                )
+
+    @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
         connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, spotlight_nonce TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
         CareerContextStore._upgrade_to_v4(connection)
         connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")
         connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        apply_intent_version_schema(connection)
+        # Intentional cumulative-baseline exception: pre-registry databases do
+        # not replay numbered upgrades. This backfill is safe on every open
+        # because append_intent_version no-ops on the active value's digest.
+        CareerContextStore._backfill_profile_intent_versions(connection)
         connection.execute("CREATE TABLE IF NOT EXISTS owner_settings_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
         connection.execute(
             """
@@ -346,8 +394,81 @@ class CareerContextStore:
     def get_profile(self, user_id: str) -> CareerProfileContext | None:
         return self._get_single("career_profile_context", user_id, CareerProfileContext)
 
-    def upsert_profile(self, profile: CareerProfileContext) -> None:
-        self._upsert_single("career_profile_context", profile.user_id, profile.model_dump_json())
+    def upsert_profile(
+        self,
+        profile: CareerProfileContext,
+        *,
+        source: str = "career_profile_upsert",
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT payload FROM career_profile_context WHERE user_id = ?",
+                (profile.user_id,),
+            ).fetchone()
+            before = (
+                CareerProfileContext.model_validate_json(row[0])
+                if row is not None
+                else None
+            )
+            if (
+                before is not None
+                and before.default_city is not None
+                and profile.default_city is None
+            ):
+                raise ValueError(
+                    "clearing confirmed job intent requires the M3 forget primitive"
+                )
+            previous_constraints = (
+                {item.relation for item in before.hard_constraints}
+                if before is not None
+                else set()
+            )
+            desired_constraints = {
+                item.relation for item in profile.hard_constraints
+            }
+            if previous_constraints - desired_constraints:
+                raise ValueError(
+                    "removing a hard constraint requires the M3 forget primitive"
+                )
+            connection.execute(
+                """
+                INSERT INTO career_profile_context(user_id, payload, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE
+                SET payload = excluded.payload, updated_at = excluded.updated_at
+                """,
+                (profile.user_id, profile.model_dump_json(), now.isoformat()),
+            )
+            if profile.default_city is not None:
+                append_intent_version(
+                    connection,
+                    user_id=profile.user_id,
+                    scope_key="person_intent/self/default_city",
+                    value=profile.default_city,
+                    source=source,
+                    valid_from=now,
+                )
+            for constraint in profile.hard_constraints:
+                append_intent_version(
+                    connection,
+                    user_id=profile.user_id,
+                    scope_key=f"person_intent/self/{constraint.relation}",
+                    value=constraint.value,
+                    source=source,
+                    valid_from=now,
+                )
+
+    def list_profile_intent_versions(
+        self, *, user_id: str, scope_key: str | None = None
+    ) -> tuple[IntentMemoryVersion, ...]:
+        with self._connect() as connection:
+            return list_intent_versions(
+                connection,
+                user_id=user_id,
+                scope_key=scope_key,
+            )
 
     def get_owner_settings(self, user_id: str) -> OwnerSettingsContext | None:
         return self._get_single("owner_settings_context", user_id, OwnerSettingsContext)
