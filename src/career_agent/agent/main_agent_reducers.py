@@ -18,6 +18,8 @@ from career_agent.agent.main_agent_contracts import (
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
     JobIntentUpdate,
+    MemoryAmendmentProposal,
+    MemoryTombstoneProposal,
     ConversationTaskState,
     EmailEventCandidateContextItem,
     InterviewCandidateContextItem,
@@ -547,12 +549,67 @@ def _confirm_job_intent(
     return task.model_copy(update={"pending_job_intent_update": None})
 
 
+def _propose_memory_tombstone(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("proposal")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_memory_tombstone": MemoryTombstoneProposal.model_validate(
+                raw
+            )
+        }
+    )
+
+
+def _propose_memory_amendment(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("proposal")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_memory_amendment": MemoryAmendmentProposal.model_validate(
+                raw
+            )
+        }
+    )
+
+
+def _confirm_memory_amendment(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"pending_memory_amendment": None})
+
+
+def _confirm_memory_tombstone(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"pending_memory_tombstone": None})
+
+
 ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "propose_job_intent": _entry(
         ("job_intent_proposed",), _propose_job_intent
     ),
     "confirm_job_intent": _entry(
         ("job_intent_recorded",), _confirm_job_intent
+    ),
+    "propose_memory_tombstone": _entry(
+        ("memory_tombstone_proposed",), _propose_memory_tombstone
+    ),
+    "propose_memory_amendment": _entry(
+        ("memory_amendment_proposed",), _propose_memory_amendment
+    ),
+    "confirm_memory_amendment": _entry(
+        ("career_memory_amended",), _confirm_memory_amendment
+    ),
+    "confirm_memory_tombstone": _entry(
+        ("memory_tombstoned", "memory_tombstone_cleanup_pending"),
+        _confirm_memory_tombstone,
     ),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(

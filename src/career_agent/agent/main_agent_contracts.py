@@ -187,6 +187,23 @@ class JobIntentUpdate(ContractModel):
         return profile.model_copy(update=changes)
 
 
+class MemoryTombstoneProposal(ContractModel):
+    """One field-level deletion read back before the irreversible write."""
+
+    target_kind: Literal["career_evidence"]
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class MemoryAmendmentProposal(ContractModel):
+    """One claim correction read back before a new revision is written."""
+
+    target_kind: Literal["career_evidence"]
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    new_claim: str = Field(min_length=1, max_length=32_000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 RuleVerdict = Literal["permit", "review", "deny"]
 """What an owner rule says about a capability, ordered least to most restrictive.
 
@@ -445,6 +462,8 @@ class ConversationTaskState(ContractModel):
     candidates: tuple[CandidateContextItem, ...] = ()
     workflow_entry_message: str | None = None
     pending_job_intent_update: JobIntentUpdate | None = None
+    pending_memory_amendment: MemoryAmendmentProposal | None = None
+    pending_memory_tombstone: MemoryTombstoneProposal | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
@@ -2091,6 +2110,25 @@ class SearchCareerHistoryToolArguments(ContractModel):
     )
 
 
+class ProposeMemoryTombstoneToolArguments(ContractModel):
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ConfirmMemoryTombstoneToolArguments(ContractModel):
+    pass
+
+
+class ProposeMemoryAmendmentToolArguments(ContractModel):
+    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    new_claim: str = Field(min_length=1, max_length=32_000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ConfirmMemoryAmendmentToolArguments(ContractModel):
+    pass
+
+
 class FindSavedJobsToolArguments(ContractModel):
     query: str = Field(min_length=1)
     limit: int = Field(default=10, ge=1, le=20)
@@ -2648,6 +2686,69 @@ def project_job_intent_arguments(
         "conversation_id": context.conversation_id,
         "update": pending,
         "current": context.profile,
+    }
+
+
+def project_memory_tombstone_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "propose_memory_tombstone":
+        model_arguments = ProposeMemoryTombstoneToolArguments.model_validate(
+            arguments
+        )
+        return {
+            "user_id": context.profile.user_id,
+            "proposal": MemoryTombstoneProposal(
+                target_kind="career_evidence",
+                detail_ref=model_arguments.detail_ref,
+                reason=model_arguments.reason,
+            ),
+        }
+    ConfirmMemoryTombstoneToolArguments.model_validate(arguments)
+    pending = context.task.pending_memory_tombstone
+    if pending is None:
+        raise ValueError(
+            "confirm_memory_tombstone requires a proposed deletion the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+        "proposal": pending,
+    }
+
+
+def project_memory_amendment_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "propose_memory_amendment":
+        model_arguments = ProposeMemoryAmendmentToolArguments.model_validate(
+            arguments
+        )
+        return {
+            "user_id": context.profile.user_id,
+            "proposal": MemoryAmendmentProposal(
+                target_kind="career_evidence",
+                detail_ref=model_arguments.detail_ref,
+                new_claim=model_arguments.new_claim,
+                reason=model_arguments.reason,
+            ),
+        }
+    ConfirmMemoryAmendmentToolArguments.model_validate(arguments)
+    pending = context.task.pending_memory_amendment
+    if pending is None:
+        raise ValueError(
+            "confirm_memory_amendment requires a proposed correction the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+        "proposal": pending,
     }
 
 

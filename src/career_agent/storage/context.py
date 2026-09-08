@@ -41,6 +41,31 @@ from career_agent.storage.intent_versions import (
 )
 from career_agent.storage.schema import apply_schema
 
+_OPAQUE_LINEAGE_MARKER = re.compile(
+    r"^(?:detail|evidence|lineage)_[a-f0-9]{24}$"
+)
+_NOT_SUPPRESSED_SQL = """
+                  AND NOT EXISTS (
+                        SELECT 1 FROM memory_deletion_message_suppressions AS hidden
+                        WHERE hidden.user_id = conversation_messages.user_id
+                          AND hidden.conversation_id = conversation_messages.conversation_id
+                          AND hidden.sequence = conversation_messages.sequence
+                      )
+"""
+
+
+def _usable_lineage_markers(markers: Sequence[str]) -> tuple[str, ...]:
+    """Accept only opaque exact refs; free-text claims are never scan keys."""
+
+    usable: list[str] = []
+    for marker in markers:
+        text = marker.strip()
+        if not text:
+            continue
+        if _OPAQUE_LINEAGE_MARKER.fullmatch(text):
+            usable.append(text)
+    return tuple(dict.fromkeys(usable))
+
 
 class StoredConversationOverview(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -116,13 +141,16 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                5,
+                8,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
                     3: self._upgrade_to_v3,
                     4: self._upgrade_to_v4,
                     5: self._upgrade_to_v5,
+                    6: self._upgrade_to_v6,
+                    7: self._upgrade_to_v7,
+                    8: self._upgrade_to_v8,
                 },
             )
             apply_episode_schema(connection)
@@ -197,6 +225,82 @@ class CareerContextStore:
     @staticmethod
     def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
         CareerContextStore._backfill_profile_intent_versions(connection)
+
+    @staticmethod
+    def _upgrade_to_v6(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memory_deletion_cutoffs (
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                through_sequence INTEGER NOT NULL CHECK(through_sequence >= 0),
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, conversation_id)
+            )
+            """
+        )
+        CareerContextStore._ensure_memory_deletion_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v7(connection: sqlite3.Connection) -> None:
+        CareerContextStore._ensure_memory_deletion_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v8(connection: sqlite3.Connection) -> None:
+        # v6's user-wide cutoff was intentionally ignored after field-level
+        # provenance shipped in v7. Remove the now-unread compatibility table.
+        connection.execute("DROP TABLE IF EXISTS memory_deletion_cutoffs")
+
+    @staticmethod
+    def _ensure_memory_deletion_schema(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_message_memory_bindings (
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL CHECK(sequence >= 1),
+                scope_key TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, conversation_id, sequence, scope_key)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS conversation_message_memory_scope_idx
+            ON conversation_message_memory_bindings(user_id, scope_key)
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memory_deletion_message_suppressions (
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL CHECK(sequence >= 1),
+                scope_key TEXT NOT NULL,
+                suppressed_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, conversation_id, sequence, scope_key)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memory_deleted_scopes (
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, scope_key)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS memory_deletion_message_lookup_idx
+            ON memory_deletion_message_suppressions(
+                user_id, conversation_id, sequence
+            )
+            """
+        )
 
     @staticmethod
     def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
@@ -290,6 +394,7 @@ class CareerContextStore:
             )
             """
         )
+        CareerContextStore._ensure_memory_deletion_schema(connection)
 
     def get_session(self, user_id: str, session_id: str) -> AgentSession | None:
         with self._connect() as connection:
@@ -331,6 +436,8 @@ class CareerContextStore:
                 "conversation_summaries",
                 "conversation_messages",
                 "conversation_task_state",
+                "conversation_message_memory_bindings",
+                "memory_deletion_message_suppressions",
             ):
                 connection.execute(
                     f"DELETE FROM {table} WHERE user_id = ? AND conversation_id = ?",
@@ -354,20 +461,48 @@ class CareerContextStore:
                        (SELECT payload FROM conversation_messages AS first
                         WHERE first.user_id = s.user_id
                           AND first.conversation_id = s.session_id
+                          AND NOT EXISTS (
+                                SELECT 1
+                                FROM memory_deletion_message_suppressions AS hidden
+                                WHERE hidden.user_id = first.user_id
+                                  AND hidden.conversation_id = first.conversation_id
+                                  AND hidden.sequence = first.sequence
+                              )
                         ORDER BY first.sequence ASC LIMIT 1),
                        (SELECT payload FROM conversation_messages AS last
                         WHERE last.user_id = s.user_id
                           AND last.conversation_id = s.session_id
+                          AND NOT EXISTS (
+                                SELECT 1
+                                FROM memory_deletion_message_suppressions AS hidden
+                                WHERE hidden.user_id = last.user_id
+                                  AND hidden.conversation_id = last.conversation_id
+                                  AND hidden.sequence = last.sequence
+                              )
                         ORDER BY last.sequence DESC LIMIT 1),
                        (SELECT COUNT(*) FROM conversation_messages AS messages
                         WHERE messages.user_id = s.user_id
-                          AND messages.conversation_id = s.session_id)
+                          AND messages.conversation_id = s.session_id
+                          AND NOT EXISTS (
+                                SELECT 1
+                                FROM memory_deletion_message_suppressions AS hidden
+                                WHERE hidden.user_id = messages.user_id
+                                  AND hidden.conversation_id = messages.conversation_id
+                                  AND hidden.sequence = messages.sequence
+                              ))
                 FROM sessions AS s
                 WHERE s.user_id = ?
                   AND EXISTS (
                       SELECT 1 FROM conversation_messages AS present
                       WHERE present.user_id = s.user_id
                         AND present.conversation_id = s.session_id
+                        AND NOT EXISTS (
+                              SELECT 1
+                              FROM memory_deletion_message_suppressions AS hidden
+                              WHERE hidden.user_id = present.user_id
+                                AND hidden.conversation_id = present.conversation_id
+                                AND hidden.sequence = present.sequence
+                            )
                   )
                 ORDER BY s.last_active_at DESC
                 LIMIT ?
@@ -648,8 +783,21 @@ class CareerContextStore:
     ) -> tuple[StoredConversationMessage, ...]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT sequence, payload FROM conversation_messages WHERE user_id = ? AND conversation_id = ? AND sequence > ? ORDER BY sequence DESC LIMIT ?",
-                (user_id, conversation_id, after_sequence, limit),
+                f"""
+                SELECT sequence, payload
+                FROM conversation_messages
+                WHERE user_id = ? AND conversation_id = ?
+                  AND sequence > ?
+                  {_NOT_SUPPRESSED_SQL}
+                ORDER BY sequence DESC
+                LIMIT ?
+                """,
+                (
+                    user_id,
+                    conversation_id,
+                    after_sequence,
+                    limit,
+                ),
             ).fetchall()
         return tuple(
             StoredConversationMessage(
@@ -695,20 +843,22 @@ class CareerContextStore:
         with self._connect() as connection:
             total = int(
                 connection.execute(
-                    """
+                    f"""
                     SELECT COUNT(*) FROM conversation_messages
                     WHERE user_id = ? AND conversation_id = ?
                       AND sequence BETWEEN ? AND ?
+                      {_NOT_SUPPRESSED_SQL}
                     """,
                     (user_id, conversation_id, from_sequence, through_sequence),
                 ).fetchone()[0]
             )
             if query is None:
                 rows = connection.execute(
-                    """
+                    f"""
                     SELECT sequence, payload FROM conversation_messages
                     WHERE user_id = ? AND conversation_id = ?
                       AND sequence BETWEEN ? AND ?
+                      {_NOT_SUPPRESSED_SQL}
                     ORDER BY sequence
                     LIMIT ?
                     """,
@@ -722,10 +872,11 @@ class CareerContextStore:
                 ).fetchall()
             else:
                 rows = connection.execute(
-                    """
+                    f"""
                     SELECT sequence, payload FROM conversation_messages
                     WHERE user_id = ? AND conversation_id = ?
                       AND sequence BETWEEN ? AND ?
+                      {_NOT_SUPPRESSED_SQL}
                     ORDER BY sequence
                     """,
                     (
@@ -817,15 +968,21 @@ class CareerContextStore:
         """
         with self._connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT payload FROM conversation_messages
                 WHERE user_id = ? AND conversation_id = ? AND sequence <= ?
+                  {_NOT_SUPPRESSED_SQL}
                   AND json_array_length(
                         COALESCE(json_extract(payload, '$.resource_refs'), json_array())
                       ) > 0
                 ORDER BY sequence DESC LIMIT ?
                 """,
-                (user_id, conversation_id, through_sequence, limit),
+                (
+                    user_id,
+                    conversation_id,
+                    through_sequence,
+                    limit,
+                ),
             ).fetchall()
         return tuple(
             ConversationMessageContext.model_validate_json(row[0])
@@ -846,14 +1003,19 @@ class CareerContextStore:
         """
         with self._connect() as connection:
             row = connection.execute(
-                """
+                f"""
                 SELECT COALESCE(SUM(json_array_length(
                     COALESCE(json_extract(payload, '$.resource_refs'), json_array())
                 )), 0)
                 FROM conversation_messages
                 WHERE user_id = ? AND conversation_id = ? AND sequence <= ?
+                  {_NOT_SUPPRESSED_SQL}
                 """,
-                (user_id, conversation_id, through_sequence),
+                (
+                    user_id,
+                    conversation_id,
+                    through_sequence,
+                ),
             ).fetchone()
         return int(row[0])
 
@@ -879,6 +1041,112 @@ class CareerContextStore:
             updated_at=row[2],
         )
 
+    def purge_derived_memory(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+        lineage_markers: Sequence[str] = (),
+    ) -> dict[str, int]:
+        """Suppress only derived rows that observed one tombstoned lineage.
+
+        New rows carry an explicit scope binding. ``lineage_markers`` is a
+        SQL-side migration fallback for messages written before those
+        bindings existed; only opaque detail/source/lineage refs are accepted.
+        Free-text claims are never used as scan keys.
+        """
+
+        now = datetime.now(timezone.utc).isoformat()
+        markers = _usable_lineage_markers(lineage_markers)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                INSERT INTO memory_deleted_scopes(user_id, scope_key, deleted_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, scope_key) DO NOTHING
+                """,
+                (user_id, scope_key, now),
+            )
+            bound_rows = {
+                (str(row[0]), int(row[1]))
+                for row in connection.execute(
+                    """
+                    SELECT conversation_id, sequence
+                    FROM conversation_message_memory_bindings
+                    WHERE user_id = ? AND scope_key = ?
+                    """,
+                    (user_id, scope_key),
+                ).fetchall()
+            }
+            if markers:
+                marker_predicate = " OR ".join(
+                    "instr(COALESCE(json_extract(messages.payload, '$.content'), ''), ?) > 0"
+                    for _ in markers
+                )
+                for conversation_id, sequence in connection.execute(
+                    f"""
+                    SELECT conversation_id, sequence
+                    FROM conversation_messages AS messages
+                    WHERE user_id = ?
+                      AND NOT EXISTS (
+                            SELECT 1
+                            FROM conversation_message_memory_bindings AS binding
+                            WHERE binding.user_id = messages.user_id
+                              AND binding.conversation_id = messages.conversation_id
+                              AND binding.sequence = messages.sequence
+                          )
+                      AND ({marker_predicate})
+                    """,
+                    (user_id, *markers),
+                ).fetchall():
+                    bound_rows.add((str(conversation_id), int(sequence)))
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO memory_deletion_message_suppressions(
+                    user_id, conversation_id, sequence, scope_key, suppressed_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    (user_id, conversation_id, sequence, scope_key, now)
+                    for conversation_id, sequence in sorted(bound_rows)
+                ),
+            )
+            affected_conversations = tuple(
+                sorted({conversation_id for conversation_id, _ in bound_rows})
+            )
+            summary_count = 0
+            if affected_conversations:
+                placeholders = ",".join("?" for _ in affected_conversations)
+                cursor = connection.execute(
+                    f"""
+                    DELETE FROM conversation_summaries
+                    WHERE user_id = ?
+                      AND conversation_id IN ({placeholders})
+                      AND EXISTS (
+                            SELECT 1
+                            FROM memory_deletion_message_suppressions AS hidden
+                            WHERE hidden.user_id = conversation_summaries.user_id
+                              AND hidden.conversation_id = conversation_summaries.conversation_id
+                              AND hidden.sequence <= conversation_summaries.through_sequence
+                          )
+                    """,
+                    (user_id, *affected_conversations),
+                )
+                summary_count = int(cursor.rowcount)
+            episode_count = SQLiteCareerEpisodeStore.delete_for_scope_on(
+                connection,
+                user_id=user_id,
+                scope_key=scope_key,
+                lineage_markers=markers,
+            )
+        return {
+            "conversation_fragments": len(bound_rows),
+            "conversation_summaries": summary_count,
+            "career_episodes": episode_count,
+            "affected_conversations": len(affected_conversations),
+        }
+
     def list_messages_after(
         self,
         *,
@@ -889,14 +1157,21 @@ class CareerContextStore:
     ) -> tuple[SummaryMessage, ...]:
         with self._connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT sequence, payload
                 FROM conversation_messages
-                WHERE user_id = ? AND conversation_id = ? AND sequence > ?
+                WHERE user_id = ? AND conversation_id = ?
+                  AND sequence > ?
+                  {_NOT_SUPPRESSED_SQL}
                 ORDER BY sequence
                 LIMIT ?
                 """,
-                (user_id, conversation_id, after_sequence, limit),
+                (
+                    user_id,
+                    conversation_id,
+                    after_sequence,
+                    limit,
+                ),
             ).fetchall()
         messages = []
         for row in rows:
@@ -1054,6 +1329,7 @@ class CareerContextStore:
         user_message: ConversationMessageContext,
         assistant_message: ConversationMessageContext,
         episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
+        memory_scope_keys: tuple[str, ...] = (),
     ) -> None:
         """Append one turn. The transcript is never pruned here.
 
@@ -1094,8 +1370,60 @@ class CareerContextStore:
                     for offset, message in enumerate(messages)
                 ],
             )
+            scope_keys = tuple(dict.fromkeys(memory_scope_keys))
+            connection.executemany(
+                """
+                INSERT INTO conversation_message_memory_bindings(
+                    user_id, conversation_id, sequence, scope_key, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    (
+                        user_id,
+                        conversation_id,
+                        next_sequence + offset,
+                        scope_key,
+                        now,
+                    )
+                    for offset in range(len(messages))
+                    for scope_key in scope_keys
+                ),
+            )
+            deleted_scope_keys = {
+                str(row[0])
+                for row in connection.execute(
+                    """
+                    SELECT scope_key FROM memory_deleted_scopes
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            }
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO memory_deletion_message_suppressions(
+                    user_id, conversation_id, sequence, scope_key, suppressed_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    (
+                        user_id,
+                        conversation_id,
+                        next_sequence + offset,
+                        scope_key,
+                        now,
+                    )
+                    for offset in range(len(messages))
+                    for scope_key in scope_keys
+                    if scope_key in deleted_scope_keys
+                ),
+            )
             for draft in episode_drafts:
-                SQLiteCareerEpisodeStore.upsert_on(connection, draft)
+                SQLiteCareerEpisodeStore.upsert_on(
+                    connection,
+                    draft,
+                    memory_scope_keys=scope_keys,
+                )
         os.chmod(self.path, 0o600)
 
     def _get_single(self, table: str, user_id: str, model):

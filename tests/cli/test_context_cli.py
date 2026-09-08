@@ -6,6 +6,7 @@ operator runs rather than something a turn does on its own.
 
 from io import StringIO
 import json
+from datetime import datetime, timezone
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.conversation_memory_contracts import (
@@ -13,11 +14,13 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
+    ConversationMessageContext,
     ConversationTaskState,
 )
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.cli import EXIT_ARGUMENT_ERROR, EXIT_OK, main
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.career_history import CareerHistoryStore
 
 
 class _Summariser:
@@ -124,6 +127,63 @@ def test_prune_with_confirmation_deletes_and_reports_what_it_freed(tmp_path) -> 
     assert payload["deleted_messages"] == expected
     assert payload["reclaimed_bytes"] == expected_bytes
     assert CareerContextStore(store_path).count_compacted_messages(user_id="u1") == (0, 0)
+
+
+def test_retry_cleanup_completes_a_pending_tombstone(tmp_path) -> None:
+    context_path = tmp_path / "context.sqlite3"
+    career_path = tmp_path / "career.sqlite3"
+    history = CareerHistoryStore(career_path)
+    record = history.create_record(
+        user_id="u1", record_type="project", title="Private"
+    )
+    evidence = history.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=history.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Private claim.",
+            origin="user_input",
+        ).id,
+    )
+    tombstone = history.tombstone_evidence(
+        user_id="u1",
+        career_evidence_id=evidence.id,
+        reason="Delete it.",
+    )
+    context = CareerContextStore(context_path)
+    now = datetime.now(timezone.utc)
+    context.commit_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(),
+        user_message=ConversationMessageContext(
+            role="user",
+            content=f"old derived text {evidence.detail_ref}",
+            created_at=now,
+        ),
+        assistant_message=ConversationMessageContext(
+            role="assistant", content="old derived reply", created_at=now
+        ),
+    )
+
+    code, payload = _run(
+        [
+            "memory",
+            "retry-cleanup",
+            "--user-id",
+            "u1",
+            "--operation-id",
+            tombstone.cleanup_operation_id,
+            "--context-store",
+            str(context_path),
+            "--career-store",
+            str(career_path),
+        ]
+    )
+
+    assert code == EXIT_OK
+    assert payload["cleanup_status"] == "completed"
+    assert payload["derived_cleanup"]["conversation_fragments"] == 1
 
 
 def test_prune_can_be_scoped_to_one_session(tmp_path) -> None:

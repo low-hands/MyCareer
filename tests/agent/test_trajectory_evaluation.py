@@ -1146,13 +1146,13 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         )
     ) == "resolved"
     # Native tool results make the positive binding reliable. The synthetic
-    # mirror with no reference still intermittently borrows an older,
-    # differently titled handle, so keep that boundary defect explicit.
+    # mirror now also rejects every differently titled historical handle in all
+    # three fresh samples, so the former intermittent gap is resolved.
     assert known_gap_reproduction(
         replay_cassette(
             unnumbered, tool_specs=schemas, cassette=load_cassette(unnumbered.name)
         )
-    ) == "intermittent"
+    ) == "resolved"
 
     # The hazard the ordinal scheme sat on, now closed: under numbers, a
     # fabricated 1 named last week's report and resolved silently. There is no
@@ -1176,8 +1176,8 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         )
     assert resolved.count("report-a") == numbered.recording_samples
     assert resolved.count("report-h1") == 0
-    # The safe samples use the saved-job selector. Intermittent failures borrow
-    # an older handle despite its conflicting title.
+    # Every fresh mirror sample now uses the grounded saved-job selector; none
+    # borrows an older handle despite those handles remaining visible.
     borrowed = []
     grounded_selector_count = 0
     for sample in load_cassette(unnumbered.name).recordings:
@@ -1188,12 +1188,12 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
             grounded_selector_count += 1
         else:
             borrowed.append(reference)
-    assert borrowed
-    assert grounded_selector_count
+    assert borrowed == []
+    assert grounded_selector_count == unnumbered.recording_samples
     assert {
         unnumbered.context.resolve_reference(
             reference=handle,
             kind="job_research_report",
         )
         for handle in borrowed
-    } == {"report-h1"}
+    } == set()

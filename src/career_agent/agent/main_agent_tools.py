@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+import logging
+import sqlite3
 from typing import Any, Literal
 from urllib.parse import urlencode
 
@@ -41,6 +43,10 @@ from career_agent.agent.main_agent_contracts import (
     GetCareerMemoryDetailToolArguments,
     SearchCareerMemoryToolArguments,
     SearchCareerHistoryToolArguments,
+    ProposeMemoryTombstoneToolArguments,
+    MemoryTombstoneProposal,
+    ProposeMemoryAmendmentToolArguments,
+    MemoryAmendmentProposal,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -101,6 +107,7 @@ from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.domain.career_history import career_evidence_lineage_ref
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_effects import effect_for
+from career_agent.harness.observability import record_active_trace
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.services.resume_analysis import (
@@ -110,6 +117,8 @@ from career_agent.services.resume_analysis import (
     ResumeAnalysisWorkerNotCommittedError,
     ResumeVersionNotFoundError,
 )
+
+
 from career_agent.services.applications import (
     ApplicationInputNotFoundError,
     ApplicationService,
@@ -186,6 +195,9 @@ from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
 from career_agent.services.canonical_scope import CanonicalScopeResolver
 from career_agent.services.memory_scope import MemoryScopeWriteGate
+
+
+logger = logging.getLogger(__name__)
 
 
 MainAgentToolOutput = ToolObservation
@@ -301,6 +313,10 @@ class MainAgentToolRegistry:
                     "get_career_memory_detail": self._get_career_memory_detail,
                     "search_career_memory": self._search_career_memory,
                     "search_career_history": self._search_career_history,
+                    "propose_memory_tombstone": self._propose_memory_tombstone,
+                    "confirm_memory_tombstone": self._confirm_memory_tombstone,
+                    "propose_memory_amendment": self._propose_memory_amendment,
+                    "confirm_memory_amendment": self._confirm_memory_amendment,
                 }
             )
         if owner_settings_store is not None:
@@ -687,6 +703,69 @@ class MainAgentToolRegistry:
                             "parameters": (
                                 SearchCareerHistoryToolArguments.model_json_schema()
                             ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_memory_amendment",
+                            "description": (
+                                "Prepare a field-level correction for one current "
+                                "career claim identified by detail_ref. This only "
+                                "shows the exact replacement claim and reason; it "
+                                "does not write a revision."
+                            ),
+                            "parameters": (
+                                ProposeMemoryAmendmentToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_memory_amendment",
+                            "description": (
+                                "Write the exact correction proposal already shown "
+                                "to the user as a new revision. Call only after "
+                                "explicit agreement."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_memory_tombstone",
+                            "description": (
+                                "Prepare an irreversible field-level deletion for one "
+                                "current career claim identified by detail_ref. This "
+                                "only reads the target and shows a bounded proposal; "
+                                "it never deletes anything."
+                            ),
+                            "parameters": (
+                                ProposeMemoryTombstoneToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_memory_tombstone",
+                            "description": (
+                                "Execute the exact memory deletion proposal already "
+                                "shown to the user. Call only after explicit agreement; "
+                                "the write redacts the complete claim lineage and is "
+                                "not reversible."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
                         },
                     },
                 )
@@ -4343,6 +4422,266 @@ class MainAgentToolRegistry:
         if evidence.rolled_back_at is not None:
             return "rolled_back"
         return "current" if evidence.is_current else "superseded"
+
+    def _propose_memory_amendment(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        proposal = MemoryAmendmentProposal.model_validate(arguments["proposal"])
+        evidence = self._career_history_store.get_evidence_by_detail_ref(
+            user_id=user_id,
+            detail_ref=proposal.detail_ref,
+        )
+        if evidence is None or not evidence.is_current:
+            return ToolObservation(
+                tool_name="propose_memory_amendment",
+                state="memory_amendment_target_not_found",
+                message="没有找到这个当前职业声明；它可能已被删除或已被更正。",
+                execution_outcome="not_committed",
+            )
+        body = (
+            f"拟将职业声明 revision {evidence.revision} 更正为：\n"
+            f"{proposal.new_claim}\n"
+            f"原因：{proposal.reason}\n"
+            "确认后才会写入新 revision，旧版本只保留在历史审计中。"
+        )
+        return ToolObservation(
+            tool_name="propose_memory_amendment",
+            state="memory_amendment_proposed",
+            message=clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT),
+            payload={"proposal": proposal.model_dump(mode="json")},
+            execution_outcome="not_committed",
+        )
+
+    def _confirm_memory_amendment(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        proposal = MemoryAmendmentProposal.model_validate(arguments["proposal"])
+        conversation_id = str(arguments["conversation_id"])
+        stored_task = (
+            self._conversation_store.get_task(user_id, conversation_id)
+            if self._conversation_store is not None
+            else None
+        )
+        if (
+            stored_task is None
+            or stored_task.pending_memory_amendment != proposal
+        ):
+            return ToolObservation(
+                tool_name="confirm_memory_amendment",
+                state="memory_amendment_confirmation_missing",
+                message=(
+                    "这项更正尚未在前一轮展示并持久化，不能在提案同一轮写入。"
+                ),
+                execution_outcome="not_committed",
+            )
+        evidence = self._career_history_store.get_evidence_by_detail_ref(
+            user_id=user_id,
+            detail_ref=proposal.detail_ref,
+        )
+        if evidence is None:
+            return ToolObservation(
+                tool_name="confirm_memory_amendment",
+                state="memory_amendment_target_not_found",
+                message="没有找到待更正的当前职业声明；请重新读取并提案。",
+                execution_outcome="not_committed",
+            )
+        correction = self._career_history_store.correct_evidence(
+            user_id=user_id,
+            career_evidence_id=evidence.id,
+            new_claim=proposal.new_claim,
+            reason=proposal.reason,
+        )
+        return ToolObservation(
+            tool_name="confirm_memory_amendment",
+            state="career_memory_amended",
+            message=f"职业声明已更正为 revision {correction.current.revision}。",
+            payload={
+                "detail_ref": correction.current.detail_ref,
+                "revision": correction.current.revision,
+                "lineage_ref": career_evidence_lineage_ref(
+                    user_id=user_id,
+                    scope_key=correction.current.scope_key or "",
+                ),
+            },
+            execution_outcome="committed",
+        )
+
+    def _propose_memory_tombstone(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        proposal = MemoryTombstoneProposal.model_validate(arguments["proposal"])
+        evidence = self._career_history_store.get_evidence_by_detail_ref(
+            user_id=user_id,
+            detail_ref=proposal.detail_ref,
+        )
+        if evidence is None or not evidence.is_current:
+            return ToolObservation(
+                tool_name="propose_memory_tombstone",
+                state="memory_tombstone_target_not_found",
+                message="没有找到这个当前职业声明；它可能已被删除或已被更正。",
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="propose_memory_tombstone",
+            state="memory_tombstone_proposed",
+            message=(
+                f"拟永久删除这条职业声明的完整更正谱系（当前 revision "
+                f"{evidence.revision}）。删除后正文、来源引文和历史版本均不可恢复；"
+                "如确认，请明确同意执行。"
+            ),
+            payload={"proposal": proposal.model_dump(mode="json")},
+            execution_outcome="not_committed",
+        )
+
+    def _confirm_memory_tombstone(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        proposal = MemoryTombstoneProposal.model_validate(arguments["proposal"])
+        conversation_id = str(arguments["conversation_id"])
+        stored_task = (
+            self._conversation_store.get_task(user_id, conversation_id)
+            if self._conversation_store is not None
+            else None
+        )
+        if (
+            stored_task is None
+            or stored_task.pending_memory_tombstone != proposal
+        ):
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_confirmation_missing",
+                message=(
+                    "这项永久删除尚未在前一轮展示并持久化，不能在提案同一轮执行。"
+                ),
+                execution_outcome="not_committed",
+            )
+        evidence = self._career_history_store.get_evidence_by_detail_ref(
+            user_id=user_id,
+            detail_ref=proposal.detail_ref,
+        )
+        if evidence is None:
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_target_not_found",
+                message="没有找到待删除的当前职业声明；它可能已经被处理。",
+                execution_outcome="not_committed",
+            )
+        lineage = (
+            self._career_history_store.list_evidence_lineage(
+                user_id=user_id,
+                scope_key=evidence.scope_key,
+            )
+            if evidence.scope_key is not None
+            else ()
+        )
+        tombstone = self._career_history_store.tombstone_evidence(
+            user_id=user_id,
+            career_evidence_id=evidence.id,
+            reason=proposal.reason,
+            actor_type="user",
+        )
+        record_active_trace(
+            "memory_tombstone_observed",
+            "career_evidence_tombstone",
+            outcome="succeeded",
+            details={
+                "p1_version_binding": True,
+                "entries": [
+                    {
+                        "entry_id": item.scope_key,
+                        "update_id": item.update_id,
+                        "content_digest": item.content_digest,
+                        "revision": item.revision,
+                        "lifecycle_status": "tombstoned",
+                    }
+                    for item in lineage
+                    if item.scope_key is not None
+                    and item.update_id is not None
+                    and item.content_digest is not None
+                    and item.revision is not None
+                ],
+            },
+        )
+        purge = getattr(self._conversation_store, "purge_derived_memory", None)
+        if not callable(purge):
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_cleanup_pending",
+                message=(
+                    "职业声明正文及谱系已永久删除；派生记忆清理尚未完成，"
+                    "在清理重试完成前，旧会话或 episode 仍可能含有派生文本。"
+                ),
+                payload={
+                    "cleanup_operation_id": tombstone.cleanup_operation_id,
+                    "cleanup_status": "pending",
+                    "lineage_size": len(tombstone.evidence_ids),
+                    "recovery": "career-agent memory retry-cleanup",
+                },
+                execution_outcome="committed",
+            )
+        try:
+            cleanup_counts = purge(
+                user_id=user_id,
+                scope_key=tombstone.scope_key,
+                lineage_markers=(
+                    self._career_history_store.get_tombstone_lineage_markers(
+                        user_id=user_id,
+                        cleanup_operation_id=tombstone.cleanup_operation_id,
+                    )
+                ),
+            )
+        except (OSError, sqlite3.Error, ValueError):
+            logger.exception(
+                "Tombstone derived-memory cleanup failed",
+                extra={
+                    "cleanup_operation_id": tombstone.cleanup_operation_id,
+                    "user_id": user_id,
+                    "scope_key": tombstone.scope_key,
+                },
+            )
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_cleanup_pending",
+                message=(
+                    "职业声明正文及谱系已永久删除；派生记忆清理需要重试，"
+                    "在重试完成前，旧会话或 episode 仍可能含有派生文本。"
+                ),
+                payload={
+                    "cleanup_operation_id": tombstone.cleanup_operation_id,
+                    "cleanup_status": "pending",
+                    "lineage_size": len(tombstone.evidence_ids),
+                    "recovery": "career-agent memory retry-cleanup",
+                },
+                execution_outcome="committed",
+            )
+        completed = self._career_history_store.complete_tombstone_cleanup(
+            user_id=user_id,
+            cleanup_operation_id=tombstone.cleanup_operation_id,
+        )
+        return ToolObservation(
+            tool_name="confirm_memory_tombstone",
+            state="memory_tombstoned",
+            message="职业声明及其完整更正谱系已永久删除，相关派生记忆也已清理。",
+            payload={
+                "cleanup_operation_id": completed.cleanup_operation_id,
+                "cleanup_status": completed.cleanup_status,
+                "lineage_size": len(completed.evidence_ids),
+                "derived_cleanup": cleanup_counts,
+            },
+            execution_outcome="committed",
+        )
 
     def _get_career_memory_detail(
         self, arguments: dict[str, Any]

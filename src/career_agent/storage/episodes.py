@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,21 @@ from career_agent.domain.episodes import (
 )
 from career_agent.storage.schema import apply_schema
 
+_OPAQUE_LINEAGE_MARKER = re.compile(
+    r"^(?:detail|evidence|lineage)_[a-f0-9]{24}$"
+)
+
+
+def _usable_lineage_markers(markers: tuple[str, ...]) -> tuple[str, ...]:
+    usable: list[str] = []
+    for marker in markers:
+        text = marker.strip()
+        if not text:
+            continue
+        if _OPAQUE_LINEAGE_MARKER.fullmatch(text):
+            usable.append(text)
+    return tuple(dict.fromkeys(usable))
+
 
 def apply_episode_schema(connection: sqlite3.Connection) -> None:
     """Adopt the episodic projection in a context database."""
@@ -22,11 +38,14 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
     apply_schema(
         connection,
         "career_episodes",
-        3,
+        6,
         SQLiteCareerEpisodeStore._baseline,
         {
             2: SQLiteCareerEpisodeStore._upgrade_to_v2,
             3: SQLiteCareerEpisodeStore._upgrade_to_v3,
+            4: SQLiteCareerEpisodeStore._upgrade_to_v4,
+            5: SQLiteCareerEpisodeStore._upgrade_to_v5,
+            6: SQLiteCareerEpisodeStore._upgrade_to_v6,
         },
     )
 
@@ -43,32 +62,85 @@ class SQLiteCareerEpisodeStore:
             apply_episode_schema(connection)
         os.chmod(self.path, 0o600)
 
-    def upsert(self, draft: CareerEpisodeDraft) -> CareerEpisode:
+    def upsert(
+        self,
+        draft: CareerEpisodeDraft,
+        *,
+        memory_scope_keys: tuple[str, ...] = (),
+    ) -> CareerEpisode | None:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            episode = self.upsert_on(connection, draft)
+            episode = self.upsert_on(
+                connection,
+                draft,
+                memory_scope_keys=memory_scope_keys,
+            )
         os.chmod(self.path, 0o600)
         return episode
 
     def upsert_many(
-        self, drafts: tuple[CareerEpisodeDraft, ...]
+        self,
+        drafts: tuple[CareerEpisodeDraft, ...],
+        *,
+        memory_scope_keys: tuple[str, ...] = (),
     ) -> tuple[CareerEpisode, ...]:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            episodes = tuple(self.upsert_on(connection, draft) for draft in drafts)
+            episodes = tuple(
+                episode
+                for draft in drafts
+                if (
+                    episode := self.upsert_on(
+                        connection,
+                        draft,
+                        memory_scope_keys=memory_scope_keys,
+                    )
+                )
+                is not None
+            )
         os.chmod(self.path, 0o600)
         return episodes
 
     @staticmethod
     def upsert_on(
-        connection: sqlite3.Connection, draft: CareerEpisodeDraft
-    ) -> CareerEpisode:
+        connection: sqlite3.Connection,
+        draft: CareerEpisodeDraft,
+        *,
+        memory_scope_keys: tuple[str, ...] = (),
+    ) -> CareerEpisode | None:
         """Upsert on a caller-owned transaction.
 
         This is used by ``CareerContextStore`` so the episode and its visible
         conversation seam commit together.
         """
 
+        content_digest = SQLiteCareerEpisodeStore._content_digest(draft)
+        deleted_scope_keys = tuple(dict.fromkeys(memory_scope_keys))
+        scope_placeholders = ",".join("?" for _ in deleted_scope_keys)
+        stale_scope = bool(deleted_scope_keys) and connection.execute(
+            f"""
+            SELECT 1 FROM career_episode_deleted_scopes
+            WHERE user_id = ? AND scope_key IN ({scope_placeholders})
+            LIMIT 1
+            """,
+            (draft.user_id, *deleted_scope_keys),
+        ).fetchone()
+        if stale_scope or connection.execute(
+            """
+            SELECT 1
+            FROM career_episode_content_suppressions
+            WHERE user_id = ? AND kind = ? AND source_run_id = ?
+              AND content_digest = ?
+            LIMIT 1
+            """,
+            (
+                draft.user_id,
+                draft.kind,
+                draft.source_run_id,
+                content_digest,
+            ),
+        ).fetchone():
+            return None
         now = datetime.now(timezone.utc).isoformat()
         episode_id = f"career_episode_{uuid4().hex}"
         refs_json = json.dumps(
@@ -115,6 +187,17 @@ class SQLiteCareerEpisodeStore:
         if row is None:
             raise RuntimeError("episode upsert lookup failed")
         episode = SQLiteCareerEpisodeStore._episode(row)
+        connection.executemany(
+            """
+            INSERT OR IGNORE INTO career_episode_memory_bindings(
+                episode_id, user_id, scope_key, created_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (
+                (episode.id, episode.user_id, scope_key, now)
+                for scope_key in dict.fromkeys(memory_scope_keys)
+            ),
+        )
         connection.execute(
             "DELETE FROM career_episodes_fts WHERE episode_id = ?",
             (episode.id,),
@@ -160,6 +243,109 @@ class SQLiteCareerEpisodeStore:
                 (user_id,),
             ).fetchall()
         return frozenset((str(row[0]), str(row[1])) for row in rows)
+
+    @staticmethod
+    def delete_for_scope_on(
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        scope_key: str,
+        lineage_markers: tuple[str, ...] = (),
+    ) -> int:
+        """Delete only episodes whose derivation observed one memory lineage."""
+
+        now = datetime.now(timezone.utc).isoformat()
+        connection.execute(
+            """
+            INSERT INTO career_episode_deleted_scopes(
+                user_id, scope_key, deleted_at
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(user_id, scope_key) DO NOTHING
+            """,
+            (user_id, scope_key, now),
+        )
+        markers = _usable_lineage_markers(lineage_markers)
+        marker_clause = ""
+        marker_parameters: tuple[str, ...] = ()
+        if markers:
+            marker_predicate = " OR ".join(
+                "(instr(COALESCE(e.title, ''), ?) > 0 "
+                "OR instr(COALESCE(e.summary, ''), ?) > 0)"
+                for _ in markers
+            )
+            marker_clause = f"""
+                    OR (
+                        NOT EXISTS (
+                            SELECT 1
+                            FROM career_episode_memory_bindings AS any_binding
+                            WHERE any_binding.user_id = e.user_id
+                              AND any_binding.episode_id = e.id
+                        )
+                        AND ({marker_predicate})
+                    )
+            """
+            marker_parameters = tuple(
+                marker for marker in markers for _ in range(2)
+            )
+        rows = connection.execute(
+            f"""
+            SELECT e.id, e.kind, e.source_run_id, e.occurred_at, e.title,
+                   e.summary, e.conversation_id, e.resource_refs_json
+            FROM career_episodes AS e
+            WHERE e.user_id = ?
+              AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM career_episode_memory_bindings AS binding
+                        WHERE binding.user_id = e.user_id
+                          AND binding.episode_id = e.id
+                          AND binding.scope_key = ?
+                    )
+                    {marker_clause}
+                  )
+            """,
+            (user_id, scope_key, *marker_parameters),
+        ).fetchall()
+        if not rows:
+            return 0
+        ids = tuple(str(row[0]) for row in rows)
+        connection.executemany(
+            """
+            INSERT OR IGNORE INTO career_episode_content_suppressions(
+                user_id, kind, source_run_id, content_digest,
+                scope_key, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                (
+                    user_id,
+                    str(row[1]),
+                    str(row[2]),
+                    SQLiteCareerEpisodeStore._stored_content_digest(row),
+                    scope_key,
+                    now,
+                )
+                for row in rows
+            ),
+        )
+        placeholders = ",".join("?" for _ in ids)
+        connection.execute(
+            f"DELETE FROM career_episodes_fts WHERE episode_id IN ({placeholders})",
+            ids,
+        )
+        connection.execute(
+            f"DELETE FROM career_episode_short_terms WHERE episode_id IN ({placeholders})",
+            ids,
+        )
+        connection.execute(
+            f"DELETE FROM career_episode_memory_bindings WHERE episode_id IN ({placeholders})",
+            ids,
+        )
+        connection.execute(
+            f"DELETE FROM career_episodes WHERE id IN ({placeholders})",
+            ids,
+        )
+        return len(ids)
 
     def search(
         self, *, user_id: str, query: str, limit: int = 20
@@ -334,6 +520,7 @@ class SQLiteCareerEpisodeStore:
             ON career_episode_short_terms(user_id, term)
             """
         )
+        SQLiteCareerEpisodeStore._ensure_deletion_schema(connection)
 
     @staticmethod
     def _create_fts(connection: sqlite3.Connection) -> None:
@@ -377,6 +564,85 @@ class SQLiteCareerEpisodeStore:
             )
 
     @staticmethod
+    def _upgrade_to_v4(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS career_episode_deletion_cutoffs (
+                user_id TEXT PRIMARY KEY,
+                through_occurred_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS career_episode_deletion_suppressions (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                source_run_id TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, kind, source_run_id)
+            )
+            """
+        )
+
+    @staticmethod
+    def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
+        SQLiteCareerEpisodeStore._ensure_deletion_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v6(connection: sqlite3.Connection) -> None:
+        connection.execute("DROP TABLE IF EXISTS career_episode_deletion_cutoffs")
+        connection.execute(
+            "DROP TABLE IF EXISTS career_episode_deletion_suppressions"
+        )
+
+    @staticmethod
+    def _ensure_deletion_schema(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS career_episode_memory_bindings (
+                episode_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(episode_id, scope_key)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS career_episode_memory_scope_idx
+            ON career_episode_memory_bindings(user_id, scope_key)
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS career_episode_content_suppressions (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                source_run_id TEXT NOT NULL,
+                content_digest TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(
+                    user_id, kind, source_run_id, content_digest, scope_key
+                )
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS career_episode_deleted_scopes (
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, scope_key)
+            )
+            """
+        )
+
+    @staticmethod
     def _replace_short_terms(
         connection: sqlite3.Connection, episode: CareerEpisode
     ) -> None:
@@ -406,6 +672,28 @@ class SQLiteCareerEpisodeStore:
                 for term in terms
             ),
         )
+
+    @staticmethod
+    def _content_digest(draft: CareerEpisodeDraft) -> str:
+        payload = {
+            "title": draft.title,
+            "summary": draft.summary,
+        }
+        canonical = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _stored_content_digest(row: sqlite3.Row | tuple[object, ...]) -> str:
+        payload = {
+            "title": str(row[4]),
+            "summary": str(row[5]),
+        }
+        canonical = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _short_term_counts(value: str) -> dict[str, int]:

@@ -108,6 +108,9 @@ def summarize_memory_metrics(
     p1_complete_context_observation_count = 0
     version_use_observation_count = 0
     p1_complete_use_observation_count = 0
+    tombstoned_update_ids: set[str] = set()
+    post_tombstone_observation_count = 0
+    zombie_observation_count = 0
 
     for event in events:
         event_type = _event_type(event)
@@ -115,6 +118,14 @@ def summarize_memory_metrics(
         if event_type == "memory_write_observed":
             for identity in _entry_identities(details):
                 pending_writes.add(identity)
+        elif event_type == "memory_tombstone_observed":
+            for entry in details.get("entries", ()):
+                if (
+                    isinstance(entry, Mapping)
+                    and entry.get("lifecycle_status") == "tombstoned"
+                    and isinstance(entry.get("update_id"), str)
+                ):
+                    tombstoned_update_ids.add(str(entry["update_id"]))
         elif event_type == "memory_use_observed":
             version_use_observation_count += 1
             for identity in _entry_identities(details):
@@ -122,12 +133,26 @@ def summarize_memory_metrics(
                     used_writes.add(identity)
             if _is_complete_p1_observation(details):
                 p1_complete_use_observation_count += 1
-                version_use_entries.extend(_version_entries(details))
+                entries = _version_entries(details)
+                version_use_entries.extend(entries)
+                if tombstoned_update_ids:
+                    post_tombstone_observation_count += 1
+                    zombie_observation_count += any(
+                        entry.get("update_id") in tombstoned_update_ids
+                        for entry in entries
+                    )
         elif event_type == "memory_context_observed":
             version_context_observation_count += 1
             if _is_complete_p1_observation(details):
                 p1_complete_context_observation_count += 1
-                version_context_entries.extend(_version_entries(details))
+                entries = _version_entries(details)
+                version_context_entries.extend(entries)
+                if tombstoned_update_ids:
+                    post_tombstone_observation_count += 1
+                    zombie_observation_count += any(
+                        entry.get("update_id") in tombstoned_update_ids
+                        for entry in entries
+                    )
             key = details.get("conversation_key")
             slots = details.get("slot_fingerprints")
             if not isinstance(key, str) or not isinstance(slots, Mapping):
@@ -272,14 +297,26 @@ def summarize_memory_metrics(
                 "from complete observations only."
             ),
         )
-    zombie = MetricResult(
-        value=None,
-        measurable=False,
-        comparability="NONCOMPARABLE",
-        reason=(
-            "M3 tombstones are not implemented; rolled-back corrections are "
-            "not deletion and must not be reported as zombie exposure."
-        ),
+    zombie = (
+        MetricResult(
+            value=zombie_observation_count / post_tombstone_observation_count,
+            measurable=True,
+            comparability="BEST_EFFORT",
+            reason=(
+                "Share of complete P1 context/use observations after a durable "
+                "M3 tombstone that still expose one of its update_ids."
+            ),
+        )
+        if post_tombstone_observation_count
+        else MetricResult(
+            value=None,
+            measurable=False,
+            comparability="NONCOMPARABLE",
+            reason=(
+                "Requires a durable M3 tombstone followed by at least one "
+                "complete P1 context or use observation."
+            ),
+        )
     )
     return MemoryMetricsSummary(
         uptake_rate=uptake,

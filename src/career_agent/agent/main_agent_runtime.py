@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerHistoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerHistoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
@@ -337,6 +337,8 @@ class MainAgentRuntime:
             "calendar_approval_required",
             "capability_confirmation_required",
             "email_events_pending",
+            "memory_amendment_proposed",
+            "memory_tombstone_proposed",
             "mock_interview_answer_required",
             "mock_interview_running",
             "resume_analysis_ready",
@@ -1219,6 +1221,8 @@ class MainAgentRuntime:
                     allow_free_text=True,
                 )
             if tool_result.state in {
+                "memory_amendment_proposed",
+                "memory_tombstone_proposed",
                 "mock_interview_answer_required",
                 "mock_interview_running",
                 "resume_tailoring_review_blocked",
@@ -2562,6 +2566,18 @@ class MainAgentRuntime:
                 updated = self._update_atomic_task(
                     context, pending.get("reducer_result", result)
                 )
+            if result.state in {
+                "career_memory_amended",
+                "memory_tombstoned",
+                "memory_tombstone_cleanup_pending",
+            }:
+                refreshed = self._context_manager.load_for_turn(
+                    user_id=context.profile.user_id,
+                    conversation_id=context.conversation_id,
+                    user_message=context.user_message,
+                )
+                refresh_updates: dict[str, Any] = {"task": updated.task}
+                updated = refreshed.model_copy(update=refresh_updates)
             effect = pending["effect"]
             budget_key = "read_calls" if effect == "READ" else "write_calls"
             control[budget_key] = control.get(budget_key, 0) + 1
@@ -3284,6 +3300,16 @@ class MainAgentRuntime:
             "confirm_job_intent",
         }:
             return project_job_intent_arguments(context, name, arguments)
+        if name in {
+            "propose_memory_tombstone",
+            "confirm_memory_tombstone",
+        }:
+            return project_memory_tombstone_arguments(context, name, arguments)
+        if name in {
+            "propose_memory_amendment",
+            "confirm_memory_amendment",
+        }:
+            return project_memory_amendment_arguments(context, name, arguments)
         if name in {"find_saved_jobs", "get_saved_job", "compare_saved_jobs"}:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":

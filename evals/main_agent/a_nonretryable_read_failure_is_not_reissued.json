@@ -2,37 +2,37 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
   "context_shape_fingerprint": "9f5e288391423b18b8dda228b880d251e5b3542773bf317e227bed4202023160",
-  "recorded_at": "2026-09-07T09:27:06.583190+00:00",
+  "recorded_at": "2026-09-07T16:22:32.658445+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，且这次查询不可重试。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T09:25:16.164173+00:00",
+      "recorded_at": "2026-09-07T16:22:13.807402+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，且这次查询不可重试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T09:25:22.254217+00:00",
+      "recorded_at": "2026-09-07T16:22:04.859021+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对“RAG”保存岗位的查询，且这次查询不能重试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，且这次查询不可重试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T09:27:06.583190+00:00",
+      "recorded_at": "2026-09-07T16:22:32.658445+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”岗位查询，请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成这次查询，暂时无法列出你保存过的 RAG 岗位。\"}"
         }
       ]
     }

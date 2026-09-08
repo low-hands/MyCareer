@@ -930,7 +930,54 @@ def test_p1_cross_store_bindings_measure_superseded_context_and_use(
     assert summary.p1_complete_use_observation_count == 1
     assert summary.zombie_exposure.value is None
     assert summary.zombie_exposure.comparability == "NONCOMPARABLE"
-    assert "M3 tombstones" in summary.zombie_exposure.reason
+    assert "durable M3 tombstone" in summary.zombie_exposure.reason
+
+
+def test_zombie_exposure_counts_complete_observations_after_tombstone() -> None:
+    update_id = "career_evidence_update_" + "a" * 32
+    complete = {
+        "binding_profile": "p1",
+        "version_inventory_complete": True,
+        "slot_fingerprints": {},
+    }
+    summary = summarize_memory_metrics(
+        (
+            {
+                "event_type": "memory_tombstone_observed",
+                "entries": [
+                    {
+                        "entry_id": "career_evidence/root/claim",
+                        "update_id": update_id,
+                        "content_digest": "sha256:" + "b" * 64,
+                        "revision": 1,
+                        "lifecycle_status": "tombstoned",
+                    }
+                ],
+            },
+            {
+                "event_type": "memory_context_observed",
+                **complete,
+                "entries": [],
+            },
+            {
+                "event_type": "memory_use_observed",
+                **complete,
+                "entries": [
+                    {
+                        "entry_id": "career_evidence/root/claim",
+                        "update_id": update_id,
+                        "content_digest": "sha256:" + "b" * 64,
+                        "revision": 1,
+                        "lifecycle_status": "current",
+                    }
+                ],
+            },
+        )
+    )
+
+    assert summary.zombie_exposure.value == 0.5
+    assert summary.zombie_exposure.measurable is True
+    assert summary.zombie_exposure.comparability == "BEST_EFFORT"
 
 
 @pytest.mark.parametrize(

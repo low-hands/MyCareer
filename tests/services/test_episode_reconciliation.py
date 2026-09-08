@@ -241,6 +241,23 @@ def test_reconciliation_replays_a_completed_domain_row_exactly_once(tmp_path) ->
     assert mock_source.report_reads == 2
 
 
+def test_reconciliation_does_not_add_career_scope_bindings(tmp_path) -> None:
+    episodes = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    mock_source = CompletedMockSource()
+    reconciler = EpisodeReconciler(
+        episodes=episodes,
+        applications=EmptyApplicationSource(),
+        interviews=EmptyInterviewSource(),
+        mock_interviews=mock_source,
+        job_research=EmptyJobResearchSource(),
+    )
+    assert reconciler.reconcile_user(user_id="u1").inserted == 1
+    with episodes._connect() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM career_episode_memory_bindings"
+        ).fetchone()[0] == 0
+
+
 def test_reconciliation_fails_instead_of_silently_truncating_a_source(
     tmp_path,
 ) -> None:

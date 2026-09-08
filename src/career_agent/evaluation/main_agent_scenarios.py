@@ -667,8 +667,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                             "没有对应的报告引用",
                             "未提供可用引用",
                             "未提供对应的报告引用",
+                            "未找到",
                             "找不到",
                             "没有可访问",
+                            "能访问到的调研记录里没有",
+                            "没有可取回",
                             "没有对应的引用编号",
                             "列表中没有 Shopee",
                         }
@@ -875,14 +878,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
-        known_gap=(
-            "With the fixed full tool universe, one of three fresh samples for "
-            "this synthetic missing-reference result borrowed a differently "
-            "titled historical footer handle instead of using the grounded saved-"
-            "job selector. The production result normally carries its reference; "
-            "keep this intermittent join gap visible rather than promoting "
-            "handles into system control."
-        ),
     ),
     TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",

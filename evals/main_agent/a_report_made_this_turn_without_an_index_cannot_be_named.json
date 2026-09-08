@@ -2,15 +2,15 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
   "context_shape_fingerprint": "c29c6e2a1fd3caec40c14501bff50bd9be97de0aac1bcbd3cc33bdcc79ce0b64",
-  "recorded_at": "2026-09-07T09:23:54.644900+00:00",
+  "recorded_at": "2026-09-07T16:22:05.666969+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "reference": "report_662e28"
+          "selection_index": 1
         }
       }
     }
@@ -18,20 +18,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T09:23:45.648678+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_662e28"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-07T09:24:14.527963+00:00",
+      "recorded_at": "2026-09-07T16:21:00.228912+00:00",
       "steps": [
         {
           "tool_call": {
@@ -44,13 +31,25 @@
       ]
     },
     {
-      "recorded_at": "2026-09-07T09:23:54.644900+00:00",
+      "recorded_at": "2026-09-07T16:21:12.768597+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": null,
+              "selection_index": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-07T16:22:05.666969+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
               "selection_index": 1
             }
           }
