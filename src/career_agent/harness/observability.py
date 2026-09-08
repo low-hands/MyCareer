@@ -40,6 +40,7 @@ EventType = Literal[
     "memory_scope_unresolved",
     "memory_scope_transition",
     "memory_write_observed",
+    "memory_tombstone_observed",
     "memory_context_observed",
     "memory_use_observed",
 ]

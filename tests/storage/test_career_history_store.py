@@ -48,6 +48,267 @@ def test_store_supports_manual_evidence_without_resume_tables(tmp_path) -> None:
     assert store.get_evidence(user_id="u1", career_evidence_id=evidence.id) == evidence
 
 
+def test_tombstone_redacts_lineage_removes_indexes_and_blocks_rollback(
+    tmp_path,
+) -> None:
+    store, resumes, path = build_stores(tmp_path)
+    record = create_record(store)
+    role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
+    _, version = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="Base",
+        content=b"Resume body",
+        document_format="text",
+    )
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Built the confidential settlement platform.",
+            origin="resume_extraction",
+            source_resume_version_id=version.id,
+            source_locator="experience:1",
+            source_quote="Built the confidential settlement platform.",
+        ).id,
+    )
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Led the confidential settlement platform.",
+        reason="Corrected ownership.",
+    )
+
+    tombstone = store.tombstone_evidence(
+        user_id="u1",
+        career_evidence_id=correction.current.id,
+        reason="User requested permanent deletion.",
+    )
+
+    assert set(tombstone.evidence_ids) == {original.id, correction.current.id}
+    assert store.get_evidence(
+        user_id="u1", career_evidence_id=original.id
+    ) is None
+    assert store.get_evidence_by_source_ref(
+        user_id="u1", source_ref=original.source_ref
+    ) is None
+    assert store.get_evidence_by_detail_ref(
+        user_id="u1", detail_ref=correction.current.detail_ref
+    ) is None
+    assert store.list_evidence(user_id="u1", include_historical=True) == ()
+    assert store.search_historical_evidence(
+        user_id="u1", query="settlement"
+    ) == ((), 0, None)
+    with pytest.raises(ValueError, match="cannot be rolled back"):
+        store.rollback_evidence_correction(
+            user_id="u1",
+            mutation_id=correction.snapshot.id,
+            reason="Attempted restore.",
+        )
+    audit = store.list_evidence_tombstones(user_id="u1")
+    assert len(audit) == 1
+    assert audit[0].scope_key == correction.current.scope_key
+    assert "confidential settlement" not in audit[0].model_dump_json()
+
+    with sqlite3.connect(path) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, claim, source_locator, source_quote, tombstoned_at,
+                   suppression_digest
+            FROM career_evidence
+            WHERE scope_key = ?
+            ORDER BY revision
+            """,
+            (correction.current.scope_key,),
+        ).fetchall()
+        assert len(rows) == 2
+        assert all(not value for row in rows for value in row[1:4])
+        assert all(row[4] and row[5].startswith("sha256:") for row in rows)
+        assert connection.execute(
+            """
+            SELECT COUNT(*) FROM career_evidence_fts
+            WHERE evidence_id IN (?, ?)
+            """,
+            (original.id, correction.current.id),
+        ).fetchone()[0] == 0
+        mutation_row = connection.execute(
+            """
+            SELECT status, tombstoned_at, preimage_json
+            FROM career_evidence_mutations WHERE id = ?
+            """,
+            (correction.snapshot.id,),
+        ).fetchone()
+        assert mutation_row[:2] == ("tombstoned", rows[0][4])
+        assert "confidential settlement" not in mutation_row[2]
+        assert connection.execute(
+            """
+            SELECT COUNT(*) FROM career_evidence_suppressions
+            WHERE career_evidence_id IN (?, ?)
+            """,
+            (original.id, correction.current.id),
+        ).fetchone()[0] == 2
+    assert store.detect_evidence_invariant_violations(user_id="u1").valid
+
+
+def test_complete_cleanup_constructs_receipt_from_confirmed_tombstones(
+    tmp_path,
+) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    confirmed = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Delete this claim.",
+            origin="user_input",
+        ).id,
+    )
+    pending = store.create_evidence(
+        user_id="u1",
+        career_record_id=record.id,
+        claim="Unconfirmed row in the same raw scope.",
+        origin="agent_inference",
+    )
+    tombstone = store.tombstone_evidence(
+        user_id="u1",
+        career_evidence_id=confirmed.id,
+        reason="Delete it.",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE career_evidence
+            SET scope_key = ?, update_id = ?, content_digest = ?, revision = 99,
+                valid_from = datetime('now')
+            WHERE id = ?
+            """,
+            (
+                confirmed.scope_key,
+                "career_evidence_update_" + "f" * 32,
+                intent_content_digest(pending.claim),
+                pending.id,
+            ),
+        )
+
+    completed = store.complete_tombstone_cleanup(
+        user_id="u1",
+        cleanup_operation_id=tombstone.cleanup_operation_id,
+    )
+
+    assert completed.cleanup_status == "completed"
+    assert completed.evidence_ids == (confirmed.id,)
+
+
+def test_detector_rejects_each_tombstone_invariant_violation(tmp_path) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    original = store.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=store.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Original private claim.",
+            origin="user_input",
+        ).id,
+    )
+    correction = store.correct_evidence(
+        user_id="u1",
+        career_evidence_id=original.id,
+        new_claim="Corrected private claim.",
+        reason="Correction.",
+    )
+    store.tombstone_evidence(
+        user_id="u1",
+        career_evidence_id=correction.current.id,
+        reason="Delete.",
+    )
+    with sqlite3.connect(path) as connection:
+        digest = connection.execute(
+            "SELECT suppression_digest FROM career_evidence WHERE id = ?",
+            (original.id,),
+        ).fetchone()[0]
+
+        connection.execute(
+            "UPDATE career_evidence SET claim = 'leaked' WHERE id = ?",
+            (original.id,),
+        )
+        connection.commit()
+        assert "tombstone_content" in {
+            item.code
+            for item in store.detect_evidence_invariant_violations(
+                user_id="u1"
+            ).violations
+        }
+        connection.execute(
+            "UPDATE career_evidence SET claim = '' WHERE id = ?",
+            (original.id,),
+        )
+        connection.commit()
+
+        connection.execute(
+            """
+            INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+            VALUES (?, 'u1', 'leaked')
+            """,
+            (original.id,),
+        )
+        connection.commit()
+        assert "tombstone_index" in {
+            item.code
+            for item in store.detect_evidence_invariant_violations(
+                user_id="u1"
+            ).violations
+        }
+        connection.execute(
+            "DELETE FROM career_evidence_fts WHERE evidence_id = ?",
+            (original.id,),
+        )
+        connection.commit()
+
+        connection.execute(
+            """
+            DELETE FROM career_evidence_suppressions
+            WHERE career_evidence_id = ?
+            """,
+            (original.id,),
+        )
+        connection.commit()
+        assert "suppression_binding" in {
+            item.code
+            for item in store.detect_evidence_invariant_violations(
+                user_id="u1"
+            ).violations
+        }
+        connection.execute(
+            """
+            INSERT INTO career_evidence_suppressions(
+                user_id, suppression_digest, scope_key,
+                career_evidence_id, created_at
+            ) VALUES ('u1', ?, ?, ?, '2026-09-07T00:00:00+00:00')
+            """,
+            (digest, original.scope_key, original.id),
+        )
+        connection.commit()
+
+        connection.execute(
+            """
+            UPDATE career_evidence_mutations
+            SET status = 'applied', tombstoned_at = NULL
+            WHERE id = ?
+            """,
+            (correction.snapshot.id,),
+        )
+        connection.commit()
+        assert "tombstone_rollback" in {
+            item.code
+            for item in store.detect_evidence_invariant_violations(
+                user_id="u1"
+            ).violations
+        }
+
+
 def test_records_persist_and_are_user_scoped(tmp_path) -> None:
     store, _, path = build_stores(tmp_path)
     record = create_record(store)
@@ -335,6 +596,60 @@ def test_confirmed_resume_analysis_import_is_atomic_audited_and_idempotent(tmp_p
                 user_id="u1", career_evidence_id=evidence.id
             )
         ] == ["created", "confirmed"]
+
+
+def test_resume_reextraction_skips_every_suppressed_source_triple(tmp_path) -> None:
+    store, resumes, _ = build_stores(tmp_path)
+    role = resumes.create_target_role(user_id="u1", title="PM", priority=1)
+    _, version = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="PM Resume",
+        content=b"resume",
+        document_format="text",
+    )
+    analysis = ResumeAnalysisResult(
+        records=(
+            ExtractedCareerRecord(
+                record_type="internship",
+                organization="Private Corp.",
+                title="Product Intern",
+                start_year=2022,
+                source_locator="Experience heading",
+                source_quote="Private Corp. Product Intern",
+                evidence=(
+                    ExtractedCareerEvidence(
+                        claim="Built a confidential launch plan",
+                        source_locator="Experience bullet 1",
+                        source_quote="Built a confidential launch plan",
+                    ),
+                ),
+            ),
+        )
+    )
+    imported = store.import_confirmed_resume_analysis(
+        user_id="u1",
+        analysis_id="analysis-before-delete",
+        resume_version_id=version.id,
+        result=analysis,
+    )
+    for evidence in imported.evidence:
+        store.tombstone_evidence(
+            user_id="u1",
+            career_evidence_id=evidence.id,
+            reason="Delete imported internship.",
+        )
+
+    repeated_content = store.import_confirmed_resume_analysis(
+        user_id="u1",
+        analysis_id="analysis-after-delete",
+        resume_version_id=version.id,
+        result=analysis,
+    )
+
+    assert repeated_content.records == ()
+    assert repeated_content.evidence == ()
+    assert store.list_evidence(user_id="u1", include_historical=True) == ()
 
 
 def test_correction_writes_bidirectional_lineage_snapshot_and_events(

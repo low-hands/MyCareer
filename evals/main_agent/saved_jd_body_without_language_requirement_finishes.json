@@ -2,21 +2,21 @@
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
   "context_shape_fingerprint": "3483be20dc89429ceb1e1bfe5b4c0d5b3b0dccfef3c1708f4cd4f6beae4a3f52",
-  "recorded_at": "2026-09-07T09:24:34.429708+00:00",
+  "recorded_at": "2026-09-07T16:21:46.781146+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里，不继续匹配简历。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，仅提到分布式系统设计和生产环境异步服务经验，因此到这里，不继续匹配简历。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T09:24:34.429708+00:00",
+      "recorded_at": "2026-09-07T16:21:46.781146+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，按你的条件到这里，不继续匹配简历。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"完整 JD 未明确要求 Rust，仅提到分布式系统设计和生产环境异步服务经验，因此到这里，不继续匹配简历。\"}"
         }
       ]
     }

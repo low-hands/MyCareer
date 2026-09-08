@@ -100,11 +100,13 @@ class EpisodeReconciler:
             for draft in drafts
             if (draft.kind, draft.source_run_id) not in before
         )
-        if missing:
-            self._episodes.upsert_many(missing)
+        # Reconciliation projects authoritative domain rows, not the current
+        # conversation's career-memory window. It therefore supplies no career
+        # scope bindings; only turn-derived episodes receive those bindings.
+        inserted = len(self._episodes.upsert_many(missing)) if missing else 0
         return EpisodeReconciliationResult(
             scanned=len(drafts),
-            inserted=len(missing),
+            inserted=inserted,
         )
 
     def _application_drafts(

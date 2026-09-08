@@ -71,6 +71,93 @@ def test_fts_tracks_the_latest_synopsis_without_authorizing_facts(tmp_path) -> N
     assert fts_hits == 1
 
 
+def test_delete_for_scope_removes_episode_and_both_indexes(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    scope_key = "career_evidence/record-1/claim"
+    stored = store.upsert(
+        _draft(summary="Contains deleted career evidence."),
+        memory_scope_keys=(scope_key,),
+    )
+
+    with store._connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        assert store.delete_for_scope_on(
+            connection, user_id="u1", scope_key=scope_key
+        ) == 1
+
+    assert store.get_by_source(
+        user_id="u1",
+        kind="application",
+        source_run_id="application-1",
+    ) is None
+    assert store.search(user_id="u1", query="deleted") == ()
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM career_episodes_fts WHERE episode_id = ?",
+            (stored.id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM career_episode_short_terms WHERE episode_id = ?",
+            (stored.id,),
+        ).fetchone()[0] == 0
+
+
+def test_scope_delete_blocks_exact_replay_but_allows_clean_rederivation(
+    tmp_path,
+) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    scope_key = "career_evidence/record-1/claim"
+    assert store.upsert(_draft(), memory_scope_keys=(scope_key,)) is not None
+    with store._connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        assert store.delete_for_scope_on(
+            connection, user_id="u1", scope_key=scope_key
+        ) == 1
+
+    assert store.upsert(_draft()) is None
+    assert store.upsert(_draft(summary="Cleanly re-derived source.")) is not None
+    updated = store.upsert(
+        _draft(summary="Old source updated after deletion.").model_copy(
+            update={"occurred_at": datetime.now(timezone.utc) + timedelta(seconds=1)}
+        )
+    )
+    assert updated is not None
+    assert store.list_source_keys(user_id="u1") == frozenset(
+        {("application", "application-1")}
+    )
+
+    fresh = store.upsert(
+        _draft(summary="New event after deletion.").model_copy(
+            update={
+                "source_run_id": "application-2",
+                "occurred_at": datetime.now(timezone.utc) + timedelta(seconds=1),
+            }
+        )
+    )
+    assert fresh is not None
+    assert fresh.summary == "New event after deletion."
+
+
+def test_upsert_many_forwards_memory_scope_bindings(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    scope_key = "career_evidence/record-1/claim"
+    drafts = (
+        _draft(),
+        _draft().model_copy(update={"source_run_id": "application-2"}),
+    )
+
+    assert len(store.upsert_many(drafts, memory_scope_keys=(scope_key,))) == 2
+
+    with store._connect() as connection:
+        assert connection.execute(
+            """
+            SELECT COUNT(*) FROM career_episode_memory_bindings
+            WHERE user_id = ? AND scope_key = ?
+            """,
+            ("u1", scope_key),
+        ).fetchone()[0] == 2
+
+
 def test_short_queries_use_the_auxiliary_index_and_rank_title_hits(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     store.upsert(
@@ -173,10 +260,63 @@ def test_v1_unicode_index_is_rebuilt_and_backfilled_as_trigram(tmp_path) -> None
             "WHERE career_episodes_fts MATCH ?",
             ("模拟面试",),
         ).fetchall()
-    assert version == 3
+    assert version == 6
     assert indexed_ids == [(stored.id,)]
     assert reopened.get_by_source(
         user_id="u1",
         kind="application",
         source_run_id="application-1",
     ) is not None
+
+
+def test_v6_migration_drops_unread_legacy_deletion_tables(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = SQLiteCareerEpisodeStore(path)
+    stored = store.upsert(_draft())
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE career_episode_deletion_cutoffs (
+                user_id TEXT PRIMARY KEY,
+                through_occurred_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE career_episode_deletion_suppressions (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                source_run_id TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, kind, source_run_id)
+            )
+            """
+        )
+        connection.execute(
+            "UPDATE schema_versions SET version = 5 "
+            "WHERE component = 'career_episodes'"
+        )
+
+    reopened = SQLiteCareerEpisodeStore(path)
+
+    with sqlite3.connect(path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name IN (
+                    'career_episode_deletion_cutoffs',
+                    'career_episode_deletion_suppressions'
+                )
+                """
+            )
+        }
+    assert tables == set()
+    assert reopened.get_by_source(
+        user_id="u1",
+        kind="application",
+        source_run_id="application-1",
+    ) == stored

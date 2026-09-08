@@ -420,6 +420,17 @@ class ContextManager:
 
     def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = ()) -> None:
         now = datetime.now(timezone.utc)
+        # This is deliberately exposure-level provenance. Every career scope
+        # shown to the model binds both stored messages in the turn, even when
+        # the reply did not visibly use it. A tombstone may therefore suppress
+        # incidental text from that turn; relying on model-reported usage would
+        # create a false-negative path for deleted claims.
+        memory_scope_keys = tuple(
+            dict.fromkeys(
+                binding.entry_id
+                for binding in context.career_memory.telemetry_bindings
+            )
+        )
         self._store.commit_turn(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
@@ -427,6 +438,7 @@ class ContextManager:
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
             episode_drafts=episode_drafts,
+            memory_scope_keys=memory_scope_keys,
         )
         self._maybe_summarize(
             user_id=context.profile.user_id,

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import sqlite3
 from typing import Literal
+import unicodedata
 from uuid import uuid4
 
 from career_agent.domain.career_history import (
@@ -20,8 +21,10 @@ from career_agent.domain.career_history import (
     CareerEvidenceInvariantViolation,
     CareerEvidenceMutationSnapshot,
     CareerEvidencePreimage,
+    CareerEvidenceTombstone,
     CareerRecord,
     career_evidence_detail_ref,
+    career_evidence_lineage_ref,
     career_evidence_scope_key,
     career_evidence_source_ref,
 )
@@ -40,6 +43,25 @@ _MEMORY_CURSOR = re.compile(
     r"^memory_(?P<query>[a-f0-9]{8})_(?P<offset>[a-f0-9]{8})$"
 )
 _MAX_HISTORY_OFFSET = 10_000
+
+
+def career_evidence_suppression_digest(
+    claim: str,
+    source_locator: str | None,
+    source_quote: str | None,
+) -> str:
+    """Hash the normalized source triple before its plaintext is removed."""
+
+    normalized = [
+        " ".join(unicodedata.normalize("NFKC", value or "").split())
+        for value in (claim, source_locator, source_quote)
+    ]
+    canonical = json.dumps(
+        normalized,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 _EVIDENCE_FIELD_NAMES = (
     "id",
@@ -63,6 +85,10 @@ _EVIDENCE_FIELD_NAMES = (
     "superseded_by",
     "mutation_id",
     "rolled_back_at",
+    "tombstoned_at",
+    "tombstoned_by",
+    "tombstone_reason",
+    "suppression_digest",
     "created_at",
     "updated_at",
 )
@@ -98,12 +124,13 @@ class CareerHistoryStore:
             apply_schema(
                 connection,
                 "career_history",
-                5,
+                6,
                 self._migrate,
                 upgrades={
                     3: self._upgrade_to_v3,
                     4: self._upgrade_to_v4,
                     5: self._upgrade_to_v5,
+                    6: self._upgrade_to_v6,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -318,7 +345,7 @@ class CareerHistoryStore:
                 f"""
                 SELECT {_EVIDENCE_COLUMNS}
                 FROM career_evidence
-                WHERE id = ? AND user_id = ?
+                WHERE id = ? AND user_id = ? AND tombstoned_at IS NULL
                 """,
                 (career_evidence_id, user_id),
             ).fetchone()
@@ -334,6 +361,7 @@ class CareerHistoryStore:
                 FROM career_evidence
                 WHERE user_id = ? AND source_ref = ?
                   AND verification_status = 'confirmed'
+                  AND tombstoned_at IS NULL
                 """,
                 (user_id, source_ref),
             ).fetchone()
@@ -349,6 +377,7 @@ class CareerHistoryStore:
                 FROM career_evidence
                 WHERE user_id = ? AND detail_ref = ?
                   AND verification_status = 'confirmed'
+                  AND tombstoned_at IS NULL
                 """,
                 (user_id, detail_ref),
             ).fetchone()
@@ -401,6 +430,7 @@ class CareerHistoryStore:
                     WHERE search.user_id = ?
                       AND career_evidence_fts MATCH ?
                       AND evidence.verification_status = 'confirmed'
+                      AND evidence.tombstoned_at IS NULL
                       AND (
                           evidence.superseded_by IS NOT NULL
                           OR evidence.rolled_back_at IS NOT NULL
@@ -418,6 +448,7 @@ class CareerHistoryStore:
                 WHERE search.user_id = ?
                   AND career_evidence_fts MATCH ?
                   AND evidence.verification_status = 'confirmed'
+                  AND evidence.tombstoned_at IS NULL
                   AND (
                       evidence.superseded_by IS NOT NULL
                       OR evidence.rolled_back_at IS NOT NULL
@@ -479,6 +510,7 @@ class CareerHistoryStore:
             search.user_id = ?
             AND career_evidence_fts MATCH ?
             AND evidence.verification_status = 'confirmed'
+            AND evidence.tombstoned_at IS NULL
             AND evidence.superseded_by IS NULL
             AND evidence.rolled_back_at IS NULL
         """
@@ -552,6 +584,7 @@ class CareerHistoryStore:
                 WHERE search.user_id = ?
                   AND career_evidence_fts MATCH ?
                   AND evidence.verification_status = 'confirmed'
+                  AND evidence.tombstoned_at IS NULL
                   AND evidence.superseded_by IS NULL
                   AND evidence.rolled_back_at IS NULL
                 ORDER BY bm25(career_evidence_fts), evidence.created_at DESC
@@ -569,6 +602,7 @@ class CareerHistoryStore:
         verification_status: EvidenceStatus | None = None,
         source_resume_version_id: str | None = None,
         include_historical: bool = False,
+        include_tombstoned: bool = False,
         limit: int | None = None,
     ) -> tuple[CareerEvidence, ...]:
         if limit is not None and limit < 1:
@@ -579,6 +613,8 @@ class CareerHistoryStore:
             WHERE user_id = ?
         """
         parameters: list[object] = [user_id]
+        if not include_tombstoned:
+            query += " AND tombstoned_at IS NULL"
         if career_record_id is not None:
             query += " AND career_record_id = ?"
             parameters.append(career_record_id)
@@ -624,6 +660,7 @@ class CareerHistoryStore:
             FROM career_evidence
             WHERE user_id = ?
               AND verification_status = 'confirmed'
+              AND tombstoned_at IS NULL
               AND scope_key IN ({placeholders})
             ORDER BY scope_key, revision, created_at, id
             LIMIT ?
@@ -644,6 +681,7 @@ class CareerHistoryStore:
     ) -> int:
         query = "SELECT COUNT(*) FROM career_evidence WHERE user_id = ?"
         parameters: list[object] = [user_id]
+        query += " AND tombstoned_at IS NULL"
         if verification_status is not None:
             query += " AND verification_status = ?"
             parameters.append(verification_status)
@@ -716,6 +754,7 @@ class CareerHistoryStore:
                   AND verification_status = 'confirmed'
                   AND superseded_by IS NULL
                   AND rolled_back_at IS NULL
+                  AND tombstoned_at IS NULL
                 """,
                 (user_id, scope_key),
             ).fetchone()
@@ -731,11 +770,389 @@ class CareerHistoryStore:
                 FROM career_evidence
                 WHERE user_id = ? AND scope_key = ?
                   AND verification_status = 'confirmed'
+                  AND tombstoned_at IS NULL
                 ORDER BY revision, created_at, id
                 """,
                 (user_id, scope_key),
             ).fetchall()
         return tuple(self._evidence(row) for row in rows)
+
+    def tombstone_evidence(
+        self,
+        *,
+        user_id: str,
+        career_evidence_id: str,
+        reason: str,
+        actor_type: Literal["user", "agent", "system"] = "user",
+    ) -> CareerEvidenceTombstone:
+        """Irreversibly redact one confirmed claim lineage and suppress re-import."""
+
+        tombstone_reason = reason.strip()
+        if not tombstone_reason:
+            raise ValueError("Tombstone reason is required.")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            target_row = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE id = ? AND user_id = ?
+                """,
+                (career_evidence_id, user_id),
+            ).fetchone()
+            if target_row is None:
+                raise ValueError("Career evidence not found.")
+            target = self._evidence(target_row)
+            if (
+                target.verification_status != "confirmed"
+                or target.scope_key is None
+            ):
+                raise ValueError("Only confirmed evidence can be tombstoned.")
+            lineage_rows = connection.execute(
+                f"""
+                SELECT {_EVIDENCE_COLUMNS}
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND verification_status = 'confirmed'
+                ORDER BY revision, created_at, id
+                """,
+                (user_id, target.scope_key),
+            ).fetchall()
+            lineage = tuple(self._evidence(row) for row in lineage_rows)
+            if not lineage:
+                raise ValueError("Career evidence lineage is missing.")
+            already_tombstoned = tuple(
+                item for item in lineage if item.tombstoned_at is not None
+            )
+            if already_tombstoned:
+                if len(already_tombstoned) != len(lineage):
+                    raise ValueError("Career evidence lineage is partially tombstoned.")
+                operation = connection.execute(
+                    """
+                    SELECT id, status
+                    FROM career_memory_deletion_operations
+                    WHERE user_id = ? AND scope_key = ?
+                    """,
+                    (user_id, target.scope_key),
+                ).fetchone()
+                if operation is None:
+                    raise ValueError("Tombstone cleanup operation is missing.")
+                first = already_tombstoned[0]
+                return CareerEvidenceTombstone(
+                    cleanup_operation_id=str(operation[0]),
+                    cleanup_status=str(operation[1]),
+                    scope_key=target.scope_key,
+                    evidence_ids=tuple(item.id for item in lineage),
+                    suppression_digests=tuple(
+                        item.suppression_digest
+                        for item in lineage
+                        if item.suppression_digest is not None
+                    ),
+                    actor_type=first.tombstoned_by or actor_type,
+                    reason=first.tombstone_reason or tombstone_reason,
+                    tombstoned_at=first.tombstoned_at,
+                )
+
+            now = datetime.now(timezone.utc)
+            cleanup_operation_id = f"career_memory_deletion_{uuid4().hex}"
+            connection.execute(
+                """
+                INSERT INTO career_memory_deletion_operations(
+                    id, user_id, scope_key, status, reason,
+                    created_at, completed_at
+                ) VALUES (?, ?, ?, 'pending', ?, ?, NULL)
+                """,
+                (
+                    cleanup_operation_id,
+                    user_id,
+                    target.scope_key,
+                    tombstone_reason,
+                    now.isoformat(),
+                ),
+            )
+            digests = tuple(
+                career_evidence_suppression_digest(
+                    item.claim,
+                    item.source_locator,
+                    item.source_quote,
+                )
+                for item in lineage
+            )
+            for item, suppression_digest in zip(
+                lineage, digests, strict=True
+            ):
+                connection.execute(
+                    """
+                    INSERT INTO career_evidence_suppressions(
+                        user_id, suppression_digest, scope_key,
+                        career_evidence_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, suppression_digest) DO NOTHING
+                    """,
+                    (
+                        user_id,
+                        suppression_digest,
+                        target.scope_key,
+                        item.id,
+                        now.isoformat(),
+                    ),
+                )
+                connection.execute(
+                    """
+                    UPDATE career_evidence
+                    SET claim = '',
+                        source_locator = CASE
+                            WHEN source_resume_version_id IS NULL THEN NULL
+                            ELSE ''
+                        END,
+                        source_quote = CASE
+                            WHEN source_resume_version_id IS NULL THEN NULL
+                            ELSE ''
+                        END,
+                        tombstoned_at = ?, tombstoned_by = ?,
+                        tombstone_reason = ?, suppression_digest = ?,
+                        updated_at = ?
+                    WHERE id = ? AND user_id = ? AND tombstoned_at IS NULL
+                    """,
+                    (
+                        now.isoformat(),
+                        actor_type,
+                        tombstone_reason,
+                        suppression_digest,
+                        now.isoformat(),
+                        item.id,
+                        user_id,
+                    ),
+                )
+                self._insert_event(
+                    connection,
+                    CareerEvidenceEvent(
+                        id=f"career_evidence_event_{uuid4().hex}",
+                        user_id=user_id,
+                        career_evidence_id=item.id,
+                        event_type="tombstoned",
+                        previous_status="confirmed",
+                        new_status="confirmed",
+                        actor_type=actor_type,
+                        reason=tombstone_reason,
+                        occurred_at=now,
+                    ),
+                )
+            connection.execute(
+                """
+                UPDATE career_evidence_mutations
+                SET status = 'tombstoned', tombstoned_at = ?
+                WHERE user_id = ? AND scope_key = ? AND status = 'applied'
+                """,
+                (now.isoformat(), user_id, target.scope_key),
+            )
+        return CareerEvidenceTombstone(
+            cleanup_operation_id=cleanup_operation_id,
+            cleanup_status="pending",
+            scope_key=target.scope_key,
+            evidence_ids=tuple(item.id for item in lineage),
+            suppression_digests=digests,
+            actor_type=actor_type,
+            reason=tombstone_reason,
+            tombstoned_at=now,
+        )
+
+    def complete_tombstone_cleanup(
+        self,
+        *,
+        user_id: str,
+        cleanup_operation_id: str,
+    ) -> CareerEvidenceTombstone:
+        """Mark cross-store derived cleanup complete after its idempotent purge."""
+
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT scope_key, reason, created_at
+                FROM career_memory_deletion_operations
+                WHERE id = ? AND user_id = ?
+                """,
+                (cleanup_operation_id, user_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Tombstone cleanup operation not found.")
+            evidence_rows = connection.execute(
+                """
+                SELECT id, suppression_digest, tombstoned_by, tombstoned_at
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND verification_status = 'confirmed'
+                  AND tombstoned_at IS NOT NULL
+                ORDER BY revision, created_at, id
+                """,
+                (user_id, str(row[0])),
+            ).fetchall()
+            if not evidence_rows:
+                raise ValueError("Tombstone cleanup lineage not found.")
+            if any(
+                evidence_row[1] is None
+                or evidence_row[2] is None
+                or evidence_row[3] is None
+                for evidence_row in evidence_rows
+            ):
+                raise ValueError("Tombstone cleanup lineage is incomplete.")
+            connection.execute(
+                """
+                UPDATE career_memory_deletion_operations
+                SET status = 'completed', completed_at = COALESCE(completed_at, ?)
+                WHERE id = ? AND user_id = ?
+                """,
+                (now.isoformat(), cleanup_operation_id, user_id),
+            )
+        return CareerEvidenceTombstone(
+            cleanup_operation_id=cleanup_operation_id,
+            cleanup_status="completed",
+            scope_key=str(row[0]),
+            evidence_ids=tuple(str(item[0]) for item in evidence_rows),
+            suppression_digests=tuple(str(item[1]) for item in evidence_rows),
+            actor_type=str(evidence_rows[0][2]),
+            reason=str(row[1]),
+            tombstoned_at=str(evidence_rows[0][3] or row[2]),
+        )
+
+    def list_evidence_tombstones(
+        self,
+        *,
+        user_id: str,
+        limit: int = 100,
+    ) -> tuple[CareerEvidenceTombstone, ...]:
+        """Return deletion audit metadata without any removed source text."""
+
+        if not 1 <= limit <= 500:
+            raise ValueError("tombstone audit limit must be between 1 and 500")
+        with self._connect() as connection:
+            operations = connection.execute(
+                """
+                SELECT id, scope_key, status, reason, created_at
+                FROM career_memory_deletion_operations
+                WHERE user_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+            result = []
+            for operation_id, scope_key, status, reason, created_at in operations:
+                rows = connection.execute(
+                    """
+                    SELECT id, suppression_digest, tombstoned_by, tombstoned_at
+                    FROM career_evidence
+                    WHERE user_id = ? AND scope_key = ?
+                      AND tombstoned_at IS NOT NULL
+                    ORDER BY revision, created_at, id
+                    """,
+                    (user_id, scope_key),
+                ).fetchall()
+                if not rows:
+                    continue
+                result.append(
+                    CareerEvidenceTombstone(
+                        cleanup_operation_id=str(operation_id),
+                        cleanup_status=str(status),
+                        scope_key=str(scope_key),
+                        evidence_ids=tuple(str(row[0]) for row in rows),
+                        suppression_digests=tuple(str(row[1]) for row in rows),
+                        actor_type=str(rows[0][2]),
+                        reason=str(reason),
+                        tombstoned_at=str(rows[0][3] or created_at),
+                    )
+                )
+        return tuple(result)
+
+    def get_evidence_tombstone(
+        self,
+        *,
+        user_id: str,
+        cleanup_operation_id: str,
+    ) -> CareerEvidenceTombstone | None:
+        """Read one cleanup operation without re-entering the write path."""
+
+        with self._connect() as connection:
+            operation = connection.execute(
+                """
+                SELECT scope_key, status, reason, created_at
+                FROM career_memory_deletion_operations
+                WHERE id = ? AND user_id = ?
+                """,
+                (cleanup_operation_id, user_id),
+            ).fetchone()
+            if operation is None:
+                return None
+            rows = connection.execute(
+                """
+                SELECT id, suppression_digest, tombstoned_by, tombstoned_at
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND verification_status = 'confirmed'
+                  AND tombstoned_at IS NOT NULL
+                ORDER BY revision, created_at, id
+                """,
+                (user_id, str(operation[0])),
+            ).fetchall()
+        if not rows:
+            return None
+        return CareerEvidenceTombstone(
+            cleanup_operation_id=cleanup_operation_id,
+            cleanup_status=str(operation[1]),
+            scope_key=str(operation[0]),
+            evidence_ids=tuple(str(row[0]) for row in rows),
+            suppression_digests=tuple(str(row[1]) for row in rows),
+            actor_type=str(rows[0][2]),
+            reason=str(operation[2]),
+            tombstoned_at=str(rows[0][3] or operation[3]),
+        )
+
+    def get_tombstone_lineage_markers(
+        self,
+        *,
+        user_id: str,
+        cleanup_operation_id: str,
+    ) -> tuple[str, ...]:
+        """Return only non-PII opaque refs usable for legacy transcript scans."""
+
+        with self._connect() as connection:
+            operation = connection.execute(
+                """
+                SELECT scope_key FROM career_memory_deletion_operations
+                WHERE id = ? AND user_id = ?
+                """,
+                (cleanup_operation_id, user_id),
+            ).fetchone()
+            if operation is None:
+                return ()
+            rows = connection.execute(
+                """
+                SELECT detail_ref, source_ref
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND tombstoned_at IS NOT NULL
+                ORDER BY revision, created_at, id
+                """,
+                (user_id, str(operation[0])),
+            ).fetchall()
+        return tuple(
+            dict.fromkeys(
+                (
+                    career_evidence_lineage_ref(
+                        user_id=user_id,
+                        scope_key=str(operation[0]),
+                    ),
+                    *(
+                        marker
+                        for row in rows
+                        for marker in (row[0], row[1])
+                        if marker is not None
+                    ),
+                )
+            )
+        )
 
     def correct_evidence(
         self,
@@ -908,7 +1325,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, scope_key, mutation_type, status,
                        preimage_json, replacement_evidence_id, reason,
-                       created_at, rolled_back_at
+                       created_at, rolled_back_at, tombstoned_at
                 FROM career_evidence_mutations
                 WHERE id = ? AND user_id = ?
                 """,
@@ -922,7 +1339,7 @@ class CareerHistoryStore:
         query = """
             SELECT id, user_id, scope_key, mutation_type, status,
                    preimage_json, replacement_evidence_id, reason,
-                   created_at, rolled_back_at
+                   created_at, rolled_back_at, tombstoned_at
             FROM career_evidence_mutations
             WHERE user_id = ?
         """
@@ -953,7 +1370,7 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, scope_key, mutation_type, status,
                        preimage_json, replacement_evidence_id, reason,
-                       created_at, rolled_back_at
+                       created_at, rolled_back_at, tombstoned_at
                 FROM career_evidence_mutations
                 WHERE id = ? AND user_id = ?
                 """,
@@ -964,6 +1381,8 @@ class CareerHistoryStore:
             snapshot = self._mutation(mutation_row)
             if snapshot.status == "rolled_back":
                 return snapshot
+            if snapshot.status == "tombstoned":
+                raise ValueError("Tombstoned evidence cannot be rolled back.")
             replacement_row = connection.execute(
                 f"SELECT {_EVIDENCE_COLUMNS} FROM career_evidence WHERE id = ?",
                 (snapshot.replacement_evidence_id,),
@@ -1086,12 +1505,29 @@ class CareerHistoryStore:
                 """
                 SELECT id, user_id, scope_key, mutation_type, status,
                        preimage_json, replacement_evidence_id, reason,
-                       created_at, rolled_back_at
+                       created_at, rolled_back_at, tombstoned_at
                 FROM career_evidence_mutations
                 """
                 + (" WHERE user_id = ?" if user_id is not None else ""),
                 parameters,
             ).fetchall()
+            fts_evidence_ids = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT evidence_id FROM career_evidence_fts"
+                ).fetchall()
+            }
+            suppression_bindings = {
+                (str(row[0]), str(row[1]))
+                for row in connection.execute(
+                    """
+                    SELECT career_evidence_id, suppression_digest
+                    FROM career_evidence_suppressions
+                    """
+                    + (" WHERE user_id = ?" if user_id is not None else ""),
+                    parameters,
+                ).fetchall()
+            }
 
         items = {
             str(row[0]): dict(zip(_EVIDENCE_FIELD_NAMES, row, strict=True))
@@ -1150,8 +1586,43 @@ class CareerHistoryStore:
                     scope_key=item["scope_key"],
                     evidence_ids=(evidence_id,),
                 )
-            if versioned and item["content_digest"] != intent_content_digest(
+            tombstoned = item["tombstoned_at"] is not None
+            if tombstoned:
+                if (
+                    item["claim"] != ""
+                    or item["source_locator"] not in ("", None)
+                    or item["source_quote"] not in ("", None)
+                    or item["tombstoned_by"] is None
+                    or item["tombstone_reason"] is None
+                    or item["suppression_digest"] is None
+                ):
+                    add(
+                        "tombstone_content",
+                        "Tombstoned evidence retains text or lacks audit metadata.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(evidence_id,),
+                    )
+                if evidence_id in fts_evidence_ids:
+                    add(
+                        "tombstone_index",
+                        "Tombstoned evidence remains in the online FTS index.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(evidence_id,),
+                    )
+                binding = (evidence_id, str(item["suppression_digest"]))
+                if binding not in suppression_bindings:
+                    add(
+                        "suppression_binding",
+                        "Tombstoned evidence has no durable suppression key.",
+                        scope_key=item["scope_key"],
+                        evidence_ids=(evidence_id,),
+                    )
+            if (
+                versioned
+                and not tombstoned
+                and item["content_digest"] != intent_content_digest(
                 str(item["claim"])
+                )
             ):
                 add(
                     "version_binding",
@@ -1263,12 +1734,25 @@ class CareerHistoryStore:
             active = [
                 item
                 for item in scoped
-                if item["superseded_by"] is None and item["rolled_back_at"] is None
+                if item["superseded_by"] is None
+                and item["rolled_back_at"] is None
+                and item["tombstoned_at"] is None
             ]
-            if len(active) != 1:
+            tombstone_count = sum(
+                item["tombstoned_at"] is not None for item in scoped
+            )
+            expected_active_count = 0 if tombstone_count else 1
+            if tombstone_count not in (0, len(scoped)):
+                add(
+                    "tombstone_content",
+                    "Career evidence lineage is only partially tombstoned.",
+                    scope_key=scope_key,
+                    evidence_ids=tuple(str(item["id"]) for item in scoped),
+                )
+            if len(active) != expected_active_count:
                 add(
                     "active_count",
-                    "A versioned evidence scope must have exactly one active row.",
+                    "Evidence scope has an invalid active-row count for its lifecycle.",
                     scope_key=scope_key,
                     evidence_ids=tuple(str(item["id"]) for item in active),
                 )
@@ -1276,7 +1760,9 @@ class CareerHistoryStore:
         for evidence_id, item in items.items():
             event_types = event_types_by_evidence.get(evidence_id, set())
             expected = (
-                "rejected"
+                "tombstoned"
+                if item["tombstoned_at"] is not None
+                else "rejected"
                 if item["verification_status"] == "rejected"
                 else "corrected"
                 if item["supersedes_id"] is not None
@@ -1365,14 +1851,48 @@ class CareerHistoryStore:
                         evidence_ids=(mutation.preimage.active_evidence_id,),
                         mutation_id=mutation.id,
                     )
-            elif replacement is not None and replacement["rolled_back_at"] is not None:
-                add(
-                    "snapshot_binding",
-                    "Applied mutation points to a rolled-back replacement.",
-                    scope_key=mutation.scope_key,
-                    evidence_ids=(mutation.replacement_evidence_id,),
-                    mutation_id=mutation.id,
-                )
+            elif mutation.status == "tombstoned":
+                if (
+                    replacement is None
+                    or replacement["tombstoned_at"] is None
+                    or previous is None
+                    or previous["tombstoned_at"] is None
+                ):
+                    add(
+                        "tombstone_rollback",
+                        "Terminal mutation is not bound to a tombstoned lineage.",
+                        scope_key=mutation.scope_key,
+                        evidence_ids=(
+                            mutation.preimage.active_evidence_id,
+                            mutation.replacement_evidence_id,
+                        ),
+                        mutation_id=mutation.id,
+                    )
+            else:
+                if replacement is not None and replacement["rolled_back_at"] is not None:
+                    add(
+                        "snapshot_binding",
+                        "Applied mutation points to a rolled-back replacement.",
+                        scope_key=mutation.scope_key,
+                        evidence_ids=(mutation.replacement_evidence_id,),
+                        mutation_id=mutation.id,
+                    )
+                if (
+                    replacement is not None
+                    and replacement["tombstoned_at"] is not None
+                ) or (
+                    previous is not None and previous["tombstoned_at"] is not None
+                ):
+                    add(
+                        "tombstone_rollback",
+                        "Tombstoned lineage retains a revertible mutation.",
+                        scope_key=mutation.scope_key,
+                        evidence_ids=(
+                            mutation.preimage.active_evidence_id,
+                            mutation.replacement_evidence_id,
+                        ),
+                        mutation_id=mutation.id,
+                    )
 
         return CareerEvidenceInvariantReport(
             user_id=user_id,
@@ -1470,11 +1990,28 @@ class CareerHistoryStore:
                     ),
                 ]
                 seen: set[tuple[str, str, str]] = set()
+                imported_for_record = 0
                 for claim, locator, quote in candidates:
                     key = (claim, locator, quote)
                     if key in seen:
                         continue
                     seen.add(key)
+                    suppression_digest = career_evidence_suppression_digest(
+                        claim,
+                        locator,
+                        quote,
+                    )
+                    suppressed = connection.execute(
+                        """
+                        SELECT 1
+                        FROM career_evidence_suppressions
+                        WHERE user_id = ? AND suppression_digest = ?
+                        LIMIT 1
+                        """,
+                        (user_id, suppression_digest),
+                    ).fetchone()
+                    if suppressed is not None:
+                        continue
                     evidence_id = f"career_evidence_{uuid4().hex}"
                     evidence = CareerEvidence(
                         id=evidence_id,
@@ -1563,6 +2100,14 @@ class CareerHistoryStore:
                         ),
                     )
                     all_evidence.append(evidence)
+                    imported_for_record += 1
+
+                if imported_for_record == 0:
+                    connection.execute(
+                        "DELETE FROM career_records WHERE id = ? AND user_id = ?",
+                        (record.id, user_id),
+                    )
+                    records.pop()
 
             connection.execute(
                 """
@@ -1816,6 +2361,13 @@ class CareerHistoryStore:
                     DEFERRABLE INITIALLY DEFERRED,
                 mutation_id TEXT,
                 rolled_back_at TEXT,
+                tombstoned_at TEXT,
+                tombstoned_by TEXT CHECK (
+                    tombstoned_by IS NULL
+                    OR tombstoned_by IN ('user', 'agent', 'system')
+                ),
+                tombstone_reason TEXT,
+                suppression_digest TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 CHECK (source_locator IS NULL OR source_resume_version_id IS NOT NULL),
@@ -1853,7 +2405,7 @@ class CareerHistoryStore:
                 event_type TEXT NOT NULL CHECK (
                     event_type IN (
                         'created', 'confirmed', 'rejected', 'superseded',
-                        'corrected', 'rolled_back', 'restored'
+                        'corrected', 'rolled_back', 'restored', 'tombstoned'
                     )
                 ),
                 previous_status TEXT CHECK (
@@ -1877,13 +2429,16 @@ class CareerHistoryStore:
                 user_id TEXT NOT NULL,
                 scope_key TEXT NOT NULL,
                 mutation_type TEXT NOT NULL CHECK (mutation_type = 'correction'),
-                status TEXT NOT NULL CHECK (status IN ('applied', 'rolled_back')),
+                status TEXT NOT NULL CHECK (
+                    status IN ('applied', 'rolled_back', 'tombstoned')
+                ),
                 preimage_json TEXT NOT NULL,
                 replacement_evidence_id TEXT NOT NULL REFERENCES career_evidence(id)
                     DEFERRABLE INITIALLY DEFERRED,
                 reason TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                rolled_back_at TEXT
+                rolled_back_at TEXT,
+                tombstoned_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS resume_analysis_career_imports (
@@ -1893,6 +2448,26 @@ class CareerHistoryStore:
                 career_record_ids_json TEXT NOT NULL,
                 career_evidence_ids_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS career_evidence_suppressions (
+                user_id TEXT NOT NULL,
+                suppression_digest TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, suppression_digest)
+            );
+
+            CREATE TABLE IF NOT EXISTS career_memory_deletion_operations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('pending', 'completed')),
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                UNIQUE(user_id, scope_key)
             );
 
             CREATE INDEX IF NOT EXISTS career_records_user_time_idx
@@ -1924,6 +2499,7 @@ class CareerHistoryStore:
         # numbered upgrades, so the idempotent backfill must run here as well.
         CareerHistoryStore._ensure_evidence_version_schema(connection)
         CareerHistoryStore._ensure_m4b_read_schema(connection)
+        CareerHistoryStore._ensure_m3_tombstone_schema(connection)
 
     @staticmethod
     def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
@@ -1936,6 +2512,178 @@ class CareerHistoryStore:
     @staticmethod
     def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
         CareerHistoryStore._ensure_m4b_read_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v6(connection: sqlite3.Connection) -> None:
+        CareerHistoryStore._ensure_m3_tombstone_schema(connection)
+
+    @staticmethod
+    def _ensure_m3_tombstone_schema(connection: sqlite3.Connection) -> None:
+        evidence_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+        additions = {
+            "tombstoned_at": "TEXT",
+            "tombstoned_by": "TEXT",
+            "tombstone_reason": "TEXT",
+            "suppression_digest": "TEXT",
+        }
+        for name, definition in additions.items():
+            if name not in evidence_columns:
+                connection.execute(
+                    f"ALTER TABLE career_evidence ADD COLUMN {name} {definition}"
+                )
+
+        mutation_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(career_evidence_mutations)"
+            )
+        }
+        if "tombstoned_at" not in mutation_columns:
+            connection.executescript(
+                """
+                ALTER TABLE career_evidence_mutations
+                    RENAME TO career_evidence_mutations_v5;
+                CREATE TABLE career_evidence_mutations (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    scope_key TEXT NOT NULL,
+                    mutation_type TEXT NOT NULL CHECK (mutation_type = 'correction'),
+                    status TEXT NOT NULL CHECK (
+                        status IN ('applied', 'rolled_back', 'tombstoned')
+                    ),
+                    preimage_json TEXT NOT NULL,
+                    replacement_evidence_id TEXT NOT NULL REFERENCES career_evidence(id)
+                        DEFERRABLE INITIALLY DEFERRED,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    rolled_back_at TEXT,
+                    tombstoned_at TEXT
+                );
+                INSERT INTO career_evidence_mutations(
+                    id, user_id, scope_key, mutation_type, status,
+                    preimage_json, replacement_evidence_id, reason,
+                    created_at, rolled_back_at, tombstoned_at
+                )
+                SELECT id, user_id, scope_key, mutation_type, status,
+                       preimage_json, replacement_evidence_id, reason,
+                       created_at, rolled_back_at, NULL
+                FROM career_evidence_mutations_v5;
+                DROP TABLE career_evidence_mutations_v5;
+                """
+            )
+
+        event_sql_row = connection.execute(
+            """
+            SELECT sql FROM sqlite_master
+            WHERE type = 'table' AND name = 'career_evidence_events'
+            """
+        ).fetchone()
+        event_sql = str(event_sql_row[0]) if event_sql_row else ""
+        if "'tombstoned'" not in event_sql:
+            connection.executescript(
+                """
+                ALTER TABLE career_evidence_events
+                    RENAME TO career_evidence_events_v5;
+                CREATE TABLE career_evidence_events (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
+                    event_type TEXT NOT NULL CHECK (
+                        event_type IN (
+                            'created', 'confirmed', 'rejected', 'superseded',
+                            'corrected', 'rolled_back', 'restored', 'tombstoned'
+                        )
+                    ),
+                    previous_status TEXT CHECK (
+                        previous_status IS NULL
+                        OR previous_status IN ('pending', 'confirmed', 'rejected')
+                    ),
+                    new_status TEXT NOT NULL CHECK (
+                        new_status IN ('pending', 'confirmed', 'rejected')
+                    ),
+                    actor_type TEXT NOT NULL CHECK (
+                        actor_type IN ('user', 'agent', 'system')
+                    ),
+                    reason TEXT,
+                    mutation_id TEXT,
+                    related_evidence_id TEXT REFERENCES career_evidence(id),
+                    occurred_at TEXT NOT NULL
+                );
+                INSERT INTO career_evidence_events(
+                    id, user_id, career_evidence_id, event_type,
+                    previous_status, new_status, actor_type, reason,
+                    mutation_id, related_evidence_id, occurred_at
+                )
+                SELECT id, user_id, career_evidence_id, event_type,
+                       previous_status, new_status, actor_type, reason,
+                       mutation_id, related_evidence_id, occurred_at
+                FROM career_evidence_events_v5;
+                DROP TABLE career_evidence_events_v5;
+                """
+            )
+
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS career_evidence_suppressions (
+                user_id TEXT NOT NULL,
+                suppression_digest TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                career_evidence_id TEXT NOT NULL REFERENCES career_evidence(id),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, suppression_digest)
+            );
+            CREATE TABLE IF NOT EXISTS career_memory_deletion_operations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('pending', 'completed')),
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                UNIQUE(user_id, scope_key)
+            );
+            DROP TRIGGER IF EXISTS career_evidence_fts_insert;
+            DROP TRIGGER IF EXISTS career_evidence_fts_delete;
+            DROP TRIGGER IF EXISTS career_evidence_fts_update;
+            CREATE TRIGGER career_evidence_fts_insert
+            AFTER INSERT ON career_evidence
+            WHEN new.tombstoned_at IS NULL BEGIN
+                INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+                VALUES (new.id, new.user_id, new.claim);
+            END;
+            CREATE TRIGGER career_evidence_fts_delete
+            AFTER DELETE ON career_evidence BEGIN
+                DELETE FROM career_evidence_fts WHERE evidence_id = old.id;
+            END;
+            CREATE TRIGGER career_evidence_fts_update
+            AFTER UPDATE OF claim, user_id, tombstoned_at ON career_evidence BEGIN
+                DELETE FROM career_evidence_fts WHERE evidence_id = old.id;
+                INSERT INTO career_evidence_fts(evidence_id, user_id, claim)
+                SELECT new.id, new.user_id, new.claim
+                WHERE new.tombstoned_at IS NULL;
+            END;
+            DELETE FROM career_evidence_fts
+            WHERE evidence_id IN (
+                SELECT id FROM career_evidence WHERE tombstoned_at IS NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS career_evidence_suppression_idx
+            ON career_evidence(user_id, suppression_digest)
+            WHERE tombstoned_at IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS career_evidence_events_evidence_idx
+            ON career_evidence_events(career_evidence_id, occurred_at);
+            CREATE INDEX IF NOT EXISTS career_evidence_mutations_user_idx
+            ON career_evidence_mutations(user_id, created_at DESC);
+            DROP INDEX IF EXISTS career_evidence_active_scope_idx;
+            CREATE UNIQUE INDEX career_evidence_active_scope_idx
+            ON career_evidence(user_id, scope_key)
+            WHERE verification_status = 'confirmed'
+              AND superseded_by IS NULL
+              AND rolled_back_at IS NULL
+              AND tombstoned_at IS NULL;
+            """
+        )
 
     @staticmethod
     def _ensure_m4b_read_schema(connection: sqlite3.Connection) -> None:
@@ -2228,8 +2976,12 @@ class CareerHistoryStore:
             superseded_by=row[18],
             mutation_id=row[19],
             rolled_back_at=row[20],
-            created_at=row[21],
-            updated_at=row[22],
+            tombstoned_at=row[21],
+            tombstoned_by=row[22],
+            tombstone_reason=row[23],
+            suppression_digest=row[24],
+            created_at=row[25],
+            updated_at=row[26],
         )
 
     @staticmethod
@@ -2261,6 +3013,7 @@ class CareerHistoryStore:
             reason=row[7],
             created_at=row[8],
             rolled_back_at=row[9],
+            tombstoned_at=row[10],
         )
 
     @classmethod

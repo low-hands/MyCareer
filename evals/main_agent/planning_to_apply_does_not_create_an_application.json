@@ -2,21 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "2afd8c9daab8d41c5fb4ced4be7d6919734a8b8931e1d939603abe319db997af",
+  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
   "context_shape_fingerprint": "0d4e787210455f1c43bef2259c20dcbf6620582b1b48d826b1b8fdc7321738b7",
-  "recorded_at": "2026-09-07T09:23:17.606509+00:00",
+  "recorded_at": "2026-09-07T16:25:27.417387+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。我不会把“准备投”记录为已投递。你想先让我用你的简历匹配这个岗位，还是你提交后告诉我，我再帮你记录申请？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请先实际提交申请；提交完成后告诉我，我再为“示例科技｜算法工程师”记录申请。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T09:23:17.606509+00:00",
+      "recorded_at": "2026-09-07T16:25:27.417387+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。我不会把“准备投”记录为已投递。你想先让我用你的简历匹配这个岗位，还是你提交后告诉我，我再帮你记录申请？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请先实际提交申请；提交完成后告诉我，我再为“示例科技｜算法工程师”记录申请。\"}"
         }
       ]
     }

@@ -647,8 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     eval_memory_exposure = eval_subparsers.add_parser(
         "memory-exposure",
         help=(
-            "Measure P1 staleness and supersedence exposure; zombie exposure "
-            "remains unavailable until M3 tombstones."
+            "Measure P1 staleness, supersedence, and post-tombstone zombie exposure."
         ),
     )
     eval_memory_exposure.add_argument("--user-id", required=True)
@@ -795,6 +794,29 @@ def build_parser() -> argparse.ArgumentParser:
             default="~/.career-agent/context.sqlite3",
             help="Local session and context store path.",
         )
+    memory_command = subparsers.add_parser(
+        "memory",
+        help="Recover pending career-memory deletion cleanup.",
+    )
+    memory_subparsers = memory_command.add_subparsers(
+        dest="memory_command", required=True
+    )
+    memory_retry = memory_subparsers.add_parser(
+        "retry-cleanup",
+        help="Retry one already-committed tombstone's derived-memory cleanup.",
+    )
+    memory_retry.add_argument("--user-id", required=True)
+    memory_retry.add_argument("--operation-id", required=True)
+    memory_retry.add_argument(
+        "--context-store",
+        default="~/.career-agent/context.sqlite3",
+        help="Local conversation and episode store path.",
+    )
+    memory_retry.add_argument(
+        "--career-store",
+        default="~/.career-agent/resumes.sqlite3",
+        help="Local career-history store path.",
+    )
     return parser
 
 
@@ -1781,6 +1803,68 @@ def main(
             return EXIT_ARGUMENT_ERROR
         except Exception as error:
             json.dump({"state": "failed", "error_code": "CONTEXT_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
+            stdout.write("\n")
+            return EXIT_UNKNOWN_ERROR
+    if args.command == "memory":
+        try:
+            history = CareerHistoryStore(Path(args.career_store).expanduser())
+            tombstone = history.get_evidence_tombstone(
+                user_id=args.user_id,
+                cleanup_operation_id=args.operation_id,
+            )
+            if tombstone is None:
+                raise ValueError("Tombstone cleanup operation not found.")
+            context_store = CareerContextStore(
+                Path(args.context_store).expanduser()
+            )
+            cleanup = context_store.purge_derived_memory(
+                user_id=args.user_id,
+                scope_key=tombstone.scope_key,
+                lineage_markers=history.get_tombstone_lineage_markers(
+                    user_id=args.user_id,
+                    cleanup_operation_id=args.operation_id,
+                ),
+            )
+            completed = history.complete_tombstone_cleanup(
+                user_id=args.user_id,
+                cleanup_operation_id=args.operation_id,
+            )
+            json.dump(
+                {
+                    "cleanup_operation_id": completed.cleanup_operation_id,
+                    "cleanup_status": completed.cleanup_status,
+                    "derived_cleanup": cleanup,
+                },
+                stdout,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            stdout.write("\n")
+            return EXIT_OK
+        except (OSError, ValueError) as error:
+            json.dump(
+                {
+                    "state": "failed",
+                    "error_code": "MEMORY_CLEANUP_INPUT_ERROR",
+                    "error_detail": str(error),
+                },
+                stdout,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            stdout.write("\n")
+            return EXIT_ARGUMENT_ERROR
+        except Exception as error:
+            json.dump(
+                {
+                    "state": "failed",
+                    "error_code": "MEMORY_CLEANUP_STORE_ERROR",
+                    "error_detail": f"{type(error).__name__}: {error}",
+                },
+                stdout,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
             stdout.write("\n")
             return EXIT_UNKNOWN_ERROR
     if args.command == "chat":

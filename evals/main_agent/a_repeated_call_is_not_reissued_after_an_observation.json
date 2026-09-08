@@ -2,9 +2,9 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "1ea41103b376259a8fc81e0801289e7a34d37aab8c5d99d10277e4aa827c472b",
+  "prompt_fingerprint": "4615ef872fa1b6c7b451ce50a5aab0c2a7faaf24c41416c544318ef6e0e65af8",
   "context_shape_fingerprint": "f7371a36d9b7f6dc6f984f225d1910ad651e0ca902ac8d0c9f6f5d1b53927cb4",
-  "recorded_at": "2026-09-07T09:25:00.821485+00:00",
+  "recorded_at": "2026-09-07T16:21:59.440870+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,13 +16,13 @@
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：上海·示例科技·算法工程师，薪资 30–50K。岗位详情已展示在上方。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：上海·示例科技·算法工程师，薪资 30-50K。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T09:25:00.821485+00:00",
+      "recorded_at": "2026-09-07T16:21:59.440870+00:00",
       "steps": [
         {
           "tool_call": {
@@ -34,7 +34,7 @@
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：上海·示例科技·算法工程师，薪资 30–50K。岗位详情已展示在上方。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你保存了 1 个岗位：上海·示例科技·算法工程师，薪资 30-50K。\"}"
         }
       ]
     }
