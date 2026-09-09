@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
@@ -345,6 +345,7 @@ class MainAgentRuntime:
             "calendar_approval_required",
             "capability_confirmation_required",
             "email_events_pending",
+            "constraint_retirement_proposed",
             "memory_amendment_proposed",
             "memory_tombstone_proposed",
             "mock_interview_answer_required",
@@ -1231,6 +1232,7 @@ class MainAgentRuntime:
                     allow_free_text=True,
                 )
             if tool_result.state in {
+                "constraint_retirement_proposed",
                 "memory_amendment_proposed",
                 "memory_tombstone_proposed",
                 "mock_interview_answer_required",
@@ -3332,6 +3334,14 @@ class MainAgentRuntime:
             "confirm_memory_amendment",
         }:
             return project_memory_amendment_arguments(context, name, arguments)
+        if name in {
+            "fetch_archived_constraints",
+            "propose_constraint_retirement",
+            "confirm_constraint_retirement",
+        }:
+            return project_constraint_retirement_arguments(
+                context, name, arguments
+            )
         if name in {"find_saved_jobs", "get_saved_job", "compare_saved_jobs"}:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":

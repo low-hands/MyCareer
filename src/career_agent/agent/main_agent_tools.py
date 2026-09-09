@@ -44,6 +44,9 @@ from career_agent.agent.main_agent_contracts import (
     SearchCareerMemoryToolArguments,
     SearchCareerEpisodesToolArguments,
     SearchCareerHistoryToolArguments,
+    ConstraintRetirementProposal,
+    FetchArchivedConstraintsToolArguments,
+    ProposeConstraintRetirementToolArguments,
     ProposeMemoryTombstoneToolArguments,
     MemoryTombstoneProposal,
     ProposeMemoryAmendmentToolArguments,
@@ -313,6 +316,19 @@ class MainAgentToolRegistry:
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
                 self._read_conversation_span
+            )
+            self._atomic_handlers.update(
+                {
+                    "fetch_archived_constraints": (
+                        self._fetch_archived_constraints
+                    ),
+                    "propose_constraint_retirement": (
+                        self._propose_constraint_retirement
+                    ),
+                    "confirm_constraint_retirement": (
+                        self._confirm_constraint_retirement
+                    ),
+                }
             )
         if episode_store is not None:
             self._atomic_handlers["search_career_episodes"] = (
@@ -650,6 +666,64 @@ class MainAgentToolRegistry:
                         ),
                     },
                 }
+            )
+            schemas.extend(
+                (
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_archived_constraints",
+                            "description": (
+                                "Read the constraints this conversation recorded "
+                                "but conversation_summary is not showing. Call "
+                                "this when omitted_active_constraint_count is "
+                                "above zero and the reply depends on which "
+                                "constraints apply; an archived constraint still "
+                                "applies. Read-only."
+                            ),
+                            "parameters": (
+                                FetchArchivedConstraintsToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_constraint_retirement",
+                            "description": (
+                                "Prepare to stop applying one recorded "
+                                "constraint, passing its exact text from "
+                                "conversation_summary.active_constraints or from "
+                                "fetch_archived_constraints. Use this only when "
+                                "the user says a constraint no longer holds; "
+                                "never to make room for a new one, and never "
+                                "because a constraint looks stale. This only "
+                                "reads the target and shows a bounded proposal."
+                            ),
+                            "parameters": (
+                                ProposeConstraintRetirementToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_constraint_retirement",
+                            "description": (
+                                "Execute the exact constraint retirement already "
+                                "shown to the user. Call only after explicit "
+                                "agreement. The constraint stops applying and "
+                                "will not return even if a later summary "
+                                "rewrite re-extracts the same text."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
+                        },
+                    },
+                )
             )
         if self._episode_store is not None:
             schemas.append(
@@ -5177,6 +5251,119 @@ class MainAgentToolRegistry:
                 "source_quote": source_quote,
                 "body_clipped": body_clipped,
             },
+        )
+
+    def _fetch_archived_constraints(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._conversation_store is None:
+            raise ValueError("Conversation store is not configured")
+        archived = self._conversation_store.list_conversation_constraints(
+            user_id=str(arguments["user_id"]),
+            conversation_id=str(arguments["conversation_id"]),
+            statuses=("omitted",),
+        )
+        if not archived:
+            return ToolObservation(
+                tool_name="fetch_archived_constraints",
+                state="no_archived_constraints",
+                message=(
+                    "没有被折叠的约束；conversation_summary 里显示的就是全部。"
+                ),
+                execution_outcome="not_committed",
+            )
+        # The texts go in the message, not the payload: the archive exists so
+        # the model can see what the visible cap held back, and payload is not
+        # part of the observation it reads.
+        listed = "\n".join(f"- {row.text}" for row in archived)
+        return ToolObservation(
+            tool_name="fetch_archived_constraints",
+            state="archived_constraints_ready",
+            message=(
+                f"这条对话还有 {len(archived)} 条约束因为显示上限被折叠，"
+                f"它们仍然生效：\n{listed}"
+            ),
+            execution_outcome="not_committed",
+        )
+
+    def _propose_constraint_retirement(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._conversation_store is None:
+            raise ValueError("Conversation store is not configured")
+        proposal = ConstraintRetirementProposal.model_validate(
+            arguments["proposal"]
+        )
+        live = self._conversation_store.list_conversation_constraints(
+            user_id=str(arguments["user_id"]),
+            conversation_id=str(arguments["conversation_id"]),
+            statuses=("active", "omitted"),
+        )
+        if all(row.text != proposal.constraint for row in live):
+            return ToolObservation(
+                tool_name="propose_constraint_retirement",
+                state="constraint_not_found",
+                message=(
+                    "这条约束不在本次对话的生效约束里；请用 "
+                    "conversation_summary.active_constraints 或 "
+                    "fetch_archived_constraints 给出的原文。"
+                ),
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="propose_constraint_retirement",
+            state="constraint_retirement_proposed",
+            message=(
+                f"拟停止应用这条约束：「{proposal.constraint}」。"
+                "确认后它不再进入后续回答，之后的摘要重写也不会把它带回来；"
+                "原始对话消息仍然保留。如确认，请明确同意执行。"
+            ),
+            payload={"proposal": proposal.model_dump(mode="json")},
+            execution_outcome="not_committed",
+        )
+
+    def _confirm_constraint_retirement(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._conversation_store is None:
+            raise ValueError("Conversation store is not configured")
+        user_id = str(arguments["user_id"])
+        conversation_id = str(arguments["conversation_id"])
+        proposal = ConstraintRetirementProposal.model_validate(
+            arguments["proposal"]
+        )
+        stored_task = self._conversation_store.get_task(
+            user_id, conversation_id
+        )
+        if (
+            stored_task is None
+            or stored_task.pending_constraint_retirement != proposal
+        ):
+            return ToolObservation(
+                tool_name="confirm_constraint_retirement",
+                state="constraint_retirement_confirmation_missing",
+                message=(
+                    "这项约束退休尚未在前一轮展示并持久化，不能在提案同一轮执行。"
+                ),
+                execution_outcome="not_committed",
+            )
+        retired = self._conversation_store.retire_conversation_constraint(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            constraint_text=proposal.constraint,
+        )
+        if not retired:
+            return ToolObservation(
+                tool_name="confirm_constraint_retirement",
+                state="constraint_not_found",
+                message="这条约束已经不再生效；无需重复退休。",
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="confirm_constraint_retirement",
+            state="constraint_retired",
+            message=f"已停止应用这条约束：「{proposal.constraint}」。",
+            execution_outcome="committed",
         )
 
     def _read_conversation_span(
