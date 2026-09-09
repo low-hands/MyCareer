@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
@@ -37,9 +37,17 @@ from career_agent.storage.episodes import (
 from career_agent.storage.intent_versions import (
     append_intent_version,
     apply_intent_version_schema,
+    capture_intent_version,
     list_intent_versions,
+    upgrade_intent_version_schema,
 )
 from career_agent.storage.schema import apply_schema
+
+if TYPE_CHECKING:
+    from career_agent.services.intent_capture import (
+        IntentCaptureCandidate,
+        IntentCaptureDecision,
+    )
 
 _OPAQUE_LINEAGE_MARKER = re.compile(
     r"^(?:detail|evidence|lineage)_[a-f0-9]{24}$"
@@ -119,6 +127,9 @@ class CareerProfileStore(Protocol):
         profile: CareerProfileContext,
         *,
         source: str = "career_profile_upsert",
+        pref_scope: str = "global",
+        timescale: str = "permanent",
+        layer: str = "stable",
     ) -> None: ...
 
     def list_profile_intent_versions(
@@ -126,6 +137,7 @@ class CareerProfileStore(Protocol):
         *,
         user_id: str,
         scope_keys: Sequence[str] | None = None,
+        pref_scope: str | None = None,
         active_only: bool = False,
         limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]: ...
@@ -141,7 +153,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                8,
+                10,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -151,6 +163,8 @@ class CareerContextStore:
                     6: self._upgrade_to_v6,
                     7: self._upgrade_to_v7,
                     8: self._upgrade_to_v8,
+                    9: upgrade_intent_version_schema,
+                    10: self._upgrade_to_v10,
                 },
             )
             apply_episode_schema(connection)
@@ -252,6 +266,18 @@ class CareerContextStore:
         connection.execute("DROP TABLE IF EXISTS memory_deletion_cutoffs")
 
     @staticmethod
+    def _upgrade_to_v10(connection: sqlite3.Connection) -> None:
+        CareerContextStore._drop_removed_scope_queue(connection)
+
+    @staticmethod
+    def _drop_removed_scope_queue(connection: sqlite3.Connection) -> None:
+        connection.execute("DROP TABLE IF EXISTS scope_resolution_events")
+        connection.execute("DROP TABLE IF EXISTS scope_resolution_queue")
+        connection.execute(
+            "DELETE FROM schema_versions WHERE component = 'memory_scope'"
+        )
+
+    @staticmethod
     def _ensure_memory_deletion_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             """
@@ -323,20 +349,34 @@ class CareerContextStore:
         ).fetchall()
         for user_id, payload in rows:
             profile = CareerProfileContext.model_validate_json(payload)
-            if profile.default_city is not None:
+            city_scope = "person_intent/self/default_city"
+            if profile.default_city is not None and not list_intent_versions(
+                connection,
+                user_id=user_id,
+                scope_key=city_scope,
+                limit=1,
+            ):
                 append_intent_version(
                     connection,
                     user_id=user_id,
-                    scope_key="person_intent/self/default_city",
+                    scope_key=city_scope,
                     value=profile.default_city,
                     source="migration:career_profile_context",
                     valid_from=backfilled_at,
                 )
             for constraint in profile.hard_constraints:
+                scope_key = f"person_intent/self/{constraint.relation}"
+                if list_intent_versions(
+                    connection,
+                    user_id=user_id,
+                    scope_key=scope_key,
+                    limit=1,
+                ):
+                    continue
                 append_intent_version(
                     connection,
                     user_id=user_id,
-                    scope_key=f"person_intent/self/{constraint.relation}",
+                    scope_key=scope_key,
                     value=constraint.value,
                     source="migration:career_profile_context",
                     valid_from=backfilled_at,
@@ -350,8 +390,9 @@ class CareerContextStore:
         connection.execute("CREATE TABLE IF NOT EXISTS career_profile_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
         apply_intent_version_schema(connection)
         # Intentional cumulative-baseline exception: pre-registry databases do
-        # not replay numbered upgrades. This backfill is safe on every open
-        # because append_intent_version no-ops on the active value's digest.
+        # not replay numbered upgrades. Existing tracks are skipped, and
+        # append_intent_version no-ops on the same digest unless a caller
+        # explicitly corroborates, so opening the store never resets decay.
         CareerContextStore._backfill_profile_intent_versions(connection)
         connection.execute("CREATE TABLE IF NOT EXISTS owner_settings_context (user_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)")
         connection.execute(
@@ -395,6 +436,7 @@ class CareerContextStore:
             """
         )
         CareerContextStore._ensure_memory_deletion_schema(connection)
+        CareerContextStore._drop_removed_scope_queue(connection)
 
     def get_session(self, user_id: str, session_id: str) -> AgentSession | None:
         with self._connect() as connection:
@@ -544,7 +586,14 @@ class CareerContextStore:
         profile: CareerProfileContext,
         *,
         source: str = "career_profile_upsert",
+        pref_scope: str = "global",
+        timescale: str = "permanent",
+        layer: str = "stable",
     ) -> None:
+        if pref_scope != "global":
+            raise ValueError(
+                "named-scope intent must use capture_profile_intent, not the flat profile"
+            )
         now = datetime.now(timezone.utc)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -594,6 +643,10 @@ class CareerContextStore:
                     value=profile.default_city,
                     source=source,
                     valid_from=now,
+                    last_corroborated_at=now,
+                    pref_scope=pref_scope,
+                    timescale=timescale,
+                    layer=layer,
                 )
             for constraint in profile.hard_constraints:
                 append_intent_version(
@@ -603,6 +656,10 @@ class CareerContextStore:
                     value=constraint.value,
                     source=source,
                     valid_from=now,
+                    last_corroborated_at=now,
+                    pref_scope=pref_scope,
+                    timescale=timescale,
+                    layer=layer,
                 )
 
     def list_profile_intent_versions(
@@ -611,6 +668,7 @@ class CareerContextStore:
         user_id: str,
         scope_key: str | None = None,
         scope_keys: Sequence[str] | None = None,
+        pref_scope: str | None = None,
         active_only: bool = False,
         limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]:
@@ -620,9 +678,20 @@ class CareerContextStore:
                 user_id=user_id,
                 scope_key=scope_key,
                 scope_keys=scope_keys,
+                pref_scope=pref_scope,
                 active_only=active_only,
                 limit=limit,
             )
+
+    def capture_profile_intent(
+        self,
+        candidate: IntentCaptureCandidate,
+    ) -> tuple[IntentCaptureDecision, IntentMemoryVersion | None]:
+        if not candidate.scope_key.startswith("person_intent/self/"):
+            raise ValueError("profile intent requires a person_intent/self scope")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return capture_intent_version(connection, candidate=candidate)
 
     def get_owner_settings(self, user_id: str) -> OwnerSettingsContext | None:
         return self._get_single("owner_settings_context", user_id, OwnerSettingsContext)
@@ -735,9 +804,6 @@ class CareerContextStore:
         )
 
     # Compatibility for call sites/tests predating the semantic split.
-    def get_preferences(self, user_id: str) -> OwnerSettingsContext | None:
-        return self.get_owner_settings(user_id)
-
     def upsert_preferences(self, user_id: str, preferences: OwnerSettingsContext) -> None:
         current = self.get_owner_settings(user_id) or OwnerSettingsContext()
         self.update_owner_settings(
@@ -1048,12 +1114,17 @@ class CareerContextStore:
         scope_key: str,
         lineage_markers: Sequence[str] = (),
     ) -> dict[str, int]:
-        """Suppress only derived rows that observed one tombstoned lineage.
+        """Invalidate derivations that observed one tombstoned lineage.
 
         New rows carry an explicit scope binding. ``lineage_markers`` is a
         SQL-side migration fallback for messages written before those
         bindings existed; only opaque detail/source/lineage refs are accepted.
         Free-text claims are never used as scan keys.
+
+        Original messages remain reconstructable: affected summaries are
+        dropped so the next compaction rebuilds from unsuppressed rows.
+        Episodes lose this scope association and are deleted only when no other
+        live memory association remains.
         """
 
         now = datetime.now(timezone.utc).isoformat()
@@ -1128,17 +1199,17 @@ class CareerContextStore:
                             FROM memory_deletion_message_suppressions AS hidden
                             WHERE hidden.user_id = conversation_summaries.user_id
                               AND hidden.conversation_id = conversation_summaries.conversation_id
+                              AND hidden.scope_key = ?
                               AND hidden.sequence <= conversation_summaries.through_sequence
                           )
                     """,
-                    (user_id, *affected_conversations),
+                    (user_id, *affected_conversations, scope_key),
                 )
                 summary_count = int(cursor.rowcount)
             episode_count = SQLiteCareerEpisodeStore.delete_for_scope_on(
                 connection,
                 user_id=user_id,
                 scope_key=scope_key,
-                lineage_markers=markers,
             )
         return {
             "conversation_fragments": len(bound_rows),
@@ -1232,93 +1303,10 @@ class CareerContextStore:
                     now,
                 ),
             )
-            # Covered rows are kept. Read paths already skip them, so they cost
-            # file size and nothing else, and a summary is a model output: if it
-            # drops or distorts something, the original is the only way to tell.
-            # Reclaiming the space is a separate, explicit request.
+            # Covered rows are permanent reconstruction inputs. If a memory
+            # tombstone invalidates this summary, the retained unsuppressed
+            # messages let the next turn regenerate it without data loss.
         return True
-
-    def count_compacted_messages(
-        self, *, user_id: str, conversation_id: str | None = None
-    ) -> tuple[int, int]:
-        """How many covered rows are still stored, and how many bytes they hold.
-
-        Covered means a summary already claims the row and the prune would
-        delete it. The two have to apply the same filter: counting rows the
-        command keeps would leave the notice standing after every prune, telling
-        the operator there is disk to reclaim and then reclaiming none of it.
-
-        Delivering turns are what the filter excludes. Their rows are kept
-        deliberately — they are the only handle the agent has on a report once
-        the recent window scrolls past — so they are not reclaimable and must
-        not be counted as such.
-        """
-        clause = "AND m.conversation_id = ?" if conversation_id else ""
-        parameters: tuple[str, ...] = (
-            (user_id, conversation_id) if conversation_id else (user_id,)
-        )
-        with self._connect() as connection:
-            row = connection.execute(
-                f"""
-                SELECT COUNT(*), COALESCE(SUM(LENGTH(m.payload)), 0)
-                FROM conversation_messages AS m
-                JOIN conversation_summaries AS s
-                  ON s.user_id = m.user_id
-                 AND s.conversation_id = m.conversation_id
-                WHERE m.user_id = ? {clause} AND m.sequence <= s.through_sequence
-                  AND json_array_length(
-                        COALESCE(json_extract(m.payload, '$.resource_refs'), json_array())
-                      ) = 0
-                """,
-                parameters,
-            ).fetchone()
-        return int(row[0]), int(row[1])
-
-    def prune_compacted_messages(
-        self, *, user_id: str, conversation_id: str | None = None
-    ) -> int:
-        """Delete only rows a stored summary already covers.
-
-        The bound is read inside the same transaction as the delete. Passing a
-        sequence in from the caller would let a turn committed in between be
-        deleted while no summary had claimed it yet.
-        """
-        clause = "AND m.conversation_id = ?" if conversation_id else ""
-        parameters: tuple[str, ...] = (
-            (user_id, conversation_id) if conversation_id else (user_id,)
-        )
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
-                f"""
-                DELETE FROM conversation_messages
-                WHERE rowid IN (
-                    SELECT m.rowid
-                    FROM conversation_messages AS m
-                    JOIN conversation_summaries AS s
-                      ON s.user_id = m.user_id
-                     AND s.conversation_id = m.conversation_id
-                    WHERE m.user_id = ? {clause}
-                      AND m.sequence <= s.through_sequence
-                      -- A delivered report's row is the only handle the agent
-                      -- has on it once the recent window scrolls past. Its
-                      -- content is a bounded line by construction, so keeping
-                      -- it costs almost nothing, while dropping it would make
-                      -- the report unreachable to the agent while the UI still
-                      -- shows the card.
-                      AND json_array_length(
-                            COALESCE(
-                                json_extract(m.payload, '$.resource_refs'),
-                                json_array()
-                            )
-                          ) = 0
-                )
-                """,
-                parameters,
-            )
-            deleted = cursor.rowcount
-        os.chmod(self.path, 0o600)
-        return int(deleted)
 
     def commit_turn(
         self,
@@ -1430,14 +1418,6 @@ class CareerContextStore:
         with self._connect() as connection:
             row = connection.execute(f"SELECT payload FROM {table} WHERE user_id = ?", (user_id,)).fetchone()
         return model.model_validate_json(row[0]) if row else None
-
-    def _upsert_single(self, table: str, user_id: str, payload: str) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                f"INSERT INTO {table}(user_id, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at",
-                (user_id, payload, datetime.now(timezone.utc).isoformat()),
-            )
-        os.chmod(self.path, 0o600)
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30.0)

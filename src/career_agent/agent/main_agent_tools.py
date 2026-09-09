@@ -42,6 +42,7 @@ from career_agent.agent.main_agent_contracts import (
     ResolveClaimSourceToolArguments,
     GetCareerMemoryDetailToolArguments,
     SearchCareerMemoryToolArguments,
+    SearchCareerEpisodesToolArguments,
     SearchCareerHistoryToolArguments,
     ProposeMemoryTombstoneToolArguments,
     MemoryTombstoneProposal,
@@ -104,10 +105,14 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.domain.career_history import career_evidence_lineage_ref
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.tool_effects import effect_for
-from career_agent.harness.observability import record_active_trace
+from career_agent.harness.observability import (
+    conversation_trace_key,
+    record_active_trace,
+)
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.services.resume_analysis import (
@@ -117,6 +122,7 @@ from career_agent.services.resume_analysis import (
     ResumeAnalysisWorkerNotCommittedError,
     ResumeVersionNotFoundError,
 )
+from career_agent.services.intent_capture import IntentCaptureCandidate
 
 
 from career_agent.services.applications import (
@@ -194,7 +200,6 @@ from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
 from career_agent.services.canonical_scope import CanonicalScopeResolver
-from career_agent.services.memory_scope import MemoryScopeWriteGate
 
 
 logger = logging.getLogger(__name__)
@@ -256,7 +261,7 @@ class MainAgentToolRegistry:
         owner_settings_store: CareerContextStore | None = None,
         conversation_store: CareerContextStore | None = None,
         career_history_store: CareerHistoryStore | None = None,
-        memory_scope_write_gate: MemoryScopeWriteGate | None = None,
+        episode_store: SQLiteCareerEpisodeStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -300,11 +305,15 @@ class MainAgentToolRegistry:
         self._owner_settings_store = owner_settings_store
         self._conversation_store = conversation_store
         self._career_history_store = career_history_store
-        self._memory_scope_write_gate = memory_scope_write_gate
+        self._episode_store = episode_store
         self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
                 self._read_conversation_span
+            )
+        if episode_store is not None:
+            self._atomic_handlers["search_career_episodes"] = (
+                self._search_career_episodes
             )
         if career_history_store is not None:
             self._atomic_handlers.update(
@@ -635,6 +644,26 @@ class MainAgentToolRegistry:
                         ),
                         "parameters": (
                             ReadConversationSpanToolArguments.model_json_schema()
+                        ),
+                    },
+                }
+            )
+        if self._episode_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "search_career_episodes",
+                        "description": (
+                            "Search L1 memories of completed applications, job "
+                            "research, interviews, and mock interviews across "
+                            "conversations. Supports an occurred-at window and "
+                            "episode-type filters. Results are compact pointers "
+                            "and synopses; dereference resource_refs before using "
+                            "an episode as factual evidence."
+                        ),
+                        "parameters": (
+                            SearchCareerEpisodesToolArguments.model_json_schema()
                         ),
                     },
                 }
@@ -3625,6 +3654,62 @@ class MainAgentToolRegistry:
             ),
             update=update,
         )
+        layer = (
+            "transient"
+            if update.timescale == "situational"
+            else "contextual"
+            if update.pref_scope != "global"
+            else "stable"
+        )
+        if update.pref_scope != "global":
+            versions = []
+            for scope, value in admitted_scopes:
+                candidate = IntentCaptureCandidate(
+                    user_id=user_id,
+                    scope_key=scope.scope_key,
+                    pref_scope=update.pref_scope,
+                    timescale=update.timescale,
+                    layer=layer,
+                    value=value,
+                    source="confirmed_job_intent",
+                    confidence=1.0,
+                )
+                if update.is_role_scoped:
+                    if self._resume_store is None:
+                        raise ValueError("Resume store is not configured")
+                    _, version = self._resume_store.capture_target_role_intent(
+                        candidate
+                    )
+                else:
+                    capture = getattr(
+                        self._career_profile_store,
+                        "capture_profile_intent",
+                        None,
+                    )
+                    if not callable(capture):
+                        raise ValueError(
+                            "Career profile store cannot capture scoped intent"
+                        )
+                    _, version = capture(candidate)
+                if version is not None:
+                    versions.append(version)
+            return ToolObservation(
+                tool_name="confirm_job_intent",
+                state="job_intent_recorded",
+                message=self._job_intent_readback(
+                    update,
+                    scope=None,
+                    saved=True,
+                ),
+                payload={
+                    "pref_scope": update.pref_scope,
+                    "timescale": update.timescale,
+                    "versions": [
+                        version.model_dump(mode="json") for version in versions
+                    ],
+                },
+                execution_outcome="committed",
+            )
         if update.is_role_scoped:
             if self._resume_store is None:
                 raise ValueError("Resume store is not configured")
@@ -3636,28 +3721,9 @@ class MainAgentToolRegistry:
                 experience=update.experience,
                 education=update.education,
                 source="confirmed_job_intent",
-            )
-            version_reader = getattr(
-                self._resume_store,
-                "list_target_role_intent_versions",
-                None,
-            )
-            versions = (
-                version_reader(
-                    user_id=user_id,
-                    scope_keys=tuple(
-                        scope.scope_key for scope, _ in admitted_scopes
-                    ),
-                    active_only=True,
-                    limit=len(admitted_scopes),
-                )
-                if callable(version_reader)
-                else ()
-            )
-            MemoryScopeWriteGate.record_committed(
-                admitted_scopes,
-                proposals=admitted_proposals,
-                versions=versions,
+                pref_scope=update.pref_scope,
+                timescale=update.timescale,
+                layer=layer,
             )
             return ToolObservation(
                 tool_name="confirm_job_intent",
@@ -3675,28 +3741,9 @@ class MainAgentToolRegistry:
         self._career_profile_store.upsert_profile(
             updated,
             source="confirmed_job_intent",
-        )
-        version_reader = getattr(
-            self._career_profile_store,
-            "list_profile_intent_versions",
-            None,
-        )
-        versions = (
-            version_reader(
-                user_id=user_id,
-                scope_keys=tuple(
-                    scope.scope_key for scope, _ in admitted_scopes
-                ),
-                active_only=True,
-                limit=len(admitted_scopes),
-            )
-            if callable(version_reader)
-            else ()
-        )
-        MemoryScopeWriteGate.record_committed(
-            admitted_scopes,
-            proposals=admitted_proposals,
-            versions=versions,
+            pref_scope=update.pref_scope,
+            timescale=update.timescale,
+            layer=layer,
         )
         return ToolObservation(
             tool_name="confirm_job_intent",
@@ -3717,6 +3764,8 @@ class MainAgentToolRegistry:
     ]:
         values = update.model_dump(exclude_none=True)
         values.pop("target_role_id", None)
+        values.pop("pref_scope", None)
+        values.pop("timescale", None)
         constraints = values.pop("hard_constraints", ())
         family = "target_role_intent" if update.is_role_scoped else "person_intent"
         subject_id = str(update.target_role_id) if update.is_role_scoped else "self"
@@ -3735,19 +3784,14 @@ class MainAgentToolRegistry:
                 subject_id=subject_id,
                 relation=relation,
                 proposed_value=str(value),
-                source_kind="job_intent",
-                source_id=f"{subject_id}:{relation}",
             )
             proposals.append(proposal)
-            if self._memory_scope_write_gate is not None:
-                scope = self._memory_scope_write_gate.require(proposal)
-            else:
-                resolution = self._canonical_scope_resolver.resolve(proposal)
-                if resolution.canonical_scope is None:
-                    raise ValueError(
-                        "Job intent cannot be written without a canonical scope."
-                    )
-                scope = resolution.canonical_scope
+            resolution = self._canonical_scope_resolver.resolve(proposal)
+            if resolution.canonical_scope is None:
+                raise ValueError(
+                    "Job intent cannot be written without a canonical scope."
+                )
+            scope = resolution.canonical_scope
             admitted.append((scope, str(value)))
         for constraint in constraints:
             relation = str(constraint["relation"])
@@ -3759,19 +3803,14 @@ class MainAgentToolRegistry:
                 subject_id="self",
                 relation=relation,
                 proposed_value=value,
-                source_kind="job_intent",
-                source_id=f"self:{relation}",
             )
             proposals.append(proposal)
-            if self._memory_scope_write_gate is not None:
-                scope = self._memory_scope_write_gate.require(proposal)
-            else:
-                resolution = self._canonical_scope_resolver.resolve(proposal)
-                if resolution.canonical_scope is None:
-                    raise ValueError(
-                        "Job intent cannot be written without a canonical scope."
-                    )
-                scope = resolution.canonical_scope
+            resolution = self._canonical_scope_resolver.resolve(proposal)
+            if resolution.canonical_scope is None:
+                raise ValueError(
+                    "Job intent cannot be written without a canonical scope."
+                )
+            scope = resolution.canonical_scope
             admitted.append((scope, value))
         return tuple(admitted), tuple(proposals)
 
@@ -3796,6 +3835,8 @@ class MainAgentToolRegistry:
     ) -> str:
         fields = update.model_dump(exclude_none=True)
         fields.pop("target_role_id", None)
+        pref_scope = str(fields.pop("pref_scope", "global"))
+        timescale = str(fields.pop("timescale", "permanent"))
         constraints = fields.pop("hard_constraints", ())
         lines = [
             f"- {cls._JOB_INTENT_LABELS[field]}：{value}"
@@ -3807,6 +3848,8 @@ class MainAgentToolRegistry:
         )
         body = "\n".join(lines)
         where = f"目标岗位「{scope}」" if scope else "整体求职意向"
+        if pref_scope != "global":
+            where += f"（仅限 {pref_scope}；{timescale}）"
         if saved:
             return f"已记录{where}：\n{body}"
         return (
@@ -4419,8 +4462,6 @@ class MainAgentToolRegistry:
 
     @staticmethod
     def _career_claim_status(evidence: Any) -> str:
-        if evidence.rolled_back_at is not None:
-            return "rolled_back"
         return "current" if evidence.is_current else "superseded"
 
     def _propose_memory_amendment(
@@ -4530,6 +4571,9 @@ class MainAgentToolRegistry:
                 message="没有找到这个当前职业声明；它可能已被删除或已被更正。",
                 execution_outcome="not_committed",
             )
+        proposal = proposal.model_copy(
+            update={"expected_content_sha256": evidence.content_digest}
+        )
         return ToolObservation(
             tool_name="propose_memory_tombstone",
             state="memory_tombstone_proposed",
@@ -4571,63 +4615,117 @@ class MainAgentToolRegistry:
             user_id=user_id,
             detail_ref=proposal.detail_ref,
         )
+        tombstone = None
         if evidence is None:
-            return ToolObservation(
-                tool_name="confirm_memory_tombstone",
-                state="memory_tombstone_target_not_found",
-                message="没有找到待删除的当前职业声明；它可能已经被处理。",
-                execution_outcome="not_committed",
+            tombstoned_scope = next(
+                (
+                    (scope_key, markers)
+                    for owner_id, scope_key, markers in (
+                        self._career_history_store.list_tombstoned_scopes()
+                    )
+                    if owner_id == user_id and proposal.detail_ref in markers
+                ),
+                None,
             )
-        lineage = (
-            self._career_history_store.list_evidence_lineage(
-                user_id=user_id,
-                scope_key=evidence.scope_key,
+            if tombstoned_scope is None:
+                return ToolObservation(
+                    tool_name="confirm_memory_tombstone",
+                    state="memory_tombstone_target_not_found",
+                    message="没有找到待删除的当前职业声明；它可能已经被处理。",
+                    execution_outcome="not_committed",
+                )
+            scope_key, lineage_markers = tombstoned_scope
+            tombstone = next(
+                (
+                    item
+                    for item in self._career_history_store.list_evidence_tombstones(
+                        user_id=user_id,
+                        limit=500,
+                    )
+                    if item.scope_key == scope_key
+                ),
+                None,
             )
-            if evidence.scope_key is not None
-            else ()
-        )
-        tombstone = self._career_history_store.tombstone_evidence(
-            user_id=user_id,
-            career_evidence_id=evidence.id,
-            reason=proposal.reason,
-            actor_type="user",
-        )
-        record_active_trace(
-            "memory_tombstone_observed",
-            "career_evidence_tombstone",
-            outcome="succeeded",
-            details={
-                "p1_version_binding": True,
-                "entries": [
-                    {
-                        "entry_id": item.scope_key,
-                        "update_id": item.update_id,
-                        "content_digest": item.content_digest,
-                        "revision": item.revision,
-                        "lifecycle_status": "tombstoned",
-                    }
-                    for item in lineage
-                    if item.scope_key is not None
-                    and item.update_id is not None
-                    and item.content_digest is not None
-                    and item.revision is not None
-                ],
-            },
-        )
+            if tombstone is None:
+                raise RuntimeError("tombstoned scope is missing its audit row")
+            lineage = ()
+        else:
+            lineage = (
+                self._career_history_store.list_evidence_lineage(
+                    user_id=user_id,
+                    scope_key=evidence.scope_key,
+                )
+                if evidence.scope_key is not None
+                else ()
+            )
+            lineage_markers = tuple(
+                dict.fromkeys(
+                    (
+                        career_evidence_lineage_ref(
+                            user_id=user_id, scope_key=evidence.scope_key or ""
+                        ),
+                        *(
+                            marker
+                            for item in lineage
+                            for marker in (item.detail_ref, item.source_ref)
+                            if marker is not None
+                        ),
+                    )
+                )
+            )
+            try:
+                tombstone = self._career_history_store.tombstone_evidence(
+                    user_id=user_id,
+                    career_evidence_id=evidence.id,
+                    reason=proposal.reason,
+                    actor_type="user",
+                    expected_content_sha256=proposal.expected_content_sha256,
+                )
+            except ValueError:
+                return ToolObservation(
+                    tool_name="confirm_memory_tombstone",
+                    state="memory_tombstone_target_changed",
+                    message="待删除的职业声明在确认前已变化；请重新读取并提案。",
+                    execution_outcome="not_committed",
+                )
+        if lineage:
+            record_active_trace(
+                "memory_tombstone_observed",
+                "career_evidence_tombstone",
+                outcome="succeeded",
+                details={
+                    "conversation_key": conversation_trace_key(
+                        user_id,
+                        conversation_id,
+                    ),
+                    "p1_version_binding": True,
+                    "entries": [
+                        {
+                            "entry_id": item.scope_key,
+                            "update_id": item.update_id,
+                            "content_digest": item.content_digest,
+                            "revision": item.revision,
+                            "lifecycle_status": "tombstoned",
+                        }
+                        for item in lineage
+                        if item.scope_key is not None
+                        and item.update_id is not None
+                        and item.content_digest is not None
+                        and item.revision is not None
+                    ],
+                },
+            )
         purge = getattr(self._conversation_store, "purge_derived_memory", None)
         if not callable(purge):
             return ToolObservation(
                 tool_name="confirm_memory_tombstone",
-                state="memory_tombstone_cleanup_pending",
+                state="memory_tombstone_cleanup_incomplete",
                 message=(
-                    "职业声明正文及谱系已永久删除；派生记忆清理尚未完成，"
-                    "在清理重试完成前，旧会话或 episode 仍可能含有派生文本。"
+                    "职业声明正文及谱系已永久删除，但当前运行时没有派生记忆存储；"
+                    "确认请求已保留，可在存储恢复后重试。"
                 ),
                 payload={
-                    "cleanup_operation_id": tombstone.cleanup_operation_id,
-                    "cleanup_status": "pending",
                     "lineage_size": len(tombstone.evidence_ids),
-                    "recovery": "career-agent memory retry-cleanup",
                 },
                 execution_outcome="committed",
             )
@@ -4635,49 +4733,37 @@ class MainAgentToolRegistry:
             cleanup_counts = purge(
                 user_id=user_id,
                 scope_key=tombstone.scope_key,
-                lineage_markers=(
-                    self._career_history_store.get_tombstone_lineage_markers(
-                        user_id=user_id,
-                        cleanup_operation_id=tombstone.cleanup_operation_id,
-                    )
-                ),
+                lineage_markers=lineage_markers,
             )
         except (OSError, sqlite3.Error, ValueError):
             logger.exception(
                 "Tombstone derived-memory cleanup failed",
                 extra={
-                    "cleanup_operation_id": tombstone.cleanup_operation_id,
                     "user_id": user_id,
                     "scope_key": tombstone.scope_key,
                 },
             )
             return ToolObservation(
                 tool_name="confirm_memory_tombstone",
-                state="memory_tombstone_cleanup_pending",
+                state="memory_tombstone_cleanup_incomplete",
                 message=(
-                    "职业声明正文及谱系已永久删除；派生记忆清理需要重试，"
-                    "在重试完成前，旧会话或 episode 仍可能含有派生文本。"
+                    "职业声明正文及谱系已永久删除；派生记忆清理本次未完成，"
+                    "确认请求已保留，可直接重试。"
                 ),
                 payload={
-                    "cleanup_operation_id": tombstone.cleanup_operation_id,
-                    "cleanup_status": "pending",
                     "lineage_size": len(tombstone.evidence_ids),
-                    "recovery": "career-agent memory retry-cleanup",
                 },
                 execution_outcome="committed",
             )
-        completed = self._career_history_store.complete_tombstone_cleanup(
-            user_id=user_id,
-            cleanup_operation_id=tombstone.cleanup_operation_id,
-        )
         return ToolObservation(
             tool_name="confirm_memory_tombstone",
             state="memory_tombstoned",
-            message="职业声明及其完整更正谱系已永久删除，相关派生记忆也已清理。",
+            message=(
+                "职业声明及其完整更正谱系已永久删除；相关摘要会从未抑制的"
+                "原始消息重建，无其他存活关联的情节记忆已清理。"
+            ),
             payload={
-                "cleanup_operation_id": completed.cleanup_operation_id,
-                "cleanup_status": completed.cleanup_status,
-                "lineage_size": len(completed.evidence_ids),
+                "lineage_size": len(tombstone.evidence_ids),
                 "derived_cleanup": cleanup_counts,
             },
             execution_outcome="committed",
@@ -4718,7 +4804,7 @@ class MainAgentToolRegistry:
         entries = []
         for item in lineage:
             status = self._career_claim_status(item)
-            changed_at = item.rolled_back_at or item.superseded_at
+            changed_at = item.superseded_at
             entries.append(
                 {
                     "revision": item.revision,
@@ -4776,6 +4862,84 @@ class MainAgentToolRegistry:
                 "body": body,
                 "body_clipped": body_clipped,
             },
+        )
+
+    def _search_career_episodes(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._episode_store is None:
+            raise ValueError("Career episode store is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = SearchCareerEpisodesToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        episodes = self._episode_store.search(
+            user_id=user_id,
+            query=model_arguments.query,
+            limit=model_arguments.top_k,
+            start_datetime=model_arguments.start_datetime,
+            end_datetime=model_arguments.end_datetime,
+            kinds=model_arguments.kinds,
+        )
+        items = [
+            {
+                "kind": episode.kind,
+                "occurred_at": episode.occurred_at.isoformat(),
+                "title": episode.title,
+                "summary": episode.summary,
+                "conversation_id": episode.conversation_id,
+                "resource_refs": [
+                    reference.model_dump(mode="json")
+                    for reference in episode.resource_refs
+                ],
+            }
+            for episode in episodes
+        ]
+        recovered_refs = []
+        for episode in episodes:
+            for reference in episode.resource_refs:
+                try:
+                    recovered_refs.append(
+                        ConversationResourceReference.model_validate(
+                            reference.model_dump(mode="json")
+                        )
+                    )
+                except ValueError:
+                    continue
+        if not items:
+            return ToolObservation(
+                tool_name="search_career_episodes",
+                state="career_episode_search_empty",
+                message="没有找到匹配的过往求职事件。",
+                payload={"items": []},
+            )
+        body = "过往求职事件：\n" + "\n".join(
+            f"- {item['occurred_at']} [{item['kind']}] "
+            f"{item['title']}：{item['summary']}"
+            for item in items
+        )
+        body_clipped = len(body) > DECISION_OBSERVATION_BODY_LIMIT
+        if body_clipped:
+            body = clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT)
+        return ToolObservation(
+            tool_name="search_career_episodes",
+            state="career_episode_search_found",
+            message=f"找到 {len(items)} 条匹配的过往求职事件。",
+            facts={
+                "returned": len(items),
+                "body_clipped": body_clipped,
+            },
+            payload={
+                "items": items,
+                "body": body,
+                "body_clipped": body_clipped,
+            },
+            resource_refs=tuple(
+                {
+                    reference.resource_id: reference
+                    for reference in recovered_refs
+                }.values()
+            ),
         )
 
     def _search_career_memory(
@@ -4877,7 +5041,7 @@ class MainAgentToolRegistry:
         items = []
         for item in evidence:
             status = self._career_claim_status(item)
-            changed_at = item.rolled_back_at or item.superseded_at
+            changed_at = item.superseded_at
             items.append(
                 {
                     "claim": item.claim,
@@ -4977,14 +5141,12 @@ class MainAgentToolRegistry:
                 limit=DECISION_OBSERVATION_BODY_LIMIT - len(heading),
             )
         claim_status = self._career_claim_status(evidence)
-        status_changed_at = evidence.rolled_back_at or evidence.superseded_at
+        status_changed_at = evidence.superseded_at
         return ToolObservation(
             tool_name="resolve_claim_source",
             state="claim_source_found",
             message=(
-                "已读取历史来源证据；它对应的声明已经回滚，不能作为当前声明的支持。"
-                if claim_status == "rolled_back"
-                else "已读取历史来源证据；它对应的声明已经被更正，不能作为当前声明的支持。"
+                "已读取历史来源证据；它对应的声明已经被更正，不能作为当前声明的支持。"
                 if claim_status == "superseded"
                 else "已读取这条声明对应的原始来源证据。"
             ),

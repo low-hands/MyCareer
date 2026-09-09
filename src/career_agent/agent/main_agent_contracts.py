@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 import hashlib
 import hmac
-from datetime import datetime
+from datetime import datetime, timezone
 import json
-import math
 import re
 from typing import Annotated, Any, Literal, Protocol
 
@@ -17,6 +16,7 @@ from career_agent.agent.conversation_memory_contracts import (
     SUMMARY_SOURCE_MAX_CHARS,
     ConversationSummaryContent,
 )
+from career_agent.agent.token_budget import serialized_token_count
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
@@ -41,6 +41,13 @@ class CurrentTargetContext(ContractModel):
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
+    city_confirmed_at: datetime | None = Field(default=None, exclude=True)
+    salary_expectation_confirmed_at: datetime | None = Field(
+        default=None,
+        exclude=True,
+    )
+    experience_confirmed_at: datetime | None = Field(default=None, exclude=True)
+    education_confirmed_at: datetime | None = Field(default=None, exclude=True)
 
 
 class HardConstraintContext(ContractModel):
@@ -48,12 +55,20 @@ class HardConstraintContext(ContractModel):
 
     relation: Literal["work_arrangement", "work_schedule"]
     value: str = Field(min_length=1, max_length=500)
+    confirmed_at: datetime | None = Field(default=None, exclude=True)
 
 
 class MemoryTelemetryBinding(ContractModel):
-    """Version-bound value used only by P1 telemetry, never model projection."""
+    """Version-bound record of one value the prompt exposed, never projected.
 
-    entry_id: str = Field(min_length=1, max_length=300)
+    The name undersells it. Besides feeding P1 telemetry, this is the only
+    record of which claims a turn put in front of the model, and deletion
+    depends on it: a tombstone finds the transcript text to suppress by
+    matching these entry ids. Dropping a binding silently weakens deletion
+    rather than losing a metric.
+    """
+
+    entry_id: str = Field(min_length=1, max_length=440)
     update_id: str = Field(
         pattern=(
             r"^(?:intent_update|career_evidence_update)_[a-f0-9]{32}$"
@@ -62,7 +77,7 @@ class MemoryTelemetryBinding(ContractModel):
     content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
     value: str = Field(min_length=1, max_length=32_000)
     revision: int = Field(ge=1)
-    lifecycle_status: Literal["current", "superseded", "rolled_back"]
+    lifecycle_status: Literal["current", "superseded"]
 
 
 class CareerProfileContext(ContractModel):
@@ -78,6 +93,7 @@ class CareerProfileContext(ContractModel):
 
     user_id: str
     default_city: str | None = None
+    default_city_confirmed_at: datetime | None = Field(default=None, exclude=True)
     hard_constraints: tuple[HardConstraintContext, ...] = Field(
         default=(),
         max_length=8,
@@ -130,6 +146,12 @@ class JobIntentUpdate(ContractModel):
     """
 
     target_role_id: str | None = Field(default=None, min_length=1)
+    pref_scope: str = Field(
+        default="global",
+        pattern=r"^(?:global|[a-z][a-z0-9_.:-]*)$",
+        max_length=120,
+    )
+    timescale: Literal["permanent", "situational"] = "permanent"
     city: str | None = Field(default=None, min_length=1, max_length=40)
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
@@ -158,6 +180,10 @@ class JobIntentUpdate(ContractModel):
             value is not None for value in (self.city, *role_scoped)
         ) and not self.hard_constraints:
             raise ValueError("a job intent update must change at least one field")
+        if self.timescale == "situational" and self.pref_scope == "global":
+            raise ValueError(
+                "situational intent requires the named situation in pref_scope"
+            )
         return self
 
     @property
@@ -165,7 +191,7 @@ class JobIntentUpdate(ContractModel):
         return self.target_role_id is not None
 
     def apply_to_profile(self, profile: CareerProfileContext) -> CareerProfileContext:
-        if self.is_role_scoped:
+        if self.is_role_scoped or self.pref_scope != "global":
             return profile
         constraints = {
             constraint.relation: constraint
@@ -193,6 +219,14 @@ class MemoryTombstoneProposal(ContractModel):
     target_kind: Literal["career_evidence"]
     detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
     reason: str = Field(min_length=1, max_length=2000)
+    expected_content_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[a-f0-9]{64}$",
+        description=(
+            "Store-sealed digest used to reject deletion if the claim changed "
+            "after the proposal was shown."
+        ),
+    )
 
 
 class MemoryAmendmentProposal(ContractModel):
@@ -820,114 +854,68 @@ class CareerMemoryContext(ContractModel):
             raise ValueError("claims_total cannot be smaller than loaded claims")
         return self
 
-    def tier_one_projection(
-        self,
-        *,
-        token_budget: int,
-        cjk_tokens_per_char: float = 1.8,
-        ascii_chars_per_token: float = 4.0,
-    ) -> dict[str, Any]:
-        """Render a bounded ONTO-style index with field names declared once.
+    def tier_one_projection(self, *, token_budget: int) -> dict[str, Any]:
+        """Render a bounded, self-describing career-memory index.
 
-        The budget bounds the record and claim table payload. Delivery counters
-        are control metadata and remain visible even when their own encoding
-        exceeds the remaining budget; otherwise an empty budget is
-        indistinguishable from a user with no career memory.
+        Delivery counters remain visible even at a zero budget so an empty
+        projection cannot be mistaken for an empty store. Each candidate is
+        counted as the serialized object the model would see: BPE is not
+        additive across JSON fragments.
         """
 
         if token_budget < 0:
             raise ValueError("career-memory token budget cannot be negative")
-        if token_budget == 0:
-            return _career_memory_table(
-                record_rows=[],
-                claim_rows=[],
-                records_total=self.records_total,
-                claims_total=self.claims_total,
-            )
-
-        record_rows: list[list[Any]] = []
-        claim_rows: list[list[Any]] = []
-        stopped = False
-        for record in self.records:
-            next_record = [
-                record.record_type,
-                record.organization,
-                record.title,
-                record.start_year,
-                record.start_month,
-                record.end_year,
-                record.end_month,
-                record.is_current,
-            ]
-            candidate_records = [*record_rows, next_record]
-            candidate = _career_memory_table(
-                record_rows=candidate_records,
-                claim_rows=claim_rows,
-                records_total=self.records_total,
-                claims_total=self.claims_total,
-            )
-            if (
-                _serialized_tokens(
-                    candidate,
-                    cjk_tokens_per_char=cjk_tokens_per_char,
-                    ascii_chars_per_token=ascii_chars_per_token,
-                )
-                > token_budget
-            ):
-                break
-            record_rows = candidate_records
-            record_index = len(record_rows) - 1
-            for claim in record.confirmed_highlights:
-                serialized_claim = claim.model_dump(mode="json")
-                next_claim = [
-                    record_index,
-                    serialized_claim["claim"],
-                    serialized_claim["origin"],
-                    serialized_claim["recorded_at"],
-                    serialized_claim["source_ref"],
-                    serialized_claim["revision"],
-                    serialized_claim["detail_ref"],
-                ]
-                candidate_claims = [*claim_rows, next_claim]
-                candidate = _career_memory_table(
-                    record_rows=record_rows,
-                    claim_rows=candidate_claims,
-                    records_total=self.records_total,
-                    claims_total=self.claims_total,
-                )
-                if (
-                    _serialized_tokens(
-                        candidate,
-                        cjk_tokens_per_char=cjk_tokens_per_char,
-                        ascii_chars_per_token=ascii_chars_per_token,
-                    )
-                    > token_budget
-                ):
-                    stopped = True
-                    break
-                claim_rows = candidate_claims
-            if stopped:
-                break
-        projected = _career_memory_table(
-            record_rows=record_rows,
-            claim_rows=claim_rows,
+        empty = _career_memory_projection(
+            records=[],
             records_total=self.records_total,
             claims_total=self.claims_total,
         )
-        return (
-            projected
-            if _serialized_tokens(
-                projected,
-                cjk_tokens_per_char=cjk_tokens_per_char,
-                ascii_chars_per_token=ascii_chars_per_token,
+        if token_budget == 0:
+            return empty
+
+        projected_records: list[dict[str, Any]] = []
+        for record in self.records:
+            serialized_record = record.model_dump(
+                mode="json",
+                exclude={"confirmed_highlights"},
             )
-            <= token_budget
-            else _career_memory_table(
-                record_rows=[],
-                claim_rows=[],
+            serialized_record["confirmed_highlights"] = []
+            candidate_records = [*projected_records, serialized_record]
+            candidate = _career_memory_projection(
+                records=candidate_records,
                 records_total=self.records_total,
                 claims_total=self.claims_total,
             )
+            if serialized_token_count(candidate) > token_budget:
+                break
+            projected_records = candidate_records
+            accepted_highlights: list[dict[str, Any]] = []
+            stopped = False
+            for claim in record.confirmed_highlights:
+                serialized_claim = claim.model_dump(mode="json")
+                serialized_record["confirmed_highlights"] = [
+                    *accepted_highlights,
+                    serialized_claim,
+                ]
+                candidate = _career_memory_projection(
+                    records=projected_records,
+                    records_total=self.records_total,
+                    claims_total=self.claims_total,
+                )
+                if serialized_token_count(candidate) > token_budget:
+                    serialized_record["confirmed_highlights"] = (
+                        accepted_highlights
+                    )
+                    stopped = True
+                    break
+                accepted_highlights.append(serialized_claim)
+            serialized_record["confirmed_highlights"] = accepted_highlights
+            if stopped:
+                break
+        return _career_memory_projection(
+            records=projected_records,
+            records_total=self.records_total,
+            claims_total=self.claims_total,
         )
 
 
@@ -937,12 +925,14 @@ CAREER_HARD_CONSTRAINTS_TOKEN_BUDGET = 600
 
 
 class CareerProfileBudgets(ContractModel):
-    """Section payload ceilings; truncation counters are budget-exempt metadata.
+    """Career-evidence payload ceiling plus legacy profile-budget inputs.
 
-    Candidate safety limits live in stores.
+    Profile facts are now a complete deterministic Markdown projection and do
+    not consume either legacy profile budget.  The two fields remain accepted
+    while callers migrate their configuration; evidence is still bounded.
     """
 
-    budget_unit: Literal["estimated_input_tokens"] = "estimated_input_tokens"
+    budget_unit: Literal["input_tokens"] = "input_tokens"
     records_input_units: int = Field(
         default=CAREER_RECORDS_TOKEN_BUDGET,
         ge=0,
@@ -955,126 +945,169 @@ class CareerProfileBudgets(ContractModel):
         default=CAREER_HARD_CONSTRAINTS_TOKEN_BUDGET,
         ge=0,
     )
-    cjk_input_units_per_char: float = Field(default=1.8, ge=0.5, le=3.0)
-    ascii_chars_per_input_unit: float = Field(default=4.0, ge=1.0, le=8.0)
 
     def estimate_tokens(self, value: Any) -> int:
-        return _serialized_tokens(
-            value,
-            cjk_tokens_per_char=self.cjk_input_units_per_char,
-            ascii_chars_per_token=self.ascii_chars_per_input_unit,
-        )
+        return serialized_token_count(value)
 
 
-_CAREER_RECORD_FIELDS = (
-    "record_type",
-    "organization",
-    "title",
-    "start_year",
-    "start_month",
-    "end_year",
-    "end_month",
-    "is_current",
-)
-_CAREER_CLAIM_FIELDS = (
-    "record",
-    "claim",
-    "origin",
-    "recorded_at",
-    "source_ref",
-    "revision",
-    "detail_ref",
-)
-
-
-def _serialized_chars(value: Any) -> int:
-    return len(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str))
-
-
-def _serialized_tokens(
-    value: Any,
+def _career_memory_projection(
     *,
-    cjk_tokens_per_char: float,
-    ascii_chars_per_token: float,
-) -> int:
-    """Estimate provider token cost from its configured language profile."""
-
-    rendered = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        default=str,
-    )
-    non_ascii = sum(ord(character) > 127 for character in rendered)
-    ascii_chars = len(rendered) - non_ascii
-    return math.ceil(
-        non_ascii * cjk_tokens_per_char
-        + ascii_chars / ascii_chars_per_token
-    )
-
-
-def _career_memory_table(
-    *,
-    record_rows: list[list[Any]],
-    claim_rows: list[list[Any]],
+    records: list[dict[str, Any]],
     records_total: int,
     claims_total: int,
 ) -> dict[str, Any]:
     projected: dict[str, Any] = {}
-    if record_rows:
-        projected["records"] = {
-            "fields": list(_CAREER_RECORD_FIELDS),
-            "rows": record_rows,
-        }
-    if claim_rows:
-        projected["claims"] = {
-            "fields": list(_CAREER_CLAIM_FIELDS),
-            "rows": claim_rows,
-        }
-    if len(record_rows) < records_total:
-        projected["records_returned"] = len(record_rows)
+    claims_returned = sum(
+        len(record["confirmed_highlights"]) for record in records
+    )
+    if records:
+        projected["records"] = records
+    if len(records) < records_total:
+        projected["records_returned"] = len(records)
         projected["records_total"] = records_total
-    if len(claim_rows) < claims_total:
-        projected["claims_returned"] = len(claim_rows)
+    if claims_returned < claims_total:
+        projected["claims_returned"] = claims_returned
         projected["claims_total"] = claims_total
     return projected
 
 
-def _bounded_hard_constraints(
-    constraints: tuple[HardConstraintContext, ...],
+def confirmation_recency_label(
+    confirmed_at: datetime,
     *,
-    token_budget: int,
-    cjk_tokens_per_char: float,
-    ascii_chars_per_token: float,
-) -> dict[str, Any]:
-    if not constraints:
-        return {}
-    projected: dict[str, Any] = {
-        "hard_constraints": [
-            constraint.model_dump(mode="json") for constraint in constraints
-        ]
-    }
-    if (
-        _serialized_tokens(
-            projected,
-            cjk_tokens_per_char=cjk_tokens_per_char,
-            ascii_chars_per_token=ascii_chars_per_token,
+    now: datetime | None = None,
+) -> str:
+    """Render last corroboration as a Letta/ADK-style relative label."""
+
+    observed_at = now or datetime.now(timezone.utc)
+    days = max(
+        0,
+        int((observed_at - confirmed_at).total_seconds() // 86_400),
+    )
+    if days == 0:
+        return "今天确认"
+    return f"{days} 天前确认"
+
+
+_HARD_CONSTRAINT_LABELS = {
+    "work_arrangement": "Work arrangement",
+    "work_schedule": "Work schedule",
+}
+_TARGET_INTENT_LABELS = {
+    "city": "City",
+    "salary_expectation": "Salary expectation",
+    "experience": "Experience",
+    "education": "Education",
+}
+
+
+def _markdown_value(value: str) -> str:
+    """Quote a stored value so its content cannot change Markdown structure."""
+
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _markdown_fact(
+    *,
+    label: str,
+    value: str | None,
+    confirmed_at: datetime | None,
+    now: datetime,
+    indent: str = "",
+) -> list[str]:
+    rendered = "Not confirmed" if value is None else _markdown_value(value)
+    lines = [f"{indent}- {label}: {rendered}"]
+    if value is not None and confirmed_at is not None:
+        lines.append(
+            f"{indent}  - Last confirmed: "
+            f"{confirmation_recency_label(confirmed_at, now=now)}"
         )
-        > token_budget
-    ):
-        # Confirmed hard constraints are safety-critical and have no lower
-        # archive tool. Expand this small block in place instead of silently
-        # dropping a prohibition such as "不接受 996".
-        projected["hard_constraints_budget_expanded"] = True
-    return projected
+    return lines
 
 
-def _memory_overflow_notice(profile: Mapping[str, Any]) -> dict[str, Any]:
+def career_profile_memory_files(
+    profile: CareerProfileContext,
+    *,
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """Render complete current profile state as deterministic virtual files.
+
+    These files are a projection, not a retrieval result: every supported
+    field is emitted, no score or decay decides whether a fact is present, and
+    there is no top-k or token-budget truncation.  Stored values are JSON-quoted
+    inside Markdown so untrusted text cannot manufacture headings or bullets.
+    """
+
+    observed_at = now or datetime.now(timezone.utc)
+    profile_lines = ["# Career profile", "", "## Person-level intent"]
+    profile_lines.extend(
+        _markdown_fact(
+            label="Default city",
+            value=profile.default_city,
+            confirmed_at=profile.default_city_confirmed_at,
+            now=observed_at,
+        )
+    )
+    profile_lines.extend(("", "## Hard constraints"))
+    constraints = sorted(
+        profile.hard_constraints,
+        key=lambda item: (item.relation, item.value),
+    )
+    if not constraints:
+        profile_lines.append("- None confirmed")
+    else:
+        for constraint in constraints:
+            profile_lines.extend(
+                _markdown_fact(
+                    label=_HARD_CONSTRAINT_LABELS[constraint.relation],
+                    value=constraint.value,
+                    confirmed_at=constraint.confirmed_at,
+                    now=observed_at,
+                )
+            )
+
+    target_lines = ["# Current career targets"]
+    targets = sorted(
+        profile.current_targets,
+        key=lambda item: (
+            item.priority,
+            item.title.casefold(),
+            item.target_role_id or "",
+        ),
+    )
+    if not targets:
+        target_lines.extend(("", "- No active targets"))
+    else:
+        for index, target in enumerate(targets, start=1):
+            target_lines.extend(
+                (
+                    "",
+                    f"## Target {index}",
+                    f"- Title: {_markdown_value(target.title)}",
+                    f"- Priority: {target.priority}",
+                )
+            )
+            for relation, label in _TARGET_INTENT_LABELS.items():
+                target_lines.extend(
+                    _markdown_fact(
+                        label=label,
+                        value=getattr(target, relation),
+                        confirmed_at=getattr(target, f"{relation}_confirmed_at"),
+                        now=observed_at,
+                    )
+                )
+
+    return {
+        "memory/profile.md": "\n".join(profile_lines) + "\n",
+        "memory/current_targets.md": "\n".join(target_lines) + "\n",
+    }
+
+
+def _memory_overflow_notice(memory: Mapping[str, Any]) -> dict[str, Any]:
     sections: list[dict[str, Any]] = []
-    records_returned = profile.get("records_returned")
-    records_total = profile.get("records_total")
-    claims_returned = profile.get("claims_returned")
-    claims_total = profile.get("claims_total")
+    records_returned = memory.get("records_returned")
+    records_total = memory.get("records_total")
+    claims_returned = memory.get("claims_returned")
+    claims_total = memory.get("claims_total")
     records_overflow = (
         type(records_returned) is int
         and type(records_total) is int
@@ -1093,26 +1126,6 @@ def _memory_overflow_notice(profile: Mapping[str, Any]) -> dict[str, Any]:
                 "fetch_tool": "search_career_memory",
             }
         )
-    targets = profile.get("current_targets")
-    target_body = targets if isinstance(targets, Mapping) else {}
-    targets_returned = target_body.get(
-        "roles_returned", profile.get("current_targets_returned")
-    )
-    targets_total = target_body.get(
-        "roles_total", profile.get("current_targets_total")
-    )
-    if (
-        type(targets_returned) is int
-        and type(targets_total) is int
-        and targets_returned < targets_total
-    ):
-        sections.append(
-            {
-                "section": "current_targets",
-                "strategy": "archive_fetch",
-                "fetch_tool": "list_target_roles",
-            }
-        )
     if not sections:
         return {}
     return {
@@ -1121,65 +1134,6 @@ def _memory_overflow_notice(profile: Mapping[str, Any]) -> dict[str, Any]:
             "sections": sections,
         }
     }
-
-
-def _bounded_current_targets(
-    targets: tuple[CurrentTargetContext, ...],
-    *,
-    total: int,
-    token_budget: int,
-    cjk_tokens_per_char: float,
-    ascii_chars_per_token: float,
-) -> dict[str, Any]:
-    empty_delivery = (
-        {
-            "current_targets_returned": 0,
-            "current_targets_total": total,
-        }
-        if total
-        else {}
-    )
-    if token_budget <= 0 or not targets:
-        return empty_delivery
-    rows: list[dict[str, Any]] = []
-    for target in targets:
-        candidate_rows = [
-            *rows,
-            target.model_dump(mode="json", exclude_none=True),
-        ]
-        candidate_body: dict[str, Any] = {"roles": candidate_rows}
-        if len(candidate_rows) < total:
-            candidate_body.update(
-                roles_returned=len(candidate_rows),
-                roles_total=total,
-            )
-        candidate = {"current_targets": candidate_body}
-        if (
-            _serialized_tokens(
-                candidate,
-                cjk_tokens_per_char=cjk_tokens_per_char,
-                ascii_chars_per_token=ascii_chars_per_token,
-            )
-            > token_budget
-        ):
-            break
-        rows = candidate_rows
-    body: dict[str, Any] = {"roles": rows}
-    if len(rows) < total:
-        body.update(roles_returned=len(rows), roles_total=total)
-    projected = {"current_targets": body} if rows else empty_delivery
-    return (
-        projected
-        if _serialized_tokens(
-            projected,
-            cjk_tokens_per_char=cjk_tokens_per_char,
-            ascii_chars_per_token=ascii_chars_per_token,
-        )
-        <= token_budget
-        else empty_delivery
-    )
-
-
 MAX_DECISION_FACTS = 8
 # One sentence, not an essay. Long enough for "别再重试，把失败说清楚，或者问用户
 # 要不要换个做法"; short enough that a capability cannot annex the decision prompt.
@@ -1806,46 +1760,17 @@ class MainAgentContext(ContractModel):
                 # ``resources`` in both cases so the model reads one shape.
                 projected["resources"] = resources
             model_messages.append(projected)
-        profile = {
-            "default_city": self.profile.default_city,
-            **_bounded_hard_constraints(
-                self.profile.hard_constraints,
-                token_budget=(
-                    self.career_profile_budgets.hard_constraints_input_units
-                ),
-                cjk_tokens_per_char=(
-                    self.career_profile_budgets.cjk_input_units_per_char
-                ),
-                ascii_chars_per_token=(
-                    self.career_profile_budgets.ascii_chars_per_input_unit
-                ),
-            ),
-            **_bounded_current_targets(
-                self.profile.current_targets,
-                total=self.profile.current_targets_total,
-                token_budget=(
-                    self.career_profile_budgets.current_targets_input_units
-                ),
-                cjk_tokens_per_char=(
-                    self.career_profile_budgets.cjk_input_units_per_char
-                ),
-                ascii_chars_per_token=(
-                    self.career_profile_budgets.ascii_chars_per_input_unit
-                ),
-            ),
-            **self.career_memory.tier_one_projection(
-                token_budget=self.career_profile_budgets.records_input_units,
-                cjk_tokens_per_char=(
-                    self.career_profile_budgets.cjk_input_units_per_char
-                ),
-                ascii_chars_per_token=(
-                    self.career_profile_budgets.ascii_chars_per_input_unit
-                ),
-            ),
-        }
-        profile.update(_memory_overflow_notice(profile))
+        if self.profile.current_targets_total != len(self.profile.current_targets):
+            raise ValueError(
+                "career profile projection requires the complete current-target set"
+            )
+        career_memory = self.career_memory.tier_one_projection(
+            token_budget=self.career_profile_budgets.records_input_units,
+        )
+        career_memory.update(_memory_overflow_notice(career_memory))
         return {
-            "career_profile": profile,
+            "career_profile": career_profile_memory_files(self.profile),
+            "career_memory": career_memory,
             "preferences": {
                 "boss_search": self.preferences.boss_search,
             },
@@ -2093,6 +2018,57 @@ class SearchCareerMemoryToolArguments(ContractModel):
     )
 
 
+class SearchCareerEpisodesToolArguments(ContractModel):
+    """Bounded L1 recall across completed workflows and past conversations."""
+
+    query: str = Field(
+        default="",
+        max_length=200,
+        description=(
+            "Focused terms from the remembered event. Leave empty only when "
+            "listing recent episodes within the supplied filters."
+        ),
+    )
+    start_datetime: datetime | None = Field(
+        default=None,
+        description="Inclusive lower bound for when the episode occurred.",
+    )
+    end_datetime: datetime | None = Field(
+        default=None,
+        description="Inclusive upper bound for when the episode occurred.",
+    )
+    kinds: tuple[
+        Literal[
+            "mock_interview",
+            "job_research",
+            "application",
+            "interview_round",
+        ],
+        ...,
+    ] = Field(
+        default=(),
+        max_length=4,
+        description="Optional episode-type filters.",
+    )
+    top_k: int = Field(default=8, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def time_window_is_forward(self) -> "SearchCareerEpisodesToolArguments":
+        for name, value in (
+            ("start_datetime", self.start_datetime),
+            ("end_datetime", self.end_datetime),
+        ):
+            if value is not None and value.utcoffset() is None:
+                raise ValueError(f"{name} must include a timezone offset")
+        if (
+            self.start_datetime is not None
+            and self.end_datetime is not None
+            and self.start_datetime > self.end_datetime
+        ):
+            raise ValueError("start_datetime cannot exceed end_datetime")
+        return self
+
+
 class SearchCareerHistoryToolArguments(ContractModel):
     query: str = Field(
         min_length=3,
@@ -2209,6 +2185,16 @@ class MatchResumeToJobToolArguments(ContractModel):
 
 class ProposeJobIntentToolArguments(ContractModel):
     target_role_selection_index: SelectionIndex | None = None
+    pref_scope: str = Field(
+        default="global",
+        pattern=r"^(?:global|[a-z][a-z0-9_.:-]*)$",
+        max_length=120,
+        description=(
+            "Use global unless the user explicitly limits this preference to "
+            "a named situation or domain."
+        ),
+    )
+    timescale: Literal["permanent", "situational"] = "permanent"
     city: str | None = Field(default=None, min_length=1, max_length=40)
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)

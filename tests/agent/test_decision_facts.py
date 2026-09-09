@@ -75,6 +75,10 @@ DECLARED_FACTS = {
         "keys": {"returned", "total", "body_clipped", "next_cursor"},
         "reason": "归档层查询必须显式报告有界结果、真实总数与可见分页",
     },
+    "career_episode_search_found": {
+        "keys": {"returned", "body_clipped"},
+        "reason": "L1 检索正文有界，收据只报告返回数量和截断状态",
+    },
     "career_history_found": {
         "keys": {"returned", "total", "body_clipped", "next_cursor"},
         "reason": "历史查询必须显式报告有界结果、真实总数与可见分页",
@@ -178,6 +182,7 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
         "claim_source_found": {},
         "career_memory_detail_found": {},
         "career_memory_search_found": {},
+        "career_episode_search_found": {},
         "career_history_found": {},
     }
     for state, spec in DECLARED_FACTS.items():

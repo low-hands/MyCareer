@@ -3,10 +3,6 @@ from career_agent.domain.memory_scope.models import (
     ScopeFamily,
     ScopeProposal,
     ScopeResolution,
-    ScopeResolutionQueueEvent,
-    ScopeResolutionQueueItem,
-    ScopeResolutionStatus,
-    ScopeSourceKind,
 )
 
 __all__ = [
@@ -14,8 +10,4 @@ __all__ = [
     "ScopeFamily",
     "ScopeProposal",
     "ScopeResolution",
-    "ScopeResolutionQueueEvent",
-    "ScopeResolutionQueueItem",
-    "ScopeResolutionStatus",
-    "ScopeSourceKind",
 ]

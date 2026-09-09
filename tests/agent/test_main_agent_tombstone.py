@@ -1,3 +1,4 @@
+from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
@@ -31,7 +32,7 @@ def _final() -> AgentDecision:
     return AgentDecision(action="final", message="")
 
 
-def _runtime(tmp_path, *decisions):
+def _runtime(tmp_path, *decisions, project_career_memory: bool = False):
     context = CareerContextStore(tmp_path / "context.sqlite3")
     history = CareerHistoryStore(tmp_path / "career.sqlite3")
     return (
@@ -42,10 +43,62 @@ def _runtime(tmp_path, *decisions):
                 career_history_store=history,
                 conversation_store=context,
             ),
+            career_context_projector=(
+                CareerContextProjector(history) if project_career_memory else None
+            ),
         ),
         context,
         history,
     )
+
+
+def test_a_turn_binds_the_career_memory_it_showed_the_model(tmp_path) -> None:
+    """A committed turn must record which claims its prompt exposed.
+
+    Deletion finds affected transcript text through that binding alone. If the
+    commit records nothing, ``purge_derived_memory`` has nothing to match on
+    and a tombstoned claim survives verbatim in the conversation.
+    """
+
+    _, _, history = _runtime(tmp_path)
+    record = history.create_record(
+        user_id="u1",
+        record_type="internship",
+        organization="Private Corp.",
+        title="AI Intern",
+        is_current=False,
+    )
+    history.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=history.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Built a private ranking prototype.",
+            origin="user_input",
+        ).id,
+    )
+
+    runtime, context_store, _ = _runtime(
+        tmp_path,
+        _final(),
+        project_career_memory=True,
+    )
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="Tell me about the ranking prototype.",
+    )
+
+    exposed = result.career_memory_scope_keys
+    assert exposed, "the turn showed career memory but recorded no exposure"
+
+    context_store.purge_derived_memory(user_id="u1", scope_key=exposed[0])
+    assert context_store.list_messages_after(
+        user_id="u1",
+        conversation_id="c1",
+        after_sequence=0,
+        limit=10,
+    ) == ()
 
 
 def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> None:
@@ -106,7 +159,7 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
     assert completed.context.task.pending_memory_tombstone is None
     mutation = completed.tool_results[0]
     assert mutation.state == "memory_tombstoned"
-    assert mutation.payload["cleanup_status"] == "completed"
+    assert mutation.payload["lineage_size"] == 1
     assert "private ranking prototype" not in str(
         completed.context.model_context()
     ).casefold()
@@ -229,7 +282,7 @@ def test_tombstone_cannot_execute_in_the_turn_that_prepared_it(tmp_path) -> None
     ]
 
 
-def test_cleanup_failure_clears_the_consumed_confirmation(
+def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
     tmp_path, monkeypatch
 ) -> None:
     _, _, history = _runtime(tmp_path)
@@ -277,8 +330,23 @@ def test_cleanup_failure_clears_the_consumed_confirmation(
         user_message="I confirm.",
     )
 
-    assert result.tool_results[0].state == "memory_tombstone_cleanup_pending"
-    assert result.context.task.pending_memory_tombstone is None
-    assert context.get_task("u1", "c1").pending_memory_tombstone is None
+    assert result.tool_results[0].state == "memory_tombstone_cleanup_incomplete"
+    assert result.context.task.pending_memory_tombstone is not None
+    assert context.get_task("u1", "c1").pending_memory_tombstone is not None
     assert result.context.recent_messages
     assert result.context.user_message == "I confirm."
+
+    retry_runtime, retry_context, _ = _runtime(
+        tmp_path,
+        _tool("confirm_memory_tombstone"),
+        _final(),
+    )
+    retried = retry_runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="Retry the cleanup.",
+    )
+
+    assert retried.tool_results[0].state == "memory_tombstoned"
+    assert retried.context.task.pending_memory_tombstone is None
+    assert retry_context.get_task("u1", "c1").pending_memory_tombstone is None

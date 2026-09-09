@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+import sqlite3
+
 import pytest
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
@@ -11,6 +14,8 @@ from career_agent.agent.main_agent_contracts import (
     CareerProfileContext,
     ConversationResourceReference,
     ConversationTaskState,
+    HardConstraintContext,
+    confirmation_recency_label,
 )
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
@@ -29,7 +34,6 @@ def manager(
     summary_batch_size: int = 2,
     max_recent_context_chars: int = 16000,
     compact_occupancy_threshold: float = 0.75,
-    compacted_message_warning_threshold: int = 200,
 ) -> ContextManager:
     return ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
@@ -39,7 +43,6 @@ def manager(
         max_message_chars=32,
         max_recent_context_chars=max_recent_context_chars,
         compact_occupancy_threshold=compact_occupancy_threshold,
-        compacted_message_warning_threshold=compacted_message_warning_threshold,
     )
 
 
@@ -105,18 +108,16 @@ def test_profile_current_target_block_is_rendered_from_target_role_source(
         conversation_id="c1",
         user_message="我当前的求职目标是什么？",
     )
-    projected = context.model_context()["career_profile"]["current_targets"]
+    projected = context.model_context()["career_profile"]
+    targets = projected["memory/current_targets.md"]
 
-    assert projected["roles"] == [
-        {
-            "title": "ML Engineer",
-            "priority": 1,
-            "city": "上海",
-            "salary_expectation": "40-50k",
-            "experience": "5-7 years",
-            "education": "硕士",
-        }
-    ]
+    assert '- Title: "ML Engineer"' in targets
+    assert "- Priority: 1" in targets
+    assert '- City: "上海"' in targets
+    assert '- Salary expectation: "40-50k"' in targets
+    assert '- Experience: "5-7 years"' in targets
+    assert '- Education: "硕士"' in targets
+    assert targets.count("- Last confirmed: 今天确认") == 4
     assert "current_targets" not in context.profile.model_dump()
     workflow_context = context_manager.load_for_workflow_turn(
         user_id="u1",
@@ -127,6 +128,70 @@ def test_profile_current_target_block_is_rendered_from_target_role_source(
         ),
     )
     assert workflow_context.profile.current_targets == ()
+
+
+def test_projection_keeps_stale_intent_and_labels_last_confirmation(
+    tmp_path,
+) -> None:
+    context_path = tmp_path / "context.sqlite3"
+    resume_path = tmp_path / "resumes.sqlite3"
+    context_store = CareerContextStore(context_path)
+    constraint = HardConstraintContext(
+        relation="work_arrangement",
+        value="必须远程",
+    )
+    context_store.upsert_profile(
+        CareerProfileContext(
+            user_id="u1",
+            default_city="杭州",
+            hard_constraints=(constraint,),
+        )
+    )
+    resumes = ResumeStore(resume_path)
+    role = resumes.create_target_role(
+        user_id="u1",
+        title="ML Engineer",
+        priority=1,
+    )
+    resumes.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        salary_expectation="40K",
+    )
+    stale_at = datetime.now(timezone.utc) - timedelta(days=200)
+    stale = stale_at.isoformat()
+    with sqlite3.connect(context_path) as connection:
+        connection.execute(
+            "UPDATE career_intent_versions SET last_corroborated_at = ?",
+            (stale,),
+        )
+    with sqlite3.connect(resume_path) as connection:
+        connection.execute(
+            "UPDATE career_intent_versions SET last_corroborated_at = ?",
+            (stale,),
+        )
+
+    projected = ContextManager(
+        context_store,
+        target_role_source=resumes,
+    ).load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="推荐岗位",
+    )
+
+    career_profile = projected.model_context()["career_profile"]
+    assert projected.profile.default_city == "杭州"
+    assert projected.profile.hard_constraints[0].relation == constraint.relation
+    assert projected.profile.hard_constraints[0].value == constraint.value
+    assert projected.profile.current_targets[0].salary_expectation == "40K"
+    stale_label = confirmation_recency_label(stale_at)
+    profile_file = career_profile["memory/profile.md"]
+    targets_file = career_profile["memory/current_targets.md"]
+    assert '- Default city: "杭州"' in profile_file
+    assert f"- Last confirmed: {stale_label}" in profile_file
+    assert '- Salary expectation: "40K"' in targets_file
+    assert f"- Last confirmed: {stale_label}" in targets_file
 
 
 class RecordingSummaryWorker:
@@ -404,7 +469,13 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "input_occupancy_denominator": None,
         "restored_constraints": 0,
         "dropped_constraints": 0,
+        "dropped_user_goals": 0,
+        "dropped_confirmed_decisions": 0,
+        "dropped_unresolved_questions": 0,
         "omitted_active_constraint_count": 0,
+        "omitted_user_goal_count": 0,
+        "omitted_confirmed_decision_count": 0,
+        "omitted_unresolved_question_count": 0,
         "batch_size": 2,
     }
 
@@ -756,17 +827,6 @@ def test_the_read_window_stays_bounded_while_the_table_keeps_growing(tmp_path) -
         user_id="u1", conversation_id="c1", after_sequence=0, limit=1000
     )
     assert len(stored) == 80
-    # Everything past the read window is reclaimable, and nothing inside it is.
-    reclaimable, byte_size = context_manager._store.count_compacted_messages(
-        user_id="u1", conversation_id="c1"
-    )
-    summary = context_manager._store.get_conversation_summary(
-        user_id="u1", conversation_id="c1"
-    )
-    assert summary is not None
-    assert reclaimable == summary.through_sequence
-    assert len(stored) - reclaimable <= 6
-    assert byte_size > 0
     summary = context_manager._store.get_conversation_summary(
         user_id="u1", conversation_id="c1"
     )
@@ -1140,6 +1200,23 @@ class OverflowingConstraintWorker(RecordingSummaryWorker):
         )
 
 
+class OverflowingGoalWorker(RecordingSummaryWorker):
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        if previous is None:
+            return ConversationSummaryContent(
+                active_constraints=tuple(
+                    f"{index:02d}" + ("x" * 498) for index in range(12)
+                )
+            )
+        return ConversationSummaryContent(
+            user_goals=("Keep looking for roles in a new city",),
+            confirmed_decisions=("Stay put this quarter",),
+            unresolved_questions=("What salary band is acceptable?",),
+            active_constraints=("new-one",),
+        )
+
+
 def test_constraint_truncation_is_counted_in_compaction_trace(tmp_path) -> None:
     worker = OverflowingConstraintWorker()
     context_manager = manager(
@@ -1191,6 +1268,64 @@ def test_constraint_truncation_is_counted_in_compaction_trace(tmp_path) -> None:
     )
 
 
+def test_summary_field_pops_are_counted_when_constraints_consume_the_budget(
+    tmp_path,
+) -> None:
+    worker = OverflowingGoalWorker()
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=worker,
+        max_recent_context_chars=32,
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-goals"))
+    try:
+        for index in range(3):
+            context = context_manager.load_for_turn(
+                user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message=f"assistant-{index}",
+            )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    compacted = [
+        event
+        for event in recorder.snapshot("turn-goals").events
+        if event.event_type == "context_compacted"
+    ]
+    last = compacted[-1].details
+    assert last["dropped_user_goals"] == 1
+    assert last["dropped_confirmed_decisions"] == 1
+    assert last["dropped_unresolved_questions"] == 1
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.content.user_goals == ()
+    assert summary.content.confirmed_decisions == ()
+    assert summary.content.unresolved_questions == ()
+    assert summary.content.omitted_user_goal_count == 1
+    assert summary.content.omitted_confirmed_decision_count == 1
+    assert summary.content.omitted_unresolved_question_count == 1
+    projected = context_manager._build_context(
+        user_id="u1", conversation_id="c1", user_message="inspect"
+    ).model_context()
+    assert projected["conversation_summary"]["omitted_user_goal_count"] == 1
+    assert (
+        projected["conversation_summary"]["omitted_confirmed_decision_count"]
+        == 1
+    )
+    assert (
+        projected["conversation_summary"]["omitted_unresolved_question_count"]
+        == 1
+    )
+
+
 def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None:
     worker = RecordingSummaryWorker()
     context_manager = ContextManager(
@@ -1227,3 +1362,17 @@ def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None
     )
     assert len(stored[0].content) == 8000
     assert [len(item.content) for item in worker.calls[0][1]] == [4000, 4000]
+
+
+def test_confirmation_recency_label_uses_whole_days() -> None:
+    now = datetime(2026, 9, 8, tzinfo=timezone.utc)
+
+    assert confirmation_recency_label(now, now=now) == "今天确认"
+    assert (
+        confirmation_recency_label(now - timedelta(days=1), now=now)
+        == "1 天前确认"
+    )
+    assert (
+        confirmation_recency_label(now - timedelta(days=3), now=now)
+        == "3 天前确认"
+    )

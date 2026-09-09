@@ -74,6 +74,7 @@ _READ_CAPABILITIES = frozenset(
         "propose_memory_tombstone",
         "read_conversation_span",
         "resolve_claim_source",
+        "search_career_episodes",
         "search_career_memory",
         "search_career_history",
     }

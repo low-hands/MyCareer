@@ -69,7 +69,7 @@ def test_prompt_cache_policy_is_loaded_explicitly_from_environment() -> None:
     assert config.prompt_cache == "explicit"
 
 
-def test_prompt_cache_and_estimate_margin_have_conservative_defaults() -> None:
+def test_prompt_cache_defaults_to_implicit() -> None:
     config = OpenAICompatibleAgentConfig.from_env(
         environ={
             "MAIN_AGENT_BASE_URL": "https://compatible.example.test/v1",
@@ -80,9 +80,6 @@ def test_prompt_cache_and_estimate_margin_have_conservative_defaults() -> None:
     )
 
     assert config.prompt_cache == "implicit"
-    assert config.input_token_safety_factor == 1.1
-    assert config.cjk_tokens_per_char == 1.8
-    assert config.ascii_chars_per_token == 4.0
 
 
 def test_invalid_prompt_cache_policy_fails_configuration() -> None:
@@ -157,15 +154,16 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert data_content.startswith(DATA_CONTEXT_LABEL + "\n")
     payload = _spotlight_json(data_content, label=DATA_CONTEXT_LABEL)
     assert decision.action == "ask_user"
-    # Role-scoped intent is rendered per track and never collapsed into one
-    # person-level salary, experience, or education value.
-    assert set(stable_payload["career_profile"]) == {"default_city"}
-    assert stable_payload["career_profile"]["default_city"] == "Shanghai"
+    # Profile facts are complete deterministic Markdown files in the stable
+    # prefix. Query-sensitive evidence alone occupies career_memory.
+    profile_files = stable_payload["career_profile"]
+    assert '- Default city: "Shanghai"' in profile_files["memory/profile.md"]
+    assert payload["career_memory"] == {}
     assert not {
         "salary_expectation",
         "experience",
         "education",
-    } & stable_payload["career_profile"].keys()
+    } & payload["career_memory"].keys()
     assert "resume_text" not in payload
     assert "open_job_search" not in system_content
     assert (
@@ -238,35 +236,18 @@ def test_role_scoped_intent_stays_separate_in_current_targets() -> None:
     )
 
     career_profile = context.model_context()["career_profile"]
+    profile_file = career_profile["memory/profile.md"]
+    targets_file = career_profile["memory/current_targets.md"]
 
-    assert set(career_profile) == {
-        "default_city",
-        "current_targets",
-    }
-    assert [role["salary_expectation"] for role in career_profile["current_targets"]["roles"]] == [
-        "40-50k",
-        "30-40k",
-    ]
-    assert career_profile["current_targets"]["roles"] == [
-        {
-            "title": "ML Engineer",
-            "priority": 1,
-            "salary_expectation": "40-50k",
-            "experience": "5-7 years",
-        },
-        {
-            "title": "Product Manager",
-            "priority": 2,
-            "city": "上海",
-            "salary_expectation": "30-40k",
-            "education": "本科",
-        },
-    ]
-    assert not {
-        "salary_expectation",
-        "experience",
-        "education",
-    } & career_profile.keys()
+    assert '- Default city: "杭州"' in profile_file
+    assert targets_file.index('Title: "ML Engineer"') < targets_file.index(
+        'Title: "Product Manager"'
+    )
+    assert '- Salary expectation: "40-50k"' in targets_file
+    assert '- Experience: "5-7 years"' in targets_file
+    assert '- City: "上海"' in targets_file
+    assert '- Salary expectation: "30-40k"' in targets_file
+    assert '- Education: "本科"' in targets_file
 
 
 def test_untrusted_data_uses_a_session_stable_matching_spotlight_nonce() -> None:
@@ -338,56 +319,7 @@ def test_request_token_usage_counts_tools_and_weights_cjk() -> None:
 
     assert limit == 4096
     assert with_tool > small + 900
-    assert cjk > small + 250
-
-
-def test_request_and_static_token_estimates_apply_the_configured_margin() -> None:
-    config = {
-        "endpoint": "https://example.test/v1/chat/completions",
-        "api_key": "test",
-        "model": "test-model",
-        "max_input_tokens": 4096,
-    }
-    raw = OpenAICompatibleMainAgentDecisionMaker(
-        OpenAICompatibleAgentConfig(
-            **config,
-            input_token_safety_factor=1.0,
-        ),
-        client=Client(),
-    )
-    conservative = OpenAICompatibleMainAgentDecisionMaker(
-        OpenAICompatibleAgentConfig(
-            **config,
-            input_token_safety_factor=1.1,
-        ),
-        client=Client(),
-    )
-    context = MainAgentContext(
-        conversation_id="c1",
-        profile=CareerProfileContext(user_id="u1"),
-        user_message="continue",
-    )
-    tool_specs = (
-        {
-            "type": "function",
-            "function": {
-                "name": "large_tool",
-                "description": "d" * 4000,
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-    )
-
-    raw_request, limit = raw.request_token_usage(context, tool_specs)
-    adjusted_request, adjusted_limit = conservative.request_token_usage(
-        context, tool_specs
-    )
-    raw_static, _ = raw.static_request_token_usage(tool_specs)
-    adjusted_static, _ = conservative.static_request_token_usage(tool_specs)
-
-    assert adjusted_request == pytest.approx(raw_request * 1.1, abs=1)
-    assert adjusted_static == pytest.approx(raw_static * 1.1, abs=1)
-    assert limit == adjusted_limit == 4096
+    assert cjk > small + 150
 
 
 def test_configured_implicit_cache_uses_a_stable_key_without_endpoint_sniffing() -> None:

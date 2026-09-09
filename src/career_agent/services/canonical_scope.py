@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol
 import re
 import unicodedata
 
@@ -13,18 +12,6 @@ from career_agent.domain.memory_scope import (
 )
 
 
-class SemanticRelationNormalizer(Protocol):
-    """Proposes one relation from a closed registry; it never returns a key."""
-
-    def normalize(
-        self,
-        *,
-        family: ScopeFamily,
-        surface_relation: str,
-        allowed_relations: tuple[str, ...],
-    ) -> str | None: ...
-
-
 _DEFAULT_RELATIONS: dict[ScopeFamily, frozenset[str]] = {
     "person_intent": frozenset(
         {"default_city", "work_arrangement", "work_schedule"}
@@ -32,10 +19,6 @@ _DEFAULT_RELATIONS: dict[ScopeFamily, frozenset[str]] = {
     "target_role_intent": frozenset(
         {"city", "salary_expectation", "experience", "education"}
     ),
-    # Free-text career evidence has no safe built-in predicate registry yet.
-    # M2b may add domain predicates deliberately; hashing the whole claim here
-    # would turn every correction into a different key and defeat supersession.
-    "career_evidence": frozenset(),
 }
 
 
@@ -46,19 +29,12 @@ class CanonicalScopeResolver:
         self,
         *,
         relation_aliases: Mapping[tuple[ScopeFamily, str], str] | None = None,
-        evidence_relations: frozenset[str] = frozenset(),
-        semantic_normalizer: SemanticRelationNormalizer | None = None,
     ) -> None:
-        relations = dict(_DEFAULT_RELATIONS)
-        relations["career_evidence"] = frozenset(
-            self._canonical_relation(item) for item in evidence_relations
-        )
-        self._relations = relations
+        self._relations = dict(_DEFAULT_RELATIONS)
         self._aliases = {
             (family, self._surface(alias)): self._canonical_relation(relation)
             for (family, alias), relation in (relation_aliases or {}).items()
         }
-        self._semantic_normalizer = semantic_normalizer
 
     def resolve(self, proposal: ScopeProposal) -> ScopeResolution:
         relation = self._resolve_relation(proposal)
@@ -98,17 +74,7 @@ class CanonicalScopeResolver:
         direct = self._canonical_relation(proposal.relation)
         if direct in self._relations[proposal.family]:
             return direct
-        if self._semantic_normalizer is None:
-            return None
-        proposed = self._semantic_normalizer.normalize(
-            family=proposal.family,
-            surface_relation=proposal.relation,
-            allowed_relations=tuple(sorted(self._relations[proposal.family])),
-        )
-        if proposed is None:
-            return None
-        canonical = self._canonical_relation(proposed)
-        return canonical if canonical in self._relations[proposal.family] else None
+        return None
 
     @staticmethod
     def _surface(value: str) -> str:

@@ -769,7 +769,7 @@ def test_v8_migration_backfills_the_short_term_fts_column(tmp_path) -> None:
 
     assert query_terms.latin == ("c#",)
     assert query_terms.cjk == ("开发",)
-    assert [hit.evidence.id for hit in ranked] == [evidence.id]
+    assert [hit.id for hit in ranked] == [evidence.id]
     with sqlite3.connect(path) as connection:
         columns = {
             row[1]
@@ -810,7 +810,7 @@ def test_short_term_index_tracks_corrections_and_tombstones(tmp_path) -> None:
 
     assert store.rank_current_evidence(user_id="u1", query="C#") == ()
     assert [
-        hit.evidence.id
+        hit.id
         for hit in store.rank_current_evidence(user_id="u1", query="Go")
     ] == [correction.current.id]
 

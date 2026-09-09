@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
+import sqlite3
 
 import pytest
 
@@ -24,6 +25,10 @@ from career_agent.agent.openai_resume_job_match_worker import (
     OpenAIResumeJobMatchWorker,
 )
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.resume_job_match_contracts import (
+    ResumeJobMatchAuditProposal,
+    ResumeJobMatchStateFinding,
+)
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
@@ -173,6 +178,65 @@ class RecordingMatchWorker:
         return ResumeJobMatchResult.model_validate(VALID_MATCH)
 
 
+class StateAuditingMatchWorker(RecordingMatchWorker):
+    def __init__(self) -> None:
+        super().__init__()
+        self.audits = []
+
+    def match(self, **kwargs) -> ResumeJobMatchResult:
+        self.calls.append(kwargs)
+        stale = {
+            **VALID_MATCH,
+            "summary": "The Hangzhou preference makes this role a weak location fit.",
+        }
+        return ResumeJobMatchResult.model_validate(stale)
+
+    def audit_state(self, **kwargs) -> ResumeJobMatchAuditProposal:
+        self.audits.append(kwargs)
+        transition = kwargs["transitions"][0]
+        repaired = {
+            **VALID_MATCH,
+            "summary": (
+                f"The current {transition.new_value} preference makes "
+                "the location acceptable."
+            ),
+        }
+        return ResumeJobMatchAuditProposal(
+            findings=(
+                ResumeJobMatchStateFinding(
+                    scope_key=transition.scope_key,
+                    pref_scope=transition.pref_scope,
+                    old_value=transition.old_value,
+                    new_value=transition.new_value,
+                    status="stale",
+                    material=True,
+                    rationale="The draft planned around the superseded city.",
+                ),
+            ),
+            repaired_result=ResumeJobMatchResult.model_validate(repaired),
+        )
+
+
+class ConflictFreeAuditingWorker(RecordingMatchWorker):
+    def audit_state(self, **kwargs) -> ResumeJobMatchAuditProposal:
+        transition = kwargs["transitions"][0]
+        changed = {**VALID_MATCH, "summary": "An unnecessary rewrite."}
+        return ResumeJobMatchAuditProposal(
+            findings=(
+                ResumeJobMatchStateFinding(
+                    scope_key=transition.scope_key,
+                    pref_scope=transition.pref_scope,
+                    old_value=transition.old_value,
+                    new_value=transition.new_value,
+                    status="current",
+                    material=False,
+                    rationale="The draft does not rely on the old state.",
+                ),
+            ),
+            repaired_result=ResumeJobMatchResult.model_validate(changed),
+        )
+
+
 def seed_inputs(tmp_path):
     resume_path = tmp_path / "resumes.sqlite3"
     resume_store = ResumeStore(resume_path)
@@ -269,6 +333,122 @@ def test_service_loads_owned_complete_inputs_and_only_exact_version_facts(tmp_pa
     )
     assert refreshed.id != result.id
     assert len(worker_stub.calls) == 2
+
+
+def test_sr_pr_and_ipa_path_repairs_a_visible_revised_state(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    context.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="Shanghai"),
+        source="test",
+    )
+    context.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="Hangzhou"),
+        source="test",
+    )
+    context.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="Shanghai"),
+        source="test",
+    )
+    worker_stub = StateAuditingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        career_profile_store=context,
+    )
+
+    result = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+
+    transition = worker_stub.audits[0]["transitions"][0]
+    # SR: the state-anchored pass receives and recognizes the old→new change.
+    assert (transition.old_value, transition.new_value) == (
+        "Hangzhou",
+        "Shanghai",
+    )
+    # PR: a draft presupposing the old city is not allowed through unchanged.
+    assert "Hangzhou" not in result.result.summary
+    # IPA: the open-ended result materially follows the new state.
+    assert "Shanghai" in result.result.summary
+    assert result.result.limitations[-1] == (
+        "已按当前求职状态修正：Hangzhou → Shanghai。"
+    )
+    assert worker_stub.calls[0]["intent_states"][0].value == "Shanghai"
+
+
+def test_an_intent_confirmed_long_ago_is_reported_not_withheld(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    context.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="Hangzhou"),
+        source="test",
+    )
+    context.upsert_profile(
+        CareerProfileContext(user_id="u1", default_city="Shanghai"),
+        source="test",
+    )
+    confirmed_at = datetime.now(timezone.utc) - timedelta(days=400)
+    database = sqlite3.connect(tmp_path / "context.sqlite3")
+    with database:
+        database.execute(
+            "UPDATE career_intent_versions SET last_corroborated_at = ?",
+            (confirmed_at.isoformat(),),
+        )
+    database.close()
+    worker_stub = StateAuditingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        career_profile_store=context,
+    )
+
+    result = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+
+    # The preference is still delivered, carrying the date it was last stated
+    # rather than a score that would have excluded it for being old.
+    anchor = worker_stub.calls[0]["intent_states"][0]
+    assert anchor.value == "Shanghai"
+    assert anchor.last_confirmed_at == confirmed_at
+    # Its transition survives too, so stale-state repair keeps the input it
+    # needs most for intent nobody has restated in a long time.
+    assert worker_stub.audits[0]["transitions"][0].new_value == "Shanghai"
+    assert "Shanghai" in result.result.summary
+
+
+def test_repair_only_keeps_conflict_free_draft_byte_stable(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    context.upsert_profile(CareerProfileContext(user_id="u1", default_city="A"))
+    context.upsert_profile(CareerProfileContext(user_id="u1", default_city="B"))
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        ConflictFreeAuditingWorker(),
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        career_profile_store=context,
+    )
+
+    result = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+
+    assert result.result == ResumeJobMatchResult.model_validate(VALID_MATCH)
 
 
 def test_service_hides_foreign_inputs_before_calling_worker(tmp_path) -> None:

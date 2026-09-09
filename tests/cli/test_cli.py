@@ -111,11 +111,11 @@ def test_trajectory_cli_reports_quality_as_an_independent_axis() -> None:
     assert result["quality_status"] == "passed"
     assert result["quality_sample_count"] == 5
     assert result["quality_min_pass_rate"] == 0.6
+    assert result["quality_min_detectable_regression"] == 0.4
     assert result["quality_samples_passed"] >= 3
     assert result["quality_pass_rate"] == (
         result["quality_samples_passed"] / result["quality_sample_count"]
     )
-    assert len(result["quality_wilson_95"]) == 2
 
 
 def test_trajectory_record_parser_defaults_to_parallel_jobs() -> None:
@@ -282,90 +282,6 @@ def test_rederivation_eval_reports_insufficient_evidence_without_a_false_zero(
     assert payload["rederivation_count"] is None
 
 
-def test_memory_budget_eval_reads_production_turn_cohorts(tmp_path) -> None:
-    path = tmp_path / "run-events.sqlite3"
-    recorder = SQLiteTraceRecorder(path)
-    key = conversation_trace_key("u1", "c1")
-    recorder.record(
-        "turn-1",
-        "memory_context_observed",
-        "main_agent_decide",
-        outcome="succeeded",
-        details={
-            "conversation_key": key,
-            "career_profile_budgets": {
-                    "budget_unit": "estimated_input_tokens",
-                "records_input_units": 512,
-                "current_targets_input_units": 800,
-                "hard_constraints_input_units": 600,
-            },
-            "career_memory_enabled": True,
-            "career_profile_delivery": {
-                "records_dropped": 1,
-                "claims_dropped": 2,
-            },
-            "career_profile_truncation": {
-                "records": {
-                    "model_visible": True,
-                    "fetch_required": True,
-                },
-                "all_truncation_model_visible": True,
-                "any_fetch_required": True,
-            },
-        },
-    )
-    recorder.record(
-        "turn-1",
-        "model_succeeded",
-        "main_agent_decide",
-        outcome="succeeded",
-        details={
-            "decision_action": "tool_call",
-            "tool_name": "search_career_memory",
-        },
-        model_call_category="orchestrator_decision",
-    )
-    recorder.record(
-        "turn-1",
-        "model_succeeded",
-        "main_agent_decide",
-        outcome="succeeded",
-        details={"decision_action": "final"},
-        model_call_category="orchestrator_decision",
-    )
-    recorder.record(
-        "turn-1",
-        "turn_completed",
-        "turn",
-        outcome="succeeded",
-    )
-    output = StringIO()
-
-    code = main(
-        [
-            "eval",
-            "memory-budget",
-            "--user-id",
-            "u1",
-            "--session-id",
-            "c1",
-            "--run-events-store",
-            str(path),
-        ],
-        stdout=output,
-        stderr=StringIO(),
-    )
-    payload = json.loads(output.getvalue())
-
-    assert code == 0
-    assert payload["state"] == "memory_delivery_observed"
-    assert payload["eligible_run_count"] == 1
-    assert payload["cohorts"][0]["records_input_unit_budget"] == 512
-    assert payload["cohorts"][0]["fetch_hit_count"] == 1
-    assert payload["cohorts"][0]["fetch_miss_count"] == 0
-    assert "recommended_records_char_floor" not in payload
-
-
 def test_memory_exposure_eval_reports_p1_and_defers_zombies(tmp_path) -> None:
     path = tmp_path / "run-events.sqlite3"
     recorder = SQLiteTraceRecorder(path)
@@ -390,15 +306,63 @@ def test_memory_exposure_eval_reports_p1_and_defers_zombies(tmp_path) -> None:
             "entries": [entry],
         },
     )
+    output = StringIO()
+
+    code = main(
+        [
+            "eval",
+            "memory-exposure",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "c1",
+            "--run-events-store",
+            str(path),
+        ],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+
+    assert code == 0
+    assert payload["state"] == "memory_exposure_measured"
+    assert payload["supersedence_exposure"]["value"] == 1.0
+    assert payload["zombie_exposure"]["value"] is None
+    assert payload["zombie_exposure"]["comparability"] == "NONCOMPARABLE"
+
+
+def test_memory_exposure_eval_reads_keyed_tombstones(tmp_path) -> None:
+    path = tmp_path / "run-events.sqlite3"
+    recorder = SQLiteTraceRecorder(path)
+    key = conversation_trace_key("u1", "c1")
+    entry = {
+        "entry_id": "career_evidence/record-1/claim",
+        "update_id": "career_evidence_update_" + "a" * 32,
+        "content_digest": "sha256:" + "a" * 64,
+        "revision": 1,
+        "lifecycle_status": "current",
+    }
     recorder.record(
         "turn-1",
-        "memory_use_observed",
+        "memory_tombstone_observed",
+        "career_evidence_tombstone",
+        outcome="succeeded",
+        details={
+            "conversation_key": key,
+            "p1_version_binding": True,
+            "entries": [{**entry, "lifecycle_status": "tombstoned"}],
+        },
+    )
+    recorder.record(
+        "turn-2",
+        "memory_context_observed",
         "main_agent_decide",
         outcome="succeeded",
         details={
             "conversation_key": key,
             "binding_profile": "p1",
             "version_inventory_complete": True,
+            "slot_fingerprints": {},
             "entries": [entry],
         },
     )
@@ -421,11 +385,9 @@ def test_memory_exposure_eval_reports_p1_and_defers_zombies(tmp_path) -> None:
     payload = json.loads(output.getvalue())
 
     assert code == 0
-    assert payload["state"] == "memory_exposure_measured"
-    assert payload["staleness_exposure"]["value"] == 1.0
-    assert payload["supersedence_exposure"]["value"] == 1.0
-    assert payload["zombie_exposure"]["value"] is None
-    assert payload["zombie_exposure"]["comparability"] == "NONCOMPARABLE"
+    assert payload["state"] == "zombie_exposure_detected"
+    assert payload["zombie_status"] == "detected"
+    assert payload["zombie_exposure"]["value"] == 1.0
 
 
 def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:

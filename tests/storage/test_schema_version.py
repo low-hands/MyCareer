@@ -1,5 +1,6 @@
 import re
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -64,8 +65,8 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # — the numbers predate the registry — so raising one has to be a deliberate edit
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
-    "resumes": 5,
-    "career_history": 6,
+    "resumes": 6,
+    "career_history": 8,
     "action_center": 2,
     "action_executions": 1,
     "applications": 1,
@@ -79,14 +80,13 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 8,
+    "agent_context": 10,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
     "job_research": 2,
     "run_events": 2,
-    "memory_scope": 2,
-    "career_episodes": 6,
+    "career_episodes": 7,
 }
 
 
@@ -106,6 +106,72 @@ def test_no_component_declares_a_version_this_table_does_not_know_about() -> Non
             declared[component] = int(version)
 
     assert declared == DECLARED_VERSIONS
+
+
+def test_agent_context_v10_drops_removed_scope_queue_schema(tmp_path: Path) -> None:
+    path = tmp_path / "context.sqlite3"
+    CareerContextStore(path)
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE scope_resolution_queue(id TEXT PRIMARY KEY, value TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE scope_resolution_events(id TEXT PRIMARY KEY, value TEXT)"
+        )
+        connection.execute(
+            """
+            INSERT INTO schema_versions(component, version)
+            VALUES ('memory_scope', 1)
+            """
+        )
+        connection.execute(
+            """
+            UPDATE schema_versions SET version = 9
+            WHERE component = 'agent_context'
+            """
+        )
+
+    CareerContextStore(path)
+
+    with sqlite3.connect(path) as connection:
+        queue_tables = connection.execute(
+            """
+            SELECT name FROM sqlite_master
+            WHERE type = 'table'
+              AND name IN ('scope_resolution_queue', 'scope_resolution_events')
+            """
+        ).fetchall()
+        legacy_version = connection.execute(
+            """
+            SELECT 1 FROM schema_versions WHERE component = 'memory_scope'
+            """
+        ).fetchone()
+    assert queue_tables == []
+    assert legacy_version is None
+
+
+def test_career_history_v7_drops_suppression_digest_column(tmp_path: Path) -> None:
+    path = tmp_path / "resumes.sqlite3"
+    CareerHistoryStore(path)
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "ALTER TABLE career_evidence ADD COLUMN suppression_digest TEXT"
+        )
+        connection.execute(
+            """
+            UPDATE schema_versions SET version = 6
+            WHERE component = 'career_history'
+            """
+        )
+
+    CareerHistoryStore(path)
+
+    with sqlite3.connect(path) as connection:
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(career_evidence)")
+        }
+    assert "suppression_digest" not in columns
 
 
 def test_no_store_writes_the_file_wide_version_the_registry_replaced() -> None:
@@ -214,6 +280,53 @@ def test_resumes_v5_backfills_each_current_role_intent_field(
         ),
     ]
     assert {item.source for item in versions} == {"migration:target_roles"}
+
+
+def test_context_reopen_does_not_refresh_intent_decay_clock(tmp_path: Path) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    store.upsert_profile(CareerProfileContext(user_id="u1", default_city="上海"))
+    stale = datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE career_intent_versions SET last_corroborated_at = ?
+            WHERE user_id = 'u1'
+            """,
+            (stale,),
+        )
+
+    reopened = CareerContextStore(path)
+
+    assert reopened.list_profile_intent_versions(
+        user_id="u1"
+    )[0].last_corroborated_at.isoformat() == stale
+
+
+def test_resume_reopen_does_not_refresh_intent_decay_clock(tmp_path: Path) -> None:
+    path = tmp_path / "resumes.sqlite3"
+    store = ResumeStore(path)
+    role = store.create_target_role(user_id="u1", title="Agent", priority=0)
+    store.update_target_role_intent(
+        user_id="u1",
+        target_role_id=role.id,
+        city="北京",
+    )
+    stale = datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE career_intent_versions SET last_corroborated_at = ?
+            WHERE user_id = 'u1'
+            """,
+            (stale,),
+        )
+
+    reopened = ResumeStore(path)
+
+    assert reopened.list_target_role_intent_versions(
+        user_id="u1"
+    )[0].last_corroborated_at.isoformat() == stale
 
 
 def test_registration_is_idempotent_and_reports_the_previous_version(

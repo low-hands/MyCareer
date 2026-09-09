@@ -6,6 +6,7 @@ from typing import Any
 from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
 
 from career_agent.agent.conversation_memory_contracts import (
+    HARNESS_SUMMARY_COUNTER_FIELDS,
     ConversationSummaryContent,
     ConversationSummaryWorker,
     SummaryMessage,
@@ -47,7 +48,7 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             "previous_summary": (
                 previous.model_dump(
                     mode="json",
-                    exclude={"omitted_active_constraint_count"},
+                    exclude=HARNESS_SUMMARY_COUNTER_FIELDS,
                 )
                 if previous
                 else None

@@ -178,6 +178,75 @@ def test_scope_purge_does_not_hide_an_unrelated_conversation(tmp_path) -> None:
     ] == ["Later planning only", "planning noted"]
 
 
+def test_summary_rebuild_uses_retained_unsuppressed_messages(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    first_scope = "career_evidence/record-1/claim"
+    second_scope = "career_evidence/record-2/claim"
+    later_scope = "career_evidence/record-3/claim"
+    _commit(
+        store,
+        conversation_id="c1",
+        user_message="Delete this memory",
+        assistant_message="First memory noted",
+        scope_keys=(first_scope,),
+    )
+    _commit(
+        store,
+        conversation_id="c1",
+        user_message="Keep this memory",
+        assistant_message="Second memory noted",
+        scope_keys=(second_scope,),
+    )
+    assert store.compact_conversation_summary(
+        user_id="u1",
+        conversation_id="c1",
+        expected_previous_through_sequence=0,
+        content=ConversationSummaryContent(
+            confirmed_decisions=("First and second memories",),
+        ),
+        through_sequence=4,
+    )
+
+    store.purge_derived_memory(user_id="u1", scope_key=first_scope)
+
+    assert store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    ) is None
+    assert [
+        message.content
+        for message in store.list_messages_after(
+            user_id="u1",
+            conversation_id="c1",
+            after_sequence=0,
+            limit=10,
+        )
+    ] == ["Keep this memory", "Second memory noted"]
+    assert store.compact_conversation_summary(
+        user_id="u1",
+        conversation_id="c1",
+        expected_previous_through_sequence=0,
+        content=ConversationSummaryContent(
+            confirmed_decisions=("Second memory",),
+        ),
+        through_sequence=4,
+    )
+    _commit(
+        store,
+        conversation_id="c1",
+        user_message="Later disposable memory",
+        assistant_message="Later memory noted",
+        scope_keys=(later_scope,),
+    )
+
+    store.purge_derived_memory(user_id="u1", scope_key=later_scope)
+
+    rebuilt = store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert rebuilt is not None
+    assert rebuilt.content.confirmed_decisions == ("Second memory",)
+
+
 def test_v8_migration_drops_ignored_legacy_cutoff_table(tmp_path) -> None:
     path = tmp_path / "context.sqlite3"
     store = CareerContextStore(path)
@@ -309,6 +378,16 @@ def test_scope_purge_allows_backdated_unrelated_episode(tmp_path) -> None:
     assert episodes.upsert(deleted, memory_scope_keys=(scope_key,)) is not None
 
     context.purge_derived_memory(user_id="u1", scope_key=scope_key)
+
+    assert episodes.upsert(
+        deleted.model_copy(update={"summary": "Delayed stale re-derivation."}),
+        memory_scope_keys=(scope_key,),
+    ) is None
+    assert episodes.get_by_source(
+        user_id="u1",
+        kind="interview_round",
+        source_run_id="round-deleted",
+    ) is None
 
     backdated = deleted.model_copy(
         update={

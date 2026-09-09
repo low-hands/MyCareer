@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -73,26 +72,12 @@ _EVIDENCE_COLUMNS = ", ".join(_EVIDENCE_FIELD_NAMES)
 
 
 @dataclass(frozen=True)
-class RankedCareerEvidence:
-    """An FTS hit plus the SQLite bm25() score that produced its order.
-
-    Mixed short/long queries sum scores from their isolated FTS indexes. More
-    negative ``bm25_score`` is a better match. The projector normalizes this
-    set; items outside it have relevance 0.
-    """
-
-    evidence: CareerEvidence
-    bm25_score: float
-
-
-@dataclass(frozen=True)
 class CareerEvidenceQueryTerms:
-    """Typed term groups shared by current-evidence MATCH and normalization."""
+    """Typed term groups shared by the long- and short-token MATCH paths."""
 
     user_id: str
     latin: tuple[str, ...]
     cjk: tuple[str, ...]
-    idf_sum: float
 
     @property
     def match_tokens(self) -> tuple[str, ...]:
@@ -459,21 +444,19 @@ class CareerHistoryStore:
         limit: int = 8,
         cursor: str | None = None,
     ) -> tuple[tuple[CareerEvidence, ...], int, str | None]:
-        """Search active confirmed claims through a user-scoped FTS population."""
+        """Page current confirmed lexical matches for one user.
+
+        FTS supplies a boolean candidate gate only. Its collection-level BM25
+        statistics are deliberately not consumed, so superseded rows and other
+        users in the persistent index cannot change this result's ordering.
+        """
 
         if not 1 <= limit <= 20:
             raise ValueError("current evidence limit must be between 1 and 20")
-        tokens = tuple(
-            dict.fromkeys(
-                token.casefold()
-                for token in re.findall(
-                    r"[\w+#.-]{3,}", query.strip(), flags=re.UNICODE
-                )
-            )
-        )
-        if not tokens:
-            raise ValueError("current evidence query needs a term of 3+ characters")
-        normalized_query = " ".join(tokens)
+        terms = self.current_evidence_query_terms(user_id=user_id, query=query)
+        if not terms.match_tokens:
+            raise ValueError("current evidence query needs a searchable term")
+        normalized_query = " ".join(terms.match_tokens)
         query_digest = hashlib.sha256(
             normalized_query.encode("utf-8")
         ).hexdigest()[:8]
@@ -485,48 +468,50 @@ class CareerHistoryStore:
             offset = int(match.group("offset"), 16)
             if offset > _MAX_HISTORY_OFFSET:
                 raise ValueError("current evidence cursor exceeds the safety limit")
-        match_query = " OR ".join(
-            json.dumps(token, ensure_ascii=False) for token in tokens
-        )
         selected_columns = ", ".join(
             f"evidence.{name}" for name in _EVIDENCE_FIELD_NAMES
         )
-        where = """
-            current_evidence_rank_fts MATCH ?
-            AND evidence.verification_status = 'confirmed'
-            AND evidence.tombstoned_at IS NULL
-            AND evidence.superseded_by IS NULL
-        """
+        sources = self._current_evidence_match_sources(terms)
+        matched_sql = " UNION ".join(
+            f"""
+            SELECT evidence.id AS evidence_id
+            FROM {table} AS search
+            JOIN career_evidence AS evidence
+              ON evidence.id = search.evidence_id
+            WHERE {table} MATCH ?
+              AND evidence.user_id = ?
+              AND evidence.verification_status = 'confirmed'
+              AND evidence.tombstoned_at IS NULL
+              AND evidence.superseded_by IS NULL
+            """
+            for table, _ in sources
+        )
+        parameters = tuple(
+            value
+            for _, match_query in sources
+            for value in (match_query, user_id)
+        )
         with self._connect() as connection:
-            self._create_current_evidence_rank_indexes(
-                connection,
-                user_id=user_id,
-                include_long=True,
-                include_short=False,
-            )
             total = int(
                 connection.execute(
                     f"""
-                    SELECT COUNT(*)
-                    FROM current_evidence_rank_fts AS search
-                    JOIN career_evidence AS evidence
-                      ON evidence.id = search.evidence_id
-                    WHERE {where}
+                    WITH matched AS ({matched_sql})
+                    SELECT COUNT(*) FROM matched
                     """,
-                    (match_query,),
+                    parameters,
                 ).fetchone()[0]
             )
             rows = connection.execute(
                 f"""
+                WITH matched AS ({matched_sql})
                 SELECT {selected_columns}
-                FROM current_evidence_rank_fts AS search
+                FROM matched
                 JOIN career_evidence AS evidence
-                  ON evidence.id = search.evidence_id
-                WHERE {where}
-                ORDER BY bm25(current_evidence_rank_fts), evidence.created_at DESC
+                  ON evidence.id = matched.evidence_id
+                ORDER BY evidence.created_at DESC, evidence.id
                 LIMIT ? OFFSET ?
                 """,
-                (match_query, limit, offset),
+                (*parameters, limit, offset),
             ).fetchall()
         next_offset = offset + len(rows)
         next_cursor = (
@@ -543,8 +528,12 @@ class CareerHistoryStore:
         query: str | None = None,
         query_terms: CareerEvidenceQueryTerms | None = None,
         limit: int = 45,
-    ) -> tuple[RankedCareerEvidence, ...]:
-        """Over-recall active claims from FTS for Tier-1 reranking."""
+    ) -> tuple[CareerEvidence, ...]:
+        """Return a bounded set selected only by lexical MATCH.
+
+        Ordering is structural and stable: newest evidence first, then id.
+        BM25 magnitudes and ranks are intentionally absent from the contract.
+        """
 
         if not 1 <= limit <= 100:
             raise ValueError("ranked evidence limit must be between 1 and 100")
@@ -560,65 +549,37 @@ class CareerHistoryStore:
         tokens = query_terms.match_tokens
         if not tokens:
             return ()
-        long_match_query, short_match_query = (
-            self._current_evidence_match_queries(query_terms)
-        )
+        match_sources = self._current_evidence_match_sources(query_terms)
         selected_columns = ", ".join(
             f"evidence.{name}" for name in _EVIDENCE_FIELD_NAMES
         )
-        match_sources: list[tuple[str, str]] = []
-        if long_match_query is not None:
-            match_sources.append(("current_evidence_rank_fts", long_match_query))
-        if short_match_query is not None:
-            match_sources.append(
-                ("current_evidence_rank_short_fts", short_match_query)
-            )
         evidence_by_id: dict[str, CareerEvidence] = {}
-        score_by_id: dict[str, float] = {}
         with self._connect() as connection:
-            self._create_current_evidence_rank_indexes(
-                connection,
-                user_id=user_id,
-                include_long=long_match_query is not None,
-                include_short=short_match_query is not None,
-            )
             for table, match_query in match_sources:
                 rows = connection.execute(
                     f"""
-                    SELECT {selected_columns}, bm25({table})
+                    SELECT {selected_columns}
                     FROM {table} AS search
                     JOIN career_evidence AS evidence
                       ON evidence.id = search.evidence_id
                     WHERE {table} MATCH ?
+                      AND evidence.user_id = ?
                       AND evidence.verification_status = 'confirmed'
                       AND evidence.tombstoned_at IS NULL
                       AND evidence.superseded_by IS NULL
-                    ORDER BY bm25({table}), evidence.created_at DESC
+                    ORDER BY evidence.created_at DESC, evidence.id
                     LIMIT ?
                     """,
-                    (match_query, limit),
+                    (match_query, user_id, limit),
                 ).fetchall()
                 for row in rows:
-                    score = row[-1]
-                    if not isinstance(score, (int, float)):
-                        continue
-                    evidence = self._evidence(row[:-1])
+                    evidence = self._evidence(row)
                     evidence_by_id[evidence.id] = evidence
-                    score_by_id[evidence.id] = (
-                        score_by_id.get(evidence.id, 0.0) + float(score)
-                    )
         ranked = sorted(
-            (
-                RankedCareerEvidence(
-                    evidence=evidence_by_id[evidence_id],
-                    bm25_score=score,
-                )
-                for evidence_id, score in score_by_id.items()
-            ),
-            key=lambda hit: (
-                hit.bm25_score,
-                -hit.evidence.created_at.timestamp(),
-                hit.evidence.id,
+            evidence_by_id.values(),
+            key=lambda evidence: (
+                -evidence.created_at.timestamp(),
+                evidence.id,
             ),
         )
         return tuple(ranked[:limit])
@@ -629,12 +590,7 @@ class CareerHistoryStore:
         user_id: str,
         query: str,
     ) -> CareerEvidenceQueryTerms:
-        """Return typed MATCH terms and the ranked population's IDF sum.
-
-        IDF uses one filtered FTS ``COUNT`` per distinct term, so this phase is
-        linear in both query-term count and the indexed population. Keep query
-        terms bounded if the per-user evidence population grows substantially.
-        """
+        """Return typed MATCH terms without consulting the evidence corpus."""
 
         normalized = query.strip().casefold()
         latin_tokens = re.findall(r"[a-z0-9][a-z0-9+#.-]*", normalized)
@@ -654,129 +610,8 @@ class CareerHistoryStore:
             user_id=user_id,
             latin=tuple(dict.fromkeys(latin_tokens)),
             cjk=tuple(dict.fromkeys(cjk_tokens)),
-            idf_sum=0.0,
         )
-        if not lexical_terms.match_tokens:
-            return lexical_terms
-        with self._connect() as connection:
-            document_count = int(
-                connection.execute(
-                    """
-                    SELECT COUNT(*) FROM career_evidence
-                    WHERE user_id = ?
-                      AND verification_status = 'confirmed'
-                      AND superseded_by IS NULL
-                      AND tombstoned_at IS NULL
-                    """,
-                    (user_id,),
-                ).fetchone()[0]
-            )
-
-            def matching_documents(token: str) -> int:
-                table, match_term = self._current_evidence_term_match(token)
-                return int(
-                    connection.execute(
-                        f"""
-                        SELECT COUNT(*)
-                        FROM {table} AS search
-                        JOIN career_evidence AS evidence
-                          ON evidence.id = search.evidence_id
-                        WHERE {table} MATCH ?
-                          AND evidence.user_id = ?
-                          AND evidence.verification_status = 'confirmed'
-                          AND evidence.superseded_by IS NULL
-                          AND evidence.tombstoned_at IS NULL
-                        """,
-                        (match_term, user_id),
-                    ).fetchone()[0]
-                )
-
-            idf_sum = sum(
-                self._fts_idf(
-                    document_count=document_count,
-                    matching_documents=matching_documents(token),
-                )
-                for token in lexical_terms.match_tokens
-            )
-        return CareerEvidenceQueryTerms(
-            user_id=user_id,
-            latin=lexical_terms.latin,
-            cjk=lexical_terms.cjk,
-            idf_sum=idf_sum,
-        )
-
-    @staticmethod
-    def _fts_idf(*, document_count: int, matching_documents: int) -> float:
-        idf = math.log(
-            (document_count - matching_documents + 0.5)
-            / (matching_documents + 0.5)
-        )
-        return max(1e-6, idf)
-
-    @staticmethod
-    def _create_current_evidence_rank_indexes(
-        connection: sqlite3.Connection,
-        *,
-        user_id: str,
-        include_long: bool,
-        include_short: bool,
-    ) -> None:
-        """Build query-local FTS populations identical to the ranked scope.
-
-        This deliberately rebuilds the user's current-confirmed population on
-        every query: a persistent shared FTS table would make SQLite's BM25
-        statistics cross-user again. The cost is O(current evidence). A local
-        10-trigram probe measured project() at 12.5 ms for 120 rows, 37.3 ms
-        for 2,000, and 117.4 ms for 6,000. The first two are acceptable for a
-        once-per-turn projection; at several thousand rows, measure and prefer
-        safe session-level reuse before increasing the population further.
-        """
-
-        population = """
-            user_id = ?
-            AND verification_status = 'confirmed'
-            AND superseded_by IS NULL
-            AND tombstoned_at IS NULL
-        """
-        if include_long:
-            connection.execute(
-                """
-                CREATE VIRTUAL TABLE temp.current_evidence_rank_fts USING fts5(
-                    evidence_id UNINDEXED,
-                    claim,
-                    tokenize='trigram'
-                )
-                """
-            )
-            connection.execute(
-                f"""
-                INSERT INTO current_evidence_rank_fts(evidence_id, claim)
-                SELECT id, claim FROM career_evidence
-                WHERE {population}
-                """,
-                (user_id,),
-            )
-        if include_short:
-            connection.execute(
-                """
-                CREATE VIRTUAL TABLE temp.current_evidence_rank_short_fts
-                USING fts5(
-                    evidence_id UNINDEXED,
-                    short_terms,
-                    tokenize='trigram'
-                )
-                """
-            )
-            connection.execute(
-                f"""
-                INSERT INTO current_evidence_rank_short_fts(
-                    evidence_id, short_terms
-                )
-                SELECT id, short_terms FROM career_evidence
-                WHERE {population}
-                """,
-                (user_id,),
-            )
+        return lexical_terms
 
     @staticmethod
     def _short_match_token(token: str) -> str:
@@ -810,6 +645,21 @@ class CareerHistoryStore:
         return (
             " OR ".join(grouped["career_evidence_fts"]) or None,
             " OR ".join(grouped["career_evidence_short_fts"]) or None,
+        )
+
+    @classmethod
+    def _current_evidence_match_sources(
+        cls,
+        terms: CareerEvidenceQueryTerms,
+    ) -> tuple[tuple[str, str], ...]:
+        long_query, short_query = cls._current_evidence_match_queries(terms)
+        return tuple(
+            (table, query)
+            for table, query in (
+                ("career_evidence_fts", long_query),
+                ("career_evidence_short_fts", short_query),
+            )
+            if query is not None
         )
 
     @classmethod
@@ -1768,6 +1618,17 @@ class CareerHistoryStore:
                 )
             );
 
+            -- An audit ledger, so having no reader is expected rather than a
+            -- sign of dead weight. The test for keeping it is whether what it
+            -- records can be rebuilt from career_evidence, and four of its
+            -- eight event types cannot: the row carries no confirmed_at,
+            -- confirmed_by, or actor_type, and nothing at all for rolled_back
+            -- or restored. Since the projection admits a fact solely on
+            -- verification_status = 'confirmed', this table is the only place
+            -- that answers who approved that fact and when. Adding an event
+            -- type costs a full rebuild migration, because SQLite cannot
+            -- alter the CHECK above; that price has been paid twice already
+            -- (v3 added 'corrected', v5 added 'tombstoned').
             CREATE TABLE IF NOT EXISTS career_evidence_events (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,

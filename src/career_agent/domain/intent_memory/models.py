@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+IntentLayer = Literal["stable", "contextual", "transient"]
+IntentTimescale = Literal["permanent", "situational"]
+IntentAdmissionStatus = Literal["active", "quarantined"]
+IntentCaptureAction = Literal[
+    "retain",
+    "add",
+    "narrow-to-scope",
+    "revise",
+    "quarantine",
+]
 
 
 class IntentMemoryVersion(BaseModel):
@@ -23,6 +36,18 @@ class IntentMemoryVersion(BaseModel):
     content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
     revision: int = Field(ge=1)
     valid_from: datetime
+    pref_scope: str = Field(
+        default="global",
+        min_length=1,
+        max_length=120,
+        pattern=r"^(?:global|[a-z][a-z0-9_.:-]*)$",
+    )
+    timescale: IntentTimescale = "permanent"
+    layer: IntentLayer = "stable"
+    last_corroborated_at: datetime
+    base_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    admission_status: IntentAdmissionStatus = "active"
+    capture_action: IntentCaptureAction = "add"
     superseded_at: datetime | None = None
     superseded_by: str | None = Field(
         default=None,

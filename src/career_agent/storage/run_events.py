@@ -170,12 +170,8 @@ class SQLiteTraceRecorder:
                        error_detail, recoverable, model_call_category
                 FROM run_events
                 WHERE event_type IN (
-                    'memory_scope_resolved',
-                    'memory_scope_unresolved',
-                    'memory_scope_transition',
-                    'memory_write_observed',
                     'memory_context_observed',
-                    'memory_use_observed'
+                    'memory_tombstone_observed'
                 )
                   AND json_extract(details_json, '$.conversation_key') = ?
                 ORDER BY occurred_at DESC, rowid DESC
@@ -184,69 +180,6 @@ class SQLiteTraceRecorder:
                 (key, max_events),
             ).fetchall()
         return tuple(self._event(row) for row in reversed(rows))
-
-    def list_memory_budget_events(
-        self,
-        *,
-        user_id: str | None = None,
-        conversation_id: str | None = None,
-        max_runs: int = 10_000,
-    ) -> tuple[RunEvent, ...]:
-        """Read complete turn cohorts anchored by keyed memory observations.
-
-        Turn completion events intentionally contain no user identifier. Join
-        them by run id to a pseudonymously keyed memory-context event instead
-        of weakening that storage boundary. Global reads are bounded to the
-        latest runs and return only already-redacted telemetry.
-        """
-
-        if (user_id is None) != (conversation_id is None):
-            raise ValueError(
-                "user_id and conversation_id must be supplied together"
-            )
-        if max_runs < 1:
-            raise ValueError("max_runs must be positive")
-        key = (
-            conversation_trace_key(user_id, conversation_id)
-            if user_id is not None and conversation_id is not None
-            else None
-        )
-        with self._connect() as connection:
-            rows = connection.execute(
-                """
-                WITH matching_runs AS (
-                    SELECT run_id, MAX(occurred_at) AS latest_at
-                    FROM run_events
-                    WHERE event_type = 'memory_context_observed'
-                      AND (
-                          ? IS NULL
-                          OR json_extract(
-                              details_json, '$.conversation_key'
-                          ) = ?
-                      )
-                    GROUP BY run_id
-                    ORDER BY latest_at DESC
-                    LIMIT ?
-                )
-                SELECT event.run_id, event.sequence, event.event_type,
-                       event.stage, event.attempt, event.occurred_at,
-                       event.duration_ms, event.outcome, event.details_json,
-                       event.error_code, event.error_detail,
-                       event.recoverable, event.model_call_category
-                FROM run_events AS event
-                JOIN matching_runs AS matched
-                  ON matched.run_id = event.run_id
-                WHERE event.event_type IN (
-                    'memory_context_observed',
-                    'model_succeeded',
-                    'turn_completed',
-                    'turn_failed'
-                )
-                ORDER BY event.occurred_at, event.run_id, event.sequence
-                """,
-                (key, key, max_runs),
-            ).fetchall()
-        return tuple(self._event(row) for row in rows)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)

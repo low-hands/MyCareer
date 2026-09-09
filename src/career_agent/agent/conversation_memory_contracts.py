@@ -10,6 +10,15 @@ SUMMARY_ITEM_MAX_CHARS = 500
 SUMMARY_TEXT_MAX_CHARS = 6000
 """Every summary field shares this allowance, so one field can starve the rest."""
 
+HARNESS_SUMMARY_COUNTER_FIELDS = frozenset(
+    {
+        "omitted_active_constraint_count",
+        "omitted_user_goal_count",
+        "omitted_confirmed_decision_count",
+        "omitted_unresolved_question_count",
+    }
+)
+
 
 class ConversationMemoryContract(BaseModel):
     model_config = ConfigDict(
@@ -35,6 +44,29 @@ class ConversationSummaryContent(ConversationMemoryContract):
         ge=0,
         description=(
             "Constraint entries omitted by harness summary-budget enforcement."
+        ),
+    )
+    omitted_user_goal_count: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "User-goal entries omitted by harness summary-budget enforcement."
+        ),
+    )
+    omitted_confirmed_decision_count: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Confirmed-decision entries omitted by harness summary-budget "
+            "enforcement."
+        ),
+    )
+    omitted_unresolved_question_count: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Unresolved-question entries omitted by harness summary-budget "
+            "enforcement."
         ),
     )
 

@@ -27,3 +27,7 @@ __pycache__/
 # that has to be reissued.
 data/
 *.sqlite3
+
+# tiktoken vocab is filled at install/build, not committed.
+src/career_agent/agent/_static/tiktoken_cache/*
+!src/career_agent/agent/_static/tiktoken_cache/.gitignore

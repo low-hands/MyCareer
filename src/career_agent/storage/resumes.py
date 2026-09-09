@@ -6,7 +6,7 @@ import hashlib
 import os
 from pathlib import Path
 import sqlite3
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
@@ -16,9 +16,17 @@ from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
 from career_agent.storage.intent_versions import (
     append_intent_version,
     apply_intent_version_schema,
+    capture_intent_version,
     list_intent_versions,
+    upgrade_intent_version_schema,
 )
 from career_agent.storage.schema import apply_schema
+
+if TYPE_CHECKING:
+    from career_agent.services.intent_capture import (
+        IntentCaptureCandidate,
+        IntentCaptureDecision,
+    )
 
 
 class StoredResumeDocument(BaseModel):
@@ -38,11 +46,12 @@ class ResumeStore:
             apply_schema(
                 connection,
                 "resumes",
-                5,
+                6,
                 self._migrate,
                 upgrades={
                     4: self._add_target_role_intent_columns,
                     5: self._backfill_target_role_intent_versions,
+                    6: upgrade_intent_version_schema,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -94,12 +103,20 @@ class ResumeStore:
         experience: str | None = None,
         education: str | None = None,
         source: str = "target_role_intent_update",
+        pref_scope: str = "global",
+        timescale: str = "permanent",
+        layer: str = "stable",
     ) -> TargetRole:
         """Overwrite only the intent fields that were given.
 
         A user naming a salary this turn has not withdrawn the city they named
         last week, so None means "leave alone" rather than "clear".
         """
+        if pref_scope != "global":
+            raise ValueError(
+                "named-scope intent must use capture_target_role_intent, "
+                "not the flat target role"
+            )
         changes = {
             key: value
             for key, value in (
@@ -147,6 +164,10 @@ class ResumeStore:
                     value=value,
                     source=source,
                     valid_from=updated.updated_at,
+                    last_corroborated_at=updated.updated_at,
+                    pref_scope=pref_scope,
+                    timescale=timescale,
+                    layer=layer,
                 )
         return updated
 
@@ -156,6 +177,7 @@ class ResumeStore:
         user_id: str,
         scope_key: str | None = None,
         scope_keys: Sequence[str] | None = None,
+        pref_scope: str | None = None,
         active_only: bool = False,
         limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]:
@@ -165,9 +187,20 @@ class ResumeStore:
                 user_id=user_id,
                 scope_key=scope_key,
                 scope_keys=scope_keys,
+                pref_scope=pref_scope,
                 active_only=active_only,
                 limit=limit,
             )
+
+    def capture_target_role_intent(
+        self,
+        candidate: IntentCaptureCandidate,
+    ) -> tuple[IntentCaptureDecision, IntentMemoryVersion | None]:
+        if not candidate.scope_key.startswith("target_role_intent/"):
+            raise ValueError("target-role intent requires a target_role_intent scope")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return capture_intent_version(connection, candidate=candidate)
 
     def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:
         if bool(name) == bool(resume_id):
@@ -474,17 +507,22 @@ class ResumeStore:
                 ("experience", experience),
                 ("education", education),
             ):
-                if value is not None:
-                    append_intent_version(
-                        connection,
-                        user_id=user_id,
-                        scope_key=(
-                            f"target_role_intent/{target_role_id}/{relation}"
-                        ),
-                        value=value,
-                        source="migration:target_roles",
-                        valid_from=backfilled_at,
-                    )
+                scope_key = f"target_role_intent/{target_role_id}/{relation}"
+                if value is None or list_intent_versions(
+                    connection,
+                    user_id=user_id,
+                    scope_key=scope_key,
+                    limit=1,
+                ):
+                    continue
+                append_intent_version(
+                    connection,
+                    user_id=user_id,
+                    scope_key=scope_key,
+                    value=value,
+                    source="migration:target_roles",
+                    valid_from=backfilled_at,
+                )
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         has_resumes = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resumes'").fetchone() is not None
@@ -496,8 +534,9 @@ class ResumeStore:
         self._add_target_role_intent_columns(connection)
         apply_intent_version_schema(connection)
         # Intentional cumulative-baseline exception: pre-registry databases do
-        # not replay numbered upgrades. This backfill is safe on every open
-        # because append_intent_version no-ops on the active value's digest.
+        # not replay numbered upgrades. Existing tracks are skipped, and
+        # append_intent_version no-ops on the same digest unless a caller
+        # explicitly corroborates, so opening the store never resets decay.
         self._backfill_target_role_intent_versions(connection)
         columns = {row[1] for row in connection.execute("PRAGMA table_info(resumes)").fetchall()}
         if "target_role_id" not in columns:

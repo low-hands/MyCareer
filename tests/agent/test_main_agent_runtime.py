@@ -577,7 +577,13 @@ def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None
         MainAgentState,
     )
 
-    assert len(MainAgentState.__annotations__) <= 9
+    # A ratchet against loop-state creep, not a derived limit: the loop should
+    # not grow a new channel without someone deciding it earned one. Raised to
+    # 10 for ``career_memory_scope_keys``, which records what the prompt showed
+    # so a later tombstone can find the messages that saw it. It cannot ride on
+    # ``career_memory`` because that projection is deliberately invalidated by
+    # the write it must outlive.
+    assert len(MainAgentState.__annotations__) <= 10
     assert (
         DEFAULT_MAX_READ_CALLS
         + DEFAULT_MAX_WRITE_CALLS

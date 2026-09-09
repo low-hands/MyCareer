@@ -71,7 +71,7 @@ def test_fts_tracks_the_latest_synopsis_without_authorizing_facts(tmp_path) -> N
     assert fts_hits == 1
 
 
-def test_delete_for_scope_removes_episode_and_both_indexes(tmp_path) -> None:
+def test_delete_for_scope_removes_episode_and_fts_index(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     scope_key = "career_evidence/record-1/claim"
     stored = store.upsert(
@@ -97,12 +97,62 @@ def test_delete_for_scope_removes_episode_and_both_indexes(tmp_path) -> None:
             (stored.id,),
         ).fetchone()[0] == 0
         assert connection.execute(
-            "SELECT COUNT(*) FROM career_episode_short_terms WHERE episode_id = ?",
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'career_episode_short_terms'
+            """
+        ).fetchone() is None
+
+
+def test_delete_for_scope_keeps_episode_with_another_live_binding(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    first_scope = "career_evidence/record-1/claim"
+    second_scope = "career_evidence/record-2/claim"
+    stored = store.upsert(
+        _draft(summary="Derived from two live memories."),
+        memory_scope_keys=(first_scope, second_scope),
+    )
+    assert stored is not None
+
+    with store._connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        assert store.delete_for_scope_on(
+            connection,
+            user_id="u1",
+            scope_key=first_scope,
+        ) == 0
+
+    assert store.get_by_source(
+        user_id="u1",
+        kind="application",
+        source_run_id="application-1",
+    ) is not None
+    with store._connect() as connection:
+        assert connection.execute(
+            """
+            SELECT scope_key
+            FROM career_episode_memory_bindings
+            WHERE episode_id = ?
+            """,
             (stored.id,),
-        ).fetchone()[0] == 0
+        ).fetchall() == [(second_scope,)]
+
+    with store._connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        assert store.delete_for_scope_on(
+            connection,
+            user_id="u1",
+            scope_key=second_scope,
+        ) == 1
+
+    assert store.get_by_source(
+        user_id="u1",
+        kind="application",
+        source_run_id="application-1",
+    ) is None
 
 
-def test_scope_delete_blocks_exact_replay_but_allows_clean_rederivation(
+def test_scope_delete_does_not_install_a_content_suppression_registry(
     tmp_path,
 ) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
@@ -114,7 +164,7 @@ def test_scope_delete_blocks_exact_replay_but_allows_clean_rederivation(
             connection, user_id="u1", scope_key=scope_key
         ) == 1
 
-    assert store.upsert(_draft()) is None
+    assert store.upsert(_draft()) is not None
     assert store.upsert(_draft(summary="Cleanly re-derived source.")) is not None
     updated = store.upsert(
         _draft(summary="Old source updated after deletion.").model_copy(
@@ -158,7 +208,7 @@ def test_upsert_many_forwards_memory_scope_bindings(tmp_path) -> None:
         ).fetchone()[0] == 2
 
 
-def test_short_queries_use_the_auxiliary_index_and_rank_title_hits(tmp_path) -> None:
+def test_short_queries_use_bounded_like_fallback_and_rank_title_hits(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     store.upsert(
         _draft(summary="复盘记录。").model_copy(
@@ -188,16 +238,38 @@ def test_short_queries_use_the_auxiliary_index_and_rank_title_hits(tmp_path) -> 
     )] == ["interview-1"]
     assert len(store.search(user_id="u1", query="面")) == 2
     with sqlite3.connect(store.path) as connection:
-        indexed = connection.execute(
+        assert connection.execute(
             """
-            SELECT episode_id
-            FROM career_episode_short_terms
-            WHERE user_id = ? AND term = ?
-            ORDER BY episode_id
-            """,
-            ("u1", "面试"),
-        ).fetchall()
-    assert len(indexed) == 2
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'career_episode_short_terms'
+            """
+        ).fetchone() is None
+
+
+def test_short_query_like_wildcards_are_literal(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="ordinary text"))
+
+    assert store.search(user_id="u1", query="_") == ()
+    assert store.search(user_id="u1", query="%") == ()
+
+
+def test_time_filters_compare_instants_and_require_offsets(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft())
+
+    assert store.search(
+        user_id="u1",
+        query="",
+        start_datetime=datetime.fromisoformat("2026-09-01T08:00:00+08:00"),
+        end_datetime=datetime.fromisoformat("2026-08-31T20:00:00-04:00"),
+    )
+    with pytest.raises(ValueError, match="timezone offset"):
+        store.search(
+            user_id="u1",
+            query="",
+            start_datetime=datetime(2026, 9, 1),
+        )
 
 
 def test_source_identity_is_non_null_at_the_database_boundary(tmp_path) -> None:
@@ -260,7 +332,7 @@ def test_v1_unicode_index_is_rebuilt_and_backfilled_as_trigram(tmp_path) -> None
             "WHERE career_episodes_fts MATCH ?",
             ("模拟面试",),
         ).fetchall()
-    assert version == 6
+    assert version == 7
     assert indexed_ids == [(stored.id,)]
     assert reopened.get_by_source(
         user_id="u1",
