@@ -157,18 +157,9 @@ class CareerEvidence(CareerHistoryContract):
     supersedes_id: str | None = Field(default=None, min_length=1)
     superseded_at: datetime | None = None
     superseded_by: str | None = Field(default=None, min_length=1)
-    mutation_id: str | None = Field(
-        default=None,
-        pattern=r"^career_evidence_mutation_[a-f0-9]{32}$",
-    )
-    rolled_back_at: datetime | None = None
     tombstoned_at: datetime | None = None
     tombstoned_by: Literal["user", "agent", "system"] | None = None
     tombstone_reason: str | None = Field(default=None, min_length=1, max_length=2000)
-    suppression_digest: str | None = Field(
-        default=None,
-        pattern=r"^sha256:[a-f0-9]{64}$",
-    )
 
     created_at: datetime
     updated_at: datetime
@@ -196,7 +187,6 @@ class CareerEvidence(CareerHistoryContract):
             self.tombstoned_at,
             self.tombstoned_by,
             self.tombstone_reason,
-            self.suppression_digest,
         )
         tombstoned = all(item is not None for item in tombstone_fields)
         if any(item is not None for item in tombstone_fields) != tombstoned:
@@ -251,10 +241,6 @@ class CareerEvidence(CareerHistoryContract):
             raise ValueError(
                 "superseded_at and superseded_by must either both be set or both be null"
             )
-        if self.mutation_id is None and (
-            self.supersedes_id is not None or self.rolled_back_at is not None
-        ):
-            raise ValueError("corrected or rolled-back evidence requires a mutation_id")
         return self
 
     @property
@@ -262,7 +248,6 @@ class CareerEvidence(CareerHistoryContract):
         return (
             self.verification_status == "confirmed"
             and self.superseded_by is None
-            and self.rolled_back_at is None
             and self.tombstoned_at is None
         )
 
@@ -298,10 +283,6 @@ class CareerEvidenceEvent(CareerHistoryContract):
         "system",
     ]
     reason: str | None = Field(default=None, min_length=1)
-    mutation_id: str | None = Field(
-        default=None,
-        pattern=r"^career_evidence_mutation_[a-f0-9]{32}$",
-    )
     related_evidence_id: str | None = Field(default=None, min_length=1)
     occurred_at: datetime
 
@@ -326,98 +307,25 @@ class CareerEvidenceEvent(CareerHistoryContract):
             raise ValueError(f"{self.event_type} event requires user actor")
         lineage_events = {"superseded", "corrected", "rolled_back", "restored"}
         if self.event_type in lineage_events and (
-            self.mutation_id is None or self.related_evidence_id is None
+            self.related_evidence_id is None
         ):
             raise ValueError(
-                f"{self.event_type} event requires mutation and related evidence ids"
+                f"{self.event_type} event requires a related evidence id"
             )
 
-        return self
-
-
-class CareerEvidencePreimage(CareerHistoryContract):
-    """Application-visible active mapping captured before a correction."""
-
-    scope_key: str = Field(
-        pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$"
-    )
-    active_evidence_id: str = Field(min_length=1)
-    active_revision: int = Field(ge=1)
-
-
-class CareerEvidenceMutationSnapshot(CareerHistoryContract):
-    id: str = Field(pattern=r"^career_evidence_mutation_[a-f0-9]{32}$")
-    user_id: str = Field(min_length=1)
-    scope_key: str = Field(
-        pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$"
-    )
-    mutation_type: Literal["correction"]
-    status: Literal["applied", "rolled_back", "tombstoned"]
-    preimage: CareerEvidencePreimage
-    replacement_evidence_id: str = Field(min_length=1)
-    reason: str = Field(min_length=1, max_length=2000)
-    created_at: datetime
-    rolled_back_at: datetime | None = None
-    tombstoned_at: datetime | None = None
-
-    @model_validator(mode="after")
-    def rollback_time_matches_status(self) -> "CareerEvidenceMutationSnapshot":
-        if (self.status == "rolled_back") != (self.rolled_back_at is not None):
-            raise ValueError("rolled_back snapshots require rolled_back_at")
-        if (self.status == "tombstoned") != (self.tombstoned_at is not None):
-            raise ValueError("tombstoned snapshots require tombstoned_at")
-        if self.rolled_back_at is not None and self.tombstoned_at is not None:
-            raise ValueError("mutation cannot be rolled back and tombstoned")
         return self
 
 
 class CareerEvidenceCorrection(CareerHistoryContract):
     previous: CareerEvidence
     current: CareerEvidence
-    snapshot: CareerEvidenceMutationSnapshot
 
 
 class CareerEvidenceTombstone(CareerHistoryContract):
-    cleanup_operation_id: str = Field(
-        pattern=r"^career_memory_deletion_[a-f0-9]{32}$"
-    )
-    cleanup_status: Literal["pending", "completed"]
     scope_key: str = Field(
         pattern=r"^career_evidence/[A-Za-z0-9_.:-]+/claim$"
     )
     evidence_ids: tuple[str, ...] = Field(min_length=1)
-    suppression_digests: tuple[str, ...] = Field(min_length=1)
     actor_type: Literal["user", "agent", "system"]
     reason: str = Field(min_length=1, max_length=2000)
     tombstoned_at: datetime
-
-
-class CareerEvidenceInvariantViolation(CareerHistoryContract):
-    code: Literal[
-        "version_binding",
-        "pointer_target_missing",
-        "pointer_not_reciprocal",
-        "scope_mismatch",
-        "revision_order",
-        "active_count",
-        "event_replay",
-        "snapshot_binding",
-        "tombstone_content",
-        "tombstone_index",
-        "tombstone_rollback",
-        "suppression_binding",
-    ]
-    message: str = Field(min_length=1)
-    scope_key: str | None = None
-    evidence_ids: tuple[str, ...] = ()
-    mutation_id: str | None = None
-
-
-class CareerEvidenceInvariantReport(CareerHistoryContract):
-    user_id: str | None = None
-    checked_at: datetime
-    violations: tuple[CareerEvidenceInvariantViolation, ...] = ()
-
-    @property
-    def valid(self) -> bool:
-        return not self.violations

@@ -124,10 +124,6 @@ def test_the_upgraded_rows_answer_the_predicates_that_index_them(tmp_path) -> No
         for reference in message.resource_refs
     ] == ["prep-1"]
 
-    reclaimable, _ = store.count_compacted_messages(user_id="u1", conversation_id="c1")
-    # Only the plain row is reclaimable; the referenced one stays nameable.
-    assert reclaimable == 1
-
 
 def _summary():
     from career_agent.agent.conversation_memory_contracts import (

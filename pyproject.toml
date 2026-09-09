@@ -14,6 +14,8 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.1.1,<4",
     "openai>=1.66",
     "pypdf>=6.0",
+    "tiktoken>=0.7,<1",
+    "deepagents>=0.7.6,<0.8",
     "deepagents>=0.7.6,<0.8",
     "langchain-openai>=1.1,<2",
     "fastapi>=0.115,<1",
@@ -31,6 +33,9 @@ test = ["pytest>=8", "httpx>=0.28,<1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"career_agent.agent" = ["_static/tiktoken_cache/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

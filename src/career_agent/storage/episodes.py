@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,20 +15,21 @@ from career_agent.domain.episodes import (
 )
 from career_agent.storage.schema import apply_schema
 
-_OPAQUE_LINEAGE_MARKER = re.compile(
-    r"^(?:detail|evidence|lineage)_[a-f0-9]{24}$"
-)
+_SHORT_QUERY_CANDIDATE_LIMIT = 200
 
 
-def _usable_lineage_markers(markers: tuple[str, ...]) -> tuple[str, ...]:
-    usable: list[str] = []
-    for marker in markers:
-        text = marker.strip()
-        if not text:
-            continue
-        if _OPAQUE_LINEAGE_MARKER.fullmatch(text):
-            usable.append(text)
-    return tuple(dict.fromkeys(usable))
+def _like_fragment(value: str) -> str:
+    return (
+        value.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+def _utc_bound(value: datetime, *, name: str) -> datetime:
+    if value.utcoffset() is None:
+        raise ValueError(f"{name} must include a timezone offset")
+    return value.astimezone(timezone.utc)
 
 
 def apply_episode_schema(connection: sqlite3.Connection) -> None:
@@ -38,7 +38,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
     apply_schema(
         connection,
         "career_episodes",
-        6,
+        7,
         SQLiteCareerEpisodeStore._baseline,
         {
             2: SQLiteCareerEpisodeStore._upgrade_to_v2,
@@ -46,6 +46,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
             4: SQLiteCareerEpisodeStore._upgrade_to_v4,
             5: SQLiteCareerEpisodeStore._upgrade_to_v5,
             6: SQLiteCareerEpisodeStore._upgrade_to_v6,
+            7: SQLiteCareerEpisodeStore._upgrade_to_v7,
         },
     )
 
@@ -114,33 +115,26 @@ class SQLiteCareerEpisodeStore:
         conversation seam commit together.
         """
 
-        content_digest = SQLiteCareerEpisodeStore._content_digest(draft)
-        deleted_scope_keys = tuple(dict.fromkeys(memory_scope_keys))
-        scope_placeholders = ",".join("?" for _ in deleted_scope_keys)
-        stale_scope = bool(deleted_scope_keys) and connection.execute(
-            f"""
-            SELECT 1 FROM career_episode_deleted_scopes
-            WHERE user_id = ? AND scope_key IN ({scope_placeholders})
-            LIMIT 1
-            """,
-            (draft.user_id, *deleted_scope_keys),
-        ).fetchone()
-        if stale_scope or connection.execute(
+        scope_keys = tuple(dict.fromkeys(memory_scope_keys))
+        deleted_scope_table_exists = connection.execute(
             """
-            SELECT 1
-            FROM career_episode_content_suppressions
-            WHERE user_id = ? AND kind = ? AND source_run_id = ?
-              AND content_digest = ?
-            LIMIT 1
-            """,
-            (
-                draft.user_id,
-                draft.kind,
-                draft.source_run_id,
-                content_digest,
-            ),
-        ).fetchone():
-            return None
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'memory_deleted_scopes'
+            """
+        ).fetchone()
+        if scope_keys and deleted_scope_table_exists is not None:
+            placeholders = ",".join("?" for _ in scope_keys)
+            deleted = connection.execute(
+                f"""
+                SELECT 1 FROM memory_deleted_scopes
+                WHERE user_id = ? AND scope_key IN ({placeholders})
+                LIMIT 1
+                """,
+                (draft.user_id, *scope_keys),
+            ).fetchone()
+            if deleted is not None:
+                return None
+
         now = datetime.now(timezone.utc).isoformat()
         episode_id = f"career_episode_{uuid4().hex}"
         refs_json = json.dumps(
@@ -195,7 +189,7 @@ class SQLiteCareerEpisodeStore:
             """,
             (
                 (episode.id, episode.user_id, scope_key, now)
-                for scope_key in dict.fromkeys(memory_scope_keys)
+                for scope_key in scope_keys
             ),
         )
         connection.execute(
@@ -210,7 +204,6 @@ class SQLiteCareerEpisodeStore:
             """,
             (episode.id, episode.user_id, episode.title, episode.summary),
         )
-        SQLiteCareerEpisodeStore._replace_short_terms(connection, episode)
         return episode
 
     def get_by_source(
@@ -223,18 +216,6 @@ class SQLiteCareerEpisodeStore:
                 (user_id, kind, source_run_id),
             ).fetchone()
         return self._episode(row) if row else None
-
-    def has_source(
-        self, *, user_id: str, kind: str, source_run_id: str
-    ) -> bool:
-        return (
-            self.get_by_source(
-                user_id=user_id,
-                kind=kind,
-                source_run_id=source_run_id,
-            )
-            is not None
-        )
 
     def list_source_keys(self, *, user_id: str) -> frozenset[tuple[str, str]]:
         with self._connect() as connection:
@@ -250,108 +231,91 @@ class SQLiteCareerEpisodeStore:
         *,
         user_id: str,
         scope_key: str,
-        lineage_markers: tuple[str, ...] = (),
     ) -> int:
-        """Delete only episodes whose derivation observed one memory lineage."""
+        """Remove one association, then delete only orphaned episodes."""
 
-        now = datetime.now(timezone.utc).isoformat()
+        candidate_ids = tuple(
+            str(row[0])
+            for row in connection.execute(
+                """
+                SELECT episode_id
+                FROM career_episode_memory_bindings
+                WHERE user_id = ? AND scope_key = ?
+                """,
+                (user_id, scope_key),
+            ).fetchall()
+        )
+        if not candidate_ids:
+            return 0
         connection.execute(
             """
-            INSERT INTO career_episode_deleted_scopes(
-                user_id, scope_key, deleted_at
-            ) VALUES (?, ?, ?)
-            ON CONFLICT(user_id, scope_key) DO NOTHING
+            DELETE FROM career_episode_memory_bindings
+            WHERE user_id = ? AND scope_key = ?
             """,
-            (user_id, scope_key, now),
+            (user_id, scope_key),
         )
-        markers = _usable_lineage_markers(lineage_markers)
-        marker_clause = ""
-        marker_parameters: tuple[str, ...] = ()
-        if markers:
-            marker_predicate = " OR ".join(
-                "(instr(COALESCE(e.title, ''), ?) > 0 "
-                "OR instr(COALESCE(e.summary, ''), ?) > 0)"
-                for _ in markers
-            )
-            marker_clause = f"""
-                    OR (
-                        NOT EXISTS (
-                            SELECT 1
-                            FROM career_episode_memory_bindings AS any_binding
-                            WHERE any_binding.user_id = e.user_id
-                              AND any_binding.episode_id = e.id
-                        )
-                        AND ({marker_predicate})
-                    )
-            """
-            marker_parameters = tuple(
-                marker for marker in markers for _ in range(2)
-            )
-        rows = connection.execute(
-            f"""
-            SELECT e.id, e.kind, e.source_run_id, e.occurred_at, e.title,
-                   e.summary, e.conversation_id, e.resource_refs_json
-            FROM career_episodes AS e
-            WHERE e.user_id = ?
-              AND (
-                    EXISTS (
+        placeholders = ",".join("?" for _ in candidate_ids)
+        ids = tuple(
+            str(row[0])
+            for row in connection.execute(
+                f"""
+                SELECT e.id
+                FROM career_episodes AS e
+                WHERE e.user_id = ?
+                  AND e.id IN ({placeholders})
+                  AND NOT EXISTS (
                         SELECT 1
                         FROM career_episode_memory_bindings AS binding
                         WHERE binding.user_id = e.user_id
                           AND binding.episode_id = e.id
-                          AND binding.scope_key = ?
-                    )
-                    {marker_clause}
-                  )
-            """,
-            (user_id, scope_key, *marker_parameters),
-        ).fetchall()
-        if not rows:
+                      )
+                """,
+                (user_id, *candidate_ids),
+            ).fetchall()
+        )
+        if not ids:
             return 0
-        ids = tuple(str(row[0]) for row in rows)
-        connection.executemany(
-            """
-            INSERT OR IGNORE INTO career_episode_content_suppressions(
-                user_id, kind, source_run_id, content_digest,
-                scope_key, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                (
-                    user_id,
-                    str(row[1]),
-                    str(row[2]),
-                    SQLiteCareerEpisodeStore._stored_content_digest(row),
-                    scope_key,
-                    now,
-                )
-                for row in rows
-            ),
-        )
-        placeholders = ",".join("?" for _ in ids)
+        orphan_placeholders = ",".join("?" for _ in ids)
         connection.execute(
-            f"DELETE FROM career_episodes_fts WHERE episode_id IN ({placeholders})",
+            f"DELETE FROM career_episodes_fts WHERE episode_id IN ({orphan_placeholders})",
             ids,
         )
         connection.execute(
-            f"DELETE FROM career_episode_short_terms WHERE episode_id IN ({placeholders})",
-            ids,
-        )
-        connection.execute(
-            f"DELETE FROM career_episode_memory_bindings WHERE episode_id IN ({placeholders})",
-            ids,
-        )
-        connection.execute(
-            f"DELETE FROM career_episodes WHERE id IN ({placeholders})",
+            f"DELETE FROM career_episodes WHERE id IN ({orphan_placeholders})",
             ids,
         )
         return len(ids)
 
     def search(
-        self, *, user_id: str, query: str, limit: int = 20
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 20,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+        kinds: tuple[str, ...] = (),
     ) -> tuple[CareerEpisode, ...]:
         if limit < 1:
             raise ValueError("limit must be positive")
+        if start_datetime is not None:
+            start_datetime = _utc_bound(
+                start_datetime, name="start_datetime"
+            )
+        if end_datetime is not None:
+            end_datetime = _utc_bound(end_datetime, name="end_datetime")
+        if start_datetime is not None and end_datetime is not None:
+            if start_datetime > end_datetime:
+                raise ValueError("start_datetime cannot exceed end_datetime")
+        allowed_kinds = {
+            "mock_interview",
+            "job_research",
+            "application",
+            "interview_round",
+        }
+        selected_kinds = tuple(dict.fromkeys(kinds))
+        if any(kind not in allowed_kinds for kind in selected_kinds):
+            raise ValueError("unknown episode kind")
         normalized_query = query.strip()
         tokens = tuple(
             dict.fromkeys(
@@ -365,12 +329,27 @@ class SQLiteCareerEpisodeStore:
         )
         short_tokens = tuple(token for token in tokens if len(token) < 3)
         long_tokens = tuple(token for token in tokens if len(token) >= 3)
+        filters = ["e.user_id = ?"]
+        filter_parameters: list[object] = [user_id]
+        if start_datetime is not None:
+            filters.append("julianday(e.occurred_at) >= julianday(?)")
+            filter_parameters.append(start_datetime.isoformat())
+        if end_datetime is not None:
+            filters.append("julianday(e.occurred_at) <= julianday(?)")
+            filter_parameters.append(end_datetime.isoformat())
+        if selected_kinds:
+            filters.append(
+                "e.kind IN (" + ",".join("?" for _ in selected_kinds) + ")"
+            )
+            filter_parameters.extend(selected_kinds)
+        where = " AND ".join(filters)
         with self._connect() as connection:
             if not normalized_query:
                 rows = connection.execute(
                     self._SELECT
-                    + " WHERE user_id = ? ORDER BY occurred_at DESC, id DESC LIMIT ?",
-                    (user_id, limit),
+                    + f" WHERE {where} "
+                    "ORDER BY e.occurred_at DESC, e.id DESC LIMIT ?",
+                    (*filter_parameters, limit),
                 ).fetchall()
             elif tokens:
                 ctes: list[str] = []
@@ -405,20 +384,47 @@ class SQLiteCareerEpisodeStore:
                         "0 AS short_score FROM long_hits"
                     )
                 if short_tokens:
-                    placeholders = ",".join("?" for _ in short_tokens)
+                    predicates = " OR ".join(
+                        "(lower(e.title) LIKE ? ESCAPE '\\' "
+                        "OR lower(e.summary) LIKE ? ESCAPE '\\')"
+                        for _ in short_tokens
+                    )
+                    title_score = " + ".join(
+                        "CASE WHEN lower(e.title) LIKE ? ESCAPE '\\' "
+                        "THEN 4 ELSE 0 END"
+                        for _ in short_tokens
+                    )
                     ctes.append(
                         f"""
                         short_hits AS (
-                            SELECT episode_id,
-                                   SUM(title_count * 4 + summary_count)
-                                       AS short_score
-                            FROM career_episode_short_terms
-                            WHERE user_id = ? AND term IN ({placeholders})
-                            GROUP BY episode_id
+                            SELECT e.id AS episode_id,
+                                   ({title_score}) AS short_score
+                            FROM career_episodes AS e
+                            WHERE {where} AND ({predicates})
+                            ORDER BY e.occurred_at DESC, e.id DESC
+                            LIMIT ?
                         )
                         """
                     )
-                    parameters.extend((user_id, *short_tokens))
+                    escaped_tokens = tuple(
+                        _like_fragment(token) for token in short_tokens
+                    )
+                    title_patterns = tuple(
+                        f"%{token}%" for token in escaped_tokens
+                    )
+                    like_patterns = tuple(
+                        pattern
+                        for token in escaped_tokens
+                        for pattern in (f"%{token}%", f"%{token}%")
+                    )
+                    parameters.extend(
+                        (
+                            *title_patterns,
+                            *filter_parameters,
+                            *like_patterns,
+                            _SHORT_QUERY_CANDIDATE_LIMIT,
+                        )
+                    )
                     hit_selects.append(
                         "SELECT episode_id, NULL AS long_relevance, "
                         "short_score FROM short_hits"
@@ -445,11 +451,13 @@ class SQLiteCareerEpisodeStore:
                     + self._SELECT
                     + """
                     JOIN hits ON hits.episode_id = e.id
-                    WHERE e.user_id = ?
+                    WHERE """
+                    + where
+                    + """
                     ORDER BY
                         CASE
                             WHEN lower(e.title) = lower(?) THEN 0
-                            WHEN e.title LIKE ? THEN 1
+                            WHEN lower(e.title) LIKE lower(?) ESCAPE '\\' THEN 1
                             ELSE 2
                         END,
                         COALESCE(hits.short_score, 0) DESC,
@@ -459,9 +467,9 @@ class SQLiteCareerEpisodeStore:
                     """,
                     (
                         *parameters,
-                        user_id,
+                        *filter_parameters,
                         normalized_query,
-                        f"{normalized_query}%",
+                        f"{_like_fragment(normalized_query)}%",
                         limit,
                     ),
                 ).fetchall()
@@ -502,25 +510,7 @@ class SQLiteCareerEpisodeStore:
             """
         )
         SQLiteCareerEpisodeStore._create_fts(connection)
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS career_episode_short_terms (
-                episode_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                term TEXT NOT NULL,
-                title_count INTEGER NOT NULL CHECK(title_count >= 0),
-                summary_count INTEGER NOT NULL CHECK(summary_count >= 0),
-                PRIMARY KEY(episode_id, term)
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS career_episode_short_terms_lookup_idx
-            ON career_episode_short_terms(user_id, term)
-            """
-        )
-        SQLiteCareerEpisodeStore._ensure_deletion_schema(connection)
+        SQLiteCareerEpisodeStore._ensure_binding_schema(connection)
 
     @staticmethod
     def _create_fts(connection: sqlite3.Connection) -> None:
@@ -554,14 +544,9 @@ class SQLiteCareerEpisodeStore:
 
     @staticmethod
     def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
-        rows = connection.execute(
-            SQLiteCareerEpisodeStore._SELECT
-        ).fetchall()
-        for row in rows:
-            SQLiteCareerEpisodeStore._replace_short_terms(
-                connection,
-                SQLiteCareerEpisodeStore._episode(row),
-            )
+        # v3 previously added a short-term side index. v7 removes it in favor
+        # of a bounded LIKE fallback for one- and two-character queries.
+        pass
 
     @staticmethod
     def _upgrade_to_v4(connection: sqlite3.Connection) -> None:
@@ -588,7 +573,7 @@ class SQLiteCareerEpisodeStore:
 
     @staticmethod
     def _upgrade_to_v5(connection: sqlite3.Connection) -> None:
-        SQLiteCareerEpisodeStore._ensure_deletion_schema(connection)
+        SQLiteCareerEpisodeStore._ensure_binding_schema(connection)
 
     @staticmethod
     def _upgrade_to_v6(connection: sqlite3.Connection) -> None:
@@ -598,7 +583,16 @@ class SQLiteCareerEpisodeStore:
         )
 
     @staticmethod
-    def _ensure_deletion_schema(connection: sqlite3.Connection) -> None:
+    def _upgrade_to_v7(connection: sqlite3.Connection) -> None:
+        connection.execute("DROP TABLE IF EXISTS career_episode_short_terms")
+        connection.execute(
+            "DROP TABLE IF EXISTS career_episode_content_suppressions"
+        )
+        connection.execute("DROP TABLE IF EXISTS career_episode_deleted_scopes")
+        SQLiteCareerEpisodeStore._ensure_binding_schema(connection)
+
+    @staticmethod
+    def _ensure_binding_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS career_episode_memory_bindings (
@@ -616,98 +610,6 @@ class SQLiteCareerEpisodeStore:
             ON career_episode_memory_bindings(user_id, scope_key)
             """
         )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS career_episode_content_suppressions (
-                user_id TEXT NOT NULL,
-                kind TEXT NOT NULL,
-                source_run_id TEXT NOT NULL,
-                content_digest TEXT NOT NULL,
-                scope_key TEXT NOT NULL,
-                deleted_at TEXT NOT NULL,
-                PRIMARY KEY(
-                    user_id, kind, source_run_id, content_digest, scope_key
-                )
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS career_episode_deleted_scopes (
-                user_id TEXT NOT NULL,
-                scope_key TEXT NOT NULL,
-                deleted_at TEXT NOT NULL,
-                PRIMARY KEY(user_id, scope_key)
-            )
-            """
-        )
-
-    @staticmethod
-    def _replace_short_terms(
-        connection: sqlite3.Connection, episode: CareerEpisode
-    ) -> None:
-        connection.execute(
-            "DELETE FROM career_episode_short_terms WHERE episode_id = ?",
-            (episode.id,),
-        )
-        title_terms = SQLiteCareerEpisodeStore._short_term_counts(episode.title)
-        summary_terms = SQLiteCareerEpisodeStore._short_term_counts(
-            episode.summary
-        )
-        terms = tuple(dict.fromkeys((*title_terms, *summary_terms)))
-        connection.executemany(
-            """
-            INSERT INTO career_episode_short_terms(
-                episode_id, user_id, term, title_count, summary_count
-            ) VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                (
-                    episode.id,
-                    episode.user_id,
-                    term,
-                    title_terms.get(term, 0),
-                    summary_terms.get(term, 0),
-                )
-                for term in terms
-            ),
-        )
-
-    @staticmethod
-    def _content_digest(draft: CareerEpisodeDraft) -> str:
-        payload = {
-            "title": draft.title,
-            "summary": draft.summary,
-        }
-        canonical = json.dumps(
-            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        )
-        return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _stored_content_digest(row: sqlite3.Row | tuple[object, ...]) -> str:
-        payload = {
-            "title": str(row[4]),
-            "summary": str(row[5]),
-        }
-        canonical = json.dumps(
-            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        )
-        return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _short_term_counts(value: str) -> dict[str, int]:
-        counts: dict[str, int] = {}
-        for token in re.findall(
-            r"[\w+#.-]+",
-            value.casefold(),
-            flags=re.UNICODE,
-        ):
-            for width in (1, 2):
-                for offset in range(0, len(token) - width + 1):
-                    term = token[offset : offset + width]
-                    counts[term] = counts.get(term, 0) + 1
-        return counts
 
     _SELECT = (
         "SELECT e.id, e.user_id, e.kind, e.source_run_id, e.occurred_at, "

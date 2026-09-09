@@ -29,6 +29,7 @@ from career_agent.harness.observability import (
 )
 from career_agent.services.episode_consolidation import mock_interview_exit_draft
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
+from career_agent.storage.intent_versions import intent_entry_id
 
 
 class TargetRoleSource(Protocol):
@@ -43,6 +44,7 @@ class TargetRoleSource(Protocol):
         *,
         user_id: str,
         scope_keys: tuple[str, ...] | None = None,
+        pref_scope: str | None = None,
         active_only: bool = False,
         limit: int | None = None,
     ) -> tuple[object, ...]: ...
@@ -58,7 +60,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, compacted_message_warning_threshold: int = 200, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -82,8 +84,6 @@ class ContextManager:
             # can filter on; tighten it to entries if a conversation is ever
             # observed storing enough multi-report turns for it to matter.
             raise ValueError("archived resource limit is invalid")
-        if compacted_message_warning_threshold < 1:
-            raise ValueError("compacted message warning threshold must be positive")
         if not 0.7 <= compact_occupancy_threshold <= 0.9:
             raise ValueError("compact occupancy threshold must be between 0.7 and 0.9")
         self._store = store
@@ -95,7 +95,6 @@ class ContextManager:
         self._max_recent_context_chars = max_recent_context_chars
         self._max_recent_message_chars = per_message_context_chars
         self._compact_occupancy_threshold = compact_occupancy_threshold
-        self._compacted_message_warning_threshold = compacted_message_warning_threshold
         self._archived_resource_limit = archived_resource_limit
         self._target_role_source = target_role_source
         self._career_profile_budgets = (
@@ -136,26 +135,6 @@ class ContextManager:
                     "the installed tool universe"
                 )
         self._request_token_estimator = estimator
-
-    def compacted_message_notice(
-        self, *, user_id: str, conversation_id: str | None = None
-    ) -> str | None:
-        """Tell the operator when summarised originals are worth reclaiming.
-
-        Deliberately not part of the agent's context. The whole point of keeping
-        these rows is that a human decides when they stop being worth their disk,
-        and a model that could read this notice could also decide to act on it.
-        """
-        count, byte_size = self._store.count_compacted_messages(
-            user_id=user_id, conversation_id=conversation_id
-        )
-        if count < self._compacted_message_warning_threshold:
-            return None
-        return (
-            f"已摘要的原始消息累计 {count} 条（约 {byte_size // 1024} KiB）仍然保留。"
-            "运行 career-agent context prune 会同时从可见历史对话中永久删除这些消息；"
-            "只有明确不再需要回看时才应执行。"
-        )
 
     def load_for_turn(
         self, *, user_id: str, conversation_id: str, user_message: str
@@ -279,7 +258,9 @@ class ContextManager:
         )
 
     def _profile_context(self, user_id: str) -> CareerProfileContext:
-        profile = self._stored_profile_context(user_id)
+        profile = self._profile_with_confirmation_times(
+            self._stored_profile_context(user_id)
+        )
         if self._target_role_source is None:
             return self._with_intent_telemetry_bindings(
                 profile,
@@ -302,8 +283,14 @@ class ContextManager:
             if callable(count_roles)
             else len(target_roles)
         )
-        current_targets = tuple(
-            CurrentTargetContext(
+        if current_targets_total != len(target_roles):
+            raise ValueError(
+                "current target safety limit would make profile projection incomplete"
+            )
+        current_targets = self._targets_with_confirmation_times(
+            profile.user_id,
+            tuple(
+                CurrentTargetContext(
                 target_role_id=role.id,
                 title=role.title,
                 priority=role.priority,
@@ -314,6 +301,7 @@ class ContextManager:
                 education=role.education,
             )
             for role in target_roles
+            ),
         )
         projected = profile.model_copy(
             update={
@@ -325,6 +313,104 @@ class ContextManager:
             projected,
             current_targets=current_targets,
         )
+
+    def _profile_with_confirmation_times(
+        self,
+        profile: CareerProfileContext,
+    ) -> CareerProfileContext:
+        scopes = {
+            *(
+                ("person_intent/self/default_city",)
+                if profile.default_city is not None
+                else ()
+            ),
+            *(
+                f"person_intent/self/{constraint.relation}"
+                for constraint in profile.hard_constraints
+            ),
+        }
+        if not scopes:
+            return profile
+        versions = self._store.list_profile_intent_versions(
+            user_id=profile.user_id,
+            scope_keys=tuple(sorted(scopes)),
+            pref_scope="global",
+            active_only=True,
+        )
+        if not versions:
+            return profile
+        confirmed = {
+            item.scope_key: item.last_corroborated_at for item in versions
+        }
+        return profile.model_copy(
+            update={
+                "default_city_confirmed_at": confirmed.get(
+                    "person_intent/self/default_city"
+                ),
+                "hard_constraints": tuple(
+                    constraint.model_copy(
+                        update={
+                            "confirmed_at": confirmed.get(
+                                f"person_intent/self/{constraint.relation}"
+                            )
+                        }
+                    )
+                    for constraint in profile.hard_constraints
+                ),
+            }
+        )
+
+    def _targets_with_confirmation_times(
+        self,
+        user_id: str,
+        targets: tuple[CurrentTargetContext, ...],
+    ) -> tuple[CurrentTargetContext, ...]:
+        version_reader = getattr(
+            self._target_role_source,
+            "list_target_role_intent_versions",
+            None,
+        )
+        if not callable(version_reader):
+            return targets
+        try:
+            versions = version_reader(
+                user_id=user_id,
+                pref_scope="global",
+                active_only=True,
+            )
+        except TypeError:
+            versions = tuple(
+                item
+                for item in version_reader(
+                    user_id=user_id,
+                    active_only=True,
+                )
+                if getattr(item, "pref_scope", "global") == "global"
+            )
+        confirmed = {
+            item.scope_key: item.last_corroborated_at
+            for item in versions
+        }
+        result = []
+        for target in targets:
+            changes = {}
+            for relation in (
+                "city",
+                "salary_expectation",
+                "experience",
+                "education",
+            ):
+                if getattr(target, relation) is None:
+                    continue
+                confirmed_at = confirmed.get(
+                    f"target_role_intent/{target.target_role_id}/{relation}"
+                )
+                if confirmed_at is not None:
+                    changes[f"{relation}_confirmed_at"] = confirmed_at
+            result.append(
+                target.model_copy(update=changes) if changes else target
+            )
+        return tuple(result)
 
     def _with_intent_telemetry_bindings(
         self,
@@ -369,12 +455,20 @@ class ContextManager:
                     limit=limit,
                 )
             )
-        versions = tuple(profile_versions) + target_versions
+        versions = tuple(
+            version
+            for version in (tuple(profile_versions) + target_versions)
+            if getattr(version, "admission_status", "active") == "active"
+            and getattr(version, "pref_scope", "global") == "global"
+        )
         clipped = len(versions) > self._TELEMETRY_VERSION_LIMIT
         selected = versions[: self._TELEMETRY_VERSION_LIMIT]
         bindings = tuple(
             MemoryTelemetryBinding(
-                entry_id=version.scope_key,
+                entry_id=intent_entry_id(
+                    version.scope_key,
+                    getattr(version, "pref_scope", "global"),
+                ),
                 update_id=version.update_id,
                 content_digest=version.content_digest,
                 value=version.value,
@@ -418,19 +512,19 @@ class ContextManager:
             }
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = ()) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = ()) -> None:
         now = datetime.now(timezone.utc)
         # This is deliberately exposure-level provenance. Every career scope
         # shown to the model binds both stored messages in the turn, even when
         # the reply did not visibly use it. A tombstone may therefore suppress
         # incidental text from that turn; relying on model-reported usage would
         # create a false-negative path for deleted claims.
-        memory_scope_keys = tuple(
-            dict.fromkeys(
-                binding.entry_id
-                for binding in context.career_memory.telemetry_bindings
-            )
-        )
+        #
+        # The caller reports what was exposed, because no single context value
+        # can: a turn that amends or tombstones memory reloads its context
+        # mid-flight, which would erase the record of what the model had
+        # already been shown before the write.
+        memory_scope_keys = tuple(dict.fromkeys(memory_scope_keys))
         self._store.commit_turn(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
@@ -654,71 +748,102 @@ class ContextManager:
             return False
         restored_constraints = 0
         dropped_constraints = 0
+        dropped_user_goals = 0
+        dropped_confirmed_decisions = 0
+        dropped_unresolved_questions = 0
         omitted_active_constraint_count = (
             previous.content.omitted_active_constraint_count
             if previous is not None
             else 0
         )
-        if previous is not None:
-            prior_constraints = previous.content.active_constraints
-            candidate_constraints = tuple(
-                dict.fromkeys((*prior_constraints, *content.active_constraints))
+        omitted_user_goal_count = (
+            previous.content.omitted_user_goal_count
+            if previous is not None
+            else 0
+        )
+        omitted_confirmed_decision_count = (
+            previous.content.omitted_confirmed_decision_count
+            if previous is not None
+            else 0
+        )
+        omitted_unresolved_question_count = (
+            previous.content.omitted_unresolved_question_count
+            if previous is not None
+            else 0
+        )
+        prior_constraints = (
+            previous.content.active_constraints if previous is not None else ()
+        )
+        candidate_constraints = tuple(
+            dict.fromkeys((*prior_constraints, *content.active_constraints))
+        )
+        merged_constraints = candidate_constraints[:15]
+        # The contract budgets every summary field together, so fifteen
+        # constraints can exceed the whole allowance on their own and leave
+        # nothing for the fields below. Oldest first, so a constraint that
+        # already survived a rewrite is never traded for a newer one.
+        constraint_chars = 0
+        bounded: list[str] = []
+        for constraint in merged_constraints:
+            if constraint_chars + len(constraint) > _SUMMARY_TEXT_BUDGET:
+                break
+            bounded.append(constraint)
+            constraint_chars += len(constraint)
+        merged_constraints = tuple(bounded)
+        dropped_constraints = len(candidate_constraints) - len(
+            merged_constraints
+        )
+        restored_constraints = sum(
+            constraint not in content.active_constraints
+            for constraint in merged_constraints
+        )
+        # Constraint deletion is not delegated to a lossy rewrite.
+        # Explicit state transitions should retire constraints in a
+        # future typed operation; until then, old constraints win.
+        # Field pops run on every batch, including the first summary and
+        # batches whose constraint merge was a no-op.
+        fields = {
+            "user_goals": list(content.user_goals),
+            "confirmed_decisions": list(content.confirmed_decisions),
+            "unresolved_questions": list(content.unresolved_questions),
+        }
+        dropped_fields = {
+            "user_goals": 0,
+            "confirmed_decisions": 0,
+            "unresolved_questions": 0,
+        }
+        available = _SUMMARY_TEXT_BUDGET - constraint_chars
+        while (
+            any(fields.values())
+            and sum(
+                len(item)
+                for values in fields.values()
+                for item in values
             )
-            merged_constraints = candidate_constraints[:15]
-            # The contract budgets every summary field together, so fifteen
-            # constraints can exceed the whole allowance on their own and leave
-            # nothing for the fields below. Oldest first, so a constraint that
-            # already survived a rewrite is never traded for a newer one.
-            constraint_chars = 0
-            bounded: list[str] = []
-            for constraint in merged_constraints:
-                if constraint_chars + len(constraint) > _SUMMARY_TEXT_BUDGET:
-                    break
-                bounded.append(constraint)
-                constraint_chars += len(constraint)
-            merged_constraints = tuple(bounded)
-            dropped_constraints = len(candidate_constraints) - len(
-                merged_constraints
+            > available
+        ):
+            field = max(
+                (name for name, values in fields.items() if values),
+                key=lambda name: len(fields[name][-1]),
             )
-            restored_constraints = sum(
-                constraint not in content.active_constraints
-                for constraint in merged_constraints
-            )
-            if merged_constraints != content.active_constraints:
-                # Constraint deletion is not delegated to a lossy rewrite.
-                # Explicit state transitions should retire constraints in a
-                # future typed operation; until then, old constraints win.
-                fields = {
-                    "user_goals": list(content.user_goals),
-                    "confirmed_decisions": list(content.confirmed_decisions),
-                    "unresolved_questions": list(content.unresolved_questions),
-                }
-                available = _SUMMARY_TEXT_BUDGET - constraint_chars
-                while (
-                    any(fields.values())
-                    and sum(
-                        len(item)
-                        for values in fields.values()
-                        for item in values
-                    )
-                    > available
-                ):
-                    field = max(
-                        (name for name, values in fields.items() if values),
-                        key=lambda name: len(fields[name][-1]),
-                    )
-                    fields[field].pop()
-                content = ConversationSummaryContent(
-                    **fields,
-                    active_constraints=merged_constraints,
-                )
+            fields[field].pop()
+            dropped_fields[field] += 1
+        dropped_user_goals = dropped_fields["user_goals"]
+        dropped_confirmed_decisions = dropped_fields["confirmed_decisions"]
+        dropped_unresolved_questions = dropped_fields["unresolved_questions"]
         omitted_active_constraint_count += dropped_constraints
-        content = content.model_copy(
-            update={
-                "omitted_active_constraint_count": (
-                    omitted_active_constraint_count
-                )
-            }
+        omitted_user_goal_count += dropped_user_goals
+        omitted_confirmed_decision_count += dropped_confirmed_decisions
+        omitted_unresolved_question_count += dropped_unresolved_questions
+        content = ConversationSummaryContent(
+            user_goals=tuple(fields["user_goals"]),
+            confirmed_decisions=tuple(fields["confirmed_decisions"]),
+            unresolved_questions=tuple(fields["unresolved_questions"]),
+            active_constraints=merged_constraints,
+            omitted_active_constraint_count=omitted_active_constraint_count,
+            omitted_user_goal_count=omitted_user_goal_count,
+            omitted_confirmed_decision_count=omitted_confirmed_decision_count,
+            omitted_unresolved_question_count=omitted_unresolved_question_count,
         )
         compacted = self._store.compact_conversation_summary(
             user_id=user_id,
@@ -750,8 +875,18 @@ class ContextManager:
                 "input_occupancy_denominator": max_input_tokens,
                 "restored_constraints": restored_constraints,
                 "dropped_constraints": dropped_constraints,
+                "dropped_user_goals": dropped_user_goals,
+                "dropped_confirmed_decisions": dropped_confirmed_decisions,
+                "dropped_unresolved_questions": dropped_unresolved_questions,
                 "omitted_active_constraint_count": (
                     omitted_active_constraint_count
+                ),
+                "omitted_user_goal_count": omitted_user_goal_count,
+                "omitted_confirmed_decision_count": (
+                    omitted_confirmed_decision_count
+                ),
+                "omitted_unresolved_question_count": (
+                    omitted_unresolved_question_count
                 ),
                 "batch_size": len(to_summarize),
             },

@@ -36,13 +36,8 @@ EventType = Literal[
     "capability_failed",
     "presentation_degraded",
     "context_compacted",
-    "memory_scope_resolved",
-    "memory_scope_unresolved",
-    "memory_scope_transition",
-    "memory_write_observed",
     "memory_tombstone_observed",
     "memory_context_observed",
-    "memory_use_observed",
 ]
 
 ModelCallCategory = Literal[

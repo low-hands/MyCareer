@@ -194,8 +194,8 @@ def test_evidence_decision_requires_user_actor(event_type: str) -> None:
         )
 
 
-def test_lineage_event_requires_mutation_and_related_evidence() -> None:
-    with pytest.raises(ValidationError, match="mutation and related"):
+def test_lineage_event_requires_related_evidence() -> None:
+    with pytest.raises(ValidationError, match="related evidence"):
         evidence_event(
             event_type="corrected",
             previous_status="confirmed",
@@ -206,7 +206,6 @@ def test_lineage_event_requires_mutation_and_related_evidence() -> None:
         event_type="corrected",
         previous_status="confirmed",
         new_status="confirmed",
-        mutation_id="career_evidence_mutation_" + "a" * 32,
         related_evidence_id="evidence-0",
     )
     assert value.event_type == "corrected"

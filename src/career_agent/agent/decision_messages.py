@@ -65,18 +65,6 @@ _TASK_CONTROL_KEYS = frozenset(
     }
 )
 
-_STABLE_CAREER_PROFILE_KEYS = frozenset(
-    {
-        "default_city",
-        "hard_constraints",
-        "hard_constraints_budget_expanded",
-        "current_targets",
-        "current_targets_returned",
-        "current_targets_total",
-    }
-)
-
-
 def _spotlight(content: str, *, nonce: str) -> str:
     return (
         f'<{SPOTLIGHT_TAG} nonce="{nonce}">\n'
@@ -205,17 +193,13 @@ def split_context_cache_data(
     """
 
     profile_value = projected.get("career_profile")
-    profile = profile_value if isinstance(profile_value, Mapping) else {}
-    career_identity = {
-        key: value
-        for key, value in profile.items()
-        if key in _STABLE_CAREER_PROFILE_KEYS
-    }
-    career_memory = {
-        key: value
-        for key, value in profile.items()
-        if key not in _STABLE_CAREER_PROFILE_KEYS
-    }
+    career_identity = (
+        dict(profile_value) if isinstance(profile_value, Mapping) else {}
+    )
+    memory_value = projected.get("career_memory")
+    career_memory = (
+        dict(memory_value) if isinstance(memory_value, Mapping) else {}
+    )
     stable_data = {
         "career_profile": career_identity,
         "conversation_summary": projected.get("conversation_summary"),
@@ -297,6 +281,7 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     )
     data: dict[str, Any] = {
         "career_profile": projected["career_profile"],
+        "career_memory": projected["career_memory"],
         "task": task_data,
         "archived_reports": projected["archived_reports"],
         "conversation_summary": projected["conversation_summary"],

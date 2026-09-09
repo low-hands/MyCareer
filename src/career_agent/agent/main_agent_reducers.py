@@ -608,7 +608,7 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
         ("career_memory_amended",), _confirm_memory_amendment
     ),
     "confirm_memory_tombstone": _entry(
-        ("memory_tombstoned", "memory_tombstone_cleanup_pending"),
+        ("memory_tombstoned",),
         _confirm_memory_tombstone,
     ),
     "sync_application_emails": _entry((), _sync_application_emails),

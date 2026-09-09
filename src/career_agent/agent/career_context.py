@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
-import math
+from collections.abc import Sequence
+from typing import Protocol
 
 from career_agent.agent.main_agent_contracts import (
     CareerMemoryClaim,
@@ -11,40 +10,40 @@ from career_agent.agent.main_agent_contracts import (
     MemoryTelemetryBinding,
 )
 from career_agent.domain.career_history import CareerEvidence
-from career_agent.storage.career_history import (
-    CareerEvidenceQueryTerms,
-    CareerHistoryStore,
-    RankedCareerEvidence,
-)
-
-# Generative Agents (Park et al., UIST 2023) does not justify a 0.4/0.3/0.3
-# split: the paper uses equal alpha values and normalizes all three components,
-# while its released implementation uses gw=[0.5, 3, 2]. The only claimed
-# property of this provisional split is the safety constraint below. The
-# specific triple still needs a judgment set.
-_RELEVANCE_WEIGHT = 0.6
-_RECENCY_WEIGHT = 0.2
-_STRUCTURAL_WEIGHT = 0.2
+from career_agent.storage.career_history import CareerHistoryStore
 
 
-def _weights_preserve_hit_precedence(
-    relevance: float,
-    recency: float,
-    structural: float,
-) -> bool:
-    relevance_decimal = Decimal(str(relevance))
-    required = 2 * Decimal(str(recency)) + Decimal(str(structural))
-    return relevance_decimal >= required
+class CareerEvidenceSemanticRetriever(Protocol):
+    """Embedding-backed channel; results must be best-first evidence ids."""
+
+    def rank_current_evidence_ids(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int,
+    ) -> Sequence[str]: ...
 
 
-if not _weights_preserve_hit_precedence(
-    _RELEVANCE_WEIGHT,
-    _RECENCY_WEIGHT,
-    _STRUCTURAL_WEIGHT,
-):
-    raise AssertionError(
-        "weights let a fresh current non-match outrank a historical hit"
-    )
+def reciprocal_rank_fusion(
+    *rankings: Sequence[str],
+    rank_constant: int = 60,
+) -> dict[str, float]:
+    """Fuse independent retrieval rankings without score calibration."""
+
+    if rank_constant < 1:
+        raise ValueError("RRF rank constant must be positive")
+    fused: dict[str, float] = {}
+    for ranking in rankings:
+        seen: set[str] = set()
+        for rank, evidence_id in enumerate(ranking, start=1):
+            if evidence_id in seen:
+                continue
+            seen.add(evidence_id)
+            fused[evidence_id] = fused.get(evidence_id, 0.0) + 1.0 / (
+                rank_constant + rank
+            )
+    return fused
 
 
 class CareerContextProjector:
@@ -59,7 +58,8 @@ class CareerContextProjector:
         tier_one_record_limit: int = 15,
         tier_one_claim_limit: int = 15,
         relevance_candidate_limit: int = 45,
-        recency_half_life_days: float = 14.0,
+        semantic_retriever: CareerEvidenceSemanticRetriever | None = None,
+        rrf_rank_constant: int = 60,
     ) -> None:
         if candidate_record_limit < 1 or candidate_claim_limit_per_record < 1:
             raise ValueError("Career context safety limits must be positive")
@@ -71,15 +71,16 @@ class CareerContextProjector:
             raise ValueError(
                 "relevance over-recall must cover Tier-1 and stay bounded"
             )
-        if recency_half_life_days <= 0:
-            raise ValueError("recency half-life must be positive")
+        if rrf_rank_constant < 1:
+            raise ValueError("RRF rank constant must be positive")
         self._store = store
         self._candidate_record_limit = candidate_record_limit
         self._candidate_claim_limit_per_record = candidate_claim_limit_per_record
         self._tier_one_record_limit = tier_one_record_limit
         self._tier_one_claim_limit = tier_one_claim_limit
         self._relevance_candidate_limit = relevance_candidate_limit
-        self._recency_half_life_days = recency_half_life_days
+        self._semantic_retriever = semantic_retriever
+        self._rrf_rank_constant = rrf_rank_constant
 
     def project(self, *, user_id: str, query: str) -> CareerMemoryContext:
         records_total = self._store.count_records(user_id=user_id)
@@ -87,58 +88,101 @@ class CareerContextProjector:
             user_id=user_id,
             verification_status="confirmed",
         )
-        records = self._store.list_records(
-            user_id=user_id,
-            limit=self._candidate_record_limit,
-        )
         query_terms = self._store.current_evidence_query_terms(
             user_id=user_id,
             query=query,
         )
-        ranked_hits = self._store.rank_current_evidence(
+        lexical_hits = self._store.rank_current_evidence(
             user_id=user_id,
             query_terms=query_terms,
             limit=self._relevance_candidate_limit,
         )
-        fts_relevance = self._fts_relevance(
-            ranked_hits,
-            query_terms=query_terms,
-        )
-        loaded = []
-        for recency, record in enumerate(records):
-            evidence = self._store.list_evidence(
+        semantic_ids = tuple(
+            dict.fromkeys(
+                self._semantic_retriever.rank_current_evidence_ids(
+                    user_id=user_id,
+                    query=query,
+                    limit=self._relevance_candidate_limit,
+                )
+            )
+        ) if self._semantic_retriever is not None else ()
+        evidence_by_id = {item.id: item for item in lexical_hits}
+        for evidence_id in semantic_ids:
+            if evidence_id in evidence_by_id:
+                continue
+            evidence = self._store.get_evidence(
                 user_id=user_id,
-                career_record_id=record.id,
-                verification_status="confirmed",
-                limit=self._candidate_claim_limit_per_record,
+                career_evidence_id=evidence_id,
             )
-            loaded.append((record, evidence, recency))
-        observed_at = datetime.now(timezone.utc)
-        candidates = []
-        for record, evidence, recency in loaded:
-            scored_evidence = tuple(
-                (
-                    item,
-                    self._claim_score(
-                        item,
-                        fts_relevance=fts_relevance,
-                        observed_at=observed_at,
-                        record_is_current=record.is_current,
-                    ),
-                )
-                for item in evidence
+            if (
+                evidence is not None
+                and evidence.verification_status == "confirmed"
+                and evidence.superseded_by is None
+                and evidence.tombstoned_at is None
+            ):
+                evidence_by_id[evidence.id] = evidence
+
+        records_by_id = {}
+        for hit in evidence_by_id.values():
+            if hit.career_record_id in records_by_id:
+                continue
+            if len(records_by_id) >= self._candidate_record_limit:
+                break
+            record = self._store.get_record(
+                user_id=user_id,
+                career_record_id=hit.career_record_id,
             )
-            ranked_evidence = tuple(
+            if record is not None:
+                records_by_id[record.id] = record
+
+        lexical_ids = tuple(
+            item.id
+            for item in sorted(
+                lexical_hits,
+                key=lambda item: (
+                    0
+                    if records_by_id.get(item.career_record_id) is not None
+                    and records_by_id[item.career_record_id].is_current
+                    else 1,
+                    -item.created_at.timestamp(),
+                    item.id,
+                ),
+            )
+            if item.career_record_id in records_by_id
+        )
+        eligible_semantic_ids = tuple(
+            evidence_id
+            for evidence_id in semantic_ids
+            if evidence_id in evidence_by_id
+            and evidence_by_id[evidence_id].career_record_id in records_by_id
+        )
+        fused = reciprocal_rank_fusion(
+            lexical_ids,
+            eligible_semantic_ids,
+            rank_constant=self._rrf_rank_constant,
+        )
+        ranked_evidence = sorted(
+            (
                 item
-                for item, _ in sorted(
-                    scored_evidence,
-                    key=lambda pair: (
-                        -pair[1],
-                        -pair[0].created_at.timestamp(),
-                        pair[0].id,
-                    ),
-                )
-            )
+                for item in evidence_by_id.values()
+                if item.career_record_id in records_by_id
+            ),
+            key=lambda item: (
+                -fused[item.id],
+                0 if records_by_id[item.career_record_id].is_current else 1,
+                -item.created_at.timestamp(),
+                item.id,
+            ),
+        )
+        evidence_by_record: dict[str, list[CareerEvidence]] = {}
+        for item in ranked_evidence:
+            bucket = evidence_by_record.setdefault(item.career_record_id, [])
+            if len(bucket) < self._candidate_claim_limit_per_record:
+                bucket.append(item)
+
+        candidates = []
+        for record_id, evidence in evidence_by_record.items():
+            record = records_by_id[record_id]
             highlights = tuple(
                 CareerMemoryClaim(
                     claim=item.claim,
@@ -149,64 +193,18 @@ class CareerContextProjector:
                     detail_ref=item.detail_ref,
                     telemetry_binding=self._evidence_binding(item),
                 )
-                for item in ranked_evidence
+                for item in evidence
             )
-            relevance = max(
-                (score for _, score in scored_evidence),
-                default=self._record_metadata_score(
-                    record_is_current=record.is_current,
-                ),
-            )
-            candidates.append((record, highlights, relevance, recency))
-
-        selected = list(sorted(
-            candidates,
-            key=lambda item: (
-                -item[2],
-                item[3],
-            ),
-        ))
-        current_anchor = next(
-            (candidate for candidate in selected if candidate[0].is_current),
-            None,
-        )
-        # Preserve the strongest current-role anchor without making it outrank
-        # the best query match. A second-place guarantee keeps "what I do now"
-        # visible while relevance still owns the first slot.
-        if current_anchor is not None:
-            current_index = selected.index(current_anchor)
-            if current_index > 1:
-                selected.pop(current_index)
-                selected.insert(1, current_anchor)
+            candidates.append((record, highlights))
 
         remaining_claims = self._tier_one_claim_limit
         projected = []
-        for record, highlights, _, _ in selected:
+        for record, highlights in candidates:
             if len(projected) >= self._tier_one_record_limit:
                 break
-            is_current_anchor = (
-                current_anchor is not None and record.id == current_anchor[0].id
-            )
-            anchor_pending = (
-                current_anchor is not None
-                and not any(item.is_current for item in projected)
-            )
-            if remaining_claims == 0 and not is_current_anchor:
+            if remaining_claims == 0:
                 break
-            reserved_for_anchor = int(
-                anchor_pending
-                and not is_current_anchor
-                and bool(current_anchor[1])
-            )
-            # Depth-first packing remains the default, except that one claim is
-            # reserved for the current anchor so the preceding record cannot
-            # consume the entire claim budget.
-            available_claims = (
-                remaining_claims
-                if is_current_anchor
-                else max(0, remaining_claims - reserved_for_anchor)
-            )
-            selected_highlights = highlights[:available_claims]
+            selected_highlights = highlights[:remaining_claims]
             projected.append(
                 CareerMemoryRecord(
                     record_type=record.record_type,
@@ -298,68 +296,4 @@ class CareerContextProjector:
             lifecycle_status=(
                 "superseded" if evidence.superseded_by is not None else "current"
             ),
-        )
-
-    @staticmethod
-    def _fts_relevance(
-        hits: tuple[RankedCareerEvidence, ...],
-        *,
-        query_terms: CareerEvidenceQueryTerms,
-    ) -> dict[str, float]:
-        """Map BM25 through a dimensionless, result-set-independent sigmoid.
-
-        A hit maps to [0.5, 1), while an item outside the hit set remains 0.
-        Dividing by the query's corpus-level IDF sum removes BM25's dominant
-        query-length and collection-size scale without using hit-set statistics.
-        """
-
-        if not hits:
-            return {}
-        if not query_terms.match_tokens or query_terms.idf_sum <= 0:
-            raise ValueError("FTS hits require query terms with positive IDF")
-        return {
-            hit.evidence.id: CareerContextProjector._stable_sigmoid(
-                max(0.0, -hit.bm25_score) / query_terms.idf_sum
-            )
-            for hit in hits
-        }
-    @staticmethod
-    def _stable_sigmoid(value: float) -> float:
-        if value >= 0:
-            return 1.0 / (1.0 + math.exp(-value))
-        exponent = math.exp(value)
-        return exponent / (1.0 + exponent)
-
-    @staticmethod
-    def _record_metadata_score(*, record_is_current: bool) -> float:
-        # No claim in the FTS candidate set, so relevance is 0. Recency has
-        # nothing to attach to. Structural importance still distinguishes a
-        # current role from a historical empty record.
-        return _STRUCTURAL_WEIGHT * (1.0 if record_is_current else 0.5)
-
-    def _claim_score(
-        self,
-        evidence: CareerEvidence,
-        *,
-        fts_relevance: dict[str, float],
-        observed_at: datetime,
-        record_is_current: bool,
-    ) -> float:
-        """Blend FTS relevance with recency and structural importance.
-
-        Recency and structural importance only rerank; they cannot pull a
-        claim into the relevance candidate set.
-        """
-
-        relevance = fts_relevance.get(evidence.id, 0.0)
-        age_days = max(
-            0.0,
-            (observed_at - evidence.created_at).total_seconds() / 86_400,
-        )
-        recency = 0.5 ** (age_days / self._recency_half_life_days)
-        structural_importance = 1.0 if record_is_current else 0.5
-        return (
-            _RELEVANCE_WEIGHT * relevance
-            + _RECENCY_WEIGHT * recency
-            + _STRUCTURAL_WEIGHT * structural_importance
         )

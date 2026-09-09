@@ -1,0 +1,3 @@
+# Vocab blobs are filled at install/build, not committed.
+*
+!.gitignore

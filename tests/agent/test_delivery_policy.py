@@ -390,6 +390,22 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实当前职业声明标记",
         ),
+            "career_episode_search_found": (
+                {
+                    "body": "真实过往求职事件标记",
+                    "items": [
+                        {
+                            "resource_refs": [
+                                {
+                                    "kind": "application",
+                                    "resource_id": internal_id,
+                                }
+                            ]
+                        }
+                    ],
+                },
+                "真实过往求职事件标记",
+            ),
         "career_history_found": (
             {
                 "body": "真实历史声明标记",

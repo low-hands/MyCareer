@@ -6,8 +6,10 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent import career_context as career_context_module
-from career_agent.agent.career_context import CareerContextProjector
+from career_agent.agent.career_context import (
+    CareerContextProjector,
+    reciprocal_rank_fusion,
+)
 from career_agent.agent.main_agent_contracts import (
     CareerProfileBudgets,
     CareerProfileContext,
@@ -117,7 +119,7 @@ def test_projector_injects_only_bounded_confirmed_career_memory(tmp_path) -> Non
     assert "career_evidence_" not in serialized
 
 
-def test_tier_one_bm25_relevance_can_beat_a_newer_current_record(tmp_path) -> None:
+def test_lexical_match_excludes_a_newer_current_nonmatch(tmp_path) -> None:
     store = CareerHistoryStore(tmp_path / "career.sqlite3")
     relevant = store.create_record(
         user_id="u1",
@@ -153,7 +155,7 @@ def test_tier_one_bm25_relevance_can_beat_a_newer_current_record(tmp_path) -> No
     assert memory.records[0].title == "Old retrieval project"
 
 
-def test_empty_record_metadata_uses_the_same_bounded_score_scale(tmp_path) -> None:
+def test_record_metadata_cannot_enter_the_lexical_candidate_set(tmp_path) -> None:
     store = CareerHistoryStore(tmp_path / "career.sqlite3")
     empty = store.create_record(
         user_id="u1",
@@ -177,20 +179,16 @@ def test_empty_record_metadata_uses_the_same_bounded_score_scale(tmp_path) -> No
         query="支付清算系统重构",
     )
 
-    assert [record.title for record in memory.records[:2]] == [
-        "后端工程师",
-        "支付清算系统重构项目",
-    ]
-    assert memory.records[1].confirmed_highlights == ()
-    assert (
-        CareerContextProjector._record_metadata_score(
-            record_is_current=False,
+    assert [record.title for record in memory.records] == ["后端工程师"]
+    assert empty.id not in {
+        item.career_record_id
+        for item in store.rank_current_evidence(
+            user_id="u1", query="支付清算系统重构"
         )
-        <= 1.0
-    )
+    }
 
 
-def test_current_record_and_one_claim_survive_depth_first_limit(tmp_path) -> None:
+def test_nonmatching_current_record_does_not_consume_claim_budget(tmp_path) -> None:
     store = CareerHistoryStore(tmp_path / "career.sqlite3")
     retrieval = store.create_record(
         user_id="u1",
@@ -225,12 +223,8 @@ def test_current_record_and_one_claim_survive_depth_first_limit(tmp_path) -> Non
         query="检索评估召回优化",
     )
 
-    assert [record.title for record in memory.records] == [
-        "检索项目",
-        "当前工作",
-    ]
-    assert len(memory.records[0].confirmed_highlights) == 4
-    assert len(memory.records[1].confirmed_highlights) == 1
+    assert [record.title for record in memory.records] == ["检索项目"]
+    assert len(memory.records[0].confirmed_highlights) == 5
 
 
 def test_short_cjk_query_uses_the_fts_candidate_set(tmp_path) -> None:
@@ -265,16 +259,16 @@ def test_short_cjk_query_uses_the_fts_candidate_set(tmp_path) -> None:
     )
     assert query_terms.latin == ()
     assert query_terms.cjk == ("远程",)
-    assert [hit.evidence.id for hit in ranked] == [
+    assert {hit.id for hit in ranked} == {
         concise_evidence.id,
         verbose_evidence.id,
-    ]
+    }
     memory = CareerContextProjector(store).project(
         user_id="u1",
         query="远程",
     )
 
-    assert [record.title for record in memory.records] == ["Concise", "Verbose"]
+    assert {record.title for record in memory.records} == {"Concise", "Verbose"}
 
 
 def test_short_latin_query_uses_the_fts_candidate_set(
@@ -312,7 +306,7 @@ def test_short_latin_query_uses_the_fts_candidate_set(
     assert query_terms.latin == ("ai", "go")
     assert query_terms.cjk == ()
     assert len(ranked) == 2
-    assert {hit.evidence.claim for hit in ranked} == {
+    assert {hit.claim for hit in ranked} == {
         "AI Go",
         "Built AI services and Go systems across several platform teams",
     }
@@ -391,265 +385,10 @@ def test_domain_short_terms_are_not_silently_dropped(tmp_path) -> None:
             query_terms=query_terms,
         )
         assert ranked
-        assert ranked[0].evidence.id == expected_hit[query]
+        assert expected_hit[query] in {item.id for item in ranked}
 
 
-def test_rank_current_evidence_returns_sqlite_bm25_scores(tmp_path) -> None:
-    store = CareerHistoryStore(tmp_path / "career.sqlite3")
-    retrieval = store.create_record(
-        user_id="u1",
-        record_type="project",
-        title="Retrieval",
-    )
-    payments = store.create_record(
-        user_id="u1",
-        record_type="project",
-        title="Payments",
-        is_current=True,
-    )
-    retrieval_claim = _confirmed_highlight(
-        store,
-        user_id="u1",
-        career_record_id=retrieval.id,
-        claim="Retrieval evaluation result 0",
-    )
-    _confirmed_highlight(
-        store,
-        user_id="u1",
-        career_record_id=payments.id,
-        claim="Payment migration result 0",
-    )
-
-    ranked = store.rank_current_evidence(
-        user_id="u1",
-        query="retrieval evaluation",
-    )
-    assert ranked
-    assert ranked[0].evidence.id == retrieval_claim.id
-    scores = [hit.bm25_score for hit in ranked]
-    assert scores == sorted(scores)
-    memory = CareerContextProjector(store).project(
-        user_id="u1",
-        query="retrieval evaluation",
-    )
-    assert memory.records[0].title == "Retrieval"
-
-
-def test_fts_relevance_uses_real_selective_idf_without_saturation(
-    tmp_path,
-) -> None:
-    store = CareerHistoryStore(tmp_path / "career.sqlite3")
-    record = store.create_record(
-        user_id="u1",
-        record_type="project",
-        title="推荐系统",
-    )
-    for frequency in range(1, 5):
-        _confirmed_highlight(
-            store,
-            user_id="u1",
-            career_record_id=record.id,
-            claim=" ".join(["selective"] * frequency),
-        )
-    for index in range(8):
-        _confirmed_highlight(
-            store,
-            user_id="u1",
-            career_record_id=record.id,
-            claim=f"unrelated evidence document {index}",
-        )
-
-    query_terms = store.current_evidence_query_terms(
-        user_id="u1",
-        query="selective",
-    )
-    ranked = store.rank_current_evidence(user_id="u1", query="selective")
-    assert len(ranked) == 4
-    assert all(abs(hit.bm25_score) > 0.1 for hit in ranked)
-    strong_hit = ranked[0]
-    weak_hit = ranked[-1]
-
-    singleton = CareerContextProjector._fts_relevance(
-        (strong_hit,),
-        query_terms=query_terms,
-    )
-    together = CareerContextProjector._fts_relevance(
-        ranked,
-        query_terms=query_terms,
-    )
-
-    assert 0.0 < singleton[strong_hit.evidence.id] < 1.0
-    assert together[strong_hit.evidence.id] == singleton[strong_hit.evidence.id]
-    assert together[strong_hit.evidence.id] > together[weak_hit.evidence.id]
-    assert min(together.values()) > together.get("not-a-hit", 0.0)
-    assert max(together.values()) - min(together.values()) < 0.5
-
-
-def test_idf_normalized_sigmoid_preserves_multi_term_bm25_differences(
-    tmp_path,
-) -> None:
-    store = CareerHistoryStore(tmp_path / "career.sqlite3")
-    record = store.create_record(
-        user_id="u1",
-        record_type="project",
-        title="多词检索",
-    )
-    terms = ("alpha", "bravo", "charlie", "delta", "echo", "foxtrot")
-    for frequency in range(1, 6):
-        _confirmed_highlight(
-            store,
-            user_id="u1",
-            career_record_id=record.id,
-            claim=" ".join(terms * frequency),
-        )
-    for index in range(35):
-        _confirmed_highlight(
-            store,
-            user_id="u1",
-            career_record_id=record.id,
-            claim=f"unrelated evidence record {index}",
-        )
-
-    query = " ".join(terms)
-    query_terms = store.current_evidence_query_terms(user_id="u1", query=query)
-    ranked = store.rank_current_evidence(user_id="u1", query=query)
-    relevance = CareerContextProjector._fts_relevance(
-        ranked,
-        query_terms=query_terms,
-    )
-
-    assert len(query_terms.latin) == 6
-    assert query_terms.cjk == ()
-    assert len(ranked) == 5
-    assert min(abs(hit.bm25_score) for hit in ranked) > 5.0
-    assert len(set(relevance.values())) == 5
-    assert max(relevance.values()) < 1.0
-    assert min(relevance.values()) > 0.5
-
-
-def test_idf_normalization_preserves_overlapping_cjk_differences(tmp_path) -> None:
-    long_query = "推荐系统召回排序模型训练"
-    for query, expected_cjk_terms in (
-        ("推荐系统召回", 4),
-        (long_query, 10),
-    ):
-        store = CareerHistoryStore(
-            tmp_path / f"career-{expected_cjk_terms}.sqlite3"
-        )
-        record = store.create_record(
-            user_id="u1",
-            record_type="project",
-            title="推荐系统",
-        )
-        for frequency in range(1, 6):
-            _confirmed_highlight(
-                store,
-                user_id="u1",
-                career_record_id=record.id,
-                claim=query * frequency,
-            )
-        for index in range(35):
-            _confirmed_highlight(
-                store,
-                user_id="u1",
-                career_record_id=record.id,
-                claim=(
-                    f"无关的其他工作记录条目 {index} "
-                    "unrelated filler document"
-                ),
-            )
-        query_terms = store.current_evidence_query_terms(
-            user_id="u1",
-            query=query,
-        )
-        ranked = store.rank_current_evidence(user_id="u1", query=query)
-        relevance = CareerContextProjector._fts_relevance(
-            ranked,
-            query_terms=query_terms,
-        )
-        assert query_terms.latin == ()
-        assert len(query_terms.cjk) == expected_cjk_terms
-        assert len(ranked) == 5
-        assert len(set(relevance.values())) == 5
-        assert max(relevance.values()) < 1.0
-        assert min(relevance.values()) > 0.5
-
-
-def test_idf_normalization_prevents_corpus_size_floor_and_saturation(
-    tmp_path,
-) -> None:
-    latin_query = "alpha beta gamma delta epsilon zeta"
-    cases = (
-        (
-            "latin",
-            latin_query,
-            [
-                " ".join(latin_query.split() * frequency)
-                for frequency in range(1, 6)
-            ],
-        ),
-        (
-            "cjk",
-            "推荐系统召回",
-            ["推荐系统召回" * frequency for frequency in range(1, 6)],
-        ),
-    )
-    for label, query, hit_claims in cases:
-        values_by_size: dict[int, tuple[float, ...]] = {}
-        for size in (12, 40, 400):
-            store = CareerHistoryStore(
-                tmp_path / f"career-{label}-{size}.sqlite3"
-            )
-            record = store.create_record(
-                user_id="u1",
-                record_type="project",
-                title="Corpus-size invariant",
-            )
-            for claim in hit_claims:
-                _confirmed_highlight(
-                    store,
-                    user_id="u1",
-                    career_record_id=record.id,
-                    claim=claim,
-                )
-            for index in range(size - len(hit_claims)):
-                _confirmed_highlight(
-                    store,
-                    user_id="u1",
-                    career_record_id=record.id,
-                    claim=(
-                        f"无关的其他工作记录条目 {index} "
-                        "unrelated filler document"
-                    ),
-                )
-            query_terms = store.current_evidence_query_terms(
-                user_id="u1",
-                query=query,
-            )
-            ranked = store.rank_current_evidence(
-                user_id="u1",
-                query_terms=query_terms,
-            )
-            relevance = CareerContextProjector._fts_relevance(
-                ranked,
-                query_terms=query_terms,
-            )
-            values = tuple(sorted(relevance.values()))
-            assert len(values) == 5
-            assert len(set(values)) == 5
-            assert 0.6 < values[0] < values[-1] < 0.95
-            values_by_size[size] = values
-
-        baseline = values_by_size[40]
-        for size in (12, 40, 400):
-            values = values_by_size[size]
-            assert max(
-                abs(actual - expected)
-                for actual, expected in zip(values, baseline, strict=True)
-            ) < 0.05
-
-
-def test_idf_and_bm25_use_the_same_user_current_confirmed_population(
+def test_match_gate_ignores_bm25_population_and_keeps_scope_filters(
     tmp_path,
 ) -> None:
     store = CareerHistoryStore(tmp_path / "career.sqlite3")
@@ -672,7 +411,7 @@ def test_idf_and_bm25_use_the_same_user_current_confirmed_population(
             claim=f"unrelated current evidence {index}",
         )
 
-    def snapshot() -> tuple[float, float, float]:
+    def snapshot() -> tuple[str, ...]:
         query_terms = store.current_evidence_query_terms(
             user_id="u1",
             query="selective AI",
@@ -681,16 +420,8 @@ def test_idf_and_bm25_use_the_same_user_current_confirmed_population(
             user_id="u1",
             query_terms=query_terms,
         )
-        relevance = CareerContextProjector._fts_relevance(
-            ranked,
-            query_terms=query_terms,
-        )
         assert len(ranked) == 1
-        return (
-            query_terms.idf_sum,
-            ranked[0].bm25_score,
-            relevance[ranked[0].evidence.id],
-        )
+        return tuple(item.claim for item in ranked)
 
     baseline = snapshot()
     with pytest.raises(ValueError, match="do not belong"):
@@ -734,7 +465,7 @@ def test_idf_and_bm25_use_the_same_user_current_confirmed_population(
             claim=f"selective AI other user {index}",
         )
 
-    assert snapshot() == baseline
+    assert snapshot() == (current.claim,)
     with sqlite3.connect(store.path) as connection:
         indexed_superseded = connection.execute(
             """
@@ -750,105 +481,75 @@ def test_idf_and_bm25_use_the_same_user_current_confirmed_population(
     assert indexed_superseded == 6
 
 
-@pytest.mark.parametrize(
-    ("query", "hit_claims"),
-    (
-        (
-            "alpha beta gamma delta epsilon zeta",
-            tuple(
-                " ".join(
-                    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]
-                    * repeats
-                )
-                for repeats in range(1, 6)
-            ),
-        ),
-        (
-            "推荐系统召回",
-            tuple("推荐系统召回" * repeats for repeats in range(1, 6)),
-        ),
-    ),
-    ids=("latin", "cjk"),
-)
-def test_relevance_holds_its_shape_as_the_evidence_store_grows(
-    tmp_path,
-    query: str,
-    hit_claims: tuple[str, ...],
-) -> None:
-    """Sweep collection size, which every other case here holds fixed.
-
-    Two earlier calibrations passed their own regressions because those
-    regressions used the very corpus the constants were measured on. BM25's IDF
-    term moves with collection size, so a mapping tuned at one size can floor
-    every hit at 0.5 below it and saturate every hit at 1.0 above it.
-    """
-
-    spreads = []
-    for total_rows in (12, 60, 300):
-        store = CareerHistoryStore(tmp_path / f"career-{total_rows}.sqlite3")
-        record = store.create_record(
-            user_id="u1",
-            record_type="project",
-            title="Collection growth",
-        )
-        for claim in hit_claims:
-            _confirmed_highlight(
-                store,
-                user_id="u1",
-                career_record_id=record.id,
-                claim=claim,
-            )
-        for index in range(total_rows - len(hit_claims)):
-            _confirmed_highlight(
-                store,
-                user_id="u1",
-                career_record_id=record.id,
-                claim=f"unrelated filler document {index} 无关条目",
-            )
-
-        query_terms = store.current_evidence_query_terms(
-            user_id="u1",
-            query=query,
-        )
-        ranked = store.rank_current_evidence(
-            user_id="u1",
-            query_terms=query_terms,
-        )
-        relevance = CareerContextProjector._fts_relevance(
-            ranked,
-            query_terms=query_terms,
-        )
-        assert len(ranked) == len(hit_claims)
-
-        values = sorted(relevance.values())
-        # An exact 0.5 means the sigmoid collapsed onto its hit floor; an exact
-        # 1.0 means it saturated. Either destroys ordering inside the hit set.
-        assert all(0.5 < value < 1.0 for value in values), (
-            total_rows,
-            values,
-        )
-        assert len(set(values)) == len(values), (total_rows, values)
-        spreads.append(
-            (values[-1] - values[0]) * career_context_module._RELEVANCE_WEIGHT
-        )
-
-    # Scale invariance is the property under test: the spread may settle to a
-    # different level per script, but it must not decay as the store fills up.
-    assert min(spreads) > 1e-3, spreads
-    assert max(spreads) / min(spreads) < 3.0, spreads
-
-
-def test_weight_guard_checks_the_actual_hit_precedence_condition() -> None:
-    assert career_context_module._weights_preserve_hit_precedence(0.6, 0.2, 0.2)
-    assert not career_context_module._weights_preserve_hit_precedence(
-        0.5999999999999999,
-        0.2,
-        0.2,
+def test_query_terms_are_independent_of_corpus_size(tmp_path) -> None:
+    empty = CareerHistoryStore(tmp_path / "empty.sqlite3")
+    populated = CareerHistoryStore(tmp_path / "populated.sqlite3")
+    record = populated.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Population",
     )
-    assert not career_context_module._weights_preserve_hit_precedence(
-        0.55,
-        0.15,
-        0.30,
+    for index in range(60):
+        _confirmed_highlight(
+            populated,
+            user_id="u1",
+            career_record_id=record.id,
+            claim=f"unrelated filler {index}",
+        )
+
+    empty_terms = empty.current_evidence_query_terms(
+        user_id="u1", query="AI 推荐系统召回"
+    )
+    populated_terms = populated.current_evidence_query_terms(
+        user_id="u1", query="AI 推荐系统召回"
+    )
+
+    assert populated_terms == empty_terms
+    assert populated_terms.latin == ("ai",)
+    assert populated_terms.cjk == ("推荐系", "荐系统", "系统召", "统召回")
+
+
+def test_rrf_fuses_lexical_and_semantic_ranks_without_raw_scores() -> None:
+    fused = reciprocal_rank_fusion(
+        ("lexical-only", "both"),
+        ("both", "semantic-only"),
+    )
+
+    assert fused["both"] > fused["lexical-only"]
+    assert fused["both"] > fused["semantic-only"]
+
+
+def test_semantic_channel_can_rescue_a_lexical_nonmatch(tmp_path) -> None:
+    store = CareerHistoryStore(tmp_path / "career.sqlite3")
+    semantic_record = store.create_record(
+        user_id="u1",
+        record_type="project",
+        title="推荐系统",
+    )
+    semantic_evidence = _confirmed_highlight(
+        store,
+        user_id="u1",
+        career_record_id=semantic_record.id,
+        claim="负责推荐系统召回与排序",
+    )
+
+    class SemanticRetriever:
+        def rank_current_evidence_ids(self, *, user_id, query, limit):
+            assert (user_id, query, limit) == (
+                "u1",
+                "candidate generation",
+                45,
+            )
+            return (semantic_evidence.id,)
+
+    memory = CareerContextProjector(
+        store,
+        semantic_retriever=SemanticRetriever(),
+    ).project(user_id="u1", query="candidate generation")
+
+    assert [record.title for record in memory.records] == ["推荐系统"]
+    assert memory.records[0].confirmed_highlights[0].claim == (
+        "负责推荐系统召回与排序"
     )
 
 
@@ -889,10 +590,7 @@ def test_query_match_outranks_fresh_current_nonmatch_end_to_end(tmp_path) -> Non
         query="推荐系统召回",
     )
 
-    assert [record.title for record in memory.records[:2]] == [
-        "算法工程师",
-        "行政专员",
-    ]
+    assert [record.title for record in memory.records] == ["算法工程师"]
 
 
 def test_tier_one_claim_limit_is_depth_first_after_reranking(tmp_path) -> None:
@@ -953,7 +651,9 @@ def test_main_agent_model_context_contains_compact_provenance_without_quotes(
         career_record_id=record.id,
         claim="Led knowledge-base planning",
     )
-    memory = CareerContextProjector(store).project(user_id="u1", query="职业规划")
+    memory = CareerContextProjector(store).project(
+        user_id="u1", query="knowledge-base planning"
+    )
     context = MainAgentContext(
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1"),
@@ -961,7 +661,7 @@ def test_main_agent_model_context_contains_compact_provenance_without_quotes(
         user_message="帮我做职业规划",
     )
 
-    projected = context.model_context()["career_profile"]
+    projected = context.model_context()["career_memory"]
 
     records = _decode_tier_one(projected)
     assert records[0]["title"] == "Product Manager"
@@ -1044,7 +744,7 @@ def test_unbound_oversized_claim_downgrades_version_inventory(tmp_path) -> None:
 
     memory = CareerContextProjector(store).project(
         user_id="u1",
-        query="evidence",
+        query="xxx",
     )
 
     assert memory.records[0].confirmed_highlights[0].telemetry_binding is None
@@ -1228,7 +928,7 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
         career_memory=memory,
         career_profile_budgets=CareerProfileBudgets(records_input_units=20_000),
         user_message="memory",
-    ).model_context()["career_profile"]
+    ).model_context()["career_memory"]
     decoded = _decode_tier_one(full)
 
     expected = [
@@ -1256,7 +956,7 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
         career_memory=memory,
         career_profile_budgets=CareerProfileBudgets(records_input_units=budget),
         user_message="memory",
-    ).model_context()["career_profile"]
+    ).model_context()["career_memory"]
     bounded_memory = {
         key: value for key, value in bounded.items() if key in memory_keys
     }
@@ -1269,7 +969,7 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
     )
     assert bounded_memory["claims_returned"] < bounded_memory["claims_total"]
 
-    zero_records = MainAgentContext(
+    zero_projection = MainAgentContext(
         conversation_id="c1",
         profile=CareerProfileContext(
             user_id="u1",
@@ -1290,7 +990,8 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
         career_memory=memory,
         career_profile_budgets=CareerProfileBudgets(records_input_units=0),
         user_message="memory",
-    ).model_context()["career_profile"]
+    ).model_context()
+    zero_records = zero_projection["career_memory"]
     assert {
         key: zero_records[key]
         for key in memory_keys
@@ -1301,15 +1002,11 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
         "claims_returned": 0,
         "claims_total": 15,
     }
-    assert zero_records["hard_constraints"] == [
-        {"relation": "work_arrangement", "value": "必须远程"}
-    ]
-    assert zero_records["current_targets"]["roles"] == [
-        {
-            "title": "ML Engineer",
-            "priority": 1,
-            "salary_expectation": {"value": "40-60k"},
-        }
+    assert 'Work arrangement: "必须远程"' in zero_projection[
+        "career_profile"
+    ]["memory/profile.md"]
+    assert 'Title: "ML Engineer"' in zero_projection["career_profile"][
+        "memory/current_targets.md"
     ]
 
     for budget in (0, 1):
@@ -1337,27 +1034,28 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
                 hard_constraints_input_units=budget,
             ),
             user_message="memory",
-        ).model_context()["career_profile"]
+        ).model_context()
+        profile_files = exhausted["career_profile"]
+        bounded_memory = exhausted["career_memory"]
 
-        assert not {"records", "claims", "current_targets"} & set(exhausted)
-        assert exhausted["hard_constraints"] == [
-            {"relation": "work_arrangement", "value": "必须远程"}
+        assert 'Work arrangement: "必须远程"' in profile_files[
+            "memory/profile.md"
         ]
-        assert exhausted["hard_constraints_budget_expanded"] is True
-        assert exhausted["records_returned"] == 0
-        assert exhausted["records_total"] == 5
-        assert exhausted["claims_returned"] == 0
-        assert exhausted["claims_total"] == 15
-        assert exhausted["current_targets_returned"] == 0
-        assert exhausted["current_targets_total"] == 1
-        assert exhausted["memory_overflow"]["fetch_required"] is True
+        assert 'Title: "ML Engineer"' in profile_files[
+            "memory/current_targets.md"
+        ]
+        assert bounded_memory["records_returned"] == 0
+        assert bounded_memory["records_total"] == 5
+        assert bounded_memory["claims_returned"] == 0
+        assert bounded_memory["claims_total"] == 15
+        assert bounded_memory["memory_overflow"]["fetch_required"] is True
         assert {
             section["fetch_tool"]
-            for section in exhausted["memory_overflow"]["sections"]
-        } == {"search_career_memory", "list_target_roles"}
+            for section in bounded_memory["memory_overflow"]["sections"]
+        } == {"search_career_memory"}
 
 
-def test_current_target_budget_reports_visible_truncation() -> None:
+def test_current_target_projection_is_complete_and_ignores_legacy_budget() -> None:
     targets = tuple(
         CurrentTargetContext(
             title=f"Target role {index} " + "x" * 70,
@@ -1371,28 +1069,19 @@ def test_current_target_budget_reports_visible_truncation() -> None:
         profile=CareerProfileContext(
             user_id="u1",
             current_targets=targets,
-            current_targets_total=5,
+            current_targets_total=3,
         ),
         career_profile_budgets=CareerProfileBudgets(
             current_targets_input_units=100,
         ),
         user_message="compare tracks",
     ).model_context()["career_profile"]
-    target_block = projected["current_targets"]
+    target_file = projected["memory/current_targets.md"]
 
-    assert 0 < target_block["roles_returned"] < len(targets)
-    assert target_block["roles_total"] == 5
-    assert len(target_block["roles"]) == target_block["roles_returned"]
-    assert (
-        len(
-            json.dumps(
-                {"current_targets": target_block},
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
-        <= 400
-    )
+    assert target_file.count("## Target ") == 3
+    assert "Target role 0" in target_file
+    assert "Target role 1" in target_file
+    assert "Target role 2" in target_file
 
 
 def test_tier_one_omits_unimplemented_and_historical_fields(tmp_path) -> None:
@@ -1435,7 +1124,7 @@ def test_tier_one_omits_unimplemented_and_historical_fields(tmp_path) -> None:
         profile=CareerProfileContext(user_id="u1"),
         career_memory=memory,
         user_message="retrieval",
-    ).model_context()["career_profile"]
+    ).model_context()["career_memory"]
     rendered = json.dumps(projected, ensure_ascii=False)
     claims = [
         claim
@@ -1447,18 +1136,10 @@ def test_tier_one_omits_unimplemented_and_historical_fields(tmp_path) -> None:
     assert "superseded_by" not in rendered
     assert "lineage_ref" not in rendered
     assert original.claim not in rendered
-    values_by_field = {
-        field: {claim[field] for claim in claims}
-        for field in claims[0]
-    }
-    constant = {
-        field: values
-        for field, values in values_by_field.items()
-        if len(values) == 1
-    }
-    assert "revision" not in constant
-    assert "detail_ref" not in constant
-    assert "claim" not in constant
+    assert len(claims) == 1
+    assert claims[0]["revision"] == 2
+    assert str(claims[0]["detail_ref"]).startswith("detail_")
+    assert claims[0]["claim"] == "Led retrieval evaluation"
 
 
 def test_historical_tool_exposes_and_consumes_an_opaque_page_cursor(

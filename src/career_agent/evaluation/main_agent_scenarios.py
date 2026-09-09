@@ -315,7 +315,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # it is invisible: open_job_search only opens a browser page, so nothing
         # downstream reports that the search was unscoped.
         context=_context(user_message="帮我找找工作吧"),
-        decisive_facts=("career_profile.default_city", "task.target_roles"),
+        decisive_facts=(
+            "career_profile.memory/profile.md",
+            "task.target_roles",
+        ),
         steps=(
             TrajectoryStep(
                 expect_action="ask_user",

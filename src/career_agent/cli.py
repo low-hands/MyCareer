@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sqlite3
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -11,8 +10,8 @@ from typing import Callable, Sequence, TextIO
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
+from career_agent.agent.semantic_career_retrieval import optional_semantic_retriever
 from career_agent.agent.main_agent_contracts import (
-    CareerProfileBudgets,
     ToolObservation,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -58,9 +57,7 @@ from career_agent.services.resume_import import (
     validate_resume_document,
 )
 from career_agent.services.resume_tailoring import ResumeTailoringService
-from career_agent.services.canonical_scope import CanonicalScopeResolver
 from career_agent.services.episode_reconciliation import EpisodeReconciler
-from career_agent.services.memory_scope import MemoryScopeWriteGate
 from career_agent.storage.api_keys import (
     DEFAULT_EXPIRY_DAYS,
     KNOWN_SCOPES,
@@ -82,7 +79,6 @@ from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
-from career_agent.storage.scope_resolution import SQLiteScopeResolutionStore
 from career_agent.storage.capability_confirmations import (
     CapabilityConfirmationSettledError,
     SQLiteCapabilityConfirmationStore,
@@ -109,25 +105,28 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
     context_store = CareerContextStore(Path(args.context_store).expanduser())
     resume_store = ResumeStore(Path(args.resume_store).expanduser())
-    memory_scope_write_gate = MemoryScopeWriteGate(
-        CanonicalScopeResolver(),
-        SQLiteScopeResolutionStore(Path(args.context_store).expanduser()),
-    )
     context_manager = ContextManager(
         context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
-        compacted_message_warning_threshold=args.compacted_message_warning,
         target_role_source=resume_store,
-        career_profile_budgets=CareerProfileBudgets(
-            cjk_input_units_per_char=main_config.cjk_tokens_per_char,
-            ascii_chars_per_input_unit=main_config.ascii_chars_per_token,
-        ),
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
         timeout_seconds=args.agent_timeout_seconds,
     )
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
+    try:
+        semantic_retriever = optional_semantic_retriever(
+            career_history=career_history_store,
+            cache_path=Path(args.resume_store)
+            .expanduser()
+            .with_name("career_embeddings.sqlite3"),
+        )
+    except ValueError as error:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            str(error),
+        ) from error
     job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
     match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
     application_store = SQLiteApplicationStore(
@@ -229,7 +228,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_research=job_research_store,
         ),
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
-        career_context_projector=CareerContextProjector(career_history_store),
+        career_context_projector=CareerContextProjector(
+            career_history_store,
+            semantic_retriever=semantic_retriever,
+        ),
         trace_recorder=SQLiteTraceRecorder(Path(args.run_events_store).expanduser()),
         action_execution_store=SQLiteActionExecutionStore(
             Path(args.context_store).expanduser()
@@ -247,6 +249,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_research_service=job_research_service,
             resume_store=resume_store,
             career_history_store=career_history_store,
+            episode_store=SQLiteCareerEpisodeStore(
+                Path(args.context_store).expanduser()
+            ),
             resume_export_service=ResumeExportService(
                 resume_store,
                 SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),
@@ -267,7 +272,6 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
             career_profile_store=context_store,
-            memory_scope_write_gate=memory_scope_write_gate,
             owner_settings_store=context_store,
             conversation_store=context_store,
             resume_job_match_service=ResumeJobMatchService(
@@ -276,6 +280,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
                 OpenAIResumeJobMatchWorker(resume_analysis_config),
                 match_store,
+                career_profile_store=context_store,
             ),
             resume_tailoring_service=ResumeTailoringService(
                 resume_store,
@@ -381,7 +386,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     chat.add_argument("--context-store", default="~/.career-agent/context.sqlite3", help="Local session and context store path.")
-    chat.add_argument("--compacted-message-warning", type=int, default=200, help="Warn once this many summarised originals are still stored. They are never deleted automatically; use 'context prune'.")
     chat.add_argument("--main-agent-timeout-seconds", type=float, default=60.0, help="Main Agent model timeout (default: 60).")
     _add_runtime_options(chat)
 
@@ -618,32 +622,6 @@ def build_parser() -> argparse.ArgumentParser:
         default="~/.career-agent/run-events.sqlite3",
         help="Local best-effort telemetry store path.",
     )
-    eval_memory_budget = eval_subparsers.add_parser(
-        "memory-budget",
-        help=(
-            "Describe production career-memory overflow, layered fetches, and "
-            "technical outcomes without inferring a budget floor."
-        ),
-    )
-    eval_memory_budget.add_argument(
-        "--user-id",
-        help="Optional owner filter; requires --session-id.",
-    )
-    eval_memory_budget.add_argument(
-        "--session-id",
-        help="Optional conversation filter; requires --user-id.",
-    )
-    eval_memory_budget.add_argument(
-        "--run-events-store",
-        default="~/.career-agent/run-events.sqlite3",
-        help="Local best-effort telemetry store path.",
-    )
-    eval_memory_budget.add_argument(
-        "--max-runs",
-        type=int,
-        default=10_000,
-        help="Bound the newest production turn cohorts read from telemetry.",
-    )
     eval_memory_exposure = eval_subparsers.add_parser(
         "memory-exposure",
         help=(
@@ -755,68 +733,6 @@ def build_parser() -> argparse.ArgumentParser:
             help="Local context store path.",
         )
 
-    context_command = subparsers.add_parser(
-        "context",
-        help="Inspect and reclaim summarised conversation history.",
-        description=(
-            "Summarising a conversation keeps the original messages. They are no "
-            "longer read, but they remain the only way to check a summary that "
-            "looks wrong. Deleting them is therefore never automatic."
-        ),
-    )
-    context_subparsers = context_command.add_subparsers(
-        dest="context_command", required=True
-    )
-    context_stat = context_subparsers.add_parser(
-        "stat", help="Report how much summarised history is still stored."
-    )
-    context_prune = context_subparsers.add_parser(
-        "prune",
-        help="Delete summarised originals for this user, permanently.",
-        description=(
-            "Deletes only messages a stored summary already covers. Irreversible: "
-            "after this the summary is the only record of those turns."
-        ),
-    )
-    context_prune.add_argument(
-        "--yes",
-        action="store_true",
-        help="Required. Confirms the deletion cannot be undone.",
-    )
-    for sub in (context_stat, context_prune):
-        sub.add_argument("--user-id", required=True, help="User whose history to act on.")
-        sub.add_argument(
-            "--session-id",
-            help="Limit to one conversation. Omit to cover every conversation.",
-        )
-        sub.add_argument(
-            "--context-store",
-            default="~/.career-agent/context.sqlite3",
-            help="Local session and context store path.",
-        )
-    memory_command = subparsers.add_parser(
-        "memory",
-        help="Recover pending career-memory deletion cleanup.",
-    )
-    memory_subparsers = memory_command.add_subparsers(
-        dest="memory_command", required=True
-    )
-    memory_retry = memory_subparsers.add_parser(
-        "retry-cleanup",
-        help="Retry one already-committed tombstone's derived-memory cleanup.",
-    )
-    memory_retry.add_argument("--user-id", required=True)
-    memory_retry.add_argument("--operation-id", required=True)
-    memory_retry.add_argument(
-        "--context-store",
-        default="~/.career-agent/context.sqlite3",
-        help="Local conversation and episode store path.",
-    )
-    memory_retry.add_argument(
-        "--career-store",
-        default="~/.career-agent/resumes.sqlite3",
-        help="Local career-history store path.",
-    )
     return parser
 
 
@@ -927,7 +843,7 @@ def _trajectory_tool_specs():
         "application_service", "email_tracking_service", "interview_service",
         "interview_preparation_service", "action_center_service",
         "calendar_service", "mock_interview_graph", "mock_interview_store",
-        "job_research_service", "conversation_store",
+        "job_research_service", "conversation_store", "episode_store",
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 
@@ -1174,46 +1090,6 @@ def _run_rederivation_evaluation(args, stdout) -> int:
         )
 
 
-def _run_memory_budget_evaluation(args, stdout) -> int:
-    from dataclasses import asdict
-
-    from career_agent.evaluation.memory_metrics import (
-        summarize_memory_budget_metrics,
-    )
-
-    try:
-        events = SQLiteTraceRecorder(
-            Path(args.run_events_store).expanduser()
-        ).list_memory_budget_events(
-            user_id=args.user_id,
-            conversation_id=args.session_id,
-            max_runs=args.max_runs,
-        )
-        summary = summarize_memory_budget_metrics(events)
-        payload = {
-            "state": "memory_delivery_observed",
-            **(
-                {
-                    "user_id": args.user_id,
-                    "session_id": args.session_id,
-                }
-                if args.user_id is not None
-                else {"scope": "all_redacted_production_runs"}
-            ),
-            **asdict(summary),
-        }
-        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
-        stdout.write("\n")
-        return EXIT_OK
-    except (OSError, sqlite3.Error, ValueError) as error:
-        return _write_chat_error(
-            error,
-            stdout,
-            code=EXIT_ARGUMENT_ERROR,
-            next_action="Check the run-events store path and scope filters.",
-        )
-
-
 def _run_memory_exposure_evaluation(args, stdout) -> int:
     from dataclasses import asdict
 
@@ -1228,16 +1104,35 @@ def _run_memory_exposure_evaluation(args, stdout) -> int:
             max_events=args.max_events,
         )
         summary = summarize_memory_metrics(events)
+        zombie_value = summary.zombie_exposure.value
+        zombie_detected = (
+            summary.zombie_exposure.measurable
+            and isinstance(zombie_value, (int, float))
+            and zombie_value > 0
+        )
         exposure_measurable = (
-            summary.staleness_exposure.measurable
-            and summary.supersedence_exposure.measurable
+            summary.supersedence_exposure.measurable
+            or summary.zombie_exposure.measurable
         )
         json.dump(
             {
                 "state": (
-                    "memory_exposure_measured"
-                    if exposure_measurable
-                    else "insufficient_memory_version_binding"
+                    "zombie_exposure_detected"
+                    if zombie_detected
+                    else (
+                        "memory_exposure_measured"
+                        if exposure_measurable
+                        else "insufficient_memory_version_binding"
+                    )
+                ),
+                "zombie_status": (
+                    "detected"
+                    if zombie_detected
+                    else (
+                        "clear"
+                        if summary.zombie_exposure.measurable
+                        else "not_observed"
+                    )
                 ),
                 "user_id": args.user_id,
                 "session_id": args.session_id,
@@ -1276,8 +1171,8 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         replay_cassette,
         replay_quality,
         known_gap_reproduction,
+        minimum_detectable_regression,
         quality_shortfall,
-        wilson_score_interval,
     )
 
     try:
@@ -1384,11 +1279,6 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 if quality_passing is not None and quality_total
                 else None
             )
-            quality_interval = (
-                wilson_score_interval(quality_passing, quality_total)
-                if quality_passing is not None and quality_total is not None
-                else None
-            )
             if not scenario.has_quality_assertions:
                 quality_status = "not_applicable"
             elif cassette is None:
@@ -1421,14 +1311,17 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                     "sample_count": cassette.sample_count if cassette else 0,
                     "quality_status": quality_status,
                     "quality_min_pass_rate": scenario.quality_min_pass_rate,
+                    "quality_min_detectable_regression": (
+                        minimum_detectable_regression(
+                            quality_total,
+                            scenario.quality_min_pass_rate,
+                        )
+                        if quality_total and scenario.quality_min_pass_rate
+                        else None
+                    ),
                     "quality_samples_passed": quality_passing,
                     "quality_sample_count": quality_total,
                     "quality_pass_rate": quality_rate,
-                    "quality_wilson_95": (
-                        [round(bound, 6) for bound in quality_interval]
-                        if quality_interval is not None
-                        else None
-                    ),
                     "samples_passed": (
                         sum(not failures for failures in sample_failures)
                         if stale is None and not contract
@@ -1462,9 +1355,9 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             # run with no cassettes is green and proves nothing about the model.
             "note": (
                 "contract results say the scenario is well posed; hard behaviour "
-                "uses pass^k; quality uses an observed-rate floor and reports a "
-                "Wilson 95% interval, which is descriptive rather than a "
-                "population-rate guarantee at small n"
+                "uses pass^k; quality uses the declared observed-rate floor "
+                "and reports the largest perfect-run drop that floor still "
+                "cannot see (quality_min_detectable_regression)"
             ),
             "results": results,
         }
@@ -1707,8 +1600,6 @@ def main(
     if args.command == "eval":
         if args.eval_command == "rederivation":
             return _run_rederivation_evaluation(args, stdout)
-        if args.eval_command == "memory-budget":
-            return _run_memory_budget_evaluation(args, stdout)
         if args.eval_command == "memory-exposure":
             return _run_memory_exposure_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
@@ -1770,103 +1661,6 @@ def main(
             + "\n"
         )
         return EXIT_OK
-    if args.command == "context":
-        try:
-            store = CareerContextStore(Path(args.context_store).expanduser())
-            count, byte_size = store.count_compacted_messages(
-                user_id=args.user_id, conversation_id=args.session_id
-            )
-            if args.context_command == "stat":
-                payload = {
-                    "compacted_messages": count,
-                    "compacted_bytes": byte_size,
-                    "reclaimable": count > 0,
-                }
-            elif not args.yes:
-                # Refuse rather than prompt: this path has to work the same way
-                # when it is driven by a script as when a person runs it.
-                raise ValueError(
-                    "context prune permanently deletes summarised messages; "
-                    "pass --yes to confirm."
-                )
-            else:
-                deleted = store.prune_compacted_messages(
-                    user_id=args.user_id, conversation_id=args.session_id
-                )
-                payload = {"deleted_messages": deleted, "reclaimed_bytes": byte_size}
-            json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
-            stdout.write("\n")
-            return EXIT_OK
-        except (OSError, ValueError) as error:
-            json.dump({"state": "failed", "error_code": "CONTEXT_STORE_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
-            stdout.write("\n")
-            return EXIT_ARGUMENT_ERROR
-        except Exception as error:
-            json.dump({"state": "failed", "error_code": "CONTEXT_STORE_ERROR", "error_detail": f"{type(error).__name__}: {error}"}, stdout, ensure_ascii=False, separators=(",", ":"))
-            stdout.write("\n")
-            return EXIT_UNKNOWN_ERROR
-    if args.command == "memory":
-        try:
-            history = CareerHistoryStore(Path(args.career_store).expanduser())
-            tombstone = history.get_evidence_tombstone(
-                user_id=args.user_id,
-                cleanup_operation_id=args.operation_id,
-            )
-            if tombstone is None:
-                raise ValueError("Tombstone cleanup operation not found.")
-            context_store = CareerContextStore(
-                Path(args.context_store).expanduser()
-            )
-            cleanup = context_store.purge_derived_memory(
-                user_id=args.user_id,
-                scope_key=tombstone.scope_key,
-                lineage_markers=history.get_tombstone_lineage_markers(
-                    user_id=args.user_id,
-                    cleanup_operation_id=args.operation_id,
-                ),
-            )
-            completed = history.complete_tombstone_cleanup(
-                user_id=args.user_id,
-                cleanup_operation_id=args.operation_id,
-            )
-            json.dump(
-                {
-                    "cleanup_operation_id": completed.cleanup_operation_id,
-                    "cleanup_status": completed.cleanup_status,
-                    "derived_cleanup": cleanup,
-                },
-                stdout,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            stdout.write("\n")
-            return EXIT_OK
-        except (OSError, ValueError) as error:
-            json.dump(
-                {
-                    "state": "failed",
-                    "error_code": "MEMORY_CLEANUP_INPUT_ERROR",
-                    "error_detail": str(error),
-                },
-                stdout,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            stdout.write("\n")
-            return EXIT_ARGUMENT_ERROR
-        except Exception as error:
-            json.dump(
-                {
-                    "state": "failed",
-                    "error_code": "MEMORY_CLEANUP_STORE_ERROR",
-                    "error_detail": f"{type(error).__name__}: {error}",
-                },
-                stdout,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            stdout.write("\n")
-            return EXIT_UNKNOWN_ERROR
     if args.command == "chat":
         runtime = None
         try:
@@ -1877,13 +1671,12 @@ def main(
                 user_message=args.message,
                 request_id=args.request_id,
             )
-            manager = getattr(runtime, "context_manager", None)
-            notice = (
-                manager.compacted_message_notice(user_id=args.user_id)
-                if manager is not None
-                else None
+            return _write_chat_payload(
+                turn,
+                user_id=args.user_id,
+                session_id=args.session_id,
+                output=stdout,
             )
-            return _write_chat_payload(turn, user_id=args.user_id, session_id=args.session_id, output=stdout, notice=notice)
         except AgentConfigurationError as error:
             return _write_chat_error(error, stdout, code=EXIT_CONFIGURATION_ERROR, next_action="Set MAIN_AGENT_* and the configured specialist-agent environment variables.")
         except AgentWorkerError as error:

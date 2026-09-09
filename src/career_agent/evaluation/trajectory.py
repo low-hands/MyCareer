@@ -29,7 +29,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import NormalDist
 from typing import Any, Callable, Mapping, Sequence
 
 from career_agent.agent.decision_messages import project_decision_messages
@@ -142,8 +141,6 @@ class TrajectoryScenario:
 
     ``None`` when the scenario declares none. Quality scenarios pin their
     sample count, so changing the denominator cannot silently weaken this rate.
-    The evaluator also reports a Wilson interval: five samples are useful as a
-    cheap regression sentinel, not enough to claim a precise population rate.
 
     A floor rather than a target. ``pass^k`` is the right gate for an invariant
     and the wrong one for a quality property, but so is no gate at all: a
@@ -494,8 +491,12 @@ def _has_path(payload: Any, path: str) -> bool:
     exactly the contexts worth testing.
     """
     node = payload
-    for part in path.split("."):
+    parts = path.split(".")
+    for index, part in enumerate(parts):
         if isinstance(node, Mapping):
+            remainder = ".".join(parts[index:])
+            if remainder in node:
+                return True
             if part not in node:
                 return False
             node = node[part]
@@ -832,37 +833,22 @@ def quality_shortfall(
     )
 
 
-def wilson_score_interval(
-    passing: int,
-    total: int,
-    *,
-    confidence: float = 0.95,
-) -> tuple[float, float] | None:
-    """Wilson interval for an observed binomial pass rate.
+def minimum_detectable_regression(
+    sample_count: int,
+    min_pass_rate: float,
+) -> float | None:
+    """Largest drop from a perfect observed rate that still meets the floor.
 
-    The interval characterises uncertainty; the small fixed-sample regression
-    gate above deliberately remains a point-estimate floor. Returning ``None``
-    for no observations prevents callers from publishing a fictitious 0/0
-    quality rate.
+    The gate is a raw rate, not an interval. With n=3 and floor=0.6, 2/3 still
+    passes, so a one-sample (1/3) regression is invisible. Report that blind
+    spot instead of a Wilson interval that spans half of [0, 1] at this n.
     """
-    if total == 0:
+    if sample_count < 1 or not 0 < min_pass_rate <= 1:
         return None
-    if not 0 <= passing <= total:
-        raise ValueError(
-            "passing samples must be between zero and total samples"
-        )
-    if not 0 < confidence < 1:
-        raise ValueError("confidence must be between zero and one")
-    z = NormalDist().inv_cdf(0.5 + confidence / 2)
-    rate = passing / total
-    denominator = 1 + z * z / total
-    centre = (rate + z * z / (2 * total)) / denominator
-    margin = (
-        z
-        * math.sqrt(rate * (1 - rate) / total + z * z / (4 * total * total))
-        / denominator
-    )
-    return centre - margin, centre + margin
+    min_passes = math.ceil(min_pass_rate * sample_count - 1e-12)
+    if min_passes > sample_count:
+        min_passes = sample_count
+    return 1.0 - (min_passes / sample_count)
 
 
 def known_gap_reproduction(

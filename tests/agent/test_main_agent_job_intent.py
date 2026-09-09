@@ -108,6 +108,51 @@ def test_a_city_without_a_role_is_the_persons_default(tmp_path) -> None:
     assert "整体求职意向" in result.assistant_message
 
 
+def test_named_situational_intent_is_scoped_without_overwriting_global(
+    tmp_path,
+) -> None:
+    runtime, _, _ = build(
+        tmp_path,
+        propose(
+            city="北京",
+            pref_scope="startup_interview",
+            timescale="situational",
+        ),
+        final(),
+        profile=CareerProfileContext(user_id="u1", default_city="上海"),
+    )
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="创业公司面试时我可以考虑北京",
+    )
+
+    runtime, store, _ = build(tmp_path, confirm(), final())
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+    )
+
+    assert store.get_profile("u1").default_city == "上海"
+    scoped = store.list_profile_intent_versions(
+        user_id="u1",
+        scope_key="person_intent/self/default_city",
+        pref_scope="startup_interview",
+        active_only=True,
+    )
+    assert len(scoped) == 1
+    assert scoped[0].value == "北京"
+    assert scoped[0].layer == "transient"
+    assert scoped[0].capture_action == "narrow-to-scope"
+    assert "startup_interview" in result.assistant_message
+
+
+def test_situational_intent_requires_a_named_scope() -> None:
+    with pytest.raises(ValueError, match="named situation"):
+        JobIntentUpdate(city="北京", timescale="situational")
+
+
 def test_role_scoped_intent_lands_on_that_role_alone(tmp_path) -> None:
     """Two tracks, two salary bands: the whole reason this is not one profile."""
     resumes = ResumeStore(tmp_path / "resumes.sqlite3")
@@ -249,6 +294,8 @@ def test_the_tool_cannot_be_used_to_record_skills(tmp_path) -> None:
 
     assert set(schema["function"]["parameters"]["properties"]) == {
         "target_role_selection_index",
+        "pref_scope",
+        "timescale",
         "city",
         "salary_expectation",
         "experience",
@@ -373,9 +420,11 @@ def test_confirmed_hard_constraint_is_versioned_and_projected(tmp_path) -> None:
         conversation_id="c1",
         user_message="继续",
     )
-    assert projected.context.model_context()["career_profile"][
-        "hard_constraints"
-    ] == [{"relation": "work_schedule", "value": "不接受996"}]
+    profile_file = projected.context.model_context()["career_profile"][
+        "memory/profile.md"
+    ]
+    assert '- Work schedule: "不接受996"' in profile_file
+    assert "- Last confirmed: 今天确认" in profile_file
     versions = store.list_profile_intent_versions(
         user_id="u1",
         scope_key="person_intent/self/work_schedule",

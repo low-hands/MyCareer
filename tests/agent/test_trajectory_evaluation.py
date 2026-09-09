@@ -68,9 +68,9 @@ from career_agent.evaluation.trajectory import (
     replay_budget_cassette_pair,
     replay_cassette,
     replay_quality,
+    minimum_detectable_regression,
     quality_shortfall,
     trajectory_prompt_fingerprint,
-    wilson_score_interval,
 )
 
 
@@ -812,7 +812,7 @@ def test_changing_model_context_keys_changes_the_shape_fingerprint(
     def without_default_city(context):
         projection = original(context)
         career_profile = dict(projection["career_profile"])
-        career_profile.pop("default_city")
+        career_profile.pop("memory/profile.md")
         return {**projection, "career_profile": career_profile}
 
     monkeypatch.setattr(context_type, "model_context", without_default_city)
@@ -952,10 +952,13 @@ def test_quality_threshold_is_a_rate_and_reports_uncertainty() -> None:
     assert "40.0%" in quality_shortfall(
         scenario, ((), (), ("thin",), ("thin",), ("thin",))
     )
-    lower, upper = wilson_score_interval(4, 5)
-    assert lower == pytest.approx(0.375535, abs=1e-6)
-    assert upper == pytest.approx(0.963776, abs=1e-6)
-    assert wilson_score_interval(0, 0) is None
+
+
+def test_quality_mde_names_the_blind_spot_the_floor_cannot_see() -> None:
+    assert minimum_detectable_regression(3, 0.6) == pytest.approx(1 / 3)
+    assert minimum_detectable_regression(5, 0.6) == pytest.approx(0.4)
+    assert minimum_detectable_regression(1, 0.6) == 0.0
+    assert minimum_detectable_regression(0, 0.6) is None
 
 
 def test_the_suite_is_mostly_negative_and_not_entirely_negative() -> None:

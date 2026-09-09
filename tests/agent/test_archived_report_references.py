@@ -215,27 +215,6 @@ def test_the_catalogue_and_the_window_name_reports_the_same_way(tmp_path) -> Non
     ]
 
 
-def test_pruning_summarised_originals_keeps_the_reports_reachable(tmp_path) -> None:
-    """Reclaiming disk must not quietly cost the agent its handles.
-
-    Pruning deletes messages a summary already covers. A delivering turn's row
-    is one of those, and it is also the only path back to the report — while its
-    content is a bounded line, so keeping it reclaims almost nothing.
-    """
-    manager, store = _manager(tmp_path)
-    _turn(manager, index=1, ref=_research_ref("report-1"))
-    for index in range(2, 7):
-        _turn(manager, index=index)
-
-    deleted = store.prune_compacted_messages(user_id="u1", conversation_id="c1")
-
-    assert deleted > 0
-    context = manager.load_for_turn(
-        user_id="u1", conversation_id="c1", user_message="那份调研呢"
-    )
-    assert [ref.resource_id for ref in context.referenced_resources()] == ["report-1"]
-
-
 def test_the_catalogue_is_empty_before_anything_has_scrolled_away(tmp_path) -> None:
     """No summary means the window already holds every reference."""
     manager, _ = _manager(tmp_path)
@@ -279,36 +258,6 @@ def test_the_limit_is_validated_rather_than_silently_clamped(tmp_path) -> None:
             CareerContextStore(tmp_path / "context.sqlite3"),
             archived_resource_limit=99,
         )
-
-
-def test_the_reclaim_notice_counts_only_what_a_prune_would_delete(tmp_path) -> None:
-    """The invariant that keeping delivering rows quietly broke.
-
-    Delivering turns are excluded from the prune so a report stays reachable.
-    They were still counted as reclaimable, so once enough reports accumulated
-    the operator was told there was disk to reclaim, ran the command, and was
-    told the same thing again — permanently, with nothing to do about it.
-    """
-    manager, store = _manager(tmp_path)
-    _turn(manager, index=1, ref=_research_ref("report-1"))
-    for index in range(2, 7):
-        _turn(manager, index=index)
-
-    before, _ = store.count_compacted_messages(user_id="u1", conversation_id="c1")
-    deleted = store.prune_compacted_messages(user_id="u1", conversation_id="c1")
-    after, byte_size = store.count_compacted_messages(
-        user_id="u1", conversation_id="c1"
-    )
-
-    assert deleted == before
-    # Nothing left to offer, even though the delivering row is still stored.
-    assert (after, byte_size) == (0, 0)
-    assert [
-        ref.resource_id
-        for ref in manager.load_for_turn(
-            user_id="u1", conversation_id="c1", user_message="那份调研呢"
-        ).referenced_resources()
-    ] == ["report-1"]
 
 
 def test_a_capped_catalogue_says_how_much_it_is_not_showing(tmp_path) -> None:

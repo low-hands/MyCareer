@@ -162,6 +162,7 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "claim_source_found": _summarised(),
     "career_memory_detail_found": _summarised(),
     "career_memory_search_found": _summarised(),
+    "career_episode_search_found": _summarised(),
     "career_history_found": _summarised(),
 }
 
@@ -189,6 +190,7 @@ _POLICIES.update(
             "claim_source_not_found",
             "career_memory_detail_not_found",
             "career_memory_search_empty",
+            "career_episode_search_empty",
             "career_history_empty",
             "conversation_span_empty",
             "compare_input_not_found",
@@ -215,8 +217,9 @@ _POLICIES.update(
             "career_memory_amended",
             "memory_amendment_confirmation_missing",
             "memory_amendment_target_not_found",
-            "memory_tombstone_cleanup_pending",
+            "memory_tombstone_cleanup_incomplete",
             "memory_tombstone_confirmation_missing",
+            "memory_tombstone_target_changed",
             "memory_tombstone_target_not_found",
             "memory_tombstoned",
             "job_research_not_found",

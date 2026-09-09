@@ -5,6 +5,7 @@ import json
 import pytest
 
 from career_agent.agent.conversation_memory_contracts import (
+    HARNESS_SUMMARY_COUNTER_FIELDS,
     ConversationSummaryContent,
     SummaryMessage,
 )
@@ -73,6 +74,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     request = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert request["previous_summary"]["confirmed_decisions"] == ["Use SQLite"]
     assert "omitted_active_constraint_count" not in request["previous_summary"]
+    assert HARNESS_SUMMARY_COUNTER_FIELDS.isdisjoint(request["previous_summary"])
     assert request["new_messages"][0]["sequence"] == 9
     system = client.completions.kwargs["messages"][0]["content"]
     assert "not confirmed long-term user memory" in system

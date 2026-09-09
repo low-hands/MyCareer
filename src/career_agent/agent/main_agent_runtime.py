@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerHistoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.harness.observability import (
@@ -27,7 +27,6 @@ from career_agent.harness.observability import (
 )
 from career_agent.harness.memory_telemetry import (
     memory_context_observation,
-    memory_use_observation,
 )
 from career_agent.agent.delivery_policy import (
     condenses_message,
@@ -276,6 +275,11 @@ class MainAgentState(TypedDict, total=False):
     artifact_ids: tuple[str, ...]
     assistant_message: str
     model_message: str
+    # What career memory this turn put in front of the model. Kept on the
+    # state rather than read off the final context, because ``observe``
+    # reloads the context after a memory write and that reload cannot know
+    # what the earlier prompt already contained.
+    career_memory_scope_keys: tuple[str, ...]
 
 
 class MainAgentTurnResult:
@@ -301,7 +305,7 @@ class MainAgentTurnResult:
     execution records rather than on this envelope; see 071 三-7.
     """
 
-    def __init__(self, *, origin: TurnOrigin, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0) -> None:
+    def __init__(self, *, origin: TurnOrigin, context: MainAgentContext, assistant_message: str, tool_result: MainAgentToolOutput | None = None, tool_results: tuple[MainAgentToolOutput, ...] = (), artifacts: tuple[ResumeArtifactDelivery, ...] = (), content_streamed: bool = False, model_message: str = "", delegated_read_count: int = 0, delegated_write_count: int = 0, career_memory_scope_keys: tuple[str, ...] = ()) -> None:
         self.origin = origin
         self.context = context
         self.assistant_message = assistant_message
@@ -314,6 +318,10 @@ class MainAgentTurnResult:
         self.model_message = model_message
         self.delegated_read_count = delegated_read_count
         self.delegated_write_count = delegated_write_count
+        # The career scopes this turn showed the model, carried out to the
+        # commit so the stored messages can be bound to them and later
+        # suppressed if one of those scopes is tombstoned.
+        self.career_memory_scope_keys = career_memory_scope_keys
 
     @property
     def requested_by(self) -> Originator:
@@ -969,6 +977,7 @@ class MainAgentRuntime:
                     tool_results=result.tool_results
                     or ((result.tool_result,) if result.tool_result else ()),
                 ),
+                memory_scope_keys=result.career_memory_scope_keys,
             )
             return result
 
@@ -1063,6 +1072,7 @@ class MainAgentRuntime:
                     tool_results=result.tool_results
                     or ((result.tool_result,) if result.tool_result else ()),
                 ),
+                memory_scope_keys=result.career_memory_scope_keys,
             )
         return result
 
@@ -1497,6 +1507,7 @@ class MainAgentRuntime:
             tool_results=state.get("tool_results", ()),
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
+            career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
         )
 
     def _settled_confirmation_turn(
@@ -1687,6 +1698,7 @@ class MainAgentRuntime:
             model_message=state.get("model_message", ""),
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
+            career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
         )
 
     def _decide(self, state: MainAgentState) -> MainAgentState:
@@ -1778,14 +1790,6 @@ class MainAgentRuntime:
                     ).hexdigest(),
                 }
             )
-        memory_use = memory_use_observation(context, decision)
-        if memory_use is not None:
-            self._record_trace_event(
-                "memory_use_observed",
-                "main_agent_decide",
-                outcome="succeeded",
-                details=memory_use,
-            )
         self._record_trace_event(
             "model_succeeded",
             "main_agent_decide",
@@ -1872,6 +1876,7 @@ class MainAgentRuntime:
             tool_results=state.get("tool_results", ()),
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
+            career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
         )
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
@@ -1882,7 +1887,14 @@ class MainAgentRuntime:
             user_id=context.profile.user_id,
             query=context.user_message,
         )
-        return {"context": context.model_copy(update={"career_memory": memory})}
+        return {
+            "context": context.model_copy(update={"career_memory": memory}),
+            "career_memory_scope_keys": tuple(
+                dict.fromkeys(
+                    binding.entry_id for binding in memory.telemetry_bindings
+                )
+            ),
+        }
 
     @staticmethod
     def _tool_call_fingerprint(decision: AgentDecision) -> str:
@@ -2569,7 +2581,7 @@ class MainAgentRuntime:
             if result.state in {
                 "career_memory_amended",
                 "memory_tombstoned",
-                "memory_tombstone_cleanup_pending",
+                "memory_tombstone_cleanup_incomplete",
             }:
                 refreshed = self._context_manager.load_for_turn(
                     user_id=context.profile.user_id,
@@ -2970,15 +2982,10 @@ class MainAgentRuntime:
             source_quote = result.payload.get("source_quote")
             if isinstance(source_quote, str) and source_quote:
                 claim_status = result.facts.get("claim_status")
-                if claim_status in {"superseded", "rolled_back"}:
+                if claim_status == "superseded":
                     changed_at = result.facts.get("status_changed_at")
-                    status_label = (
-                        "已回滚声明"
-                        if claim_status == "rolled_back"
-                        else "已被更正声明"
-                    )
                     return (
-                        f"注意：这是{status_label}的历史引文，不能作为当前声明的"
+                        "注意：这是已被更正声明的历史引文，不能作为当前声明的"
                         f"支持（状态变更时间：{changed_at or '未记录'}）。\n\n"
                         f"原始证据引文：\n\n{source_quote}"
                     )
@@ -2986,6 +2993,7 @@ class MainAgentRuntime:
         if result.state in {
             "career_memory_detail_found",
             "career_memory_search_found",
+            "career_episode_search_found",
             "career_history_found",
         }:
             body = result.payload.get("body")
@@ -3266,6 +3274,20 @@ class MainAgentRuntime:
             model_arguments = GetCareerMemoryDetailToolArguments.model_validate(
                 arguments
             )
+            return {
+                "user_id": context.profile.user_id,
+                **model_arguments.model_dump(),
+            }
+        if name == "search_career_episodes":
+            model_arguments = SearchCareerEpisodesToolArguments.model_validate(
+                arguments
+            )
+            return {
+                "user_id": context.profile.user_id,
+                **model_arguments.model_dump(),
+            }
+        if name == "search_career_memory":
+            model_arguments = SearchCareerMemoryToolArguments.model_validate(arguments)
             return {
                 "user_id": context.profile.user_id,
                 **model_arguments.model_dump(),
