@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
+from decimal import Decimal
 import math
-import re
 
 from career_agent.agent.main_agent_contracts import (
     CareerMemoryClaim,
@@ -12,7 +11,40 @@ from career_agent.agent.main_agent_contracts import (
     MemoryTelemetryBinding,
 )
 from career_agent.domain.career_history import CareerEvidence
-from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.career_history import (
+    CareerEvidenceQueryTerms,
+    CareerHistoryStore,
+    RankedCareerEvidence,
+)
+
+# Generative Agents (Park et al., UIST 2023) does not justify a 0.4/0.3/0.3
+# split: the paper uses equal alpha values and normalizes all three components,
+# while its released implementation uses gw=[0.5, 3, 2]. The only claimed
+# property of this provisional split is the safety constraint below. The
+# specific triple still needs a judgment set.
+_RELEVANCE_WEIGHT = 0.6
+_RECENCY_WEIGHT = 0.2
+_STRUCTURAL_WEIGHT = 0.2
+
+
+def _weights_preserve_hit_precedence(
+    relevance: float,
+    recency: float,
+    structural: float,
+) -> bool:
+    relevance_decimal = Decimal(str(relevance))
+    required = 2 * Decimal(str(recency)) + Decimal(str(structural))
+    return relevance_decimal >= required
+
+
+if not _weights_preserve_hit_precedence(
+    _RELEVANCE_WEIGHT,
+    _RECENCY_WEIGHT,
+    _STRUCTURAL_WEIGHT,
+):
+    raise AssertionError(
+        "weights let a fresh current non-match outrank a historical hit"
+    )
 
 
 class CareerContextProjector:
@@ -59,16 +91,19 @@ class CareerContextProjector:
             user_id=user_id,
             limit=self._candidate_record_limit,
         )
-        query_terms = self._terms(query)
-        relevance_hits = self._store.rank_current_evidence(
+        query_terms = self._store.current_evidence_query_terms(
             user_id=user_id,
             query=query,
+        )
+        ranked_hits = self._store.rank_current_evidence(
+            user_id=user_id,
+            query_terms=query_terms,
             limit=self._relevance_candidate_limit,
         )
-        relevance_rank = {
-            evidence.id: index
-            for index, evidence in enumerate(relevance_hits)
-        }
+        fts_relevance = self._fts_relevance(
+            ranked_hits,
+            query_terms=query_terms,
+        )
         loaded = []
         for recency, record in enumerate(records):
             evidence = self._store.list_evidence(
@@ -78,26 +113,7 @@ class CareerContextProjector:
                 limit=self._candidate_claim_limit_per_record,
             )
             loaded.append((record, evidence, recency))
-        newest_evidence_at = max(
-            (
-                item.created_at
-                for _, evidence, _ in loaded
-                for item in evidence
-            ),
-            default=None,
-        )
-        short_query_relevance = (
-            self._bounded_bm25_relevance(
-                query_terms=query_terms,
-                evidence=tuple(
-                    item
-                    for _, record_evidence, _ in loaded
-                    for item in record_evidence
-                ),
-            )
-            if not self._has_fts_query_token(query)
-            else {}
-        )
+        observed_at = datetime.now(timezone.utc)
         candidates = []
         for record, evidence, recency in loaded:
             scored_evidence = tuple(
@@ -105,11 +121,8 @@ class CareerContextProjector:
                     item,
                     self._claim_score(
                         item,
-                        query_terms=query_terms,
-                        relevance_rank=relevance_rank,
-                        relevance_candidate_count=len(relevance_hits),
-                        fallback_relevance=short_query_relevance,
-                        newest_evidence_at=newest_evidence_at,
+                        fts_relevance=fts_relevance,
+                        observed_at=observed_at,
                         record_is_current=record.is_current,
                     ),
                 )
@@ -138,19 +151,9 @@ class CareerContextProjector:
                 )
                 for item in ranked_evidence
             )
-            record_metadata = " ".join(
-                value
-                for value in (
-                    record.title,
-                    record.organization,
-                )
-                if value
-            )
             relevance = max(
                 (score for _, score in scored_evidence),
                 default=self._record_metadata_score(
-                    query_terms=query_terms,
-                    record_metadata=record_metadata,
                     record_is_current=record.is_current,
                 ),
             )
@@ -293,159 +296,70 @@ class CareerContextProjector:
             value=evidence.claim,
             revision=evidence.revision,
             lifecycle_status=(
-                "rolled_back"
-                if evidence.rolled_back_at is not None
-                else "superseded"
-                if evidence.superseded_by is not None
-                else "current"
+                "superseded" if evidence.superseded_by is not None else "current"
             ),
         )
 
     @staticmethod
-    def _terms(value: str) -> frozenset[str]:
-        return frozenset(CareerContextProjector._term_sequence(value))
-
-    @staticmethod
-    def _term_sequence(value: str) -> tuple[str, ...]:
-        normalized = value.casefold()
-        latin = re.findall(r"[a-z0-9][a-z0-9.+#-]*", normalized)
-        chinese_chunks = re.findall(r"[\u4e00-\u9fff]+", normalized)
-        chinese = [
-            chunk[index : index + 2]
-            for chunk in chinese_chunks
-            for index in range(max(1, len(chunk) - 1))
-        ]
-        return tuple((*latin, *chinese))
-
-    @staticmethod
-    def _overlap(left: frozenset[str], right: frozenset[str]) -> int:
-        return len(left.intersection(right))
-
-    @staticmethod
-    def _has_fts_query_token(value: str) -> bool:
-        normalized = value.casefold()
-        return bool(
-            re.search(r"[a-z0-9+#.-]{3,}", normalized)
-            or re.search(r"[\u4e00-\u9fff]{3,}", normalized)
-        )
-
-    @classmethod
-    def _bounded_bm25_relevance(
-        cls,
+    def _fts_relevance(
+        hits: tuple[RankedCareerEvidence, ...],
         *,
-        query_terms: frozenset[str],
-        evidence: tuple[CareerEvidence, ...],
+        query_terms: CareerEvidenceQueryTerms,
     ) -> dict[str, float]:
-        """Length-normalized relevance for queries the trigram index cannot serve."""
+        """Map BM25 through a dimensionless, result-set-independent sigmoid.
 
-        if not query_terms or not evidence:
+        A hit maps to [0.5, 1), while an item outside the hit set remains 0.
+        Dividing by the query's corpus-level IDF sum removes BM25's dominant
+        query-length and collection-size scale without using hit-set statistics.
+        """
+
+        if not hits:
             return {}
-        documents = {
-            item.id: cls._term_sequence(item.claim) for item in evidence
-        }
-        average_length = sum(map(len, documents.values())) / len(documents)
-        document_frequency = {
-            term: sum(term in tokens for tokens in documents.values())
-            for term in query_terms
-        }
-        raw_scores: dict[str, float] = {}
-        k1 = 1.2
-        length_weight = 0.75
-        for evidence_id, tokens in documents.items():
-            frequencies = Counter(tokens)
-            document_length = len(tokens)
-            score = 0.0
-            for term in query_terms:
-                frequency = frequencies[term]
-                if not frequency:
-                    continue
-                inverse_document_frequency = math.log(
-                    1
-                    + (
-                        len(documents)
-                        - document_frequency[term]
-                        + 0.5
-                    )
-                    / (document_frequency[term] + 0.5)
-                )
-                denominator = frequency + k1 * (
-                    1
-                    - length_weight
-                    + length_weight
-                    * document_length
-                    / max(1.0, average_length)
-                )
-                score += (
-                    inverse_document_frequency
-                    * frequency
-                    * (k1 + 1)
-                    / denominator
-                )
-            raw_scores[evidence_id] = score
-        maximum = max(raw_scores.values(), default=0.0)
-        if maximum <= 0:
-            return {}
+        if not query_terms.match_tokens or query_terms.idf_sum <= 0:
+            raise ValueError("FTS hits require query terms with positive IDF")
         return {
-            evidence_id: score / maximum
-            for evidence_id, score in raw_scores.items()
+            hit.evidence.id: CareerContextProjector._stable_sigmoid(
+                max(0.0, -hit.bm25_score) / query_terms.idf_sum
+            )
+            for hit in hits
         }
+    @staticmethod
+    def _stable_sigmoid(value: float) -> float:
+        if value >= 0:
+            return 1.0 / (1.0 + math.exp(-value))
+        exponent = math.exp(value)
+        return exponent / (1.0 + exponent)
 
-    @classmethod
-    def _record_metadata_score(
-        cls,
-        *,
-        query_terms: frozenset[str],
-        record_metadata: str,
-        record_is_current: bool,
-    ) -> float:
-        relevance = min(
-            1.0,
-            cls._overlap(query_terms, cls._terms(record_metadata))
-            / max(1, len(query_terms)),
-        )
-        structural_importance = 1.0 if record_is_current else 0.5
-        # No claim timestamp means there is no honest recency signal to score.
-        return 0.4 * relevance + 0.3 * structural_importance
+    @staticmethod
+    def _record_metadata_score(*, record_is_current: bool) -> float:
+        # No claim in the FTS candidate set, so relevance is 0. Recency has
+        # nothing to attach to. Structural importance still distinguishes a
+        # current role from a historical empty record.
+        return _STRUCTURAL_WEIGHT * (1.0 if record_is_current else 0.5)
 
     def _claim_score(
         self,
         evidence: CareerEvidence,
         *,
-        query_terms: frozenset[str],
-        relevance_rank: dict[str, int],
-        relevance_candidate_count: int,
-        fallback_relevance: dict[str, float],
-        newest_evidence_at: datetime | None,
+        fts_relevance: dict[str, float],
+        observed_at: datetime,
         record_is_current: bool,
     ) -> float:
-        """Blend available relevance, recency, and structural importance."""
+        """Blend FTS relevance with recency and structural importance.
 
-        rank = relevance_rank.get(evidence.id)
-        if rank is not None and relevance_candidate_count:
-            relevance = (
-                relevance_candidate_count - rank
-            ) / relevance_candidate_count
-        elif evidence.id in fallback_relevance:
-            relevance = fallback_relevance[evidence.id]
-        else:
-            relevance = min(
-                1.0,
-                self._overlap(query_terms, self._terms(evidence.claim))
-                / max(1, len(query_terms)),
-            )
-        recency = 1.0
-        if newest_evidence_at is not None:
-            age_days = max(
-                0.0,
-                (
-                    newest_evidence_at - evidence.created_at
-                ).total_seconds()
-                / 86_400,
-            )
-            recency = 0.5 ** (age_days / self._recency_half_life_days)
+        Recency and structural importance only rerank; they cannot pull a
+        claim into the relevance candidate set.
+        """
+
+        relevance = fts_relevance.get(evidence.id, 0.0)
+        age_days = max(
+            0.0,
+            (observed_at - evidence.created_at).total_seconds() / 86_400,
+        )
+        recency = 0.5 ** (age_days / self._recency_half_life_days)
         structural_importance = 1.0 if record_is_current else 0.5
         return (
-            0.4 * relevance
-            + 0.3 * recency
-            + 0.3 * structural_importance
+            _RELEVANCE_WEIGHT * relevance
+            + _RECENCY_WEIGHT * recency
+            + _STRUCTURAL_WEIGHT * structural_importance
         )
