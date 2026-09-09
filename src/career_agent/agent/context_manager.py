@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Callable, Literal, Protocol
 
 from career_agent.agent.conversation_memory_contracts import (
+    ACTIVE_CONSTRAINT_MAX_ITEMS as _ACTIVE_CONSTRAINT_MAX_ITEMS,
     SUMMARY_TEXT_MAX_CHARS as _SUMMARY_TEXT_BUDGET,
     ConversationSummaryContent,
     ConversationSummaryWorker,
@@ -746,16 +747,9 @@ class ContextManager:
             )
         except AgentWorkerError:
             return False
-        restored_constraints = 0
-        dropped_constraints = 0
         dropped_user_goals = 0
         dropped_confirmed_decisions = 0
         dropped_unresolved_questions = 0
-        omitted_active_constraint_count = (
-            previous.content.omitted_active_constraint_count
-            if previous is not None
-            else 0
-        )
         omitted_user_goal_count = (
             previous.content.omitted_user_goal_count
             if previous is not None
@@ -771,35 +765,71 @@ class ContextManager:
             if previous is not None
             else 0
         )
+        # Constraint deletion is not delegated to a lossy rewrite. The ledger
+        # behind the summary owns both directions: ``retired`` rows are
+        # excluded here so a rewrite that copies constraints forward verbatim
+        # cannot resurrect one, and ``omitted`` rows re-enter as candidates so
+        # retiring a constraint readmits the oldest archived one instead of
+        # stranding it.
+        ledger = self._store.list_conversation_constraints(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+        retired_constraints = {
+            row.text for row in ledger if row.status == "retired"
+        }
         prior_constraints = (
             previous.content.active_constraints if previous is not None else ()
         )
         candidate_constraints = tuple(
-            dict.fromkeys((*prior_constraints, *content.active_constraints))
+            text
+            for text in dict.fromkeys(
+                (
+                    # Ledger order is first-seen order, which is the ordering
+                    # the cap needs. Prior visible constraints follow it to
+                    # cover a summary written before the ledger existed.
+                    *(
+                        row.text
+                        for row in ledger
+                        if row.status in ("active", "omitted")
+                    ),
+                    *prior_constraints,
+                    *content.active_constraints,
+                )
+            )
+            if text not in retired_constraints
         )
-        merged_constraints = candidate_constraints[:15]
         # The contract budgets every summary field together, so fifteen
         # constraints can exceed the whole allowance on their own and leave
         # nothing for the fields below. Oldest first, so a constraint that
         # already survived a rewrite is never traded for a newer one.
         constraint_chars = 0
-        bounded: list[str] = []
-        for constraint in merged_constraints:
-            if constraint_chars + len(constraint) > _SUMMARY_TEXT_BUDGET:
+        visible: list[str] = []
+        for constraint in candidate_constraints:
+            if len(visible) >= _ACTIVE_CONSTRAINT_MAX_ITEMS:
                 break
-            bounded.append(constraint)
+            if constraint_chars + len(constraint) > _SUMMARY_TEXT_BUDGET:
+                # Skip this one rather than stop: an oversized constraint used
+                # to discard every later constraint regardless of its size.
+                continue
+            visible.append(constraint)
             constraint_chars += len(constraint)
-        merged_constraints = tuple(bounded)
-        dropped_constraints = len(candidate_constraints) - len(
-            merged_constraints
+        merged_constraints = tuple(visible)
+        visible_lookup = set(merged_constraints)
+        omitted_constraints = tuple(
+            constraint
+            for constraint in candidate_constraints
+            if constraint not in visible_lookup
         )
+        dropped_constraints = len(omitted_constraints)
         restored_constraints = sum(
             constraint not in content.active_constraints
             for constraint in merged_constraints
         )
-        # Constraint deletion is not delegated to a lossy rewrite.
-        # Explicit state transitions should retire constraints in a
-        # future typed operation; until then, old constraints win.
+        readmitted_constraints = sum(
+            row.status == "omitted" and row.text in visible_lookup
+            for row in ledger
+        )
         # Field pops run on every batch, including the first summary and
         # batches whose constraint merge was a no-op.
         fields = {
@@ -831,7 +861,10 @@ class ContextManager:
         dropped_user_goals = dropped_fields["user_goals"]
         dropped_confirmed_decisions = dropped_fields["confirmed_decisions"]
         dropped_unresolved_questions = dropped_fields["unresolved_questions"]
-        omitted_active_constraint_count += dropped_constraints
+        # Absolute, not cumulative: archived constraints are retrievable, so
+        # the count answers "how many are held back right now". The three
+        # counters below still accumulate because those entries are destroyed.
+        omitted_active_constraint_count = len(omitted_constraints)
         omitted_user_goal_count += dropped_user_goals
         omitted_confirmed_decision_count += dropped_confirmed_decisions
         omitted_unresolved_question_count += dropped_unresolved_questions
@@ -851,6 +884,7 @@ class ContextManager:
             expected_previous_through_sequence=previous_through,
             content=content,
             through_sequence=to_summarize[-1].sequence,
+            omitted_constraints=omitted_constraints,
         )
         if not compacted:
             return False
@@ -875,6 +909,7 @@ class ContextManager:
                 "input_occupancy_denominator": max_input_tokens,
                 "restored_constraints": restored_constraints,
                 "dropped_constraints": dropped_constraints,
+                "readmitted_constraints": readmitted_constraints,
                 "dropped_user_goals": dropped_user_goals,
                 "dropped_confirmed_decisions": dropped_confirmed_decisions,
                 "dropped_unresolved_questions": dropped_unresolved_questions,

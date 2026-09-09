@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -62,6 +63,17 @@ _NOT_SUPPRESSED_SQL = """
 """
 
 
+def _constraint_digest(text: str) -> str:
+    """Identify a constraint by its exact text.
+
+    A retirement has to outlive a rewrite that copies constraints forward
+    verbatim, so the identity is the text itself rather than a position or a
+    row id.
+    """
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _usable_lineage_markers(markers: Sequence[str]) -> tuple[str, ...]:
     """Accept only opaque exact refs; free-text claims are never scan keys."""
 
@@ -73,6 +85,17 @@ def _usable_lineage_markers(markers: Sequence[str]) -> tuple[str, ...]:
         if _OPAQUE_LINEAGE_MARKER.fullmatch(text):
             usable.append(text)
     return tuple(dict.fromkeys(usable))
+
+
+class ArchivedConversationConstraint(BaseModel):
+    """One row of the constraint ledger behind a conversation summary."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    seq: int
+    text: str
+    status: Literal["active", "omitted", "retired"]
+    first_seen_at: datetime
+    status_changed_at: datetime
 
 
 class StoredConversationOverview(BaseModel):
@@ -153,7 +176,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                10,
+                11,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -165,6 +188,7 @@ class CareerContextStore:
                     8: self._upgrade_to_v8,
                     9: upgrade_intent_version_schema,
                     10: self._upgrade_to_v10,
+                    11: self._upgrade_to_v11,
                 },
             )
             apply_episode_schema(connection)
@@ -268,6 +292,98 @@ class CareerContextStore:
     @staticmethod
     def _upgrade_to_v10(connection: sqlite3.Connection) -> None:
         CareerContextStore._drop_removed_scope_queue(connection)
+
+    @staticmethod
+    def _upgrade_to_v11(connection: sqlite3.Connection) -> None:
+        CareerContextStore._ensure_constraint_archive_schema(connection)
+        CareerContextStore._backfill_constraint_archive(connection)
+
+    @staticmethod
+    def _ensure_constraint_archive_schema(connection: sqlite3.Connection) -> None:
+        """Give conversation constraints an entry *and* an exit.
+
+        The summary is a bounded projection; this table is the ledger behind
+        it. Three facts need somewhere durable to live that a lossy rewrite
+        cannot reach:
+
+        ``retired`` is why the table exists. The summary worker receives the
+        previous summary and copies constraints forward verbatim, and the very
+        messages announcing a retirement are in the batch being summarized, so
+        dropping a constraint from the summary alone invites the next rewrite
+        to re-extract it. Matching on the exact text digest blocks that
+        verbatim path; it cannot block a paraphrase, and nothing here pretends
+        otherwise.
+
+        ``omitted`` turns the visible cap from a discard into a page. A
+        constraint pushed out by the cap keeps its ``seq``, so retiring one
+        constraint readmits the oldest omitted one on the next compaction
+        instead of stranding it.
+
+        ``seq`` is first-seen order, which is the only ordering the cap needs:
+        a constraint that already survived a rewrite is never traded for a
+        newer one.
+        """
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_constraint_archive (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                constraint_sha256 TEXT NOT NULL,
+                constraint_text TEXT NOT NULL,
+                status TEXT NOT NULL
+                    CHECK(status IN ('active', 'omitted', 'retired')),
+                first_seen_at TEXT NOT NULL,
+                status_changed_at TEXT NOT NULL,
+                UNIQUE(user_id, conversation_id, constraint_sha256)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS conversation_constraint_archive_idx
+            ON conversation_constraint_archive(
+                user_id, conversation_id, status, seq
+            )
+            """
+        )
+
+    @staticmethod
+    def _backfill_constraint_archive(connection: sqlite3.Connection) -> None:
+        """Seed the ledger from summaries written before it existed.
+
+        Only the constraints still visible in a stored summary can be
+        recovered; anything an earlier cap already discarded was never
+        persisted anywhere and is not reconstructable here.
+        """
+
+        rows = connection.execute(
+            "SELECT user_id, conversation_id, content_json, updated_at "
+            "FROM conversation_summaries"
+        ).fetchall()
+        for user_id, conversation_id, content_json, updated_at in rows:
+            content = ConversationSummaryContent.model_validate_json(content_json)
+            for text in content.active_constraints:
+                connection.execute(
+                    """
+                    INSERT INTO conversation_constraint_archive(
+                        user_id, conversation_id, constraint_sha256,
+                        constraint_text, status, first_seen_at,
+                        status_changed_at
+                    ) VALUES (?, ?, ?, ?, 'active', ?, ?)
+                    ON CONFLICT(user_id, conversation_id, constraint_sha256)
+                        DO NOTHING
+                    """,
+                    (
+                        user_id,
+                        conversation_id,
+                        _constraint_digest(text),
+                        text,
+                        updated_at,
+                        updated_at,
+                    ),
+                )
 
     @staticmethod
     def _drop_removed_scope_queue(connection: sqlite3.Connection) -> None:
@@ -437,6 +553,7 @@ class CareerContextStore:
         )
         CareerContextStore._ensure_memory_deletion_schema(connection)
         CareerContextStore._drop_removed_scope_queue(connection)
+        CareerContextStore._ensure_constraint_archive_schema(connection)
 
     def get_session(self, user_id: str, session_id: str) -> AgentSession | None:
         with self._connect() as connection:
@@ -480,6 +597,7 @@ class CareerContextStore:
                 "conversation_task_state",
                 "conversation_message_memory_bindings",
                 "memory_deletion_message_suppressions",
+                "conversation_constraint_archive",
             ):
                 connection.execute(
                     f"DELETE FROM {table} WHERE user_id = ? AND conversation_id = ?",
@@ -1206,6 +1324,29 @@ class CareerContextStore:
                     (user_id, *affected_conversations, scope_key),
                 )
                 summary_count = int(cursor.rowcount)
+                # Constraints are summary-derived text, so a tombstone has to
+                # reach them too. Which archive rows came from the deleted
+                # scope is not recorded, so the whole live set for a dropped
+                # summary goes and the rebuild re-derives it from unsuppressed
+                # messages. Retirements are kept: they are the record of a
+                # user decision, not a derivation, and dropping them would let
+                # the rebuild resurrect a retired constraint.
+                connection.execute(
+                    f"""
+                    DELETE FROM conversation_constraint_archive
+                    WHERE user_id = ?
+                      AND conversation_id IN ({placeholders})
+                      AND status IN ('active', 'omitted')
+                      AND NOT EXISTS (
+                            SELECT 1 FROM conversation_summaries AS kept
+                            WHERE kept.user_id
+                                  = conversation_constraint_archive.user_id
+                              AND kept.conversation_id
+                                  = conversation_constraint_archive.conversation_id
+                          )
+                    """,
+                    (user_id, *affected_conversations),
+                )
             episode_count = SQLiteCareerEpisodeStore.delete_for_scope_on(
                 connection,
                 user_id=user_id,
@@ -1260,6 +1401,111 @@ class CareerContextStore:
             )
         return tuple(messages)
 
+    def list_conversation_constraints(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        statuses: Sequence[str] = ("active", "omitted", "retired"),
+    ) -> tuple[ArchivedConversationConstraint, ...]:
+        """Read the constraint ledger in first-seen order."""
+
+        if not statuses:
+            return ()
+        placeholders = ", ".join("?" for _ in statuses)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT seq, constraint_text, status, first_seen_at,
+                       status_changed_at
+                FROM conversation_constraint_archive
+                WHERE user_id = ? AND conversation_id = ?
+                  AND status IN ({placeholders})
+                ORDER BY seq
+                """,
+                (user_id, conversation_id, *statuses),
+            ).fetchall()
+        return tuple(
+            ArchivedConversationConstraint(
+                seq=row[0],
+                text=row[1],
+                status=row[2],
+                first_seen_at=row[3],
+                status_changed_at=row[4],
+            )
+            for row in rows
+        )
+
+    def retire_conversation_constraint(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        constraint_text: str,
+    ) -> bool:
+        """Retire one constraint by exact text.
+
+        Returns ``False`` when the text is not a live constraint of this
+        conversation, so a stale readback cannot retire something the user
+        never saw. Retirement is idempotent only in the sense that a second
+        attempt reports ``False`` rather than silently succeeding.
+        """
+
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            changed = connection.execute(
+                """
+                UPDATE conversation_constraint_archive
+                SET status = 'retired', status_changed_at = ?
+                WHERE user_id = ? AND conversation_id = ?
+                  AND constraint_sha256 = ?
+                  AND status IN ('active', 'omitted')
+                """,
+                (
+                    now,
+                    user_id,
+                    conversation_id,
+                    _constraint_digest(constraint_text),
+                ),
+            ).rowcount
+            if not changed:
+                return False
+            # The summary still shows the retired constraint until the next
+            # compaction rewrites it, and compaction only runs once a full
+            # batch accumulates. Drop it from the stored projection now so the
+            # retirement is visible on the very next turn.
+            row = connection.execute(
+                """
+                SELECT content_json FROM conversation_summaries
+                WHERE user_id = ? AND conversation_id = ?
+                """,
+                (user_id, conversation_id),
+            ).fetchone()
+            if row is None:
+                return True
+            content = ConversationSummaryContent.model_validate_json(row[0])
+            if constraint_text not in content.active_constraints:
+                return True
+            content = content.model_copy(
+                update={
+                    "active_constraints": tuple(
+                        text
+                        for text in content.active_constraints
+                        if text != constraint_text
+                    )
+                }
+            )
+            connection.execute(
+                """
+                UPDATE conversation_summaries
+                SET content_json = ?, updated_at = ?
+                WHERE user_id = ? AND conversation_id = ?
+                """,
+                (content.model_dump_json(), now, user_id, conversation_id),
+            )
+        return True
+
     def compact_conversation_summary(
         self,
         *,
@@ -1268,7 +1514,16 @@ class CareerContextStore:
         expected_previous_through_sequence: int,
         content: ConversationSummaryContent,
         through_sequence: int,
+        omitted_constraints: Sequence[str] = (),
     ) -> bool:
+        """Store one summary and reconcile the constraint ledger with it.
+
+        ``content.active_constraints`` and ``omitted_constraints`` are the two
+        halves of the caller's cap decision. Both land in the same transaction
+        as the summary, so the visible projection and the ledger behind it
+        cannot disagree.
+        """
+
         if through_sequence <= expected_previous_through_sequence:
             raise ValueError("conversation summary must advance its covered sequence")
         now = datetime.now(timezone.utc).isoformat()
@@ -1284,6 +1539,59 @@ class CareerContextStore:
             current_through = row[0] if row else 0
             if current_through != expected_previous_through_sequence:
                 return False
+            retired = {
+                str(retired_row[0])
+                for retired_row in connection.execute(
+                    """
+                    SELECT constraint_sha256
+                    FROM conversation_constraint_archive
+                    WHERE user_id = ? AND conversation_id = ?
+                      AND status = 'retired'
+                    """,
+                    (user_id, conversation_id),
+                ).fetchall()
+            }
+            visible: list[str] = []
+            for status, texts in (
+                ("active", tuple(content.active_constraints)),
+                ("omitted", tuple(omitted_constraints)),
+            ):
+                for text in texts:
+                    digest = _constraint_digest(text)
+                    # The caller read the ledger outside this transaction, so a
+                    # retirement may have landed in between. Retirement wins;
+                    # a stale read never resurrects one.
+                    if digest in retired:
+                        continue
+                    if status == "active":
+                        visible.append(text)
+                    connection.execute(
+                        """
+                        INSERT INTO conversation_constraint_archive(
+                            user_id, conversation_id, constraint_sha256,
+                            constraint_text, status, first_seen_at,
+                            status_changed_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(user_id, conversation_id, constraint_sha256)
+                            DO UPDATE SET
+                                status=excluded.status,
+                                status_changed_at=excluded.status_changed_at
+                            WHERE status != excluded.status
+                        """,
+                        (
+                            user_id,
+                            conversation_id,
+                            digest,
+                            text,
+                            status,
+                            now,
+                            now,
+                        ),
+                    )
+            if len(visible) != len(content.active_constraints):
+                content = content.model_copy(
+                    update={"active_constraints": tuple(visible)}
+                )
             connection.execute(
                 """
                 INSERT INTO conversation_summaries(

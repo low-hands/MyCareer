@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from career_agent.agent.conversation_memory_contracts import (
+    ConversationSummaryContent,
+)
 from career_agent.agent.main_agent_contracts import CareerProfileContext
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
@@ -80,7 +83,7 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 10,
+    "agent_context": 11,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
@@ -148,6 +151,43 @@ def test_agent_context_v10_drops_removed_scope_queue_schema(tmp_path: Path) -> N
         ).fetchone()
     assert queue_tables == []
     assert legacy_version is None
+
+
+def test_agent_context_v11_seeds_the_constraint_ledger_from_stored_summaries(
+    tmp_path: Path,
+) -> None:
+    """A pre-v11 conversation keeps its constraints and gains an exit path."""
+
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    store.compact_conversation_summary(
+        user_id="u1",
+        conversation_id="c1",
+        expected_previous_through_sequence=0,
+        content=ConversationSummaryContent(
+            active_constraints=("不接受 996", "不经批准不发邮件")
+        ),
+        through_sequence=2,
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE conversation_constraint_archive")
+        connection.execute(
+            "UPDATE schema_versions SET version = 10 "
+            "WHERE component = 'agent_context'"
+        )
+
+    reopened = CareerContextStore(path)
+
+    ledger = reopened.list_conversation_constraints(
+        user_id="u1", conversation_id="c1"
+    )
+    assert tuple((row.text, row.status) for row in ledger) == (
+        ("不接受 996", "active"),
+        ("不经批准不发邮件", "active"),
+    )
+    assert reopened.retire_conversation_constraint(
+        user_id="u1", conversation_id="c1", constraint_text="不接受 996"
+    )
 
 
 def test_career_history_v7_drops_suppression_digest_column(tmp_path: Path) -> None:

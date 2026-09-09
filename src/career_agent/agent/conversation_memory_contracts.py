@@ -10,6 +10,9 @@ SUMMARY_ITEM_MAX_CHARS = 500
 SUMMARY_TEXT_MAX_CHARS = 6000
 """Every summary field shares this allowance, so one field can starve the rest."""
 
+ACTIVE_CONSTRAINT_MAX_ITEMS = 15
+"""Visible constraint cap. Overflow is archived, not discarded."""
+
 HARNESS_SUMMARY_COUNTER_FIELDS = frozenset(
     {
         "omitted_active_constraint_count",
@@ -38,12 +41,17 @@ class ConversationSummaryContent(ConversationMemoryContract):
     user_goals: tuple[str, ...] = Field(default=(), max_length=10)
     confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
     unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)
-    active_constraints: tuple[str, ...] = Field(default=(), max_length=15)
+    active_constraints: tuple[str, ...] = Field(
+        default=(), max_length=ACTIVE_CONSTRAINT_MAX_ITEMS
+    )
     omitted_active_constraint_count: int = Field(
         default=0,
         ge=0,
         description=(
-            "Constraint entries omitted by harness summary-budget enforcement."
+            "Constraints held in the archive rather than shown here. Unlike "
+            "the three counters below, these entries are still retrievable: "
+            "the count is the current archive size, not a running total of "
+            "destroyed entries."
         ),
     )
     omitted_user_goal_count: int = Field(

@@ -13,6 +13,7 @@ from pydantic import AliasChoices, Field, model_validator
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.delivery_policy import is_failed, is_waiting
 from career_agent.agent.conversation_memory_contracts import (
+    SUMMARY_ITEM_MAX_CHARS,
     SUMMARY_SOURCE_MAX_CHARS,
     ConversationSummaryContent,
 )
@@ -227,6 +228,18 @@ class MemoryTombstoneProposal(ContractModel):
             "after the proposal was shown."
         ),
     )
+
+
+class ConstraintRetirementProposal(ContractModel):
+    """One conversation constraint read back before it stops applying.
+
+    The constraint is carried as its exact text, not a position or a row id,
+    because the same text is what the ledger matches on and what the user saw.
+    """
+
+    target_kind: Literal["conversation_constraint"]
+    constraint: str = Field(min_length=1, max_length=SUMMARY_ITEM_MAX_CHARS)
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class MemoryAmendmentProposal(ContractModel):
@@ -498,6 +511,7 @@ class ConversationTaskState(ContractModel):
     pending_job_intent_update: JobIntentUpdate | None = None
     pending_memory_amendment: MemoryAmendmentProposal | None = None
     pending_memory_tombstone: MemoryTombstoneProposal | None = None
+    pending_constraint_retirement: ConstraintRetirementProposal | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
@@ -2095,6 +2109,19 @@ class ConfirmMemoryTombstoneToolArguments(ContractModel):
     pass
 
 
+class ProposeConstraintRetirementToolArguments(ContractModel):
+    constraint: str = Field(min_length=1, max_length=SUMMARY_ITEM_MAX_CHARS)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ConfirmConstraintRetirementToolArguments(ContractModel):
+    pass
+
+
+class FetchArchivedConstraintsToolArguments(ContractModel):
+    pass
+
+
 class ProposeMemoryAmendmentToolArguments(ContractModel):
     detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
     new_claim: str = Field(min_length=1, max_length=32_000)
@@ -2730,6 +2757,45 @@ def project_memory_amendment_arguments(
     if pending is None:
         raise ValueError(
             "confirm_memory_amendment requires a proposed correction the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+        "proposal": pending,
+    }
+
+
+def project_constraint_retirement_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "fetch_archived_constraints":
+        FetchArchivedConstraintsToolArguments.model_validate(arguments)
+        return {
+            "user_id": context.profile.user_id,
+            "conversation_id": context.conversation_id,
+        }
+    if name == "propose_constraint_retirement":
+        model_arguments = (
+            ProposeConstraintRetirementToolArguments.model_validate(arguments)
+        )
+        return {
+            "user_id": context.profile.user_id,
+            "conversation_id": context.conversation_id,
+            "proposal": ConstraintRetirementProposal(
+                target_kind="conversation_constraint",
+                constraint=model_arguments.constraint,
+                reason=model_arguments.reason,
+            ),
+        }
+    ConfirmConstraintRetirementToolArguments.model_validate(arguments)
+    pending = context.task.pending_constraint_retirement
+    if pending is None:
+        raise ValueError(
+            "confirm_constraint_retirement requires a proposed retirement the "
+            "user has seen"
         )
     return {
         "user_id": context.profile.user_id,

@@ -17,6 +17,7 @@ from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
+    ConstraintRetirementProposal,
     JobIntentUpdate,
     MemoryAmendmentProposal,
     MemoryTombstoneProposal,
@@ -591,6 +592,27 @@ def _confirm_memory_tombstone(
     return task.model_copy(update={"pending_memory_tombstone": None})
 
 
+def _propose_constraint_retirement(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("proposal")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_constraint_retirement": (
+                ConstraintRetirementProposal.model_validate(raw)
+            )
+        }
+    )
+
+
+def _confirm_constraint_retirement(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"pending_constraint_retirement": None})
+
+
 ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "propose_job_intent": _entry(
         ("job_intent_proposed",), _propose_job_intent
@@ -610,6 +632,12 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "confirm_memory_tombstone": _entry(
         ("memory_tombstoned",),
         _confirm_memory_tombstone,
+    ),
+    "propose_constraint_retirement": _entry(
+        ("constraint_retirement_proposed",), _propose_constraint_retirement
+    ),
+    "confirm_constraint_retirement": _entry(
+        ("constraint_retired",), _confirm_constraint_retirement
     ),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(

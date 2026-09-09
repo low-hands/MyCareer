@@ -469,6 +469,7 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "input_occupancy_denominator": None,
         "restored_constraints": 0,
         "dropped_constraints": 0,
+        "readmitted_constraints": 0,
         "dropped_user_goals": 0,
         "dropped_confirmed_decisions": 0,
         "dropped_unresolved_questions": 0,
@@ -1247,14 +1248,22 @@ def test_constraint_truncation_is_counted_in_compaction_trace(tmp_path) -> None:
     ]
     assert compacted[-1].details["dropped_constraints"] == 3
     assert compacted[-1].details["restored_constraints"] == 12
-    omitted_count = sum(
-        event.details["dropped_constraints"] for event in compacted
-    )
+    # Absolute, not a running total: the count says how many constraints the
+    # archive is currently holding back, and all of them stay retrievable.
+    omitted_count = compacted[-1].details["dropped_constraints"]
     summary = context_manager._store.get_conversation_summary(
         user_id="u1", conversation_id="c1"
     )
     assert summary is not None
     assert summary.content.omitted_active_constraint_count == omitted_count
+    archived = context_manager._store.list_conversation_constraints(
+        user_id="u1", conversation_id="c1", statuses=("omitted",)
+    )
+    assert tuple(row.text for row in archived) == (
+        "new-one",
+        "new-two",
+        "new-three",
+    )
     assert (
         compacted[-1].details["omitted_active_constraint_count"]
         == omitted_count
@@ -1266,6 +1275,187 @@ def test_constraint_truncation_is_counted_in_compaction_trace(tmp_path) -> None:
         projected["conversation_summary"]["omitted_active_constraint_count"]
         == omitted_count
     )
+
+
+class RepeatingConstraintWorker(RecordingSummaryWorker):
+    """Re-extracts the same constraint from every batch.
+
+    This is the shape that matters: the worker sees the previous summary and
+    copies constraints forward, and the messages announcing a retirement are
+    themselves in the batch being summarized.
+    """
+
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        return ConversationSummaryContent(
+            active_constraints=("Never send automatically",)
+        )
+
+
+def test_a_retired_constraint_is_not_re_extracted_back_into_the_summary(
+    tmp_path,
+) -> None:
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=RepeatingConstraintWorker(),
+        max_recent_context_chars=32,
+    )
+
+    def run_turns(count: int) -> None:
+        for index in range(count):
+            context = context_manager.load_for_turn(
+                user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message=f"assistant-{index}",
+            )
+
+    run_turns(3)
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.content.active_constraints == ("Never send automatically",)
+
+    assert context_manager._store.retire_conversation_constraint(
+        user_id="u1",
+        conversation_id="c1",
+        constraint_text="Never send automatically",
+    )
+    # Retirement takes effect on the next turn, not only after the next
+    # compaction: the stored projection is rewritten immediately.
+    assert (
+        context_manager._store.get_conversation_summary(
+            user_id="u1", conversation_id="c1"
+        ).content.active_constraints
+        == ()
+    )
+
+    run_turns(4)
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert summary.content.active_constraints == ()
+
+
+class ManyShortConstraintWorker(RecordingSummaryWorker):
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        # The contract caps a single worker payload, so the overflow has to
+        # accumulate across batches exactly as it does in production.
+        if previous is None:
+            return ConversationSummaryContent(
+                active_constraints=tuple(
+                    f"rule-{index:02d}" for index in range(10)
+                )
+            )
+        if len(previous.active_constraints) < 15:
+            return ConversationSummaryContent(
+                active_constraints=tuple(
+                    f"rule-{index:02d}" for index in range(10, 18)
+                )
+            )
+        return ConversationSummaryContent()
+
+
+def test_retiring_a_constraint_readmits_one_the_cap_held_back(tmp_path) -> None:
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=ManyShortConstraintWorker(),
+        max_recent_context_chars=32,
+    )
+
+    def run_turns(start: int, count: int) -> None:
+        for index in range(start, start + count):
+            context = context_manager.load_for_turn(
+                user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message=f"assistant-{index}",
+            )
+
+    run_turns(0, 3)
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert len(summary.content.active_constraints) == 15
+    assert summary.content.omitted_active_constraint_count == 3
+    assert "rule-15" not in summary.content.active_constraints
+
+    assert context_manager._store.retire_conversation_constraint(
+        user_id="u1", conversation_id="c1", constraint_text="rule-00"
+    )
+    run_turns(3, 2)
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    assert "rule-00" not in summary.content.active_constraints
+    # The freed slot goes to the oldest archived constraint, not to whatever
+    # the latest batch happened to mention.
+    assert "rule-15" in summary.content.active_constraints
+    assert len(summary.content.active_constraints) == 15
+    assert summary.content.omitted_active_constraint_count == 2
+
+
+class UnevenConstraintWorker(RecordingSummaryWorker):
+    """Puts an oversized constraint ahead of ones that still fit."""
+
+    def summarize(self, *, previous, messages):
+        self.calls.append((previous, messages))
+        if previous is None:
+            return ConversationSummaryContent(
+                active_constraints=tuple(
+                    f"{index:02d}" + ("x" * 498) for index in range(11)
+                )
+            )
+        return ConversationSummaryContent(
+            active_constraints=("a" * 400, "b" * 200, "c" * 50)
+        )
+
+
+def test_one_oversized_constraint_no_longer_discards_the_shorter_ones_after_it(
+    tmp_path,
+) -> None:
+    context_manager = manager(
+        tmp_path,
+        limit=2,
+        summary_worker=UnevenConstraintWorker(),
+        max_recent_context_chars=32,
+    )
+    for index in range(3):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None
+    visible = summary.content.active_constraints
+    # 11 * 500 + 400 leaves 100 characters. The 200-character constraint is
+    # skipped and the 50-character one behind it is still admitted.
+    assert "b" * 200 not in visible
+    assert "c" * 50 in visible
+    assert summary.content.omitted_active_constraint_count == 1
+    archived = context_manager._store.list_conversation_constraints(
+        user_id="u1", conversation_id="c1", statuses=("omitted",)
+    )
+    assert tuple(row.text for row in archived) == ("b" * 200,)
 
 
 def test_summary_field_pops_are_counted_when_constraints_consume_the_budget(
