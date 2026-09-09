@@ -200,6 +200,7 @@ from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
 from career_agent.services.canonical_scope import CanonicalScopeResolver
+from career_agent.agent.semantic_career_retrieval import SemanticEvidenceCache
 
 
 logger = logging.getLogger(__name__)
@@ -262,6 +263,7 @@ class MainAgentToolRegistry:
         conversation_store: CareerContextStore | None = None,
         career_history_store: CareerHistoryStore | None = None,
         episode_store: SQLiteCareerEpisodeStore | None = None,
+        semantic_evidence_cache: SemanticEvidenceCache | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -306,6 +308,7 @@ class MainAgentToolRegistry:
         self._conversation_store = conversation_store
         self._career_history_store = career_history_store
         self._episode_store = episode_store
+        self._semantic_evidence_cache = semantic_evidence_cache
         self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
@@ -4730,6 +4733,10 @@ class MainAgentToolRegistry:
                 execution_outcome="committed",
             )
         try:
+            if self._semantic_evidence_cache is not None:
+                self._semantic_evidence_cache.forget_evidence_ids(
+                    tombstone.evidence_ids
+                )
             cleanup_counts = purge(
                 user_id=user_id,
                 scope_key=tombstone.scope_key,

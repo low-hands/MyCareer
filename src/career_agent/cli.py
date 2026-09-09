@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -282,6 +283,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 match_store,
                 career_profile_store=context_store,
             ),
+            semantic_evidence_cache=semantic_retriever,
             resume_tailoring_service=ResumeTailoringService(
                 resume_store,
                 job_repository,

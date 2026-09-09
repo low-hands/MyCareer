@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -15,11 +16,20 @@ from openai import OpenAI
 
 from career_agent.storage.career_history import CareerHistoryStore
 
+_EMBED_TIMEOUT_SECONDS = 30.0
+_LOGGER = logging.getLogger(__name__)
+
 
 class EmbeddingClient(Protocol):
     model_id: str
 
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]: ...
+
+
+class SemanticEvidenceCache(Protocol):
+    """Derived vector rows that tombstone cleanup must be able to reach."""
+
+    def forget_evidence_ids(self, evidence_ids: Sequence[str]) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -77,6 +87,8 @@ class OpenAICompatibleEmbeddingClient:
         self._client = OpenAI(
             base_url=config.base_url.rstrip("/"),
             api_key=config.api_key,
+            timeout=_EMBED_TIMEOUT_SECONDS,
+            max_retries=0,
         )
 
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
@@ -131,10 +143,61 @@ class SQLiteCareerEvidenceSemanticRetriever:
         evidence = self._career_history.list_evidence(
             user_id=user_id,
             verification_status="confirmed",
+            include_historical=False,
+        )
+        self.forget_evidence_ids(
+            tuple(
+                evidence_id
+                for tombstone in self._career_history.list_evidence_tombstones(
+                    user_id=user_id
+                )
+                for evidence_id in tombstone.evidence_ids
+            )
         )
         if not evidence:
             return ()
 
+        try:
+            vectors = self._ensure_vectors(evidence)
+            query_vector = self._validated_vectors(
+                self._client.embed((normalized_query,)),
+                expected=1,
+            )[0]
+        except Exception:
+            _LOGGER.exception(
+                "semantic retrieval failed; falling back to lexical ranking"
+            )
+            return ()
+        ranked = sorted(
+            (
+                (self._cosine(query_vector, vectors[item.id]), item.id)
+                for item in evidence
+                if item.id in vectors
+            ),
+            key=lambda item: (-item[0], item[1]),
+        )
+        return tuple(evidence_id for _, evidence_id in ranked[:limit])
+
+    def forget_evidence_ids(self, evidence_ids: Sequence[str]) -> int:
+        """Drop derived vectors for redacted evidence. Safe to call repeatedly."""
+
+        selected = tuple(dict.fromkeys(evidence_ids))
+        if not selected:
+            return 0
+        placeholders = ",".join("?" for _ in selected)
+        with sqlite3.connect(self._cache_path) as connection:
+            cursor = connection.execute(
+                f"""
+                DELETE FROM career_evidence_embeddings
+                WHERE evidence_id IN ({placeholders})
+                """,
+                selected,
+            )
+        return max(0, cursor.rowcount)
+
+    def _ensure_vectors(
+        self, evidence: Sequence[object]
+    ) -> dict[str, tuple[float, ...]]:
         vectors = self._cached_vectors(evidence)
         missing = [item for item in evidence if item.id not in vectors]
         for start in range(0, len(missing), self._batch_size):
@@ -148,19 +211,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
                 (item.id, vector)
                 for item, vector in zip(batch, embedded, strict=True)
             )
-
-        query_vector = self._validated_vectors(
-            self._client.embed((normalized_query,)),
-            expected=1,
-        )[0]
-        ranked = sorted(
-            (
-                (self._cosine(query_vector, vectors[item.id]), item.id)
-                for item in evidence
-            ),
-            key=lambda item: (-item[0], item[1]),
-        )
-        return tuple(evidence_id for _, evidence_id in ranked[:limit])
+        return vectors
 
     def _initialize(self) -> None:
         with sqlite3.connect(self._cache_path) as connection:
