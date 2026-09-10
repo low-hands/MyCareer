@@ -211,6 +211,8 @@ def split_context_cache_data(
         "archived_reports": projected.get("archived_reports"),
         "recent_resources": projected.get("recent_resources"),
     }
+    if "working_notes" in projected:
+        volatile_data["working_notes"] = projected["working_notes"]
     if "career_episodes" in projected:
         volatile_data["career_episodes"] = projected["career_episodes"]
     return stable_data, volatile_data
@@ -291,6 +293,8 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
         "conversation_summary": projected["conversation_summary"],
         "recent_resources": recent_resource_metadata,
     }
+    if "working_notes" in projected:
+        data["working_notes"] = projected["working_notes"]
     if "career_episodes" in projected:
         data["career_episodes"] = projected["career_episodes"]
     stable_data, volatile_data = split_context_cache_data(data)

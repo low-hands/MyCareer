@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sqlite3
 from typing import TYPE_CHECKING, Literal, Protocol
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
@@ -40,6 +41,7 @@ from career_agent.storage.intent_versions import (
     append_intent_version,
     apply_intent_version_schema,
     capture_intent_version,
+    intent_entry_id,
     list_intent_versions,
     upgrade_intent_semantic_stance_schema,
     upgrade_intent_valid_until_schema,
@@ -194,7 +196,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                14,
+                15,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -210,6 +212,7 @@ class CareerContextStore:
                     12: upgrade_intent_semantic_stance_schema,
                     13: self._upgrade_to_v13,
                     14: self._upgrade_to_v14,
+                    15: self._upgrade_to_v15,
                 },
             )
             apply_episode_schema(connection)
@@ -219,6 +222,43 @@ class CareerContextStore:
     @staticmethod
     def _upgrade_to_v14(connection: sqlite3.Connection) -> None:
         CareerContextStore._ensure_free_text_preference_fts(connection)
+
+    @staticmethod
+    def _upgrade_to_v15(connection: sqlite3.Connection) -> None:
+        CareerContextStore._ensure_memory_review_schema(connection)
+
+    @staticmethod
+    def _ensure_memory_review_schema(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memory_review_exports (
+                export_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                items_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS memory_review_exports_user_idx
+            ON memory_review_exports(user_id, created_at DESC)
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS intent_memory_tombstones (
+                user_id TEXT NOT NULL,
+                scope_key TEXT NOT NULL,
+                pref_scope TEXT NOT NULL,
+                update_id TEXT NOT NULL,
+                content_digest TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, scope_key, pref_scope)
+            )
+            """
+        )
 
     @staticmethod
     def _upgrade_to_v13(connection: sqlite3.Connection) -> None:
@@ -674,6 +714,7 @@ class CareerContextStore:
             """
         )
         CareerContextStore._ensure_memory_deletion_schema(connection)
+        CareerContextStore._ensure_memory_review_schema(connection)
         CareerContextStore._ensure_free_text_preference_fts(connection)
         CareerContextStore._drop_removed_scope_queue(connection)
         CareerContextStore._ensure_constraint_archive_schema(connection)
@@ -925,6 +966,17 @@ class CareerContextStore:
                     (user_id,),
                 ).fetchall()
             }
+            tombstoned_tracks = {
+                (str(row[0]), str(row[1])): datetime.fromisoformat(str(row[2]))
+                for row in connection.execute(
+                    """
+                    SELECT scope_key, pref_scope, deleted_at
+                    FROM intent_memory_tombstones
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            }
             versions = list_intent_versions(
                 connection,
                 user_id=user_id,
@@ -932,7 +984,7 @@ class CareerContextStore:
                 scope_keys=scope_keys,
                 pref_scope=pref_scope,
                 active_only=active_only,
-                limit=None if deleted_by_scope else limit,
+                limit=None if deleted_by_scope or tombstoned_tracks else limit,
             )
         visible = tuple(
             item
@@ -940,6 +992,11 @@ class CareerContextStore:
             if (
                 item.scope_key not in deleted_by_scope
                 or item.valid_from > deleted_by_scope[item.scope_key]
+            )
+            and (
+                (item.scope_key, item.pref_scope) not in tombstoned_tracks
+                or item.valid_from
+                > tombstoned_tracks[(item.scope_key, item.pref_scope)]
             )
         )
         return visible[:limit] if limit is not None else visible
@@ -1174,6 +1231,17 @@ class CareerContextStore:
                     (user_id,),
                 ).fetchall()
             }
+            tombstoned_tracks = {
+                (str(row[0]), str(row[1])): datetime.fromisoformat(str(row[2]))
+                for row in connection.execute(
+                    """
+                    SELECT scope_key, pref_scope, deleted_at
+                    FROM intent_memory_tombstones
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            }
         selected = set(statuses)
         if not selected <= {"active", "quarantined"}:
             raise ValueError("invalid free-text preference status")
@@ -1187,7 +1255,244 @@ class CareerContextStore:
                 item.scope_key not in deleted_by_scope
                 or item.valid_from > deleted_by_scope[item.scope_key]
             )
+            and (
+                (item.scope_key, item.pref_scope) not in tombstoned_tracks
+                or item.valid_from
+                > tombstoned_tracks[(item.scope_key, item.pref_scope)]
+            )
         )
+
+    def get_active_free_text_preference(
+        self,
+        *,
+        user_id: str,
+        update_id: str,
+    ) -> IntentMemoryVersion | None:
+        return next(
+            (
+                item
+                for item in self.list_free_text_preferences(
+                    user_id=user_id,
+                    statuses=("active",),
+                )
+                if item.update_id == update_id
+            ),
+            None,
+        )
+
+    def get_current_free_text_preference_track(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+        pref_scope: str,
+    ) -> IntentMemoryVersion | None:
+        """Return the active head of one preference track, not one revision."""
+
+        return next(
+            iter(
+                self.list_profile_intent_versions(
+                    user_id=user_id,
+                    scope_key=scope_key,
+                    pref_scope=pref_scope,
+                    active_only=True,
+                    limit=1,
+                )
+            ),
+            None,
+        )
+
+    def create_memory_review_export(
+        self,
+        *,
+        user_id: str,
+        items: Sequence[dict[str, object]],
+    ) -> str:
+        export_id = f"memory_export_{uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO memory_review_exports(
+                    export_id, user_id, items_json, created_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    export_id,
+                    user_id,
+                    json.dumps(items, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            connection.execute(
+                """
+                DELETE FROM memory_review_exports
+                WHERE user_id = ? AND export_id NOT IN (
+                    SELECT export_id FROM memory_review_exports
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC, export_id DESC
+                    LIMIT 20
+                )
+                """,
+                (user_id, user_id),
+            )
+        return export_id
+
+    def get_memory_review_export(
+        self,
+        *,
+        user_id: str,
+        export_id: str,
+    ) -> tuple[dict[str, object], ...] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT items_json FROM memory_review_exports
+                WHERE export_id = ? AND user_id = ?
+                """,
+                (export_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(str(row[0]))
+        if not isinstance(payload, list) or not all(
+            isinstance(item, dict) for item in payload
+        ):
+            raise ValueError("memory review export snapshot is invalid")
+        return tuple(payload)
+
+    @staticmethod
+    def _redact_memory_review_exports_on(
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        update_ids: Sequence[str],
+    ) -> int:
+        """Remove exact tombstoned items from every retained review snapshot."""
+
+        selected = frozenset(update_ids)
+        if not selected:
+            return 0
+        removed = 0
+        rows = connection.execute(
+            """
+            SELECT export_id, items_json
+            FROM memory_review_exports
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchall()
+        for export_id, raw_items in rows:
+            items = json.loads(str(raw_items))
+            if not isinstance(items, list):
+                raise ValueError("memory review export snapshot is invalid")
+            retained = [
+                item
+                for item in items
+                if not (
+                    isinstance(item, dict)
+                    and str(item.get("update_id")) in selected
+                )
+            ]
+            removed += len(items) - len(retained)
+            if len(retained) != len(items):
+                connection.execute(
+                    """
+                    UPDATE memory_review_exports
+                    SET items_json = ?
+                    WHERE export_id = ? AND user_id = ?
+                    """,
+                    (
+                        json.dumps(
+                            retained,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
+                        export_id,
+                        user_id,
+                    ),
+                )
+        return removed
+
+    def tombstone_free_text_preference(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+        pref_scope: str,
+        update_id: str,
+        expected_content_sha256: str,
+        reason: str,
+    ) -> bool:
+        current = self.get_active_free_text_preference(
+            user_id=user_id,
+            update_id=update_id,
+        )
+        if (
+            current is None
+            or current.scope_key != scope_key
+            or current.pref_scope != pref_scope
+            or current.content_digest != expected_content_sha256
+        ):
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT update_id, content_digest
+                FROM career_intent_versions
+                WHERE user_id = ? AND scope_key = ? AND pref_scope = ?
+                  AND admission_status = 'active' AND superseded_at IS NULL
+                """,
+                (user_id, scope_key, pref_scope),
+            ).fetchone()
+            if row != (update_id, expected_content_sha256):
+                return False
+            lineage_update_ids = tuple(
+                str(item[0])
+                for item in connection.execute(
+                    """
+                    SELECT update_id
+                    FROM career_intent_versions
+                    WHERE user_id = ? AND scope_key = ? AND pref_scope = ?
+                    ORDER BY revision, update_id
+                    """,
+                    (user_id, scope_key, pref_scope),
+                ).fetchall()
+            )
+            connection.execute(
+                """
+                INSERT INTO intent_memory_tombstones(
+                    user_id, scope_key, pref_scope, update_id,
+                    content_digest, reason, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, scope_key, pref_scope) DO UPDATE SET
+                    update_id=excluded.update_id,
+                    content_digest=excluded.content_digest,
+                    reason=excluded.reason,
+                    deleted_at=excluded.deleted_at
+                """,
+                (
+                    user_id,
+                    scope_key,
+                    pref_scope,
+                    update_id,
+                    expected_content_sha256,
+                    reason,
+                    now,
+                ),
+            )
+            connection.execute(
+                "DELETE FROM free_text_preferences_fts WHERE update_id = ?",
+                (update_id,),
+            )
+            self._redact_memory_review_exports_on(
+                connection,
+                user_id=user_id,
+                update_ids=lineage_update_ids,
+            )
+        return True
 
     def search_free_text_preference_rankings(
         self,
@@ -1397,6 +1702,65 @@ class CareerContextStore:
                 )
             return active
 
+    def confirm_free_text_preference_amendment(
+        self,
+        *,
+        user_id: str,
+        base_update_id: str,
+        expected_content_sha256: str,
+        statement: str,
+    ) -> IntentMemoryVersion | None:
+        """Append an edited review line only after its proposal was confirmed."""
+
+        observed_at = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = next(
+                (
+                    item
+                    for item in list_intent_versions(connection, user_id=user_id)
+                    if item.update_id == base_update_id
+                    and item.pref_scope.startswith("freeform")
+                    and item.admission_status == "active"
+                    and item.superseded_at is None
+                ),
+                None,
+            )
+            if current is None or current.content_digest != expected_content_sha256:
+                return None
+            mutation = extract_free_text_preference(statement)
+            stance = (
+                mutation.stance
+                if mutation is not None and mutation.action == "quarantine"
+                else current.semantic_stance
+            )
+            amended = append_intent_version(
+                connection,
+                user_id=user_id,
+                scope_key=current.scope_key,
+                value=statement,
+                source="user_input:confirmed_memory_review",
+                valid_from=observed_at,
+                valid_until=current.valid_until,
+                pref_scope=current.pref_scope,
+                timescale=current.timescale,
+                layer=current.layer,
+                last_corroborated_at=observed_at,
+                base_confidence=1.0,
+                admission_status="active",
+                capture_action="revise",
+                semantic_stance=stance,
+            )
+            self._index_free_text_preference_on(connection, amended)
+            connection.execute(
+                """
+                DELETE FROM intent_memory_tombstones
+                WHERE user_id = ? AND scope_key = ? AND pref_scope = ?
+                """,
+                (user_id, amended.scope_key, amended.pref_scope),
+            )
+            return amended
+
     def free_text_preference_deleted_at(
         self,
         *,
@@ -1422,6 +1786,35 @@ class CareerContextStore:
             (user_id, scope_key),
         ).fetchone()
         return datetime.fromisoformat(str(row[0])) if row is not None else None
+
+    def free_text_preference_tombstone_matches(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+        pref_scope: str,
+        update_id: str,
+        content_digest: str,
+    ) -> bool:
+        """Recognize a committed delete so failed cleanup can be retried."""
+
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1
+                FROM intent_memory_tombstones
+                WHERE user_id = ? AND scope_key = ? AND pref_scope = ?
+                  AND update_id = ? AND content_digest = ?
+                """,
+                (
+                    user_id,
+                    scope_key,
+                    pref_scope,
+                    update_id,
+                    content_digest,
+                ),
+            ).fetchone()
+        return row is not None
 
     @staticmethod
     def _free_text_preference_scope(topic_key: str) -> str:
@@ -1847,6 +2240,7 @@ class CareerContextStore:
         user_id: str,
         scope_key: str,
         lineage_markers: Sequence[str] = (),
+        update_ids: Sequence[str] = (),
     ) -> dict[str, int]:
         """Invalidate derivations that observed one tombstoned lineage.
 
@@ -1865,6 +2259,59 @@ class CareerContextStore:
         markers = _usable_lineage_markers(lineage_markers)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            binding_keys = (scope_key,)
+            if "#" not in scope_key:
+                binding_keys = tuple(
+                    dict.fromkeys(
+                        (
+                            scope_key,
+                            *(
+                                str(row[0])
+                                for row in connection.execute(
+                                    """
+                                    SELECT DISTINCT scope_key
+                                    FROM conversation_message_memory_bindings
+                                    WHERE user_id = ?
+                                      AND (
+                                            scope_key = ?
+                                            OR substr(
+                                                scope_key, 1, length(?) + 1
+                                            ) = ? || '#'
+                                          )
+                                    """,
+                                    (
+                                        user_id,
+                                        scope_key,
+                                        scope_key,
+                                        scope_key,
+                                    ),
+                                ).fetchall()
+                            ),
+                            *(
+                                str(row[0])
+                                for row in connection.execute(
+                                    """
+                                    SELECT DISTINCT scope_key
+                                    FROM career_episode_memory_bindings
+                                    WHERE user_id = ?
+                                      AND (
+                                            scope_key = ?
+                                            OR substr(
+                                                scope_key, 1, length(?) + 1
+                                            ) = ? || '#'
+                                          )
+                                    """,
+                                    (
+                                        user_id,
+                                        scope_key,
+                                        scope_key,
+                                        scope_key,
+                                    ),
+                                ).fetchall()
+                            ),
+                        )
+                    )
+                )
             connection.execute(
                 """
                 INSERT INTO memory_deleted_scopes(user_id, scope_key, deleted_at)
@@ -1887,12 +2334,15 @@ class CareerContextStore:
             bound_rows = {
                 (str(row[0]), int(row[1]))
                 for row in connection.execute(
-                    """
+                    f"""
                     SELECT conversation_id, sequence
                     FROM conversation_message_memory_bindings
-                    WHERE user_id = ? AND scope_key = ?
+                    WHERE user_id = ?
+                      AND scope_key IN (
+                          {",".join("?" for _ in binding_keys)}
+                      )
                     """,
-                    (user_id, scope_key),
+                    (user_id, *binding_keys),
                 ).fetchall()
             }
             if markers:
@@ -1974,16 +2424,25 @@ class CareerContextStore:
                     """,
                     (user_id, *affected_conversations),
                 )
-            episode_count = SQLiteCareerEpisodeStore.delete_for_scope_on(
+            episode_count = sum(
+                SQLiteCareerEpisodeStore.delete_for_scope_on(
+                    connection,
+                    user_id=user_id,
+                    scope_key=binding_key,
+                )
+                for binding_key in binding_keys
+            )
+            review_item_count = self._redact_memory_review_exports_on(
                 connection,
                 user_id=user_id,
-                scope_key=scope_key,
+                update_ids=update_ids,
             )
         return {
             "conversation_fragments": len(bound_rows),
             "conversation_summaries": summary_count,
             "career_episodes": episode_count,
             "affected_conversations": len(affected_conversations),
+            "memory_review_items": review_item_count,
         }
 
     def list_messages_after(
@@ -2315,7 +2774,7 @@ class CareerContextStore:
                         user_id,
                         conversation_id,
                         distilled.source_sequence,
-                        scope_key,
+                        intent_entry_id(scope_key, version.pref_scope),
                         now,
                     ),
                 )

@@ -83,7 +83,7 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 14,
+    "agent_context": 15,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,

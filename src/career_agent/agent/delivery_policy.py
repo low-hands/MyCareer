@@ -236,6 +236,7 @@ _POLICIES.update(
             "memory_tombstone_target_changed",
             "memory_tombstone_target_not_found",
             "memory_tombstoned",
+            "working_notes_updated",
             "job_research_not_found",
             "job_research_not_retryable",
             "job_search_page_ready",

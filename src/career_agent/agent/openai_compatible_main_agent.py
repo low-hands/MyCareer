@@ -392,6 +392,10 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         content = getattr(message, "content", None)
         if not content:
             raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
+        return self._parse_text_decision(content)
+
+    @staticmethod
+    def _parse_text_decision(content: str) -> AgentDecision:
         normalized_content = content.strip()
         try:
             return AgentDecision.model_validate_json(normalized_content)
@@ -472,11 +476,27 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "quarantined section. Ask the user to confirm the exact "
             "statement with propose_free_text_preference_confirmation when the "
             "current topic is relevant. Call confirm_free_text_preference only on "
-            "a later turn after explicit agreement. "
+            "a later turn after explicit agreement. A bare confirmation such as "
+            "'yes' or '可以' authorizes a pending career fact, job intent, or "
+            "free-text preference only on the immediately adjacent user turn and "
+            "only when the runtime's private bare-confirmation target names that "
+            "type. The runtime handles a valid adjacent bare confirmation before "
+            "asking you for a decision. Therefore, if a bare confirmation reaches "
+            "you, its shorthand window is absent or expired: do not call a "
+            "confirmation tool from that vague wording; show or identify the "
+            "proposal again. "
             "career_episodes is a bounded cross-conversation event catalogue, not "
             "factual evidence. Use its title and synopsis only to locate an event; "
             "when details matter, call search_career_episodes with the projected "
             "detail_ref and dereference any returned resource_refs. "
+            "working_notes is an unconfirmed agent scratchpad. It may guide "
+            "clarifying questions and response style only. Never use it to "
+            "filter, rank, recommend, apply, schedule, or mutate authoritative "
+            "career state. Use update_working_notes to replace stale observations "
+            "or unfinished threads, keeping the complete note under 2000 characters. "
+            "MEMORY.md review is an owner-operated CLI workflow, never a "
+            "model transcription workflow. Do not ask the user to paste a whole "
+            "MEMORY.md into chat and do not claim to import or export it. "
             "career_memory.memory_overflow means confirmed "
             "rows remain in a lower archive layer. Before answering a request that "
             "depends on an overflow section, call the section's named fetch_tool; "

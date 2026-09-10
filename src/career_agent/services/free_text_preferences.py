@@ -245,6 +245,40 @@ def classify_preference_ownership(
     return "person_default"
 
 
+def preference_ownership_from_storage(
+    *,
+    pref_scope: str,
+    layer: str,
+    timescale: str,
+) -> Literal[
+    "person_stable",
+    "person_default",
+    "person_situational",
+    "role",
+    "situational",
+]:
+    """Recover the four-layer display ownership from persisted metadata."""
+
+    scope_name = (
+        pref_scope.removeprefix("freeform.")
+        if pref_scope.startswith("freeform.")
+        else "person_default"
+        if pref_scope == "freeform"
+        else pref_scope
+    )
+    if layer == "stable":
+        return "person_stable"
+    if layer == "transient" or timescale == "situational":
+        return (
+            "person_situational"
+            if scope_name == "person_situational"
+            else "situational"
+        )
+    if scope_name.startswith("role."):
+        return "role"
+    return "person_default"
+
+
 def preference_storage_assignment(
     ownership: str,
     *,

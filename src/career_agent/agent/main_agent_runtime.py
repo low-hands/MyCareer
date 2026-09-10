@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.services.free_text_preferences import is_explicit_confirmation
@@ -110,6 +110,7 @@ from career_agent.storage.action_executions import (
     RESULT_STATE_RECEIPT_KEY,
     SQLiteActionExecutionStore,
 )
+from career_agent.storage.intent_versions import intent_entry_id
 
 _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
     "main_agent_stream_sink",
@@ -2076,10 +2077,13 @@ class MainAgentRuntime:
     def _free_text_preference_scope_keys(
         context: MainAgentContext,
     ) -> tuple[str, ...]:
-        """Scopes whose values were actually exposed in this turn's prompt."""
+        """Preference tracks whose values were exposed in this turn's prompt."""
 
         return tuple(
-            dict.fromkeys(item.scope_key for item in context.free_text_preferences)
+            dict.fromkeys(
+                intent_entry_id(item.scope_key, item.pref_scope)
+                for item in context.free_text_preferences
+            )
         )
 
     @staticmethod
@@ -2833,7 +2837,10 @@ class MainAgentRuntime:
         if synthetic_kind in (None, "confirmation"):
             tool_results = (*tool_results, result)
         career_memory_scope_keys = state.get("career_memory_scope_keys", ())
-        result_scope_key = result.payload.get("scope_key")
+        result_scope_key = result.payload.get(
+            "memory_entry_id",
+            result.payload.get("scope_key"),
+        )
         if (
             isinstance(result_scope_key, str)
             and result_scope_key
@@ -3553,6 +3560,8 @@ class MainAgentRuntime:
             "confirm_memory_amendment",
         }:
             return project_memory_amendment_arguments(context, name, arguments)
+        if name == "update_working_notes":
+            return project_working_notes_arguments(context, name, arguments)
         if name in {"propose_career_fact", "confirm_career_fact"}:
             return project_career_fact_arguments(context, name, arguments)
         if name in {

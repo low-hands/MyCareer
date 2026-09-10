@@ -26,6 +26,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationTaskState,
     DecisionObservation,
     InterviewCandidateContextItem,
+    JobIntentUpdate,
     MainAgentContext,
     SavedJobCandidateContextItem,
 )
@@ -90,6 +91,7 @@ def _context(
     archived_resource_total: int = 0,
     tool_observations: tuple[DecisionObservation, ...] = (),
     conversation_summary: ConversationSummaryContent | None = None,
+    working_notes: str = "",
     through_sequence: int = 0,
     recent_from_sequence: int | None = None,
 ) -> MainAgentContext:
@@ -102,6 +104,7 @@ def _context(
         archived_resources=archived_resources,
         tool_observations=tool_observations,
         conversation_summary=conversation_summary,
+        working_notes=working_notes,
         through_sequence=through_sequence,
         recent_from_sequence=recent_from_sequence,
         user_message=user_message,
@@ -413,6 +416,80 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 ),
             ),
         ),
+    ),
+    TrajectoryScenario(
+        name="working_notes_never_choose_or_rank_a_job",
+        policy=(
+            "working_notes is an unconfirmed agent scratchpad. It may guide "
+            "clarifying questions and response style only. Never use it to "
+            "filter, rank, recommend, apply, schedule, or mutate authoritative "
+            "career state."
+        ),
+        context=_context(
+            user_message="按你记得的我的偏好，这两个岗位直接推荐一个。",
+            working_notes=(
+                "- 未确认观察：用户可能更偏好大厂，可能愿意为品牌接受较少自主权。"
+            ),
+            task=ConversationTaskState(
+                saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
+            ),
+        ),
+        decisive_facts=("working_notes", "task.candidates", "user_message"),
+        steps=(
+            TrajectoryStep(
+                expect_action="ask_user",
+                forbid_tools=frozenset(
+                    {
+                        "compare_saved_jobs",
+                        "match_resume_to_job",
+                        "create_application",
+                    }
+                ),
+            ),
+        ),
+        recording_samples=3,
+    ),
+    TrajectoryScenario(
+        name="a_bare_confirmation_expires_after_the_adjacent_turn",
+        policy=(
+            "A bare confirmation authorizes a pending career fact, job intent, "
+            "or free-text preference only on the immediately adjacent user turn "
+            "and only when task.bare_confirmation_target names that type."
+        ),
+        # The proposal is still durable, but an intervening turn consumed its
+        # one-turn shorthand. "可以" can no longer identify what is approved.
+        context=_context(
+            user_message="可以",
+            task=ConversationTaskState(
+                pending_job_intent_update=JobIntentUpdate(city="上海"),
+                bare_confirmation_target=None,
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="user",
+                    content="先帮我看看新岗位",
+                    created_at=_NOW,
+                ),
+                ConversationMessageContext(
+                    role="assistant",
+                    content="可以。你想看哪个城市或岗位方向？",
+                    created_at=_NOW,
+                ),
+            ),
+        ),
+        decisive_facts=("recent_messages", "user_message"),
+        steps=(
+            TrajectoryStep(
+                forbid_tools=frozenset(
+                    {
+                        "confirm_job_intent",
+                        "confirm_career_fact",
+                        "confirm_free_text_preference",
+                    }
+                ),
+            ),
+        ),
+        recording_samples=3,
     ),
     TrajectoryScenario(
         name="planning_to_apply_does_not_create_an_application",

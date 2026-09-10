@@ -1034,6 +1034,28 @@ class CareerHistoryStore:
             for (user_id, scope_key), markers in grouped.items()
         )
 
+    def list_tombstoned_update_ids(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+    ) -> tuple[str, ...]:
+        """Return opaque revision ids needed to finish derived cleanup retries."""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT update_id
+                FROM career_evidence
+                WHERE user_id = ? AND scope_key = ?
+                  AND tombstoned_at IS NOT NULL
+                  AND update_id IS NOT NULL
+                ORDER BY revision, id
+                """,
+                (user_id, scope_key),
+            ).fetchall()
+        return tuple(str(row[0]) for row in rows)
+
     def correct_evidence(
         self,
         *,

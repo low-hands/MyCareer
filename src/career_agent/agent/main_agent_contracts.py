@@ -119,6 +119,27 @@ class FreeTextPreferenceConfirmationProposal(ContractModel):
         max_length=120,
     )
     needs_scope_clarification: bool = False
+    base_update_id: str | None = Field(
+        default=None,
+        pattern=r"^intent_update_[a-f0-9]{32}$",
+        description="Active revision being amended from a MEMORY.md review.",
+    )
+    expected_content_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def review_amendment_is_version_bound(
+        self,
+    ) -> "FreeTextPreferenceConfirmationProposal":
+        if (self.base_update_id is None) != (
+            self.expected_content_sha256 is None
+        ):
+            raise ValueError(
+                "a preference amendment requires both base revision and digest"
+            )
+        return self
 
 
 class MemoryTelemetryBinding(ContractModel):
@@ -285,8 +306,17 @@ class JobIntentUpdate(ContractModel):
 class MemoryTombstoneProposal(ContractModel):
     """One field-level deletion read back before the irreversible write."""
 
-    target_kind: Literal["career_evidence"]
-    detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
+    target_kind: Literal["career_evidence", "intent_preference"]
+    detail_ref: str | None = Field(
+        default=None,
+        pattern=r"^detail_[a-f0-9]{24}$",
+    )
+    scope_key: str | None = None
+    update_id: str | None = Field(
+        default=None,
+        pattern=r"^intent_update_[a-f0-9]{32}$",
+    )
+    pref_scope: str | None = None
     reason: str = Field(min_length=1, max_length=2000)
     expected_content_sha256: str | None = Field(
         default=None,
@@ -296,6 +326,26 @@ class MemoryTombstoneProposal(ContractModel):
             "after the proposal was shown."
         ),
     )
+
+    @model_validator(mode="after")
+    def target_has_exact_identity(self) -> "MemoryTombstoneProposal":
+        if self.target_kind == "career_evidence":
+            if self.detail_ref is None or any(
+                value is not None
+                for value in (self.scope_key, self.update_id, self.pref_scope)
+            ):
+                raise ValueError("career evidence tombstones require only detail_ref")
+        elif (
+            self.detail_ref is not None
+            or self.scope_key is None
+            or self.update_id is None
+            or self.pref_scope is None
+            or self.expected_content_sha256 is None
+        ):
+            raise ValueError(
+                "preference tombstones require scope, track, revision, and digest"
+            )
+        return self
 
 
 class ConstraintRetirementProposal(ContractModel):
@@ -1663,6 +1713,7 @@ class MainAgentContext(ContractModel):
         default=(),
         max_length=8,
     )
+    working_notes: str = Field(default="", max_length=2000)
     career_episodes: tuple[EpisodeProjectionContext, ...] = Field(
         default=(),
         max_length=5,
@@ -1984,6 +2035,11 @@ class MainAgentContext(ContractModel):
             "career_memory": career_memory,
             "free_text_preferences": preference_markdown,
             **(
+                {"working_notes": self.working_notes}
+                if self.working_notes
+                else {}
+            ),
+            **(
                 {"career_episodes": episode_markdown}
                 if episode_markdown
                 else {}
@@ -2232,6 +2288,16 @@ class SearchCareerMemoryToolArguments(ContractModel):
         default=None,
         pattern=r"^memory_[a-f0-9]{8}_[a-f0-9]{8}$",
         description="Opaque next-page cursor returned by an earlier identical query.",
+    )
+
+
+class UpdateWorkingNotesToolArguments(ContractModel):
+    markdown: str = Field(
+        max_length=2000,
+        description=(
+            "Complete replacement markdown. It may guide questions and response "
+            "style, but never filtering, ranking, applications, or other actions."
+        ),
     )
 
 
@@ -3004,6 +3070,7 @@ def project_free_text_preference_arguments(
     return {
         "user_id": context.profile.user_id,
         "update_id": pending.update_id,
+        "proposal": pending,
         "conversation_id": context.conversation_id,
         "job_posting_id": context.task.active_job_posting_id,
         "scope_choice": confirmation.scope_choice,
@@ -3071,6 +3138,19 @@ def project_memory_amendment_arguments(
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
         "proposal": pending,
+    }
+
+
+def project_working_notes_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    model_arguments = UpdateWorkingNotesToolArguments.model_validate(arguments)
+    return {
+        "user_id": context.profile.user_id,
+        "markdown": model_arguments.markdown,
     }
 
 
