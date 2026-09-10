@@ -51,6 +51,7 @@ from career_agent.services.interview_preparation import InterviewPreparationServ
 from career_agent.services.interview_context import InterviewPreparationContextFactory
 from career_agent.services.job_research import JobResearchService
 from career_agent.services.memory_report import build_memory_report
+from career_agent.services.memory_review import MemoryReviewService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -94,6 +95,7 @@ from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.services.job_comparison import JobComparisonService
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
+from career_agent.storage.working_notes import WorkingNotesStore
 
 
 EXIT_OK = 0
@@ -110,11 +112,15 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         Path(args.context_store).expanduser()
     )
     resume_store = ResumeStore(Path(args.resume_store).expanduser())
+    working_notes_store = WorkingNotesStore(
+        Path(args.context_store).expanduser().with_name("working-notes")
+    )
     context_manager = ContextManager(
         context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
         target_role_source=resume_store,
         episode_store=episode_store,
+        working_notes_store=working_notes_store,
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
@@ -287,6 +293,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_profile_store=context_store,
             ),
             semantic_evidence_cache=semantic_retriever,
+            working_notes_store=working_notes_store,
             resume_tailoring_service=ResumeTailoringService(
                 resume_store,
                 job_repository,
@@ -685,6 +692,48 @@ def build_parser() -> argparse.ArgumentParser:
         default=14,
         help="Age after which an unconfirmed quarantine candidate is stale.",
     )
+    memory_export = memory_subparsers.add_parser(
+        "export",
+        help="Write a complete MEMORY.md directly to a local file.",
+    )
+    memory_review = memory_subparsers.add_parser(
+        "review",
+        help="Show the complete diff for an edited MEMORY.md without a model.",
+    )
+    memory_apply = memory_subparsers.add_parser(
+        "apply",
+        help="Apply one previously reviewed MEMORY.md diff as a batch.",
+    )
+    for command in (memory_export, memory_review, memory_apply):
+        command.add_argument("--user-id", required=True)
+        command.add_argument(
+            "--context-store",
+            default="~/.career-agent/context.sqlite3",
+        )
+        command.add_argument(
+            "--resume-store",
+            default="~/.career-agent/resumes.sqlite3",
+        )
+    memory_export.add_argument("--output", type=Path, required=True)
+    memory_export.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing output file.",
+    )
+    for command in (memory_review, memory_apply):
+        command.add_argument("--file", type=Path, required=True)
+    memory_apply.add_argument("--confirmation-digest", required=True)
+    memory_apply.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Explicitly confirm the entire displayed diff.",
+    )
+    memory_apply.add_argument(
+        "--working-notes-dir",
+        type=Path,
+        default=None,
+        help="Defaults to the working-notes directory beside the context store.",
+    )
 
     keys_command = subparsers.add_parser(
         "api-keys",
@@ -887,7 +936,8 @@ def _trajectory_tool_specs():
         "application_service", "email_tracking_service", "interview_service",
         "interview_preparation_service", "action_center_service",
         "calendar_service", "mock_interview_graph", "mock_interview_store",
-        "job_research_service", "conversation_store", "episode_store",
+        "job_research_service", "conversation_store", "career_history_store",
+        "episode_store", "working_notes_store",
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 
@@ -1225,6 +1275,97 @@ def _run_memory_report(args, stdout) -> int:
             next_action=(
                 "Check the context-store path, user identity, and decay policy."
             ),
+        )
+
+
+def _run_memory_file_command(args, stdout) -> int:
+    try:
+        context_path = Path(args.context_store).expanduser()
+        context = CareerContextStore(context_path)
+        history = CareerHistoryStore(Path(args.resume_store).expanduser())
+        service = MemoryReviewService(
+            context_store=context,
+            career_history_store=history,
+        )
+        if args.memory_command == "export":
+            output = args.output.expanduser()
+            if output.exists() and not args.force:
+                raise ValueError(
+                    "output file exists; pass --force to replace it"
+                )
+            if not output.parent.exists():
+                raise ValueError("output directory does not exist")
+            markdown, export_id, item_count = service.export(
+                user_id=args.user_id
+            )
+            temporary = output.with_name(f".{output.name}.tmp")
+            temporary.write_text(markdown, encoding="utf-8")
+            os.chmod(temporary, 0o600)
+            temporary.replace(output)
+            payload = {
+                "state": "memory_review_exported",
+                "export_id": export_id,
+                "item_count": item_count,
+                "path": str(output.resolve()),
+            }
+        else:
+            markdown = args.file.expanduser().read_text(encoding="utf-8")
+            if not markdown or len(markdown) > 200_000:
+                raise ValueError(
+                    "MEMORY.md must contain between 1 and 200000 characters"
+                )
+            prepared = service.prepare(
+                user_id=args.user_id,
+                markdown=markdown,
+            )
+            if args.memory_command == "review":
+                payload = {
+                    "state": "memory_review_ready",
+                    "export_id": prepared.analysis.export_id,
+                    "proposal_count": prepared.analysis.proposal_count,
+                    "confirmation_digest": prepared.confirmation_digest,
+                    "changes": [
+                        item.model_dump(mode="json")
+                        for item in prepared.changes
+                    ],
+                    "warnings": prepared.analysis.warnings,
+                    "conflicts": prepared.analysis.conflicts,
+                    "next_action": (
+                        "Run memory apply with --confirm and this "
+                        "confirmation_digest after reviewing every change."
+                    ),
+                }
+            else:
+                if not args.confirm:
+                    raise ValueError(
+                        "memory apply requires --confirm after reviewing the full diff"
+                    )
+                notes_root = args.working_notes_dir or context_path.with_name(
+                    "working-notes"
+                )
+                applied = service.apply(
+                    user_id=args.user_id,
+                    markdown=markdown,
+                    confirmation_digest=args.confirmation_digest,
+                    working_notes=WorkingNotesStore(notes_root),
+                )
+                payload = {
+                    "state": (
+                        "memory_review_applied_cleanup_incomplete"
+                        if applied.cleanup_incomplete
+                        else "memory_review_applied"
+                    ),
+                    **applied.model_dump(mode="json"),
+                }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _write_chat_error(
+            error,
+            stdout,
+            code=EXIT_ARGUMENT_ERROR,
+            next_action="Re-export MEMORY.md, review the complete diff, then retry.",
         )
 
 
@@ -1679,7 +1820,9 @@ def main(
             return _run_memory_exposure_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
     if args.command == "memory":
-        return _run_memory_report(args, stdout)
+        if args.memory_command == "report":
+            return _run_memory_report(args, stdout)
+        return _run_memory_file_command(args, stdout)
     if args.command == "settings":
         context_store = CareerContextStore(Path(args.context_store).expanduser())
         manager = ContextManager(context_store)

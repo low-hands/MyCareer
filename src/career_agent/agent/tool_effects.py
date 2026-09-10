@@ -42,6 +42,7 @@ _WRITE_CAPABILITIES = frozenset(
         "update_application_status",
         "update_interview",
         "update_owner_settings",
+        "update_working_notes",
         "propose_career_fact",
         "restart_mock_interview",
         "retry_mock_interview",

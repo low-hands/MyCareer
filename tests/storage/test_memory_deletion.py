@@ -81,6 +81,7 @@ def test_purge_derived_memory_clears_indexes_and_sets_summary_floor(tmp_path) ->
         "conversation_summaries": 1,
         "career_episodes": 1,
         "affected_conversations": 1,
+        "memory_review_items": 0,
     }
     assert store.get_conversation_summary(user_id="u1", conversation_id="c1") is None
     assert store.list_messages_after(

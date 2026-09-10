@@ -179,6 +179,8 @@ _SERVICE_PARAMETERS = (
     "mock_interview_store",
     "job_research_service",
     "conversation_store",
+    "career_history_store",
+    "working_notes_store",
 )
 
 

@@ -7,8 +7,10 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.services.memory_review import MemoryReviewService
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.working_notes import WorkingNotesStore
 
 
 class SequenceDecisionMaker:
@@ -35,13 +37,15 @@ def _final() -> AgentDecision:
 def _runtime(tmp_path, *decisions, project_career_memory: bool = False):
     context = CareerContextStore(tmp_path / "context.sqlite3")
     history = CareerHistoryStore(tmp_path / "career.sqlite3")
+    notes = WorkingNotesStore(tmp_path / "working-notes")
     return (
         MainAgentRuntime(
-            context_manager=ContextManager(context),
+            context_manager=ContextManager(context, working_notes_store=notes),
             decision_maker=SequenceDecisionMaker(*decisions),
             tools=MainAgentToolRegistry(
                 career_history_store=history,
                 conversation_store=context,
+                working_notes_store=notes,
             ),
             career_context_projector=(
                 CareerContextProjector(history) if project_career_memory else None
@@ -119,6 +123,13 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
             origin="user_input",
         ).id,
     )
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    _, export_id, _ = MemoryReviewService(
+        context_store=context,
+        career_history_store=history,
+    ).export(user_id="u1")
+    notes = WorkingNotesStore(tmp_path / "working-notes")
+    notes.replace(user_id="u1", markdown="- Built a private ranking prototype.")
 
     runtime, _, _ = _runtime(
         tmp_path,
@@ -160,6 +171,16 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
     mutation = completed.tool_results[0]
     assert mutation.state == "memory_tombstoned"
     assert mutation.payload["lineage_size"] == 1
+    assert mutation.payload["derived_cleanup"]["memory_review_items"] == 1
+    assert mutation.payload["derived_cleanup"]["working_notes"] == 1
+    retained = context.get_memory_review_export(
+        user_id="u1",
+        export_id=export_id,
+    )
+    assert retained is not None
+    assert all(item["update_id"] != evidence.update_id for item in retained)
+    assert all(item["value"] != evidence.claim for item in retained)
+    assert notes.read(user_id="u1") == ""
     assert "private ranking prototype" not in str(
         completed.context.model_context()
     ).casefold()
@@ -350,3 +371,58 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
     assert retried.tool_results[0].state == "memory_tombstoned"
     assert retried.context.task.pending_memory_tombstone is None
     assert retry_context.get_task("u1", "c1").pending_memory_tombstone is None
+
+
+def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _, _, history = _runtime(tmp_path)
+    record = history.create_record(
+        user_id="u1",
+        record_type="project",
+        title="Private project",
+    )
+    evidence = history.confirm_evidence(
+        user_id="u1",
+        career_evidence_id=history.create_evidence(
+            user_id="u1",
+            career_record_id=record.id,
+            claim="Built a private prototype.",
+            origin="user_input",
+        ).id,
+    )
+    runtime, _, _ = _runtime(
+        tmp_path,
+        _tool(
+            "propose_memory_tombstone",
+            {"detail_ref": evidence.detail_ref, "reason": "Delete it."},
+        ),
+        _final(),
+    )
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="Delete the private prototype.",
+    )
+
+    def fail_clear(self, *, user_id):
+        raise OSError(f"cannot unlink notes for {user_id}")
+
+    monkeypatch.setattr(WorkingNotesStore, "clear", fail_clear)
+    runtime, context, _ = _runtime(
+        tmp_path,
+        _tool("confirm_memory_tombstone"),
+        _final(),
+    )
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="I confirm.",
+    )
+
+    mutation = result.tool_results[0]
+    assert mutation.state == "memory_tombstone_cleanup_incomplete"
+    assert mutation.payload["working_notes_cleared"] is False
+    assert mutation.payload["cleanup_incomplete"] == "working_notes"
+    assert context.get_task("u1", "c1").pending_memory_tombstone is not None

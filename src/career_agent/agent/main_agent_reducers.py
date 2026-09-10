@@ -626,13 +626,17 @@ def _propose_memory_amendment(
 def _confirm_memory_amendment(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(update={"pending_memory_amendment": None})
+    return task.model_copy(
+        update={"pending_memory_amendment": None}
+    )
 
 
 def _confirm_memory_tombstone(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(update={"pending_memory_tombstone": None})
+    return task.model_copy(
+        update={"pending_memory_tombstone": None}
+    )
 
 
 def _propose_career_fact(

@@ -47,6 +47,7 @@ from career_agent.agent.main_agent_contracts import (
     SearchCareerMemoryToolArguments,
     SearchCareerEpisodesToolArguments,
     SearchCareerHistoryToolArguments,
+    UpdateWorkingNotesToolArguments,
     ConstraintRetirementProposal,
     FetchArchivedConstraintsToolArguments,
     ProposeConstraintRetirementToolArguments,
@@ -137,6 +138,7 @@ from career_agent.services.resume_analysis import (
 )
 from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.services.free_text_preferences import structured_pref_scope
+from career_agent.storage.intent_versions import intent_entry_id
 
 
 from career_agent.services.applications import (
@@ -215,6 +217,7 @@ from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
 from career_agent.services.canonical_scope import CanonicalScopeResolver
 from career_agent.agent.semantic_career_retrieval import SemanticEvidenceCache
+from career_agent.storage.working_notes import WorkingNotesStore
 
 
 logger = logging.getLogger(__name__)
@@ -278,6 +281,7 @@ class MainAgentToolRegistry:
         career_history_store: CareerHistoryStore | None = None,
         episode_store: SQLiteCareerEpisodeStore | None = None,
         semantic_evidence_cache: SemanticEvidenceCache | None = None,
+        working_notes_store: WorkingNotesStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -329,6 +333,7 @@ class MainAgentToolRegistry:
         self._career_history_store = career_history_store
         self._episode_store = episode_store
         self._semantic_evidence_cache = semantic_evidence_cache
+        self._working_notes_store = working_notes_store
         self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
@@ -366,6 +371,8 @@ class MainAgentToolRegistry:
                     "confirm_career_fact": self._confirm_career_fact,
                 }
             )
+        if working_notes_store is not None:
+            self._atomic_handlers["update_working_notes"] = self._update_working_notes
         if owner_settings_store is not None:
             self._atomic_handlers["update_owner_settings"] = self._update_owner_settings
         if job_repository is not None:
@@ -762,6 +769,22 @@ class MainAgentToolRegistry:
                         "parameters": (
                             SearchCareerEpisodesToolArguments.model_json_schema()
                         ),
+                    },
+                }
+            )
+        if self._working_notes_store is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "update_working_notes",
+                        "description": (
+                            "Replace the complete per-user agent scratchpad. It is "
+                            "unconfirmed and may guide questions or response style "
+                            "only; never use it as a basis for filtering, ranking, "
+                            "applications, scheduling, or authoritative state."
+                        ),
+                        "parameters": UpdateWorkingNotesToolArguments.model_json_schema(),
                     },
                 }
             )
@@ -3948,14 +3971,36 @@ class MainAgentToolRegistry:
         )
         if not callable(confirm):
             raise ValueError("Career profile store cannot confirm free-text preferences")
-        version = confirm(
-            user_id=str(arguments["user_id"]),
-            update_id=str(arguments["update_id"]),
-            conversation_id=str(arguments.get("conversation_id", "current")),
-            job_posting_id=arguments.get("job_posting_id"),
-            scope_choice=arguments.get("scope_choice"),
-            scope_domain=arguments.get("scope_domain"),
-        )
+        proposal = arguments.get("proposal")
+        if not isinstance(proposal, FreeTextPreferenceConfirmationProposal):
+            proposal = FreeTextPreferenceConfirmationProposal.model_validate(proposal)
+        if proposal.base_update_id is not None:
+            confirm_amendment = getattr(
+                self._career_profile_store,
+                "confirm_free_text_preference_amendment",
+                None,
+            )
+            if not callable(confirm_amendment):
+                raise ValueError(
+                    "Career profile store cannot amend free-text preferences"
+                )
+            version = confirm_amendment(
+                user_id=str(arguments["user_id"]),
+                base_update_id=proposal.base_update_id,
+                expected_content_sha256=str(
+                    proposal.expected_content_sha256
+                ),
+                statement=proposal.statement,
+            )
+        else:
+            version = confirm(
+                user_id=str(arguments["user_id"]),
+                update_id=str(arguments["update_id"]),
+                conversation_id=str(arguments.get("conversation_id", "current")),
+                job_posting_id=arguments.get("job_posting_id"),
+                scope_choice=arguments.get("scope_choice"),
+                scope_domain=arguments.get("scope_domain"),
+            )
         if version is None:
             return ToolObservation(
                 tool_name="confirm_free_text_preference",
@@ -3988,6 +4033,10 @@ class MainAgentToolRegistry:
         message = f"已确认并启用这条长期偏好：{version.value}"
         payload: dict[str, Any] = {
             "scope_key": version.scope_key,
+            "memory_entry_id": intent_entry_id(
+                version.scope_key,
+                version.pref_scope,
+            ),
             "revision": version.revision,
         }
         if structured_proposal is not None:
@@ -4893,6 +4942,25 @@ class MainAgentToolRegistry:
             execution_outcome="not_committed",
         )
 
+    def _update_working_notes(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._working_notes_store is None:
+            raise ValueError("Working notes store is not configured")
+        markdown = self._working_notes_store.replace(
+            user_id=str(arguments["user_id"]),
+            markdown=str(arguments["markdown"]),
+        )
+        return ToolObservation(
+            tool_name="update_working_notes",
+            state="working_notes_updated",
+            message=(
+                "工作笔记已清空。"
+                if not markdown
+                else f"工作笔记已更新（{len(markdown)} 字符）。"
+            ),
+            payload={"chars": len(markdown)},
+            execution_outcome="committed",
+        )
+
     def _confirm_memory_amendment(
         self, arguments: dict[str, Any]
     ) -> ToolObservation:
@@ -5008,9 +5076,118 @@ class MainAgentToolRegistry:
                 ),
                 execution_outcome="not_committed",
             )
+        if proposal.target_kind == "intent_preference":
+            tombstone_preference = getattr(
+                self._conversation_store,
+                "tombstone_free_text_preference",
+                None,
+            )
+            if not callable(tombstone_preference):
+                raise ValueError(
+                    "Conversation store cannot tombstone free-text preferences"
+                )
+            committed = tombstone_preference(
+                user_id=user_id,
+                scope_key=str(proposal.scope_key),
+                pref_scope=str(proposal.pref_scope),
+                update_id=str(proposal.update_id),
+                expected_content_sha256=str(
+                    proposal.expected_content_sha256
+                ),
+                reason=proposal.reason,
+            )
+            if not committed:
+                already_tombstoned = getattr(
+                    self._conversation_store,
+                    "free_text_preference_tombstone_matches",
+                    None,
+                )
+                if not callable(already_tombstoned) or not already_tombstoned(
+                    user_id=user_id,
+                    scope_key=str(proposal.scope_key),
+                    pref_scope=str(proposal.pref_scope),
+                    update_id=str(proposal.update_id),
+                    content_digest=str(proposal.expected_content_sha256),
+                ):
+                    return ToolObservation(
+                        tool_name="confirm_memory_tombstone",
+                        state="memory_tombstone_target_changed",
+                        message=(
+                            "待删除的偏好在确认前已变化；"
+                            "请重新读取并提案。"
+                        ),
+                        execution_outcome="not_committed",
+                    )
+            memory_entry_id = intent_entry_id(
+                str(proposal.scope_key),
+                str(proposal.pref_scope),
+            )
+            working_notes_cleared = False
+            cleanup_stage = "working_notes"
+            try:
+                if self._working_notes_store is not None:
+                    working_notes_cleared = self._working_notes_store.clear(
+                        user_id=user_id
+                    )
+                cleanup_stage = "derived_memory"
+                cleanup_scope_key = memory_entry_id
+                list_versions = getattr(
+                    self._conversation_store,
+                    "list_profile_intent_versions",
+                    None,
+                )
+                if callable(list_versions):
+                    surviving = list_versions(
+                        user_id=user_id,
+                        scope_key=str(proposal.scope_key),
+                    )
+                    if not any(
+                        item.superseded_at is None
+                        and item.admission_status in {"active", "quarantined"}
+                        for item in surviving
+                    ):
+                        cleanup_scope_key = str(proposal.scope_key)
+                cleanup_counts = self._conversation_store.purge_derived_memory(
+                    user_id=user_id,
+                    scope_key=cleanup_scope_key,
+                    update_ids=(str(proposal.update_id),),
+                )
+            except (OSError, sqlite3.Error, ValueError):
+                logger.exception(
+                    "Preference tombstone cleanup failed",
+                    extra={"user_id": user_id, "scope_key": proposal.scope_key},
+                )
+                return ToolObservation(
+                    tool_name="confirm_memory_tombstone",
+                    state="memory_tombstone_cleanup_incomplete",
+                    message=(
+                        "这条长期偏好已删除，但派生清理本次未完成；"
+                        "确认请求已保留，可直接重试。"
+                    ),
+                    payload={
+                        "target_kind": "intent_preference",
+                        "memory_entry_id": memory_entry_id,
+                        "working_notes_cleared": working_notes_cleared,
+                        "cleanup_incomplete": cleanup_stage,
+                    },
+                    execution_outcome="committed",
+                )
+            cleanup_counts["working_notes"] = int(working_notes_cleared)
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstoned",
+                message="这条长期偏好已删除，相关派生记忆已按条目清理。",
+                payload={
+                    "target_kind": "intent_preference",
+                    "memory_entry_id": memory_entry_id,
+                    "cleanup_scope_key": cleanup_scope_key,
+                    "derived_cleanup": cleanup_counts,
+                },
+                execution_outcome="committed",
+            )
         evidence = self._career_history_store.get_evidence_by_detail_ref(
             user_id=user_id,
-            detail_ref=proposal.detail_ref,
+            detail_ref=str(proposal.detail_ref),
         )
         tombstone = None
         if evidence is None:
@@ -5032,6 +5209,12 @@ class MainAgentToolRegistry:
                     execution_outcome="not_committed",
                 )
             scope_key, lineage_markers = tombstoned_scope
+            tombstoned_update_ids = (
+                self._career_history_store.list_tombstoned_update_ids(
+                    user_id=user_id,
+                    scope_key=scope_key,
+                )
+            )
             tombstone = next(
                 (
                     item
@@ -5069,6 +5252,11 @@ class MainAgentToolRegistry:
                         ),
                     )
                 )
+            )
+            tombstoned_update_ids = tuple(
+                item.update_id
+                for item in lineage
+                if item.update_id is not None
             )
             try:
                 tombstone = self._career_history_store.tombstone_evidence(
@@ -5113,6 +5301,33 @@ class MainAgentToolRegistry:
                 },
             )
         purge = getattr(self._conversation_store, "purge_derived_memory", None)
+        working_notes_cleared = False
+        cleanup_stage = "working_notes"
+        try:
+            if self._working_notes_store is not None:
+                working_notes_cleared = self._working_notes_store.clear(
+                    user_id=user_id
+                )
+            cleanup_stage = "derived_memory"
+        except (OSError, sqlite3.Error, ValueError):
+            logger.exception(
+                "Tombstone working-notes cleanup failed",
+                extra={"user_id": user_id, "scope_key": tombstone.scope_key},
+            )
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_cleanup_incomplete",
+                message=(
+                    "职业声明正文及谱系已永久删除；"
+                    "工作笔记清理本次未完成，确认请求已保留。"
+                ),
+                payload={
+                    "lineage_size": len(tombstone.evidence_ids),
+                    "working_notes_cleared": False,
+                    "cleanup_incomplete": cleanup_stage,
+                },
+                execution_outcome="committed",
+            )
         if not callable(purge):
             return ToolObservation(
                 tool_name="confirm_memory_tombstone",
@@ -5123,6 +5338,8 @@ class MainAgentToolRegistry:
                 ),
                 payload={
                     "lineage_size": len(tombstone.evidence_ids),
+                    "working_notes_cleared": working_notes_cleared,
+                    "cleanup_incomplete": "derived_memory",
                 },
                 execution_outcome="committed",
             )
@@ -5135,7 +5352,9 @@ class MainAgentToolRegistry:
                 user_id=user_id,
                 scope_key=tombstone.scope_key,
                 lineage_markers=lineage_markers,
+                update_ids=tombstoned_update_ids,
             )
+            cleanup_counts["working_notes"] = int(working_notes_cleared)
         except (OSError, sqlite3.Error, ValueError):
             logger.exception(
                 "Tombstone derived-memory cleanup failed",
@@ -5153,6 +5372,8 @@ class MainAgentToolRegistry:
                 ),
                 payload={
                     "lineage_size": len(tombstone.evidence_ids),
+                    "working_notes_cleared": working_notes_cleared,
+                    "cleanup_incomplete": "derived_memory",
                 },
                 execution_outcome="committed",
             )

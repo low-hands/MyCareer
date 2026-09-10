@@ -67,6 +67,10 @@ class TargetRoleSource(Protocol):
     ) -> tuple[object, ...]: ...
 
 
+class WorkingNotesSource(Protocol):
+    def read(self, *, user_id: str) -> str: ...
+
+
 class ContextManager:
     _MAX_STATIC_INPUT_FRACTION = 0.5
     _TARGET_ROLE_SAFETY_LIMIT = 100
@@ -77,7 +81,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -115,6 +119,7 @@ class ContextManager:
         self._archived_resource_limit = archived_resource_limit
         self._target_role_source = target_role_source
         self._episode_store = episode_store
+        self._working_notes_store = working_notes_store
         self._career_profile_budgets = (
             career_profile_budgets or CareerProfileBudgets()
         )
@@ -212,6 +217,11 @@ class ContextManager:
                 conversation_id=conversation_id,
                 user_message=user_message,
                 task=task,
+            ),
+            working_notes=(
+                self._working_notes_store.read(user_id=user_id)
+                if self._working_notes_store is not None
+                else ""
             ),
             career_episodes=self._episode_context(
                 user_id=user_id,
