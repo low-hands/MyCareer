@@ -50,6 +50,7 @@ from career_agent.services.interviews import InterviewService
 from career_agent.services.interview_preparation import InterviewPreparationService
 from career_agent.services.interview_context import InterviewPreparationContextFactory
 from career_agent.services.job_research import JobResearchService
+from career_agent.services.memory_report import build_memory_report
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -71,7 +72,7 @@ from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.action_center import SQLiteActionItemStore
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
-from career_agent.storage.episodes import SQLiteCareerEpisodeStore
+from career_agent.storage.episodes import DecayPolicy, SQLiteCareerEpisodeStore
 from career_agent.storage.interviews import SQLiteInterviewStore
 from career_agent.storage.interview_preparations import SQLiteInterviewPreparationStore
 from career_agent.storage.job_research import SQLiteJobResearchStore
@@ -646,6 +647,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound the newest memory observations read from telemetry.",
     )
 
+    memory = subparsers.add_parser(
+        "memory",
+        help="Inspect memory freshness without changing stored memory.",
+    )
+    memory_subparsers = memory.add_subparsers(
+        dest="memory_command", required=True
+    )
+    memory_report = memory_subparsers.add_parser(
+        "report",
+        help="Report episode decay and preference-maintenance counts.",
+    )
+    memory_report.add_argument("--user-id", required=True)
+    memory_report.add_argument(
+        "--context-store",
+        default="~/.career-agent/context.sqlite3",
+        help="Existing local context store path (opened read-only).",
+    )
+    memory_report.add_argument(
+        "--half-life-days",
+        type=float,
+        default=DecayPolicy().half_life_days,
+    )
+    memory_report.add_argument(
+        "--access-boost",
+        type=float,
+        default=DecayPolicy().access_boost,
+    )
+    memory_report.add_argument(
+        "--projection-threshold",
+        type=float,
+        default=DecayPolicy().projection_threshold,
+    )
+    memory_report.add_argument(
+        "--quarantine-stale-days",
+        type=int,
+        default=14,
+        help="Age after which an unconfirmed quarantine candidate is stale.",
+    )
+
     keys_command = subparsers.add_parser(
         "api-keys",
         help="Issue, list and revoke the credentials the API authenticates with.",
@@ -1157,6 +1197,37 @@ def _run_memory_exposure_evaluation(args, stdout) -> int:
         )
 
 
+def _run_memory_report(args, stdout) -> int:
+    try:
+        report = build_memory_report(
+            Path(args.context_store),
+            user_id=args.user_id,
+            decay_policy=DecayPolicy(
+                half_life_days=args.half_life_days,
+                access_boost=args.access_boost,
+                projection_threshold=args.projection_threshold,
+            ),
+            quarantine_stale_days=args.quarantine_stale_days,
+        )
+        json.dump(
+            report.as_payload(),
+            stdout,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        stdout.write("\n")
+        return EXIT_OK
+    except (OSError, sqlite3.Error, ValueError) as error:
+        return _write_chat_error(
+            error,
+            stdout,
+            code=EXIT_ARGUMENT_ERROR,
+            next_action=(
+                "Check the context-store path, user identity, and decay policy."
+            ),
+        )
+
+
 def _run_trajectory_evaluation(args, stdout) -> int:
     """Replay the scenario catalogue, or re-cut it against the live model.
 
@@ -1607,6 +1678,8 @@ def main(
         if args.eval_command == "memory-exposure":
             return _run_memory_exposure_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
+    if args.command == "memory":
+        return _run_memory_report(args, stdout)
     if args.command == "settings":
         context_store = CareerContextStore(Path(args.context_store).expanduser())
         manager = ContextManager(context_store)

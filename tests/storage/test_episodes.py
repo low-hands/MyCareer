@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 
 from career_agent.domain.episodes import CareerEpisodeDraft, EpisodeResourceRef
-from career_agent.storage.episodes import SQLiteCareerEpisodeStore
+from career_agent.storage.episodes import DecayPolicy, SQLiteCareerEpisodeStore
 
 
 def _draft(
@@ -328,6 +328,109 @@ def test_projection_combines_fts_rank_with_decayed_salience(tmp_path) -> None:
     )
 
     assert [item.id for item in projected] == [salient.id, recent.id]
+
+
+def test_projection_freshness_uses_access_or_creation_and_search_keeps_faded(
+    tmp_path,
+) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    now = datetime.now(timezone.utc)
+    frequently_accessed = store.upsert(
+        _draft(summary="容量估算复盘。").model_copy(
+            update={"source_run_id": "frequent"}
+        )
+    )
+    never_accessed = store.upsert(
+        _draft(summary="容量估算复盘。").model_copy(
+            update={"source_run_id": "forgotten"}
+        )
+    )
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            """
+            UPDATE career_episodes
+            SET created_at = ?, last_accessed_at = ?, access_count = 20
+            WHERE id = ?
+            """,
+            (
+                (now - timedelta(days=730)).isoformat(),
+                (now - timedelta(days=7)).isoformat(),
+                frequently_accessed.id,
+            ),
+        )
+        connection.execute(
+            """
+            UPDATE career_episodes
+            SET created_at = ?, last_accessed_at = NULL, access_count = 0
+            WHERE id = ?
+            """,
+            ((now - timedelta(days=730)).isoformat(), never_accessed.id),
+        )
+
+    projected = store.project_relevant(
+        user_id="u1",
+        query="容量估算",
+        limit=2,
+    )
+
+    assert [item.id for item in projected] == [frequently_accessed.id]
+    assert {item.id for item in store.search(
+        user_id="u1", query="容量估算"
+    )} == {frequently_accessed.id, never_accessed.id}
+
+
+def test_projection_threshold_is_inclusive(tmp_path) -> None:
+    policy = DecayPolicy(
+        half_life_days=180,
+        access_boost=0,
+        projection_threshold=0.4,
+    )
+    store = SQLiteCareerEpisodeStore(
+        tmp_path / "context.sqlite3",
+        decay_policy=policy,
+    )
+    boundary = store.upsert(_draft(summary="容量估算边界测试。"))
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE career_episodes SET salience = ?, created_at = ? WHERE id = ?",
+            (
+                policy.projection_threshold,
+                (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+                boundary.id,
+            ),
+        )
+
+    assert store.project_relevant(
+        user_id="u1", query="容量估算"
+    )[0].id == boundary.id
+
+
+def test_access_boost_is_bounded() -> None:
+    policy = DecayPolicy(access_boost=100)
+    now = datetime.now(timezone.utc)
+
+    assert policy.effective_salience(
+        salience=1,
+        accessed_or_created_at=now,
+        access_count=10**100,
+        now=now,
+    ) == 2.0
+
+
+def test_half_life_days_really_halves_salience() -> None:
+    policy = DecayPolicy(
+        half_life_days=180,
+        access_boost=0,
+        projection_threshold=0,
+    )
+    now = datetime.now(timezone.utc)
+
+    assert policy.effective_salience(
+        salience=1,
+        accessed_or_created_at=now - timedelta(days=180),
+        access_count=0,
+        now=now,
+    ) == pytest.approx(0.5)
 
 
 def test_time_filters_compare_instants_and_require_offsets(tmp_path) -> None:
