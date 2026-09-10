@@ -539,7 +539,8 @@ def _propose_job_intent(
         return task
     return task.model_copy(
         update={
-            "pending_job_intent_update": JobIntentUpdate.model_validate(raw)
+            "pending_job_intent_update": JobIntentUpdate.model_validate(raw),
+            "bare_confirmation_target": "job_intent",
         }
     )
 
@@ -549,7 +550,12 @@ def _confirm_job_intent(
 ) -> ConversationTaskState:
     # Clearing on success is what stops one confirmation from being reusable by
     # a later turn that the user never saw a readback for.
-    return task.model_copy(update={"pending_job_intent_update": None})
+    return task.model_copy(
+        update={
+            "pending_job_intent_update": None,
+            "bare_confirmation_target": None,
+        }
+    )
 
 
 def _propose_free_text_preference_confirmation(
@@ -562,7 +568,8 @@ def _propose_free_text_preference_confirmation(
         update={
             "pending_free_text_preference": (
                 FreeTextPreferenceConfirmationProposal.model_validate(raw)
-            )
+            ),
+            "bare_confirmation_target": "free_text_preference",
         }
     )
 
@@ -570,7 +577,20 @@ def _propose_free_text_preference_confirmation(
 def _confirm_free_text_preference(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(update={"pending_free_text_preference": None})
+    structured = result.payload.get("structured_proposal")
+    return task.model_copy(
+        update={
+            "pending_free_text_preference": None,
+            "pending_job_intent_update": (
+                JobIntentUpdate.model_validate(structured)
+                if isinstance(structured, dict)
+                else task.pending_job_intent_update
+            ),
+            "bare_confirmation_target": (
+                "job_intent" if isinstance(structured, dict) else None
+            ),
+        }
+    )
 
 
 def _propose_memory_tombstone(
@@ -623,7 +643,8 @@ def _propose_career_fact(
         return task
     return task.model_copy(
         update={
-            "pending_career_fact": CareerFactProposal.model_validate(raw)
+            "pending_career_fact": CareerFactProposal.model_validate(raw),
+            "bare_confirmation_target": "career_fact",
         }
     )
 
@@ -631,7 +652,12 @@ def _propose_career_fact(
 def _confirm_career_fact(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(update={"pending_career_fact": None})
+    return task.model_copy(
+        update={
+            "pending_career_fact": None,
+            "bare_confirmation_target": None,
+        }
+    )
 
 
 def _propose_constraint_retirement(
@@ -667,7 +693,11 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
         _propose_free_text_preference_confirmation,
     ),
     "confirm_free_text_preference": _entry(
-        ("free_text_preference_confirmed",), _confirm_free_text_preference
+        (
+            "free_text_preference_confirmed",
+            "free_text_preference_confirmed_structured_proposed",
+        ),
+        _confirm_free_text_preference,
     ),
     "propose_memory_tombstone": _entry(
         ("memory_tombstone_proposed",), _propose_memory_tombstone

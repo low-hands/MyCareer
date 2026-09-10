@@ -68,7 +68,7 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # — the numbers predate the registry — so raising one has to be a deliberate edit
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
-    "resumes": 7,
+    "resumes": 8,
     "career_history": 8,
     "action_center": 2,
     "action_executions": 1,
@@ -83,7 +83,7 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 12,
+    "agent_context": 14,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
@@ -109,6 +109,61 @@ def test_no_component_declares_a_version_this_table_does_not_know_about() -> Non
             declared[component] = int(version)
 
     assert declared == DECLARED_VERSIONS
+
+
+def test_agent_context_v13_migrates_free_text_scope_and_expiry(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    pending = store.capture_free_text_preference_from_message(
+        user_id="u1",
+        conversation_id="c1",
+        message="我不去大厂。",
+    )
+    assert pending is not None
+    old_scope = "person_intent/self/employer_scale_preference"
+    new_scope = "person_intent/self/company_scale"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE career_intent_versions SET scope_key = ?",
+            (old_scope,),
+        )
+        connection.execute(
+            """
+            INSERT INTO conversation_message_memory_bindings(
+                user_id, conversation_id, sequence, scope_key, created_at
+            ) VALUES ('u1', 'c1', 1, ?, ?)
+            """,
+            (old_scope, datetime.now(timezone.utc).isoformat()),
+        )
+        connection.execute(
+            """
+            UPDATE schema_versions SET version = 12
+            WHERE component = 'agent_context'
+            """
+        )
+
+    CareerContextStore(path)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            """
+            SELECT scope_key, valid_until
+            FROM career_intent_versions
+            """
+        ).fetchone() == (new_scope, None)
+        assert connection.execute(
+            """
+            SELECT scope_key FROM conversation_message_memory_bindings
+            """
+        ).fetchone() == (new_scope,)
+        assert connection.execute(
+            """
+            SELECT topic_key, statement
+            FROM free_text_preferences_fts
+            """
+        ).fetchone() == ("employer_scale", "我不去大厂。")
 
 
 def test_agent_context_v10_drops_removed_scope_queue_schema(tmp_path: Path) -> None:

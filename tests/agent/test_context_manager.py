@@ -229,7 +229,13 @@ class GenericPreferenceSummaryWorker:
                         if avoids
                         else "偏好开源社区活跃的团队"
                     ),
-                    stance="avoid" if avoids else "prefer",
+                    stance=(
+                        "avoid_open_source"
+                        if avoids
+                        else "favor_open_source"
+                        if "仍然" in source.content
+                        else "prefer"
+                    ),
                     source_sequence=source.sequence,
                     source_quote=source.content,
                     confidence=0.8,
@@ -266,7 +272,7 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
     )
     assert len(quarantined) == 1
     assert quarantined[0].value == "偏好开源社区活跃的团队"
-    assert quarantined[0].semantic_stance == "prefer"
+    assert quarantined[0].semantic_stance == "positive"
     assert quarantined[0].source.startswith(
         "agent_inference:conversation_distillation:"
     )
@@ -281,10 +287,17 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
     assert stored_summary is not None
     assert stored_summary.content.long_term_memory_candidates == ()
 
+    two_character_overlap = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c2-unrelated",
+        user_message="我们聊聊开源岗位",
+    )
+    assert two_character_overlap.free_text_preferences == ()
+
     relevant = context_manager.load_for_turn(
         user_id="u1",
         conversation_id="c2",
-        user_message="推荐一些开源团队的岗位",
+        user_message="推荐一些开源社区活跃团队的岗位",
     )
     assert relevant.free_text_preferences[0].status == "quarantined"
     assert relevant.free_text_preferences[0].statement == "偏好开源社区活跃的团队"
@@ -294,13 +307,22 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
         update_id=quarantined[0].update_id,
     )
     assert active is not None
-    assert active.semantic_stance == "prefer"
+    assert active.semantic_stance == "positive"
     projected = context_manager.load_for_turn(
         user_id="u1",
         conversation_id="c3",
         user_message="继续推荐岗位",
     )
     assert projected.free_text_preferences[0].status == "active"
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            """
+            UPDATE career_intent_versions
+            SET semantic_stance = 'favor_open_source'
+            WHERE update_id = ?
+            """,
+            (active.update_id,),
+        )
 
     reaffirmation = context_manager.load_for_turn(
         user_id="u1",

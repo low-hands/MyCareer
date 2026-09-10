@@ -14,7 +14,12 @@ from career_agent.domain.memory_scope import (
 
 _DEFAULT_RELATIONS: dict[ScopeFamily, frozenset[str]] = {
     "person_intent": frozenset(
-        {"default_city", "work_arrangement", "work_schedule"}
+        {
+            "default_city",
+            "work_arrangement",
+            "work_schedule",
+            "company_scale",
+        }
     ),
     "target_role_intent": frozenset(
         {"city", "salary_expectation", "experience", "education"}

@@ -105,3 +105,51 @@ def test_summary_worker_rejects_unstructured_response() -> None:
         )
 
     assert error.value.code == "CONVERSATION_SUMMARY_INVALID_RESPONSE"
+
+
+def test_summary_worker_drops_bad_optional_candidate_without_losing_summary() -> None:
+    client = Client(
+        json.dumps(
+            {
+                "user_goals": ["Find a suitable role"],
+                "confirmed_decisions": ["Search this week"],
+                "unresolved_questions": [],
+                "active_constraints": ["Keep the search private"],
+                "long_term_memory_candidates": [
+                    {
+                        "topic_key": "team_culture",
+                        "statement": "偏好开放协作的团队",
+                        "stance": "prefer_team_culture",
+                        "source_sequence": 1,
+                        "source_quote": "我偏好开放协作的团队",
+                        "confidence": 0.9,
+                    },
+                    {
+                        "topic_key": "company_stage",
+                        "statement": "对公司阶段心情复杂",
+                        "stance": "mixed_feelings",
+                        "source_sequence": 1,
+                        "source_quote": "我对公司阶段心情复杂",
+                        "confidence": 0.6,
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
+    result = OpenAIConversationSummaryWorker(config(), client=client).summarize(
+        previous=None,
+        messages=(
+            SummaryMessage(
+                sequence=1,
+                role="user",
+                content="我偏好开放协作的团队，我对公司阶段心情复杂",
+            ),
+        ),
+    )
+
+    assert result.user_goals == ("Find a suitable role",)
+    assert result.confirmed_decisions == ("Search this week",)
+    assert result.active_constraints == ("Keep the search private",)
+    assert len(result.long_term_memory_candidates) == 1
+    assert result.long_term_memory_candidates[0].stance == "positive"

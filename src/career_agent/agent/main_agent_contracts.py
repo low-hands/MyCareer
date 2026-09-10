@@ -54,7 +54,11 @@ class CurrentTargetContext(ContractModel):
 class HardConstraintContext(ContractModel):
     """One confirmed person-level job constraint from a closed relation set."""
 
-    relation: Literal["work_arrangement", "work_schedule"]
+    relation: Literal[
+        "work_arrangement",
+        "work_schedule",
+        "company_scale",
+    ]
     value: str = Field(min_length=1, max_length=500)
     confirmed_at: datetime | None = Field(default=None, exclude=True)
 
@@ -68,6 +72,22 @@ class FreeTextPreferenceContext(ContractModel):
     status: Literal["quarantined", "active"]
     observed_at: datetime
     confirmed_at: datetime | None = None
+    ownership: Literal[
+        "person_stable",
+        "person_default",
+        "person_situational",
+        "role",
+        "situational",
+    ] = "person_default"
+    pref_scope: str = Field(default="freeform.person_default", exclude=True)
+    layer: Literal["stable", "contextual", "transient"] = Field(
+        default="contextual", exclude=True
+    )
+    timescale: Literal["permanent", "situational"] = Field(
+        default="permanent", exclude=True
+    )
+    valid_until: datetime | None = Field(default=None, exclude=True)
+    needs_scope_clarification: bool = Field(default=False, exclude=True)
     update_id: str = Field(
         pattern=r"^intent_update_[a-f0-9]{32}$",
         exclude=True,
@@ -86,6 +106,19 @@ class FreeTextPreferenceConfirmationProposal(ContractModel):
     update_id: str = Field(pattern=r"^intent_update_[a-f0-9]{32}$")
     topic_key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
     statement: str = Field(min_length=1, max_length=2000)
+    ownership: Literal[
+        "person_stable",
+        "person_default",
+        "person_situational",
+        "role",
+        "situational",
+    ] = "person_default"
+    pref_scope: str = Field(
+        default="freeform.person_default",
+        min_length=1,
+        max_length=120,
+    )
+    needs_scope_clarification: bool = False
 
 
 class MemoryTelemetryBinding(ContractModel):
@@ -182,6 +215,8 @@ class JobIntentUpdate(ContractModel):
         max_length=120,
     )
     timescale: Literal["permanent", "situational"] = "permanent"
+    layer: Literal["stable", "contextual", "transient"] | None = None
+    valid_until: datetime | None = None
     city: str | None = Field(default=None, min_length=1, max_length=40)
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
@@ -214,6 +249,10 @@ class JobIntentUpdate(ContractModel):
             raise ValueError(
                 "situational intent requires the named situation in pref_scope"
             )
+        if self.timescale == "permanent" and self.valid_until is not None:
+            raise ValueError("permanent intent cannot carry valid_until")
+        if self.layer == "transient" and self.timescale != "situational":
+            raise ValueError("transient intent must be situational")
         return self
 
     @property
@@ -556,6 +595,11 @@ class ConversationTaskState(ContractModel):
     pending_memory_tombstone: MemoryTombstoneProposal | None = None
     pending_career_fact: CareerFactProposal | None = None
     pending_constraint_retirement: ConstraintRetirementProposal | None = None
+    bare_confirmation_target: Literal[
+        "career_fact",
+        "job_intent",
+        "free_text_preference",
+    ] | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
@@ -1055,6 +1099,7 @@ def confirmation_recency_label(
 _HARD_CONSTRAINT_LABELS = {
     "work_arrangement": "Work arrangement",
     "work_schedule": "Work schedule",
+    "company_scale": "Company scale",
 }
 _TARGET_INTENT_LABELS = {
     "city": "City",
@@ -2420,7 +2465,27 @@ class ProposeFreeTextPreferenceConfirmationToolArguments(ContractModel):
 
 
 class ConfirmFreeTextPreferenceToolArguments(ContractModel):
-    pass
+    scope_choice: Literal[
+        "person_stable",
+        "person_default",
+        "person_situational",
+        "role",
+        "situational",
+    ] | None = None
+    scope_domain: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
+    )
+
+    @model_validator(mode="after")
+    def role_choice_names_its_domain(
+        self,
+    ) -> "ConfirmFreeTextPreferenceToolArguments":
+        if self.scope_choice == "role" and self.scope_domain is None:
+            raise ValueError("role scope requires scope_domain")
+        if self.scope_choice != "role" and self.scope_domain is not None:
+            raise ValueError("scope_domain is only valid for role scope")
+        return self
 
 
 class CompareSavedJobsToolArguments(ContractModel):
@@ -2916,17 +2981,33 @@ def project_free_text_preference_arguments(
                 update_id=candidate.update_id,
                 topic_key=candidate.topic_key,
                 statement=candidate.statement,
+                ownership=candidate.ownership,
+                pref_scope=candidate.pref_scope,
+                needs_scope_clarification=candidate.needs_scope_clarification,
             ),
         }
-    ConfirmFreeTextPreferenceToolArguments.model_validate(arguments)
+    confirmation = ConfirmFreeTextPreferenceToolArguments.model_validate(
+        arguments
+    )
     pending = context.task.pending_free_text_preference
     if pending is None:
         raise ValueError(
             "confirm_free_text_preference requires a proposal the user has seen"
         )
+    if (
+        pending.needs_scope_clarification
+        and confirmation.scope_choice is None
+    ):
+        raise ValueError(
+            "this preference needs person_default or a named role scope"
+        )
     return {
         "user_id": context.profile.user_id,
         "update_id": pending.update_id,
+        "conversation_id": context.conversation_id,
+        "job_posting_id": context.task.active_job_posting_id,
+        "scope_choice": confirmation.scope_choice,
+        "scope_domain": confirmation.scope_domain,
     }
 
 

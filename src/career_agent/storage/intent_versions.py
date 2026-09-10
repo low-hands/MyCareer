@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import re
@@ -55,6 +55,7 @@ def apply_intent_version_schema(connection: sqlite3.Connection) -> None:
         } <= columns:
             upgrade_intent_version_schema(connection)
     upgrade_intent_semantic_stance_schema(connection)
+    upgrade_intent_valid_until_schema(connection)
     _create_intent_version_indexes(connection)
 
 
@@ -71,6 +72,44 @@ def upgrade_intent_semantic_stance_schema(
         connection.execute(
             "ALTER TABLE career_intent_versions ADD COLUMN semantic_stance TEXT"
         )
+
+
+def upgrade_intent_valid_until_schema(
+    connection: sqlite3.Connection,
+) -> None:
+    columns = {
+        str(row[1])
+        for row in connection.execute(
+            "PRAGMA table_info(career_intent_versions)"
+        )
+    }
+    if "valid_until" not in columns:
+        connection.execute(
+            "ALTER TABLE career_intent_versions ADD COLUMN valid_until TEXT"
+        )
+    rows = connection.execute(
+        """
+        SELECT update_id, valid_from
+        FROM career_intent_versions
+        WHERE timescale = 'situational' AND valid_until IS NULL
+        """
+    ).fetchall()
+    connection.executemany(
+        """
+        UPDATE career_intent_versions SET valid_until = ?
+        WHERE update_id = ?
+        """,
+        (
+            (
+                (
+                    datetime.fromisoformat(str(valid_from))
+                    + timedelta(days=30)
+                ).isoformat(),
+                str(update_id),
+            )
+            for update_id, valid_from in rows
+        ),
+    )
 
 
 def upgrade_intent_version_schema(connection: sqlite3.Connection) -> None:
@@ -124,6 +163,7 @@ def _create_intent_version_table(connection: sqlite3.Connection) -> None:
             content_digest TEXT NOT NULL,
             revision INTEGER NOT NULL CHECK (revision >= 1),
             valid_from TEXT NOT NULL,
+            valid_until TEXT,
             timescale TEXT NOT NULL DEFAULT 'permanent'
                 CHECK(timescale IN ('permanent', 'situational')),
             layer TEXT NOT NULL DEFAULT 'stable'
@@ -185,6 +225,7 @@ def append_intent_version(
     value: str,
     source: str,
     valid_from: datetime | None = None,
+    valid_until: datetime | None = None,
     pref_scope: str = "global",
     timescale: IntentTimescale = "permanent",
     layer: IntentLayer = "stable",
@@ -228,12 +269,27 @@ def append_intent_version(
                     """
                     UPDATE career_intent_versions
                     SET last_corroborated_at = ?,
-                        base_confidence = MAX(base_confidence, ?)
+                        base_confidence = MAX(base_confidence, ?),
+                        valid_until = CASE
+                            WHEN ? IS NULL THEN valid_until
+                            WHEN valid_until IS NULL OR valid_until < ?
+                                THEN ?
+                            ELSE valid_until
+                        END
                     WHERE update_id = ?
                     """,
                     (
                         corroborated_at.isoformat(),
                         base_confidence,
+                        *(
+                            (
+                                valid_until.isoformat(),
+                                valid_until.isoformat(),
+                                valid_until.isoformat(),
+                            )
+                            if valid_until is not None
+                            else (None, None, None)
+                        ),
                         current.update_id,
                     ),
                 )
@@ -272,6 +328,7 @@ def append_intent_version(
         content_digest=digest,
         revision=revision,
         valid_from=now,
+        valid_until=valid_until,
         pref_scope=pref_scope,
         timescale=timescale,
         layer=layer,
@@ -297,8 +354,8 @@ def append_intent_version(
             update_id, user_id, scope_key, pref_scope, value, content_digest,
             revision, valid_from, timescale, layer, last_corroborated_at,
             base_confidence, admission_status, capture_action,
-            semantic_stance, superseded_at, superseded_by, source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+            semantic_stance, valid_until, superseded_at, superseded_by, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
         """,
         (
             version.update_id,
@@ -316,6 +373,11 @@ def append_intent_version(
             version.admission_status,
             version.capture_action,
             version.semantic_stance,
+            (
+                version.valid_until.isoformat()
+                if version.valid_until is not None
+                else None
+            ),
             version.source,
         ),
     )
@@ -357,6 +419,14 @@ def capture_intent_version(
     decision = select_intent_capture_action(candidate, active=active)
     if decision.reason == "abstained":
         return decision, None
+    candidate_valid_until = candidate.valid_until
+    if (
+        candidate.timescale == "situational"
+        and candidate_valid_until is None
+    ):
+        candidate_valid_until = (
+            candidate.observed_at + timedelta(days=30)
+        )
     if decision.action == "retain":
         if active is None:
             return decision, None
@@ -368,6 +438,7 @@ def capture_intent_version(
             value=active.value,
             source=candidate.source,
             valid_from=candidate.observed_at,
+            valid_until=candidate_valid_until or active.valid_until,
             timescale=active.timescale,
             layer=active.layer,
             last_corroborated_at=candidate.observed_at,
@@ -377,7 +448,9 @@ def capture_intent_version(
         )
         return decision, version
     status: IntentAdmissionStatus = (
-        "quarantined" if decision.action == "quarantine" else "active"
+        "quarantined"
+        if decision.action in {"quarantine", "ask"}
+        else "active"
     )
     version = append_intent_version(
         connection,
@@ -387,6 +460,7 @@ def capture_intent_version(
         value=candidate.value,
         source=candidate.source,
         valid_from=candidate.observed_at,
+        valid_until=candidate_valid_until,
         timescale=candidate.timescale,
         layer=candidate.layer,
         last_corroborated_at=candidate.observed_at,
@@ -489,7 +563,7 @@ _SELECT = """
     SELECT update_id, user_id, scope_key, value, content_digest, revision,
            valid_from, superseded_at, superseded_by, source, pref_scope,
            timescale, layer, last_corroborated_at, base_confidence,
-           admission_status, capture_action, semantic_stance
+           admission_status, capture_action, semantic_stance, valid_until
     FROM career_intent_versions
 """
 
@@ -514,4 +588,5 @@ def _version(row: tuple[object, ...]) -> IntentMemoryVersion:
         admission_status=row[15],
         capture_action=row[16],
         semantic_stance=row[17],
+        valid_until=row[18],
     )

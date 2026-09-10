@@ -19,6 +19,11 @@ from career_agent.storage.resume_job_matches import (
     SQLiteResumeJobMatchStore,
     StoredResumeJobMatch,
 )
+from career_agent.services.free_text_preferences import preference_scope_domain
+from career_agent.services.preference_resolution import (
+    PreferenceResolutionContext,
+    resolve_effective_preferences,
+)
 
 
 class ResumeJobMatchInputNotFoundError(ValueError):
@@ -76,6 +81,7 @@ class ResumeJobMatchService:
         intent_states, transitions = self._intent_state(
             user_id=user_id,
             resume_version_id=resume_version_id,
+            job_posting_id=job_posting_id,
         )
         confirmed_facts = tuple(
             ConfirmedResumeFact(
@@ -163,6 +169,7 @@ class ResumeJobMatchService:
         *,
         user_id: str,
         resume_version_id: str,
+        job_posting_id: str | None = None,
     ) -> tuple[
         tuple[IntentStateAnchor, ...],
         tuple[IntentStateTransition, ...],
@@ -174,6 +181,10 @@ class ResumeJobMatchService:
         if source is None:
             return (), ()
         resume, _ = source
+        target_role = self._resume_store.get_target_role(
+            user_id=user_id,
+            target_role_id=resume.target_role_id,
+        )
         versions = list(
             self._resume_store.list_target_role_intent_versions(
                 user_id=user_id,
@@ -185,7 +196,6 @@ class ResumeJobMatchService:
             if item.scope_key.startswith(
                 f"target_role_intent/{resume.target_role_id}/"
             )
-            and item.pref_scope == "global"
             and item.admission_status == "active"
         ]
         if self._career_profile_store is not None:
@@ -193,9 +203,9 @@ class ResumeJobMatchService:
                 item
                 for item in self._career_profile_store.list_profile_intent_versions(
                     user_id=user_id,
-                    pref_scope="global",
                 )
                 if item.admission_status == "active"
+                and not item.pref_scope.startswith("freeform")
             )
             # Free-text preferences have a separate confirmation lifecycle.
             # Consume only the store's active view so a quarantined or
@@ -206,6 +216,32 @@ class ResumeJobMatchService:
                     statuses=("active",),
                 )
             )
+        effective = resolve_effective_preferences(
+            versions,
+            context=PreferenceResolutionContext(
+                target_role_id=resume.target_role_id,
+                role_domains=tuple(
+                    value
+                    for value in (
+                        preference_scope_domain(
+                            target_role.title
+                            if target_role is not None
+                            else None
+                        ),
+                    )
+                    if value is not None
+                ),
+                job_posting_id=job_posting_id,
+            ),
+        )
+        effective_tracks = {
+            (item.scope_key, item.pref_scope) for item in effective
+        }
+        versions = [
+            item
+            for item in versions
+            if (item.scope_key, item.pref_scope) in effective_tracks
+        ]
         tracks: dict[tuple[str, str], list] = {}
         for version in versions:
             tracks.setdefault(

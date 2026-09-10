@@ -104,6 +104,7 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "memory_amendment_proposed": _WAITING,
     "memory_tombstone_proposed": _WAITING,
     "free_text_preference_confirmation_proposed": _WAITING,
+    "free_text_preference_confirmed_structured_proposed": _WAITING,
     "career_fact_proposed": _WAITING,
     "constraint_retirement_proposed": _WAITING,
     "resume_final_review_blocked": _WAITING,

@@ -19,6 +19,7 @@ from career_agent.storage.intent_versions import (
     capture_intent_version,
     list_intent_versions,
     upgrade_intent_semantic_stance_schema,
+    upgrade_intent_valid_until_schema,
     upgrade_intent_version_schema,
 )
 from career_agent.storage.schema import apply_schema
@@ -47,13 +48,14 @@ class ResumeStore:
             apply_schema(
                 connection,
                 "resumes",
-                7,
+                8,
                 self._migrate,
                 upgrades={
                     4: self._add_target_role_intent_columns,
                     5: self._backfill_target_role_intent_versions,
                     6: upgrade_intent_version_schema,
                     7: upgrade_intent_semantic_stance_schema,
+                    8: upgrade_intent_valid_until_schema,
                 },
             )
         os.chmod(self.path, 0o600)

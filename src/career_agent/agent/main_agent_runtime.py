@@ -224,7 +224,9 @@ class RuntimePolicyAction:
 
     policy: Literal[
         "free_text_preference_confirmation",
+        "free_text_preference_activation",
         "career_fact_confirmation",
+        "job_intent_confirmation",
     ]
 
     kind: ClassVar[OriginKind] = "policy"
@@ -367,6 +369,7 @@ class MainAgentRuntime:
             "memory_amendment_proposed",
             "memory_tombstone_proposed",
             "free_text_preference_confirmation_proposed",
+            "free_text_preference_confirmed_structured_proposed",
             "career_fact_proposed",
             "mock_interview_answer_required",
             "mock_interview_running",
@@ -969,6 +972,13 @@ class MainAgentRuntime:
             user_id=user_id,
             conversation_id=conversation_id,
         )
+        bare_confirmation_target = routing_task.bare_confirmation_target
+        if bare_confirmation_target is not None:
+            routing_task = self._context_manager.disarm_bare_confirmation(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                task=routing_task,
+            )
         if interaction_response is not None:
             context = self._context_manager.load_for_turn(
                 user_id=user_id,
@@ -1052,7 +1062,10 @@ class MainAgentRuntime:
             user_message=user_message,
         )
         try:
-            result = self._run_loaded_context(context)
+            result = self._run_loaded_context(
+                context,
+                bare_confirmation_target=bare_confirmation_target,
+            )
         except Exception as error:
             self._commit_interrupted_turn(context=context, error=error)
             raise
@@ -1257,6 +1270,7 @@ class MainAgentRuntime:
                 "memory_amendment_proposed",
                 "memory_tombstone_proposed",
                 "free_text_preference_confirmation_proposed",
+                "free_text_preference_confirmed_structured_proposed",
                 "career_fact_proposed",
                 "mock_interview_answer_required",
                 "mock_interview_running",
@@ -1689,15 +1703,51 @@ class MainAgentRuntime:
             "mock_interview_graph_incompatible",
         }
 
-    def _run_loaded_context(self, context: MainAgentContext) -> MainAgentTurnResult:
+    def _run_loaded_context(
+        self,
+        context: MainAgentContext,
+        *,
+        bare_confirmation_target: Literal[
+            "career_fact",
+            "job_intent",
+            "free_text_preference",
+        ] | None = None,
+    ) -> MainAgentTurnResult:
         if (
-            context.task.pending_career_fact is not None
+            bare_confirmation_target == "career_fact"
+            and context.task.pending_career_fact is not None
             and is_explicit_confirmation(context.user_message)
         ):
             return self._run_runtime_policy_tool(
                 context,
                 policy="career_fact_confirmation",
                 tool_name="confirm_career_fact",
+                arguments={},
+            )
+        if (
+            bare_confirmation_target == "job_intent"
+            and context.task.pending_job_intent_update is not None
+            and is_explicit_confirmation(context.user_message)
+        ):
+            return self._run_runtime_policy_tool(
+                context,
+                policy="job_intent_confirmation",
+                tool_name="confirm_job_intent",
+                arguments={},
+            )
+        if (
+            bare_confirmation_target == "free_text_preference"
+            and context.task.pending_free_text_preference is not None
+            and not (
+                context.task.pending_free_text_preference
+                .needs_scope_clarification
+            )
+            and is_explicit_confirmation(context.user_message)
+        ):
+            return self._run_runtime_policy_tool(
+                context,
+                policy="free_text_preference_activation",
+                tool_name="confirm_free_text_preference",
                 arguments={},
             )
         if (
@@ -1769,7 +1819,9 @@ class MainAgentRuntime:
         *,
         policy: Literal[
             "free_text_preference_confirmation",
+            "free_text_preference_activation",
             "career_fact_confirmation",
+            "job_intent_confirmation",
         ],
         tool_name: str,
         arguments: dict[str, Any],
@@ -2720,6 +2772,7 @@ class MainAgentRuntime:
                 "memory_tombstoned",
                 "memory_tombstone_cleanup_incomplete",
                 "free_text_preference_confirmed",
+                "free_text_preference_confirmed_structured_proposed",
                 "career_fact_confirmed",
             }:
                 refreshed = self._context_manager.load_for_turn(

@@ -42,9 +42,17 @@ from career_agent.storage.intent_versions import (
     capture_intent_version,
     list_intent_versions,
     upgrade_intent_semantic_stance_schema,
+    upgrade_intent_valid_until_schema,
     upgrade_intent_version_schema,
 )
-from career_agent.services.free_text_preferences import extract_free_text_preference
+from career_agent.services.free_text_preferences import (
+    extract_free_text_preference,
+    normalize_preference_stance,
+    preference_fts_query,
+    preference_scope_key,
+    preference_storage_assignment,
+    preference_topic_key,
+)
 from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.storage.schema import apply_schema
 
@@ -186,7 +194,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                12,
+                14,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -200,11 +208,72 @@ class CareerContextStore:
                     10: self._upgrade_to_v10,
                     11: self._upgrade_to_v11,
                     12: upgrade_intent_semantic_stance_schema,
+                    13: self._upgrade_to_v13,
+                    14: self._upgrade_to_v14,
                 },
             )
             apply_episode_schema(connection)
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _upgrade_to_v14(connection: sqlite3.Connection) -> None:
+        CareerContextStore._ensure_free_text_preference_fts(connection)
+
+    @staticmethod
+    def _upgrade_to_v13(connection: sqlite3.Connection) -> None:
+        """Add read-time expiry and canonicalize the first dual-track scope."""
+
+        upgrade_intent_valid_until_schema(connection)
+        old_scope = "person_intent/self/employer_scale_preference"
+        new_scope = "person_intent/self/company_scale"
+        connection.execute(
+            """
+            UPDATE career_intent_versions AS old
+            SET scope_key = ?
+            WHERE scope_key = ?
+              AND NOT EXISTS (
+                    SELECT 1 FROM career_intent_versions AS current
+                    WHERE current.user_id = old.user_id
+                      AND current.scope_key = ?
+                  )
+            """,
+            (new_scope, old_scope, new_scope),
+        )
+        for table, columns in (
+            (
+                "conversation_message_memory_bindings",
+                "user_id, conversation_id, sequence, scope_key, created_at",
+            ),
+            (
+                "memory_deletion_message_suppressions",
+                "user_id, conversation_id, sequence, scope_key, suppressed_at",
+            ),
+            (
+                "memory_deleted_scopes",
+                "user_id, scope_key, deleted_at",
+            ),
+            (
+                "career_episode_memory_bindings",
+                "episode_id, user_id, scope_key, created_at",
+            ),
+        ):
+            exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (table,),
+            ).fetchone()
+            if exists is None:
+                continue
+            selected = columns.replace("scope_key", "?")
+            connection.execute(
+                f"INSERT OR IGNORE INTO {table}({columns}) "
+                f"SELECT {selected} FROM {table} WHERE scope_key = ?",
+                (new_scope, old_scope),
+            )
+            connection.execute(
+                f"DELETE FROM {table} WHERE scope_key = ?",
+                (old_scope,),
+            )
 
     @staticmethod
     def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
@@ -456,6 +525,48 @@ class CareerContextStore:
         )
 
     @staticmethod
+    def _ensure_free_text_preference_fts(
+        connection: sqlite3.Connection,
+    ) -> None:
+        connection.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS free_text_preferences_fts
+            USING fts5(
+                update_id UNINDEXED,
+                user_id UNINDEXED,
+                topic_key,
+                statement,
+                tokenize='trigram'
+            )
+            """
+        )
+        connection.execute("DELETE FROM free_text_preferences_fts")
+        rows = connection.execute(
+            """
+            SELECT update_id, user_id, scope_key, value
+            FROM career_intent_versions
+            WHERE pref_scope = 'freeform'
+               OR pref_scope LIKE 'freeform.%'
+            """
+        ).fetchall()
+        connection.executemany(
+            """
+            INSERT INTO free_text_preferences_fts(
+                update_id, user_id, topic_key, statement
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (
+                (
+                    str(update_id),
+                    str(user_id),
+                    preference_topic_key(str(scope_key)),
+                    str(value),
+                )
+                for update_id, user_id, scope_key, value in rows
+            ),
+        )
+
+    @staticmethod
     def _adopt_legacy_preferences(connection: sqlite3.Connection) -> None:
         """Handle a pre-registry database, for which apply_schema skips upgrades."""
 
@@ -563,6 +674,7 @@ class CareerContextStore:
             """
         )
         CareerContextStore._ensure_memory_deletion_schema(connection)
+        CareerContextStore._ensure_free_text_preference_fts(connection)
         CareerContextStore._drop_removed_scope_queue(connection)
         CareerContextStore._ensure_constraint_archive_schema(connection)
 
@@ -802,15 +914,35 @@ class CareerContextStore:
         limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]:
         with self._connect() as connection:
-            return list_intent_versions(
+            deleted_by_scope = {
+                str(row[0]): datetime.fromisoformat(str(row[1]))
+                for row in connection.execute(
+                    """
+                    SELECT scope_key, deleted_at
+                    FROM memory_deleted_scopes
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            }
+            versions = list_intent_versions(
                 connection,
                 user_id=user_id,
                 scope_key=scope_key,
                 scope_keys=scope_keys,
                 pref_scope=pref_scope,
                 active_only=active_only,
-                limit=limit,
+                limit=None if deleted_by_scope else limit,
             )
+        visible = tuple(
+            item
+            for item in versions
+            if (
+                item.scope_key not in deleted_by_scope
+                or item.valid_from > deleted_by_scope[item.scope_key]
+            )
+        )
+        return visible[:limit] if limit is not None else visible
 
     def capture_profile_intent(
         self,
@@ -844,16 +976,31 @@ class CareerContextStore:
             self.purge_derived_memory(user_id=user_id, scope_key=scope_key)
             return None
         assert mutation.statement is not None
+        assert mutation.ownership is not None
+        task = self.get_task(user_id, conversation_id)
+        observed_at = datetime.now(timezone.utc)
+        assignment = preference_storage_assignment(
+            mutation.ownership,
+            observed_at=observed_at,
+            conversation_id=conversation_id,
+            job_posting_id=(
+                task.active_job_posting_id if task is not None else None
+            ),
+            statement=mutation.statement,
+        )
         candidate = IntentCaptureCandidate(
             user_id=user_id,
             scope_key=scope_key,
             value=mutation.statement,
             source=f"conversation_user_statement:{conversation_id}"[:200],
-            pref_scope="freeform",
-            timescale="permanent",
-            layer="contextual",
+            pref_scope=assignment.pref_scope,
+            timescale=assignment.timescale,
+            layer=assignment.layer,
+            valid_until=assignment.valid_until,
             ambiguous=True,
+            scope_ambiguous=assignment.scope_ambiguous,
             semantic_stance=mutation.stance,
+            observed_at=observed_at,
         )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -870,6 +1017,29 @@ class CareerContextStore:
         candidate: IntentCaptureCandidate,
         corroborate_active: bool = False,
     ) -> IntentMemoryVersion | None:
+        candidate_stance = normalize_preference_stance(
+            candidate.semantic_stance
+        )
+        if candidate_stance is None:
+            raise ValueError(
+                "free-text preference stance must have controlled polarity"
+            )
+        candidate = candidate.model_copy(
+            update={"semantic_stance": candidate_stance}
+        )
+        if candidate.pref_scope == "freeform.person_default":
+            legacy_track = list_intent_versions(
+                connection,
+                user_id=candidate.user_id,
+                scope_key=candidate.scope_key,
+                pref_scope="freeform",
+            )
+            if any(
+                item.superseded_at is None for item in legacy_track
+            ):
+                candidate = candidate.model_copy(
+                    update={"pref_scope": "freeform"}
+                )
         deleted_at = self._memory_scope_deleted_at_on(
             connection,
             user_id=candidate.user_id,
@@ -883,7 +1053,7 @@ class CareerContextStore:
                         connection,
                         user_id=candidate.user_id,
                         scope_key=candidate.scope_key,
-                        pref_scope="freeform",
+                        pref_scope=candidate.pref_scope,
                     )
                 )
                 if item.superseded_at is None
@@ -891,7 +1061,11 @@ class CareerContextStore:
             ),
             None,
         )
-        active_stance = active.semantic_stance if active is not None else None
+        active_stance = (
+            normalize_preference_stance(active.semantic_stance)
+            if active is not None
+            else None
+        )
         if active is not None and active_stance is None:
             legacy_mutation = extract_free_text_preference(active.value)
             active_stance = (
@@ -920,6 +1094,7 @@ class CareerContextStore:
                 pref_scope=active.pref_scope,
                 timescale=active.timescale,
                 layer=active.layer,
+                valid_until=candidate.valid_until or active.valid_until,
                 last_corroborated_at=candidate.observed_at,
                 base_confidence=max(active.base_confidence, candidate.confidence),
                 admission_status="active",
@@ -932,7 +1107,7 @@ class CareerContextStore:
                 """
                 UPDATE career_intent_versions
                 SET superseded_at = ?, superseded_by = ?
-                WHERE user_id = ? AND scope_key = ? AND pref_scope = 'freeform'
+                WHERE user_id = ? AND scope_key = ? AND pref_scope = ?
                   AND admission_status = 'quarantined'
                   AND superseded_at IS NULL
                 """,
@@ -941,6 +1116,7 @@ class CareerContextStore:
                     corroborated.update_id,
                     candidate.user_id,
                     candidate.scope_key,
+                    candidate.pref_scope,
                 ),
             )
             return corroborated
@@ -953,7 +1129,7 @@ class CareerContextStore:
                             connection,
                             user_id=candidate.user_id,
                             scope_key=candidate.scope_key,
-                            pref_scope="freeform",
+                            pref_scope=candidate.pref_scope,
                         )
                     )
                     if item.superseded_at is None
@@ -963,13 +1139,17 @@ class CareerContextStore:
             )
             if (
                 quarantined is not None
-                and quarantined.semantic_stance is not None
-                and quarantined.semantic_stance == candidate.semantic_stance
+                and normalize_preference_stance(
+                    quarantined.semantic_stance
+                )
+                == candidate.semantic_stance
             ):
                 # Keep an explicit/direct candidate when summary distillation
                 # later paraphrases the same stance.
                 return quarantined
         _, version = capture_intent_version(connection, candidate=candidate)
+        if version is not None:
+            self._index_free_text_preference_on(connection, version)
         return version
 
     def list_free_text_preferences(
@@ -982,7 +1162,6 @@ class CareerContextStore:
             versions = list_intent_versions(
                 connection,
                 user_id=user_id,
-                pref_scope="freeform",
             )
             deleted_by_scope = {
                 str(row[0]): datetime.fromisoformat(str(row[1]))
@@ -1001,11 +1180,94 @@ class CareerContextStore:
         return tuple(
             item
             for item in versions
-            if item.superseded_at is None and item.admission_status in selected
+            if item.pref_scope.startswith("freeform")
+            and item.superseded_at is None
+            and item.admission_status in selected
             and (
                 item.scope_key not in deleted_by_scope
                 or item.valid_from > deleted_by_scope[item.scope_key]
             )
+        )
+
+    def search_free_text_preference_rankings(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 32,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Return independent topic and statement FTS rankings for RRF."""
+
+        if limit < 1 or limit > 100:
+            raise ValueError("preference search limit must be between 1 and 100")
+        match_query = preference_fts_query(query)
+        if match_query is None:
+            return (), ()
+        now = datetime.now(timezone.utc).isoformat()
+        rankings = []
+        with self._connect() as connection:
+            for column, topic_weight, statement_weight in (
+                ("topic_key", 8.0, 0.0),
+                ("statement", 0.0, 8.0),
+            ):
+                rows = connection.execute(
+                    f"""
+                    SELECT search.update_id
+                    FROM free_text_preferences_fts AS search
+                    JOIN career_intent_versions AS intent
+                      ON intent.update_id = search.update_id
+                    LEFT JOIN memory_deleted_scopes AS deleted
+                      ON deleted.user_id = intent.user_id
+                     AND deleted.scope_key = intent.scope_key
+                    WHERE free_text_preferences_fts MATCH ?
+                      AND search.user_id = ?
+                      AND intent.admission_status = 'quarantined'
+                      AND intent.superseded_at IS NULL
+                      AND (
+                            intent.valid_until IS NULL
+                            OR intent.valid_until > ?
+                          )
+                      AND (
+                            deleted.deleted_at IS NULL
+                            OR intent.valid_from > deleted.deleted_at
+                          )
+                    ORDER BY bm25(
+                        free_text_preferences_fts,
+                        0.0, 0.0, {topic_weight}, {statement_weight}
+                    ), intent.valid_from DESC
+                    LIMIT ?
+                    """,
+                    (
+                        f"{column} : ({match_query})",
+                        user_id,
+                        now,
+                        limit,
+                    ),
+                ).fetchall()
+                rankings.append(tuple(str(row[0]) for row in rows))
+        return rankings[0], rankings[1]
+
+    @staticmethod
+    def _index_free_text_preference_on(
+        connection: sqlite3.Connection,
+        version: IntentMemoryVersion,
+    ) -> None:
+        connection.execute(
+            "DELETE FROM free_text_preferences_fts WHERE update_id = ?",
+            (version.update_id,),
+        )
+        connection.execute(
+            """
+            INSERT INTO free_text_preferences_fts(
+                update_id, user_id, topic_key, statement
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (
+                version.update_id,
+                version.user_id,
+                preference_topic_key(version.scope_key),
+                version.value,
+            ),
         )
 
     def confirm_free_text_preference(
@@ -1013,6 +1275,10 @@ class CareerContextStore:
         *,
         user_id: str,
         update_id: str,
+        conversation_id: str | None = None,
+        job_posting_id: str | None = None,
+        scope_choice: str | None = None,
+        scope_domain: str | None = None,
     ) -> IntentMemoryVersion | None:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -1022,9 +1288,9 @@ class CareerContextStore:
                     for item in list_intent_versions(
                         connection,
                         user_id=user_id,
-                        pref_scope="freeform",
                     )
                     if item.update_id == update_id
+                    and item.pref_scope.startswith("freeform")
                     and item.superseded_at is None
                     and item.admission_status == "quarantined"
                 ),
@@ -1039,6 +1305,19 @@ class CareerContextStore:
             )
             if deleted_at is not None and pending.valid_from <= deleted_at:
                 return None
+            observed_at = datetime.now(timezone.utc)
+            assignment = (
+                preference_storage_assignment(
+                    scope_choice,
+                    observed_at=observed_at,
+                    conversation_id=conversation_id or "current",
+                    job_posting_id=job_posting_id,
+                    role_domain=scope_domain,
+                    statement=pending.value,
+                )
+                if scope_choice is not None
+                else None
+            )
             _, active = capture_intent_version(
                 connection,
                 candidate=IntentCaptureCandidate(
@@ -1046,14 +1325,72 @@ class CareerContextStore:
                     scope_key=pending.scope_key,
                     value=pending.value,
                     source="user_input:confirmed_free_text_preference",
-                    pref_scope="freeform",
-                    timescale=pending.timescale,
-                    layer=pending.layer,
+                    pref_scope=(
+                        assignment.pref_scope
+                        if assignment is not None
+                        else pending.pref_scope
+                    ),
+                    timescale=(
+                        assignment.timescale
+                        if assignment is not None
+                        else pending.timescale
+                    ),
+                    layer=(
+                        assignment.layer
+                        if assignment is not None
+                        else pending.layer
+                    ),
+                    valid_until=(
+                        assignment.valid_until
+                        if assignment is not None
+                        else pending.valid_until
+                    ),
                     confidence=1.0,
                     semantic_stance=pending.semantic_stance,
+                    observed_at=observed_at,
                 ),
             )
+            if active is not None:
+                self._index_free_text_preference_on(connection, active)
+            if (
+                active is not None
+                and pending.superseded_at is None
+                and pending.update_id != active.update_id
+            ):
+                connection.execute(
+                    """
+                    UPDATE career_intent_versions
+                    SET superseded_at = ?, superseded_by = ?
+                    WHERE update_id = ? AND superseded_at IS NULL
+                    """,
+                    (
+                        observed_at.isoformat(),
+                        active.update_id,
+                        pending.update_id,
+                    ),
+                )
             if active is not None and deleted_at is not None:
+                # Reopening a tombstoned scope must not resurrect older rows
+                # from sibling ownership tracks. Close every pre-deletion
+                # current row before removing the read-time tombstone.
+                connection.execute(
+                    """
+                    UPDATE career_intent_versions
+                    SET superseded_at = ?, superseded_by = ?
+                    WHERE user_id = ? AND scope_key = ?
+                      AND update_id != ?
+                      AND superseded_at IS NULL
+                      AND valid_from <= ?
+                    """,
+                    (
+                        observed_at.isoformat(),
+                        active.update_id,
+                        user_id,
+                        pending.scope_key,
+                        active.update_id,
+                        deleted_at.isoformat(),
+                    ),
+                )
                 connection.execute(
                     "DELETE FROM memory_deleted_scopes WHERE user_id = ? AND scope_key = ?",
                     (user_id, pending.scope_key),
@@ -1088,7 +1425,7 @@ class CareerContextStore:
 
     @staticmethod
     def _free_text_preference_scope(topic_key: str) -> str:
-        return f"person_intent/self/{topic_key}_preference"
+        return preference_scope_key(topic_key)
 
     def get_owner_settings(self, user_id: str) -> OwnerSettingsContext | None:
         return self._get_single("owner_settings_context", user_id, OwnerSettingsContext)
@@ -1536,6 +1873,17 @@ class CareerContextStore:
                 """,
                 (user_id, scope_key, now),
             )
+            connection.execute(
+                """
+                DELETE FROM free_text_preferences_fts
+                WHERE update_id IN (
+                    SELECT update_id
+                    FROM career_intent_versions
+                    WHERE user_id = ? AND scope_key = ?
+                )
+                """,
+                (user_id, scope_key),
+            )
             bound_rows = {
                 (str(row[0]), int(row[1]))
                 for row in connection.execute(
@@ -1894,9 +2242,39 @@ class CareerContextStore:
                     now,
                 ),
             )
+            task_row = connection.execute(
+                """
+                SELECT payload FROM conversation_task_state
+                WHERE user_id = ? AND conversation_id = ?
+                """,
+                (user_id, conversation_id),
+            ).fetchone()
+            task = (
+                ConversationTaskState.model_validate_json(task_row[0])
+                if task_row is not None
+                else None
+            )
             for distilled in preference_candidates:
                 scope_key = self._free_text_preference_scope(
                     distilled.topic_key
+                )
+                ownership = (
+                    "person_default"
+                    if distilled.ownership == "ask"
+                    else distilled.ownership
+                )
+                assignment = preference_storage_assignment(
+                    ownership,
+                    observed_at=observed_at,
+                    conversation_id=conversation_id,
+                    job_posting_id=(
+                        task.active_job_posting_id
+                        if task is not None
+                        else None
+                    ),
+                    role_domain=distilled.scope_domain,
+                    valid_for_days=distilled.valid_for_days,
+                    statement=distilled.statement,
                 )
                 version = self._capture_free_text_candidate_on(
                     connection,
@@ -1908,11 +2286,16 @@ class CareerContextStore:
                             "agent_inference:conversation_distillation:"
                             f"{conversation_id}:{distilled.source_sequence}"
                         )[:200],
-                        pref_scope="freeform",
-                        timescale="permanent",
-                        layer="contextual",
+                        pref_scope=assignment.pref_scope,
+                        timescale=assignment.timescale,
+                        layer=assignment.layer,
+                        valid_until=assignment.valid_until,
                         confidence=distilled.confidence,
                         ambiguous=True,
+                        scope_ambiguous=(
+                            distilled.ownership == "ask"
+                            or assignment.scope_ambiguous
+                        ),
                         semantic_stance=distilled.stance,
                         observed_at=observed_at,
                     ),
