@@ -58,3 +58,4 @@ class CareerEpisode(CareerEpisodeDraft):
     salience: float = 1.0
     last_accessed_at: datetime | None = None
     access_count: int = Field(default=0, ge=0)
+    created_at: datetime | None = None

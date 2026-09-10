@@ -119,9 +119,14 @@ def _matching_rank(
     return None
 
 
-def _result_key(item: IntentMemoryVersion) -> tuple[str, str, int]:
-    # Structured rows precede the parallel free-text explanation at equal rank.
+def _result_key(item: IntentMemoryVersion) -> tuple[float, str, str, int]:
+    # Newer corroboration wins a same-rank tie before the existing deterministic
+    # scope and structured/free-text fallbacks.
+    corroborated_at = item.last_corroborated_at
+    if corroborated_at.utcoffset() is None:
+        corroborated_at = corroborated_at.replace(tzinfo=timezone.utc)
     return (
+        -corroborated_at.timestamp(),
         item.scope_key,
         "1" if item.pref_scope.startswith("freeform") else "0",
         item.revision,

@@ -18,6 +18,7 @@ def _version(
     layer: str,
     timescale: str = "permanent",
     valid_until: datetime | None = None,
+    last_corroborated_at: datetime | None = None,
 ) -> IntentMemoryVersion:
     return IntentMemoryVersion(
         update_id=f"intent_update_{update:032x}",
@@ -31,7 +32,9 @@ def _version(
         pref_scope=pref_scope,
         timescale=timescale,
         layer=layer,
-        last_corroborated_at=NOW - timedelta(days=1),
+        last_corroborated_at=(
+            last_corroborated_at or NOW - timedelta(days=1)
+        ),
         base_confidence=1.0,
         admission_status="active",
         capture_action="add",
@@ -145,3 +148,47 @@ def test_person_level_situational_value_needs_no_named_job_context() -> None:
 
     assert [item.value for item in active] == ["我年底前不考虑大厂"]
     assert [item.value for item in expired] == ["我默认不去大厂"]
+
+
+def test_newer_corroboration_breaks_a_same_rank_tie() -> None:
+    older_stable = _version(
+        update=1,
+        value="older stable",
+        pref_scope="freeform.person_stable",
+        layer="stable",
+        last_corroborated_at=NOW - timedelta(days=30),
+    )
+    newer_stable = _version(
+        update=4,
+        value="newer stable",
+        pref_scope="global",
+        layer="stable",
+        last_corroborated_at=NOW - timedelta(days=2),
+    )
+    older = _version(
+        update=2,
+        value="older",
+        pref_scope="person_default",
+        layer="contextual",
+        last_corroborated_at=NOW - timedelta(days=7),
+    )
+    newer = _version(
+        update=3,
+        value="newer",
+        pref_scope="freeform.person_default",
+        layer="contextual",
+        last_corroborated_at=NOW - timedelta(hours=1),
+    )
+
+    resolved = resolve_effective_preferences(
+        (older, newer, older_stable, newer_stable),
+        context=PreferenceResolutionContext(),
+        now=NOW,
+    )
+
+    assert [item.value for item in resolved] == [
+        "newer stable",
+        "older stable",
+        "newer",
+        "older",
+    ]

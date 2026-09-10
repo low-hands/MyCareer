@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import math
@@ -17,6 +18,58 @@ from career_agent.domain.episodes import (
 from career_agent.storage.schema import apply_schema
 
 _SHORT_QUERY_CANDIDATE_LIMIT = 200
+_PROJECTION_CANDIDATE_LIMIT = 200
+_MAX_ACCESS_MULTIPLIER = 2.0
+
+
+@dataclass(frozen=True, slots=True)
+class DecayPolicy:
+    """Tunable read-time policy for automatic episode projection."""
+
+    half_life_days: float = 180.0
+    access_boost: float = 0.1
+    projection_threshold: float = 0.1
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.half_life_days) or self.half_life_days <= 0:
+            raise ValueError("half_life_days must be finite and positive")
+        if not math.isfinite(self.access_boost) or self.access_boost < 0:
+            raise ValueError("access_boost must be finite and non-negative")
+        if (
+            not math.isfinite(self.projection_threshold)
+            or self.projection_threshold < 0
+        ):
+            raise ValueError(
+                "projection_threshold must be finite and non-negative"
+            )
+
+    def effective_salience(
+        self,
+        *,
+        salience: float,
+        accessed_or_created_at: datetime,
+        access_count: int,
+        now: datetime,
+    ) -> float:
+        """Return bounded, access-aware salience without mutating storage."""
+
+        observed_at = _utc_bound(now, name="now")
+        freshness_anchor = _utc_bound(
+            accessed_or_created_at,
+            name="accessed_or_created_at",
+        )
+        age_days = max(
+            0.0,
+            (observed_at - freshness_anchor).total_seconds() / 86_400,
+        )
+        freshness = math.exp(
+            -math.log(2.0) * age_days / self.half_life_days
+        )
+        access_multiplier = min(
+            _MAX_ACCESS_MULTIPLIER,
+            1.0 + self.access_boost * math.log1p(max(0, access_count)),
+        )
+        return max(0.0, salience) * freshness * access_multiplier
 
 
 def _like_fragment(value: str) -> str:
@@ -56,8 +109,14 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
 class SQLiteCareerEpisodeStore:
     """Time-ordered L1 retrieval records backed by the context database."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        decay_policy: DecayPolicy | None = None,
+    ) -> None:
         self.path = path.expanduser()
+        self.decay_policy = decay_policy or DecayPolicy()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
@@ -495,7 +554,7 @@ class SQLiteCareerEpisodeStore:
         limit: int = 5,
         exclude_conversation_id: str | None = None,
     ) -> tuple[CareerEpisode, ...]:
-        """Rank lexical hits by relevance, salience, and recency."""
+        """Rank lexical hits after applying access-aware read-time decay."""
 
         if not 1 <= limit <= 5:
             raise ValueError("episode projection limit must be between 1 and 5")
@@ -505,7 +564,7 @@ class SQLiteCareerEpisodeStore:
         candidates = self.search(
             user_id=user_id,
             query=" ".join(terms),
-            limit=max(30, limit * 10),
+            limit=max(_PROJECTION_CANDIDATE_LIMIT, limit * 10),
         )
         if exclude_conversation_id is not None:
             candidates = tuple(
@@ -515,26 +574,36 @@ class SQLiteCareerEpisodeStore:
             )
         now = datetime.now(timezone.utc)
 
-        def score(indexed: tuple[int, CareerEpisode]) -> tuple[float, datetime]:
-            rank, episode = indexed
-            age_days = max(
-                0.0,
-                (now - episode.occurred_at.astimezone(timezone.utc)).total_seconds()
-                / 86_400,
+        scored: list[tuple[int, CareerEpisode, float]] = []
+        for rank, episode in enumerate(candidates):
+            freshness_anchor = (
+                episode.last_accessed_at
+                or episode.created_at
+                or episode.occurred_at
             )
-            decayed_salience = max(0.0, episode.salience) * math.exp(
-                -age_days / 180.0
+            effective_salience = self.decay_policy.effective_salience(
+                salience=episode.salience,
+                accessed_or_created_at=freshness_anchor,
+                access_count=episode.access_count,
+                now=now,
             )
+            if effective_salience >= self.decay_policy.projection_threshold:
+                scored.append((rank, episode, effective_salience))
+
+        def score(
+            indexed: tuple[int, CareerEpisode, float],
+        ) -> tuple[float, datetime]:
+            rank, episode, effective_salience = indexed
             lexical_rank = 1.0 / (rank + 1)
             return (
-                0.65 * lexical_rank + 0.35 * decayed_salience,
+                0.65 * lexical_rank + 0.35 * effective_salience,
                 episode.occurred_at,
             )
 
         selected = tuple(
             episode
-            for _, episode in sorted(
-                enumerate(candidates),
+            for _, episode, _ in sorted(
+                scored,
                 key=score,
                 reverse=True,
             )[:limit]
@@ -798,7 +867,8 @@ class SQLiteCareerEpisodeStore:
     _SELECT = (
         "SELECT e.id, e.user_id, e.kind, e.source_run_id, e.occurred_at, "
         "e.title, e.summary, e.conversation_id, e.resource_refs_json, "
-        "e.salience, e.last_accessed_at, e.access_count FROM career_episodes e"
+        "e.salience, e.last_accessed_at, e.access_count, e.created_at "
+        "FROM career_episodes e"
     )
 
     @staticmethod
@@ -819,6 +889,7 @@ class SQLiteCareerEpisodeStore:
             salience=row[9],
             last_accessed_at=row[10],
             access_count=row[11],
+            created_at=row[12],
         )
 
     def _connect(self) -> sqlite3.Connection:
