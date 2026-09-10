@@ -24,6 +24,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
+    DistilledFreeTextPreferenceCandidate,
     SUMMARY_SOURCE_MAX_CHARS,
     StoredConversationSummary,
     SummaryMessage,
@@ -40,13 +41,15 @@ from career_agent.storage.intent_versions import (
     apply_intent_version_schema,
     capture_intent_version,
     list_intent_versions,
+    upgrade_intent_semantic_stance_schema,
     upgrade_intent_version_schema,
 )
+from career_agent.services.free_text_preferences import extract_free_text_preference
+from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.storage.schema import apply_schema
 
 if TYPE_CHECKING:
     from career_agent.services.intent_capture import (
-        IntentCaptureCandidate,
         IntentCaptureDecision,
     )
 
@@ -165,6 +168,13 @@ class CareerProfileStore(Protocol):
         limit: int | None = None,
     ) -> tuple[IntentMemoryVersion, ...]: ...
 
+    def list_free_text_preferences(
+        self,
+        *,
+        user_id: str,
+        statuses: Sequence[str] = ("active", "quarantined"),
+    ) -> tuple[IntentMemoryVersion, ...]: ...
+
 
 class CareerContextStore:
     def __init__(self, path: Path) -> None:
@@ -176,7 +186,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                11,
+                12,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -189,6 +199,7 @@ class CareerContextStore:
                     9: upgrade_intent_version_schema,
                     10: self._upgrade_to_v10,
                     11: self._upgrade_to_v11,
+                    12: upgrade_intent_semantic_stance_schema,
                 },
             )
             apply_episode_schema(connection)
@@ -810,6 +821,274 @@ class CareerContextStore:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             return capture_intent_version(connection, candidate=candidate)
+
+    def capture_free_text_preference_from_message(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        message: str,
+    ) -> IntentMemoryVersion | None:
+        """Persist an explicit supported mutation before context projection.
+
+        Extraction deliberately abstains unless the message itself contains a
+        supported first-person preference or an explicit deletion request.
+        Replaying ``load_for_turn`` is idempotent by content digest.
+        """
+
+        mutation = extract_free_text_preference(message)
+        if mutation is None:
+            return None
+        scope_key = self._free_text_preference_scope(mutation.topic_key)
+        if mutation.action == "delete":
+            self.purge_derived_memory(user_id=user_id, scope_key=scope_key)
+            return None
+        assert mutation.statement is not None
+        candidate = IntentCaptureCandidate(
+            user_id=user_id,
+            scope_key=scope_key,
+            value=mutation.statement,
+            source=f"conversation_user_statement:{conversation_id}"[:200],
+            pref_scope="freeform",
+            timescale="permanent",
+            layer="contextual",
+            ambiguous=True,
+            semantic_stance=mutation.stance,
+        )
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return self._capture_free_text_candidate_on(
+                connection,
+                candidate=candidate,
+                corroborate_active=True,
+            )
+
+    def _capture_free_text_candidate_on(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        candidate: IntentCaptureCandidate,
+        corroborate_active: bool = False,
+    ) -> IntentMemoryVersion | None:
+        deleted_at = self._memory_scope_deleted_at_on(
+            connection,
+            user_id=candidate.user_id,
+            scope_key=candidate.scope_key,
+        )
+        active = next(
+            (
+                item
+                for item in reversed(
+                    list_intent_versions(
+                        connection,
+                        user_id=candidate.user_id,
+                        scope_key=candidate.scope_key,
+                        pref_scope="freeform",
+                    )
+                )
+                if item.superseded_at is None
+                and item.admission_status == "active"
+            ),
+            None,
+        )
+        active_stance = active.semantic_stance if active is not None else None
+        if active is not None and active_stance is None:
+            legacy_mutation = extract_free_text_preference(active.value)
+            active_stance = (
+                legacy_mutation.stance
+                if legacy_mutation is not None
+                and legacy_mutation.action == "quarantine"
+                else None
+            )
+        if (
+            active is not None
+            and deleted_at is None
+            and active_stance is not None
+            and active_stance == candidate.semantic_stance
+        ):
+            if not corroborate_active:
+                # A model-produced distillation can propose a contradiction,
+                # but it cannot refresh an active preference's user-evidence
+                # clock. Same-stance inference is already covered by active.
+                return active
+            corroborated = append_intent_version(
+                connection,
+                user_id=candidate.user_id,
+                scope_key=active.scope_key,
+                value=active.value,
+                source=candidate.source,
+                pref_scope=active.pref_scope,
+                timescale=active.timescale,
+                layer=active.layer,
+                last_corroborated_at=candidate.observed_at,
+                base_confidence=max(active.base_confidence, candidate.confidence),
+                admission_status="active",
+                capture_action="retain",
+                semantic_stance=active_stance,
+            )
+            # A same-stance restatement resolves any older opposite candidate
+            # that was still waiting in quarantine.
+            connection.execute(
+                """
+                UPDATE career_intent_versions
+                SET superseded_at = ?, superseded_by = ?
+                WHERE user_id = ? AND scope_key = ? AND pref_scope = 'freeform'
+                  AND admission_status = 'quarantined'
+                  AND superseded_at IS NULL
+                """,
+                (
+                    candidate.observed_at.isoformat(),
+                    corroborated.update_id,
+                    candidate.user_id,
+                    candidate.scope_key,
+                ),
+            )
+            return corroborated
+        if not corroborate_active:
+            quarantined = next(
+                (
+                    item
+                    for item in reversed(
+                        list_intent_versions(
+                            connection,
+                            user_id=candidate.user_id,
+                            scope_key=candidate.scope_key,
+                            pref_scope="freeform",
+                        )
+                    )
+                    if item.superseded_at is None
+                    and item.admission_status == "quarantined"
+                ),
+                None,
+            )
+            if (
+                quarantined is not None
+                and quarantined.semantic_stance is not None
+                and quarantined.semantic_stance == candidate.semantic_stance
+            ):
+                # Keep an explicit/direct candidate when summary distillation
+                # later paraphrases the same stance.
+                return quarantined
+        _, version = capture_intent_version(connection, candidate=candidate)
+        return version
+
+    def list_free_text_preferences(
+        self,
+        *,
+        user_id: str,
+        statuses: Sequence[str] = ("active", "quarantined"),
+    ) -> tuple[IntentMemoryVersion, ...]:
+        with self._connect() as connection:
+            versions = list_intent_versions(
+                connection,
+                user_id=user_id,
+                pref_scope="freeform",
+            )
+            deleted_by_scope = {
+                str(row[0]): datetime.fromisoformat(str(row[1]))
+                for row in connection.execute(
+                    """
+                    SELECT scope_key, deleted_at
+                    FROM memory_deleted_scopes
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            }
+        selected = set(statuses)
+        if not selected <= {"active", "quarantined"}:
+            raise ValueError("invalid free-text preference status")
+        return tuple(
+            item
+            for item in versions
+            if item.superseded_at is None and item.admission_status in selected
+            and (
+                item.scope_key not in deleted_by_scope
+                or item.valid_from > deleted_by_scope[item.scope_key]
+            )
+        )
+
+    def confirm_free_text_preference(
+        self,
+        *,
+        user_id: str,
+        update_id: str,
+    ) -> IntentMemoryVersion | None:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            pending = next(
+                (
+                    item
+                    for item in list_intent_versions(
+                        connection,
+                        user_id=user_id,
+                        pref_scope="freeform",
+                    )
+                    if item.update_id == update_id
+                    and item.superseded_at is None
+                    and item.admission_status == "quarantined"
+                ),
+                None,
+            )
+            if pending is None:
+                return None
+            deleted_at = self._memory_scope_deleted_at_on(
+                connection,
+                user_id=user_id,
+                scope_key=pending.scope_key,
+            )
+            if deleted_at is not None and pending.valid_from <= deleted_at:
+                return None
+            _, active = capture_intent_version(
+                connection,
+                candidate=IntentCaptureCandidate(
+                    user_id=user_id,
+                    scope_key=pending.scope_key,
+                    value=pending.value,
+                    source="user_input:confirmed_free_text_preference",
+                    pref_scope="freeform",
+                    timescale=pending.timescale,
+                    layer=pending.layer,
+                    confidence=1.0,
+                    semantic_stance=pending.semantic_stance,
+                ),
+            )
+            if active is not None and deleted_at is not None:
+                connection.execute(
+                    "DELETE FROM memory_deleted_scopes WHERE user_id = ? AND scope_key = ?",
+                    (user_id, pending.scope_key),
+                )
+            return active
+
+    def free_text_preference_deleted_at(
+        self,
+        *,
+        user_id: str,
+        scope_key: str,
+    ) -> datetime | None:
+        with self._connect() as connection:
+            return self._memory_scope_deleted_at_on(
+                connection,
+                user_id=user_id,
+                scope_key=scope_key,
+            )
+
+    @staticmethod
+    def _memory_scope_deleted_at_on(
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        scope_key: str,
+    ) -> datetime | None:
+        row = connection.execute(
+            "SELECT deleted_at FROM memory_deleted_scopes WHERE user_id = ? AND scope_key = ?",
+            (user_id, scope_key),
+        ).fetchone()
+        return datetime.fromisoformat(str(row[0])) if row is not None else None
+
+    @staticmethod
+    def _free_text_preference_scope(topic_key: str) -> str:
+        return f"person_intent/self/{topic_key}_preference"
 
     def get_owner_settings(self, user_id: str) -> OwnerSettingsContext | None:
         return self._get_single("owner_settings_context", user_id, OwnerSettingsContext)
@@ -1515,6 +1794,9 @@ class CareerContextStore:
         content: ConversationSummaryContent,
         through_sequence: int,
         omitted_constraints: Sequence[str] = (),
+        preference_candidates: Sequence[
+            DistilledFreeTextPreferenceCandidate
+        ] = (),
     ) -> bool:
         """Store one summary and reconcile the constraint ledger with it.
 
@@ -1526,7 +1808,8 @@ class CareerContextStore:
 
         if through_sequence <= expected_previous_through_sequence:
             raise ValueError("conversation summary must advance its covered sequence")
-        now = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(timezone.utc)
+        now = observed_at.isoformat()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -1611,6 +1894,48 @@ class CareerContextStore:
                     now,
                 ),
             )
+            for distilled in preference_candidates:
+                scope_key = self._free_text_preference_scope(
+                    distilled.topic_key
+                )
+                version = self._capture_free_text_candidate_on(
+                    connection,
+                    candidate=IntentCaptureCandidate(
+                        user_id=user_id,
+                        scope_key=scope_key,
+                        value=distilled.statement,
+                        source=(
+                            "agent_inference:conversation_distillation:"
+                            f"{conversation_id}:{distilled.source_sequence}"
+                        )[:200],
+                        pref_scope="freeform",
+                        timescale="permanent",
+                        layer="contextual",
+                        confidence=distilled.confidence,
+                        ambiguous=True,
+                        semantic_stance=distilled.stance,
+                        observed_at=observed_at,
+                    ),
+                )
+                if version is None:
+                    continue
+                # Bind the exact source message now. Otherwise a later
+                # tombstone could suppress the projected reminder yet leave
+                # compaction free to distill the original sentence again.
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO conversation_message_memory_bindings(
+                        user_id, conversation_id, sequence, scope_key, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        conversation_id,
+                        distilled.source_sequence,
+                        scope_key,
+                        now,
+                    ),
+                )
             # Covered rows are permanent reconstruction inputs. If a memory
             # tombstone invalidates this summary, the retained unsuppressed
             # messages let the next turn regenerate it without data loss.

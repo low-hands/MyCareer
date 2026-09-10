@@ -254,6 +254,82 @@ def test_short_query_like_wildcards_are_literal(tmp_path) -> None:
     assert store.search(user_id="u1", query="%") == ()
 
 
+def test_projection_returns_only_relevant_events_and_records_access(
+    tmp_path,
+) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    relevant = store.upsert(
+        _draft(summary="系统设计里需要补充容量估算。").model_copy(
+            update={"source_run_id": "mock-system-design"}
+        )
+    )
+    store.upsert(
+        _draft(summary="讨论了薪资谈判和入职日期。").model_copy(
+            update={"source_run_id": "application-salary"}
+        )
+    )
+
+    projected = store.project_relevant(
+        user_id="u1",
+        query="容量估算怎么准备？",
+    )
+
+    assert [item.id for item in projected] == [relevant.id]
+    accessed = store.get(user_id="u1", episode_id=relevant.id)
+    assert accessed is not None
+    assert accessed.access_count == 1
+    assert accessed.last_accessed_at is not None
+    assert store.project_relevant(
+        user_id="u1",
+        query="股权归属期怎么谈？",
+    ) == ()
+    assert store.get(user_id="other", episode_id=relevant.id) is None
+
+
+def test_projection_excludes_events_from_the_current_conversation(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="系统设计容量估算复盘。"))
+
+    assert store.project_relevant(
+        user_id="u1",
+        query="系统设计容量估算",
+        exclude_conversation_id="conversation-1",
+    ) == ()
+
+
+def test_projection_combines_fts_rank_with_decayed_salience(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    recent = store.upsert(
+        _draft(summary="容量估算复盘。").model_copy(
+            update={
+                "source_run_id": "recent",
+                "occurred_at": datetime.now(timezone.utc),
+            }
+        )
+    )
+    salient = store.upsert(
+        _draft(summary="容量估算复盘。").model_copy(
+            update={
+                "source_run_id": "salient",
+                "occurred_at": datetime.now(timezone.utc) - timedelta(days=30),
+            }
+        )
+    )
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE career_episodes SET salience = 10 WHERE id = ?",
+            (salient.id,),
+        )
+
+    projected = store.project_relevant(
+        user_id="u1",
+        query="容量估算",
+        limit=2,
+    )
+
+    assert [item.id for item in projected] == [salient.id, recent.id]
+
+
 def test_time_filters_compare_instants_and_require_offsets(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     store.upsert(_draft())
@@ -332,7 +408,7 @@ def test_v1_unicode_index_is_rebuilt_and_backfilled_as_trigram(tmp_path) -> None
             "WHERE career_episodes_fts MATCH ?",
             ("模拟面试",),
         ).fetchall()
-    assert version == 7
+    assert version == 8
     assert indexed_ids == [(stored.id,)]
     assert reopened.get_by_source(
         user_id="u1",

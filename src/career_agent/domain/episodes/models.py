@@ -12,6 +12,9 @@ EpisodeKind = Literal[
     "job_research",
     "application",
     "interview_round",
+    "resume_analysis",
+    "intent_confirmation",
+    "resume_tailoring",
 ]
 
 

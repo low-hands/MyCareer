@@ -178,6 +178,27 @@ class RecordingMatchWorker:
         return ResumeJobMatchResult.model_validate(VALID_MATCH)
 
 
+class PreferenceSensitiveMatchWorker(RecordingMatchWorker):
+    def match(self, **kwargs) -> ResumeJobMatchResult:
+        self.calls.append(kwargs)
+        free_text = tuple(
+            item
+            for item in kwargs["intent_states"]
+            if item.pref_scope == "freeform"
+        )
+        return ResumeJobMatchResult.model_validate(
+            {
+                **VALID_MATCH,
+                "overall_fit": "weak" if free_text else "moderate",
+                "summary": (
+                    "The confirmed employer preference downranks this role."
+                    if free_text
+                    else "The quarantined employer preference has no authority."
+                ),
+            }
+        )
+
+
 class StateAuditingMatchWorker(RecordingMatchWorker):
     def __init__(self) -> None:
         super().__init__()
@@ -333,6 +354,64 @@ def test_service_loads_owned_complete_inputs_and_only_exact_version_facts(tmp_pa
     )
     assert refreshed.id != result.id
     assert len(worker_stub.calls) == 2
+
+
+def test_only_active_free_text_preferences_can_change_a_match_result(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    candidate = context.capture_free_text_preference_from_message(
+        user_id="u1",
+        conversation_id="c1",
+        message="我想清楚了，不去大厂。",
+    )
+    assert candidate is not None
+    worker_stub = PreferenceSensitiveMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        career_profile_store=context,
+    )
+
+    before_confirmation = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert before_confirmation.result.overall_fit == "moderate"
+    assert worker_stub.calls[0]["intent_states"] == ()
+
+    confirmed = context.confirm_free_text_preference(
+        user_id="u1",
+        update_id=candidate.update_id,
+    )
+    assert confirmed is not None
+    after_confirmation = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert after_confirmation.result.overall_fit == "weak"
+    assert [
+        item.value
+        for item in worker_stub.calls[1]["intent_states"]
+        if item.pref_scope == "freeform"
+    ] == ["我想清楚了，不去大厂。"]
+
+    context.capture_free_text_preference_from_message(
+        user_id="u1",
+        conversation_id="c2",
+        message="删除这条大厂偏好",
+    )
+    after_deletion = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert after_deletion.id == before_confirmation.id
+    assert after_deletion.result.overall_fit == "moderate"
 
 
 def test_sr_pr_and_ipa_path_repairs_a_visible_revised_state(tmp_path) -> None:

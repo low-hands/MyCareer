@@ -52,6 +52,16 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
                 "confirmed_decisions": ["Use SQLite"],
                 "unresolved_questions": ["When to send a follow-up?"],
                 "active_constraints": ["Do not send email without approval"],
+                "long_term_memory_candidates": [
+                    {
+                        "topic_key": "application_tracking",
+                        "statement": "希望持续跟踪求职申请",
+                        "stance": "prefer",
+                        "source_sequence": 9,
+                        "source_quote": "Track my applications.",
+                        "confidence": 0.9,
+                    }
+                ],
             }
         )
     )
@@ -71,6 +81,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     )
 
     assert result.user_goals == ("Track applications",)
+    assert result.long_term_memory_candidates[0].topic_key == "application_tracking"
     request = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert request["previous_summary"]["confirmed_decisions"] == ["Use SQLite"]
     assert "omitted_active_constraint_count" not in request["previous_summary"]
@@ -78,6 +89,8 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     assert request["new_messages"][0]["sequence"] == 9
     system = client.completions.kwargs["messages"][0]["content"]
     assert "not confirmed long-term user memory" in system
+    assert "exact verbatim source_quote" in system
+    assert "previous summary" in system
     assert "resume text" in system
     assert "tools" not in client.completions.kwargs
 

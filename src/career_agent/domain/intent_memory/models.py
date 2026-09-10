@@ -48,6 +48,10 @@ class IntentMemoryVersion(BaseModel):
     base_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     admission_status: IntentAdmissionStatus = "active"
     capture_action: IntentCaptureAction = "add"
+    semantic_stance: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
+    )
     superseded_at: datetime | None = None
     superseded_by: str | None = Field(
         default=None,
