@@ -40,6 +40,10 @@ class IntentCaptureCandidate(BaseModel):
     contains_preference_signal: bool = True
     ambiguous: bool = False
     suspicious: bool = False
+    semantic_stance: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
+    )
     observed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property

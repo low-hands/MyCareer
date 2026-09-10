@@ -197,6 +197,15 @@ class ResumeJobMatchService:
                 )
                 if item.admission_status == "active"
             )
+            # Free-text preferences have a separate confirmation lifecycle.
+            # Consume only the store's active view so a quarantined or
+            # tombstoned statement cannot reach the matching worker.
+            versions.extend(
+                self._career_profile_store.list_free_text_preferences(
+                    user_id=user_id,
+                    statuses=("active",),
+                )
+            )
         tracks: dict[tuple[str, str], list] = {}
         for version in versions:
             tracks.setdefault(

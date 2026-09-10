@@ -23,6 +23,9 @@ _INTERVIEW_TOOLS = {
     "record_interview_retro",
 }
 _JOB_RESEARCH_TOOLS = {"research_job", "retry_job_research"}
+_RESUME_ANALYSIS_TOOLS = {"confirm_resume_analysis"}
+_INTENT_CONFIRMATION_TOOLS = {"confirm_job_intent"}
+_RESUME_TAILORING_TOOLS = {"finalize_resume_tailoring"}
 _EPISODIC_SUCCESS_STATES = {
     **{tool: frozenset({"application_ready"}) for tool in _APPLICATION_TOOLS},
     **{
@@ -32,6 +35,18 @@ _EPISODIC_SUCCESS_STATES = {
         for tool in _INTERVIEW_TOOLS
     },
     **{tool: frozenset({"job_research_ready"}) for tool in _JOB_RESEARCH_TOOLS},
+    **{
+        tool: frozenset({"resume_analysis_confirmed"})
+        for tool in _RESUME_ANALYSIS_TOOLS
+    },
+    **{
+        tool: frozenset({"job_intent_recorded"})
+        for tool in _INTENT_CONFIRMATION_TOOLS
+    },
+    **{
+        tool: frozenset({"resume_tailoring_finalized"})
+        for tool in _RESUME_TAILORING_TOOLS
+    },
 }
 
 
@@ -159,6 +174,68 @@ def drafts_from_tool_results(
                     summary=_bounded(
                         rich_summary or result.message,
                         EPISODE_SUMMARY_MAX_CHARS,
+                    ),
+                    conversation_id=conversation_id,
+                    resource_refs=_resource_refs(result.resource_ref),
+                )
+            )
+        elif result.tool_name in _RESUME_ANALYSIS_TOOLS:
+            source_id = _required_source_id(
+                result.tool_name,
+                payload,
+                "analysis_id",
+            )
+            drafts.append(
+                CareerEpisodeDraft(
+                    user_id=user_id,
+                    kind="resume_analysis",
+                    source_run_id=source_id,
+                    occurred_at=_payload_time(payload, default_time),
+                    title="简历分析已确认",
+                    summary=_bounded(
+                        result.message, EPISODE_SUMMARY_MAX_CHARS
+                    ),
+                    conversation_id=conversation_id,
+                    resource_refs=_resource_refs(result.resource_ref),
+                )
+            )
+        elif result.tool_name in _INTENT_CONFIRMATION_TOOLS:
+            source_id = _required_source_id(
+                result.tool_name,
+                payload,
+                "intent_episode_id",
+            )
+            drafts.append(
+                CareerEpisodeDraft(
+                    user_id=user_id,
+                    kind="intent_confirmation",
+                    source_run_id=source_id,
+                    occurred_at=_payload_time(payload, default_time),
+                    title="求职意图已确认",
+                    summary=_bounded(
+                        result.message, EPISODE_SUMMARY_MAX_CHARS
+                    ),
+                    conversation_id=conversation_id,
+                    resource_refs=_resource_refs(result.resource_ref),
+                )
+            )
+        elif result.tool_name in _RESUME_TAILORING_TOOLS:
+            if payload.get("created") is False:
+                continue
+            source_id = _required_source_id(
+                result.tool_name,
+                payload,
+                "draft_id",
+            )
+            drafts.append(
+                CareerEpisodeDraft(
+                    user_id=user_id,
+                    kind="resume_tailoring",
+                    source_run_id=source_id,
+                    occurred_at=_payload_time(payload, default_time),
+                    title="简历定制已完成",
+                    summary=_bounded(
+                        result.message, EPISODE_SUMMARY_MAX_CHARS
                     ),
                     conversation_id=conversation_id,
                     resource_refs=_resource_refs(result.resource_ref),

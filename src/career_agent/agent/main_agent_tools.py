@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+import hashlib
+import json
 import logging
 import sqlite3
 from typing import Any, Literal
@@ -51,6 +53,9 @@ from career_agent.agent.main_agent_contracts import (
     MemoryTombstoneProposal,
     ProposeMemoryAmendmentToolArguments,
     MemoryAmendmentProposal,
+    CareerFactProposal,
+    ProposeCareerFactToolArguments,
+    ConfirmCareerFactToolArguments,
     PrepareInterviewToolArguments,
     GetInterviewPreparationToolArguments,
     CreateInterviewToolArguments,
@@ -76,6 +81,9 @@ from career_agent.agent.main_agent_contracts import (
     JobIntentUpdate,
     CompareSavedJobsToolArguments,
     ConfirmJobIntentToolArguments,
+    ConfirmFreeTextPreferenceToolArguments,
+    ProposeFreeTextPreferenceConfirmationToolArguments,
+    FreeTextPreferenceConfirmationProposal,
     ProposeJobIntentToolArguments,
     ListResumesToolArguments,
     ListApplicationsToolArguments,
@@ -288,6 +296,12 @@ class MainAgentToolRegistry:
                     "confirm_job_intent": (
                         self._confirm_job_intent
                     ),
+                    "confirm_free_text_preference": (
+                        self._confirm_free_text_preference
+                    ),
+                    "propose_free_text_preference_confirmation": (
+                        self._propose_free_text_preference_confirmation
+                    ),
                 }
             )
         self._job_repository = job_repository
@@ -345,6 +359,8 @@ class MainAgentToolRegistry:
                     "confirm_memory_tombstone": self._confirm_memory_tombstone,
                     "propose_memory_amendment": self._propose_memory_amendment,
                     "confirm_memory_amendment": self._confirm_memory_amendment,
+                    "propose_career_fact": self._propose_career_fact,
+                    "confirm_career_fact": self._confirm_career_fact,
                 }
             )
         if owner_settings_store is not None:
@@ -734,8 +750,9 @@ class MainAgentToolRegistry:
                         "description": (
                             "Search L1 memories of completed applications, job "
                             "research, interviews, and mock interviews across "
-                            "conversations. Supports an occurred-at window and "
-                            "episode-type filters. Results are compact pointers "
+                            "conversations, or expand one projected detail_ref. "
+                            "Supports an occurred-at window and episode-type "
+                            "filters. Results are compact pointers "
                             "and synopses; dereference resource_refs before using "
                             "an episode as factual evidence."
                         ),
@@ -808,6 +825,34 @@ class MainAgentToolRegistry:
                             ),
                             "parameters": (
                                 SearchCareerHistoryToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_career_fact",
+                            "description": (
+                                "Create a quarantined career-fact candidate for "
+                                "one projected career record and read the exact "
+                                "claim back to the user. Use only for an explicit "
+                                "user statement; it is not active until confirmed."
+                            ),
+                            "parameters": (
+                                ProposeCareerFactToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_career_fact",
+                            "description": (
+                                "Confirm the exact quarantined career-fact proposal "
+                                "shown on the preceding turn. Takes no arguments."
+                            ),
+                            "parameters": (
+                                ConfirmCareerFactToolArguments.model_json_schema()
                             ),
                         },
                     },
@@ -898,6 +943,36 @@ class MainAgentToolRegistry:
         if self._career_profile_store is not None:
             schemas.extend(
                 (
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_free_text_preference_confirmation",
+                            "description": (
+                                "Show one numbered quarantined free-text preference "
+                                "from the free_text_preferences Markdown block back to "
+                                "the user and ask whether it should become a lasting "
+                                "active preference. This never activates it and ends "
+                                "the turn waiting for the user's answer."
+                            ),
+                            "parameters": (
+                                ProposeFreeTextPreferenceConfirmationToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "confirm_free_text_preference",
+                            "description": (
+                                "Promote the exact free-text preference previously "
+                                "shown by propose_free_text_preference_confirmation. "
+                                "Call only on a later turn after explicit agreement."
+                            ),
+                            "parameters": (
+                                ConfirmFreeTextPreferenceToolArguments.model_json_schema()
+                            ),
+                        },
+                    },
                     {
                         "type": "function",
                         "function": {
@@ -3724,6 +3799,21 @@ class MainAgentToolRegistry:
         user_id = str(arguments["user_id"])
         update: JobIntentUpdate = arguments["update"]
         conversation_id = arguments.get("conversation_id")
+        intent_episode_id = (
+            "intent_confirmation_"
+            + hashlib.sha256(
+                (
+                    user_id
+                    + "\0"
+                    + json.dumps(
+                        update.model_dump(mode="json"),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                ).encode("utf-8")
+            ).hexdigest()[:32]
+        )
         admitted_scopes, admitted_proposals = self._admit_job_intent_scopes(
             user_id=user_id,
             conversation_id=(
@@ -3779,6 +3869,7 @@ class MainAgentToolRegistry:
                     saved=True,
                 ),
                 payload={
+                    "intent_episode_id": intent_episode_id,
                     "pref_scope": update.pref_scope,
                     "timescale": update.timescale,
                     "versions": [
@@ -3806,7 +3897,10 @@ class MainAgentToolRegistry:
                 tool_name="confirm_job_intent",
                 state="job_intent_recorded",
                 message=self._job_intent_readback(update, scope=role.title, saved=True),
-                payload={"target_role": role.model_dump(mode="json")},
+                payload={
+                    "intent_episode_id": intent_episode_id,
+                    "target_role": role.model_dump(mode="json"),
+                },
                 execution_outcome="committed",
             )
         # Re-read rather than trusting the projected copy: the stored profile is
@@ -3826,8 +3920,65 @@ class MainAgentToolRegistry:
             tool_name="confirm_job_intent",
             state="job_intent_recorded",
             message=self._job_intent_readback(update, scope=None, saved=True),
-            payload={"profile": updated.model_dump(mode="json")},
+            payload={
+                "intent_episode_id": intent_episode_id,
+                "profile": updated.model_dump(mode="json"),
+            },
             execution_outcome="committed",
+        )
+
+    def _confirm_free_text_preference(
+        self,
+        arguments: dict[str, Any],
+    ) -> ToolObservation:
+        if self._career_profile_store is None:
+            raise ValueError("Career profile store is not configured")
+        confirm = getattr(
+            self._career_profile_store,
+            "confirm_free_text_preference",
+            None,
+        )
+        if not callable(confirm):
+            raise ValueError("Career profile store cannot confirm free-text preferences")
+        version = confirm(
+            user_id=str(arguments["user_id"]),
+            update_id=str(arguments["update_id"]),
+        )
+        if version is None:
+            return ToolObservation(
+                tool_name="confirm_free_text_preference",
+                state="free_text_preference_confirmation_missing",
+                message="这条待确认偏好已经变化、删除或处理过，没有重复写入。",
+                payload={},
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="confirm_free_text_preference",
+            state="free_text_preference_confirmed",
+            message=f"已确认并启用这条长期偏好：{version.value}",
+            payload={
+                "scope_key": version.scope_key,
+                "revision": version.revision,
+            },
+            execution_outcome="committed",
+        )
+
+    @staticmethod
+    def _propose_free_text_preference_confirmation(
+        arguments: dict[str, Any],
+    ) -> ToolObservation:
+        proposal = arguments["proposal"]
+        if not isinstance(proposal, FreeTextPreferenceConfirmationProposal):
+            proposal = FreeTextPreferenceConfirmationProposal.model_validate(proposal)
+        return ToolObservation(
+            tool_name="propose_free_text_preference_confirmation",
+            state="free_text_preference_confirmation_proposed",
+            message=(
+                "我从对话中提取到一条可能需要长期记住的偏好：\n"
+                f"- {proposal.statement}\n"
+                "目前它仍在隔离区，不会影响岗位推荐。是否确认启用？"
+            ),
+            payload={"proposal": proposal.model_dump(mode="json")},
         )
 
     def _admit_job_intent_scopes(
@@ -4541,6 +4692,112 @@ class MainAgentToolRegistry:
     def _career_claim_status(evidence: Any) -> str:
         return "current" if evidence.is_current else "superseded"
 
+    def _propose_career_fact(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        record_id = str(arguments["career_record_id"])
+        claim = str(arguments["claim"]).strip()
+        reason = str(arguments["reason"]).strip()
+        pending = next(
+            (
+                item
+                for item in self._career_history_store.list_evidence(
+                    user_id=user_id,
+                    career_record_id=record_id,
+                    verification_status="pending",
+                )
+                if item.claim.strip() == claim
+                and item.origin == "agent_inference"
+            ),
+            None,
+        )
+        if pending is None:
+            pending = self._career_history_store.create_evidence(
+                user_id=user_id,
+                career_record_id=record_id,
+                claim=claim,
+                origin="agent_inference",
+            )
+        proposal = CareerFactProposal(
+            career_evidence_id=pending.id,
+            career_record_id=record_id,
+            claim=claim,
+            reason=reason,
+        )
+        return ToolObservation(
+            tool_name="propose_career_fact",
+            state="career_fact_proposed",
+            message=clamp(
+                "拟将下面这条事实记入所选职业经历：\n"
+                f"{claim}\n"
+                f"原因：{reason}\n"
+                "目前仅处于隔离态；确认后才会成为长期事实。",
+                limit=DECISION_OBSERVATION_BODY_LIMIT,
+            ),
+            payload={"proposal": proposal.model_dump(mode="json")},
+            execution_outcome="committed",
+        )
+
+    def _confirm_career_fact(
+        self, arguments: dict[str, Any]
+    ) -> ToolObservation:
+        if self._career_history_store is None:
+            raise ValueError("Career history store is not configured")
+        user_id = str(arguments["user_id"])
+        conversation_id = str(arguments["conversation_id"])
+        proposal = CareerFactProposal.model_validate(arguments["proposal"])
+        stored_task = (
+            self._conversation_store.get_task(user_id, conversation_id)
+            if self._conversation_store is not None
+            else None
+        )
+        if stored_task is None or stored_task.pending_career_fact != proposal:
+            return ToolObservation(
+                tool_name="confirm_career_fact",
+                state="career_fact_confirmation_missing",
+                message=(
+                    "这条事实尚未在前一轮展示并持久化，不能直接确认。"
+                ),
+                execution_outcome="not_committed",
+            )
+        evidence = self._career_history_store.get_evidence(
+            user_id=user_id,
+            career_evidence_id=proposal.career_evidence_id,
+        )
+        if (
+            evidence is None
+            or evidence.verification_status != "pending"
+            or evidence.career_record_id != proposal.career_record_id
+            or evidence.claim != proposal.claim
+        ):
+            return ToolObservation(
+                tool_name="confirm_career_fact",
+                state="career_fact_candidate_missing",
+                message="待确认事实已经变化或不存在，请重新提案。",
+                execution_outcome="not_committed",
+            )
+        confirmed = self._career_history_store.confirm_evidence(
+            user_id=user_id,
+            career_evidence_id=evidence.id,
+            reason=proposal.reason,
+        )
+        return ToolObservation(
+            tool_name="confirm_career_fact",
+            state="career_fact_confirmed",
+            message="已将这条事实确认为长期职业记忆。",
+            payload={
+                "career_evidence_id": confirmed.id,
+                "career_record_id": confirmed.career_record_id,
+                "claim": confirmed.claim,
+                "detail_ref": confirmed.detail_ref,
+                "scope_key": confirmed.scope_key,
+            },
+            execution_outcome="committed",
+        )
+
     def _propose_memory_amendment(
         self, arguments: dict[str, Any]
     ) -> ToolObservation:
@@ -4954,13 +5211,24 @@ class MainAgentToolRegistry:
         model_arguments = SearchCareerEpisodesToolArguments.model_validate(
             {key: value for key, value in arguments.items() if key != "user_id"}
         )
-        episodes = self._episode_store.search(
+        if model_arguments.detail_ref is not None:
+            episode = self._episode_store.get(
+                user_id=user_id,
+                episode_id=model_arguments.detail_ref.removeprefix("episode:"),
+            )
+            episodes = (episode,) if episode is not None else ()
+        else:
+            episodes = self._episode_store.search(
+                user_id=user_id,
+                query=model_arguments.query,
+                limit=model_arguments.top_k,
+                start_datetime=model_arguments.start_datetime,
+                end_datetime=model_arguments.end_datetime,
+                kinds=model_arguments.kinds,
+            )
+        self._episode_store.mark_accessed(
             user_id=user_id,
-            query=model_arguments.query,
-            limit=model_arguments.top_k,
-            start_datetime=model_arguments.start_datetime,
-            end_datetime=model_arguments.end_datetime,
-            kinds=model_arguments.kinds,
+            episode_ids=tuple(episode.id for episode in episodes),
         )
         items = [
             {

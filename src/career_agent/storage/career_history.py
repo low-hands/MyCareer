@@ -1395,9 +1395,16 @@ class CareerHistoryStore:
                 if new_status == "confirmed"
                 else {}
             )
+            confirmed_origin = (
+                "user_input"
+                if new_status == "confirmed"
+                and current.origin == "agent_inference"
+                else current.origin
+            )
             updated = current.model_copy(
                 update={
                     "verification_status": new_status,
+                    "origin": confirmed_origin,
                     "updated_at": now,
                     **version_update,
                 }
@@ -1416,12 +1423,13 @@ class CareerHistoryStore:
             connection.execute(
                 """
                 UPDATE career_evidence
-                SET verification_status = ?, scope_key = ?, update_id = ?,
+                SET verification_status = ?, origin = ?, scope_key = ?, update_id = ?,
                     content_digest = ?, revision = ?, valid_from = ?, updated_at = ?
                 WHERE id = ? AND user_id = ? AND verification_status = 'pending'
                 """,
                 (
                     updated.verification_status,
+                    updated.origin,
                     updated.scope_key,
                     updated.update_id,
                     updated.content_digest,

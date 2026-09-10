@@ -932,8 +932,11 @@ def test_named_projection_is_semantically_equivalent_and_budgeted(tmp_path) -> N
     decoded = _decode_tier_one(full)
 
     expected = [
-        record.model_dump(mode="json")
-        for record in memory.records
+        {
+            **record.model_dump(mode="json"),
+            "selection_index": selection_index,
+        }
+        for selection_index, record in enumerate(memory.records, start=1)
     ]
     assert decoded == expected
 

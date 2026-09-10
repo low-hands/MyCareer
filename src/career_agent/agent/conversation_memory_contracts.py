@@ -37,6 +37,20 @@ class SummaryMessage(ConversationMemoryContract):
     content: str = Field(max_length=SUMMARY_SOURCE_MAX_CHARS)
 
 
+class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
+    """A model-proposed long-term candidate, never an authorized preference."""
+
+    topic_key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
+    statement: str = Field(min_length=1, max_length=500)
+    # Deliberately open for the first generic slice. Once production topics
+    # accumulate, normalize this through a per-topic controlled vocabulary so
+    # synonyms such as ``avoid`` and ``avoid_large_companies`` remain comparable.
+    stance: str = Field(pattern=r"^[a-z][a-z0-9_.:-]{0,79}$")
+    source_sequence: int = Field(ge=1)
+    source_quote: str = Field(min_length=1, max_length=500)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class ConversationSummaryContent(ConversationMemoryContract):
     user_goals: tuple[str, ...] = Field(default=(), max_length=10)
     confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
@@ -77,6 +91,10 @@ class ConversationSummaryContent(ConversationMemoryContract):
             "enforcement."
         ),
     )
+    long_term_memory_candidates: tuple[
+        DistilledFreeTextPreferenceCandidate, ...
+    ] = Field(default=(), max_length=8, exclude=True)
+    """Ephemeral summary-worker output; admitted atomically to quarantine."""
 
     @model_validator(mode="after")
     def bound_summary_text(self) -> "ConversationSummaryContent":

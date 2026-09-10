@@ -54,7 +54,23 @@ def apply_intent_version_schema(connection: sqlite3.Connection) -> None:
             "capture_action",
         } <= columns:
             upgrade_intent_version_schema(connection)
+    upgrade_intent_semantic_stance_schema(connection)
     _create_intent_version_indexes(connection)
+
+
+def upgrade_intent_semantic_stance_schema(
+    connection: sqlite3.Connection,
+) -> None:
+    columns = {
+        str(row[1])
+        for row in connection.execute(
+            "PRAGMA table_info(career_intent_versions)"
+        )
+    }
+    if "semantic_stance" not in columns:
+        connection.execute(
+            "ALTER TABLE career_intent_versions ADD COLUMN semantic_stance TEXT"
+        )
 
 
 def upgrade_intent_version_schema(connection: sqlite3.Connection) -> None:
@@ -122,6 +138,14 @@ def _create_intent_version_table(connection: sqlite3.Connection) -> None:
                     'retain', 'add', 'narrow-to-scope', 'revise',
                     'quarantine', 'ask'
                 )),
+            semantic_stance TEXT
+                CHECK (
+                    semantic_stance IS NULL
+                    OR (
+                        length(semantic_stance) BETWEEN 1 AND 80
+                        AND semantic_stance GLOB '[a-z]*'
+                    )
+                ),
             superseded_at TEXT,
             superseded_by TEXT REFERENCES career_intent_versions(update_id)
                 DEFERRABLE INITIALLY DEFERRED,
@@ -168,6 +192,7 @@ def append_intent_version(
     base_confidence: float = 1.0,
     admission_status: IntentAdmissionStatus = "active",
     capture_action: IntentCaptureAction | None = None,
+    semantic_stance: str | None = None,
 ) -> IntentMemoryVersion:
     """Append a revision, or corroborate in place when asked.
 
@@ -254,6 +279,7 @@ def append_intent_version(
         base_confidence=base_confidence,
         admission_status=admission_status,
         capture_action=action,
+        semantic_stance=semantic_stance,
         source=source,
     )
     if current_row is not None:
@@ -271,8 +297,8 @@ def append_intent_version(
             update_id, user_id, scope_key, pref_scope, value, content_digest,
             revision, valid_from, timescale, layer, last_corroborated_at,
             base_confidence, admission_status, capture_action,
-            superseded_at, superseded_by, source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+            semantic_stance, superseded_at, superseded_by, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
         """,
         (
             version.update_id,
@@ -289,6 +315,7 @@ def append_intent_version(
             version.base_confidence,
             version.admission_status,
             version.capture_action,
+            version.semantic_stance,
             version.source,
         ),
     )
@@ -346,6 +373,7 @@ def capture_intent_version(
             last_corroborated_at=candidate.observed_at,
             base_confidence=max(active.base_confidence, candidate.confidence),
             capture_action="retain",
+            semantic_stance=active.semantic_stance,
         )
         return decision, version
     status: IntentAdmissionStatus = (
@@ -365,6 +393,7 @@ def capture_intent_version(
         base_confidence=candidate.confidence,
         admission_status=status,
         capture_action=decision.action,
+        semantic_stance=candidate.semantic_stance,
     )
     # An admitted value closes the quarantine row holding the same value, so a
     # held candidate leaves quarantine by being confirmed rather than only by
@@ -460,7 +489,7 @@ _SELECT = """
     SELECT update_id, user_id, scope_key, value, content_digest, revision,
            valid_from, superseded_at, superseded_by, source, pref_scope,
            timescale, layer, last_corroborated_at, base_confidence,
-           admission_status, capture_action
+           admission_status, capture_action, semantic_stance
     FROM career_intent_versions
 """
 
@@ -484,4 +513,5 @@ def _version(row: tuple[object, ...]) -> IntentMemoryVersion:
         base_confidence=row[14],
         admission_status=row[15],
         capture_action=row[16],
+        semantic_stance=row[17],
     )

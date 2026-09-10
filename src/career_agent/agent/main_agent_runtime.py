@@ -14,9 +14,10 @@ from langgraph.graph import END, START, StateGraph
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_messages import decision_context_chars
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
+from career_agent.services.free_text_preferences import is_explicit_confirmation
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     EventType,
@@ -134,7 +135,7 @@ _MAX_RECEIPT_VALUE_CHARS = 500
 Originator = Literal["model", "user", "runtime"]
 """Who asked for a turn. Derived from its origin variant, never set beside it."""
 
-OriginKind = Literal["model", "interaction", "workflow"]
+OriginKind = Literal["model", "interaction", "workflow", "policy"]
 """The union's tag, and the single source of each variant's ``label`` prefix.
 
 ``isinstance`` is what narrows in this process. The tag exists so the prefix in
@@ -217,10 +218,27 @@ class RuntimeAction:
         return f"{self.kind}:{self.workflow}"
 
 
-TurnOrigin = ModelDecision | InteractionReceipt | RuntimeAction
+@dataclass(frozen=True)
+class RuntimePolicyAction:
+    """A deterministic policy step taken before model deliberation."""
+
+    policy: Literal[
+        "free_text_preference_confirmation",
+        "career_fact_confirmation",
+    ]
+
+    kind: ClassVar[OriginKind] = "policy"
+    requested_by: ClassVar[Originator] = "runtime"
+
+    @property
+    def label(self) -> str:
+        return f"{self.kind}:{self.policy}"
+
+
+TurnOrigin = ModelDecision | InteractionReceipt | RuntimeAction | RuntimePolicyAction
 """How a turn came to exist.
 
-The three ingresses are not three shapes of one decision. Typing them as one
+The ingresses are not different shapes of one decision. Typing them as one
 ``AgentDecision`` meant two of them had to fabricate a decision the model never
 made, and every consumer of ``turn.decision`` was reading a value that might be
 invented. A flag beside it (``decision_source``, later ``requested_by``) only
@@ -348,6 +366,8 @@ class MainAgentRuntime:
             "constraint_retirement_proposed",
             "memory_amendment_proposed",
             "memory_tombstone_proposed",
+            "free_text_preference_confirmation_proposed",
+            "career_fact_proposed",
             "mock_interview_answer_required",
             "mock_interview_running",
             "resume_analysis_ready",
@@ -511,17 +531,18 @@ class MainAgentRuntime:
     def _route_entry(state: MainAgentState) -> Literal["hydrate", "authorize"]:
         """Enter at authorization when the action is already decided.
 
-        Two ingresses arrive with the action in hand: a bound runtime-owned
-        workflow, and an owner confirming an action their own rule stopped. Both
-        skip ``decide`` for the same reason — there is nothing left to decide,
-        and consulting the model would let it revise a choice that was already
-        made (by the runtime's ownership rule, or by a person clicking confirm).
+        Runtime-owned workflows, owner-confirmed actions, and deterministic
+        policy actions arrive with the action in hand. They skip ``decide``:
+        consulting the model would let it revise a choice already made by the
+        runtime's ownership/policy rule or by a person clicking confirm.
         """
 
         pending = state.get("pending", {})
         return (
             "authorize"
-            if pending.get("runtime_owned") or pending.get("owner_confirmed")
+            if pending.get("runtime_owned")
+            or pending.get("owner_confirmed")
+            or pending.get("policy_owned")
             else "hydrate"
         )
 
@@ -1235,6 +1256,8 @@ class MainAgentRuntime:
                 "constraint_retirement_proposed",
                 "memory_amendment_proposed",
                 "memory_tombstone_proposed",
+                "free_text_preference_confirmation_proposed",
+                "career_fact_proposed",
                 "mock_interview_answer_required",
                 "mock_interview_running",
                 "resume_tailoring_review_blocked",
@@ -1453,6 +1476,9 @@ class MainAgentRuntime:
         try:
             state = self._graph.invoke({
                 "context": context,
+                "career_memory_scope_keys": self._free_text_preference_scope_keys(
+                    context
+                ),
                 "decision": AgentDecision(
                     action="tool_call",
                     tool_call=ToolCall(name=sealed.capability, arguments={}),
@@ -1664,9 +1690,30 @@ class MainAgentRuntime:
         }
 
     def _run_loaded_context(self, context: MainAgentContext) -> MainAgentTurnResult:
+        if (
+            context.task.pending_career_fact is not None
+            and is_explicit_confirmation(context.user_message)
+        ):
+            return self._run_runtime_policy_tool(
+                context,
+                policy="career_fact_confirmation",
+                tool_name="confirm_career_fact",
+                arguments={},
+            )
+        if (
+            context.task.pending_free_text_preference is None
+            and any(
+                item.status == "quarantined"
+                for item in context.free_text_preferences
+            )
+        ):
+            return self._run_free_text_preference_confirmation(context)
         state = self._graph.invoke(
             {
                 "context": context,
+                "career_memory_scope_keys": self._free_text_preference_scope_keys(
+                    context
+                ),
                 "artifact_ids": (),
                 "tool_results": (),
                 "control": {
@@ -1698,6 +1745,74 @@ class MainAgentRuntime:
             artifacts=artifacts,
             content_streamed=False,
             model_message=state.get("model_message", ""),
+            delegated_read_count=control.get("read_calls", 0),
+            delegated_write_count=control.get("write_calls", 0),
+            career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
+        )
+
+    def _run_free_text_preference_confirmation(
+        self,
+        context: MainAgentContext,
+    ) -> MainAgentTurnResult:
+        """Deterministically surface the first relevant quarantined preference."""
+
+        return self._run_runtime_policy_tool(
+            context,
+            policy="free_text_preference_confirmation",
+            tool_name="propose_free_text_preference_confirmation",
+            arguments={"selection_index": 1},
+        )
+
+    def _run_runtime_policy_tool(
+        self,
+        context: MainAgentContext,
+        *,
+        policy: Literal[
+            "free_text_preference_confirmation",
+            "career_fact_confirmation",
+        ],
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> MainAgentTurnResult:
+        decision = AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name=tool_name, arguments=arguments),
+        )
+        state = self._graph.invoke(
+            {
+                "context": context,
+                "career_memory_scope_keys": self._free_text_preference_scope_keys(
+                    context
+                ),
+                "decision": decision,
+                "pending": {
+                    "name": tool_name,
+                    "policy_owned": True,
+                    "arguments": arguments,
+                },
+                "artifact_ids": (),
+                "tool_results": (),
+                "control": {
+                    "read_calls": 0,
+                    "write_calls": 0,
+                    "projection_refusals": 0,
+                    "authorization_refusals": 0,
+                    "fingerprints": (),
+                    "retryable_fingerprints": (),
+                    "retry_counts": {},
+                },
+            }
+        )
+        result = self._last_result(state)
+        if result is None:
+            raise RuntimeError(f"{policy} policy produced no result")
+        control = state.get("control", {})
+        return MainAgentTurnResult(
+            origin=RuntimePolicyAction(policy=policy),
+            context=state["context"],
+            assistant_message=state["assistant_message"],
+            tool_result=result,
+            tool_results=state.get("tool_results", ()),
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
             career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
@@ -1841,6 +1956,9 @@ class MainAgentRuntime:
         state = self._graph.invoke(
             {
                 "context": context,
+                "career_memory_scope_keys": self._free_text_preference_scope_keys(
+                    context
+                ),
                 "decision": decision,
                 # Runtime-owned workflow input is execution data, not model
                 # context. It starts in pending and is replaced by projected
@@ -1882,9 +2000,10 @@ class MainAgentRuntime:
         )
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
-        if self._career_context_projector is None:
-            return {}
         context = state["context"]
+        free_text_scope_keys = self._free_text_preference_scope_keys(context)
+        if self._career_context_projector is None:
+            return {"career_memory_scope_keys": free_text_scope_keys}
         memory = self._career_context_projector.project(
             user_id=context.profile.user_id,
             query=context.user_message,
@@ -1893,10 +2012,23 @@ class MainAgentRuntime:
             "context": context.model_copy(update={"career_memory": memory}),
             "career_memory_scope_keys": tuple(
                 dict.fromkeys(
-                    binding.entry_id for binding in memory.telemetry_bindings
+                    (
+                        *(binding.entry_id for binding in memory.telemetry_bindings),
+                        *free_text_scope_keys,
+                    )
                 )
             ),
         }
+
+    @staticmethod
+    def _free_text_preference_scope_keys(
+        context: MainAgentContext,
+    ) -> tuple[str, ...]:
+        """Scopes whose values were actually exposed in this turn's prompt."""
+
+        return tuple(
+            dict.fromkeys(item.scope_key for item in context.free_text_preferences)
+        )
 
     @staticmethod
     def _tool_call_fingerprint(decision: AgentDecision) -> str:
@@ -1978,6 +2110,7 @@ class MainAgentRuntime:
         name = decision.tool_call.name
         runtime_owned = bool(state.get("pending", {}).get("runtime_owned"))
         owner_confirmed = bool(state.get("pending", {}).get("owner_confirmed"))
+        policy_owned = bool(state.get("pending", {}).get("policy_owned"))
         if runtime_owned:
             if name not in self._tools.runtime_workflow_names:
                 raise ValueError(f"Unknown runtime-owned workflow: {name}")
@@ -2091,6 +2224,7 @@ class MainAgentRuntime:
                     "result": result,
                     "synthetic_kind": "projection",
                     "runtime_owned": runtime_owned,
+                    "policy_owned": policy_owned,
                 },
             }
         if verdict == "review":
@@ -2105,6 +2239,7 @@ class MainAgentRuntime:
                 "kind": kind,
                 "runtime_owned": runtime_owned,
                 "owner_confirmed": owner_confirmed,
+                "policy_owned": policy_owned,
                 "effect": effect,
                 "arguments": arguments,
             },
@@ -2584,6 +2719,8 @@ class MainAgentRuntime:
                 "career_memory_amended",
                 "memory_tombstoned",
                 "memory_tombstone_cleanup_incomplete",
+                "free_text_preference_confirmed",
+                "career_fact_confirmed",
             }:
                 refreshed = self._context_manager.load_for_turn(
                     user_id=context.profile.user_id,
@@ -2642,11 +2779,23 @@ class MainAgentRuntime:
         # from here to build the interaction the owner answers.
         if synthetic_kind in (None, "confirmation"):
             tool_results = (*tool_results, result)
+        career_memory_scope_keys = state.get("career_memory_scope_keys", ())
+        result_scope_key = result.payload.get("scope_key")
+        if (
+            isinstance(result_scope_key, str)
+            and result_scope_key
+            and result_scope_key not in career_memory_scope_keys
+        ):
+            career_memory_scope_keys = (
+                *career_memory_scope_keys,
+                result_scope_key,
+            )
         return {
             "context": updated,
             "tool_results": tool_results,
             "control": control,
             "artifact_ids": artifact_ids,
+            "career_memory_scope_keys": career_memory_scope_keys,
         }
 
     @staticmethod
@@ -2670,6 +2819,8 @@ class MainAgentRuntime:
         # proposed this action, a rule stopped it, and a person answered. The
         # presenter reports what happened; nothing further is up for decision.
         if state.get("pending", {}).get("owner_confirmed"):
+            return "present"
+        if state.get("pending", {}).get("policy_owned"):
             return "present"
         # A projection refusal always returns to the model, which then re-selects,
         # asks the user, or explains — its call, not a table's.
@@ -3284,6 +3435,14 @@ class MainAgentRuntime:
             model_arguments = SearchCareerEpisodesToolArguments.model_validate(
                 arguments
             )
+            if (
+                model_arguments.detail_ref is not None
+                and model_arguments.detail_ref
+                not in {item.detail_ref for item in context.career_episodes}
+            ):
+                raise ValueError(
+                    "episode detail_ref was not projected in this turn"
+                )
             return {
                 "user_id": context.profile.user_id,
                 **model_arguments.model_dump(),
@@ -3325,6 +3484,13 @@ class MainAgentRuntime:
         }:
             return project_job_intent_arguments(context, name, arguments)
         if name in {
+            "propose_free_text_preference_confirmation",
+            "confirm_free_text_preference",
+        }:
+            return project_free_text_preference_arguments(
+                context, name, arguments
+            )
+        if name in {
             "propose_memory_tombstone",
             "confirm_memory_tombstone",
         }:
@@ -3334,6 +3500,8 @@ class MainAgentRuntime:
             "confirm_memory_amendment",
         }:
             return project_memory_amendment_arguments(context, name, arguments)
+        if name in {"propose_career_fact", "confirm_career_fact"}:
+            return project_career_fact_arguments(context, name, arguments)
         if name in {
             "fetch_archived_constraints",
             "propose_constraint_retirement",

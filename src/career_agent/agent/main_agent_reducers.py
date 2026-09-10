@@ -17,7 +17,9 @@ from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
+    CareerFactProposal,
     ConstraintRetirementProposal,
+    FreeTextPreferenceConfirmationProposal,
     JobIntentUpdate,
     MemoryAmendmentProposal,
     MemoryTombstoneProposal,
@@ -550,6 +552,27 @@ def _confirm_job_intent(
     return task.model_copy(update={"pending_job_intent_update": None})
 
 
+def _propose_free_text_preference_confirmation(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("proposal")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_free_text_preference": (
+                FreeTextPreferenceConfirmationProposal.model_validate(raw)
+            )
+        }
+    )
+
+
+def _confirm_free_text_preference(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"pending_free_text_preference": None})
+
+
 def _propose_memory_tombstone(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -592,6 +615,25 @@ def _confirm_memory_tombstone(
     return task.model_copy(update={"pending_memory_tombstone": None})
 
 
+def _propose_career_fact(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    raw = result.payload.get("proposal")
+    if not isinstance(raw, dict):
+        return task
+    return task.model_copy(
+        update={
+            "pending_career_fact": CareerFactProposal.model_validate(raw)
+        }
+    )
+
+
+def _confirm_career_fact(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(update={"pending_career_fact": None})
+
+
 def _propose_constraint_retirement(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -620,6 +662,13 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "confirm_job_intent": _entry(
         ("job_intent_recorded",), _confirm_job_intent
     ),
+    "propose_free_text_preference_confirmation": _entry(
+        ("free_text_preference_confirmation_proposed",),
+        _propose_free_text_preference_confirmation,
+    ),
+    "confirm_free_text_preference": _entry(
+        ("free_text_preference_confirmed",), _confirm_free_text_preference
+    ),
     "propose_memory_tombstone": _entry(
         ("memory_tombstone_proposed",), _propose_memory_tombstone
     ),
@@ -632,6 +681,12 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "confirm_memory_tombstone": _entry(
         ("memory_tombstoned",),
         _confirm_memory_tombstone,
+    ),
+    "propose_career_fact": _entry(
+        ("career_fact_proposed",), _propose_career_fact
+    ),
+    "confirm_career_fact": _entry(
+        ("career_fact_confirmed",), _confirm_career_fact
     ),
     "propose_constraint_retirement": _entry(
         ("constraint_retirement_proposed",), _propose_constraint_retirement

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -38,7 +39,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
     apply_schema(
         connection,
         "career_episodes",
-        7,
+        8,
         SQLiteCareerEpisodeStore._baseline,
         {
             2: SQLiteCareerEpisodeStore._upgrade_to_v2,
@@ -47,6 +48,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
             5: SQLiteCareerEpisodeStore._upgrade_to_v5,
             6: SQLiteCareerEpisodeStore._upgrade_to_v6,
             7: SQLiteCareerEpisodeStore._upgrade_to_v7,
+            8: SQLiteCareerEpisodeStore._upgrade_to_v8,
         },
     )
 
@@ -214,6 +216,14 @@ class SQLiteCareerEpisodeStore:
                 self._SELECT
                 + " WHERE user_id = ? AND kind = ? AND source_run_id = ?",
                 (user_id, kind, source_run_id),
+            ).fetchone()
+        return self._episode(row) if row else None
+
+    def get(self, *, user_id: str, episode_id: str) -> CareerEpisode | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                self._SELECT + " WHERE e.user_id = ? AND e.id = ?",
+                (user_id, episode_id),
             ).fetchone()
         return self._episode(row) if row else None
 
@@ -477,6 +487,109 @@ class SQLiteCareerEpisodeStore:
                 rows = []
         return tuple(self._episode(row) for row in rows)
 
+    def project_relevant(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        limit: int = 5,
+        exclude_conversation_id: str | None = None,
+    ) -> tuple[CareerEpisode, ...]:
+        """Rank lexical hits by relevance, salience, and recency."""
+
+        if not 1 <= limit <= 5:
+            raise ValueError("episode projection limit must be between 1 and 5")
+        terms = self._projection_terms(query)
+        if not terms:
+            return ()
+        candidates = self.search(
+            user_id=user_id,
+            query=" ".join(terms),
+            limit=max(30, limit * 10),
+        )
+        if exclude_conversation_id is not None:
+            candidates = tuple(
+                item
+                for item in candidates
+                if item.conversation_id != exclude_conversation_id
+            )
+        now = datetime.now(timezone.utc)
+
+        def score(indexed: tuple[int, CareerEpisode]) -> tuple[float, datetime]:
+            rank, episode = indexed
+            age_days = max(
+                0.0,
+                (now - episode.occurred_at.astimezone(timezone.utc)).total_seconds()
+                / 86_400,
+            )
+            decayed_salience = max(0.0, episode.salience) * math.exp(
+                -age_days / 180.0
+            )
+            lexical_rank = 1.0 / (rank + 1)
+            return (
+                0.65 * lexical_rank + 0.35 * decayed_salience,
+                episode.occurred_at,
+            )
+
+        selected = tuple(
+            episode
+            for _, episode in sorted(
+                enumerate(candidates),
+                key=score,
+                reverse=True,
+            )[:limit]
+        )
+        self.mark_accessed(
+            user_id=user_id,
+            episode_ids=tuple(item.id for item in selected),
+        )
+        return selected
+
+    def mark_accessed(
+        self,
+        *,
+        user_id: str,
+        episode_ids: tuple[str, ...],
+    ) -> None:
+        selected = tuple(dict.fromkeys(episode_ids))
+        if not selected:
+            return
+        placeholders = ",".join("?" for _ in selected)
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                f"""
+                UPDATE career_episodes
+                SET last_accessed_at = ?,
+                    access_count = access_count + 1,
+                    updated_at = ?
+                WHERE user_id = ? AND id IN ({placeholders})
+                """,
+                (
+                    now,
+                    now,
+                    user_id,
+                    *selected,
+                ),
+            )
+
+    @staticmethod
+    def _projection_terms(query: str) -> tuple[str, ...]:
+        normalized = query.casefold()
+        terms: list[str] = re.findall(
+            r"[a-z0-9][a-z0-9+#.-]{1,}",
+            normalized,
+        )
+        for run in re.findall(r"[\u4e00-\u9fff]+", normalized):
+            width = 3 if len(run) >= 3 else len(run)
+            if width:
+                terms.extend(
+                    run[index : index + width]
+                    for index in range(len(run) - width + 1)
+                )
+        return tuple(dict.fromkeys(terms))
+
     @staticmethod
     def _baseline(connection: sqlite3.Connection) -> None:
         connection.execute(
@@ -486,7 +599,9 @@ class SQLiteCareerEpisodeStore:
                 user_id TEXT NOT NULL,
                 kind TEXT NOT NULL CHECK(kind IN (
                     'mock_interview', 'job_research',
-                    'application', 'interview_round'
+                    'application', 'interview_round',
+                    'resume_analysis', 'intent_confirmation',
+                    'resume_tailoring'
                 )),
                 source_run_id TEXT NOT NULL CHECK(length(source_run_id) > 0),
                 occurred_at TEXT NOT NULL,
@@ -589,6 +704,75 @@ class SQLiteCareerEpisodeStore:
             "DROP TABLE IF EXISTS career_episode_content_suppressions"
         )
         connection.execute("DROP TABLE IF EXISTS career_episode_deleted_scopes")
+        SQLiteCareerEpisodeStore._ensure_binding_schema(connection)
+
+    @staticmethod
+    def _upgrade_to_v8(connection: sqlite3.Connection) -> None:
+        """Expand the immutable episode-kind constraint without losing rows."""
+
+        connection.execute("DROP TABLE IF EXISTS career_episodes_fts")
+        connection.execute(
+            "ALTER TABLE career_episodes RENAME TO career_episodes_v7"
+        )
+        connection.execute(
+            "DROP INDEX IF EXISTS career_episodes_user_time_idx"
+        )
+        connection.execute(
+            """
+            CREATE TABLE career_episodes (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL CHECK(kind IN (
+                    'mock_interview', 'job_research',
+                    'application', 'interview_round',
+                    'resume_analysis', 'intent_confirmation',
+                    'resume_tailoring'
+                )),
+                source_run_id TEXT NOT NULL CHECK(length(source_run_id) > 0),
+                occurred_at TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                conversation_id TEXT,
+                resource_refs_json TEXT NOT NULL DEFAULT '[]',
+                salience REAL NOT NULL DEFAULT 1.0,
+                last_accessed_at TEXT,
+                access_count INTEGER NOT NULL DEFAULT 0 CHECK(access_count >= 0),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, kind, source_run_id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO career_episodes(
+                id, user_id, kind, source_run_id, occurred_at, title, summary,
+                conversation_id, resource_refs_json, salience,
+                last_accessed_at, access_count, created_at, updated_at
+            )
+            SELECT
+                id, user_id, kind, source_run_id, occurred_at, title, summary,
+                conversation_id, resource_refs_json, salience,
+                last_accessed_at, access_count, created_at, updated_at
+            FROM career_episodes_v7
+            """
+        )
+        connection.execute("DROP TABLE career_episodes_v7")
+        connection.execute(
+            """
+            CREATE INDEX career_episodes_user_time_idx
+            ON career_episodes(user_id, occurred_at DESC)
+            """
+        )
+        SQLiteCareerEpisodeStore._create_fts(connection)
+        connection.execute(
+            """
+            INSERT INTO career_episodes_fts(
+                episode_id, user_id, title, summary
+            )
+            SELECT id, user_id, title, summary FROM career_episodes
+            """
+        )
         SQLiteCareerEpisodeStore._ensure_binding_schema(connection)
 
     @staticmethod

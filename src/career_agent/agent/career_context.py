@@ -207,6 +207,7 @@ class CareerContextProjector:
             selected_highlights = highlights[:remaining_claims]
             projected.append(
                 CareerMemoryRecord(
+                    record_id=record.id,
                     record_type=record.record_type,
                     organization=record.organization,
                     title=record.title,

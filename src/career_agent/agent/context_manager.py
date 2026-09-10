@@ -8,6 +8,8 @@ from career_agent.agent.conversation_memory_contracts import (
     SUMMARY_TEXT_MAX_CHARS as _SUMMARY_TEXT_BUDGET,
     ConversationSummaryContent,
     ConversationSummaryWorker,
+    DistilledFreeTextPreferenceCandidate,
+    SummaryMessage,
 )
 from career_agent.agent.main_agent_contracts import (
     CareerProfileBudgets,
@@ -15,8 +17,10 @@ from career_agent.agent.main_agent_contracts import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,
+    EpisodeProjectionContext,
     MainAgentContext,
     CurrentTargetContext,
+    FreeTextPreferenceContext,
     MemoryTelemetryBinding,
     OwnerSettingsContext,
 )
@@ -30,7 +34,9 @@ from career_agent.harness.observability import (
 )
 from career_agent.services.episode_consolidation import mock_interview_exit_draft
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
+from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.intent_versions import intent_entry_id
+from career_agent.services.free_text_preferences import preference_topic_is_relevant
 
 
 class TargetRoleSource(Protocol):
@@ -61,7 +67,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -98,6 +104,7 @@ class ContextManager:
         self._compact_occupancy_threshold = compact_occupancy_threshold
         self._archived_resource_limit = archived_resource_limit
         self._target_role_source = target_role_source
+        self._episode_store = episode_store
         self._career_profile_budgets = (
             career_profile_budgets or CareerProfileBudgets()
         )
@@ -141,6 +148,11 @@ class ContextManager:
         self, *, user_id: str, conversation_id: str, user_message: str
     ) -> MainAgentContext:
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
+        self._store.capture_free_text_preference_from_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message=user_message,
+        )
         self._maybe_summarize(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -185,6 +197,15 @@ class ContextManager:
             profile=profile,
             career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
+            free_text_preferences=self._free_text_preference_context(
+                user_id=user_id,
+                user_message=user_message,
+            ),
+            career_episodes=self._episode_context(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_message=user_message,
+            ),
             task=task,
             recent_messages=tuple(record.message for record in recent_records),
             through_sequence=summary.through_sequence if summary else 0,
@@ -222,6 +243,32 @@ class ContextManager:
             user_message=self._truncate(user_message),
         )
 
+    def _episode_context(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        user_message: str,
+    ) -> tuple[EpisodeProjectionContext, ...]:
+        if self._episode_store is None:
+            return ()
+        episodes = self._episode_store.project_relevant(
+            user_id=user_id,
+            query=user_message,
+            limit=5,
+            exclude_conversation_id=conversation_id,
+        )
+        return tuple(
+            EpisodeProjectionContext(
+                detail_ref=f"episode:{episode.id}",
+                kind=episode.kind,
+                occurred_at=episode.occurred_at,
+                title=episode.title,
+                synopsis=episode.summary,
+            )
+            for episode in episodes
+        )
+
     def get_task(
         self, *, user_id: str, conversation_id: str
     ) -> ConversationTaskState:
@@ -247,11 +294,86 @@ class ContextManager:
             profile=profile,
             career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
+            free_text_preferences=self._free_text_preference_context(
+                user_id=user_id,
+                user_message="",
+            ),
             task=task,
             recent_messages=(),
             conversation_summary=None,
             user_message="[workflow-owned input withheld]",
         )
+
+    def _free_text_preference_context(
+        self,
+        *,
+        user_id: str,
+        user_message: str,
+    ) -> tuple[FreeTextPreferenceContext, ...]:
+        versions = self._store.list_free_text_preferences(user_id=user_id)
+        current_by_scope: dict[str, list[object]] = {}
+        for item in versions:
+            current_by_scope.setdefault(item.scope_key, []).append(item)
+        projected = []
+        for scope_key, track in sorted(current_by_scope.items()):
+            deleted_at = self._store.free_text_preference_deleted_at(
+                user_id=user_id,
+                scope_key=scope_key,
+            )
+            quarantined = next(
+                (
+                    item
+                    for item in track
+                    if item.admission_status == "quarantined"
+                    and (deleted_at is None or item.valid_from > deleted_at)
+                ),
+                None,
+            )
+            # A conflicting candidate suspends the old active value at read
+            # time. Storage stays append-only until the user confirms which
+            # interpretation is current.
+            selected = quarantined or (
+                next(
+                    (
+                        item
+                        for item in track
+                        if item.admission_status == "active"
+                    ),
+                    None,
+                )
+                if deleted_at is None
+                else None
+            )
+            if selected is None:
+                continue
+            topic_key = scope_key.removeprefix("person_intent/self/").removesuffix(
+                "_preference"
+            )
+            if (
+                selected.admission_status == "quarantined"
+                and not preference_topic_is_relevant(
+                    topic_key,
+                    user_message,
+                    selected.value,
+                )
+            ):
+                continue
+            projected.append(
+                FreeTextPreferenceContext(
+                    scope_key=scope_key,
+                    topic_key=topic_key,
+                    statement=selected.value,
+                    status=selected.admission_status,
+                    observed_at=selected.valid_from,
+                    confirmed_at=(
+                        selected.last_corroborated_at
+                        if selected.admission_status == "active"
+                        else None
+                    ),
+                    update_id=selected.update_id,
+                )
+            )
+        return tuple(projected[:8])
 
     def _stored_profile_context(self, user_id: str) -> CareerProfileContext:
         return self._store.get_profile(user_id) or CareerProfileContext(
@@ -747,6 +869,11 @@ class ContextManager:
             )
         except AgentWorkerError:
             return False
+        preference_candidates_proposed = len(content.long_term_memory_candidates)
+        preference_candidates = self._validated_preference_candidates(
+            content.long_term_memory_candidates,
+            messages=to_summarize,
+        )
         dropped_user_goals = 0
         dropped_confirmed_decisions = 0
         dropped_unresolved_questions = 0
@@ -885,6 +1012,7 @@ class ContextManager:
             content=content,
             through_sequence=to_summarize[-1].sequence,
             omitted_constraints=omitted_constraints,
+            preference_candidates=preference_candidates,
         )
         if not compacted:
             return False
@@ -924,9 +1052,36 @@ class ContextManager:
                     omitted_unresolved_question_count
                 ),
                 "batch_size": len(to_summarize),
+                "preference_candidates_proposed": (
+                    preference_candidates_proposed
+                ),
+                "preference_candidates_admitted": len(
+                    preference_candidates
+                ),
             },
         )
         return True
+
+    @staticmethod
+    def _validated_preference_candidates(
+        candidates: tuple[DistilledFreeTextPreferenceCandidate, ...],
+        *,
+        messages: tuple[SummaryMessage, ...],
+    ) -> tuple[DistilledFreeTextPreferenceCandidate, ...]:
+        """Keep only candidates grounded in one exact user message in this batch."""
+
+        source_by_sequence = {message.sequence: message for message in messages}
+        selected: dict[str, DistilledFreeTextPreferenceCandidate] = {}
+        for candidate in candidates:
+            source = source_by_sequence.get(candidate.source_sequence)
+            if (
+                source is None
+                or source.role != "user"
+                or candidate.source_quote not in source.content
+            ):
+                continue
+            selected.setdefault(candidate.topic_key, candidate)
+        return tuple(selected.values())
 
     def _recent_pressure(
         self,

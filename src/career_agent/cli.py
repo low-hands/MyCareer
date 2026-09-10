@@ -105,11 +105,15 @@ EXIT_UNKNOWN_ERROR = 6
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
     context_store = CareerContextStore(Path(args.context_store).expanduser())
+    episode_store = SQLiteCareerEpisodeStore(
+        Path(args.context_store).expanduser()
+    )
     resume_store = ResumeStore(Path(args.resume_store).expanduser())
     context_manager = ContextManager(
         context_store,
         summary_worker=OpenAIConversationSummaryWorker(main_config),
         target_role_source=resume_store,
+        episode_store=episode_store,
     )
     resume_analysis_config = replace(
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
@@ -250,9 +254,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_research_service=job_research_service,
             resume_store=resume_store,
             career_history_store=career_history_store,
-            episode_store=SQLiteCareerEpisodeStore(
-                Path(args.context_store).expanduser()
-            ),
+            episode_store=episode_store,
             resume_export_service=ResumeExportService(
                 resume_store,
                 SQLiteResumeArtifactStore(Path(args.resume_store).expanduser()),

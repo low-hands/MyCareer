@@ -3,7 +3,10 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
+from career_agent.agent.conversation_memory_contracts import (
+    ConversationSummaryContent,
+    DistilledFreeTextPreferenceCandidate,
+)
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -211,6 +214,157 @@ class RecordingSummaryWorker:
             unresolved_questions=(),
             active_constraints=("Do not promote this summary to career facts",),
         )
+
+
+class GenericPreferenceSummaryWorker:
+    def summarize(self, *, previous, messages):
+        source = next(message for message in messages if message.role == "user")
+        avoids = "不再" in source.content
+        return ConversationSummaryContent(
+            long_term_memory_candidates=(
+                DistilledFreeTextPreferenceCandidate(
+                    topic_key="team_open_source_culture",
+                    statement=(
+                        "不再偏好开源社区活跃的团队"
+                        if avoids
+                        else "偏好开源社区活跃的团队"
+                    ),
+                    stance="avoid" if avoids else "prefer",
+                    source_sequence=source.sequence,
+                    source_quote=source.content,
+                    confidence=0.8,
+                ),
+            ),
+        )
+
+
+def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    context_manager = ContextManager(
+        store,
+        summary_worker=GenericPreferenceSummaryWorker(),
+        recent_message_limit=2,
+        summary_batch_size=2,
+    )
+    first = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我更喜欢开源社区活跃的团队",
+    )
+    context_manager.commit_turn(
+        context=first,
+        task=first.task,
+        assistant_message="我会把这作为待确认候选。",
+        compaction_trigger="seam",
+    )
+
+    quarantined = store.list_free_text_preferences(
+        user_id="u1",
+        statuses=("quarantined",),
+    )
+    assert len(quarantined) == 1
+    assert quarantined[0].value == "偏好开源社区活跃的团队"
+    assert quarantined[0].semantic_stance == "prefer"
+    assert quarantined[0].source.startswith(
+        "agent_inference:conversation_distillation:"
+    )
+    assert store.list_free_text_preferences(
+        user_id="u1",
+        statuses=("active",),
+    ) == ()
+    stored_summary = store.get_conversation_summary(
+        user_id="u1",
+        conversation_id="c1",
+    )
+    assert stored_summary is not None
+    assert stored_summary.content.long_term_memory_candidates == ()
+
+    relevant = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c2",
+        user_message="推荐一些开源团队的岗位",
+    )
+    assert relevant.free_text_preferences[0].status == "quarantined"
+    assert relevant.free_text_preferences[0].statement == "偏好开源社区活跃的团队"
+
+    active = store.confirm_free_text_preference(
+        user_id="u1",
+        update_id=quarantined[0].update_id,
+    )
+    assert active is not None
+    assert active.semantic_stance == "prefer"
+    projected = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c3",
+        user_message="继续推荐岗位",
+    )
+    assert projected.free_text_preferences[0].status == "active"
+
+    reaffirmation = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c4",
+        user_message="我仍然更喜欢开源社区活跃的团队",
+    )
+    context_manager.commit_turn(
+        context=reaffirmation,
+        task=reaffirmation.task,
+        assistant_message="了解。",
+        compaction_trigger="seam",
+    )
+    after_inference = store.list_free_text_preferences(user_id="u1")
+    assert len(after_inference) == 1
+    assert after_inference[0].update_id == active.update_id
+    assert after_inference[0].last_corroborated_at == active.last_corroborated_at
+
+    store.purge_derived_memory(
+        user_id="u1",
+        scope_key=active.scope_key,
+    )
+    assert store.list_free_text_preferences(
+        user_id="u1",
+        statuses=("active",),
+    ) == ()
+
+
+def test_summary_distillation_rejects_unverifiable_candidate_provenance(
+    tmp_path,
+) -> None:
+    class UngroundedWorker:
+        def summarize(self, *, previous, messages):
+            return ConversationSummaryContent(
+                long_term_memory_candidates=(
+                    DistilledFreeTextPreferenceCandidate(
+                        topic_key="work_style",
+                        statement="偏好异步协作",
+                        stance="prefer",
+                        source_sequence=messages[0].sequence,
+                        source_quote="这句话并不存在",
+                    ),
+                ),
+            )
+
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    context_manager = ContextManager(
+        store,
+        summary_worker=UngroundedWorker(),
+        recent_message_limit=2,
+        summary_batch_size=2,
+    )
+    first = context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="聊聊工作方式",
+    )
+    context_manager.commit_turn(
+        context=first,
+        task=first.task,
+        assistant_message="好的。",
+        compaction_trigger="seam",
+    )
+
+    assert store.list_free_text_preferences(user_id="u1") == ()
 
 
 @pytest.mark.parametrize("threshold", [0.69, 0.91])
@@ -478,6 +632,8 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "omitted_confirmed_decision_count": 0,
         "omitted_unresolved_question_count": 0,
         "batch_size": 2,
+        "preference_candidates_proposed": 0,
+        "preference_candidates_admitted": 0,
     }
 
 

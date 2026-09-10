@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from career_agent.agent.main_agent_contracts import (
     CareerProfileContext,
+    EpisodeProjectionContext,
     MainAgentContext,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -97,6 +100,65 @@ def test_episode_search_filters_time_and_kind_and_returns_pointers(tmp_path) -> 
         }
     ]
     assert [item.resource_id for item in result.resource_refs] == ["mock-1"]
+    accessed = store.get_by_source(
+        user_id="u1",
+        kind="mock_interview",
+        source_run_id="mock-1",
+    )
+    assert accessed is not None
+    assert accessed.access_count == 1
+
+
+def test_projected_detail_ref_can_be_expanded_and_unprojected_ref_is_rejected(
+    tmp_path,
+) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    episode = store.upsert(
+        _episode(
+            source_run_id="mock-1",
+            kind="mock_interview",
+            occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            title="System design mock",
+            summary="Capacity planning needed more detail.",
+        )
+    )
+    detail_ref = f"episode:{episode.id}"
+    context = MainAgentContext(
+        conversation_id="conversation-2",
+        profile=CareerProfileContext(user_id="u1"),
+        career_episodes=(
+            EpisodeProjectionContext(
+                detail_ref=detail_ref,
+                kind=episode.kind,
+                occurred_at=episode.occurred_at,
+                title=episode.title,
+                synopsis=episode.summary,
+            ),
+        ),
+        user_message="展开这次复盘",
+    )
+
+    arguments = MainAgentRuntime._project_atomic_tool_arguments(
+        context,
+        "search_career_episodes",
+        {"detail_ref": detail_ref},
+    )
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes",
+        arguments,
+    )
+
+    assert result.state == "career_episode_search_found"
+    assert result.payload["items"][0]["title"] == episode.title
+    refreshed = store.get(user_id="u1", episode_id=episode.id)
+    assert refreshed is not None
+    assert refreshed.access_count == 1
+    with pytest.raises(ValueError, match="not projected"):
+        MainAgentRuntime._project_atomic_tool_arguments(
+            context,
+            "search_career_episodes",
+            {"detail_ref": "episode:career_episode_" + "0" * 32},
+        )
 
 
 def test_runtime_injects_the_owner_for_both_memory_search_layers() -> None:

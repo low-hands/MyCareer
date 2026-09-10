@@ -59,6 +59,35 @@ class HardConstraintContext(ContractModel):
     confirmed_at: datetime | None = Field(default=None, exclude=True)
 
 
+class FreeTextPreferenceContext(ContractModel):
+    """A current free-text preference projected with its authority boundary."""
+
+    scope_key: str = Field(min_length=1, max_length=500, exclude=True)
+    topic_key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
+    statement: str = Field(min_length=1, max_length=2000)
+    status: Literal["quarantined", "active"]
+    observed_at: datetime
+    confirmed_at: datetime | None = None
+    update_id: str = Field(
+        pattern=r"^intent_update_[a-f0-9]{32}$",
+        exclude=True,
+    )
+
+    @model_validator(mode="after")
+    def confirmation_matches_status(self) -> "FreeTextPreferenceContext":
+        if (self.status == "active") != (self.confirmed_at is not None):
+            raise ValueError("free-text preference authority is inconsistent")
+        return self
+
+
+class FreeTextPreferenceConfirmationProposal(ContractModel):
+    """The exact quarantined revision shown to the user for confirmation."""
+
+    update_id: str = Field(pattern=r"^intent_update_[a-f0-9]{32}$")
+    topic_key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
+    statement: str = Field(min_length=1, max_length=2000)
+
+
 class MemoryTelemetryBinding(ContractModel):
     """Version-bound record of one value the prompt exposed, never projected.
 
@@ -248,6 +277,19 @@ class MemoryAmendmentProposal(ContractModel):
     target_kind: Literal["career_evidence"]
     detail_ref: str = Field(pattern=r"^detail_[a-f0-9]{24}$")
     new_claim: str = Field(min_length=1, max_length=32_000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class CareerFactProposal(ContractModel):
+    """One pending inferred fact read back before it becomes authoritative."""
+
+    career_evidence_id: str = Field(
+        pattern=r"^career_evidence_[a-f0-9]{32}$"
+    )
+    career_record_id: str = Field(
+        pattern=r"^career_record_[a-f0-9]{32}$"
+    )
+    claim: str = Field(min_length=1, max_length=2000)
     reason: str = Field(min_length=1, max_length=2000)
 
 
@@ -509,8 +551,10 @@ class ConversationTaskState(ContractModel):
     candidates: tuple[CandidateContextItem, ...] = ()
     workflow_entry_message: str | None = None
     pending_job_intent_update: JobIntentUpdate | None = None
+    pending_free_text_preference: FreeTextPreferenceConfirmationProposal | None = None
     pending_memory_amendment: MemoryAmendmentProposal | None = None
     pending_memory_tombstone: MemoryTombstoneProposal | None = None
+    pending_career_fact: CareerFactProposal | None = None
     pending_constraint_retirement: ConstraintRetirementProposal | None = None
     active_resume_analysis_id: str | None = None
     resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
@@ -809,6 +853,11 @@ class CareerMemoryClaim(ContractModel):
 
 
 class CareerMemoryRecord(ContractModel):
+    record_id: str | None = Field(
+        default=None,
+        pattern=r"^career_record_[a-f0-9]{32}$",
+        exclude=True,
+    )
     record_type: Literal[
         "education",
         "work",
@@ -888,11 +937,12 @@ class CareerMemoryContext(ContractModel):
             return empty
 
         projected_records: list[dict[str, Any]] = []
-        for record in self.records:
+        for selection_index, record in enumerate(self.records, start=1):
             serialized_record = record.model_dump(
                 mode="json",
                 exclude={"confirmed_highlights"},
             )
+            serialized_record["selection_index"] = selection_index
             serialized_record["confirmed_highlights"] = []
             candidate_records = [*projected_records, serialized_record]
             candidate = _career_memory_projection(
@@ -1521,6 +1571,41 @@ def decision_observation_chars(
     )
 
 
+class EpisodeProjectionContext(ContractModel):
+    detail_ref: str = Field(
+        pattern=r"^episode:career_episode_[a-f0-9]{32}$"
+    )
+    kind: Literal[
+        "mock_interview",
+        "job_research",
+        "application",
+        "interview_round",
+    ]
+    occurred_at: datetime
+    title: str = Field(min_length=1, max_length=80)
+    synopsis: str = Field(min_length=1, max_length=400)
+
+
+PREFERENCE_EPISODE_CHAR_BUDGET = 800
+_PREFERENCE_CHAR_CAP = 400
+
+
+def _bounded_markdown(
+    lines: list[str],
+    *,
+    budget: int,
+    line_limit: int,
+) -> str:
+    accepted: list[str] = []
+    for line in lines:
+        bounded = line if len(line) <= line_limit else line[: line_limit - 1] + "…"
+        candidate = "\n".join((*accepted, bounded))
+        if len(candidate) > budget:
+            break
+        accepted.append(bounded)
+    return "\n".join(accepted)
+
+
 class MainAgentContext(ContractModel):
     conversation_id: str
     spotlight_nonce: str | None = Field(default=None, min_length=32, max_length=32)
@@ -1529,6 +1614,14 @@ class MainAgentContext(ContractModel):
     preferences: AgentPreferencesContext = AgentPreferencesContext()
     task: ConversationTaskState = ConversationTaskState()
     career_memory: CareerMemoryContext = CareerMemoryContext()
+    free_text_preferences: tuple[FreeTextPreferenceContext, ...] = Field(
+        default=(),
+        max_length=8,
+    )
+    career_episodes: tuple[EpisodeProjectionContext, ...] = Field(
+        default=(),
+        max_length=5,
+    )
     career_profile_budgets: CareerProfileBudgets = Field(
         default_factory=CareerProfileBudgets,
         exclude=True,
@@ -1782,9 +1875,74 @@ class MainAgentContext(ContractModel):
             token_budget=self.career_profile_budgets.records_input_units,
         )
         career_memory.update(_memory_overflow_notice(career_memory))
+        active_free_text_preferences = [
+            item
+            for item in self.free_text_preferences
+            if item.status == "active" and item.confirmed_at is not None
+        ]
+        quarantined_free_text_preferences = [
+            item
+            for item in self.free_text_preferences
+            if item.status == "quarantined"
+        ][:3]
+        preference_lines = ["## 已确认的自由文本偏好（可用于推荐）"]
+        preference_lines.extend(
+            f"- {item.statement}（确认于 {item.confirmed_at.isoformat()}）"
+            for item in active_free_text_preferences
+            if item.confirmed_at is not None
+        )
+        if not active_free_text_preferences:
+            preference_lines.append("- 无")
+        preference_lines.append("## 待确认偏好（隔离态，不得用于筛选、排序或推荐）")
+        preference_lines.extend(
+            f"{index}. {item.statement}"
+            for index, item in enumerate(
+                quarantined_free_text_preferences,
+                start=1,
+            )
+        )
+        if not quarantined_free_text_preferences:
+            preference_lines.append("- 无")
+        preference_markdown = _bounded_markdown(
+            preference_lines,
+            budget=_PREFERENCE_CHAR_CAP,
+            line_limit=220,
+        )
+        episode_budget = PREFERENCE_EPISODE_CHAR_BUDGET - len(
+            preference_markdown
+        )
+        episode_lines = [
+            "## 相关的过往求职事件（渐进披露目录）",
+            "这里只是摘要；需要细节时调用 search_career_episodes，并传入 detail_ref。",
+        ]
+        episode_lines.extend(
+            f"- [{item.kind}] {item.title}：{item.synopsis} "
+            f"[detail_ref={item.detail_ref}]"
+            for item in self.career_episodes
+        )
+        bounded_episode_markdown = (
+            _bounded_markdown(
+                episode_lines,
+                budget=episode_budget,
+                line_limit=220,
+            )
+            if self.career_episodes
+            else ""
+        )
+        episode_markdown = (
+            bounded_episode_markdown
+            if len(bounded_episode_markdown.splitlines()) >= 3
+            else ""
+        )
         return {
             "career_profile": career_profile_memory_files(self.profile),
             "career_memory": career_memory,
+            "free_text_preferences": preference_markdown,
+            **(
+                {"career_episodes": episode_markdown}
+                if episode_markdown
+                else {}
+            ),
             "preferences": {
                 "boss_search": self.preferences.boss_search,
             },
@@ -2035,6 +2193,14 @@ class SearchCareerMemoryToolArguments(ContractModel):
 class SearchCareerEpisodesToolArguments(ContractModel):
     """Bounded L1 recall across completed workflows and past conversations."""
 
+    detail_ref: str | None = Field(
+        default=None,
+        pattern=r"^episode:career_episode_[a-f0-9]{32}$",
+        description=(
+            "Exact projected episode detail_ref. When present, dereference that "
+            "episode instead of running a broad query."
+        ),
+    )
     query: str = Field(
         default="",
         max_length=200,
@@ -2057,11 +2223,14 @@ class SearchCareerEpisodesToolArguments(ContractModel):
             "job_research",
             "application",
             "interview_round",
+            "resume_analysis",
+            "intent_confirmation",
+            "resume_tailoring",
         ],
         ...,
     ] = Field(
         default=(),
-        max_length=4,
+        max_length=7,
         description="Optional episode-type filters.",
     )
     top_k: int = Field(default=8, ge=1, le=20)
@@ -2129,6 +2298,16 @@ class ProposeMemoryAmendmentToolArguments(ContractModel):
 
 
 class ConfirmMemoryAmendmentToolArguments(ContractModel):
+    pass
+
+
+class ProposeCareerFactToolArguments(ContractModel):
+    record_selection_index: SelectionIndex
+    claim: str = Field(min_length=1, max_length=2000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ConfirmCareerFactToolArguments(ContractModel):
     pass
 
 
@@ -2233,6 +2412,14 @@ class ProposeJobIntentToolArguments(ContractModel):
 
 
 class ConfirmJobIntentToolArguments(ContractModel):
+    pass
+
+
+class ProposeFreeTextPreferenceConfirmationToolArguments(ContractModel):
+    selection_index: SelectionIndex
+
+
+class ConfirmFreeTextPreferenceToolArguments(ContractModel):
     pass
 
 
@@ -2702,6 +2889,47 @@ def project_job_intent_arguments(
     }
 
 
+def project_free_text_preference_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "propose_free_text_preference_confirmation":
+        model_arguments = (
+            ProposeFreeTextPreferenceConfirmationToolArguments.model_validate(
+                arguments
+            )
+        )
+        candidates = tuple(
+            item
+            for item in context.free_text_preferences
+            if item.status == "quarantined"
+        )
+        index = model_arguments.selection_index
+        if not 1 <= index <= len(candidates):
+            raise ValueError("free-text preference selection index is out of range")
+        candidate = candidates[index - 1]
+        return {
+            "user_id": context.profile.user_id,
+            "proposal": FreeTextPreferenceConfirmationProposal(
+                update_id=candidate.update_id,
+                topic_key=candidate.topic_key,
+                statement=candidate.statement,
+            ),
+        }
+    ConfirmFreeTextPreferenceToolArguments.model_validate(arguments)
+    pending = context.task.pending_free_text_preference
+    if pending is None:
+        raise ValueError(
+            "confirm_free_text_preference requires a proposal the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "update_id": pending.update_id,
+    }
+
+
 def project_memory_tombstone_arguments(
     context: MainAgentContext,
     name: str,
@@ -2757,6 +2985,45 @@ def project_memory_amendment_arguments(
     if pending is None:
         raise ValueError(
             "confirm_memory_amendment requires a proposed correction the user has seen"
+        )
+    return {
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+        "proposal": pending,
+    }
+
+
+def project_career_fact_arguments(
+    context: MainAgentContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    _reject_internal_identifiers(name, arguments)
+    if name == "propose_career_fact":
+        proposed = ProposeCareerFactToolArguments.model_validate(arguments)
+        projected = context.career_memory.tier_one_projection(
+            token_budget=context.career_profile_budgets.records_input_units
+        )
+        records = projected.get("records", [])
+        if not 1 <= proposed.record_selection_index <= len(records):
+            raise ValueError("career record selection is not projected")
+        record = context.career_memory.records[
+            proposed.record_selection_index - 1
+        ]
+        if record.record_id is None:
+            raise ValueError("career record selection has no durable identity")
+        return {
+            "user_id": context.profile.user_id,
+            "conversation_id": context.conversation_id,
+            "career_record_id": record.record_id,
+            "claim": proposed.claim,
+            "reason": proposed.reason,
+        }
+    ConfirmCareerFactToolArguments.model_validate(arguments)
+    pending = context.task.pending_career_fact
+    if pending is None:
+        raise ValueError(
+            "confirm_career_fact requires a proposed fact the user has seen"
         )
     return {
         "user_id": context.profile.user_id,

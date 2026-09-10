@@ -68,7 +68,7 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # — the numbers predate the registry — so raising one has to be a deliberate edit
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
-    "resumes": 6,
+    "resumes": 7,
     "career_history": 8,
     "action_center": 2,
     "action_executions": 1,
@@ -83,13 +83,13 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 1,
     "interview_preparations": 1,
-    "agent_context": 11,
+    "agent_context": 12,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
     "job_research": 2,
     "run_events": 2,
-    "career_episodes": 7,
+    "career_episodes": 8,
 }
 
 
