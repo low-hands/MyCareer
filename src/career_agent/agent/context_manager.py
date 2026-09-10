@@ -11,6 +11,7 @@ from career_agent.agent.conversation_memory_contracts import (
     DistilledFreeTextPreferenceCandidate,
     SummaryMessage,
 )
+from career_agent.agent.career_context import reciprocal_rank_fusion
 from career_agent.agent.main_agent_contracts import (
     CareerProfileBudgets,
     CareerProfileContext,
@@ -36,7 +37,16 @@ from career_agent.services.episode_consolidation import mock_interview_exit_draf
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.intent_versions import intent_entry_id
-from career_agent.services.free_text_preferences import preference_topic_is_relevant
+from career_agent.services.free_text_preferences import (
+    preference_scope_domain,
+    preference_topic_is_relevant,
+    preference_topic_key,
+)
+from career_agent.services.preference_resolution import (
+    PreferenceResolutionContext,
+    preference_scope_name,
+    resolve_effective_preferences,
+)
 
 
 class TargetRoleSource(Protocol):
@@ -199,7 +209,9 @@ class ContextManager:
             preferences=preferences,
             free_text_preferences=self._free_text_preference_context(
                 user_id=user_id,
+                conversation_id=conversation_id,
                 user_message=user_message,
+                task=task,
             ),
             career_episodes=self._episode_context(
                 user_id=user_id,
@@ -275,6 +287,27 @@ class ContextManager:
         """Read only the routing state before choosing a context owner."""
         return self._store.get_task(user_id, conversation_id) or ConversationTaskState()
 
+    def disarm_bare_confirmation(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        task: ConversationTaskState,
+    ) -> ConversationTaskState:
+        """Consume one proposal's adjacent-turn bare-confirmation privilege."""
+
+        if task.bare_confirmation_target is None:
+            return task
+        disarmed = task.model_copy(
+            update={"bare_confirmation_target": None}
+        )
+        self._store.upsert_task(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            task=disarmed,
+        )
+        return disarmed
+
     def load_for_workflow_turn(
         self,
         *,
@@ -296,7 +329,9 @@ class ContextManager:
             preferences=preferences,
             free_text_preferences=self._free_text_preference_context(
                 user_id=user_id,
+                conversation_id=conversation_id,
                 user_message="",
+                task=task,
             ),
             task=task,
             recent_messages=(),
@@ -308,14 +343,20 @@ class ContextManager:
         self,
         *,
         user_id: str,
+        conversation_id: str,
         user_message: str,
+        task: ConversationTaskState,
     ) -> tuple[FreeTextPreferenceContext, ...]:
         versions = self._store.list_free_text_preferences(user_id=user_id)
-        current_by_scope: dict[str, list[object]] = {}
+        current_by_scope: dict[tuple[str, str], list[object]] = {}
         for item in versions:
-            current_by_scope.setdefault(item.scope_key, []).append(item)
+            current_by_scope.setdefault(
+                (item.scope_key, item.pref_scope), []
+            ).append(item)
         projected = []
-        for scope_key, track in sorted(current_by_scope.items()):
+        active_candidates = []
+        quarantined_candidates = []
+        for (scope_key, _), track in sorted(current_by_scope.items()):
             deleted_at = self._store.free_text_preference_deleted_at(
                 user_id=user_id,
                 scope_key=scope_key,
@@ -329,10 +370,7 @@ class ContextManager:
                 ),
                 None,
             )
-            # A conflicting candidate suspends the old active value at read
-            # time. Storage stays append-only until the user confirms which
-            # interpretation is current.
-            selected = quarantined or (
+            active = (
                 next(
                     (
                         item
@@ -344,33 +382,121 @@ class ContextManager:
                 if deleted_at is None
                 else None
             )
-            if selected is None:
-                continue
-            topic_key = scope_key.removeprefix("person_intent/self/").removesuffix(
-                "_preference"
+            # A conflicting candidate suspends only its own ownership track.
+            # Narrower active tracks are resolved together below.
+            if quarantined is not None:
+                quarantined_candidates.append(quarantined)
+            elif active is not None:
+                active_candidates.append(active)
+
+        target_role_id = None
+        role_domains: tuple[str, ...] = ()
+        get_resume_version = getattr(
+            self._target_role_source, "get_version", None
+        )
+        if (
+            task.active_resume_version_id is not None
+            and callable(get_resume_version)
+        ):
+            source = get_resume_version(
+                user_id=user_id,
+                resume_version_id=task.active_resume_version_id,
             )
+            if source is not None:
+                resume, _ = source
+                target_role_id = resume.target_role_id
+                get_target_role = getattr(
+                    self._target_role_source, "get_target_role", None
+                )
+                role = (
+                    get_target_role(
+                        user_id=user_id,
+                        target_role_id=target_role_id,
+                    )
+                    if callable(get_target_role)
+                    else None
+                )
+                domain = preference_scope_domain(
+                    role.title if role is not None else None
+                )
+                role_domains = (domain,) if domain is not None else ()
+        selected = (
+            *resolve_effective_preferences(
+                active_candidates,
+                context=PreferenceResolutionContext(
+                    target_role_id=target_role_id,
+                    role_domains=role_domains,
+                    job_posting_id=task.active_job_posting_id,
+                    conversation_id=conversation_id,
+                ),
+            ),
+            *quarantined_candidates,
+        )
+        topic_ranking, statement_ranking = (
+            self._store.search_free_text_preference_rankings(
+                user_id=user_id,
+                query=user_message,
+                limit=32,
+            )
+        )
+        fused_relevance = reciprocal_rank_fusion(
+            topic_ranking,
+            statement_ranking,
+        )
+        retrieved_quarantine_ids = {
+            update_id
+            for update_id, _ in sorted(
+                fused_relevance.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:8]
+        }
+        for item in selected:
+            topic_key = preference_topic_key(item.scope_key)
             if (
-                selected.admission_status == "quarantined"
+                item.admission_status == "quarantined"
                 and not preference_topic_is_relevant(
                     topic_key,
                     user_message,
-                    selected.value,
+                    item.value,
                 )
+                and item.update_id not in retrieved_quarantine_ids
             ):
                 continue
+            scope_name = preference_scope_name(item.pref_scope)
+            ownership = (
+                "person_stable"
+                if item.layer == "stable"
+                else (
+                    "person_situational"
+                    if scope_name == "person_situational"
+                    else "situational"
+                )
+                if item.layer == "transient"
+                else "role"
+                if scope_name.startswith("role.")
+                else "person_default"
+            )
             projected.append(
                 FreeTextPreferenceContext(
-                    scope_key=scope_key,
+                    scope_key=item.scope_key,
                     topic_key=topic_key,
-                    statement=selected.value,
-                    status=selected.admission_status,
-                    observed_at=selected.valid_from,
+                    statement=item.value,
+                    status=item.admission_status,
+                    ownership=ownership,
+                    pref_scope=item.pref_scope,
+                    layer=item.layer,
+                    timescale=item.timescale,
+                    valid_until=item.valid_until,
+                    needs_scope_clarification=(
+                        item.capture_action == "ask"
+                    ),
+                    observed_at=item.valid_from,
                     confirmed_at=(
-                        selected.last_corroborated_at
-                        if selected.admission_status == "active"
+                        item.last_corroborated_at
+                        if item.admission_status == "active"
                         else None
                     ),
-                    update_id=selected.update_id,
+                    update_id=item.update_id,
                 )
             )
         return tuple(projected[:8])

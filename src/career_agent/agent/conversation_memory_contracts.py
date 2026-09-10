@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from career_agent.services.free_text_preferences import (
+    PreferenceStance,
+    normalize_preference_stance,
+)
 
 SUMMARY_SOURCE_MAX_CHARS = 4000
 SUMMARY_ITEM_MAX_CHARS = 500
@@ -42,13 +47,33 @@ class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
 
     topic_key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
     statement: str = Field(min_length=1, max_length=500)
-    # Deliberately open for the first generic slice. Once production topics
-    # accumulate, normalize this through a per-topic controlled vocabulary so
-    # synonyms such as ``avoid`` and ``avoid_large_companies`` remain comparable.
-    stance: str = Field(pattern=r"^[a-z][a-z0-9_.:-]{0,79}$")
+    stance: PreferenceStance
     source_sequence: int = Field(ge=1)
     source_quote: str = Field(min_length=1, max_length=500)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    ownership: Literal[
+        "person_stable",
+        "person_default",
+        "person_situational",
+        "role",
+        "situational",
+        "ask",
+    ] = "person_default"
+    scope_domain: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
+    )
+    valid_for_days: int = Field(default=30, ge=1, le=90)
+
+    @field_validator("stance", mode="before")
+    @classmethod
+    def normalize_stance(cls, value: object) -> object:
+        normalized = normalize_preference_stance(value)
+        if normalized is None:
+            raise ValueError(
+                "stance must express positive or negative polarity"
+            )
+        return normalized
 
 
 class ConversationSummaryContent(ConversationMemoryContract):
@@ -95,6 +120,27 @@ class ConversationSummaryContent(ConversationMemoryContract):
         DistilledFreeTextPreferenceCandidate, ...
     ] = Field(default=(), max_length=8, exclude=True)
     """Ephemeral summary-worker output; admitted atomically to quarantine."""
+
+    @field_validator("long_term_memory_candidates", mode="before")
+    @classmethod
+    def discard_invalid_memory_candidates(cls, value: object) -> object:
+        """Keep optional candidate failures from vetoing the required summary."""
+
+        if value is None:
+            return ()
+        if not isinstance(value, (list, tuple)):
+            return ()
+        valid: list[DistilledFreeTextPreferenceCandidate] = []
+        for candidate in value:
+            try:
+                valid.append(
+                    DistilledFreeTextPreferenceCandidate.model_validate(candidate)
+                )
+            except (TypeError, ValueError):
+                continue
+            if len(valid) == 8:
+                break
+        return tuple(valid)
 
     @model_validator(mode="after")
     def bound_summary_text(self) -> "ConversationSummaryContent":

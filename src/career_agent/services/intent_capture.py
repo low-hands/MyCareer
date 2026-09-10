@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from career_agent.domain.intent_memory import (
     IntentCaptureAction,
@@ -39,12 +39,26 @@ class IntentCaptureCandidate(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     contains_preference_signal: bool = True
     ambiguous: bool = False
+    scope_ambiguous: bool = False
     suspicious: bool = False
     semantic_stance: str | None = Field(
         default=None,
         pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
     )
     observed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    valid_until: datetime | None = None
+
+    @model_validator(mode="after")
+    def validity_matches_timescale(self) -> "IntentCaptureCandidate":
+        if self.timescale == "situational":
+            if (
+                self.valid_until is not None
+                and self.valid_until <= self.observed_at
+            ):
+                raise ValueError("valid_until must be after observed_at")
+        elif self.valid_until is not None:
+            raise ValueError("permanent intent cannot carry valid_until")
+        return self
 
     @property
     def content_digest(self) -> str:
@@ -80,6 +94,11 @@ def select_intent_capture_action(
 
     if not candidate.contains_preference_signal:
         return IntentCaptureDecision(action="retain", reason="abstained")
+    if candidate.scope_ambiguous:
+        return IntentCaptureDecision(
+            action="ask",
+            reason="ambiguous_or_suspicious",
+        )
     if candidate.ambiguous or candidate.suspicious:
         return IntentCaptureDecision(
             action="quarantine",

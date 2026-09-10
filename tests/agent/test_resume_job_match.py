@@ -11,6 +11,7 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileContext,
+    ConversationTaskState,
     ResumeVersionCandidateContextItem,
     SavedJobCandidateContextItem,
     ToolCall,
@@ -184,7 +185,7 @@ class PreferenceSensitiveMatchWorker(RecordingMatchWorker):
         free_text = tuple(
             item
             for item in kwargs["intent_states"]
-            if item.pref_scope == "freeform"
+            if item.pref_scope.startswith("freeform")
         )
         return ResumeJobMatchResult.model_validate(
             {
@@ -195,6 +196,31 @@ class PreferenceSensitiveMatchWorker(RecordingMatchWorker):
                     if free_text
                     else "The quarantined employer preference has no authority."
                 ),
+            }
+        )
+
+
+class CascadingPreferenceMatchWorker(RecordingMatchWorker):
+    def match(self, **kwargs) -> ResumeJobMatchResult:
+        self.calls.append(kwargs)
+        values = tuple(
+            item.value
+            for item in kwargs["intent_states"]
+            if item.scope_key == "person_intent/self/company_scale"
+        )
+        exception_applies = any("例外" in value for value in values)
+        default_applies = any("不去大厂" in value for value in values)
+        return ResumeJobMatchResult.model_validate(
+            {
+                **VALID_MATCH,
+                "overall_fit": (
+                    "moderate"
+                    if exception_applies
+                    else "weak"
+                    if default_applies
+                    else "moderate"
+                ),
+                "summary": "Resolved from the effective preference view.",
             }
         )
 
@@ -397,7 +423,7 @@ def test_only_active_free_text_preferences_can_change_a_match_result(tmp_path) -
     assert [
         item.value
         for item in worker_stub.calls[1]["intent_states"]
-        if item.pref_scope == "freeform"
+        if item.pref_scope.startswith("freeform")
     ] == ["我想清楚了，不去大厂。"]
 
     context.capture_free_text_preference_from_message(
@@ -412,6 +438,128 @@ def test_only_active_free_text_preferences_can_change_a_match_result(tmp_path) -
     )
     assert after_deletion.id == before_confirmation.id
     assert after_deletion.result.overall_fit == "moderate"
+
+
+def test_situational_exception_overrides_default_for_only_one_job(
+    tmp_path,
+) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    default = context.capture_free_text_preference_from_message(
+        user_id="u1",
+        conversation_id="c1",
+        message="我不去大厂。",
+    )
+    assert default is not None
+    assert context.confirm_free_text_preference(
+        user_id="u1", update_id=default.update_id
+    ) is not None
+
+    context.upsert_task(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(
+            active_job_posting_id=saved.posting.id
+        ),
+    )
+    exception = context.capture_free_text_preference_from_message(
+        user_id="u1",
+        conversation_id="c1",
+        message="这个岗位的话，这家例外。",
+    )
+    assert exception is not None
+    assert context.confirm_free_text_preference(
+        user_id="u1", update_id=exception.update_id
+    ) is not None
+    active_preferences = context.list_free_text_preferences(
+        user_id="u1", statuses=("active",)
+    )
+    situational = next(
+        item for item in active_preferences if "例外" in item.value
+    )
+    assert situational.layer == "transient"
+    assert situational.timescale == "situational"
+    assert situational.valid_until is not None
+
+    captured_at = datetime(2026, 8, 25, tzinfo=timezone.utc)
+    other = jobs.save_detail(
+        user_id="u1",
+        run_id="run-2",
+        result_ref="ref-2",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="test",
+            source_job_id="job-2",
+            title="Platform Engineer",
+            company_name="Other Corp",
+            description="Build a large-scale platform.",
+            captured_at=captured_at,
+            provenance=Provenance(
+                source_name="test",
+                source_job_id="job-2",
+                captured_at=captured_at,
+                operation="detail",
+                adapter_version="test-v1",
+            ),
+        ),
+    )
+    worker_stub = CascadingPreferenceMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        career_profile_store=context,
+    )
+
+    matching = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    unrelated = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=other.posting.id,
+    )
+
+    assert matching.result.overall_fit == "moderate"
+    assert unrelated.result.overall_fit == "weak"
+    assert [
+        item.value
+        for item in worker_stub.calls[0]["intent_states"]
+        if item.scope_key == "person_intent/self/company_scale"
+    ] == ["这个岗位的话，这家例外。"]
+    assert [
+        item.value
+        for item in worker_stub.calls[1]["intent_states"]
+        if item.scope_key == "person_intent/self/company_scale"
+    ] == ["我不去大厂。"]
+
+    with sqlite3.connect(context.path) as connection:
+        connection.execute(
+            """
+            UPDATE career_intent_versions
+            SET valid_until = ?
+            WHERE update_id = ?
+            """,
+            (
+                datetime.now(timezone.utc).isoformat(),
+                situational.update_id,
+            ),
+        )
+    after_expiry = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert after_expiry.result.overall_fit == "weak"
+    assert [
+        item.value
+        for item in worker_stub.calls[2]["intent_states"]
+        if item.scope_key == "person_intent/self/company_scale"
+    ] == ["我不去大厂。"]
 
 
 def test_sr_pr_and_ipa_path_repairs_a_visible_revised_state(tmp_path) -> None:

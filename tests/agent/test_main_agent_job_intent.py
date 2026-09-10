@@ -245,6 +245,45 @@ def test_a_spent_confirmation_cannot_be_reused(tmp_path) -> None:
     assert result.context.task.pending_job_intent_update is None
 
 
+def test_stale_bare_confirmation_cannot_confirm_older_job_intent(
+    tmp_path,
+) -> None:
+    runtime, _, _ = build(tmp_path, propose(city="上海"), final())
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我在上海找工作",
+    )
+
+    unrelated_maker = SequenceDecisionMaker(final())
+    unrelated, _, _ = build_with(tmp_path, unrelated_maker)
+    unrelated.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="先帮我看看新岗位",
+    )
+    assert len(unrelated_maker.contexts) == 1
+
+    confirmation_maker = SequenceDecisionMaker(final())
+    confirmation, _, _ = build_with(tmp_path, confirmation_maker)
+    result = confirmation.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="可以",
+    )
+
+    assert len(confirmation_maker.contexts) == 1
+    assert result.origin.label == "model:final"
+    assert result.tool_result is None
+    assert result.context.task.pending_job_intent_update == JobIntentUpdate(
+        city="上海"
+    )
+    assert result.context.task.bare_confirmation_target is None
+    assert CareerContextStore(
+        tmp_path / "context.sqlite3"
+    ).get_profile("u1") is None
+
+
 def test_an_omitted_field_is_left_alone_rather_than_cleared(tmp_path) -> None:
     """Naming a salary must not withdraw a city named last week."""
     resumes = ResumeStore(tmp_path / "resumes.sqlite3")

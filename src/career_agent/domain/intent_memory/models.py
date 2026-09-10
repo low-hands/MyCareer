@@ -15,6 +15,7 @@ IntentCaptureAction = Literal[
     "narrow-to-scope",
     "revise",
     "quarantine",
+    "ask",
 ]
 
 
@@ -36,6 +37,7 @@ class IntentMemoryVersion(BaseModel):
     content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
     revision: int = Field(ge=1)
     valid_from: datetime
+    valid_until: datetime | None = None
     pref_scope: str = Field(
         default="global",
         min_length=1,
@@ -65,4 +67,11 @@ class IntentMemoryVersion(BaseModel):
             raise ValueError(
                 "superseded_at and superseded_by must either both be set or both be null"
             )
+        if self.timescale == "situational":
+            if self.valid_until is None:
+                raise ValueError("situational intent requires valid_until")
+            if self.valid_until <= self.valid_from:
+                raise ValueError("valid_until must be after valid_from")
+        elif self.valid_until is not None:
+            raise ValueError("permanent intent cannot carry valid_until")
         return self

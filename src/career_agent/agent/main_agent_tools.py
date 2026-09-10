@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
@@ -78,6 +79,7 @@ from career_agent.agent.main_agent_contracts import (
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
     CareerProfileContext,
+    HardConstraintContext,
     JobIntentUpdate,
     CompareSavedJobsToolArguments,
     ConfirmJobIntentToolArguments,
@@ -134,6 +136,7 @@ from career_agent.services.resume_analysis import (
     ResumeVersionNotFoundError,
 )
 from career_agent.services.intent_capture import IntentCaptureCandidate
+from career_agent.services.free_text_preferences import structured_pref_scope
 
 
 from career_agent.services.applications import (
@@ -990,7 +993,8 @@ class MainAgentToolRegistry:
                                 "without a selection index is the person's default; "
                                 "sent with one it overrides that default for that role "
                                 "alone. Person-level hard constraints may use only "
-                                "the declared work_arrangement or work_schedule "
+                                "the declared work_arrangement, work_schedule, "
+                                "or company_scale "
                                 "relations and must preserve the user's own wording "
                                 "(for example, 必须远程 or 不接受996); never infer one. "
                                 "This tool records intent only: skill and "
@@ -3821,14 +3825,17 @@ class MainAgentToolRegistry:
             ),
             update=update,
         )
-        layer = (
+        layer = update.layer or (
             "transient"
             if update.timescale == "situational"
             else "contextual"
             if update.pref_scope != "global"
             else "stable"
         )
-        if update.pref_scope != "global":
+        valid_until = update.valid_until
+        if update.timescale == "situational" and valid_until is None:
+            valid_until = datetime.now(timezone.utc) + timedelta(days=30)
+        if update.pref_scope != "global" or layer != "stable":
             versions = []
             for scope, value in admitted_scopes:
                 candidate = IntentCaptureCandidate(
@@ -3837,6 +3844,7 @@ class MainAgentToolRegistry:
                     pref_scope=update.pref_scope,
                     timescale=update.timescale,
                     layer=layer,
+                    valid_until=valid_until,
                     value=value,
                     source="confirmed_job_intent",
                     confidence=1.0,
@@ -3943,6 +3951,10 @@ class MainAgentToolRegistry:
         version = confirm(
             user_id=str(arguments["user_id"]),
             update_id=str(arguments["update_id"]),
+            conversation_id=str(arguments.get("conversation_id", "current")),
+            job_posting_id=arguments.get("job_posting_id"),
+            scope_choice=arguments.get("scope_choice"),
+            scope_domain=arguments.get("scope_domain"),
         )
         if version is None:
             return ToolObservation(
@@ -3952,14 +3964,54 @@ class MainAgentToolRegistry:
                 payload={},
                 execution_outcome="not_committed",
             )
+        structured_proposal = None
+        if (
+            version.scope_key == "person_intent/self/company_scale"
+            and version.semantic_stance in {"negative", "positive"}
+        ):
+            structured_proposal = JobIntentUpdate(
+                pref_scope=structured_pref_scope(version.pref_scope),
+                timescale=version.timescale,
+                layer=version.layer,
+                valid_until=version.valid_until,
+                hard_constraints=(
+                    HardConstraintContext(
+                        relation="company_scale",
+                        value=(
+                            "exclude_large_companies"
+                            if version.semantic_stance == "negative"
+                            else "allow_large_companies"
+                        ),
+                    ),
+                ),
+            )
+        message = f"已确认并启用这条长期偏好：{version.value}"
+        payload: dict[str, Any] = {
+            "scope_key": version.scope_key,
+            "revision": version.revision,
+        }
+        if structured_proposal is not None:
+            message += (
+                "\n我还识别到可用于确定性筛选的结构化版本："
+                f"{self._job_intent_readback(structured_proposal, scope=None)}"
+                "\n是否也确认写入这条结构化偏好？"
+            )
+            payload["structured_proposal"] = structured_proposal.model_dump(
+                mode="json", exclude_none=True
+            )
+        if structured_proposal is not None:
+            return ToolObservation(
+                tool_name="confirm_free_text_preference",
+                state="free_text_preference_confirmed_structured_proposed",
+                message=message,
+                payload=payload,
+                execution_outcome="committed",
+            )
         return ToolObservation(
             tool_name="confirm_free_text_preference",
             state="free_text_preference_confirmed",
-            message=f"已确认并启用这条长期偏好：{version.value}",
-            payload={
-                "scope_key": version.scope_key,
-                "revision": version.revision,
-            },
+            message=message,
+            payload=payload,
             execution_outcome="committed",
         )
 
@@ -3970,13 +4022,19 @@ class MainAgentToolRegistry:
         proposal = arguments["proposal"]
         if not isinstance(proposal, FreeTextPreferenceConfirmationProposal):
             proposal = FreeTextPreferenceConfirmationProposal.model_validate(proposal)
+        question = (
+            "这条偏好只针对这类岗位，还是以后默认都这样？"
+            if proposal.needs_scope_clarification
+            else "是否确认启用？"
+        )
         return ToolObservation(
             tool_name="propose_free_text_preference_confirmation",
             state="free_text_preference_confirmation_proposed",
             message=(
                 "我从对话中提取到一条可能需要长期记住的偏好：\n"
                 f"- {proposal.statement}\n"
-                "目前它仍在隔离区，不会影响岗位推荐。是否确认启用？"
+                "目前它仍在隔离区，不会影响岗位推荐。"
+                f"{question}"
             ),
             payload={"proposal": proposal.model_dump(mode="json")},
         )
@@ -3994,6 +4052,8 @@ class MainAgentToolRegistry:
         values.pop("target_role_id", None)
         values.pop("pref_scope", None)
         values.pop("timescale", None)
+        values.pop("layer", None)
+        values.pop("valid_until", None)
         constraints = values.pop("hard_constraints", ())
         family = "target_role_intent" if update.is_role_scoped else "person_intent"
         subject_id = str(update.target_role_id) if update.is_role_scoped else "self"
@@ -4051,6 +4111,7 @@ class MainAgentToolRegistry:
     _HARD_CONSTRAINT_LABELS = {
         "work_arrangement": "办公方式硬约束",
         "work_schedule": "工作时间硬约束",
+        "company_scale": "公司规模偏好",
     }
 
     @classmethod
@@ -4065,6 +4126,8 @@ class MainAgentToolRegistry:
         fields.pop("target_role_id", None)
         pref_scope = str(fields.pop("pref_scope", "global"))
         timescale = str(fields.pop("timescale", "permanent"))
+        fields.pop("layer", None)
+        fields.pop("valid_until", None)
         constraints = fields.pop("hard_constraints", ())
         lines = [
             f"- {cls._JOB_INTENT_LABELS[field]}：{value}"
