@@ -454,6 +454,70 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         recording_samples=3,
     ),
     TrajectoryScenario(
+        name="a_note_derived_filter_is_confirmed_with_the_user",
+        policy=(
+            "After working_notes_derived_argument, do not retry the same "
+            "note-derived content with different wording; ask the user to "
+            "confirm it or use an authoritative source."
+        ),
+        context=_context(
+            user_message="帮我找岗位",
+            working_notes=WorkingNotesContext(
+                markdown="- 未确认观察：用户可能偏好 Rust 岗位",
+                revision="aaaaaaaaaaaa",
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="find_saved_jobs",
+                    state="working_notes_derived_argument",
+                    message=(
+                        "以下内容只出现在工作笔记、没有用户或权威记忆来源："
+                        "rust；请向用户确认或改用权威来源。"
+                    ),
+                    next_action="不要换个说法重试；请向用户确认。",
+                    arguments={"query": "Rust"},
+                ),
+            ),
+        ),
+        decisive_facts=("working_notes", "tool_observations.0.state"),
+        steps=(
+            TrajectoryStep(
+                expect_action="ask_user",
+                forbid_tools=frozenset({"find_saved_jobs"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="a_stale_note_is_reviewed_before_reuse",
+        policy=(
+            "When working_notes includes stale_days, review whether each note "
+            "still holds before carrying it forward, and use "
+            "update_working_notes to remove outdated material."
+        ),
+        context=_context(
+            user_message="帮我找岗位",
+            working_notes=WorkingNotesContext(
+                markdown="- 未确认观察：用户偏好 Rust 岗位",
+                revision="aaaaaaaaaaaa",
+                stale_days=30,
+            ),
+        ),
+        decisive_facts=("working_notes.stale_days", "working_notes.markdown"),
+        steps=(
+            TrajectoryStep(
+                forbid_tools=frozenset(
+                    {
+                        "find_saved_jobs",
+                        "open_job_search",
+                        "compare_saved_jobs",
+                        "create_application",
+                    }
+                ),
+                forbid_final_message_contains=frozenset({"Rust"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="a_bare_confirmation_expires_after_the_adjacent_turn",
         policy=(
             "A bare confirmation authorizes a pending career fact, job intent, "

@@ -194,3 +194,32 @@ def test_zombie_exposure_uses_post_tombstone_context() -> None:
     )
 
     assert summary.zombie_exposure.value == 1.0
+
+
+def test_working_notes_influence_is_the_guarded_decision_rate() -> None:
+    summary = summarize_memory_metrics(
+        (
+            {
+                "event_type": "memory_context_observed",
+                "working_notes_chars": 20,
+                "working_notes_only_tokens": 2,
+                "working_notes_only_argument": 1,
+                "slot_fingerprints": {},
+            },
+            {
+                "event_type": "memory_context_observed",
+                "working_notes_chars": 20,
+                "working_notes_only_tokens": 0,
+                "working_notes_only_argument": 0,
+                "slot_fingerprints": {},
+            },
+            {
+                "event_type": "memory_context_observed",
+                "working_notes_chars": 0,
+                "slot_fingerprints": {},
+            },
+        )
+    )
+
+    assert summary.working_notes_influence.value == 0.5
+    assert summary.working_notes_influence.comparability == "BEST_EFFORT"

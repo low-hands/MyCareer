@@ -36,7 +36,13 @@ from career_agent.agent.delivery_policy import (
     delivers_body_elsewhere,
     is_failed,
 )
-from career_agent.agent.tool_effects import ToolEffect, effect_for, replay_safe
+from career_agent.agent.tool_effects import (
+    ToolEffect,
+    effect_for,
+    is_notes_guarded,
+    replay_safe,
+)
+from career_agent.agent.working_notes_guard import working_notes_only_tokens
 from career_agent.storage.capability_confirmations import (
     CapabilityConfirmationExpiredError,
     CapabilityConfirmationInProgressError,
@@ -1918,18 +1924,22 @@ class MainAgentRuntime:
             details=details,
             model_call_category="orchestrator_decision",
         )
-        self._record_trace_event(
-            "memory_context_observed",
-            "main_agent_decide",
-            outcome="succeeded",
-            details=memory_context_observation(
-                context,
-                career_memory_enabled=self._career_context_projector is not None,
-            ),
-        )
         try:
             decision = self._decision_maker.decide(context, schemas)
         except Exception as error:
+            self._record_trace_event(
+                "memory_context_observed",
+                "main_agent_decide",
+                outcome="succeeded",
+                details=memory_context_observation(
+                    context,
+                    career_memory_enabled=(
+                        self._career_context_projector is not None
+                    ),
+                    working_notes_only_tokens=0,
+                    working_notes_only_argument=False,
+                ),
+            )
             failure_details = dict(details)
             consume_cache_metrics = getattr(
                 self._decision_maker, "consume_cache_metrics", None
@@ -1948,6 +1958,18 @@ class MainAgentRuntime:
                 model_call_category="orchestrator_decision",
             )
             raise
+        note_only_tokens = self._decision_note_only_tokens(context, decision)
+        self._record_trace_event(
+            "memory_context_observed",
+            "main_agent_decide",
+            outcome="succeeded",
+            details=memory_context_observation(
+                context,
+                career_memory_enabled=self._career_context_projector is not None,
+                working_notes_only_tokens=len(note_only_tokens),
+                working_notes_only_argument=bool(note_only_tokens),
+            ),
+        )
         decision_details = {**details, "decision_action": decision.action}
         consume_cache_metrics = getattr(
             self._decision_maker, "consume_cache_metrics", None
@@ -1975,6 +1997,34 @@ class MainAgentRuntime:
             model_call_category="orchestrator_decision",
         )
         return {"decision": decision}
+
+    def _decision_note_only_tokens(
+        self, context: MainAgentContext, decision: AgentDecision
+    ) -> tuple[str, ...]:
+        """Mirror the authorize-time notes guard for decision telemetry.
+
+        The guard judges projected arguments, so telemetry does too; a call
+        whose projection fails never reaches the guard and counts as no hit.
+        An earlier gate (owner deny, budget, duplicate call) can still refuse
+        first, so this measures note-derived arguments the model produced.
+        """
+
+        call = decision.tool_call
+        if call is None or not is_notes_guarded(call.name):
+            return ()
+        try:
+            arguments = (
+                self._project_atomic_tool_arguments(
+                    context, call.name, call.arguments
+                )
+                if self._tools.capability_kind(call.name) == "atomic_tool"
+                else self._project_workflow_arguments(
+                    context, call.name, call.arguments
+                )
+            )
+        except ValueError:
+            return ()
+        return working_notes_only_tokens(arguments=arguments, context=context)
 
     def _run_owned_workflow_turn(
         self, *, context: MainAgentContext, user_message: str
@@ -2279,6 +2329,47 @@ class MainAgentRuntime:
             ):
                 return {"authorization_route": "present"}
             result = MainAgentRuntime._rejection_observation(name, error)
+            return {
+                "authorization_route": "observe",
+                "pending": {
+                    "name": name,
+                    "result": result,
+                    "synthetic_kind": "projection",
+                    "runtime_owned": runtime_owned,
+                    "policy_owned": policy_owned,
+                },
+            }
+        # Runtime-owned input is execution data, not model-authored. A confirmed
+        # seal already passed this guard in the turn that produced it; the
+        # resumed turn has a different context, and re-judging would turn the
+        # owner's approval into a refusal.
+        note_only_tokens = (
+            working_notes_only_tokens(arguments=arguments, context=state["context"])
+            if is_notes_guarded(name) and not runtime_owned and not owner_confirmed
+            else ()
+        )
+        if note_only_tokens:
+            if (
+                control.get("projection_refusals", 0)
+                >= self._max_projection_refusals
+            ):
+                return {"authorization_route": "present"}
+            visible_tokens = [token[:32] for token in note_only_tokens[:8]]
+            result = ToolObservation(
+                tool_name=name,
+                state="working_notes_derived_argument",
+                message=(
+                    "以下内容只出现在工作笔记、没有用户或权威记忆来源："
+                    + "、".join(visible_tokens)
+                    + "；请向用户确认或改用权威来源。"
+                ),
+                next_action=(
+                    "不要换个说法重试这次调用；请向用户确认这些内容，"
+                    "或改用用户消息、已确认记忆和工具结果中的权威来源。"
+                ),
+                payload={"tokens": visible_tokens, "tool_name": name},
+                execution_outcome="not_committed",
+            )
             return {
                 "authorization_route": "observe",
                 "pending": {

@@ -31,6 +31,7 @@ _SAFE_NUMERIC_TOKEN_METRICS = frozenset(
         "cache_read_input_tokens",
         "cache_creation_input_tokens",
         "uncached_input_tokens",
+        "working_notes_only_tokens",
     }
 )
 

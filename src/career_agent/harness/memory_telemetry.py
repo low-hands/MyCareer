@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 import hashlib
 import json
+import re
 import unicodedata
 from typing import Any
 
@@ -11,6 +12,74 @@ from career_agent.agent.decision_messages import (
     decision_context_chars,
 )
 from career_agent.harness.observability import conversation_trace_key
+
+
+_ASCII_TOKEN = re.compile(r"[0-9A-Za-z_]+")
+
+
+def normalized_surface(value: str) -> str:
+    """Normalize a detector surface without changing its lexical meaning."""
+
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+def surface_contains_token(rendered: str, token: str) -> bool:
+    """Match one normalized token with M6b's ASCII boundary discipline."""
+
+    if not token:
+        return False
+    if all(character.isascii() for character in token):
+        return (
+            re.search(
+                rf"(?<![0-9a-z_]){re.escape(token)}(?![0-9a-z_])",
+                rendered,
+            )
+            is not None
+        )
+    # 2/3-grams supply the boundary for CJK: a token from a longer authoritative
+    # run (for example 通勤 in 通勤太远) is intentionally considered present.
+    return token in rendered
+
+
+def surface_tokens(value: str) -> tuple[str, ...]:
+    """Return the script-aware tokens used by best-effort memory detectors.
+
+    ASCII words keep the same ``[0-9a-z_]`` boundaries as the M6b exact-use
+    detector and are useful only from four characters onward.  CJK has no
+    whitespace word boundary, so bounded 2/3-grams provide the deliberately
+    lexical (not semantic) comparison surface.
+    """
+
+    normalized = normalized_surface(value)
+    tokens: list[str] = []
+    seen: set[str] = set()
+
+    def add(token: str) -> None:
+        if token not in seen:
+            seen.add(token)
+            tokens.append(token)
+
+    for match in _ASCII_TOKEN.finditer(normalized):
+        token = match.group(0)
+        if len(token) >= 4:
+            add(token)
+    run: list[str] = []
+
+    def flush_cjk() -> None:
+        if not run:
+            return
+        for width in (2, 3):
+            for index in range(len(run) - width + 1):
+                add("".join(run[index : index + width]))
+        run.clear()
+
+    for character in normalized:
+        if _is_cjk(character):
+            run.append(character)
+        else:
+            flush_cjk()
+    flush_cjk()
+    return tuple(tokens)
 
 
 def content_digest(value: Any) -> str:
@@ -27,7 +96,11 @@ def content_digest(value: Any) -> str:
 
 
 def memory_context_observation(
-    context: Any, *, career_memory_enabled: bool
+    context: Any,
+    *,
+    career_memory_enabled: bool,
+    working_notes_only_tokens: int | None = None,
+    working_notes_only_argument: bool | None = None,
 ) -> dict[str, Any]:
     """Return P2-safe fingerprints without persisting projected user text."""
 
@@ -85,12 +158,30 @@ def memory_context_observation(
             delivery,
         ),
         "entries": entries,
+        "working_notes_chars": len(
+            getattr(getattr(context, "working_notes", None), "markdown", "")
+        ),
     }
+    if observation["working_notes_chars"]:
+        observation["working_notes_only_tokens"] = int(
+            working_notes_only_tokens or 0
+        )
+        observation["working_notes_only_argument"] = int(
+            bool(working_notes_only_argument)
+        )
     return observation
 
 
 def _surface(value: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+    return normalized_surface(value)
+
+
+def _is_cjk(character: str) -> bool:
+    return bool(character) and (
+        "\u3400" <= character <= "\u4dbf"
+        or "\u4e00" <= character <= "\u9fff"
+        or "\uf900" <= character <= "\ufaff"
+    )
 
 
 def _telemetry_bindings(context: Any) -> tuple[tuple[Any, ...], bool]:

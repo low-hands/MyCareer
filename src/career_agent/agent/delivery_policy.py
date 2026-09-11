@@ -238,6 +238,7 @@ _POLICIES.update(
             "memory_tombstoned",
             "working_notes_stale",
             "working_notes_updated",
+            "working_notes_derived_argument",
             "job_research_not_found",
             "job_research_not_retryable",
             "job_search_page_ready",
