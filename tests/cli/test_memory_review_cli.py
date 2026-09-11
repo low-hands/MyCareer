@@ -47,7 +47,11 @@ def test_cli_reviews_full_diff_and_applies_it_with_one_confirmation(tmp_path) ->
         for claim in ("Led retrieval.", "Owned evaluation.")
     )
     notes = WorkingNotesStore(notes_path)
-    notes.replace(user_id="u1", markdown="- Owned evaluation.")
+    notes.replace(
+        user_id="u1",
+        markdown="- Owned evaluation.",
+        expected_revision="empty",
+    )
 
     export_output = StringIO()
     assert main(
@@ -174,7 +178,7 @@ def test_cli_reviews_full_diff_and_applies_it_with_one_confirmation(tmp_path) ->
     assert applied["amendments"] == 1
     assert applied["tombstones"] == 1
     assert applied["working_notes_cleared"] is True
-    assert notes.read(user_id="u1") == ""
+    assert notes.read(user_id="u1").markdown == ""
     assert {
         item.claim
         for item in history.list_evidence(

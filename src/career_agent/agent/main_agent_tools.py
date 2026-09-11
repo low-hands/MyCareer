@@ -56,6 +56,7 @@ from career_agent.agent.main_agent_contracts import (
     ProposeMemoryAmendmentToolArguments,
     MemoryAmendmentProposal,
     CareerFactProposal,
+    PENDING_PROPOSAL_TTL,
     ProposeCareerFactToolArguments,
     ConfirmCareerFactToolArguments,
     PrepareInterviewToolArguments,
@@ -217,7 +218,10 @@ from career_agent.storage.resume_tailoring import StoredResumeTailoringDraft
 from career_agent.domain.memory_scope import CanonicalScope, ScopeProposal
 from career_agent.services.canonical_scope import CanonicalScopeResolver
 from career_agent.agent.semantic_career_retrieval import SemanticEvidenceCache
-from career_agent.storage.working_notes import WorkingNotesStore
+from career_agent.storage.working_notes import (
+    WorkingNotesConflict,
+    WorkingNotesStore,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -225,6 +229,14 @@ logger = logging.getLogger(__name__)
 
 MainAgentToolOutput = ToolObservation
 CapabilityKind = Literal["atomic_tool", "workflow"]
+
+
+# Same state as a missing proposal: to the gate both mean nothing live to
+# confirm. Only the wording differs, so the model re-shows instead of asking why.
+_EXPIRED_PROPOSAL_MESSAGE = (
+    f"这项提案已超过 {PENDING_PROPOSAL_TTL.days} 天未确认，已经失效；"
+    "请重新展示提案并等待明确确认。"
+)
 
 
 class MainAgentToolRegistry:
@@ -4875,6 +4887,15 @@ class MainAgentToolRegistry:
                 ),
                 execution_outcome="not_committed",
             )
+        if not stored_task.pending_proposal_is_live(
+            "pending_career_fact", datetime.now(timezone.utc)
+        ):
+            return ToolObservation(
+                tool_name="confirm_career_fact",
+                state="career_fact_confirmation_missing",
+                message=_EXPIRED_PROPOSAL_MESSAGE,
+                execution_outcome="not_committed",
+            )
         evidence = self._career_history_store.get_evidence(
             user_id=user_id,
             career_evidence_id=proposal.career_evidence_id,
@@ -4945,19 +4966,34 @@ class MainAgentToolRegistry:
     def _update_working_notes(self, arguments: dict[str, Any]) -> ToolObservation:
         if self._working_notes_store is None:
             raise ValueError("Working notes store is not configured")
-        markdown = self._working_notes_store.replace(
+        result = self._working_notes_store.replace(
             user_id=str(arguments["user_id"]),
             markdown=str(arguments["markdown"]),
+            expected_revision=str(arguments["expected_revision"]),
         )
+        if isinstance(result, WorkingNotesConflict):
+            return ToolObservation(
+                tool_name="update_working_notes",
+                state="working_notes_stale",
+                message="工作笔记已被另一会话更新，请基于当前内容合并后重试",
+                payload={
+                    "current_revision": result.current.revision,
+                    "current_markdown": result.current.markdown,
+                },
+                execution_outcome="not_committed",
+            )
         return ToolObservation(
             tool_name="update_working_notes",
             state="working_notes_updated",
             message=(
                 "工作笔记已清空。"
-                if not markdown
-                else f"工作笔记已更新（{len(markdown)} 字符）。"
+                if not result.markdown
+                else f"工作笔记已更新（{len(result.markdown)} 字符）。"
             ),
-            payload={"chars": len(markdown)},
+            payload={
+                "chars": len(result.markdown),
+                "revision": result.revision,
+            },
             execution_outcome="committed",
         )
 
@@ -4984,6 +5020,15 @@ class MainAgentToolRegistry:
                 message=(
                     "这项更正尚未在前一轮展示并持久化，不能在提案同一轮写入。"
                 ),
+                execution_outcome="not_committed",
+            )
+        if not stored_task.pending_proposal_is_live(
+            "pending_memory_amendment", datetime.now(timezone.utc)
+        ):
+            return ToolObservation(
+                tool_name="confirm_memory_amendment",
+                state="memory_amendment_confirmation_missing",
+                message=_EXPIRED_PROPOSAL_MESSAGE,
                 execution_outcome="not_committed",
             )
         evidence = self._career_history_store.get_evidence_by_detail_ref(
@@ -5074,6 +5119,15 @@ class MainAgentToolRegistry:
                 message=(
                     "这项永久删除尚未在前一轮展示并持久化，不能在提案同一轮执行。"
                 ),
+                execution_outcome="not_committed",
+            )
+        if not stored_task.pending_proposal_is_live(
+            "pending_memory_tombstone", datetime.now(timezone.utc)
+        ):
+            return ToolObservation(
+                tool_name="confirm_memory_tombstone",
+                state="memory_tombstone_confirmation_missing",
+                message=_EXPIRED_PROPOSAL_MESSAGE,
                 execution_outcome="not_committed",
             )
         if proposal.target_kind == "intent_preference":
@@ -5897,6 +5951,15 @@ class MainAgentToolRegistry:
                 message=(
                     "这项约束退休尚未在前一轮展示并持久化，不能在提案同一轮执行。"
                 ),
+                execution_outcome="not_committed",
+            )
+        if not stored_task.pending_proposal_is_live(
+            "pending_constraint_retirement", datetime.now(timezone.utc)
+        ):
+            return ToolObservation(
+                tool_name="confirm_constraint_retirement",
+                state="constraint_retirement_confirmation_missing",
+                message=_EXPIRED_PROPOSAL_MESSAGE,
                 execution_outcome="not_committed",
             )
         retired = self._conversation_store.retire_conversation_constraint(

@@ -29,6 +29,7 @@ from career_agent.agent.main_agent_contracts import (
     JobIntentUpdate,
     MainAgentContext,
     SavedJobCandidateContextItem,
+    WorkingNotesContext,
 )
 from career_agent.agent.main_agent_contracts import (
     CalendarAccountCandidateContextItem,
@@ -91,7 +92,7 @@ def _context(
     archived_resource_total: int = 0,
     tool_observations: tuple[DecisionObservation, ...] = (),
     conversation_summary: ConversationSummaryContent | None = None,
-    working_notes: str = "",
+    working_notes: WorkingNotesContext | None = None,
     through_sequence: int = 0,
     recent_from_sequence: int | None = None,
 ) -> MainAgentContext:
@@ -427,8 +428,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="按你记得的我的偏好，这两个岗位直接推荐一个。",
-            working_notes=(
-                "- 未确认观察：用户可能更偏好大厂，可能愿意为品牌接受较少自主权。"
+            working_notes=WorkingNotesContext(
+                markdown=(
+                    "- 未确认观察：用户可能更偏好大厂，可能愿意为品牌接受较少自主权。"
+                ),
+                revision="aaaaaaaaaaaa",
             ),
             task=ConversationTaskState(
                 saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
@@ -553,6 +557,52 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 task_update={"calendar_account_candidates": (_CALENDAR_ACCOUNT,)},
                 expect_tool="prepare_interview_calendar_sync",
                 forbid_tools=frozenset({"execute_calendar_proposal"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
+        name="a_stale_working_note_is_merged_not_overwritten",
+        policy=(
+            "Always pass the revision from the current working_notes projection; "
+            "after working_notes_stale, merge the current note before retrying and "
+            "never overwrite it directly."
+        ),
+        context=_context(
+            user_message="把我刚想到的后续也补进工作笔记。",
+            working_notes=WorkingNotesContext(
+                markdown="- 对方会话保留的关键片段",
+                revision="aaaaaaaaaaaa",
+            ),
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="update_working_notes",
+                    state="working_notes_stale",
+                    message=(
+                        "工作笔记已被另一会话更新，请基于当前内容合并后重试"
+                    ),
+                    body=(
+                        '{"current_revision": "aaaaaaaaaaaa", '
+                        '"current_markdown": "- 对方会话保留的关键片段"}'
+                    ),
+                    arguments={
+                        "expected_revision": "bbbbbbbbbbbb",
+                        "markdown": "- 旧会话内容",
+                    },
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "working_notes.revision",
+            "working_notes.markdown",
+            "tool_observations.0.body",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="update_working_notes",
+                expect_arguments={"expected_revision": "aaaaaaaaaaaa"},
+                expect_argument_contains={
+                    "markdown": "对方会话保留的关键片段"
+                },
             ),
         ),
     ),

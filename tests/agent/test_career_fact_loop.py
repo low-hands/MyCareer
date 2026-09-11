@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
@@ -255,6 +257,10 @@ def test_bare_confirmation_uses_last_shown_pending_type_not_fixed_priority(
         task=ConversationTaskState(
             pending_career_fact=fact,
             pending_job_intent_update=JobIntentUpdate(city="上海"),
+            pending_proposed_at={
+                "pending_career_fact": datetime.now(timezone.utc),
+                "pending_job_intent_update": datetime.now(timezone.utc),
+            },
             bare_confirmation_target="job_intent",
         ),
     )
