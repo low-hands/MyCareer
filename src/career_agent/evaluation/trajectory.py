@@ -39,6 +39,7 @@ from career_agent.agent.main_agent_contracts import (
     append_decision_observation,
 )
 from career_agent.agent.openai_compatible_client import (
+    AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
@@ -915,6 +916,33 @@ def _decision_maker(
     return maker
 
 
+def _recording_can_retry(error: AgentWorkerError) -> bool:
+    """Whether one more attempt at the same sample is worth making.
+
+    Transport errors carry their own ``retryable`` flag. An unparseable,
+    malformed or empty decision is not retryable in production, where the turn
+    has to fail closed, but for a recording it is one bad draw from a
+    nondeterministic model: on 2026-09-11 a single such draw failed a whole
+    scenario 35 cassettes into a batch. A rejected request or a configuration
+    error stays fatal; retrying them changes nothing.
+    """
+
+    if error.retryable:
+        return True
+    return error.code in _RETRIED_MODEL_OUTPUT_CODES and not isinstance(
+        error, AgentConfigurationError
+    )
+
+
+_RETRIED_MODEL_OUTPUT_CODES = frozenset(
+    {
+        "MAIN_AGENT_INVALID_RESPONSE",
+        "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "MAIN_AGENT_EMPTY_RESPONSE",
+    }
+)
+
+
 def _retry_wait(delay: float, attempt: int, *, jitter: bool) -> float:
     wait = delay * (2 ** (attempt - 1))
     if jitter:
@@ -961,7 +989,7 @@ def _record_one_sample(
                 decision = maker.decide(context, tool_specs)
                 break
             except AgentWorkerError as error:
-                if not error.retryable or attempt == max_attempts:
+                if not _recording_can_retry(error) or attempt == max_attempts:
                     raise
                 sleeper(_retry_wait(retry_delay_seconds, attempt, jitter=jitter))
         if decision is None:

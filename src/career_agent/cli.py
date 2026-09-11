@@ -927,17 +927,23 @@ def _trajectory_tool_specs():
     decision. Runtime handler preconditions still apply when a tool is actually
     executed; there is no task-scoped model-window filter to reproduce here.
     """
+    import inspect
+
     from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 
-    parameters = (
-        "job_repository", "job_comparison_service", "career_profile_store",
-        "resume_store", "resume_analysis_service", "resume_job_match_service",
-        "resume_tailoring_service", "resume_export_service",
-        "application_service", "email_tracking_service", "interview_service",
-        "interview_preparation_service", "action_center_service",
-        "calendar_service", "mock_interview_graph", "mock_interview_store",
-        "job_research_service", "conversation_store", "career_history_store",
-        "episode_store", "working_notes_store",
+    # Derived from the registry's own signature so that a service added to
+    # production is offered here too and stales every cassette, instead of the
+    # two lists drifting apart in silence (``episode_store`` did, 2026-09-11).
+    #
+    # ``owner_settings_store`` is held back on purpose: production has offered
+    # ``update_owner_settings`` since 68370e4 without the recorder following,
+    # and including it now changes the prompt_fingerprint of all 38 cassettes.
+    # Remove it from this set at the next full re-record.
+    withheld = {"owner_settings_store"}
+    parameters = tuple(
+        name
+        for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
+        if name != "self" and name not in withheld
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 

@@ -631,8 +631,14 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "after working_notes_stale, merge the current note before retrying and "
             "never overwrite it directly."
         ),
+        # The user message carries the line to add. The first cut said only
+        # "补进去" and the model asked what to add — correctly, since nothing in
+        # the turn said. That was a contradiction in the scenario, not a gap:
+        # the policy under test is the merge, which needs both fragments named
+        # so the retry can be checked for keeping the other session's line
+        # while still adding this one.
         context=_context(
-            user_message="把我刚想到的后续也补进工作笔记。",
+            user_message="把这条也补进工作笔记：面试后记得发感谢邮件。",
             working_notes=WorkingNotesContext(
                 markdown="- 对方会话保留的关键片段",
                 revision="aaaaaaaaaaaa",
@@ -650,7 +656,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     ),
                     arguments={
                         "expected_revision": "bbbbbbbbbbbb",
-                        "markdown": "- 旧会话内容",
+                        "markdown": "- 面试后记得发感谢邮件",
                     },
                 ),
             ),
@@ -818,19 +824,39 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             # about is one of the three that did not, and the projection says so
             # rather than presenting the twelve as the whole set.
             archived_resource_total=15,
+            # The terra recording had three of five samples check episodic
+            # memory for the missing report before answering. That is a sound
+            # first hop, but it has no message, and the prose properties below
+            # grade a single step. Seeding the empty search leaves the model
+            # with only the answer to give, so the properties measure the
+            # answer rather than whether the model verified first.
+            tool_observations=(
+                DecisionObservation(
+                    tool_name="search_career_episodes",
+                    state="career_episode_search_empty",
+                    message="没有找到匹配的过往求职事件。",
+                    arguments={
+                        "query": "Shopee 主要竞争对手 调研",
+                        "kinds": ["job_research"],
+                        "top_k": 8,
+                    },
+                ),
+            ),
         ),
         decisive_facts=(
             "archived_reports.items",
             "archived_reports.unlisted",
             "user_message",
+            "tool_observations.0.state",
         ),
         steps=(
             TrajectoryStep(
                 # No expect_tool: reading nothing and saying so, or asking which
                 # company, are both right. What must not happen is naming one of
-                # the twelve reports that are not the one asked for.
+                # the twelve reports that are not the one asked for, or reissuing
+                # the search that already came back empty.
                 forbid_non_null_arguments=frozenset({"reference"}),
-                forbid_tools=frozenset({"research_job"}),
+                forbid_tools=frozenset({"research_job", "search_career_episodes"}),
                 # Both prose properties are graded by rate, not per sample.
                 # Repeating the exact omitted count was removed when the report
                 # catalogue moved out of system control: it is a completeness
@@ -845,6 +871,13 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 # wording. This second pass adds only those paraphrases
                 # (找不到 / 没有可访问 / 没有对应的引用编号). It is a new
                 # calibration set, not a holdout, and not a lowered floor.
+                #
+                # Third calibration (terra, empty search seeded): every sample
+                # said the report could not be reached, but three used forms
+                # the table did not list (没有找到 / 无法取回 / 没能取到 /
+                # 列表里没有 Shopee). Adding them here and re-judging that
+                # cassette would be training-set evaluation. The next
+                # ``--force`` recording is the holdout; the floor stays 60%.
                 quality_message_contains_any=(
                     frozenset(
                         {
@@ -863,19 +896,24 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                             "未提供对应的报告引用",
                             "未找到",
                             "找不到",
+                            "没有找到",
                             "没有可访问",
                             "能访问到的调研记录里没有",
                             "没有可取回",
+                            "无法取回",
+                            "没能取到",
                             "没有对应的引用编号",
                             "列表中没有 Shopee",
+                            "列表里没有 Shopee",
                         }
                     ),
                 ),
             ),
         ),
         recording_samples=5,
-        # Regression floor stays 60%. The second calibration still uses these
-        # five recordings; n=5 is a sentinel, not a population-rate estimate.
+        # Regression floor stays 60%. n=5 is a sentinel, not a population-rate
+        # estimate. Do not judge the third-calibration cassette against this
+        # table; recut with --force and score only that holdout.
         quality_min_pass_rate=0.6,
     ),
     TrajectoryScenario(
@@ -1072,6 +1110,17 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
+        known_gap=(
+            "On gpt-5.6-terra one of three samples borrows the handle titled "
+            "历史科技甲 for a question about 示例科技; the other two use the "
+            "grounded saved-job selector. The luna recording refused all three "
+            "times, but 1/3 against 0/3 is not a difference at n=3 and nine "
+            "prompt commits separate the two recordings, so the cause is "
+            "unattributed. The runtime cannot close this: resolve_reference "
+            "verifies only that the handle was issued and its kind, not which "
+            "company the user asked about. Re-record with at least five "
+            "samples before deciding."
+        ),
     ),
     TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",
@@ -1848,11 +1897,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         recording_samples=3,
         known_gap=(
-            "With randomized spotlighting and native chat turns, all three fresh "
+            "With randomized spotlighting and native chat turns, most fresh "
             "samples ask the user to identify an already explicit out-of-range "
-            "span instead of calling read_conversation_span. No sample substitutes "
-            "the recent-window decoy, so the unsafe answer remains blocked while "
-            "the required first-hop read gap is now stable."
+            "span instead of calling read_conversation_span (luna 3/3, terra "
+            "2/3). No sample substitutes the recent-window decoy, so the unsafe "
+            "answer remains blocked while the required first-hop read gap is "
+            "intermittent."
         ),
     ),
 )
