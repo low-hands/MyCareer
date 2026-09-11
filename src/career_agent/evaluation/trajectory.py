@@ -104,6 +104,9 @@ class TrajectoryStep:
     make an unrelated schema change read as a policy failure.
     """
 
+    expect_argument_contains: Mapping[str, str] = field(default_factory=dict)
+    """Required substring for a string-valued tool argument."""
+
     forbid_non_null_arguments: frozenset[str] = frozenset()
     """Argument names for which the call must not invent a value.
 
@@ -569,6 +572,13 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
             failures.append(
                 f"{label}: expected argument {name}={expected!r}, got "
                 f"{arguments.get(name)!r}"
+            )
+    for name, expected in sorted(step.expect_argument_contains.items()):
+        actual = arguments.get(name)
+        if not isinstance(actual, str) or expected not in actual:
+            failures.append(
+                f"{label}: expected argument {name} to contain {expected!r}, "
+                f"got {actual!r}"
             )
     for name in sorted(step.forbid_non_null_arguments):
         if arguments.get(name) is not None:

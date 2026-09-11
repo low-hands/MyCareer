@@ -461,7 +461,11 @@ def test_a_deleted_preference_uses_the_tombstone_confirmation_gate(tmp_path) -> 
     _, second_export_id, _ = service.export(user_id="u1")
     edited = _remove_block(markdown, preference.update_id)
     notes = WorkingNotesStore(tmp_path / "working-notes")
-    notes.replace(user_id="u1", markdown="- 默认优先小团队")
+    notes.replace(
+        user_id="u1",
+        markdown="- 默认优先小团队",
+        expected_revision="empty",
+    )
     prepared = service.prepare(user_id="u1", markdown=edited)
     proposal = prepared.analysis.tombstones[0]
     assert proposal.target_kind == "intent_preference"
@@ -475,7 +479,7 @@ def test_a_deleted_preference_uses_the_tombstone_confirmation_gate(tmp_path) -> 
 
     assert applied.tombstones == 1
     assert applied.working_notes_cleared
-    assert notes.read(user_id="u1") == ""
+    assert notes.read(user_id="u1").markdown == ""
     assert context.list_free_text_preferences(
         user_id="u1", statuses=("active",)
     ) == ()
@@ -504,7 +508,11 @@ def test_notes_are_cleared_even_if_derived_cleanup_fails(
     edited = _remove_block(markdown, preference.update_id)
     prepared = service.prepare(user_id="u1", markdown=edited)
     notes = WorkingNotesStore(tmp_path / "working-notes")
-    notes.replace(user_id="u1", markdown="- 默认优先小团队")
+    notes.replace(
+        user_id="u1",
+        markdown="- 默认优先小团队",
+        expected_revision="empty",
+    )
 
     def fail_cleanup(**_kwargs):
         raise OSError("injected cleanup failure")
@@ -520,7 +528,7 @@ def test_notes_are_cleared_even_if_derived_cleanup_fails(
     assert applied.cleanup_incomplete == (
         f"derived_memory:{preference.update_id}",
     )
-    assert notes.read(user_id="u1") == ""
+    assert notes.read(user_id="u1").markdown == ""
     assert context.list_free_text_preferences(
         user_id="u1",
         statuses=("active",),
@@ -579,10 +587,19 @@ def test_preference_cleanup_failure_returns_state_and_can_be_retried(
     context.upsert_task(
         user_id="u1",
         conversation_id="c1",
-        task=ConversationTaskState(pending_memory_tombstone=proposal),
+        task=ConversationTaskState(
+            pending_memory_tombstone=proposal,
+            pending_proposed_at={
+                "pending_memory_tombstone": datetime.now(timezone.utc)
+            },
+        ),
     )
     notes = WorkingNotesStore(tmp_path / "working-notes")
-    notes.replace(user_id="u1", markdown="- 默认优先小团队")
+    notes.replace(
+        user_id="u1",
+        markdown="- 默认优先小团队",
+        expected_revision="empty",
+    )
     registry = MainAgentToolRegistry(
         career_history_store=history,
         conversation_store=context,
@@ -617,7 +634,7 @@ def test_preference_cleanup_failure_returns_state_and_can_be_retried(
         },
     )
     assert retried.state == "memory_tombstoned"
-    assert notes.read(user_id="u1") == ""
+    assert notes.read(user_id="u1").markdown == ""
 
 
 def test_deleting_an_amended_preference_scrubs_every_exported_revision(

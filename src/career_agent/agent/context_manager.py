@@ -24,6 +24,7 @@ from career_agent.agent.main_agent_contracts import (
     FreeTextPreferenceContext,
     MemoryTelemetryBinding,
     OwnerSettingsContext,
+    WorkingNotesContext,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.session_manager import SessionManager
@@ -37,6 +38,7 @@ from career_agent.services.episode_consolidation import mock_interview_exit_draf
 from career_agent.storage.context import CareerContextStore, StoredConversationMessage
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.intent_versions import intent_entry_id
+from career_agent.storage.working_notes import WorkingNotesSnapshot
 from career_agent.services.free_text_preferences import (
     preference_scope_domain,
     preference_topic_is_relevant,
@@ -68,7 +70,7 @@ class TargetRoleSource(Protocol):
 
 
 class WorkingNotesSource(Protocol):
-    def read(self, *, user_id: str) -> str: ...
+    def read(self, *, user_id: str) -> WorkingNotesSnapshot: ...
 
 
 class ContextManager:
@@ -81,7 +83,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -120,12 +122,21 @@ class ContextManager:
         self._target_role_source = target_role_source
         self._episode_store = episode_store
         self._working_notes_store = working_notes_store
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._career_profile_budgets = (
             career_profile_budgets or CareerProfileBudgets()
         )
         self._request_token_estimator: (
             Callable[[MainAgentContext], tuple[int, int]] | None
         ) = None
+
+    def now(self) -> datetime:
+        """The one clock for stamping proposals and expiring them.
+
+        The runtime passes this to ``reduce_task_state`` so a proposal's stamp
+        and the age check that later expires it read the same time source.
+        """
+        return self._clock()
 
     def configure_request_token_estimator(
         self,
@@ -174,10 +185,45 @@ class ContextManager:
             trigger="occupancy",
             user_message=user_message,
         )
+        self._expire_stale_proposals(
+            user_id=user_id, conversation_id=conversation_id
+        )
         return self._build_context(
             user_id=user_id,
             conversation_id=conversation_id,
             user_message=user_message,
+        )
+
+    def _expire_stale_proposals(
+        self, *, user_id: str, conversation_id: str
+    ) -> None:
+        """Clear pending proposals the user has not confirmed within the TTL.
+
+        Done at load rather than left to the confirm gates alone, so an expired
+        proposal is gone from the state the turn runs on, not merely refused
+        once the model has already reached for it.
+        """
+        task = self._store.get_task(user_id, conversation_id)
+        if task is None:
+            return
+        kept, expired = task.expire_stale_proposals(self.now())
+        if not expired:
+            return
+        self._store.upsert_task(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            task=kept,
+        )
+        record_active_trace(
+            "memory_proposal_expired",
+            "task_state",
+            outcome="succeeded",
+            details={
+                "conversation_key": conversation_trace_key(
+                    user_id, conversation_id
+                ),
+                "slots": list(expired),
+            },
         )
 
     def _build_context(
@@ -206,6 +252,21 @@ class ContextManager:
                 )
             )
         )
+        working_notes = None
+        if self._working_notes_store is not None:
+            snapshot = self._working_notes_store.read(user_id=user_id)
+            working_notes = WorkingNotesContext(
+                markdown=snapshot.markdown,
+                revision=snapshot.revision,
+                clipped=snapshot.clipped,
+            )
+            if snapshot.clipped:
+                record_active_trace(
+                    "working_notes_oversize",
+                    "working_notes",
+                    outcome="succeeded",
+                    details={"chars": len(snapshot.markdown)},
+                )
         return MainAgentContext(
             conversation_id=conversation_id,
             spotlight_nonce=session.spotlight_nonce if session else None,
@@ -218,11 +279,7 @@ class ContextManager:
                 user_message=user_message,
                 task=task,
             ),
-            working_notes=(
-                self._working_notes_store.read(user_id=user_id)
-                if self._working_notes_store is not None
-                else ""
-            ),
+            working_notes=working_notes,
             career_episodes=self._episode_context(
                 user_id=user_id,
                 conversation_id=conversation_id,

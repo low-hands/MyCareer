@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import json
 import hashlib
 from contextvars import ContextVar
@@ -1351,7 +1353,11 @@ class MainAgentRuntime:
             )
             updated = (
                 context.model_copy(
-                    update={"task": reduce_task_state(task, result)}
+                    update={
+                        "task": reduce_task_state(
+                            task, result, now=self._context_manager.now()
+                        )
+                    }
                 )
                 if result.state
                 in {"resume_analysis_confirmed", "resume_analysis_rejected"}
@@ -2769,7 +2775,9 @@ class MainAgentRuntime:
                 updated = self._update_mock_interview_task(context, result)
             else:
                 updated = self._update_atomic_task(
-                    context, pending.get("reducer_result", result)
+                    context,
+                    pending.get("reducer_result", result),
+                    now=self._context_manager.now(),
                 )
             if result.state in {
                 "career_memory_amended",
@@ -2778,6 +2786,8 @@ class MainAgentRuntime:
                 "free_text_preference_confirmed",
                 "free_text_preference_confirmed_structured_proposed",
                 "career_fact_confirmed",
+                "working_notes_stale",
+                "working_notes_updated",
             }:
                 refreshed = self._context_manager.load_for_turn(
                     user_id=context.profile.user_id,
@@ -3678,8 +3688,11 @@ class MainAgentRuntime:
 
     @staticmethod
     def _update_atomic_task(
-        context: MainAgentContext, result: ToolObservation
+        context: MainAgentContext,
+        result: ToolObservation,
+        *,
+        now: datetime | None = None,
     ) -> MainAgentContext:
         return context.model_copy(
-            update={"task": reduce_task_state(context.task, result)}
+            update={"task": reduce_task_state(context.task, result, now=now)}
         )

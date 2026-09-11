@@ -129,7 +129,11 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
         career_history_store=history,
     ).export(user_id="u1")
     notes = WorkingNotesStore(tmp_path / "working-notes")
-    notes.replace(user_id="u1", markdown="- Built a private ranking prototype.")
+    notes.replace(
+        user_id="u1",
+        markdown="- Built a private ranking prototype.",
+        expected_revision="empty",
+    )
 
     runtime, _, _ = _runtime(
         tmp_path,
@@ -180,7 +184,7 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
     assert retained is not None
     assert all(item["update_id"] != evidence.update_id for item in retained)
     assert all(item["value"] != evidence.claim for item in retained)
-    assert notes.read(user_id="u1") == ""
+    assert notes.read(user_id="u1").markdown == ""
     assert "private ranking prototype" not in str(
         completed.context.model_context()
     ).casefold()

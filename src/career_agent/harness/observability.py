@@ -38,6 +38,8 @@ EventType = Literal[
     "context_compacted",
     "memory_tombstone_observed",
     "memory_context_observed",
+    "memory_proposal_expired",
+    "working_notes_oversize",
 ]
 
 ModelCallCategory = Literal[

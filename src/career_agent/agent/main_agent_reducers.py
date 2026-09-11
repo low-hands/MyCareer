@@ -9,7 +9,7 @@ runs when the result state is one the entry accepts, which keeps the
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from typing import Any, Callable
 
@@ -838,7 +838,10 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
 
 
 def reduce_task_state(
-    task: ConversationTaskState, result: ToolResult
+    task: ConversationTaskState,
+    result: ToolResult,
+    *,
+    now: datetime | None = None,
 ) -> ConversationTaskState:
     """Apply the registered reducer for ``result``, if any.
 
@@ -848,4 +851,8 @@ def reduce_task_state(
     entry = ATOMIC_TASK_REDUCERS.get(result.tool_name)
     if entry is None or not entry.applies_to(result.state):
         return task
-    return entry.reduce(task, result)
+    # Stamped here rather than in each propose reducer, so a reducer added later
+    # cannot put a proposal in a slot without starting its expiry clock.
+    return entry.reduce(task, result).stamp_new_proposals(
+        task, now or datetime.now(timezone.utc)
+    )

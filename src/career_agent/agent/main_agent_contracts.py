@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 import hashlib
 import hmac
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import re
-from typing import Annotated, Any, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol, get_args
 
 from pydantic import AliasChoices, Field, model_validator
 
@@ -620,6 +620,35 @@ class EmailEventCandidateContextItem(ContractModel):
     summary: str
 
 
+PendingProposalSlot = Literal[
+    "pending_job_intent_update",
+    "pending_free_text_preference",
+    "pending_memory_amendment",
+    "pending_memory_tombstone",
+    "pending_career_fact",
+    "pending_constraint_retirement",
+]
+PENDING_PROPOSAL_SLOTS: tuple[PendingProposalSlot, ...] = get_args(
+    PendingProposalSlot
+)
+# A confirmation authorizes what the user was shown. After a week "confirm that
+# one" can no longer be assumed to mean a readback the user still remembers.
+PENDING_PROPOSAL_TTL = timedelta(days=7)
+_BARE_CONFIRMATION_SLOTS: dict[str, PendingProposalSlot] = {
+    "career_fact": "pending_career_fact",
+    "job_intent": "pending_job_intent_update",
+    "free_text_preference": "pending_free_text_preference",
+}
+
+
+def expired_proposal_message(tool_name: str) -> str:
+    return (
+        f"{tool_name} refused: the proposal was shown more than "
+        f"{PENDING_PROPOSAL_TTL.days} days ago and has expired; show the "
+        "proposal again and wait for explicit agreement"
+    )
+
+
 class ConversationTaskState(ContractModel):
     """Durable per-conversation task state.
 
@@ -645,6 +674,12 @@ class ConversationTaskState(ContractModel):
     pending_memory_tombstone: MemoryTombstoneProposal | None = None
     pending_career_fact: CareerFactProposal | None = None
     pending_constraint_retirement: ConstraintRetirementProposal | None = None
+    # When each pending proposal was shown, keyed by slot. Kept beside the
+    # proposals rather than inside them: JobIntentUpdate is hashed into the
+    # intent episode id, so a timestamp there would change what gets recorded.
+    pending_proposed_at: dict[PendingProposalSlot, datetime] = Field(
+        default_factory=dict
+    )
     bare_confirmation_target: Literal[
         "career_fact",
         "job_intent",
@@ -693,6 +728,70 @@ class ConversationTaskState(ContractModel):
                 "workflow needs a run to resume, and a run needs an owner."
             )
         return self
+
+    def pending_proposal_is_live(
+        self, slot: PendingProposalSlot, now: datetime
+    ) -> bool:
+        """Whether ``slot`` holds a proposal shown within the TTL.
+
+        An unstamped proposal predates stamping and its age is unknown, so it
+        is treated as expired rather than granted a fresh clock.
+        """
+        proposed_at = self.pending_proposed_at.get(slot)
+        return (
+            getattr(self, slot) is not None
+            and proposed_at is not None
+            and now - proposed_at <= PENDING_PROPOSAL_TTL
+        )
+
+    def stamp_new_proposals(
+        self, before: "ConversationTaskState", now: datetime
+    ) -> "ConversationTaskState":
+        """Start the clock for every proposal a reducer just put in a slot.
+
+        Identity, not equality, decides "just put": a reducer builds a fresh
+        proposal from the tool payload, while ``model_copy`` carries untouched
+        slots by reference. Re-showing an identical proposal therefore restarts
+        its clock, and a reducer that keeps an unrelated slot leaves it alone.
+        Stamps for emptied slots are dropped in the same pass.
+        """
+        stamps: dict[PendingProposalSlot, datetime] = {}
+        for slot in PENDING_PROPOSAL_SLOTS:
+            value = getattr(self, slot)
+            if value is None:
+                continue
+            if value is not getattr(before, slot):
+                stamps[slot] = now
+            elif slot in self.pending_proposed_at:
+                stamps[slot] = self.pending_proposed_at[slot]
+        if stamps == self.pending_proposed_at:
+            return self
+        return self.model_copy(update={"pending_proposed_at": stamps})
+
+    def expire_stale_proposals(
+        self, now: datetime
+    ) -> tuple["ConversationTaskState", tuple[PendingProposalSlot, ...]]:
+        """Drop proposals left unconfirmed past ``PENDING_PROPOSAL_TTL``."""
+        expired = tuple(
+            slot
+            for slot in PENDING_PROPOSAL_SLOTS
+            if getattr(self, slot) is not None
+            and not self.pending_proposal_is_live(slot, now)
+        )
+        if not expired:
+            return self, ()
+        update: dict[str, Any] = {slot: None for slot in expired}
+        update["pending_proposed_at"] = {
+            slot: stamp
+            for slot, stamp in self.pending_proposed_at.items()
+            if slot not in expired
+        }
+        if (
+            self.bare_confirmation_target is not None
+            and _BARE_CONFIRMATION_SLOTS[self.bare_confirmation_target] in expired
+        ):
+            update["bare_confirmation_target"] = None
+        return self.model_copy(update=update), expired
 
     def enter_workflow(
         self,
@@ -1681,6 +1780,12 @@ class EpisodeProjectionContext(ContractModel):
     synopsis: str = Field(min_length=1, max_length=400)
 
 
+class WorkingNotesContext(ContractModel):
+    markdown: str = Field(max_length=2000)
+    revision: str = Field(pattern=r"^(?:empty|[a-f0-9]{12})$")
+    clipped: bool = False
+
+
 PREFERENCE_EPISODE_CHAR_BUDGET = 800
 _PREFERENCE_CHAR_CAP = 400
 
@@ -1713,7 +1818,7 @@ class MainAgentContext(ContractModel):
         default=(),
         max_length=8,
     )
-    working_notes: str = Field(default="", max_length=2000)
+    working_notes: WorkingNotesContext | None = None
     career_episodes: tuple[EpisodeProjectionContext, ...] = Field(
         default=(),
         max_length=5,
@@ -2035,8 +2140,14 @@ class MainAgentContext(ContractModel):
             "career_memory": career_memory,
             "free_text_preferences": preference_markdown,
             **(
-                {"working_notes": self.working_notes}
-                if self.working_notes
+                {
+                    "working_notes": {
+                        "revision": self.working_notes.revision,
+                        "markdown": self.working_notes.markdown,
+                        **({"clipped": True} if self.working_notes.clipped else {}),
+                    }
+                }
+                if self.working_notes is not None
                 else {}
             ),
             **(
@@ -2292,6 +2403,10 @@ class SearchCareerMemoryToolArguments(ContractModel):
 
 
 class UpdateWorkingNotesToolArguments(ContractModel):
+    expected_revision: str = Field(
+        pattern=r"^(?:empty|[a-f0-9]{12})$",
+        description="Revision from the current working_notes context projection.",
+    )
     markdown: str = Field(
         max_length=2000,
         description=(
@@ -3012,6 +3127,10 @@ def project_job_intent_arguments(
         raise ValueError(
             "confirm_job_intent requires a proposed update the user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_job_intent_update", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_job_intent"))
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3060,6 +3179,10 @@ def project_free_text_preference_arguments(
         raise ValueError(
             "confirm_free_text_preference requires a proposal the user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_free_text_preference", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_free_text_preference"))
     if (
         pending.needs_scope_clarification
         and confirmation.scope_choice is None
@@ -3102,6 +3225,10 @@ def project_memory_tombstone_arguments(
         raise ValueError(
             "confirm_memory_tombstone requires a proposed deletion the user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_memory_tombstone", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_memory_tombstone"))
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3134,6 +3261,10 @@ def project_memory_amendment_arguments(
         raise ValueError(
             "confirm_memory_amendment requires a proposed correction the user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_memory_amendment", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_memory_amendment"))
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3151,6 +3282,7 @@ def project_working_notes_arguments(
     return {
         "user_id": context.profile.user_id,
         "markdown": model_arguments.markdown,
+        "expected_revision": model_arguments.expected_revision,
     }
 
 
@@ -3186,6 +3318,10 @@ def project_career_fact_arguments(
         raise ValueError(
             "confirm_career_fact requires a proposed fact the user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_career_fact", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_career_fact"))
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3225,6 +3361,10 @@ def project_constraint_retirement_arguments(
             "confirm_constraint_retirement requires a proposed retirement the "
             "user has seen"
         )
+    if not context.task.pending_proposal_is_live(
+        "pending_constraint_retirement", datetime.now(timezone.utc)
+    ):
+        raise ValueError(expired_proposal_message("confirm_constraint_retirement"))
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
