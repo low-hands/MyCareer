@@ -1,38 +1,38 @@
 {
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "14bb7af2b5ffb6798aa220b3ed38cac8d4af61b1f5bb523cbcc7f7a4a02ded85",
-  "recorded_at": "2026-09-07T16:24:03.996696+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "c6274b63225b7eb0bb89cc7148429de87dc4a46d289ff5dbda1ac50a1158b31a",
+  "recorded_at": "2026-09-11T08:34:22.200505+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我当前可见的上下文里没有你一开始指定的目标公司全名，无法可靠判断。请再提供公司名或相关关键词。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定目标公司的完整名称，现有记录只确认了刚才窗口里的是美团。请把前面那条目标公司名称再发一次，我再帮你核对。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:24:26.138408+00:00",
+      "recorded_at": "2026-09-11T08:36:46.092208+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我当前可见的上下文里没有你一开始指定的目标公司全名，无法可靠判断。请再提供公司名或相关关键词。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定目标公司的完整名称，现有记录只确认了刚才窗口里的是美团。请把前面那条目标公司名称再发一次，我再帮你核对。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:23:49.970946+00:00",
+      "recorded_at": "2026-09-11T08:37:12.105755+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名；当前窗口只明确提到过美团。请把之前那句目标公司信息再发我一次。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前无法从可见上下文确认你一开始指定的目标公司全名；只能确认那不是美团。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:24:03.996696+00:00",
+      "recorded_at": "2026-09-11T08:34:22.200505+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我当前能看到的上下文里没有记录你一开始指定的目标公司全名。请再发我一次公司名，我再帮你核对。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定目标公司的那条原始消息，无法可靠确认全名。请把当时的公司名或相关 JD 再发我一次。\"}"
         }
       ]
     }

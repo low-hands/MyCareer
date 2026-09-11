@@ -1,10 +1,10 @@
 {
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "024d646ed728bada4e5fa1e5b9da2bc9ed2694705155599d49a97bc3883fce12",
-  "recorded_at": "2026-09-07T16:21:06.037913+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "c88fb607ad404ca10a7153ade6597c1111310b863c8c941a53f96e9f779f68c4",
+  "recorded_at": "2026-09-11T08:51:14.129655+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:20:51.798312+00:00",
+      "recorded_at": "2026-09-11T08:50:48.886353+00:00",
       "steps": [
         {
           "tool_call": {
@@ -31,7 +31,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:20:56.567710+00:00",
+      "recorded_at": "2026-09-11T08:50:49.453435+00:00",
       "steps": [
         {
           "tool_call": {
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:21:06.037913+00:00",
+      "recorded_at": "2026-09-11T08:51:14.129655+00:00",
       "steps": [
         {
           "tool_call": {
