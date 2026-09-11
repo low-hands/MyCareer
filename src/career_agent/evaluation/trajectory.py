@@ -76,6 +76,9 @@ class TrajectoryStep:
     names only what must be absent.
     """
 
+    forbid_final_message_contains: frozenset[str] = frozenset()
+    """Substrings that may be asked about but must not be asserted as an answer."""
+
     quality_message_contains_any: tuple[frozenset[str], ...] = ()
     """Fragments a *good* reply carries, graded by rate rather than per sample.
 
@@ -562,6 +565,13 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
             failures.append(
                 f"{label}: reply restated runtime-owned delivery {fragment!r}"
             )
+    if decision.action == "final":
+        for fragment in sorted(step.forbid_final_message_contains):
+            if fragment in (decision.message or ""):
+                failures.append(
+                    f"{label}: final reply reused unreviewed content "
+                    f"{fragment!r}"
+                )
     if called in step.forbid_tools:
         failures.append(f"{label}: called forbidden tool '{called}'")
     arguments = (

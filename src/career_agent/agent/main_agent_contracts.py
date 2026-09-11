@@ -1784,6 +1784,7 @@ class WorkingNotesContext(ContractModel):
     markdown: str = Field(max_length=2000)
     revision: str = Field(pattern=r"^(?:empty|[a-f0-9]{12})$")
     clipped: bool = False
+    stale_days: int | None = Field(default=None, ge=0)
 
 
 PREFERENCE_EPISODE_CHAR_BUDGET = 800
@@ -2145,6 +2146,11 @@ class MainAgentContext(ContractModel):
                         "revision": self.working_notes.revision,
                         "markdown": self.working_notes.markdown,
                         **({"clipped": True} if self.working_notes.clipped else {}),
+                        **(
+                            {"stale_days": self.working_notes.stale_days}
+                            if self.working_notes.stale_days is not None
+                            else {}
+                        ),
                     }
                 }
                 if self.working_notes is not None

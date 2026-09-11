@@ -7,6 +7,7 @@ import logging
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -19,6 +20,7 @@ class WorkingNotesSnapshot:
     markdown: str
     revision: str
     clipped: bool
+    updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,7 @@ class WorkingNotesStore:
             temporary.write_text(markdown, encoding="utf-8")
             os.chmod(temporary, 0o600)
             temporary.replace(path)
-            return self._snapshot(markdown)
+            return self._snapshot(markdown, updated_at=self._modified_at(path))
 
     def clear(self, *, user_id: str) -> bool:
         """Delete the whole unbound scratchpad after any memory tombstone."""
@@ -83,19 +85,30 @@ class WorkingNotesStore:
 
     def _read_path(self, path: Path) -> WorkingNotesSnapshot:
         try:
-            markdown = path.read_text(encoding="utf-8")
+            with path.open("r", encoding="utf-8") as notes_file:
+                markdown = notes_file.read()
+                updated_at = datetime.fromtimestamp(
+                    os.fstat(notes_file.fileno()).st_mtime,
+                    tz=timezone.utc,
+                )
         except FileNotFoundError:
-            return WorkingNotesSnapshot(markdown="", revision="empty", clipped=False)
+            return WorkingNotesSnapshot(
+                markdown="", revision="empty", clipped=False, updated_at=None
+            )
         except (OSError, UnicodeDecodeError) as error:
             logger.warning(
                 "Unable to read working notes; projecting an empty scratchpad",
                 extra={"path": str(path), "error_type": type(error).__name__},
             )
-            return WorkingNotesSnapshot(markdown="", revision="empty", clipped=False)
-        return self._snapshot(markdown)
+            return WorkingNotesSnapshot(
+                markdown="", revision="empty", clipped=False, updated_at=None
+            )
+        return self._snapshot(markdown, updated_at=updated_at)
 
     @staticmethod
-    def _snapshot(markdown: str) -> WorkingNotesSnapshot:
+    def _snapshot(
+        markdown: str, *, updated_at: datetime | None
+    ) -> WorkingNotesSnapshot:
         revision = (
             "empty"
             if not markdown
@@ -106,4 +119,9 @@ class WorkingNotesStore:
             markdown=markdown[:WORKING_NOTES_MAX_CHARS],
             revision=revision,
             clipped=clipped,
+            updated_at=updated_at,
         )
+
+    @staticmethod
+    def _modified_at(path: Path) -> datetime:
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)

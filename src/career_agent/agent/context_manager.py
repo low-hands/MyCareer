@@ -51,6 +51,9 @@ from career_agent.services.preference_resolution import (
 )
 
 
+WORKING_NOTES_STALE_DAYS = 14
+
+
 class TargetRoleSource(Protocol):
     def list_target_roles(
         self, *, user_id: str, limit: int | None = None
@@ -255,10 +258,22 @@ class ContextManager:
         working_notes = None
         if self._working_notes_store is not None:
             snapshot = self._working_notes_store.read(user_id=user_id)
+            stale_days = None
+            if snapshot.markdown and snapshot.updated_at is not None:
+                age_days = max(
+                    0,
+                    int(
+                        (self._clock() - snapshot.updated_at).total_seconds()
+                        // 86_400
+                    ),
+                )
+                if age_days > WORKING_NOTES_STALE_DAYS:
+                    stale_days = age_days
             working_notes = WorkingNotesContext(
                 markdown=snapshot.markdown,
                 revision=snapshot.revision,
                 clipped=snapshot.clipped,
+                stale_days=stale_days,
             )
             if snapshot.clipped:
                 record_active_trace(

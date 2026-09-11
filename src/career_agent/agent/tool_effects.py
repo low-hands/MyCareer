@@ -88,6 +88,18 @@ _READ_CAPABILITIES = frozenset(
     }
 )
 
+# Reads that filter or rank what the user is shown are guarded.  Searches over
+# confirmed memory are not: they are how a note-derived hunch gets checked
+# against an authoritative source, which is what the guard refusal asks for.
+_NOTES_GUARDED_CAPABILITIES = (
+    (_WRITE_CAPABILITIES - {"update_working_notes"})
+    | {
+        "find_saved_jobs",
+        "compare_saved_jobs",
+        "open_job_search",
+    }
+)
+
 if _READ_CAPABILITIES & _WRITE_CAPABILITIES:
     raise RuntimeError("a Main Agent capability cannot be both READ and WRITE")
 
@@ -132,6 +144,12 @@ def replay_safe(name: str) -> bool:
     """Whether re-invoking this capability cannot produce a second effect."""
 
     return name in _REPLAY_SAFE_CAPABILITIES
+
+
+def is_notes_guarded(name: str) -> bool:
+    """Whether note-only argument content must be reviewed before execution."""
+
+    return name in _NOTES_GUARDED_CAPABILITIES
 
 
 def effect_for(name: str) -> ToolEffect:

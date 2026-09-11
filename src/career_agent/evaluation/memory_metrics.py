@@ -30,6 +30,7 @@ class MemoryMetricsSummary:
     version_context_entry_count: int
     zombie_exposure: MetricResult
     supersedence_exposure: MetricResult
+    working_notes_influence: MetricResult
 
 
 def summarize_memory_metrics(
@@ -46,6 +47,8 @@ def summarize_memory_metrics(
     tombstoned_update_ids: set[str] = set()
     post_tombstone_observation_count = 0
     zombie_observation_count = 0
+    working_notes_guard_observation_count = 0
+    working_notes_only_argument_count = 0
 
     for event in events:
         event_type = _event_type(event)
@@ -59,6 +62,10 @@ def summarize_memory_metrics(
                 ):
                     tombstoned_update_ids.add(str(entry["update_id"]))
         elif event_type == "memory_context_observed":
+            blocked = details.get("working_notes_only_argument")
+            if type(blocked) is int and blocked in {0, 1}:
+                working_notes_guard_observation_count += 1
+                working_notes_only_argument_count += blocked
             version_context_observation_count += 1
             if _is_complete_p1_observation(details):
                 p1_complete_context_observation_count += 1
@@ -200,6 +207,20 @@ def summarize_memory_metrics(
             ),
         )
     )
+    working_notes_influence = _rate(
+        working_notes_only_argument_count,
+        working_notes_guard_observation_count,
+        comparability="BEST_EFFORT",
+        empty_reason=(
+            "No decisions with non-empty working notes and guard telemetry "
+            "were supplied."
+        ),
+        reason=(
+            "Share of decisions with non-empty working notes whose literal "
+            "tool arguments were blocked by the best-effort notes guard; "
+            "semantic paraphrases are outside this detector."
+        ),
+    )
     return MemoryMetricsSummary(
         context_churn_rate=churn,
         context_churn_by_slot=churn_by_slot,
@@ -213,6 +234,7 @@ def summarize_memory_metrics(
         version_context_entry_count=len(version_context_entries),
         zombie_exposure=zombie,
         supersedence_exposure=supersedence,
+        working_notes_influence=working_notes_influence,
     )
 
 
