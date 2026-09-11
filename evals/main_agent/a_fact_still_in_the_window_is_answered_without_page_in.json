@@ -1,38 +1,38 @@
 {
   "scenario": "a_fact_still_in_the_window_is_answered_without_page_in",
   "policy": "When the completed context already answers the current request, do not call another tool merely to reconstruct content that is absent: answer with action='final' and write the reply yourself.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "ec511dadba3c2714477ee7e3d599541b4584766d928081801f9b786edbed7325",
-  "recorded_at": "2026-09-07T16:25:58.237556+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "cf4cdb443a6d62ae8b0e24adadd7827551328a7cb0cadc443ac0644c056c0289",
+  "recorded_at": "2026-09-11T08:35:05.650585+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:23:35.955569+00:00",
+      "recorded_at": "2026-09-11T08:34:37.167320+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:23:45.910667+00:00",
+      "recorded_at": "2026-09-11T08:34:51.820608+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:25:58.237556+00:00",
+      "recorded_at": "2026-09-11T08:35:05.650585+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
         }
       ]
     }

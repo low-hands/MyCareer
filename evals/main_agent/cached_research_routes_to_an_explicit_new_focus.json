@@ -1,16 +1,16 @@
 {
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "991d30f859ad8d6d7094269630d35a418dc640d30311b5074cfa6d2e3604f24c",
-  "recorded_at": "2026-09-07T16:21:45.469934+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "cdd70ae9fbd3523d0172d0f3ee2238bf98c47f0cd2ae270ac2e36f3b38429fbf",
+  "recorded_at": "2026-09-11T08:30:22.674980+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：主要竞争者、竞争格局、差异化优势与风险",
+          "focus": "竞争对手：主要竞争者、竞品定位、差异化优势与竞争格局",
           "max_sources": 8
         }
       }
@@ -19,13 +19,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:21:45.469934+00:00",
+      "recorded_at": "2026-09-11T08:30:22.674980+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手：主要竞争者、竞争格局、差异化优势与风险",
+              "focus": "竞争对手：主要竞争者、竞品定位、差异化优势与竞争格局",
               "max_sources": 8
             }
           }

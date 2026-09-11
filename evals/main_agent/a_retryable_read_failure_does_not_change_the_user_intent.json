@@ -1,38 +1,38 @@
 {
   "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "9f5e288391423b18b8dda228b880d251e5b3542773bf317e227bed4202023160",
-  "recorded_at": "2026-09-07T16:22:06.638193+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "b48a4cfc46e5ab2fe685c00486f5477f691e262778d4e3e4b035bb3016b7d09c",
+  "recorded_at": "2026-09-11T08:31:30.850946+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法找到你保存过的 RAG 岗位。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前没能找到你保存过的 RAG 岗位。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:21:57.169400+00:00",
+      "recorded_at": "2026-09-11T08:31:11.802414+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法找到你保存过的 RAG 岗位。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前没能找到你保存过的 RAG 岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:21:59.877245+00:00",
+      "recorded_at": "2026-09-11T08:31:41.050520+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。请明确回复“重试”，我再重新查询你保存过的 RAG 岗位。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。需要我重试查询保存过的 RAG 岗位吗？\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-07T16:22:06.638193+00:00",
+      "recorded_at": "2026-09-11T08:31:30.850946+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用。需要我重试查询你保存过的 RAG 岗位吗？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用，当前无法查询你保存过的 RAG 岗位。你可以稍后让我重试原查询。\"}"
         }
       ]
     }

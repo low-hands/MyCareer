@@ -33,7 +33,7 @@ from pathlib import Path
 import pytest
 
 import career_agent.evaluation.trajectory as trajectory_module
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.cli import _trajectory_tool_specs
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileBudgets,
@@ -82,11 +82,13 @@ def offered() -> tuple[frozenset[str], tuple[dict, ...]]:
     matters is that the schema list matches production: a scenario that forbids
     a tool the model was not offered proves nothing, and this is what lets
     ``check_contract`` notice.
+
+    The list comes from the recorder itself. A private copy here drifted once
+    (``episode_store`` reached the recorder but not this file), after which
+    every fresh cassette read as stale under pytest while replaying cleanly
+    from the CLI.
     """
-    registry = MainAgentToolRegistry(
-        **{name: object() for name in _SERVICE_PARAMETERS}
-    )
-    schemas = registry.schemas()
+    schemas = _trajectory_tool_specs()
     return frozenset(spec["function"]["name"] for spec in schemas), schemas
 
 
@@ -158,30 +160,6 @@ def test_budget_change_validation_is_paired_by_cassette_sample(
     assert result.pair_count == 1
     assert result.regressed_pair_count == 1
     assert result.candidate_noninferior is False
-
-
-_SERVICE_PARAMETERS = (
-    "job_repository",
-    "job_comparison_service",
-    "career_profile_store",
-    "resume_store",
-    "resume_analysis_service",
-    "resume_job_match_service",
-    "resume_tailoring_service",
-    "resume_export_service",
-    "application_service",
-    "email_tracking_service",
-    "interview_service",
-    "interview_preparation_service",
-    "action_center_service",
-    "calendar_service",
-    "mock_interview_graph",
-    "mock_interview_store",
-    "job_research_service",
-    "conversation_store",
-    "career_history_store",
-    "working_notes_store",
-)
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda item: item.name)

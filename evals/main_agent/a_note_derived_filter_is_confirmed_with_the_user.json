@@ -1,0 +1,24 @@
+{
+  "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+  "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "51cec3fa7258df8ac87deacff01179e20b8dd6c4d8532c2f1c10e8ff891391c7",
+  "recorded_at": "2026-09-11T08:17:01.631576+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我：\\n1. 想找的岗位/关键词（例如：后端开发、Rust 工程师）\\n2. 工作城市\\n\\n我会据此打开招聘搜索页面。\"}"
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-11T08:17:01.631576+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我：\\n1. 想找的岗位/关键词（例如：后端开发、Rust 工程师）\\n2. 工作城市\\n\\n我会据此打开招聘搜索页面。\"}"
+        }
+      ]
+    }
+  ]
+}

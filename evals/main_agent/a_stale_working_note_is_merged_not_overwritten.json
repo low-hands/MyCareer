@@ -1,0 +1,24 @@
+{
+  "scenario": "a_stale_working_note_is_merged_not_overwritten",
+  "policy": "Always pass the revision from the current working_notes projection; after working_notes_stale, merge the current note before retrying and never overwrite it directly.",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "3e45a73eb2d32620167c444e0e7a71dca7229915cbb60cb113e733f0cee0f107",
+  "recorded_at": "2026-09-11T08:18:28.453867+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你刚想到的具体后续内容。我会在保留现有工作笔记“对方会话保留的关键片段”的基础上合并补入。\"}"
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-11T08:18:28.453867+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你刚想到的具体后续内容。我会在保留现有工作笔记“对方会话保留的关键片段”的基础上合并补入。\"}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,22 +1,22 @@
 {
   "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
   "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
-  "model": "gpt-5.6-luna",
-  "prompt_fingerprint": "58c64064f686c8a7dc209fdbe6bcb1d3e9f63cd7407096eee1241f697f3b65c9",
-  "context_shape_fingerprint": "2011953f1d49c8659c5c5ee51a8bf2b99ce751d3166d3892f1a693ba8a9518be",
-  "recorded_at": "2026-09-07T16:21:36.688565+00:00",
+  "model": "gpt-5.6-terra",
+  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "context_shape_fingerprint": "52f8c164b297de167647a69ef8e2bf701df61d42f45c83fa08acab4fb567081e",
+  "recorded_at": "2026-09-11T08:30:05.975387+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"调研结论：公司正将检索业务独立发展，招聘明显扩张，且同赛道暂未见竞品公开类似产品，整体处于积极布局期。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"调研已完成：公司正独立发展检索业务并扩大招聘，且同赛道暂未见主要竞争对手推出同类产品，整体处于积极扩张期。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-07T16:21:36.688565+00:00",
+      "recorded_at": "2026-09-11T08:30:05.975387+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"调研结论：公司正将检索业务独立发展，招聘明显扩张，且同赛道暂未见竞品公开类似产品，整体处于积极布局期。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：公司正独立发展检索业务并扩大招聘，且同赛道暂未见主要竞争对手推出同类产品，整体处于积极扩张期。\"}"
         }
       ]
     }
