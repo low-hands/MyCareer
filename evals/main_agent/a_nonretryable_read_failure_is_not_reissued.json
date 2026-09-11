@@ -2,37 +2,37 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "b48a4cfc46e5ab2fe685c00486f5477f691e262778d4e3e4b035bb3016b7d09c",
-  "recorded_at": "2026-09-11T08:32:36.600781+00:00",
+  "recorded_at": "2026-09-11T14:40:56.275208+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，因此没能找到你保存过的 RAG 岗位。此次查询不可重试。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"查询保存的 RAG 岗位失败了，当前岗位库暂时无法完成检索。此次查询不应重复重试。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:31:42.965825+00:00",
+      "recorded_at": "2026-09-11T14:40:53.647624+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，因此没能找到你保存过的 RAG 岗位。此次查询不可重试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"查询保存的 RAG 岗位失败了，当前岗位库暂时无法完成检索。此次查询不应重复重试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:32:12.169049+00:00",
+      "recorded_at": "2026-09-11T14:40:46.966838+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成 RAG 岗位查询，请稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。请稍后再试。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:32:36.600781+00:00",
+      "recorded_at": "2026-09-11T14:40:56.275208+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时找不到你保存过的 RAG 岗位。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，暂时没能找到你保存过的 RAG 岗位。\"}"
         }
       ]
     }

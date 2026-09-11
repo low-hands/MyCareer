@@ -933,17 +933,12 @@ def _trajectory_tool_specs():
 
     # Derived from the registry's own signature so that a service added to
     # production is offered here too and stales every cassette, instead of the
-    # two lists drifting apart in silence (``episode_store`` did, 2026-09-11).
-    #
-    # ``owner_settings_store`` is held back on purpose: production has offered
-    # ``update_owner_settings`` since 68370e4 without the recorder following,
-    # and including it now changes the prompt_fingerprint of all 38 cassettes.
-    # Remove it from this set at the next full re-record.
-    withheld = {"owner_settings_store"}
+    # two lists drifting apart in silence (``episode_store`` did, 2026-09-11,
+    # and ``owner_settings_store`` before it, from 68370e4 until the same day).
     parameters = tuple(
         name
         for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
-        if name != "self" and name not in withheld
+        if name != "self"
     )
     return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 

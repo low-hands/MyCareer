@@ -2,19 +2,19 @@
   "scenario": "overdue_brief_routes_to_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, use the overdue count rather than giving a generic answer or guessing the brief body.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "1e406a5564b1b1356c851bb10d5070575501132a82b468fccb0d0560aa89a62a",
-  "recorded_at": "2026-09-11T08:29:37.947529+00:00",
+  "recorded_at": "2026-09-11T14:42:10.660018+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "list_action_items",
         "arguments": {
+          "limit": 100,
           "statuses": [
             "open",
             "snoozed"
           ],
-          "limit": 50,
           "timezone": "Asia/Shanghai"
         }
       }
@@ -23,17 +23,17 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:29:37.947529+00:00",
+      "recorded_at": "2026-09-11T14:42:10.660018+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "list_action_items",
             "arguments": {
+              "limit": 100,
               "statuses": [
                 "open",
                 "snoozed"
               ],
-              "limit": 50,
               "timezone": "Asia/Shanghai"
             }
           }

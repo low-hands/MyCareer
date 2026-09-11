@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "1501fc26c47623c45c692db6be4606c43010e8cfad473082292154d1873095b9",
-  "recorded_at": "2026-09-11T08:14:03.031847+00:00",
+  "recorded_at": "2026-09-11T14:23:59.462547+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请先告诉我你想在哪个城市找工作（例如：北京、上海、深圳；也可以说“远程”）。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找工作？\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:14:03.031847+00:00",
+      "recorded_at": "2026-09-11T14:23:59.462547+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请先告诉我你想在哪个城市找工作（例如：北京、上海、深圳；也可以说“远程”）。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。你想在哪个城市找工作？\"}"
         }
       ]
     }

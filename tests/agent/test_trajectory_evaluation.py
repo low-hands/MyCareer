@@ -1209,13 +1209,20 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         assert cassette_staleness(
             cassette, scenario=scenario, tool_specs=schemas
         ) is None
-    # With handles kept out of system control, every fresh positive sample binds
-    # the matching tool-result reference rather than an older footer handle.
-    assert known_gap_reproduction(
+    # With handles kept out of system control, a fresh positive sample that
+    # calls the tool binds the matching tool-result reference rather than an
+    # older footer handle. Whether every sample calls it is the model's record,
+    # declared on the scenario like the mirror's: no known_gap means all bind;
+    # a known_gap must still reproduce or it is stale.
+    numbered_reproduction = known_gap_reproduction(
         replay_cassette(
             numbered, tool_specs=schemas, cassette=load_cassette(numbered.name)
         )
-    ) == "resolved"
+    )
+    if numbered.known_gap is None:
+        assert numbered_reproduction == "resolved"
+    else:
+        assert numbered_reproduction != "resolved", numbered.known_gap
     # The mirror's verdict is a statement about the model, so it is declared on
     # the scenario rather than fixed here: with no known_gap every sample must
     # refuse the differently titled handles; with one, the recording must still
@@ -1240,9 +1247,17 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
                 reference=guess, kind="job_research_report"
             )
 
+    # Every positive sample that reached the tool resolved report-a and never
+    # the history handle. A sample that made no call is the declared gap above,
+    # counted here so the two views of the cassette agree.
     resolved = []
+    missed_calls = 0
     for sample in load_cassette(numbered.name).recordings:
-        numbered_call = sample[0].get("tool_call", {})
+        numbered_call = sample[0].get("tool_call")
+        if numbered_call is None:
+            assert numbered.known_gap is not None
+            missed_calls += 1
+            continue
         assert numbered_call.get("name") == "get_job_research"
         resolved.append(
             numbered.context.resolve_reference(
@@ -1250,7 +1265,7 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
                 kind="job_research_report",
             )
         )
-    assert resolved.count("report-a") == numbered.recording_samples
+    assert resolved.count("report-a") + missed_calls == numbered.recording_samples
     assert resolved.count("report-h1") == 0
     # Every mirror sample either uses the grounded saved-job selector or
     # borrows one of the two visible, differently titled stored handles. The

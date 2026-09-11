@@ -2,9 +2,9 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "248051c68e10cfa17daf222ce6833c88558cbeee12a689d7df6baa765db60b1d",
-  "recorded_at": "2026-09-11T08:33:10.693790+00:00",
+  "recorded_at": "2026-09-11T14:44:36.591467+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 8,
-          "query": "目标公司 公司 美团 算法工程师"
+          "query": "目标公司 公司名 全名 指定 美团"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:49:04.997816+00:00",
+      "recorded_at": "2026-09-11T14:41:19.754454+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,14 +28,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司 美团 算法工程师"
+              "query": "目标公司 公司名 全名 指定 美团"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:33:11.596863+00:00",
+      "recorded_at": "2026-09-11T14:41:48.631038+00:00",
       "steps": [
         {
           "tool_call": {
@@ -43,22 +43,22 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司全名 美团"
+              "query": "目标公司 公司 美团 全名"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:33:10.693790+00:00",
+      "recorded_at": "2026-09-11T14:44:36.591467+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
               "from_sequence": 1,
-              "through_sequence": 8,
-              "query": "目标公司 公司 美团 算法工程师"
+              "query": "目标公司 公司全名 指定 美团",
+              "through_sequence": 8
             }
           }
         }

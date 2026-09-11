@@ -2,9 +2,9 @@
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
   "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "2934ee1d14f36b9cb6a778c289449da943379ca235d3e55da981a49bf975f94f",
-  "recorded_at": "2026-09-11T08:22:46.599754+00:00",
+  "recorded_at": "2026-09-11T14:30:25.008241+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:22:46.599754+00:00",
+      "recorded_at": "2026-09-11T14:30:25.008241+00:00",
       "steps": [
         {
           "tool_call": {
