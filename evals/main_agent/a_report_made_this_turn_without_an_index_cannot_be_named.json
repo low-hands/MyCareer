@@ -2,36 +2,23 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "d084e025ee79e9047a777ba0f6f99558f90941334b7fcf4bbec2305cc1eae8a0",
-  "recorded_at": "2026-09-11T08:27:05.493671+00:00",
+  "recorded_at": "2026-09-11T14:40:19.174154+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "selection_index": 1
+          "reference": "report_662e28"
         }
       }
     }
   ],
-  "sample_count": 3,
+  "sample_count": 5,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:24:07.293700+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "selection_index": 1
-            }
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-11T08:28:58.245873+00:00",
+      "recorded_at": "2026-09-11T14:40:12.798198+00:00",
       "steps": [
         {
           "tool_call": {
@@ -44,13 +31,52 @@
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:27:05.493671+00:00",
+      "recorded_at": "2026-09-11T14:39:48.345844+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-11T14:39:57.330784+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
               "selection_index": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-11T14:40:04.771614+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-11T14:40:19.174154+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
             }
           }
         }

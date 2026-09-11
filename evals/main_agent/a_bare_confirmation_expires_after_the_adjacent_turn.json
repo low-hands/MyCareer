@@ -2,37 +2,37 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "7e23bcbd8346e9fa365ed7f6cefeba3869a4f42ef9a29dcd4b7b93f9f6ab5054",
-  "recorded_at": "2026-09-11T08:50:42.959503+00:00",
+  "recorded_at": "2026-09-11T14:14:33.988307+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"请告诉我：\\n\\n- **城市**：例如北京、上海、杭州\\n- **岗位方向或关键词**：例如后端开发、产品经理、数据分析\\n\\n我会按你的条件打开招聘搜索。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找的城市；如果还有目标岗位方向或关键词，也一并发我。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:50:18.461204+00:00",
+      "recorded_at": "2026-09-11T14:17:13.753995+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"请告诉我：\\n\\n- **城市**：例如北京、上海、杭州\\n- **岗位方向或关键词**：例如后端开发、产品经理、数据分析\\n\\n我会按你的条件打开招聘搜索。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找的城市；如果还有目标岗位方向或关键词，也一并发我。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:50:28.646674+00:00",
+      "recorded_at": "2026-09-11T14:15:34.997467+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"请告诉我你想找的**城市**和**岗位方向/关键词**，例如：“上海，后端开发”或“深圳，产品经理”。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想看的城市；如果有具体岗位方向或关键词，也可以一并发来。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:50:42.959503+00:00",
+      "recorded_at": "2026-09-11T14:14:33.988307+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想搜索的城市，以及岗位关键词或方向（例如“上海，后端开发”）。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找的岗位方向和城市，例如“上海后端开发”或“杭州产品经理”。\"}"
         }
       ]
     }

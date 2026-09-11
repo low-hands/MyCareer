@@ -2,27 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "fc32290082bd8c025a28e0c1c07367579ca4ce9b78fe27ac0674c34dd3d76801",
-  "recorded_at": "2026-09-11T08:18:23.166767+00:00",
+  "recorded_at": "2026-09-11T14:18:37.808630+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_resumes",
-        "arguments": {}
-      }
+      "content": "{\"action\":\"final\",\"message\":\"明白。你先完成提交，提交成功后告诉我，我再帮你记录这次申请。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:18:23.166767+00:00",
+      "recorded_at": "2026-09-11T14:18:37.808630+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "list_resumes",
-            "arguments": {}
-          }
+          "content": "{\"action\":\"final\",\"message\":\"明白。你先完成提交，提交成功后告诉我，我再帮你记录这次申请。\"}"
         }
       ]
     }

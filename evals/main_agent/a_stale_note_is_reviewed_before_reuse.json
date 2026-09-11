@@ -2,21 +2,21 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "8098096cbbe1c6cca34b13db5abddef8975055f10d72a5efe7efa3b54b6bec13",
-  "recorded_at": "2026-09-11T08:17:43.470251+00:00",
+  "recorded_at": "2026-09-11T14:27:36.499697+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请提供目标城市和岗位关键词，例如“上海，Rust 后端开发”。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请提供你想找工作的城市（例如：北京、上海、深圳）。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:17:43.470251+00:00",
+      "recorded_at": "2026-09-11T14:27:36.499697+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请提供目标城市和岗位关键词，例如“上海，Rust 后端开发”。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请提供你想找工作的城市（例如：北京、上海、深圳）。\"}"
         }
       ]
     }

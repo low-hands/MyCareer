@@ -2,16 +2,17 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "cdd70ae9fbd3523d0172d0f3ee2238bf98c47f0cd2ae270ac2e36f3b38429fbf",
-  "recorded_at": "2026-09-11T08:30:22.674980+00:00",
+  "recorded_at": "2026-09-11T14:41:18.760721+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：主要竞争者、竞品定位、差异化优势与竞争格局",
-          "max_sources": 8
+          "focus": "竞争对手分析：主要竞争对手、产品/业务差异、市场定位与竞争格局",
+          "max_sources": 8,
+          "selection_index": 1
         }
       }
     }
@@ -19,14 +20,15 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:30:22.674980+00:00",
+      "recorded_at": "2026-09-11T14:41:18.760721+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手：主要竞争者、竞品定位、差异化优势与竞争格局",
-              "max_sources": 8
+              "focus": "竞争对手分析：主要竞争对手、产品/业务差异、市场定位与竞争格局",
+              "max_sources": 8,
+              "selection_index": 1
             }
           }
         }

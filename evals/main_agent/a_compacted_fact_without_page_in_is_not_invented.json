@@ -2,37 +2,37 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "c6274b63225b7eb0bb89cc7148429de87dc4a46d289ff5dbda1ac50a1158b31a",
-  "recorded_at": "2026-09-11T08:34:22.200505+00:00",
+  "recorded_at": "2026-09-11T14:41:32.896895+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定目标公司的完整名称，现有记录只确认了刚才窗口里的是美团。请把前面那条目标公司名称再发一次，我再帮你核对。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"我目前能确认你提到过美团，但当前可见上下文没有显示你最初指定的目标公司全名。请把当时的公司名或相关 JD 再发我一次，我再帮你准确确认。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:36:46.092208+00:00",
+      "recorded_at": "2026-09-11T14:43:37.915195+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定目标公司的完整名称，现有记录只确认了刚才窗口里的是美团。请把前面那条目标公司名称再发一次，我再帮你核对。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前能确认你提到过美团，但当前可见上下文没有显示你最初指定的目标公司全名。请把当时的公司名或相关 JD 再发我一次，我再帮你准确确认。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:37:12.105755+00:00",
+      "recorded_at": "2026-09-11T14:41:55.922361+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前无法从可见上下文确认你一开始指定的目标公司全名；只能确认那不是美团。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我当前能看到的上下文里没有你最初指定的目标公司全名，只有“美团”这份窗口中的 JD。请再提供公司简称或相关岗位信息，我再帮你核对。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T08:34:22.200505+00:00",
+      "recorded_at": "2026-09-11T14:41:32.896895+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定目标公司的那条原始消息，无法可靠确认全名。请把当时的公司名或相关 JD 再发我一次。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你一开始指定的目标公司全名；当前上下文只提到了美团这份 JD，不能据此推断目标公司。\"}"
         }
       ]
     }

@@ -2,9 +2,9 @@
   "scenario": "an_approved_calendar_proposal_is_executed",
   "policy": "Call execute_calendar_proposal only when the current user message explicitly approves the active displayed proposal.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "0ea970c45b842ca6369ec6c2d1e855307680a886d6c59c299238c89a9a1644fb",
+  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
   "context_shape_fingerprint": "1501fc26c47623c45c692db6be4606c43010e8cfad473082292154d1873095b9",
-  "recorded_at": "2026-09-11T08:18:52.699087+00:00",
+  "recorded_at": "2026-09-11T14:17:46.643440+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,7 +16,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T08:18:52.699087+00:00",
+      "recorded_at": "2026-09-11T14:17:46.643440+00:00",
       "steps": [
         {
           "tool_call": {
