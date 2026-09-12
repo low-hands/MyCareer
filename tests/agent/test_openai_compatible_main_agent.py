@@ -661,6 +661,177 @@ def test_current_message_clipping_is_marked_like_a_clipped_window_message(
     assert all("the tail that was cut" not in m["content"] for m in messages)
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            {
+                "error": {
+                    "code": "context_length_exceeded",
+                    "type": "invalid_request_error",
+                    "message": "too long",
+                }
+            },
+            "MAIN_AGENT_REJECTED_400_context_length_exceeded",
+        ),
+        ({"error": {"message": "rejected without a code"}}, "MAIN_AGENT_REJECTED_400"),
+        ({"error": {"code": "not a safe identifier!"}}, "MAIN_AGENT_REJECTED_400"),
+        (None, "MAIN_AGENT_REJECTED_400"),
+    ],
+    ids=["provider-code", "no-code", "unsafe-code", "no-body"],
+)
+def test_a_rejected_decision_carries_the_provider_error_code(body, expected) -> None:
+    import httpx
+    from openai import APIStatusError
+
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    error = APIStatusError(
+        "rejected",
+        response=httpx.Response(
+            400,
+            request=httpx.Request(
+                "POST", "https://example.test/v1/chat/completions"
+            ),
+        ),
+        body=body,
+    )
+
+    class RejectingCompletions:
+        def create(self, **kwargs):
+            raise error
+
+    client = type(
+        "Client",
+        (),
+        {"chat": type("Chat", (), {"completions": RejectingCompletions()})()},
+    )()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="decision-model",
+        ),
+        client=client,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    assert raised.value.code == expected
+
+
+def _maker_over_transport(monkeypatch, handler) -> OpenAICompatibleMainAgentDecisionMaker:
+    """A real SDK client and retry loop, answering from ``handler``."""
+    import httpx
+
+    monkeypatch.setattr(
+        "career_agent.agent.openai_compatible_main_agent.DefaultHttpxClient",
+        lambda **kwargs: httpx.Client(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    monkeypatch.setattr("openai._base_client.time.sleep", lambda seconds: None)
+    return OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="decision-model",
+        )
+    )
+
+
+def test_decide_records_every_http_attempt_including_sdk_retries(
+    monkeypatch,
+) -> None:
+    import httpx
+
+    outcomes = iter(("timeout", 503, 200))
+
+    def handler(request):
+        outcome = next(outcomes)
+        if outcome == "timeout":
+            raise httpx.ReadTimeout("stalled", request=request)
+        if outcome == 503:
+            return httpx.Response(503, json={"error": {"message": "busy"}})
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "decision-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(
+                                {"action": "final", "message": "done"}
+                            ),
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "total_tokens": 12,
+                },
+            },
+        )
+
+    maker = _maker_over_transport(monkeypatch, handler)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    decision = maker.decide(context, ())
+
+    assert decision.action == "final"
+    metrics = maker.consume_cache_metrics()
+    assert metrics["attempt_count"] == 3
+    assert metrics["attempt_results"] == ["no_response", 503, 200]
+    assert metrics["input_units"] == 10
+    # Read once: the next decision starts its own count.
+    assert "attempt_count" not in maker.consume_cache_metrics()
+
+
+def test_a_decision_that_never_got_a_response_still_reports_its_attempts(
+    monkeypatch,
+) -> None:
+    import httpx
+
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    def handler(request):
+        raise httpx.ReadTimeout("stalled", request=request)
+
+    maker = _maker_over_transport(monkeypatch, handler)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    assert raised.value.code == "MAIN_AGENT_TRANSPORT_ERROR"
+    # What model_failed receives: one initial attempt and three SDK retries.
+    assert maker.consume_cache_metrics() == {
+        "attempt_count": 4,
+        "attempt_results": ["no_response"] * 4,
+    }
+
+
 def test_dynamic_control_does_not_change_the_static_system_message() -> None:
     base = MainAgentContext(
         conversation_id="c1",
