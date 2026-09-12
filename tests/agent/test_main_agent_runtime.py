@@ -627,6 +627,70 @@ def test_runtime_rejects_an_unguarded_request_token_estimator(tmp_path) -> None:
         )
 
 
+def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
+    tmp_path,
+) -> None:
+    """A memory write reloads the context from the message as sent, not its
+    prompt copy, so the turn still stores what the user typed."""
+    from career_agent.agent.token_budget import message_token_count
+
+    long_message = (
+        "负责大模型推理服务的性能优化与稳定性建设，熟悉分布式训练框架，"
+        "具备鑫龘饕餮等生僻字处理经验；" * 800
+    )[:32_000]
+
+    class NoteWritingRegistry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolObservation(
+                tool_name=name,
+                state="working_notes_updated",
+                message="已更新工作笔记。",
+                execution_outcome="committed",
+            )
+
+    class BudgetedDecisions(SequenceDecisionMaker):
+        @staticmethod
+        def static_request_token_usage(tool_specs):
+            return 12_066, 32_000
+
+        @staticmethod
+        def request_token_usage(context, tool_specs):
+            return 20_000, 32_000
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = BudgetedDecisions(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="update_working_notes", arguments={}),
+        ),
+        AgentDecision(action="final", message="已记录。"),
+    )
+
+    Runtime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=NoteWritingRegistry(),
+    ).run_turn(user_id="u1", conversation_id="c1", user_message=long_message)
+
+    # The write reloaded the context between the two decisions; both still saw
+    # the clipped copy and knew it was clipped.
+    assert len(decisions.contexts) == 2
+    for context in decisions.contexts:
+        assert context.user_message_clipped is True
+        assert message_token_count(context.user_message) <= 3_986
+    stored = manager._store.list_message_records("u1", "c1", limit=10)
+    assert stored[0].message.content == long_message
+
+
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     tmp_path,
 ) -> None:

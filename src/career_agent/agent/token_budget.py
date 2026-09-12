@@ -53,6 +53,40 @@ def count_tokens(text: str) -> int:
     return len(budget_encoding().encode(text))
 
 
+@lru_cache(maxsize=128)
+def message_token_count(text: str) -> int:
+    """``count_tokens`` for one message body, memoised.
+
+    A turn projects the same messages more than once (pressure measurement, the
+    load, a reload after a memory write), and each projection measures them.
+    Kept apart from ``count_tokens`` because the whole serialised request goes
+    through that one: every request is distinct, so its entries would never hit
+    and would each be the size of the prompt. Message bodies are capped at
+    ``max_message_chars``, which is what bounds this cache.
+    """
+    return count_tokens(text)
+
+
+def clip_to_tokens(text: str, limit: int) -> tuple[str, bool]:
+    """Return ``text`` cut at a token boundary, and whether anything was cut."""
+    if limit < 1:
+        raise ValueError("token limit must be at least 1")
+    if message_token_count(text) <= limit:
+        return text, False
+    encoding = budget_encoding()
+    ids = encoding.encode(text)
+    end = limit
+    while True:
+        # A multi-byte character cut between two tokens decodes to U+FFFD.
+        # Drop it rather than show the model a character nobody typed.
+        clipped = encoding.decode(ids[:end]).rstrip("\ufffd")
+        # Re-encoding a decoded prefix need not give back the same ids, so the
+        # bound is checked on the text rather than assumed from the slice.
+        if len(encoding.encode(clipped)) <= limit:
+            return clipped, True
+        end -= 1
+
+
 def serialized_token_count(value: Any) -> int:
     return count_tokens(
         json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)

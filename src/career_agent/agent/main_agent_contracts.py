@@ -1929,6 +1929,23 @@ class MainAgentContext(ContractModel):
     )
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
+    user_message_source: str | None = Field(default=None, exclude=True)
+    """The message as the user sent it, kept only when ``user_message`` was clipped."""
+
+    user_message_clipped: bool = Field(default=False, exclude=True)
+    """Whether ``user_message`` is shorter than what the user sent.
+
+    Rendered on the prompt copy the same way a clipped recent-window message
+    is, so a cut-off request never reads as the whole of it.
+    """
+
+    def stored_user_message(self) -> str:
+        """The message to persist or reload from, never the prompt's clipped copy."""
+        return (
+            self.user_message_source
+            if self.user_message_source is not None
+            else self.user_message
+        )
 
     @model_validator(mode="before")
     @classmethod

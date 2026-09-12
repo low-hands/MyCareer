@@ -634,6 +634,33 @@ def test_recent_message_clipping_is_visible_in_native_history() -> None:
     assert messages[2]["content"].endswith("content_clipped=true]")
 
 
+@pytest.mark.parametrize("clipped", [True, False])
+def test_current_message_clipping_is_marked_like_a_clipped_window_message(
+    clipped: bool,
+) -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="partial request",
+        user_message_source=(
+            "partial request and the tail that was cut" if clipped else None
+        ),
+        user_message_clipped=clipped,
+    )
+
+    messages = project_decision_messages(context).messages(
+        system_prompt="policy", spotlight_nonce="nonce"
+    )
+
+    current = messages[-1]
+    assert current["role"] == "user"
+    assert current["content"].startswith("partial request")
+    assert current["content"].endswith(
+        "\n\n[runtime message metadata: content_clipped=true]"
+    ) is clipped
+    assert all("the tail that was cut" not in m["content"] for m in messages)
+
+
 def test_dynamic_control_does_not_change_the_static_system_message() -> None:
     base = MainAgentContext(
         conversation_id="c1",

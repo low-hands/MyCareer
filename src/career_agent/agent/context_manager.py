@@ -27,6 +27,7 @@ from career_agent.agent.main_agent_contracts import (
     WorkingNotesContext,
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.token_budget import clip_to_tokens, message_token_count
 from career_agent.agent.session_manager import SessionManager
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.resume import TargetRole
@@ -78,6 +79,12 @@ class WorkingNotesSource(Protocol):
 
 class ContextManager:
     _MAX_STATIC_INPUT_FRACTION = 0.5
+    # Shares of what the static request leaves, so raising the input budget
+    # raises them without retuning. The other 40% is for projections and this
+    # turn's observations, the headroom the 0.75 compaction threshold implies.
+    _USER_MESSAGE_FRACTION = 0.20
+    _RECENT_WINDOW_FRACTION = 0.40
+    _RECENT_MESSAGE_FRACTION = 0.15
     _TARGET_ROLE_SAFETY_LIMIT = 100
     _TELEMETRY_VERSION_LIMIT = 512
     _RECENT_DEDUP_MIN_CHARS = 512
@@ -86,7 +93,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, max_user_message_tokens: int | None = None, max_recent_context_tokens: int | None = None, max_recent_message_tokens: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -98,6 +105,15 @@ class ContextManager:
         )
         if not 1 <= per_message_context_chars <= max_recent_context_chars:
             raise ValueError("recent per-message budget is invalid")
+        if any(
+            limit is not None and limit < 1
+            for limit in (
+                max_user_message_tokens,
+                max_recent_context_tokens,
+                max_recent_message_tokens,
+            )
+        ):
+            raise ValueError("conversation token budgets are invalid")
         if not 0 <= archived_resource_limit <= 12:
             # Capped at the contract's own bound, which counts *messages*, not
             # catalogue entries: a message can carry several references since a
@@ -132,6 +148,14 @@ class ContextManager:
         self._request_token_estimator: (
             Callable[[MainAgentContext], tuple[int, int]] | None
         ) = None
+        # Explicit token caps win over the ones derived from the request
+        # budget. With neither, messages are bounded by characters alone.
+        self._max_user_message_tokens = max_user_message_tokens
+        self._max_recent_context_tokens = max_recent_context_tokens
+        self._max_recent_message_tokens = max_recent_message_tokens
+        self._user_message_tokens = max_user_message_tokens
+        self._recent_context_tokens = max_recent_context_tokens
+        self._recent_message_tokens = max_recent_message_tokens
 
     def now(self) -> datetime:
         """The one clock for stamping proposals and expiring them.
@@ -154,6 +178,9 @@ class ContextManager:
         it supplies this callback after constructing both.  Keeping that
         dependency out of the storage constructor also leaves lightweight
         context-only callers usable in tests and maintenance commands.
+
+        The static measurement also sets the token caps on this turn's message
+        and the recent window, as shares of what the static request leaves.
         """
         if (static_input_tokens is None) != (max_input_tokens is None):
             raise ValueError(
@@ -171,6 +198,22 @@ class ContextManager:
                     "max_input_tokens; increase the input budget or reduce "
                     "the installed tool universe"
                 )
+            dynamic_tokens = max_input_tokens - static_input_tokens
+
+            def derived(explicit: int | None, fraction: float) -> int:
+                if explicit is not None:
+                    return explicit
+                return max(1, int(dynamic_tokens * fraction))
+
+            self._user_message_tokens = derived(
+                self._max_user_message_tokens, self._USER_MESSAGE_FRACTION
+            )
+            self._recent_context_tokens = derived(
+                self._max_recent_context_tokens, self._RECENT_WINDOW_FRACTION
+            )
+            self._recent_message_tokens = derived(
+                self._max_recent_message_tokens, self._RECENT_MESSAGE_FRACTION
+            )
         self._request_token_estimator = estimator
 
     def load_for_turn(
@@ -244,6 +287,14 @@ class ContextManager:
     def _build_context(
         self, *, user_id: str, conversation_id: str, user_message: str
     ) -> MainAgentContext:
+        # Retrieval reads the prompt copy too. An FTS query gets one OR term
+        # per trigram of the message, and MATCH time grows faster than the term
+        # count: a 32k-character paste costs seconds per search, and a few
+        # thousand common trigrams dilute every ranking. The head of a long
+        # paste already carries its key terms.
+        prompt_message, user_message_clipped, user_message_source = (
+            self._bound_user_message(user_message)
+        )
         session = self._store.get_session(user_id, conversation_id)
         profile = self._profile_context(user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
@@ -301,7 +352,7 @@ class ContextManager:
         ) = self._free_text_preference_context(
             user_id=user_id,
             conversation_id=conversation_id,
-            user_message=user_message,
+            user_message=prompt_message,
             task=task,
         )
         return MainAgentContext(
@@ -319,7 +370,7 @@ class ContextManager:
             career_episodes=self._episode_context(
                 user_id=user_id,
                 conversation_id=conversation_id,
-                user_message=user_message,
+                user_message=prompt_message,
             ),
             task=task,
             recent_messages=tuple(record.message for record in recent_records),
@@ -355,7 +406,9 @@ class ContextManager:
                 else 0
             ),
             conversation_summary=summary.content if summary else None,
-            user_message=self._truncate(user_message),
+            user_message=prompt_message,
+            user_message_source=user_message_source,
+            user_message_clipped=user_message_clipped,
         )
 
     def _episode_context(
@@ -954,7 +1007,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
-            user_message=ConversationMessageContext(role="user", content=self._truncate(context.user_message), created_at=now),
+            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
             episode_drafts=episode_drafts,
             memory_scope_keys=memory_scope_keys,
@@ -963,7 +1016,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             trigger=compaction_trigger,
-            user_message=context.user_message,
+            user_message=context.stored_user_message(),
         )
         self._sessions.touch(user_id=context.profile.user_id, session_id=context.conversation_id)
 
@@ -985,7 +1038,9 @@ class ContextManager:
         Returns the task state that was persisted, which carries the held
         request and must be the one the caller reports.
         """
-        held = task.hold_entry_message(self._truncate(context.user_message))
+        held = task.hold_entry_message(
+            self._truncate(context.stored_user_message())
+        )
         self.commit_workflow_turn(
             context=context,
             task=held,
@@ -1043,7 +1098,15 @@ class ContextManager:
         # this request behind, and the next run would answer it instead of its
         # own. Written and cleared in one call, so the two cannot drift.
         self.commit_turn(
-            context=context.model_copy(update={"user_message": entry}),
+            context=context.model_copy(
+                update={
+                    "user_message": entry,
+                    # The held request is already the stored copy. A source
+                    # left over from this turn's input would be written instead.
+                    "user_message_source": None,
+                    "user_message_clipped": False,
+                }
+            ),
             task=task.model_copy(update={"workflow_entry_message": None}),
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
@@ -1105,6 +1168,24 @@ class ContextManager:
 
     def _truncate(self, content: str) -> str:
         return content[:self._max_message_chars]
+
+    def _bound_user_message(
+        self, user_message: str
+    ) -> tuple[str, bool, str | None]:
+        """The prompt copy of this turn's message, whether it was cut, and the
+        original when it was.
+
+        Without a token cap this is the character cut alone and reports
+        nothing, as it did before the cap existed.
+        """
+        prompt_message = self._truncate(user_message)
+        if self._user_message_tokens is None:
+            return prompt_message, False, None
+        prompt_message, _ = clip_to_tokens(
+            prompt_message, self._user_message_tokens
+        )
+        clipped = len(prompt_message) < len(user_message)
+        return prompt_message, clipped, user_message if clipped else None
 
     def _maybe_summarize(
         self,
@@ -1458,34 +1539,63 @@ class ContextManager:
     def _bound_recent_messages(
         self, messages: tuple[StoredConversationMessage, ...]
     ) -> tuple[StoredConversationMessage, ...]:
+        # Measured in tokens once the request budget has set the caps, and in
+        # characters otherwise, which is the legacy behaviour unchanged.
+        token_bounded = (
+            self._recent_context_tokens is not None
+            and self._recent_message_tokens is not None
+        )
+        if token_bounded:
+            window_cap = self._recent_context_tokens
+            message_cap = self._recent_message_tokens
+            measure = message_token_count
+        else:
+            window_cap = self._max_recent_context_chars
+            message_cap = self._max_recent_message_chars
+            measure = len
         selected = []
         used = 0
         # Reserve a fair share for at least four recent messages when four are
         # available, while letting one or two messages use the old half-window
         # ceiling. This prevents two giant turns from evicting the other six
         # without needlessly clipping a genuinely short window.
-        uncrowded_chars = sum(
-            min(len(record.message.content), self._max_recent_message_chars)
+        uncrowded = sum(
+            min(measure(record.message.content), message_cap)
             for record in messages
         )
-        if uncrowded_chars <= self._max_recent_context_chars:
-            per_message_chars = self._max_recent_message_chars
+        if uncrowded <= window_cap:
+            per_message = message_cap
         else:
-            fair_message_chars = max(
-                1,
-                self._max_recent_context_chars // min(len(messages) or 1, 4),
-            )
-            per_message_chars = min(
-                self._max_recent_message_chars, fair_message_chars
-            )
+            fair_message = max(1, window_cap // min(len(messages) or 1, 4))
+            per_message = min(message_cap, fair_message)
         for record in reversed(messages):
-            remaining = self._max_recent_context_chars - used
+            remaining = window_cap - used
             if remaining <= 0:
                 break
-            content = record.message.content[
-                : min(remaining, per_message_chars)
-            ]
-            content_clipped = len(content) < len(record.message.content)
+            allowance = min(remaining, per_message)
+            if token_bounded:
+                content, content_clipped = clip_to_tokens(
+                    record.message.content, allowance
+                )
+                if content_clipped and not content:
+                    # Too little room for even the first character. A message
+                    # that projects as nothing is not a message; end the window
+                    # here and let recent_from_sequence name the first one
+                    # actually shown. A stored message that was empty to begin
+                    # with is not clipped and stays.
+                    break
+                # A clipped message is charged its whole allowance, so the
+                # tokens of a split character it dropped are not handed on to
+                # the next older message as a scrap of room.
+                used += (
+                    allowance
+                    if content_clipped
+                    else message_token_count(content)
+                )
+            else:
+                content = record.message.content[:allowance]
+                content_clipped = len(content) < len(record.message.content)
+                used += len(content)
             selected.append(
                 record.model_copy(
                     update={
@@ -1498,7 +1608,6 @@ class ContextManager:
                     }
                 )
             )
-            used += len(content)
         return tuple(reversed(selected))
 
     def _deduplicate_recent_messages(
