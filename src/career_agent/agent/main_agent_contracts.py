@@ -1797,14 +1797,50 @@ def _bounded_markdown(
     budget: int,
     line_limit: int,
 ) -> str:
+    """Fit ``lines`` into ``budget`` characters, saying how many were dropped.
+
+    Dropping the tail silently let the projection lie by omission, and the lines
+    most exposed are the ones a section appends last — including the counts that
+    report an earlier cap, so a tight budget could hide the very notice that a
+    slot cap had hidden something. Both call sites share the fix: the notice is
+    paid for out of the same budget, giving up accepted lines until it fits.
+    """
+
     accepted: list[str] = []
-    for line in lines:
+    for index, line in enumerate(lines):
         bounded = line if len(line) <= line_limit else line[: line_limit - 1] + "…"
         candidate = "\n".join((*accepted, bounded))
         if len(candidate) > budget:
-            break
+            return _with_truncation_notice(
+                accepted,
+                dropped=len(lines) - index,
+                budget=budget,
+            )
         accepted.append(bounded)
     return "\n".join(accepted)
+
+
+def _with_truncation_notice(
+    accepted: list[str],
+    *,
+    dropped: int,
+    budget: int,
+) -> str:
+    """Append a count of hidden lines, buying room for it by hiding more.
+
+    A budget too small for even the first line yields nothing rather than a
+    section whose only content is the notice: the caller can drop an empty
+    section, and a lone count is not worth the characters it costs.
+    """
+
+    kept = list(accepted)
+    while kept:
+        candidate = "\n".join((*kept, f"- （另有 {dropped} 行未显示）"))
+        if len(candidate) <= budget:
+            return candidate
+        kept.pop()
+        dropped += 1
+    return ""
 
 
 class MainAgentContext(ContractModel):
@@ -1819,6 +1855,25 @@ class MainAgentContext(ContractModel):
         default=(),
         max_length=8,
     )
+    free_text_preferences_active_total: int = Field(default=0, ge=0, exclude=True)
+    """How many confirmed preferences the projection selected from.
+
+    Carried for the same reason as ``archived_resource_total``: the eight-slot
+    cap cannot say it was applied, so a full list reads as everything the user
+    has ever confirmed. Rendered as a count of what is missing, not a flag.
+    """
+
+    free_text_preferences_quarantined_total: int = Field(
+        default=0, ge=0, exclude=True
+    )
+    """How many quarantined candidates the projection selected from.
+
+    Separate from the active total because the two are rendered in different
+    sections under different authority, and because a candidate held back is
+    the more consequential omission: it is waiting to be confirmed, and a silent
+    cut leaves it waiting indefinitely.
+    """
+
     working_notes: WorkingNotesContext | None = None
     career_episodes: tuple[EpisodeProjectionContext, ...] = Field(
         default=(),
@@ -1875,6 +1930,39 @@ class MainAgentContext(ContractModel):
     conversation_summary: ConversationSummaryContent | None = None
     user_message: str = Field(min_length=1)
 
+    @model_validator(mode="before")
+    @classmethod
+    def populate_free_text_preference_totals(cls, value: object) -> object:
+        """Default each total to the count projected, as the uncapped case.
+
+        A caller that never hit the cap should not have to say so twice, and a
+        context assembled without the totals would otherwise claim a truncation
+        it does not have. ``ContextManager`` passes them explicitly, which is the
+        only place they can exceed what is projected.
+        """
+        if not isinstance(value, dict):
+            return value
+        projected = value.get("free_text_preferences", ())
+        try:
+            statuses = [
+                item.status
+                if hasattr(item, "status")
+                else item.get("status")
+                for item in projected
+            ]
+        except (AttributeError, TypeError):
+            return value
+        filled = dict(value)
+        if "free_text_preferences_active_total" not in filled:
+            filled["free_text_preferences_active_total"] = sum(
+                status == "active" for status in statuses
+            )
+        if "free_text_preferences_quarantined_total" not in filled:
+            filled["free_text_preferences_quarantined_total"] = sum(
+                status == "quarantined" for status in statuses
+            )
+        return filled
+
     @model_validator(mode="after")
     def observation_bodies_are_only_on_the_newest_item(self) -> "MainAgentContext":
         if self.recent_from_sequence is not None and (
@@ -1890,6 +1978,20 @@ class MainAgentContext(ContractModel):
             MAX_DECISION_OBSERVATION_CHARS
         ):
             raise ValueError("decision observations exceed the character budget")
+        if self.free_text_preferences_active_total < sum(
+            item.status == "active" for item in self.free_text_preferences
+        ):
+            raise ValueError(
+                "free_text_preferences_active_total cannot be smaller than "
+                "projected confirmed preferences"
+            )
+        if self.free_text_preferences_quarantined_total < sum(
+            item.status == "quarantined" for item in self.free_text_preferences
+        ):
+            raise ValueError(
+                "free_text_preferences_quarantined_total cannot be smaller "
+                "than projected quarantined preferences"
+            )
         return self
 
     def referenced_resources(self) -> tuple[ConversationResourceReference, ...]:
@@ -2095,6 +2197,18 @@ class MainAgentContext(ContractModel):
         )
         if not active_free_text_preferences:
             preference_lines.append("- 无")
+        # Only when something was actually held back. A line that is always
+        # present would be a constant, and a constant tells the model nothing
+        # about this turn.
+        hidden_active = max(
+            0,
+            self.free_text_preferences_active_total
+            - len(active_free_text_preferences),
+        )
+        if hidden_active:
+            preference_lines.append(
+                f"- （另有 {hidden_active} 条已确认偏好未列出）"
+            )
         preference_lines.append("## 待确认偏好（隔离态，不得用于筛选、排序或推荐）")
         preference_lines.extend(
             f"{index}. {item.statement}"
@@ -2105,6 +2219,15 @@ class MainAgentContext(ContractModel):
         )
         if not quarantined_free_text_preferences:
             preference_lines.append("- 无")
+        hidden_quarantined = max(
+            0,
+            self.free_text_preferences_quarantined_total
+            - len(quarantined_free_text_preferences),
+        )
+        if hidden_quarantined:
+            preference_lines.append(
+                f"- （另有 {hidden_quarantined} 条待确认偏好未列出）"
+            )
         preference_markdown = _bounded_markdown(
             preference_lines,
             budget=_PREFERENCE_CHAR_CAP,
@@ -2131,9 +2254,12 @@ class MainAgentContext(ContractModel):
             if self.career_episodes
             else ""
         )
+        # A catalogue with no entry is two headings and, now that bounding says
+        # what it dropped, possibly a count. Checking for an actual entry rather
+        # than a line total keeps that count from passing as content.
         episode_markdown = (
             bounded_episode_markdown
-            if len(bounded_episode_markdown.splitlines()) >= 3
+            if "detail_ref=" in bounded_episode_markdown
             else ""
         )
         return {

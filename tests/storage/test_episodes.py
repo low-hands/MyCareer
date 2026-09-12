@@ -254,7 +254,7 @@ def test_short_query_like_wildcards_are_literal(tmp_path) -> None:
     assert store.search(user_id="u1", query="%") == ()
 
 
-def test_projection_returns_only_relevant_events_and_records_access(
+def test_projection_returns_only_relevant_events_without_recording_access(
     tmp_path,
 ) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
@@ -275,6 +275,14 @@ def test_projection_returns_only_relevant_events_and_records_access(
     )
 
     assert [item.id for item in projected] == [relevant.id]
+    # Projection is a pure read: the runtime builds a context several times per
+    # turn, and stamping access here counted its bookkeeping instead of the
+    # episode being seen. Exposure is marked once, by the caller.
+    unchanged = store.get(user_id="u1", episode_id=relevant.id)
+    assert unchanged is not None
+    assert unchanged.access_count == 0
+    assert unchanged.last_accessed_at is None
+    store.mark_accessed(user_id="u1", episode_ids=(relevant.id,))
     accessed = store.get(user_id="u1", episode_id=relevant.id)
     assert accessed is not None
     assert accessed.access_count == 1
