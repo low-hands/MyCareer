@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Literal, Protocol
 
@@ -75,6 +76,23 @@ class TargetRoleSource(Protocol):
 
 class WorkingNotesSource(Protocol):
     def read(self, *, user_id: str) -> WorkingNotesSnapshot: ...
+
+
+@dataclass(frozen=True)
+class _Pressure:
+    """How full the next request is expected to be, and how that was known."""
+
+    occupancy: float | None
+    """``None`` when nothing was measured, which never triggers compaction."""
+
+    projection_overflow: bool
+    request_tokens: int | None
+    max_input_tokens: int | None
+    context: MainAgentContext | None
+    """The context built to measure, so a load that does not compact can use it
+    instead of building again. Only the estimated path builds one."""
+
+    source: Literal["estimated", "carried", "legacy", "seam", "overflow_only"]
 
 
 class ContextManager:
@@ -156,6 +174,10 @@ class ContextManager:
         self._user_message_tokens = max_user_message_tokens
         self._recent_context_tokens = max_recent_context_tokens
         self._recent_message_tokens = max_recent_message_tokens
+        # The complete-request estimate each conversation's latest load took,
+        # left for that turn's commit. The commit removes what it reads, so this
+        # holds at most one entry per conversation with a turn in flight.
+        self._carried_request_tokens: dict[tuple[str, str], tuple[int, int]] = {}
 
     def now(self) -> datetime:
         """The one clock for stamping proposals and expiring them.
@@ -225,11 +247,16 @@ class ContextManager:
             conversation_id=conversation_id,
             message=user_message,
         )
-        reusable = self._maybe_summarize(
+        pressure = self._maybe_summarize(
             user_id=user_id,
             conversation_id=conversation_id,
             trigger="occupancy",
-            user_message=user_message,
+            measure=lambda after_sequence: self._recent_pressure(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+                user_message=user_message,
+            ),
         )
         expired = self._expire_stale_proposals(
             user_id=user_id, conversation_id=conversation_id
@@ -240,12 +267,60 @@ class ContextManager:
         # repeat a full construction, two FTS rankings and a notes read for an
         # identical result. Compaction or an expired proposal invalidates it, so
         # those paths fall through to a fresh build.
-        if reusable is not None and not expired:
-            return reusable
-        return self._build_context(
+        if (
+            pressure is not None
+            and pressure.context is not None
+            and pressure.request_tokens is not None
+            and pressure.max_input_tokens is not None
+            and not expired
+        ):
+            self._carry_request_estimate(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                context=pressure.context,
+                measured=(pressure.request_tokens, pressure.max_input_tokens),
+            )
+            return pressure.context
+        context = self._build_context(
             user_id=user_id,
             conversation_id=conversation_id,
             user_message=user_message,
+        )
+        self._carry_request_estimate(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            context=context,
+            measured=None,
+        )
+        return context
+
+    def _carry_request_estimate(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        context: MainAgentContext,
+        measured: tuple[int, int] | None,
+    ) -> None:
+        """Leave this load's complete-request estimate for the turn's commit.
+
+        The commit decides whether to compact from this number plus its reply,
+        instead of building the whole context again to measure it. Both use the
+        same estimator, so the load and the commit judge occupancy on one scale.
+
+        ``measured`` is ``None`` when compaction or an expired proposal changed
+        storage after the pressure measurement. That measurement then describes
+        a context this turn no longer has, and a pre-compaction figure would
+        compact a second batch at commit, so the returned context is estimated
+        instead. That costs an estimate, not a build, and only on a turn that
+        already paid for a summary.
+        """
+        if self._summary_worker is None or self._request_token_estimator is None:
+            return
+        self._carried_request_tokens[(user_id, conversation_id)] = (
+            measured
+            if measured is not None
+            else self._estimate_request(context)
         )
 
     def _expire_stale_proposals(
@@ -497,6 +572,9 @@ class ContextManager:
         task: ConversationTaskState,
     ) -> MainAgentContext:
         """Build a routing envelope without loading Main Agent memory."""
+        # This load measures nothing. An estimate left by an earlier load whose
+        # turn never committed must not reach this turn's commit.
+        self._carried_request_tokens.pop((user_id, conversation_id), None)
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
         profile = self._stored_profile_context(user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
@@ -1012,11 +1090,22 @@ class ContextManager:
             episode_drafts=episode_drafts,
             memory_scope_keys=memory_scope_keys,
         )
+        carried = self._carried_request_tokens.pop(
+            (context.profile.user_id, context.conversation_id), None
+        )
+        stored_assistant_message = self._truncate(assistant_message)
         self._maybe_summarize(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             trigger=compaction_trigger,
-            user_message=context.stored_user_message(),
+            measure=lambda after_sequence: self._commit_pressure(
+                user_id=context.profile.user_id,
+                conversation_id=context.conversation_id,
+                after_sequence=after_sequence,
+                trigger=compaction_trigger,
+                carried=carried,
+                assistant_message=stored_assistant_message,
+            ),
         )
         self._sessions.touch(user_id=context.profile.user_id, session_id=context.conversation_id)
 
@@ -1193,15 +1282,18 @@ class ContextManager:
         user_id: str,
         conversation_id: str,
         trigger: Literal["occupancy", "seam"],
-        user_message: str,
-    ) -> MainAgentContext | None:
+        measure: Callable[[int], _Pressure],
+    ) -> _Pressure | None:
         """Compact one batch if the turn is under pressure.
 
-        Returns the context built to measure that pressure when it is still an
-        accurate description of storage — that is, when no compaction happened —
-        so ``load_for_turn`` can use it instead of building the same thing again.
-        ``None`` means the caller must build its own, either because compaction
-        moved the summary boundary or because no measurement was taken.
+        ``measure`` receives the summary boundary and reports the pressure. It
+        runs only when a summary worker exists, so a manager that cannot compact
+        never measures.
+
+        Returns the measurement when storage is still as it found it — that is,
+        when no compaction happened — so ``load_for_turn`` can use the context
+        it built instead of building the same thing again. ``None`` means the
+        summary boundary moved or nothing was measured.
         """
         if self._summary_worker is None:
             return None
@@ -1210,7 +1302,7 @@ class ContextManager:
             conversation_id=conversation_id,
             trigger=trigger,
             require_occupancy=trigger == "occupancy",
-            user_message=user_message,
+            measure=measure,
         )
 
     def _compact_one_batch(
@@ -1220,37 +1312,31 @@ class ContextManager:
         conversation_id: str,
         trigger: Literal["occupancy", "seam"],
         require_occupancy: bool,
-        user_message: str,
-    ) -> MainAgentContext | None:
+        measure: Callable[[int], _Pressure],
+    ) -> _Pressure | None:
         """Compact at most one batch.
 
-        Returns the context that measuring pressure built, but only when this
-        call left storage as it found it. Compacting invalidates that context, so
-        those paths return ``None`` and the caller rebuilds.
+        Returns the measurement, but only when this call left storage as it
+        found it. Compacting invalidates any context it carries, so those paths
+        return ``None`` and the caller rebuilds.
         """
         previous = self._store.get_conversation_summary(
             user_id=user_id,
             conversation_id=conversation_id,
         )
         previous_through = previous.through_sequence if previous else 0
-        (
-            occupancy,
-            projection_overflow,
-            request_tokens,
-            max_input_tokens,
-            pressure_context,
-        ) = self._recent_pressure(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            after_sequence=previous_through,
-            user_message=user_message,
-        )
+        pressure = measure(previous_through)
         if (
             require_occupancy
-            and not projection_overflow
-            and occupancy < self._compact_occupancy_threshold
+            and not pressure.projection_overflow
+            # Unmeasured occupancy is never a reason to compact; the next load
+            # measures. A seam does not require occupancy and skips this.
+            and (
+                pressure.occupancy is None
+                or pressure.occupancy < self._compact_occupancy_threshold
+            )
         ):
-            return pressure_context
+            return pressure
         messages = self._store.list_messages_after(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1258,7 +1344,7 @@ class ContextManager:
             limit=self._summary_batch_size,
         )
         if len(messages) < self._summary_batch_size:
-            return pressure_context
+            return pressure
         to_summarize = messages[: self._summary_batch_size]
         try:
             content = self._summary_worker.summarize(
@@ -1266,7 +1352,7 @@ class ContextManager:
                 messages=to_summarize,
             )
         except AgentWorkerError:
-            return pressure_context
+            return pressure
         preference_candidates_proposed = len(content.long_term_memory_candidates)
         preference_candidates = self._validated_preference_candidates(
             content.long_term_memory_candidates,
@@ -1427,14 +1513,15 @@ class ContextManager:
                 ),
                 "trigger": (
                     "projection_overflow"
-                    if trigger == "occupancy" and projection_overflow
+                    if trigger == "occupancy" and pressure.projection_overflow
                     else trigger
                 ),
                 "through_sequence": to_summarize[-1].sequence,
-                "occupancy": occupancy,
-                "projection_overflow": projection_overflow,
-                "input_occupancy_numerator": request_tokens,
-                "input_occupancy_denominator": max_input_tokens,
+                "occupancy": pressure.occupancy,
+                "occupancy_source": pressure.source,
+                "projection_overflow": pressure.projection_overflow,
+                "input_occupancy_numerator": pressure.request_tokens,
+                "input_occupancy_denominator": pressure.max_input_tokens,
                 "restored_constraints": restored_constraints,
                 "dropped_constraints": dropped_constraints,
                 "readmitted_constraints": readmitted_constraints,
@@ -1490,51 +1577,166 @@ class ContextManager:
         conversation_id: str,
         after_sequence: int,
         user_message: str,
-    ) -> tuple[float, bool, int | None, int | None, MainAgentContext | None]:
+    ) -> _Pressure:
+        """Pressure at load: the complete request, built and estimated."""
+        if self._request_token_estimator is None:
+            return self._legacy_pressure(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            )
+        pressure_context = self._build_context(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_message=user_message,
+        )
+        request_tokens, max_input_tokens = self._estimate_request(
+            pressure_context
+        )
+        return _Pressure(
+            occupancy=request_tokens / max_input_tokens,
+            projection_overflow=self._projection_overflows(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            ),
+            request_tokens=request_tokens,
+            max_input_tokens=max_input_tokens,
+            context=pressure_context,
+            source="estimated",
+        )
+
+    def _commit_pressure(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        after_sequence: int,
+        trigger: Literal["occupancy", "seam"],
+        carried: tuple[int, int] | None,
+        assistant_message: str,
+    ) -> _Pressure:
+        """Pressure at commit, without building the context again."""
+        if trigger == "seam":
+            # A seam compacts whatever the occupancy, so it measures nothing.
+            return self._overflow_only_pressure(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+                source="seam",
+            )
+        if self._request_token_estimator is None:
+            return self._legacy_pressure(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            )
+        if carried is None:
+            # No load measured this turn: a workflow-owned turn, or an
+            # interrupted commit that never loaded. Only overflow is decided
+            # here; occupancy waits for the next load.
+            return self._overflow_only_pressure(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+                source="overflow_only",
+            )
+        request_tokens, max_input_tokens = carried
+        # The load's estimate already holds this turn's message as the current
+        # message, under a larger cap than the window gives it next turn, so the
+        # reply is the only thing the next request adds.
+        reply_tokens = message_token_count(assistant_message)
+        if self._recent_message_tokens is not None:
+            reply_tokens = min(reply_tokens, self._recent_message_tokens)
+        predicted = request_tokens + reply_tokens
+        return _Pressure(
+            occupancy=predicted / max_input_tokens,
+            projection_overflow=self._projection_overflows(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            ),
+            request_tokens=predicted,
+            max_input_tokens=max_input_tokens,
+            context=None,
+            source="carried",
+        )
+
+    def _overflow_only_pressure(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        after_sequence: int,
+        source: Literal["seam", "overflow_only"],
+    ) -> _Pressure:
+        return _Pressure(
+            occupancy=None,
+            projection_overflow=self._projection_overflows(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            ),
+            request_tokens=None,
+            max_input_tokens=None,
+            context=None,
+            source=source,
+        )
+
+    def _legacy_pressure(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        after_sequence: int,
+    ) -> _Pressure:
+        # Maintenance callers may not own a model or a tool registry. Preserve
+        # their legacy recent-window signal, but production runtime always
+        # installs the complete-request estimator.
         raw_limit = self._recent_message_limit + self._summary_batch_size - 1
         candidates = self._store.list_message_records(
             user_id,
             conversation_id,
-            # One extra row proves that the oldest unsummarised message would
-            # disappear from the projection before a watermark can name it.
             limit=raw_limit + 1,
             after_sequence=after_sequence,
         )
-        projection_overflow = len(candidates) > raw_limit
         recent = self._bound_recent_messages(
             self._deduplicate_recent_messages(candidates[-raw_limit:])
         )
-        if self._request_token_estimator is not None:
-            pressure_context = self._build_context(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message=user_message,
-            )
-            request_tokens, max_input_tokens = self._request_token_estimator(
-                pressure_context
-            )
-            if request_tokens < 0 or max_input_tokens < 1:
-                raise ValueError("request token estimator returned an invalid budget")
-            return (
-                request_tokens / max_input_tokens,
-                projection_overflow,
-                request_tokens,
-                max_input_tokens,
-                # Handed back so a caller that does not compact can use it rather
-                # than build an identical one.
-                pressure_context,
-            )
-        # Maintenance callers may not own a model or a tool registry. Preserve
-        # their legacy recent-window signal, but production runtime always
-        # installs the complete-request estimator above.
         used = sum(len(record.message.content) for record in recent)
-        return (
-            used / self._max_recent_context_chars,
-            projection_overflow,
-            None,
-            None,
-            None,
+        return _Pressure(
+            occupancy=used / self._max_recent_context_chars,
+            projection_overflow=len(candidates) > raw_limit,
+            request_tokens=None,
+            max_input_tokens=None,
+            context=None,
+            source="legacy",
         )
+
+    def _projection_overflows(
+        self, *, user_id: str, conversation_id: str, after_sequence: int
+    ) -> bool:
+        raw_limit = self._recent_message_limit + self._summary_batch_size - 1
+        return (
+            len(
+                self._store.list_message_records(
+                    user_id,
+                    conversation_id,
+                    # One extra row proves that the oldest unsummarised message
+                    # would disappear from the projection before a watermark
+                    # can name it.
+                    limit=raw_limit + 1,
+                    after_sequence=after_sequence,
+                )
+            )
+            > raw_limit
+        )
+
+    def _estimate_request(self, context: MainAgentContext) -> tuple[int, int]:
+        request_tokens, max_input_tokens = self._request_token_estimator(context)
+        if request_tokens < 0 or max_input_tokens < 1:
+            raise ValueError("request token estimator returned an invalid budget")
+        return request_tokens, max_input_tokens
 
     def _bound_recent_messages(
         self, messages: tuple[StoredConversationMessage, ...]

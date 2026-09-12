@@ -649,6 +649,7 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "trigger": "occupancy",
         "through_sequence": 2,
         "occupancy": 52 / 60,
+        "occupancy_source": "legacy",
         "projection_overflow": False,
         "input_occupancy_numerator": None,
         "input_occupancy_denominator": None,
@@ -701,9 +702,303 @@ def test_complete_request_pressure_can_exceed_one_and_trigger_compaction(
         for event in recorder.snapshot("turn-token-pressure").events
         if event.event_type == "context_compacted"
     )
-    assert event.details["occupancy"] == 3.0
-    assert event.details["input_occupancy_numerator"] == 3000
+    # Measured at load and carried to the commit, where the reply is the only
+    # addition: the load's estimate already holds this turn's message.
+    expected = 3000 + message_token_count("short")
+    assert event.details["occupancy_source"] == "carried"
+    assert event.details["occupancy"] == expected / 1000
+    assert event.details["input_occupancy_numerator"] == expected
     assert event.details["input_occupancy_denominator"] == 1000
+
+
+def _counting_builds(monkeypatch) -> list[None]:
+    """Record every full context build, so a test can pin how many a path takes."""
+    builds: list[None] = []
+    original = ContextManager._build_context
+
+    def counting(self, **kwargs):
+        builds.append(None)
+        return original(self, **kwargs)
+
+    monkeypatch.setattr(ContextManager, "_build_context", counting)
+    return builds
+
+
+def _compacted_events(recorder, run_id: str):
+    return [
+        event
+        for event in recorder.snapshot(run_id).events
+        if event.event_type == "context_compacted"
+    ]
+
+
+def test_an_ordinary_turn_builds_its_context_once_including_the_commit(
+    tmp_path, monkeypatch
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=worker,
+        recent_message_limit=8,
+        summary_batch_size=2,
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (100, 1000)
+    )
+    builds = _counting_builds(monkeypatch)
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-once"))
+    try:
+        for index in range(3):
+            builds.clear()
+            context = context_manager.load_for_turn(
+                user_id="u1", conversation_id="c1", user_message=f"问题{index}"
+            )
+            context_manager.commit_turn(
+                context=context,
+                task=ConversationTaskState(),
+                assistant_message=f"回答{index}",
+            )
+            # Measuring pressure at load is the one build; the commit reuses
+            # that measurement instead of building again.
+            assert len(builds) == 1
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert worker.calls == []
+    assert _compacted_events(recorder, "turn-once") == []
+
+
+def test_commit_compacts_when_the_carried_estimate_and_reply_cross_the_threshold(
+    tmp_path, monkeypatch
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=worker,
+        summary_batch_size=2,
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (700, 1000),
+        static_input_tokens=400,
+        max_input_tokens=1000,
+    )
+    reply_cap = context_manager._recent_message_tokens
+    reply = EN_16K[:2000]
+    assert reply_cap is not None and message_token_count(reply) > reply_cap
+    builds = _counting_builds(monkeypatch)
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-carried"))
+    try:
+        context = context_manager.load_for_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="请帮我对比这两个岗位的要求和薪资范围",
+        )
+        assert worker.calls == []
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=reply,
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert len(worker.calls) == 1
+    assert len(builds) == 1
+    (event,) = _compacted_events(recorder, "turn-carried")
+    # The reply, capped at its window share, is the only increment. Adding this
+    # turn's message again would count it twice.
+    assert event.details["occupancy_source"] == "carried"
+    assert event.details["input_occupancy_numerator"] == 700 + reply_cap
+    assert event.details["input_occupancy_denominator"] == 1000
+    assert event.details["occupancy"] == (700 + reply_cap) / 1000
+
+
+def test_commit_compacts_on_overflow_even_when_the_carried_estimate_is_low(
+    tmp_path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(5):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        recent_message_limit=8,
+        summary_batch_size=4,
+    )
+    context_manager.configure_request_token_estimator(lambda context: (1, 1000))
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-overflow"))
+    try:
+        # Ten unsummarised rows fit the eleven-row projection at load.
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="next"
+        )
+        assert worker.calls == []
+        # Twelve do not.
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message="answer",
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert len(worker.calls) == 1
+    (event,) = _compacted_events(recorder, "turn-overflow")
+    assert event.details["trigger"] == "projection_overflow"
+    assert event.details["occupancy_source"] == "carried"
+    assert event.details["occupancy"] < 0.75
+
+
+def test_a_commit_no_load_measured_leaves_occupancy_to_the_next_load(
+    tmp_path, monkeypatch
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=worker,
+        summary_batch_size=2,
+    )
+    estimate = {"tokens": 1}
+    context_manager.configure_request_token_estimator(
+        lambda context: (estimate["tokens"], 1000)
+    )
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="第一问"
+    )
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="第一答",
+    )
+    # A load that measured but never committed, as when its turn fails with
+    # nothing to record. Its estimate plus a long reply would cross 0.75.
+    estimate["tokens"] = 700
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="第二问"
+    )
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(),
+    )
+    builds = _counting_builds(monkeypatch)
+
+    context_manager.commit_turn(
+        context=workflow_context,
+        task=ConversationTaskState(),
+        assistant_message=EN_16K[:2000],
+    )
+
+    assert worker.calls == []
+    assert builds == []
+    estimate["tokens"] = 3000
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+    assert len(worker.calls) == 1
+
+
+def test_a_seam_compacts_without_building_or_estimating(
+    tmp_path, monkeypatch
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    estimates: list[None] = []
+
+    def estimator(context):
+        estimates.append(None)
+        return (1, 1000)
+
+    context_manager.configure_request_token_estimator(estimator)
+    entry_context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="开始模拟面试"
+    )
+    held = context_manager.commit_workflow_entry(
+        context=entry_context,
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+            phase="mock_interview_answer_required",
+        ),
+    )
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1", conversation_id="c1", task=held
+    )
+    estimates.clear()
+    builds = _counting_builds(monkeypatch)
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-seam"))
+    try:
+        context_manager.commit_workflow_exit(
+            context=workflow_context,
+            task=ConversationTaskState(),
+            assistant_message="模拟面试已完成。",
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert len(worker.calls) == 1
+    assert (builds, estimates) == ([], [])
+    (event,) = _compacted_events(recorder, "turn-seam")
+    assert event.details["trigger"] == "seam"
+    assert event.details["occupancy_source"] == "seam"
+    assert event.details["occupancy"] is None
+    assert event.details["input_occupancy_numerator"] is None
+
+
+def test_a_load_that_compacted_carries_the_estimate_of_what_it_returned(
+    tmp_path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(2):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=f"user-{index}"
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+    worker = RecordingSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        recent_message_limit=8,
+        summary_batch_size=2,
+    )
+    # Over budget until a summary exists, nearly empty once one does.
+    context_manager.configure_request_token_estimator(
+        lambda context: (3000 if context.through_sequence == 0 else 1, 1000)
+    )
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    )
+
+    assert len(worker.calls) == 1
+    assert context.through_sequence == 2
+    assert context_manager._carried_request_tokens[("u1", "c1")] == (1, 1000)
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="ok",
+    )
+    # The pre-compaction 3000 would have compacted a second batch here.
+    assert len(worker.calls) == 1
+    assert ("u1", "c1") not in context_manager._carried_request_tokens
 
 
 def test_static_request_over_half_the_input_budget_fails_during_wiring(
@@ -798,14 +1093,14 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
     assert first is not None
     assert first.through_sequence == 4
     assert len(worker.calls) == 1
-    occupancy, projection_overflow, _, _, _ = context_manager._recent_pressure(
+    pressure = context_manager._recent_pressure(
         user_id="u1",
         conversation_id="c1",
         after_sequence=first.through_sequence,
         user_message="probe",
     )
-    assert occupancy == 1.0
-    assert projection_overflow is True
+    assert pressure.occupancy == 1.0
+    assert pressure.projection_overflow is True
 
     context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="second"
@@ -918,7 +1213,12 @@ def test_one_seam_never_runs_a_synchronous_summary_loop(tmp_path) -> None:
         user_id="u1",
         conversation_id="c1",
         trigger="seam",
-        user_message="continue",
+        measure=lambda after_sequence: context_manager._overflow_only_pressure(
+            user_id="u1",
+            conversation_id="c1",
+            after_sequence=after_sequence,
+            source="seam",
+        ),
     )
 
     assert len(worker.calls) == 1
