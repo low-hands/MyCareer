@@ -8,7 +8,13 @@ import secrets
 from threading import Lock
 from typing import Any, Mapping
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    DefaultHttpxClient,
+    OpenAI,
+    RateLimitError,
+)
 
 from career_agent.agent.decision_messages import assemble_decision_messages
 from career_agent.agent.decision_messages import CACHEABLE_CONTEXT_SLOTS
@@ -23,6 +29,7 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
+from career_agent.agent.structured_responses import provider_code
 from career_agent.agent.token_budget import count_tokens
 
 
@@ -62,6 +69,45 @@ class _StaticRequestMetadata:
     prompt_cache_key: str
 
 
+class _AttemptLog:
+    """Every HTTP attempt one decision made, the SDK's retries included.
+
+    The SDK retries a timeout, a dropped connection and 408/409/429/5xx by
+    itself, so a slow decision may be one slow response or several stalled
+    ones, and without this the trace cannot tell which. The hooks run once per
+    attempt on the thread making the call: an attempt that never received a
+    response stays ``no_response``, one that did records its status.
+    """
+
+    def __init__(self) -> None:
+        self._results: ContextVar[list[int | str] | None] = ContextVar(
+            f"main_agent_attempts_{id(self)}", default=None
+        )
+
+    def event_hooks(self) -> dict[str, list[Any]]:
+        return {"request": [self._on_request], "response": [self._on_response]}
+
+    def start(self) -> None:
+        self._results.set([])
+
+    def consume(self) -> dict[str, Any]:
+        results = self._results.get()
+        self._results.set(None)
+        if not results:
+            return {}
+        return {"attempt_count": len(results), "attempt_results": list(results)}
+
+    def _on_request(self, request: object) -> None:
+        results = self._results.get()
+        if results is not None:
+            results.append("no_response")
+
+    def _on_response(self, response: Any) -> None:
+        results = self._results.get()
+        if results:
+            results[-1] = response.status_code
+
+
 def _request_envelope_token_count(
     serialized_prefix: str,
     serialized_suffix: str,
@@ -80,10 +126,13 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self, config: OpenAICompatibleAgentConfig, *, client: Any | None = None
     ) -> None:
         self._config = config
+        self._attempts = _AttemptLog()
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
             max_retries=3,
+            # The SDK's own client defaults, plus hooks that count attempts.
+            http_client=DefaultHttpxClient(event_hooks=self._attempts.event_hooks()),
         )
         self._spotlight_secret = secrets.token_bytes(32)
         self._cache_metrics: ContextVar[dict[str, Any] | None] = (
@@ -98,7 +147,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     def consume_cache_metrics(self) -> dict[str, Any]:
         metrics = self._cache_metrics.get() or {}
         self._cache_metrics.set(None)
-        return metrics
+        return {**metrics, **self._attempts.consume()}
 
     def cache_configuration(self) -> dict[str, Any]:
         mode = self._config.prompt_cache
@@ -336,6 +385,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         tool_specs: tuple[dict[str, Any] | str, ...],
     ) -> AgentDecision:
         self._cache_metrics.set(None)
+        self._attempts.start()
         metadata = self._static_request_metadata(tool_specs)
         tools = metadata.tools
         messages = list(
@@ -375,7 +425,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         except APIConnectionError as error:
             raise AgentWorkerError("MAIN_AGENT_TRANSPORT_ERROR", "Main Agent model transport failed.", retryable=True) from error
         except APIStatusError as error:
-            raise AgentWorkerError(f"MAIN_AGENT_REJECTED_{error.status_code}", "Main Agent model rejected the request.") from error
+            # Spelled like the structured-response workers' codes, so a trace
+            # can tell a context-length refusal from a content-policy one.
+            raise AgentWorkerError(
+                f"MAIN_AGENT_REJECTED_{error.status_code}{provider_code(error)}",
+                "Main Agent model rejected the request.",
+            ) from error
         self._record_cache_metrics(response)
         message = response.choices[0].message if response.choices else None
         if message is None:
