@@ -40,6 +40,9 @@ EventType = Literal[
     # run's first model_succeeded it gives estimator against provider count,
     # which compaction events alone recorded only on turns that compacted.
     "context_estimated",
+    # A summarizer call that failed, with the conversation's consecutive count
+    # and whether compaction is now suspended. The worker traces nothing itself.
+    "context_compaction_failed",
     "memory_tombstone_observed",
     "memory_context_observed",
     "memory_proposal_expired",

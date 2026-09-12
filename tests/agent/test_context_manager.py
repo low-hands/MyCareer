@@ -1409,6 +1409,135 @@ class FailingSummaryWorker:
         )
 
 
+class ScriptedSummaryWorker:
+    """Fails or succeeds in the order given, then keeps failing."""
+
+    def __init__(self, *outcomes: str) -> None:
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def summarize(self, *, previous, messages):
+        self.calls += 1
+        outcome = self.outcomes.pop(0) if self.outcomes else "fail"
+        if outcome == "fail":
+            raise AgentWorkerError(
+                "SUMMARY_FAILED", "temporary summary failure", retryable=True
+            )
+        return ConversationSummaryContent(
+            user_goals=(),
+            confirmed_decisions=(),
+            unresolved_questions=(),
+            active_constraints=(),
+        )
+
+
+def _store_turns(path, conversation_id: str, turns: int) -> None:
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(turns):
+        context = writer.load_for_turn(
+            user_id="u1",
+            conversation_id=conversation_id,
+            user_message=f"user-{index}",
+        )
+        writer.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+
+def _attempt_seam_compaction(context_manager, conversation_id: str = "c1") -> None:
+    context_manager._maybe_summarize(
+        user_id="u1",
+        conversation_id=conversation_id,
+        trigger="seam",
+        measure=lambda after_sequence: context_manager._overflow_only_pressure(
+            user_id="u1",
+            conversation_id=conversation_id,
+            after_sequence=after_sequence,
+            source="seam",
+        ),
+    )
+
+
+def test_compaction_stops_calling_a_failing_summarizer_after_three_failures(
+    tmp_path,
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    _store_turns(path, "c1", turns=2)
+    _store_turns(path, "c2", turns=2)
+    now = [datetime(2026, 9, 12, 9, tzinfo=timezone.utc)]
+    worker = ScriptedSummaryWorker()
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        summary_batch_size=2,
+        clock=lambda: now[0],
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-breaker"))
+    try:
+        for _ in range(5):
+            _attempt_seam_compaction(context_manager)
+        assert worker.calls == 3
+        # Another conversation keeps its own count.
+        _attempt_seam_compaction(context_manager, "c2")
+        assert worker.calls == 4
+        now[0] += timedelta(minutes=9)
+        _attempt_seam_compaction(context_manager)
+        assert worker.calls == 4
+        now[0] += timedelta(minutes=1)
+        _attempt_seam_compaction(context_manager)
+        _attempt_seam_compaction(context_manager)
+        # One attempt once the interval has passed; its failure suspends again.
+        assert worker.calls == 5
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    key = conversation_trace_key("u1", "c1")
+    failed = [
+        event
+        for event in recorder.snapshot("turn-breaker").events
+        if event.event_type == "context_compaction_failed"
+        and event.details["conversation_key"] == key
+    ]
+    assert [
+        (event.details["consecutive_failures"], event.details["compaction_suspended"])
+        for event in failed
+    ] == [(1, False), (2, False), (3, True), (4, True)]
+    assert {event.error_code for event in failed} == {"SUMMARY_FAILED"}
+
+
+def test_a_successful_summary_resets_the_compaction_breaker(tmp_path) -> None:
+    path = tmp_path / "context.sqlite3"
+    _store_turns(path, "c1", turns=3)
+    now = [datetime(2026, 9, 12, 9, tzinfo=timezone.utc)]
+    worker = ScriptedSummaryWorker("fail", "fail", "fail", "ok", "fail")
+    context_manager = ContextManager(
+        CareerContextStore(path),
+        summary_worker=worker,
+        summary_batch_size=2,
+        clock=lambda: now[0],
+    )
+    for _ in range(4):
+        _attempt_seam_compaction(context_manager)
+    assert worker.calls == 3
+
+    now[0] += timedelta(minutes=10)
+    _attempt_seam_compaction(context_manager)
+
+    assert worker.calls == 4
+    summary = context_manager._store.get_conversation_summary(
+        user_id="u1", conversation_id="c1"
+    )
+    assert summary is not None and summary.through_sequence == 2
+    assert ("u1", "c1") not in context_manager._compaction_failures
+    # Counting starts over: the next failure is the first, not the fourth.
+    _attempt_seam_compaction(context_manager)
+    assert worker.calls == 5
+    assert context_manager._compaction_failures[("u1", "c1")] == (1, None)
+
+
 def test_summary_worker_failure_preserves_recent_conversation(tmp_path) -> None:
     context_manager = manager(
         tmp_path,
