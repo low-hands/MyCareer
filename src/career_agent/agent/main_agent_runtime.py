@@ -292,6 +292,11 @@ class LoopControl(TypedDict, total=False):
     fingerprints: tuple[str, ...]
     retryable_fingerprints: tuple[str, ...]
     retry_counts: dict[str, int]
+    # Whether this turn has already stamped access on the episodes it projected.
+    # A turn can reach ``decide`` several times as observations come back, and
+    # the model sees the same projected episodes each time; the exposure is one
+    # exposure.
+    episodes_marked: bool
 
 
 class MainAgentState(TypedDict, total=False):
@@ -1886,6 +1891,19 @@ class MainAgentRuntime:
     def _decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
         context = state["context"]
+        control = dict(self._control(state))
+        # Exposure is stamped here, where the projected episodes are about to be
+        # put in front of the model, and exactly once per turn. Doing it inside
+        # the projection counted every context build — pressure measurement, the
+        # load itself, the reload after a memory write — so a single turn scored
+        # three to five accesses and decay had nothing but bookkeeping to read.
+        # Turns a workflow owns never reach here and correctly stamp nothing.
+        if not control.get("episodes_marked"):
+            self._context_manager.mark_episodes_projected(
+                user_id=context.profile.user_id,
+                context=context,
+            )
+            control["episodes_marked"] = True
         schemas = getattr(self, "_decision_tool_schemas", None)
         if schemas is None:
             schemas = self._tools.schemas()
@@ -1996,7 +2014,7 @@ class MainAgentRuntime:
             details=decision_details,
             model_call_category="orchestrator_decision",
         )
-        return {"decision": decision}
+        return {"decision": decision, "control": control}
 
     def _decision_note_only_tokens(
         self, context: MainAgentContext, decision: AgentDecision

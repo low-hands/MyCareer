@@ -169,7 +169,39 @@ def memory_context_observation(
         observation["working_notes_only_argument"] = int(
             bool(working_notes_only_argument)
         )
+    hidden_preferences = _hidden_free_text_preferences(context)
+    if hidden_preferences:
+        observation["free_text_preferences_hidden"] = hidden_preferences
     return observation
+
+
+def _hidden_free_text_preferences(context: Any) -> int:
+    """How many preferences the cap kept off the projection this turn.
+
+    Emitted only when the answer is non-zero, on the same reasoning as
+    ``working_notes_only_tokens``: a key that is always present carries no
+    signal. M6b reads it to decide whether a truncation the model could not see
+    disqualifies a lower-bound claim about preference use.
+    """
+
+    projected = tuple(getattr(context, "free_text_preferences", ()))
+    active_shown = sum(item.status == "active" for item in projected)
+    quarantined_shown = min(
+        sum(item.status == "quarantined" for item in projected),
+        # The projection renders at most three candidates regardless of how many
+        # were carried, so a fourth is hidden from the model even though the
+        # context holds it.
+        3,
+    )
+    return max(
+        0,
+        int(getattr(context, "free_text_preferences_active_total", 0))
+        - active_shown,
+    ) + max(
+        0,
+        int(getattr(context, "free_text_preferences_quarantined_total", 0))
+        - quarantined_shown,
+    )
 
 
 def _surface(value: str) -> str:

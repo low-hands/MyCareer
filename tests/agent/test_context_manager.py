@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 
 import pytest
+from pydantic import ValidationError
 
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
@@ -17,9 +18,14 @@ from career_agent.agent.main_agent_contracts import (
     CareerProfileContext,
     ConversationResourceReference,
     ConversationTaskState,
+    FreeTextPreferenceContext,
     HardConstraintContext,
+    MainAgentContext,
+    _bounded_markdown,
     confirmation_recency_label,
 )
+from career_agent.harness.memory_telemetry import memory_context_observation
+from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     InMemoryTraceRecorder,
@@ -789,7 +795,7 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
     assert first is not None
     assert first.through_sequence == 4
     assert len(worker.calls) == 1
-    occupancy, projection_overflow, _, _ = context_manager._recent_pressure(
+    occupancy, projection_overflow, _, _, _ = context_manager._recent_pressure(
         user_id="u1",
         conversation_id="c1",
         after_sequence=first.through_sequence,
@@ -1744,3 +1750,295 @@ def test_confirmation_recency_label_uses_whole_days() -> None:
         confirmation_recency_label(now - timedelta(days=3), now=now)
         == "3 天前确认"
     )
+
+
+def _seed_preferences(
+    store: CareerContextStore, *, active: int = 0, quarantined: int = 0
+) -> None:
+    """Write preferences straight to storage, one topic each.
+
+    One topic per preference because the projection resolves a topic's ownership
+    track down to a single winner; the cap only becomes observable across topics.
+    """
+    now = datetime.now(timezone.utc)
+    for index in range(active):
+        _, version = store.capture_profile_intent(
+            IntentCaptureCandidate(
+                user_id="u1",
+                scope_key=f"person_intent/self/active{index}_preference",
+                value=f"偏好第{index}项",
+                source="test",
+                pref_scope="freeform.person_default",
+                layer="contextual",
+                semantic_stance="positive",
+                observed_at=now,
+            )
+        )
+        assert version is not None and version.admission_status == "active"
+    for index in range(quarantined):
+        _, version = store.capture_profile_intent(
+            IntentCaptureCandidate(
+                user_id="u1",
+                scope_key=f"person_intent/self/held{index}_preference",
+                value=f"待确认第{index}项",
+                source="test",
+                pref_scope="freeform.person_default",
+                layer="contextual",
+                ambiguous=True,
+                semantic_stance="positive",
+                observed_at=now,
+            )
+        )
+        assert version is not None and version.admission_status == "quarantined"
+
+
+def _preferences(context_manager: ContextManager, *, conversation_id: str = "c1"):
+    # An explicit confirmation makes every quarantined candidate relevant, so
+    # the cap is what decides which ones survive rather than retrieval.
+    return context_manager.load_for_turn(
+        user_id="u1",
+        conversation_id=conversation_id,
+        user_message="确认",
+    )
+
+
+def test_a_capped_preference_projection_says_how_many_it_held_back(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed_preferences(store, active=10, quarantined=4)
+    context = _preferences(ContextManager(store))
+
+    statuses = [item.status for item in context.free_text_preferences]
+    assert statuses.count("active") == 5
+    assert statuses.count("quarantined") == 3
+    assert context.free_text_preferences_active_total == 10
+    assert context.free_text_preferences_quarantined_total == 4
+
+    projected = context.model_context()["free_text_preferences"]
+    assert "（另有 5 条已确认偏好未列出）" in projected
+    assert "（另有 1 条待确认偏好未列出）" in projected
+
+
+def test_an_uncapped_preference_projection_stays_silent(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed_preferences(store, active=8)
+    context = _preferences(ContextManager(store))
+
+    assert len(context.free_text_preferences) == 8
+    assert context.free_text_preferences_quarantined_total == 0
+    assert "未列出" not in context.model_context()["free_text_preferences"]
+
+
+def test_quarantined_candidates_take_only_their_reserved_share(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed_preferences(store, active=2, quarantined=5)
+    context = _preferences(ContextManager(store))
+
+    statuses = [item.status for item in context.free_text_preferences]
+    # Three is what the projection renders, so a fourth candidate would be
+    # carried and never shown. The two spare slots go unused rather than to
+    # candidates that could not appear.
+    assert statuses.count("active") == 2
+    assert statuses.count("quarantined") == 3
+
+    projected = context.model_context()["free_text_preferences"]
+    assert "（另有 2 条待确认偏好未列出）" in projected
+    assert "已确认偏好未列出" not in projected
+
+
+def test_confirmed_preferences_keep_a_slot_a_candidate_cannot_use(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed_preferences(store, active=10, quarantined=1)
+    context = _preferences(ContextManager(store))
+
+    statuses = [item.status for item in context.free_text_preferences]
+    assert statuses.count("active") == 7
+    assert statuses.count("quarantined") == 1
+
+
+def test_a_total_below_what_was_projected_is_rejected() -> None:
+    values = {
+        "conversation_id": "c1",
+        "profile": CareerProfileContext(user_id="u1"),
+        "user_message": "帮我看看",
+        "free_text_preferences": (
+            FreeTextPreferenceContext(
+                scope_key="person_intent/self/held_preference",
+                topic_key="held",
+                statement="待确认偏好",
+                status="quarantined",
+                observed_at=datetime.now(timezone.utc),
+                update_id="intent_update_" + "a" * 32,
+            ),
+        ),
+    }
+
+    with pytest.raises(ValidationError):
+        MainAgentContext(**values, free_text_preferences_quarantined_total=0)
+    assert (
+        MainAgentContext(
+            **values, free_text_preferences_quarantined_total=4
+        ).free_text_preferences_quarantined_total
+        == 4
+    )
+
+
+def test_memory_telemetry_reports_hidden_preferences_only_when_some_are(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed_preferences(store, active=2)
+    context_manager = ContextManager(store)
+
+    visible = memory_context_observation(
+        _preferences(context_manager),
+        career_memory_enabled=False,
+    )
+    assert "free_text_preferences_hidden" not in visible
+
+    _seed_preferences(store, quarantined=4)
+    truncated = memory_context_observation(
+        _preferences(context_manager, conversation_id="c2"),
+        career_memory_enabled=False,
+    )
+    assert truncated["free_text_preferences_hidden"] == 1
+
+
+def test_a_full_budget_leaves_no_truncation_notice() -> None:
+    lines = ["## 标题", "- 第一条", "- 第二条"]
+    exact = len("\n".join(lines))
+
+    assert _bounded_markdown(lines, budget=exact, line_limit=220) == "\n".join(
+        lines
+    )
+
+
+def test_dropped_lines_are_counted_in_the_markdown() -> None:
+    lines = ["## 标题", "- 第一条", "- 第二条", "- 第三条", "- 第四条"]
+    # Two lines fit alongside the notice; the remaining three are counted.
+    budget = len("\n".join(lines[:2])) + len("\n- （另有 3 行未显示）")
+
+    bounded = _bounded_markdown(lines, budget=budget, line_limit=220)
+
+    assert bounded.splitlines()[:2] == lines[:2]
+    assert bounded.splitlines()[-1] == "- （另有 3 行未显示）"
+
+
+def test_the_truncation_notice_is_paid_for_out_of_the_budget() -> None:
+    lines = ["## 标题", "- 第一条", "- 第二条", "- 第三条"]
+    # Room for three lines, but not for three plus the notice, nor two plus it:
+    # lines are handed back until the notice fits, and the count grows with each
+    # one given up, so it ends up reporting all three that are not shown.
+    budget = 20
+
+    bounded = _bounded_markdown(lines, budget=budget, line_limit=220)
+
+    assert len(bounded) <= budget
+    assert bounded == "## 标题\n- （另有 3 行未显示）"
+
+
+def test_a_budget_too_small_for_any_line_yields_nothing() -> None:
+    assert _bounded_markdown(
+        ["## 一个很长的标题占满整个预算", "- 第一条"],
+        budget=8,
+        line_limit=220,
+    ) == ""
+
+
+def test_confirmed_preferences_are_capped_by_relevance_to_this_message(
+    tmp_path,
+) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    now = datetime.now(timezone.utc)
+    for index in range(9):
+        store.capture_profile_intent(
+            IntentCaptureCandidate(
+                user_id="u1",
+                scope_key=f"person_intent/self/filler{index}_preference",
+                value=f"无关偏好第{index}项",
+                source="test",
+                pref_scope="freeform.person_default",
+                layer="contextual",
+                semantic_stance="positive",
+                observed_at=now,
+            )
+        )
+    store.capture_profile_intent(
+        IntentCaptureCandidate(
+            user_id="u1",
+            scope_key="person_intent/self/remote_preference",
+            value="希望远程办公",
+            source="test",
+            pref_scope="freeform.person_default",
+            layer="contextual",
+            semantic_stance="positive",
+            observed_at=now,
+        )
+    )
+
+    context = ContextManager(store).load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="远程办公的岗位有哪些？",
+    )
+
+    statements = [item.statement for item in context.free_text_preferences]
+    # Ten confirmed preferences, eight slots. The one this message is about was
+    # captured last, so resolver order alone would have dropped it.
+    assert statements[0] == "希望远程办公"
+    assert context.free_text_preferences_active_total == 10
+    # Eight statements this long exceed the character cap, so here the second cut
+    # is what bites and it takes the slot-count line with it. It no longer does so
+    # in silence, which is the whole reason the notice lives inside the bounding.
+    projected = context.model_context()["free_text_preferences"]
+    assert projected.splitlines()[-1].endswith("行未显示）")
+
+
+def test_confirmed_hits_cannot_crowd_a_candidate_out_of_retrieval(tmp_path) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    now = datetime.now(timezone.utc)
+    for index in range(40):
+        store.capture_profile_intent(
+            IntentCaptureCandidate(
+                user_id="u1",
+                scope_key=f"person_intent/self/remote{index}_preference",
+                value=f"远程办公的岗位第{index}项",
+                source="test",
+                pref_scope="freeform.person_default",
+                layer="contextual",
+                semantic_stance="positive",
+                observed_at=now,
+            )
+        )
+    _, held = store.capture_profile_intent(
+        IntentCaptureCandidate(
+            user_id="u1",
+            scope_key="person_intent/self/held_preference",
+            value="如果薪资合适也可以接受远程办公",
+            source="test",
+            pref_scope="freeform.person_default",
+            layer="contextual",
+            ambiguous=True,
+            semantic_stance="positive",
+            observed_at=now,
+        )
+    )
+    assert held is not None and held.admission_status == "quarantined"
+
+    context = ContextManager(store).load_for_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="远程办公的岗位有哪些？",
+    )
+
+    # Every confirmed statement matches more of the message than the candidate
+    # does, so one ranking shared across both statuses fills its whole limit
+    # with confirmed hits. The message is no confirmation, so retrieval is the
+    # candidate's only way through the gate.
+    held_back = [
+        item.statement
+        for item in context.free_text_preferences
+        if item.status == "quarantined"
+    ]
+    assert held_back == ["如果薪资合适也可以接受远程办公"]

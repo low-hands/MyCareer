@@ -1009,7 +1009,16 @@ class CareerContextStore:
             raise ValueError("profile intent requires a person_intent/self scope")
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            return capture_intent_version(connection, candidate=candidate)
+            decision, version = capture_intent_version(
+                connection, candidate=candidate
+            )
+            # Free-text rows are ranked by FTS wherever they were written from.
+            # This path skipped the index, which stayed invisible while only
+            # quarantined candidates were ranked and every one of those came in
+            # through the message path.
+            if version is not None and version.pref_scope.startswith("freeform"):
+                self._index_free_text_preference_on(connection, version)
+            return decision, version
 
     def capture_free_text_preference_from_message(
         self,
@@ -1176,6 +1185,10 @@ class CareerContextStore:
                     candidate.pref_scope,
                 ),
             )
+            # Corroboration mints a new update_id for the same statement, and the
+            # index is keyed by update_id: without this the refreshed preference
+            # would drop out of every ranking.
+            self._index_free_text_preference_on(connection, corroborated)
             return corroborated
         if not corroborate_active:
             quarantined = next(
@@ -1500,14 +1513,26 @@ class CareerContextStore:
         user_id: str,
         query: str,
         limit: int = 32,
+        statuses: Sequence[str] = ("quarantined",),
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """Return independent topic and statement FTS rankings for RRF."""
+        """Return independent topic and statement FTS rankings for RRF.
+
+        ``statuses`` defaults to quarantine because relevance first served the
+        gate that lets a held candidate surface. Ranking confirmed preferences
+        needs the same two rankings, so the caller asks again with
+        ``("active",)``. Both statuses fit in one call, but they then share
+        ``limit``, and the more numerous status takes every row.
+        """
 
         if limit < 1 or limit > 100:
             raise ValueError("preference search limit must be between 1 and 100")
+        selected = tuple(statuses)
+        if not selected or not set(selected) <= {"active", "quarantined"}:
+            raise ValueError("invalid free-text preference status")
         match_query = preference_fts_query(query)
         if match_query is None:
             return (), ()
+        status_placeholders = ", ".join("?" for _ in selected)
         now = datetime.now(timezone.utc).isoformat()
         rankings = []
         with self._connect() as connection:
@@ -1526,7 +1551,7 @@ class CareerContextStore:
                      AND deleted.scope_key = intent.scope_key
                     WHERE free_text_preferences_fts MATCH ?
                       AND search.user_id = ?
-                      AND intent.admission_status = 'quarantined'
+                      AND intent.admission_status IN ({status_placeholders})
                       AND intent.superseded_at IS NULL
                       AND (
                             intent.valid_until IS NULL
@@ -1545,6 +1570,7 @@ class CareerContextStore:
                     (
                         f"{column} : ({match_query})",
                         user_id,
+                        *selected,
                         now,
                         limit,
                     ),

@@ -554,7 +554,15 @@ class SQLiteCareerEpisodeStore:
         limit: int = 5,
         exclude_conversation_id: str | None = None,
     ) -> tuple[CareerEpisode, ...]:
-        """Rank lexical hits after applying access-aware read-time decay."""
+        """Rank lexical hits after applying access-aware read-time decay.
+
+        A pure read: it does not stamp access. Projection runs several times per
+        turn — pressure measurement, the turn's own load, a reload after a memory
+        write — and counting each of those made ``access_count`` a measure of the
+        runtime's bookkeeping rather than of the episode being seen or used. The
+        caller marks exposure once, just before the model is shown the context;
+        ``mark_accessed`` still runs when the model dereferences a ``detail_ref``.
+        """
 
         if not 1 <= limit <= 5:
             raise ValueError("episode projection limit must be between 1 and 5")
@@ -600,7 +608,7 @@ class SQLiteCareerEpisodeStore:
                 episode.occurred_at,
             )
 
-        selected = tuple(
+        return tuple(
             episode
             for _, episode, _ in sorted(
                 scored,
@@ -608,11 +616,6 @@ class SQLiteCareerEpisodeStore:
                 reverse=True,
             )[:limit]
         )
-        self.mark_accessed(
-            user_id=user_id,
-            episode_ids=tuple(item.id for item in selected),
-        )
-        return selected
 
     def mark_accessed(
         self,

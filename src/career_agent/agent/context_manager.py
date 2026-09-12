@@ -182,15 +182,23 @@ class ContextManager:
             conversation_id=conversation_id,
             message=user_message,
         )
-        self._maybe_summarize(
+        reusable = self._maybe_summarize(
             user_id=user_id,
             conversation_id=conversation_id,
             trigger="occupancy",
             user_message=user_message,
         )
-        self._expire_stale_proposals(
+        expired = self._expire_stale_proposals(
             user_id=user_id, conversation_id=conversation_id
         )
+        # Measuring pressure builds the whole context, and when the measurement
+        # decides not to compact, nothing downstream has changed it: same
+        # summary, same messages, same projections. Rebuilding it here would
+        # repeat a full construction, two FTS rankings and a notes read for an
+        # identical result. Compaction or an expired proposal invalidates it, so
+        # those paths fall through to a fresh build.
+        if reusable is not None and not expired:
+            return reusable
         return self._build_context(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -199,19 +207,22 @@ class ContextManager:
 
     def _expire_stale_proposals(
         self, *, user_id: str, conversation_id: str
-    ) -> None:
+    ) -> bool:
         """Clear pending proposals the user has not confirmed within the TTL.
 
         Done at load rather than left to the confirm gates alone, so an expired
         proposal is gone from the state the turn runs on, not merely refused
         once the model has already reached for it.
+
+        Returns whether anything expired, so a caller holding a context built
+        before this ran knows it is stale.
         """
         task = self._store.get_task(user_id, conversation_id)
         if task is None:
-            return
+            return False
         kept, expired = task.expire_stale_proposals(self.now())
         if not expired:
-            return
+            return False
         self._store.upsert_task(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -228,6 +239,7 @@ class ContextManager:
                 "slots": list(expired),
             },
         )
+        return True
 
     def _build_context(
         self, *, user_id: str, conversation_id: str, user_message: str
@@ -282,17 +294,26 @@ class ContextManager:
                     outcome="succeeded",
                     details={"chars": len(snapshot.markdown)},
                 )
+        (
+            free_text_preferences,
+            active_preference_total,
+            quarantined_preference_total,
+        ) = self._free_text_preference_context(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_message=user_message,
+            task=task,
+        )
         return MainAgentContext(
             conversation_id=conversation_id,
             spotlight_nonce=session.spotlight_nonce if session else None,
             profile=profile,
             career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
-            free_text_preferences=self._free_text_preference_context(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message=user_message,
-                task=task,
+            free_text_preferences=free_text_preferences,
+            free_text_preferences_active_total=active_preference_total,
+            free_text_preferences_quarantined_total=(
+                quarantined_preference_total
             ),
             working_notes=working_notes,
             career_episodes=self._episode_context(
@@ -363,6 +384,31 @@ class ContextManager:
             for episode in episodes
         )
 
+    def mark_episodes_projected(
+        self, *, user_id: str, context: MainAgentContext
+    ) -> None:
+        """Stamp exposure once, for the episodes the model is about to be shown.
+
+        The store's projection is a pure read, so this is where an episode's
+        access is recorded. Called from the runtime immediately before the
+        decision call rather than from ``_build_context``: a turn builds its
+        context several times over (pressure measurement, the load itself, a
+        reload after a memory write) and only one of those is a moment the model
+        actually saw the episodes.
+        """
+        if self._episode_store is None:
+            return
+        episode_ids = tuple(
+            item.detail_ref.removeprefix("episode:")
+            for item in context.career_episodes
+        )
+        if not episode_ids:
+            return
+        self._episode_store.mark_accessed(
+            user_id=user_id,
+            episode_ids=episode_ids,
+        )
+
     def get_task(
         self, *, user_id: str, conversation_id: str
     ) -> ConversationTaskState:
@@ -401,6 +447,16 @@ class ContextManager:
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
         profile = self._stored_profile_context(user_id)
         preferences = self._store.get_owner_settings(user_id) or OwnerSettingsContext()
+        (
+            free_text_preferences,
+            active_preference_total,
+            quarantined_preference_total,
+        ) = self._free_text_preference_context(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_message="",
+            task=task,
+        )
         return MainAgentContext(
             conversation_id=conversation_id,
             spotlight_nonce=self._sessions.get_or_create(
@@ -409,11 +465,10 @@ class ContextManager:
             profile=profile,
             career_profile_budgets=self._career_profile_budgets,
             preferences=preferences,
-            free_text_preferences=self._free_text_preference_context(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message="",
-                task=task,
+            free_text_preferences=free_text_preferences,
+            free_text_preferences_active_total=active_preference_total,
+            free_text_preferences_quarantined_total=(
+                quarantined_preference_total
             ),
             task=task,
             recent_messages=(),
@@ -428,7 +483,14 @@ class ContextManager:
         conversation_id: str,
         user_message: str,
         task: ConversationTaskState,
-    ) -> tuple[FreeTextPreferenceContext, ...]:
+    ) -> tuple[tuple[FreeTextPreferenceContext, ...], int, int]:
+        """Project the preferences that survive relevance, plus what was cut.
+
+        Returns the projected items and the totals they were selected from, so
+        the projection can tell the model it is looking at a window rather than
+        the whole set. Without the totals the cap is silent, and the first thing
+        it drops is a quarantined candidate that was waiting to be confirmed.
+        """
         versions = self._store.list_free_text_preferences(user_id=user_id)
         current_by_scope: dict[tuple[str, str], list[object]] = {}
         for item in versions:
@@ -514,21 +576,29 @@ class ContextManager:
             ),
             *quarantined_candidates,
         )
-        topic_ranking, statement_ranking = (
-            self._store.search_free_text_preference_rankings(
+        # One search per status, each with its own limit. A shared limit lets a
+        # user with many confirmed preferences fill every row with active hits,
+        # and a candidate that never enters the rankings cannot pass the gate.
+        quarantine_relevance = reciprocal_rank_fusion(
+            *self._store.search_free_text_preference_rankings(
                 user_id=user_id,
                 query=user_message,
                 limit=32,
+                statuses=("quarantined",),
             )
         )
-        fused_relevance = reciprocal_rank_fusion(
-            topic_ranking,
-            statement_ranking,
+        active_relevance = reciprocal_rank_fusion(
+            *self._store.search_free_text_preference_rankings(
+                user_id=user_id,
+                query=user_message,
+                limit=32,
+                statuses=("active",),
+            )
         )
         retrieved_quarantine_ids = {
             update_id
             for update_id, _ in sorted(
-                fused_relevance.items(),
+                quarantine_relevance.items(),
                 key=lambda item: (-item[1], item[0]),
             )[:8]
         }
@@ -581,7 +651,31 @@ class ContextManager:
                     update_id=item.update_id,
                 )
             )
-        return tuple(projected[:8])
+        # Confirmed preferences are ranked by relevance to this message before
+        # the cap bites, so what survives is what the turn is about rather than
+        # wherever the resolver happened to leave it. Ties keep resolver order,
+        # which is stable, and an unranked statement sorts after every hit.
+        active_projected = sorted(
+            (item for item in projected if item.status == "active"),
+            key=lambda item: -active_relevance.get(item.update_id, 0.0),
+        )
+        quarantined_projected = [
+            item for item in projected if item.status == "quarantined"
+        ]
+        # Quarantined candidates get a reserved share of the eight slots, capped
+        # at the three the projection renders, so a long list of confirmed
+        # preferences cannot starve the candidate the turn is meant to raise. An
+        # unused quarantined slot goes to active; the reverse does not hold,
+        # because a fourth candidate would not be rendered anyway.
+        quarantined_slots = min(len(quarantined_projected), 3)
+        return (
+            (
+                *active_projected[: 8 - quarantined_slots],
+                *quarantined_projected[:quarantined_slots],
+            ),
+            len(active_projected),
+            len(quarantined_projected),
+        )
 
     def _stored_profile_context(self, user_id: str) -> CareerProfileContext:
         return self._store.get_profile(user_id) or CareerProfileContext(
@@ -1019,10 +1113,18 @@ class ContextManager:
         conversation_id: str,
         trigger: Literal["occupancy", "seam"],
         user_message: str,
-    ) -> None:
+    ) -> MainAgentContext | None:
+        """Compact one batch if the turn is under pressure.
+
+        Returns the context built to measure that pressure when it is still an
+        accurate description of storage — that is, when no compaction happened —
+        so ``load_for_turn`` can use it instead of building the same thing again.
+        ``None`` means the caller must build its own, either because compaction
+        moved the summary boundary or because no measurement was taken.
+        """
         if self._summary_worker is None:
-            return
-        self._compact_one_batch(
+            return None
+        return self._compact_one_batch(
             user_id=user_id,
             conversation_id=conversation_id,
             trigger=trigger,
@@ -1038,7 +1140,13 @@ class ContextManager:
         trigger: Literal["occupancy", "seam"],
         require_occupancy: bool,
         user_message: str,
-    ) -> bool:
+    ) -> MainAgentContext | None:
+        """Compact at most one batch.
+
+        Returns the context that measuring pressure built, but only when this
+        call left storage as it found it. Compacting invalidates that context, so
+        those paths return ``None`` and the caller rebuilds.
+        """
         previous = self._store.get_conversation_summary(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1049,6 +1157,7 @@ class ContextManager:
             projection_overflow,
             request_tokens,
             max_input_tokens,
+            pressure_context,
         ) = self._recent_pressure(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1060,7 +1169,7 @@ class ContextManager:
             and not projection_overflow
             and occupancy < self._compact_occupancy_threshold
         ):
-            return False
+            return pressure_context
         messages = self._store.list_messages_after(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1068,7 +1177,7 @@ class ContextManager:
             limit=self._summary_batch_size,
         )
         if len(messages) < self._summary_batch_size:
-            return False
+            return pressure_context
         to_summarize = messages[: self._summary_batch_size]
         try:
             content = self._summary_worker.summarize(
@@ -1076,7 +1185,7 @@ class ContextManager:
                 messages=to_summarize,
             )
         except AgentWorkerError:
-            return False
+            return pressure_context
         preference_candidates_proposed = len(content.long_term_memory_candidates)
         preference_candidates = self._validated_preference_candidates(
             content.long_term_memory_candidates,
@@ -1223,7 +1332,9 @@ class ContextManager:
             preference_candidates=preference_candidates,
         )
         if not compacted:
-            return False
+            # A lost race, not a no-op: whoever won it moved the boundary, so the
+            # measured context no longer describes storage.
+            return None
         record_active_trace(
             "context_compacted",
             "conversation_summary",
@@ -1268,7 +1379,7 @@ class ContextManager:
                 ),
             },
         )
-        return True
+        return None
 
     @staticmethod
     def _validated_preference_candidates(
@@ -1298,7 +1409,7 @@ class ContextManager:
         conversation_id: str,
         after_sequence: int,
         user_message: str,
-    ) -> tuple[float, bool, int | None, int | None]:
+    ) -> tuple[float, bool, int | None, int | None, MainAgentContext | None]:
         raw_limit = self._recent_message_limit + self._summary_batch_size - 1
         candidates = self._store.list_message_records(
             user_id,
@@ -1328,6 +1439,9 @@ class ContextManager:
                 projection_overflow,
                 request_tokens,
                 max_input_tokens,
+                # Handed back so a caller that does not compact can use it rather
+                # than build an identical one.
+                pressure_context,
             )
         # Maintenance callers may not own a model or a tool registry. Preserve
         # their legacy recent-window signal, but production runtime always
@@ -1336,6 +1450,7 @@ class ContextManager:
         return (
             used / self._max_recent_context_chars,
             projection_overflow,
+            None,
             None,
             None,
         )
