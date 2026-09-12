@@ -148,6 +148,17 @@ def test_conversation_events_join_turns_without_crossing_users(tmp_path: Path) -
     )
     recorder.record(
         "turn-after",
+        "context_estimated",
+        "request_estimate",
+        outcome="succeeded",
+        details={
+            "conversation_key": key,
+            "input_occupancy_numerator": 12_500,
+            "input_occupancy_denominator": 32_000,
+        },
+    )
+    recorder.record(
+        "turn-after",
         "model_succeeded",
         "main_agent_decide",
         outcome="succeeded",
@@ -163,10 +174,11 @@ def test_conversation_events_join_turns_without_crossing_users(tmp_path: Path) -
 
     events = recorder.list_conversation_events(user_id="u1", conversation_id="c1")
 
-    assert [event.run_id for event in events] == [
-        "turn-before",
-        "turn-compact",
-        "turn-after",
+    assert [(event.run_id, event.event_type) for event in events] == [
+        ("turn-before", "model_succeeded"),
+        ("turn-compact", "context_compacted"),
+        ("turn-after", "context_estimated"),
+        ("turn-after", "model_succeeded"),
     ]
 
 
