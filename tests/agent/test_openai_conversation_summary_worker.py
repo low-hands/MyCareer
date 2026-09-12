@@ -153,3 +153,22 @@ def test_summary_worker_drops_bad_optional_candidate_without_losing_summary() ->
     assert result.active_constraints == ("Keep the search private",)
     assert len(result.long_term_memory_candidates) == 1
     assert result.long_term_memory_candidates[0].stance == "positive"
+
+
+def test_summary_worker_client_does_not_retry(monkeypatch) -> None:
+    captured = {}
+
+    class RecordingOpenAI:
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        "career_agent.agent.openai_conversation_summary_worker.OpenAI",
+        RecordingOpenAI,
+    )
+
+    OpenAIConversationSummaryWorker(config())
+
+    # A failed summary is attempted again by the next load; client retries
+    # would only lengthen how long that turn waits on an outage.
+    assert captured["max_retries"] == 0

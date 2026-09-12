@@ -33,7 +33,10 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            # A summary is derived state: a failed one is attempted again by
+            # the next load. Client retries only multiply how long a turn waits
+            # on an outage (each attempt can run to the full timeout).
+            max_retries=0,
         )
 
     def summarize(
