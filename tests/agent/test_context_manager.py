@@ -1001,6 +1001,41 @@ def test_a_load_that_compacted_carries_the_estimate_of_what_it_returned(
     assert ("u1", "c1") not in context_manager._carried_request_tokens
 
 
+def test_a_load_records_its_request_estimate_as_numbers_only(tmp_path) -> None:
+    measuring = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=RecordingSummaryWorker(),
+    )
+    measuring.configure_request_token_estimator(lambda context: (1234, 32_000))
+    # No summary worker, so nothing is measured and nothing is recorded.
+    silent = ContextManager(CareerContextStore(tmp_path / "silent.sqlite3"))
+    silent.configure_request_token_estimator(lambda context: (1234, 32_000))
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-estimate"))
+    try:
+        measuring.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message="帮我看看这个岗位"
+        )
+        silent.load_for_turn(
+            user_id="u1", conversation_id="c2", user_message="帮我看看这个岗位"
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    estimated = [
+        event
+        for event in recorder.snapshot("turn-estimate").events
+        if event.event_type == "context_estimated"
+    ]
+    assert [event.details for event in estimated] == [
+        {
+            "conversation_key": conversation_trace_key("u1", "c1"),
+            "input_occupancy_numerator": 1234,
+            "input_occupancy_denominator": 32_000,
+        }
+    ]
+
+
 def test_static_request_over_half_the_input_budget_fails_during_wiring(
     tmp_path,
 ) -> None:

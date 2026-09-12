@@ -691,6 +691,82 @@ def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
     assert stored[0].message.content == long_message
 
 
+def test_a_turns_first_estimate_pairs_with_its_first_provider_count(
+    tmp_path,
+) -> None:
+    """The calibration sample for the request estimator, read the way C will.
+
+    Each load leaves its estimate as a trace. The first estimate of a run and
+    the run's first model_succeeded describe the same request, before any
+    observation joins it; a reload after a memory write adds a second estimate
+    that pairs with nothing earlier.
+    """
+    from career_agent.storage.run_events import SQLiteTraceRecorder
+
+    class NoteWritingRegistry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            return ToolObservation(
+                tool_name=name,
+                state="working_notes_updated",
+                message="已更新工作笔记。",
+                execution_outcome="committed",
+            )
+
+    class MeteredDecisions(SequenceDecisionMaker):
+        @staticmethod
+        def static_request_token_usage(tool_specs):
+            return 12_066, 32_000
+
+        @staticmethod
+        def request_token_usage(context, tool_specs):
+            return 13_500, 32_000
+
+        def consume_cache_metrics(self):
+            return {"input_units": 9_100 + 100 * len(self.contexts)}
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
+    manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        summary_worker=StaticSummaryWorker(),
+    )
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    Runtime(
+        context_manager=manager,
+        decision_maker=MeteredDecisions(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="update_working_notes", arguments={}),
+            ),
+            AgentDecision(action="final", message="已记录。"),
+        ),
+        tools=NoteWritingRegistry(),
+        trace_recorder=recorder,
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="记一下我偏好远程")
+
+    events = recorder.list_conversation_events(user_id="u1", conversation_id="c1")
+
+    assert len({event.run_id for event in events}) == 1
+    assert [event.event_type for event in events] == [
+        "context_estimated",
+        "model_succeeded",
+        "context_estimated",
+        "model_succeeded",
+    ]
+    first_estimate, first_call = events[0], events[1]
+    # Stored through the real SQLite recorder, so a redacted field shows here.
+    assert first_estimate.details["input_occupancy_numerator"] == 13_500
+    assert first_estimate.details["input_occupancy_denominator"] == 32_000
+    assert first_call.details["input_units"] == 9_200
+
+
 def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     tmp_path,
 ) -> None:

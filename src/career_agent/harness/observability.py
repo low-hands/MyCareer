@@ -36,6 +36,10 @@ EventType = Literal[
     "capability_failed",
     "presentation_degraded",
     "context_compacted",
+    # The complete-request estimate a load took, as numbers. Paired with the
+    # run's first model_succeeded it gives estimator against provider count,
+    # which compaction events alone recorded only on turns that compacted.
+    "context_estimated",
     "memory_tombstone_observed",
     "memory_context_observed",
     "memory_proposal_expired",

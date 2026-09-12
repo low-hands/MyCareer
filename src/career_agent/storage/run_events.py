@@ -127,7 +127,7 @@ class SQLiteTraceRecorder:
     def list_conversation_events(
         self, *, user_id: str, conversation_id: str
     ) -> tuple[RunEvent, ...]:
-        """Read compact/call events across turns in execution order."""
+        """Read compact, estimate and call events across turns in execution order."""
 
         key = conversation_trace_key(user_id, conversation_id)
         with self._connect() as connection:
@@ -137,7 +137,11 @@ class SQLiteTraceRecorder:
                        duration_ms, outcome, details_json, error_code,
                        error_detail, recoverable, model_call_category
                 FROM run_events
-                WHERE event_type IN ('context_compacted', 'model_succeeded')
+                WHERE event_type IN (
+                    'context_compacted',
+                    'context_estimated',
+                    'model_succeeded'
+                )
                   AND json_extract(details_json, '$.conversation_key') = ?
                 ORDER BY occurred_at, rowid
                 """,

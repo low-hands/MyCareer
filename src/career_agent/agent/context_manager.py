@@ -317,10 +317,33 @@ class ContextManager:
         """
         if self._summary_worker is None or self._request_token_estimator is None:
             return
+        request_tokens, max_input_tokens = (
+            measured if measured is not None else self._estimate_request(context)
+        )
         self._carried_request_tokens[(user_id, conversation_id)] = (
-            measured
-            if measured is not None
-            else self._estimate_request(context)
+            request_tokens,
+            max_input_tokens,
+        )
+        # Numbers only, under the conversation's pseudonymous key. The first of
+        # these in a run pairs with the run's first model_succeeded: that
+        # request carries no observations yet, so its provider input_units
+        # counts the same request this estimated. The pair is what calibrating
+        # the estimator needs, and before this it was recorded only on turns
+        # that compacted.
+        record_active_trace(
+            "context_estimated",
+            "request_estimate",
+            outcome="succeeded",
+            details={
+                "conversation_key": conversation_trace_key(
+                    user_id, conversation_id
+                ),
+                # Named as on context_compacted, which carries the same two
+                # numbers. Trace redaction masks keys containing "token" unless
+                # they are on its short allowlist of cache metrics.
+                "input_occupancy_numerator": request_tokens,
+                "input_occupancy_denominator": max_input_tokens,
+            },
         )
 
     def _expire_stale_proposals(
