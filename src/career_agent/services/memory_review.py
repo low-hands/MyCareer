@@ -41,6 +41,10 @@ _LOOSE_UPDATE_ID = re.compile(
     r'update_id="((?:career_evidence_update|intent_update)_[a-f0-9]{32})"'
 )
 _MEMORY_MARKER = "<!-- memory:"
+# Rendered under a record with no confirmed fact, so the record keeps an anchor
+# the user can add its first fact beneath. It is not an item: it never enters the
+# snapshot, and reading new facts back skips it.
+_EMPTY_RECORD_PLACEHOLDER = "- （尚无已确认事实，可在此行下新增）"
 
 
 class MemoryReviewSnapshotItem(BaseModel):
@@ -273,8 +277,6 @@ class MemoryReviewService:
         ]
         for record in records:
             items = by_record.get(record.id, ())
-            if not items:
-                continue
             label = " · ".join(
                 part for part in (record.title, record.organization) if part
             )
@@ -285,9 +287,11 @@ class MemoryReviewService:
                     f'<!-- memory:record record_id="{record.id}" -->',
                 )
             )
+            if not items:
+                lines.append(_EMPTY_RECORD_PLACEHOLDER)
             for item in items:
                 lines.extend(self._render_item(item.scope_key or "", item.update_id or "", item.claim))
-        if not by_record:
+        if not records:
             lines.extend(("", "（无）"))
 
         ownership_titles = (
@@ -908,7 +912,7 @@ class MemoryReviewService:
                 continue
             if not in_facts or index in occupied or record_id is None:
                 continue
-            if not stripped.startswith("- "):
+            if not stripped.startswith("- ") or stripped == _EMPTY_RECORD_PLACEHOLDER:
                 continue
             claim = stripped[2:].strip()
             digest = intent_content_digest(claim)

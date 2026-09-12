@@ -11,7 +11,10 @@ from career_agent.agent.main_agent_contracts import (
     MemoryTombstoneProposal,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.services.memory_review import MemoryReviewService
+from career_agent.services.memory_review import (
+    _EMPTY_RECORD_PLACEHOLDER,
+    MemoryReviewService,
+)
 from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
@@ -174,6 +177,111 @@ def test_repeating_a_review_is_read_only_and_creates_no_pending_fact(tmp_path) -
         include_historical=False,
     )
     assert pending == ()
+
+
+def _with_empty_record(tmp_path):
+    _, history, service, record, _ = _stores(tmp_path)
+    empty = history.create_record(
+        user_id="u1",
+        record_type="work",
+        title="Backend Engineer",
+        organization="Second Example",
+    )
+    return history, service, record, empty
+
+
+def _add_under_empty_record(
+    markdown: str, empty_id: str, *, keep_placeholder: bool = True
+) -> str:
+    marker = f'<!-- memory:record record_id="{empty_id}" -->'
+    kept = f"{_EMPTY_RECORD_PLACEHOLDER}\n" if keep_placeholder else ""
+    edited = markdown.replace(
+        f"{marker}\n{_EMPTY_RECORD_PLACEHOLDER}",
+        f"{marker}\n{kept}- 负责 A 项目的后端",
+        1,
+    )
+    assert edited != markdown
+    return edited
+
+
+def test_a_record_without_facts_keeps_its_anchor_and_a_placeholder(tmp_path) -> None:
+    _, service, _, empty = _with_empty_record(tmp_path)
+
+    markdown, _, count = service.export(user_id="u1")
+
+    lines = markdown.splitlines()
+    anchor = lines.index(f'<!-- memory:record record_id="{empty.id}" -->')
+    assert lines[anchor - 1] == "### Backend Engineer · Second Example"
+    assert lines[anchor + 1] == _EMPTY_RECORD_PLACEHOLDER
+    # The placeholder is not an item, so the count is still the two facts; and
+    # the record that has those facts renders them rather than a placeholder.
+    assert count == 2
+    assert markdown.count(_EMPTY_RECORD_PLACEHOLDER) == 1
+
+
+def test_an_unedited_export_with_an_empty_record_proposes_nothing(tmp_path) -> None:
+    _, service, _, _ = _with_empty_record(tmp_path)
+    markdown, _, _ = service.export(user_id="u1")
+
+    analysis = service.analyze(user_id="u1", markdown=markdown)
+
+    assert analysis.proposal_count == 0
+    assert analysis.warnings == ()
+    assert analysis.conflicts == ()
+
+
+@pytest.mark.parametrize("keep_placeholder", [True, False])
+def test_a_first_fact_under_an_empty_record_binds_to_that_record(
+    tmp_path, keep_placeholder: bool
+) -> None:
+    _, service, _, empty = _with_empty_record(tmp_path)
+    markdown, _, _ = service.export(user_id="u1")
+    edited = _add_under_empty_record(
+        markdown, empty.id, keep_placeholder=keep_placeholder
+    )
+
+    analysis = service.analyze(user_id="u1", markdown=edited)
+
+    assert [
+        (fact.career_record_id, fact.claim) for fact in analysis.new_facts
+    ] == [(empty.id, "负责 A 项目的后端")]
+    assert analysis.proposal_count == 1
+
+
+def test_applying_a_first_fact_creates_it_under_the_empty_record(
+    tmp_path, monkeypatch
+) -> None:
+    history, service, _, empty = _with_empty_record(tmp_path)
+    markdown, _, _ = service.export(user_id="u1")
+    edited = _add_under_empty_record(markdown, empty.id)
+    created: list[str] = []
+    create_evidence = history.create_evidence
+
+    def record_creation(**kwargs):
+        created.append(kwargs["career_record_id"])
+        return create_evidence(**kwargs)
+
+    monkeypatch.setattr(history, "create_evidence", record_creation)
+    prepared = service.prepare(user_id="u1", markdown=edited)
+    applied = service.apply(
+        user_id="u1",
+        markdown=edited,
+        confirmation_digest=prepared.confirmation_digest,
+    )
+
+    assert applied.new_facts == 1
+    assert created == [empty.id]
+    assert [
+        item.claim
+        for item in history.list_evidence(
+            user_id="u1",
+            career_record_id=empty.id,
+            verification_status="confirmed",
+            include_historical=False,
+        )
+    ] == ["负责 A 项目的后端"]
+    exported_again, _, _ = service.export(user_id="u1")
+    assert _EMPTY_RECORD_PLACEHOLDER not in exported_again
 
 
 def test_a_partially_applied_batch_can_be_reviewed_and_resumed(
