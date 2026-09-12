@@ -13,8 +13,16 @@ from career_agent.agent.tiktoken_assets import (
 from career_agent.agent.token_budget import (
     BUDGET_ENCODING,
     budget_encoding,
+    clip_to_tokens,
     count_tokens,
     serialized_token_count,
+)
+
+# Rare characters on purpose: several of them take more than one token, so some
+# cuts land inside a character.
+CHINESE_JD_LINE = (
+    "负责大模型推理服务的性能优化与稳定性建设，熟悉分布式训练框架，"
+    "具备鑫龘饕餮等生僻字处理经验；"
 )
 
 
@@ -97,3 +105,34 @@ def test_missing_bundled_vocab_fails_without_fetching(
     monkeypatch.setattr(tiktoken.load, "read_file", fail_fetch)
     with pytest.raises(RuntimeError, match="bundled cl100k_base vocab is missing"):
         budget_encoding()
+
+
+def test_clip_to_tokens_returns_text_within_the_limit_unchanged() -> None:
+    text = "Ship the retrieval pipeline."
+    assert clip_to_tokens(text, count_tokens(text)) == (text, False)
+    assert clip_to_tokens(CHINESE_JD_LINE, 10_000) == (CHINESE_JD_LINE, False)
+
+
+def test_clip_to_tokens_stays_in_the_limit_and_drops_a_split_character() -> None:
+    populate_bundled_tiktoken_cache()
+    encoding = budget_encoding()
+    ids = encoding.encode(CHINESE_JD_LINE)
+    # Without a cut that lands inside a character, the replacement-character
+    # assertion below would pass for any implementation.
+    assert any(
+        encoding.decode(ids[:limit]).endswith("\ufffd")
+        for limit in range(1, len(ids))
+    )
+
+    for limit in range(1, len(ids)):
+        clipped, was_clipped = clip_to_tokens(CHINESE_JD_LINE, limit)
+        assert was_clipped is True
+        assert count_tokens(clipped) <= limit
+        assert not clipped.endswith("\ufffd")
+        assert CHINESE_JD_LINE.startswith(clipped)
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_clip_to_tokens_rejects_a_limit_below_one(limit: int) -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        clip_to_tokens("text", limit)

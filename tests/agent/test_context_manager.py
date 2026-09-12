@@ -9,6 +9,8 @@ from career_agent.agent.conversation_memory_contracts import (
     DistilledFreeTextPreferenceCandidate,
 )
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.decision_messages import project_decision_messages
+from career_agent.agent.token_budget import budget_encoding, message_token_count
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -32,6 +34,7 @@ from career_agent.harness.observability import (
     conversation_trace_key,
 )
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.resumes import ResumeStore
 
 
@@ -1122,6 +1125,383 @@ def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> Non
     assert loaded.recent_messages[-1].content_clipped is True
     assert loaded.through_sequence == 0
     assert loaded.recent_from_sequence == 1
+
+
+_ZH_LINE = (
+    "负责大模型推理服务的性能优化与稳定性建设，熟悉分布式训练框架，"
+    "具备鑫龘饕餮等生僻字处理经验；"
+)
+_EN_LINE = (
+    "Design and operate the retrieval pipeline that ranks candidate job "
+    "postings against a structured career profile. "
+)
+ZH_16K = (_ZH_LINE * 400)[:16_000]
+ZH_32K = (_ZH_LINE * 800)[:32_000]
+EN_16K = (_EN_LINE * 200)[:16_000]
+
+
+def token_bounded_manager(tmp_path, **kwargs) -> ContextManager:
+    """A manager wired like production: 32k input, 12,066 static tokens."""
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"), **kwargs
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (1, 32_000),
+        static_input_tokens=12_066,
+        max_input_tokens=32_000,
+    )
+    return context_manager
+
+
+def test_message_token_caps_are_shares_of_the_dynamic_input_budget(
+    tmp_path,
+) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+
+    assert (
+        context_manager._user_message_tokens,
+        context_manager._recent_context_tokens,
+        context_manager._recent_message_tokens,
+    ) == (3_986, 7_973, 2_990)
+
+
+def test_an_explicit_token_cap_overrides_the_derived_one(tmp_path) -> None:
+    context_manager = token_bounded_manager(
+        tmp_path, max_user_message_tokens=50
+    )
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_32K
+    )
+
+    assert context_manager._user_message_tokens == 50
+    assert context_manager._recent_context_tokens == 7_973
+    assert context.user_message_clipped is True
+    assert message_token_count(context.user_message) <= 50
+
+
+@pytest.mark.parametrize(
+    "message", ["帮我看看这个岗位", EN_16K], ids=["short", "english-16k"]
+)
+def test_messages_under_the_token_caps_reach_the_prompt_whole(
+    tmp_path, message
+) -> None:
+    assert message_token_count(message) < 2_990
+    context_manager = token_bounded_manager(tmp_path)
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=message
+    )
+    assert (
+        context.user_message,
+        context.user_message_clipped,
+        context.user_message_source,
+    ) == (message, False, None)
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="收到",
+    )
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+
+    assert loaded.recent_messages[0].content == message
+    assert loaded.recent_messages[0].content_clipped is False
+
+
+def test_a_long_current_message_is_clipped_for_the_prompt_only(tmp_path) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_32K
+    )
+
+    assert context.user_message_clipped is True
+    assert context.user_message_source == ZH_32K
+    assert ZH_32K.startswith(context.user_message)
+    assert 0 < message_token_count(context.user_message) <= 3_986
+    assert project_decision_messages(context).current_user_message.endswith(
+        "content_clipped=true]"
+    )
+
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="收到",
+    )
+    stored = context_manager._store.list_message_records(
+        "u1", "c1", limit=10
+    )
+    assert stored[0].message.content == ZH_32K
+
+
+def test_a_held_workflow_request_is_the_message_as_sent(tmp_path) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_32K
+    )
+    assert context.user_message_clipped is True
+
+    held = context_manager.commit_workflow_entry(
+        context=context,
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+        ),
+    )
+
+    assert held.workflow_entry_message == ZH_32K
+
+
+def test_workflow_exit_writes_the_held_request_not_this_turns_source(
+    tmp_path,
+) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_32K
+    )
+    exiting = context.model_copy(
+        update={
+            "task": context.task.model_copy(
+                update={"workflow_entry_message": "开始模拟面试"}
+            )
+        }
+    )
+
+    context_manager.commit_workflow_exit(
+        context=exiting,
+        task=ConversationTaskState(),
+        assistant_message="面试结束",
+    )
+
+    stored = context_manager._store.list_message_records(
+        "u1", "c1", limit=10
+    )
+    assert [record.message.content for record in stored] == [
+        "开始模拟面试",
+        "面试结束",
+    ]
+
+
+def test_a_long_message_in_the_window_is_clipped_to_its_token_share(
+    tmp_path,
+) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_16K
+    )
+    context_manager.commit_turn(
+        context=context,
+        task=ConversationTaskState(),
+        assistant_message="收到",
+    )
+
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+
+    long_message, reply = loaded.recent_messages
+    assert long_message.content_clipped is True
+    assert ZH_16K.startswith(long_message.content)
+    assert 0 < message_token_count(long_message.content) <= 2_990
+    assert (reply.content, reply.content_clipped) == ("收到", False)
+    assert context_manager._store.list_message_records(
+        "u1", "c1", limit=10
+    )[0].message.content == ZH_16K
+
+
+def test_a_crowded_window_shares_the_token_cap_fairly(tmp_path) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+    for index in range(4):
+        # Distinct tails, or the window would replace older copies with the
+        # duplicate marker before the budget saw them. The bodies open on a
+        # character that takes more than one token, so the single token left
+        # after four fair shares cannot hold it.
+        context = context_manager.load_for_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message=ZH_16K[:15_000] + f"用户{index}",
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=ZH_16K[:15_000] + f"助手{index}",
+        )
+
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+
+    counts = [
+        message_token_count(message.content)
+        for message in loaded.recent_messages
+    ]
+    assert sum(counts) <= 7_973
+    assert all(message.content_clipped for message in loaded.recent_messages)
+    assert all(0 < count <= 7_973 // 4 for count in counts)
+    # One token is left for the fifth, and its first character needs more, so
+    # the window ends at four rather than showing an empty clipped message.
+    assert len(loaded.recent_messages) == 4
+    assert loaded.recent_from_sequence == 5
+
+
+def test_an_empty_stored_reply_does_not_end_the_token_bounded_window(
+    tmp_path,
+) -> None:
+    context_manager = token_bounded_manager(tmp_path)
+    for message, reply in (("第一问", "第一答"), ("第二问", "")):
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=message
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=reply,
+        )
+
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+
+    assert [
+        (message.content, message.content_clipped)
+        for message in loaded.recent_messages
+    ] == [("第一问", False), ("第一答", False), ("第二问", False), ("", False)]
+
+
+def test_a_dropped_split_character_leaves_no_scrap_of_the_window(
+    tmp_path,
+) -> None:
+    body = _ZH_LINE * 20
+    ids = budget_encoding().encode(body)
+    # A fair share that cuts inside a character, so each clipped body decodes
+    # to fewer tokens than the share it was given.
+    share = next(
+        limit
+        for limit in range(8, len(ids))
+        if budget_encoding().decode(ids[:limit]).endswith("\ufffd")
+    )
+    context_manager = token_bounded_manager(
+        tmp_path,
+        max_recent_context_tokens=4 * share,
+        max_recent_message_tokens=4 * share,
+    )
+    turns = [
+        ("An older English question. " * 20, "An older English answer. " * 20),
+        (body + "用户1", body + "助手1"),
+        (body + "用户2", body + "助手2"),
+    ]
+    for message, reply in turns:
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=message
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message=reply,
+        )
+
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="继续"
+    )
+
+    # Four clipped bodies spend the window exactly. Charged only what decoded,
+    # they would leave the dropped characters' tokens for the English answer,
+    # which would come back as a few-token fragment.
+    assert all(
+        0 < message_token_count(message.content) < share
+        for message in loaded.recent_messages
+    )
+    assert len(loaded.recent_messages) == 4
+    assert loaded.recent_from_sequence == 3
+
+
+def test_retrieval_queries_read_the_prompt_copy_of_a_long_message(
+    tmp_path, monkeypatch
+) -> None:
+    path = tmp_path / "context.sqlite3"
+    episode_store = SQLiteCareerEpisodeStore(path)
+    context_manager = ContextManager(
+        CareerContextStore(path), episode_store=episode_store
+    )
+    context_manager.configure_request_token_estimator(
+        lambda context: (1, 32_000),
+        static_input_tokens=12_066,
+        max_input_tokens=32_000,
+    )
+    queries: list[str] = []
+    search = context_manager._store.search_free_text_preference_rankings
+    project = episode_store.project_relevant
+
+    def recording_search(*, query, **kwargs):
+        queries.append(query)
+        return search(query=query, **kwargs)
+
+    def recording_project(*, query, **kwargs):
+        queries.append(query)
+        return project(query=query, **kwargs)
+
+    monkeypatch.setattr(
+        context_manager._store,
+        "search_free_text_preference_rankings",
+        recording_search,
+    )
+    monkeypatch.setattr(episode_store, "project_relevant", recording_project)
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=ZH_32K
+    )
+
+    assert context.user_message_clipped is True
+    # Two preference rankings (active, quarantined) and one episode search.
+    assert len(queries) == 3
+    assert set(queries) == {context.user_message}
+
+
+@pytest.mark.parametrize(
+    ("current", "earlier"),
+    [
+        ("帮我看看这个岗位", None),
+        ("继续", ZH_16K),
+        (ZH_32K, None),
+        (EN_16K, None),
+    ],
+    ids=["short", "chinese-16k-in-window", "chinese-32k-current", "english-16k"],
+)
+def test_without_token_caps_messages_keep_the_character_bounds(
+    tmp_path, current, earlier
+) -> None:
+    # Maintenance commands and most fixtures never install an estimator.
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3")
+    )
+    if earlier is not None:
+        context = context_manager.load_for_turn(
+            user_id="u1", conversation_id="c1", user_message=earlier
+        )
+        context_manager.commit_turn(
+            context=context,
+            task=ConversationTaskState(),
+            assistant_message="收到",
+        )
+
+    context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message=current
+    )
+
+    assert (
+        context.user_message,
+        context.user_message_clipped,
+        context.user_message_source,
+    ) == (current, False, None)
+    projection = project_decision_messages(context)
+    assert projection.current_user_message == current
+    if earlier is not None:
+        assert [
+            (message.content, message.content_clipped)
+            for message in context.recent_messages
+        ] == [(earlier, False), ("收到", False)]
 
 
 def test_recent_window_clears_only_older_exact_large_body_duplicates(tmp_path) -> None:

@@ -2901,7 +2901,10 @@ class MainAgentRuntime:
                 refreshed = self._context_manager.load_for_turn(
                     user_id=context.profile.user_id,
                     conversation_id=context.conversation_id,
-                    user_message=context.user_message,
+                    # The message as sent: reloading from the prompt's clipped
+                    # copy would lose the original, and the turn would store
+                    # the clipped one.
+                    user_message=context.stored_user_message(),
                 )
                 refresh_updates: dict[str, Any] = {"task": updated.task}
                 updated = refreshed.model_copy(update=refresh_updates)

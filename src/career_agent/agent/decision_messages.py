@@ -233,6 +233,9 @@ def context_churn_slot_values(
     }
 
 
+_CONTENT_CLIPPED_MARKER = "\n\n[runtime message metadata: content_clipped=true]"
+
+
 def project_decision_messages(context: MainAgentContext) -> DecisionMessageProjection:
     """Split the existing semantic projection without changing its facts.
 
@@ -303,7 +306,7 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     for message in context.recent_messages:
         content = message.content
         if message.content_clipped:
-            content += "\n\n[runtime message metadata: content_clipped=true]"
+            content += _CONTENT_CLIPPED_MARKER
         if message.resource_refs:
             footer = [
                 "[runtime resources: "
@@ -313,6 +316,12 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
             content += "\n\n" + "\n".join(footer)
         recent_messages.append({"role": message.role, "content": content})
 
+    # The same marker as a clipped window message, so the model has one shape
+    # to recognise wherever a message was cut.
+    current_user_message = context.user_message
+    if context.user_message_clipped:
+        current_user_message += _CONTENT_CLIPPED_MARKER
+
     return DecisionMessageProjection(
         control=control,
         data=data,
@@ -320,7 +329,7 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
         volatile_data=volatile_data,
         turn_observations=tuple(projected["tool_observations"]),
         recent_messages=tuple(recent_messages),
-        current_user_message=context.user_message,
+        current_user_message=current_user_message,
     )
 
 
