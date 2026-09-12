@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal, Protocol
 
 from career_agent.agent.conversation_memory_contracts import (
@@ -103,6 +103,12 @@ class ContextManager:
     _USER_MESSAGE_FRACTION = 0.20
     _RECENT_WINDOW_FRACTION = 0.40
     _RECENT_MESSAGE_FRACTION = 0.15
+    # Consecutive summarizer failures after which a conversation stops calling
+    # it, and how long it then waits before letting one attempt through. Each
+    # failed call can cost the client's retries times its timeout, on the load
+    # and again on the commit. The interval is a setting, not a measurement.
+    _COMPACTION_FAILURE_LIMIT = 3
+    _COMPACTION_RETRY_AFTER = timedelta(minutes=10)
     _TARGET_ROLE_SAFETY_LIMIT = 100
     _TELEMETRY_VERSION_LIMIT = 512
     _RECENT_DEDUP_MIN_CHARS = 512
@@ -178,6 +184,11 @@ class ContextManager:
         # left for that turn's commit. The commit removes what it reads, so this
         # holds at most one entry per conversation with a turn in flight.
         self._carried_request_tokens: dict[tuple[str, str], tuple[int, int]] = {}
+        # Consecutive summarizer failures per conversation, and when the latest
+        # one suspended compaction. Removed by the next successful summary.
+        self._compaction_failures: dict[
+            tuple[str, str], tuple[int, datetime | None]
+        ] = {}
 
     def now(self) -> datetime:
         """The one clock for stamping proposals and expiring them.
@@ -1369,13 +1380,21 @@ class ContextManager:
         if len(messages) < self._summary_batch_size:
             return pressure
         to_summarize = messages[: self._summary_batch_size]
+        if self._compaction_suspended(
+            user_id=user_id, conversation_id=conversation_id
+        ):
+            return pressure
         try:
             content = self._summary_worker.summarize(
                 previous=previous.content if previous else None,
                 messages=to_summarize,
             )
-        except AgentWorkerError:
+        except AgentWorkerError as error:
+            self._record_compaction_failure(
+                user_id=user_id, conversation_id=conversation_id, error=error
+            )
             return pressure
+        self._compaction_failures.pop((user_id, conversation_id), None)
         preference_candidates_proposed = len(content.long_term_memory_candidates)
         preference_candidates = self._validated_preference_candidates(
             content.long_term_memory_candidates,
@@ -1571,6 +1590,53 @@ class ContextManager:
             },
         )
         return None
+
+    def _compaction_suspended(
+        self, *, user_id: str, conversation_id: str
+    ) -> bool:
+        """Whether this conversation's summarizer is failing and not yet due a retry.
+
+        After the retry interval one attempt goes through: a breaker that
+        waited for a success would never make the call that could produce one.
+        If that attempt fails, the interval starts again from then.
+        """
+        failures, suspended_at = self._compaction_failures.get(
+            (user_id, conversation_id), (0, None)
+        )
+        if failures < self._COMPACTION_FAILURE_LIMIT or suspended_at is None:
+            return False
+        return self._clock() - suspended_at < self._COMPACTION_RETRY_AFTER
+
+    def _record_compaction_failure(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        error: AgentWorkerError,
+    ) -> None:
+        key = (user_id, conversation_id)
+        failures = self._compaction_failures.get(key, (0, None))[0] + 1
+        suspended = failures >= self._COMPACTION_FAILURE_LIMIT
+        self._compaction_failures[key] = (
+            failures,
+            self._clock() if suspended else None,
+        )
+        # The summary worker records no trace of its own, so without this an
+        # outage, and the suspension it causes, would leave nothing behind.
+        record_active_trace(
+            "context_compaction_failed",
+            "conversation_summary",
+            outcome="failed",
+            error_code=getattr(error, "code", type(error).__name__),
+            recoverable=getattr(error, "retryable", None),
+            details={
+                "conversation_key": conversation_trace_key(
+                    user_id, conversation_id
+                ),
+                "consecutive_failures": failures,
+                "compaction_suspended": suspended,
+            },
+        )
 
     @staticmethod
     def _validated_preference_candidates(
