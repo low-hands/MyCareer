@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 import json
@@ -7,7 +8,7 @@ import hashlib
 from contextvars import ContextVar
 from time import perf_counter
 from dataclasses import dataclass
-from threading import Lock
+from threading import Event, Lock, Thread
 from typing import Any, ClassVar, Literal, TypedDict
 from uuid import uuid4
 
@@ -15,7 +16,15 @@ from langgraph.graph import END, START, StateGraph
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
+from career_agent.agent.decision_attempts import (
+    DecisionAttempt,
+    observing_decision_attempts,
+)
 from career_agent.agent.decision_messages import decision_context_chars
+from career_agent.harness.capability_steps import (
+    CapabilityStep,
+    observing_capability_steps,
+)
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
@@ -434,6 +443,7 @@ class MainAgentRuntime:
         # Exposed for the CLI's post-turn maintenance notice, which is an
         # operator concern and deliberately never reaches the decision model.
         self.context_manager = context_manager
+        context_manager.on_compaction(self._announce_compaction)
         self._decision_maker = decision_maker
         self._tools = tools
         self._career_context_projector = career_context_projector
@@ -607,23 +617,24 @@ class MainAgentRuntime:
             return "action_center"
         return "career_task"
 
+    _CAPABILITY_LABELS: ClassVar[dict[str, str]] = {
+        "job_search": "正在处理岗位检索……",
+        "job_research": "正在调研岗位相关业务信息……",
+        "resume": "正在处理简历……",
+        "application_tracking": "正在处理投递进展……",
+        "interview": "正在处理面试任务……",
+        "calendar": "正在准备日历操作……",
+        "action_center": "正在整理待办事项……",
+        "career_task": "正在执行职业任务……",
+    }
+
     @classmethod
     def _emit_capability_started(cls, name: str) -> None:
         capability = cls._public_capability(name)
-        labels = {
-            "job_search": "正在处理岗位检索……",
-            "job_research": "正在调研岗位相关业务信息……",
-            "resume": "正在处理简历……",
-            "application_tracking": "正在处理投递进展……",
-            "interview": "正在处理面试任务……",
-            "calendar": "正在准备日历操作……",
-            "action_center": "正在整理待办事项……",
-            "career_task": "正在执行职业任务……",
-        }
         cls._emit(
             CapabilityStartedEvent(
                 capability=capability,
-                message=labels[capability],
+                message=cls._CAPABILITY_LABELS[capability],
             )
         )
 
@@ -681,12 +692,20 @@ class MainAgentRuntime:
                 message="正在读取对话和职业上下文……",
             )
         )
+        reply_delivered = False
+
+        def deliver_reply(result: MainAgentTurnResult) -> None:
+            nonlocal reply_delivered
+            self._deliver_reply(result=result, conversation_id=conversation_id)
+            reply_delivered = True
+
         try:
             result = self._run_and_commit_turn(
                 user_id=user_id,
                 conversation_id=conversation_id,
                 user_message=user_message,
                 interaction_response=interaction_response,
+                before_commit=deliver_reply,
             )
             self._record_turn(turn_id=turn_id, conversation_id=conversation_id, result=result)
             self._deliver_stream_events(
@@ -697,14 +716,31 @@ class MainAgentRuntime:
             return result
         except Exception as error:
             self._invalidate_episode_reconciliation(user_id)
-            self._record_turn_failed(turn_id=turn_id, conversation_id=conversation_id, error=error)
-            self._emit(
-                TurnFailedEvent(
-                    turn_id=turn_id,
-                    code="TURN_EXECUTION_FAILED",
-                    message="本轮处理失败，请稍后重试。",
-                )
+            self._record_turn_failed(
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+                error=error,
+                reply_delivered=reply_delivered,
             )
+            if reply_delivered:
+                # The reader already has the reply; what failed is keeping it.
+                # Say so instead of a generic failure that reads as if the text
+                # on screen were wrong.
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code="TURN_COMMIT_FAILED",
+                        message="回复已生成，但本轮状态未能保存；刷新后这条回复可能不会保留。",
+                    )
+                )
+            else:
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code="TURN_EXECUTION_FAILED",
+                        message="本轮处理失败，请稍后重试。",
+                    )
+                )
             raise
         finally:
             _STREAM_SINK.reset(sink_token)
@@ -830,6 +866,7 @@ class MainAgentRuntime:
         turn_id: str,
         conversation_id: str,
         error: Exception,
+        reply_delivered: bool = False,
     ) -> None:
         if self._trace_recorder is None:
             return
@@ -839,16 +876,19 @@ class MainAgentRuntime:
         retryable = getattr(error, "retryable", None)
         if not isinstance(retryable, bool):
             retryable = None
+        details: dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "error_type": type(error).__name__,
+        }
+        if reply_delivered:
+            details["reply_delivered"] = True
         try:
             self._trace_recorder.record(
                 turn_id,
                 "turn_failed",
                 "turn",
                 outcome="failed",
-                details={
-                    "conversation_id": conversation_id,
-                    "error_type": type(error).__name__,
-                },
+                details=details,
                 error_code=error_code,
                 error_detail=str(error),
                 recoverable=retryable,
@@ -973,6 +1013,23 @@ class MainAgentRuntime:
         with self._episode_reconcile_guard:
             return self._episode_reconcile_locks.setdefault(user_id, Lock())
 
+    def _before_commit(
+        self,
+        result: MainAgentTurnResult,
+        hook: Callable[[MainAgentTurnResult], None] | None,
+    ) -> None:
+        """The run is over and its reply final; only the write remains.
+
+        ``hook`` is where the reply goes out to the reader, ahead of the commit
+        rather than after it: the commit changes nothing the reader sees, so
+        waiting for it only adds the save (and any compaction) to the time the
+        answer sits ready and unshown. Whether it then failed to persist is
+        reported separately by the caller.
+        """
+        if hook is not None:
+            hook(result)
+        self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
+
     def _run_and_commit_turn(
         self,
         *,
@@ -980,6 +1037,7 @@ class MainAgentRuntime:
         conversation_id: str,
         user_message: str,
         interaction_response: InteractionResponse | None = None,
+        before_commit: Callable[[MainAgentTurnResult], None] | None = None,
     ) -> MainAgentTurnResult:
         self._reconcile_episodes(user_id)
         routing_task = self._context_manager.get_task(
@@ -1008,7 +1066,7 @@ class MainAgentRuntime:
             except Exception as error:
                 self._commit_interrupted_turn(context=context, error=error)
                 raise
-            self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
+            self._before_commit(result, before_commit)
             self._context_manager.commit_turn(
                 context=context,
                 task=result.context.task,
@@ -1046,7 +1104,7 @@ class MainAgentRuntime:
             # still be driving the next turn, not whether it still holds the
             # slot: a dead checkpoint keeps the slot to record why it died, yet
             # hands the conversation back, and that turn needs a trace too.
-            self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
+            self._before_commit(result, before_commit)
             if self._owns_next_turn(result.context.task):
                 self._context_manager.commit_workflow_turn(
                     context=context,
@@ -1088,7 +1146,7 @@ class MainAgentRuntime:
         # that can be inferred from the task state after execution. The reply,
         # however, did come from the workflow: it is the run's first question,
         # withheld on the same grounds as every question after it.
-        self._emit(ProgressEvent(stage="saving", message="正在保存本轮状态……"))
+        self._before_commit(result, before_commit)
         if self._owns_next_turn(result.context.task):
             held = self._context_manager.commit_workflow_entry(
                 context=context,
@@ -1151,16 +1209,6 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
         )
         if interaction is not None:
-            # Resume analysis is different from ordinary questions: the user
-            # must see the complete proposed evidence before the bound buttons
-            # can carry meaningful consent. The card prompt is only the gate,
-            # not a replacement for the analysis body.
-            if interaction.scope == "resume_analysis_confirmation":
-                self._emit(
-                    ProgressEvent(stage="presenting", message="正在展示分析结果……")
-                )
-                for delta in iter_content_deltas(result.assistant_message):
-                    self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
             self._emit(interaction)
             self._emit(
                 TurnSuspendedEvent(
@@ -1170,30 +1218,6 @@ class MainAgentRuntime:
             )
             return
 
-        if not result.content_streamed:
-            self._emit(
-                ProgressEvent(stage="presenting", message="正在整理交付内容……")
-            )
-            # Compressed only when a card will render the body. For every
-            # other state the message *is* the delivery, so shortening it here
-            # would lose the content outright rather than move it — which is
-            # what happened to the single-question mock interview readback: four
-            # thousand characters the candidate had just asked for, replaced by
-            # a one-line receipt with nowhere to read the rest.
-            #
-            # Where a card does exist this asks the same function the commit
-            # asks, so the live message and the stored one stay identical.
-            streamed_message = (
-                self._conversation_content(
-                    result.tool_result,
-                    screen=self._durable_screen(result),
-                    composed=bool(result.model_message),
-                )
-                if self._turn_is_card_backed(result.tool_results)
-                else result.assistant_message
-            )
-            for delta in iter_content_deltas(streamed_message):
-                self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
         for artifact in result.artifacts:
             reference = artifact.reference
             self._emit(
@@ -1222,6 +1246,61 @@ class MainAgentRuntime:
                 )
             )
         self._emit(TurnCompletedEvent(turn_id=turn_id))
+
+    def _deliver_reply(
+        self,
+        *,
+        result: MainAgentTurnResult,
+        conversation_id: str,
+    ) -> None:
+        """Stream the reply text. Runs before the commit; see ``_before_commit``.
+
+        Everything it sends is a function of the finished result alone, and
+        nothing the commit does changes the text, so sending it first cannot
+        make the live message differ from the stored one.
+        """
+        interaction = self._interaction_event(
+            result=result,
+            conversation_id=conversation_id,
+        )
+        if interaction is not None:
+            # Resume analysis is different from ordinary questions: the user
+            # must see the complete proposed evidence before the bound buttons
+            # can carry meaningful consent. The card prompt is only the gate,
+            # not a replacement for the analysis body.
+            if interaction.scope == "resume_analysis_confirmation":
+                self._emit(
+                    ProgressEvent(stage="presenting", message="正在展示分析结果……")
+                )
+                for delta in iter_content_deltas(result.assistant_message):
+                    self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
+            return
+
+        if not result.content_streamed:
+            self._emit(
+                ProgressEvent(stage="presenting", message="正在整理交付内容……")
+            )
+            # Compressed only when a card will render the body. For every
+            # other state the message *is* the delivery, so shortening it here
+            # would lose the content outright rather than move it — which is
+            # what happened to the single-question mock interview readback: four
+            # thousand characters the candidate had just asked for, replaced by
+            # a one-line receipt with nowhere to read the rest.
+            #
+            # Where a card does exist this asks the same function the commit
+            # asks, so the live message and the stored one stay identical.
+            streamed_message = (
+                self._conversation_content(
+                    result.tool_result,
+                    screen=self._durable_screen(result),
+                    composed=bool(result.model_message),
+                )
+                if self._turn_is_card_backed(result.tool_results)
+                else result.assistant_message
+            )
+            for delta in iter_content_deltas(streamed_message):
+                self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
+
     @staticmethod
     def _interaction_event(
         *,
@@ -1888,6 +1967,155 @@ class MainAgentRuntime:
             career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
         )
 
+    DECISION_HEARTBEAT_SECONDS: ClassVar[float] = 15.0
+
+    _DECISION_RETRY_REASONS: ClassVar[dict[str, str]] = {
+        "MAIN_AGENT_TRANSPORT_ERROR": "上一次请求超时或连接中断",
+        "MAIN_AGENT_RATE_LIMITED": "上一次请求被限流",
+    }
+
+    @classmethod
+    def _decision_attempt_message(cls, attempt: DecisionAttempt) -> str | None:
+        if attempt.attempt <= 1:
+            return None
+        code = attempt.previous_error_code or ""
+        reason = cls._DECISION_RETRY_REASONS.get(
+            code,
+            "上一次请求被模型服务拒绝" if code.startswith("MAIN_AGENT_REJECTED_") else "上一次请求失败",
+        )
+        return (
+            f"{reason}，正在重新判断（第 {attempt.attempt}/{attempt.max_attempts} 次，"
+            f"已等待 {int(attempt.elapsed_seconds)} 秒）……"
+        )
+
+    _COMPACTION_MESSAGES: ClassVar[dict[str, tuple[str, str]]] = {
+        "load": ("loading_context", "正在压缩较早的对话记录，稍后开始判断……"),
+        "commit": ("saving", "正在压缩较早的对话记录，回复已送达，可以先看……"),
+    }
+
+    def _announce_compaction(self, phase: str) -> None:
+        stage, message = self._COMPACTION_MESSAGES[phase]
+        self._emit(ProgressEvent(stage=stage, message=message))
+
+    def _heartbeat(
+        self,
+        sink: StreamEventSink | None,
+        *,
+        stage: str,
+        describe: Callable[[int], str],
+    ) -> Event:
+        """Keep a blocking wait visible on the stream.
+
+        A model request or a worker call blocks this thread, so nothing on it
+        can speak until the callee returns; a helper thread posts the elapsed
+        seconds to the captured sink instead. Presentation only: it never
+        touches graph state, and the returned event stops it.
+        """
+        stop = Event()
+        if sink is None:
+            return stop
+        interval = self.DECISION_HEARTBEAT_SECONDS
+        started = perf_counter()
+
+        def beat() -> None:
+            while not stop.wait(interval):
+                waited = int(perf_counter() - started)
+                try:
+                    sink(ProgressEvent(stage=stage, message=describe(waited)))
+                except Exception:
+                    return
+
+        Thread(target=beat, name=f"{stage}-heartbeat", daemon=True).start()
+        return stop
+
+    def _decision_heartbeat(self, sink: StreamEventSink | None) -> Event:
+        return self._heartbeat(
+            sink,
+            stage="deciding",
+            describe=lambda waited: f"仍在等待模型判断（已等待 {waited} 秒）……",
+        )
+
+    _CAPABILITY_STEP_MESSAGES: ClassVar[dict[str, str]] = {
+        "resume_analysis": "正在分析简历内容",
+        "resume_job_match": "正在比对简历与岗位要求",
+        "resume_job_match_state_audit": "正在核对简历比对结果",
+        "resume_tailoring": "正在起草定制简历",
+        "resume_draft_review": "正在审校简历草稿",
+        "resume_finalization": "正在定稿简历",
+        "resume_final_review": "正在审校定稿简历",
+        "job_research": "正在调研岗位背景",
+        "interview_preparation": "正在准备面试资料",
+        "mock_interview_plan": "正在规划模拟面试",
+        "mock_interview_input_route": "正在理解你的回答",
+        "mock_interview_ask": "正在生成面试问题",
+        "mock_interview_evaluate": "正在点评你的回答",
+        "mock_interview_report": "正在整理面试报告",
+        "email_tracking_assess": "正在识别招聘邮件",
+        "email_sync.fetch": "正在读取邮箱",
+        "email_sync.scan": "正在扫描邮件",
+    }
+
+    _CAPABILITY_TOOL_MESSAGES: ClassVar[dict[str, str]] = {
+        "read_file": "正在阅读工作指南",
+        "ls": "正在查找工作指南",
+        "glob": "正在查找工作指南",
+        "grep": "正在检索工作指南",
+    }
+
+    @classmethod
+    def _capability_step_label(cls, step: CapabilityStep) -> str | None:
+        """The user-facing name of an internal step, or nothing.
+
+        Unknown labels stay silent rather than leaking internal names.
+        """
+        if step.kind == "tool":
+            _, _, tool = step.stage.rpartition(".")
+            return cls._CAPABILITY_TOOL_MESSAGES.get(tool)
+        return cls._CAPABILITY_STEP_MESSAGES.get(step.stage)
+
+    @staticmethod
+    def _capability_step_message(label: str, step: CapabilityStep) -> str:
+        if step.kind == "retry":
+            return f"{label}时请求失败，正在重试……"
+        if step.index is not None and step.total is not None:
+            return f"{label}（第 {step.index}/{step.total} 项）……"
+        if step.index is not None and step.index > 1:
+            return f"{label}（第 {step.index} 次调用模型）……"
+        return f"{label}……"
+
+    def _run_capability(
+        self,
+        pending: PendingAction,
+        run: Callable[[], MainAgentToolOutput],
+    ) -> MainAgentToolOutput:
+        """Execute one tool call while relaying its internal steps."""
+        capability = self._public_capability(pending["name"])
+        latest = self._CAPABILITY_LABELS[capability].rstrip("…")
+
+        def on_step(step: CapabilityStep) -> None:
+            nonlocal latest
+            label = self._capability_step_label(step)
+            if label is None:
+                return
+            latest = label
+            self._emit(
+                ProgressEvent(
+                    stage="running_capability",
+                    message=self._capability_step_message(label, step),
+                )
+            )
+
+        heartbeat = self._heartbeat(
+            _STREAM_SINK.get(),
+            stage="running_capability",
+            describe=lambda waited: f"{latest}（已等待 {waited} 秒）……",
+        )
+        try:
+            with observing_capability_steps(on_step):
+                return run()
+        finally:
+            heartbeat.set()
+
     def _decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(ProgressEvent(stage="deciding", message="正在判断下一步操作……"))
         context = state["context"]
@@ -1942,8 +2170,15 @@ class MainAgentRuntime:
             details=details,
             model_call_category="orchestrator_decision",
         )
+        def on_attempt(attempt: DecisionAttempt) -> None:
+            message = self._decision_attempt_message(attempt)
+            if message is not None:
+                self._emit(ProgressEvent(stage="deciding", message=message))
+
+        heartbeat = self._decision_heartbeat(_STREAM_SINK.get())
         try:
-            decision = self._decision_maker.decide(context, schemas)
+            with observing_decision_attempts(on_attempt):
+                decision = self._decision_maker.decide(context, schemas)
         except Exception as error:
             self._record_trace_event(
                 "memory_context_observed",
@@ -1976,6 +2211,8 @@ class MainAgentRuntime:
                 model_call_category="orchestrator_decision",
             )
             raise
+        finally:
+            heartbeat.set()
         note_only_tokens = self._decision_note_only_tokens(context, decision)
         self._record_trace_event(
             "memory_context_observed",
@@ -2543,9 +2780,13 @@ class MainAgentRuntime:
         arguments = pending["arguments"]
         self._emit_capability_started(name)
         if pending.get("effect") == "WRITE" and self._action_execution_store is not None:
-            result = self._act_request_anchored_write(state)
+            result = self._run_capability(
+                pending, lambda: self._act_request_anchored_write(state)
+            )
         else:
-            result = self._invoke_pending(pending)
+            result = self._run_capability(
+                pending, lambda: self._invoke_pending(pending)
+            )
         if pending.get("effect") == "WRITE" and result.execution_outcome is None:
             raise ValueError(
                 f"WRITE capability {name!r} returned without execution_outcome"

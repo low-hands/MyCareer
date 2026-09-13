@@ -202,3 +202,41 @@ def test_deep_agent_callback_counts_each_inner_model_request_without_content() -
     assert "PRIVATE JD" not in serialized
     assert "PRIVATE FOLLOW-UP" not in serialized
     assert "PRIVATE RESULT" not in serialized
+
+
+def test_capability_steps_reach_the_installed_observer_without_a_trace() -> None:
+    from career_agent.harness.capability_steps import (
+        CapabilityStep,
+        observing_capability_steps,
+    )
+    from career_agent.harness.observability import CapabilityToolStepCallback
+
+    class Worker:
+        @traced_model_call("resume_analysis")
+        def run(self) -> str:
+            return "PRIVATE RESULT"
+
+    model_callback = CapabilityModelTraceCallback(
+        stage="job_research", worker="DeepAgentJobResearchWorker"
+    )
+    tool_callback = CapabilityToolStepCallback(stage="job_research")
+    steps: list[CapabilityStep] = []
+
+    assert ACTIVE_TRACE_CONTEXT.get() is None
+    with observing_capability_steps(steps.append):
+        assert Worker().run() == "PRIVATE RESULT"
+        model_callback.on_chat_model_start({}, [["PRIVATE JD"]], run_id="r1")
+        model_callback.on_llm_error(RuntimeError("boom"), run_id="r1")
+        model_callback.on_chat_model_start({}, [["PRIVATE JD"]], run_id="r2")
+        tool_callback.on_tool_start({"name": "read_file"}, "PRIVATE PATH")
+        model_callback.on_llm_end("PRIVATE RESULT", run_id="r2")
+    Worker().run()
+
+    assert steps == [
+        CapabilityStep(stage="resume_analysis", kind="model"),
+        CapabilityStep(stage="job_research", kind="model", index=1),
+        CapabilityStep(stage="job_research", kind="retry"),
+        CapabilityStep(stage="job_research", kind="model", index=2),
+        CapabilityStep(stage="job_research.read_file", kind="tool"),
+    ]
+    assert "PRIVATE" not in repr(steps)

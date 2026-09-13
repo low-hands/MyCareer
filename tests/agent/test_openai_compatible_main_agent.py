@@ -726,8 +726,10 @@ def test_a_rejected_decision_carries_the_provider_error_code(body, expected) -> 
     assert raised.value.code == expected
 
 
-def _maker_over_transport(monkeypatch, handler) -> OpenAICompatibleMainAgentDecisionMaker:
-    """A real SDK client and retry loop, answering from ``handler``."""
+def _maker_over_transport(
+    monkeypatch, handler, *, max_attempts: int = 2
+) -> OpenAICompatibleMainAgentDecisionMaker:
+    """A real SDK client and our retry loop, answering from ``handler``."""
     import httpx
 
     monkeypatch.setattr(
@@ -736,17 +738,18 @@ def _maker_over_transport(monkeypatch, handler) -> OpenAICompatibleMainAgentDeci
             transport=httpx.MockTransport(handler), **kwargs
         ),
     )
-    monkeypatch.setattr("openai._base_client.time.sleep", lambda seconds: None)
     return OpenAICompatibleMainAgentDecisionMaker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="decision-model",
-        )
+        ),
+        max_attempts=max_attempts,
+        sleep=lambda seconds: None,
     )
 
 
-def test_decide_records_every_http_attempt_including_sdk_retries(
+def test_decide_records_every_http_attempt_including_retries(
     monkeypatch,
 ) -> None:
     import httpx
@@ -786,7 +789,7 @@ def test_decide_records_every_http_attempt_including_sdk_retries(
             },
         )
 
-    maker = _maker_over_transport(monkeypatch, handler)
+    maker = _maker_over_transport(monkeypatch, handler, max_attempts=3)
     context = MainAgentContext(
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1"),
@@ -799,6 +802,7 @@ def test_decide_records_every_http_attempt_including_sdk_retries(
     metrics = maker.consume_cache_metrics()
     assert metrics["attempt_count"] == 3
     assert metrics["attempt_results"] == ["no_response", 503, 200]
+    assert metrics["finish_reason"] == "stop"
     assert metrics["input_units"] == 10
     # Read once: the next decision starts its own count.
     assert "attempt_count" not in maker.consume_cache_metrics()
@@ -825,11 +829,113 @@ def test_a_decision_that_never_got_a_response_still_reports_its_attempts(
         maker.decide(context, ())
 
     assert raised.value.code == "MAIN_AGENT_TRANSPORT_ERROR"
-    # What model_failed receives: one initial attempt and three SDK retries.
+    # What model_failed receives: one initial attempt and one retry.
     assert maker.consume_cache_metrics() == {
-        "attempt_count": 4,
-        "attempt_results": ["no_response"] * 4,
+        "attempt_count": 2,
+        "attempt_results": ["no_response"] * 2,
     }
+
+
+def test_each_retry_is_announced_with_the_previous_failure(monkeypatch) -> None:
+    import httpx
+
+    from career_agent.agent.decision_attempts import observing_decision_attempts
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    def handler(request):
+        raise httpx.ReadTimeout("stalled", request=request)
+
+    maker = _maker_over_transport(monkeypatch, handler, max_attempts=3)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+    seen = []
+
+    with observing_decision_attempts(seen.append):
+        with pytest.raises(AgentWorkerError):
+            maker.decide(context, ())
+
+    assert [(a.attempt, a.max_attempts, a.previous_error_code) for a in seen] == [
+        (1, 3, None),
+        (2, 3, "MAIN_AGENT_TRANSPORT_ERROR"),
+        (3, 3, "MAIN_AGENT_TRANSPORT_ERROR"),
+    ]
+
+
+def test_a_non_retryable_rejection_is_not_retried(monkeypatch) -> None:
+    import httpx
+
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(400, json={"error": {"message": "bad"}})
+
+    maker = _maker_over_transport(monkeypatch, handler, max_attempts=3)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    assert raised.value.code.startswith("MAIN_AGENT_REJECTED_400")
+    assert raised.value.retryable is False
+    assert len(calls) == 1
+
+
+def test_a_decision_cut_off_by_the_output_budget_is_reported_as_truncated(
+    monkeypatch,
+) -> None:
+    import httpx
+
+    from career_agent.agent.openai_compatible_client import AgentWorkerError
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "decision-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "length",
+                        "message": {
+                            "role": "assistant",
+                            "content": '{"action": "final", "message": "这个岗位',
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2048,
+                    "total_tokens": 2058,
+                },
+            },
+        )
+
+    maker = _maker_over_transport(monkeypatch, handler)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    assert raised.value.code == "MAIN_AGENT_RESPONSE_TRUNCATED"
+    assert raised.value.retryable is False
+    assert maker.consume_cache_metrics()["finish_reason"] == "length"
 
 
 def test_dynamic_control_does_not_change_the_static_system_message() -> None:

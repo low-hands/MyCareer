@@ -87,7 +87,10 @@ def test_worker_uses_run_as_thread_and_resumes_without_readding_input() -> None:
     worker.forget("run-1")
 
     assert result.sources[0].source_key == "S1"
-    assert agent.calls[0][1] == {"configurable": {"thread_id": "run-1"}}
+    assert agent.calls[0][1]["configurable"] == {"thread_id": "run-1"}
+    assert [type(cb).__name__ for cb in agent.calls[0][1]["callbacks"]] == [
+        "CapabilityToolStepCallback"
+    ]
     assert "<job_description>" in agent.calls[0][0]["messages"][0]["content"]
     assert agent.calls[1][0] is None
     assert checkpointer.deleted == ["run-1"]

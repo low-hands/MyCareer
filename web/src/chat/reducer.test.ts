@@ -153,4 +153,34 @@ describe("chatReducer", () => {
     // summary of something the user can no longer open.
     expect(state.messages[1]?.resources?.[0]?.resourceId).toBe("report-1");
   });
+
+  it("treats a dropped stream as recovering, not failed, until the transcript answers", () => {
+    let state = chatReducer(initialChatState, {
+      type: "submit",
+      messageId: "user-1",
+      assistantMessageId: "assistant-1",
+      content: "分析岗位",
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: { type: "content_delta", delta: "核心" },
+    });
+    state = chatReducer(state, { type: "transport_lost" });
+
+    expect(state.phase).toBe("recovering");
+    expect(state.error).toBeNull();
+    expect(state.progress).toContain("连接中断");
+    // The partial reply stays on screen while we check.
+    expect(state.messages.at(-1)?.content).toBe("核心");
+
+    const recovered = chatReducer(state, {
+      type: "hydrate",
+      messages: [
+        { id: "h-0", role: "user", content: "分析岗位" },
+        { id: "h-1", role: "assistant", content: "核心要求是……" },
+      ],
+    });
+    expect(recovered.phase).toBe("completed");
+    expect(recovered.messages.at(-1)?.content).toBe("核心要求是……");
+  });
 });

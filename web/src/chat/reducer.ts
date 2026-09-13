@@ -6,7 +6,18 @@ import type {
   PublicStreamEvent,
 } from "./types";
 
-export type ChatPhase = "idle" | "running" | "awaiting_input" | "completed" | "failed";
+/**
+ * `recovering`: the stream dropped after the turn had started. The server keeps
+ * running the turn and stores the reply regardless, so the client is re-reading
+ * the transcript rather than reporting a failure it cannot yet confirm.
+ */
+export type ChatPhase =
+  | "idle"
+  | "running"
+  | "recovering"
+  | "awaiting_input"
+  | "completed"
+  | "failed";
 
 export interface MessageResource {
   kind: ReportKind;
@@ -77,6 +88,7 @@ export type ChatAction =
     }
   | { type: "stream_event"; event: PublicStreamEvent }
   | { type: "transport_failed"; message: string }
+  | { type: "transport_lost" }
   | { type: "reset" };
 
 function updateActiveMessage(state: ChatState, delta: string): ChatMessage[] {
@@ -124,6 +136,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       phase: "failed",
       progress: null,
       error: action.message,
+    };
+  }
+  if (action.type === "transport_lost") {
+    return {
+      ...state,
+      phase: "recovering",
+      progress: "连接中断，正在检查回复是否已保存……",
+      error: null,
     };
   }
 

@@ -27,6 +27,7 @@ from career_agent.agent.openai_compatible_client import (
 from career_agent.domain.job_research import JobResearchDraft
 from career_agent.harness.observability import (
     CapabilityModelTraceCallback,
+    CapabilityToolStepCallback,
     traced_model_call,
 )
 
@@ -69,7 +70,10 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
         request: JobResearchWorkerRequest,
         resume: bool = False,
     ) -> JobResearchDraft:
-        config = {"configurable": {"thread_id": run_id}}
+        config = {
+            "configurable": {"thread_id": run_id},
+            "callbacks": [CapabilityToolStepCallback(stage="job_research")],
+        }
         payload = None if resume else {
             "messages": [
                 {

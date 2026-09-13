@@ -958,6 +958,40 @@ def test_a_seam_compacts_without_building_or_estimating(
     assert event.details["input_occupancy_numerator"] is None
 
 
+def test_a_compaction_listener_hears_the_phase_only_when_the_worker_is_called(
+    tmp_path,
+) -> None:
+    worker = RecordingSummaryWorker()
+    context_manager = manager(tmp_path, limit=4, summary_worker=worker)
+    context_manager.configure_request_token_estimator(lambda context: (1, 1000))
+    phases: list[str] = []
+    context_manager.on_compaction(phases.append)
+
+    entry_context = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="开始模拟面试"
+    )
+    assert phases == []
+    held = context_manager.commit_workflow_entry(
+        context=entry_context,
+        task=ConversationTaskState(
+            active_workflow="mock_interview",
+            run_id="mock-1",
+            phase="mock_interview_answer_required",
+        ),
+    )
+    workflow_context = context_manager.load_for_workflow_turn(
+        user_id="u1", conversation_id="c1", task=held
+    )
+    context_manager.commit_workflow_exit(
+        context=workflow_context,
+        task=ConversationTaskState(),
+        assistant_message="模拟面试已完成。",
+    )
+
+    assert len(worker.calls) == 1
+    assert phases == ["commit"]
+
+
 def test_a_load_that_compacted_carries_the_estimate_of_what_it_returned(
     tmp_path,
 ) -> None:
@@ -1248,6 +1282,7 @@ def test_one_seam_never_runs_a_synchronous_summary_loop(tmp_path) -> None:
         user_id="u1",
         conversation_id="c1",
         trigger="seam",
+        phase="commit",
         measure=lambda after_sequence: context_manager._overflow_only_pressure(
             user_id="u1",
             conversation_id="c1",
@@ -1451,6 +1486,7 @@ def _attempt_seam_compaction(context_manager, conversation_id: str = "c1") -> No
         user_id="u1",
         conversation_id=conversation_id,
         trigger="seam",
+        phase="commit",
         measure=lambda after_sequence: context_manager._overflow_only_pressure(
             user_id="u1",
             conversation_id=conversation_id,

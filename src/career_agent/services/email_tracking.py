@@ -17,6 +17,7 @@ from career_agent.domain.email_tracking import (
     RemoteEmailMetadata,
 )
 from career_agent.domain.interviews import InterviewDetails
+from career_agent.harness.capability_steps import notify_capability_step
 from career_agent.services.applications import (
     ApplicationInputNotFoundError,
     ApplicationService,
@@ -181,7 +182,13 @@ class EmailTrackingService:
         created_events: list[EmailEvent] = []
         seen_count = 0
         candidate_count = 0
-        for account in accounts:
+        for account_index, account in enumerate(accounts, start=1):
+            notify_capability_step(
+                "email_sync.fetch",
+                kind="io",
+                index=account_index,
+                total=len(accounts),
+            )
             connector = self._connector_resolver.resolve(
                 provider=account.provider,
                 email_address=account.email_address,
@@ -196,7 +203,13 @@ class EmailTrackingService:
                     raise
                 batch = connector.sync_metadata(cursor=None, since=since)
             seen_count += len(batch.messages)
-            for metadata in batch.messages:
+            for message_index, metadata in enumerate(batch.messages, start=1):
+                notify_capability_step(
+                    "email_sync.scan",
+                    kind="io",
+                    index=message_index,
+                    total=len(batch.messages),
+                )
                 # Match on the original, persist the scrubbed copy. A subject line
                 # carries one-time codes ("您的验证码是 …") and magic links just as
                 # often as the body does, and it reaches both the store and the

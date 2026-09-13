@@ -203,6 +203,8 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .client-action-card small { color: #68766f; }
 .client-action-card:hover { border-color: #396b57; background: #e4eee8; }
 .error-banner { padding: 13px 15px; color: #872d25; background: #f9e9e5; border-radius: 12px; }
+.error-banner-action { margin-left: 12px; padding: 5px 11px; color: #872d25; background: #fff; border: 1px solid #e3b7b0; border-radius: 8px; font-size: 12px; }
+.error-banner-action:hover { background: #fbf1ef; }
 .report-card { margin-top: 12px; border: 1px solid #ddd8cc; border-radius: 14px; background: #fff; overflow: hidden; }
 .report-card-header { width: 100%; display: flex; align-items: center; gap: 13px; padding: 14px 15px; text-align: left; background: transparent; border: 0; }
 .report-card-header:hover { background: #f8f6f0; }

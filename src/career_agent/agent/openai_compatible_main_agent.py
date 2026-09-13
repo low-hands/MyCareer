@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
 import json
 import secrets
+import time
 from threading import Lock
+from time import perf_counter
 from typing import Any, Mapping
 
 from openai import (
@@ -16,6 +19,10 @@ from openai import (
     RateLimitError,
 )
 
+from career_agent.agent.decision_attempts import (
+    DecisionAttempt,
+    notify_decision_attempt,
+)
 from career_agent.agent.decision_messages import assemble_decision_messages
 from career_agent.agent.decision_messages import CACHEABLE_CONTEXT_SLOTS
 from career_agent.agent.job_discovery_contracts import ContractModel
@@ -31,6 +38,30 @@ from career_agent.agent.openai_compatible_client import (
 )
 from career_agent.agent.structured_responses import provider_code
 from career_agent.agent.token_budget import count_tokens
+
+
+DEFAULT_MAX_DECISION_ATTEMPTS = 2
+"""HTTP attempts one decision may take before the turn fails.
+
+One retry, not the SDK's three: every attempt can run to the full timeout, and
+four silent minutes read as a hang. The retry is announced (see
+``decision_attempts``), so one is enough to ride out a dropped connection
+without hiding a provider that is actually down.
+"""
+
+DEFAULT_MAX_OUTPUT_TOKENS = 2048
+"""Completion budget for one decision.
+
+Reasoning providers count their thinking inside ``completion_tokens``, so the
+room left for the decision itself is this minus the reasoning. A decision that
+still hits the ceiling is reported as truncated rather than as malformed.
+"""
+
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+
+
+def _retry_delay_seconds(attempt: int) -> float:
+    return min(0.5 * attempt, 2.0)
 
 
 def _base_url(endpoint: str) -> str:
@@ -70,13 +101,13 @@ class _StaticRequestMetadata:
 
 
 class _AttemptLog:
-    """Every HTTP attempt one decision made, the SDK's retries included.
+    """Every HTTP attempt one decision made, retries included.
 
-    The SDK retries a timeout, a dropped connection and 408/409/429/5xx by
-    itself, so a slow decision may be one slow response or several stalled
-    ones, and without this the trace cannot tell which. The hooks run once per
-    attempt on the thread making the call: an attempt that never received a
-    response stays ``no_response``, one that did records its status.
+    A timeout, a dropped connection and 408/409/429/5xx are retried, so a
+    slow decision may be one slow response or several stalled ones, and
+    without this the trace cannot tell which. The hooks run once per attempt
+    on the thread making the call: an attempt that never received a response
+    stays ``no_response``, one that did records its status.
     """
 
     def __init__(self) -> None:
@@ -123,14 +154,29 @@ def _request_envelope_token_count(
 
 class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     def __init__(
-        self, config: OpenAICompatibleAgentConfig, *, client: Any | None = None
+        self,
+        config: OpenAICompatibleAgentConfig,
+        *,
+        client: Any | None = None,
+        max_attempts: int = DEFAULT_MAX_DECISION_ATTEMPTS,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least one")
         self._config = config
+        self._max_attempts = max_attempts
+        self._max_output_tokens = max_output_tokens
+        self._sleep = sleep
         self._attempts = _AttemptLog()
+        self._finish_reason: ContextVar[str | None] = ContextVar(
+            f"main_agent_finish_reason_{id(self)}", default=None
+        )
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            # Retries are this class's job so each one can be announced.
+            max_retries=0,
             # The SDK's own client defaults, plus hooks that count attempts.
             http_client=DefaultHttpxClient(event_hooks=self._attempts.event_hooks()),
         )
@@ -147,6 +193,10 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     def consume_cache_metrics(self) -> dict[str, Any]:
         metrics = self._cache_metrics.get() or {}
         self._cache_metrics.set(None)
+        finish_reason = self._finish_reason.get()
+        self._finish_reason.set(None)
+        if finish_reason is not None:
+            metrics = {**metrics, "finish_reason": finish_reason}
         return {**metrics, **self._attempts.consume()}
 
     def cache_configuration(self) -> dict[str, Any]:
@@ -385,6 +435,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         tool_specs: tuple[dict[str, Any] | str, ...],
     ) -> AgentDecision:
         self._cache_metrics.set(None)
+        self._finish_reason.set(None)
         self._attempts.start()
         metadata = self._static_request_metadata(tool_specs)
         tools = metadata.tools
@@ -410,31 +461,24 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "mode": "explicit",
                     "ttl": "30m",
                 }
-        try:
-            response = self._client.chat.completions.create(
-                model=self._config.model,
-                max_tokens=1024,
-                tools=list(tools),
-                tool_choice="auto",
-                messages=messages,
-                timeout=self._config.timeout_seconds,
-                **request_options,
-            )
-        except RateLimitError as error:
-            raise AgentWorkerError("MAIN_AGENT_RATE_LIMITED", "Main Agent model is rate limited.", retryable=True) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError("MAIN_AGENT_TRANSPORT_ERROR", "Main Agent model transport failed.", retryable=True) from error
-        except APIStatusError as error:
-            # Spelled like the structured-response workers' codes, so a trace
-            # can tell a context-length refusal from a content-policy one.
-            raise AgentWorkerError(
-                f"MAIN_AGENT_REJECTED_{error.status_code}{provider_code(error)}",
-                "Main Agent model rejected the request.",
-            ) from error
+        response = self._request_with_retries(
+            messages=messages, tools=tools, request_options=request_options
+        )
         self._record_cache_metrics(response)
-        message = response.choices[0].message if response.choices else None
+        choice = response.choices[0] if response.choices else None
+        message = choice.message if choice is not None else None
         if message is None:
             raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
+        finish_reason = getattr(choice, "finish_reason", None)
+        if isinstance(finish_reason, str):
+            self._finish_reason.set(finish_reason)
+        if finish_reason == "length":
+            # Cut off mid-decision. Fail-closed like malformed JSON, but under
+            # its own code: the fix is budget, not the model's formatting.
+            raise AgentWorkerError(
+                "MAIN_AGENT_RESPONSE_TRUNCATED",
+                "Main Agent model ran out of output tokens before finishing its decision.",
+            )
         tool_calls = getattr(message, "tool_calls", None) or ()
         if tool_calls:
             call = tool_calls[0]
@@ -448,6 +492,68 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         if not content:
             raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
         return self._parse_text_decision(content)
+
+    def _request_with_retries(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: tuple[dict[str, Any], ...],
+        request_options: dict[str, Any],
+    ) -> Any:
+        started = perf_counter()
+        previous_error: AgentWorkerError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            notify_decision_attempt(
+                DecisionAttempt(
+                    attempt=attempt,
+                    max_attempts=self._max_attempts,
+                    elapsed_seconds=perf_counter() - started,
+                    previous_error_code=(
+                        previous_error.code if previous_error is not None else None
+                    ),
+                )
+            )
+            try:
+                return self._request(
+                    messages=messages, tools=tools, request_options=request_options
+                )
+            except AgentWorkerError as error:
+                if not error.retryable or attempt >= self._max_attempts:
+                    raise
+                previous_error = error
+                self._sleep(_retry_delay_seconds(attempt))
+        raise AssertionError("unreachable: the loop returns or raises")
+
+    def _request(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: tuple[dict[str, Any], ...],
+        request_options: dict[str, Any],
+    ) -> Any:
+        try:
+            return self._client.chat.completions.create(
+                model=self._config.model,
+                max_tokens=self._max_output_tokens,
+                tools=list(tools),
+                tool_choice="auto",
+                messages=messages,
+                timeout=self._config.timeout_seconds,
+                **request_options,
+            )
+        except RateLimitError as error:
+            raise AgentWorkerError("MAIN_AGENT_RATE_LIMITED", "Main Agent model is rate limited.", retryable=True) from error
+        except APIConnectionError as error:
+            raise AgentWorkerError("MAIN_AGENT_TRANSPORT_ERROR", "Main Agent model transport failed.", retryable=True) from error
+        except APIStatusError as error:
+            # Spelled like the structured-response workers' codes, so a trace
+            # can tell a context-length refusal from a content-policy one.
+            status = error.status_code
+            raise AgentWorkerError(
+                f"MAIN_AGENT_REJECTED_{status}{provider_code(error)}",
+                "Main Agent model rejected the request.",
+                retryable=status in _RETRYABLE_STATUS_CODES or status >= 500,
+            ) from error
 
     @staticmethod
     def _parse_text_decision(content: str) -> AgentDecision:

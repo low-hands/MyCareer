@@ -60,6 +60,26 @@ describe("streamChat", () => {
     });
   });
 
+  it("sends the idempotency key as a header when given one", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Response(
+        'event: turn_completed\ndata: {"type":"turn_completed","turn_id":"turn-1"}\n\n',
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    for await (const _event of streamChat(
+      { conversation_id: "c1", message: "你好" },
+      { idempotencyKey: "req-1" },
+    )) {
+      // Consume the response so the request completes.
+    }
+
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers["Idempotency-Key"]).toBe("req-1");
+  });
+
   it("decodes typed events across response chunks", async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
