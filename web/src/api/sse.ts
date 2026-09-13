@@ -1,4 +1,8 @@
-import { parsePublicStreamEvent, type PublicStreamEvent } from "../chat/events";
+import {
+  parsePublicStreamEvent,
+  type InteractionScope,
+  type PublicStreamEvent,
+} from "../chat/events";
 
 export interface ChatStreamRequest {
   conversation_id: string;
@@ -8,7 +12,7 @@ export interface ChatStreamRequest {
 
 export interface InteractionResponse {
   interaction_id: string;
-  scope: "resume_analysis_confirmation";
+  scope: InteractionScope;
   action: "confirm" | "cancel";
 }
 

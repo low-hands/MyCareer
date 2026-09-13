@@ -1,42 +1,72 @@
-export type ProgressStage =
-  | "loading_context"
-  | "deciding"
-  | "running_capability"
-  | "presenting"
-  | "saving";
+/*
+ * The closed sets below are runtime arrays rather than bare type unions so the
+ * contract test (src/contracts/contract.test.ts) can compare them with the
+ * enums the backend exports. A union alone is erased at compile time and could
+ * silently lag a value the server had already started sending.
+ */
 
-export type Capability =
-  | "job_search"
-  | "job_research"
-  | "resume"
-  | "application_tracking"
-  | "interview"
-  | "calendar"
-  | "action_center"
-  | "career_task";
+export const PROGRESS_STAGES = [
+  "loading_context",
+  "deciding",
+  "running_capability",
+  "presenting",
+  "saving",
+] as const;
+export type ProgressStage = (typeof PROGRESS_STAGES)[number];
 
-export type ReportKind =
-  | "job_research_report"
-  | "mock_interview_report"
-  | "interview_preparation"
-  | "interview_retro_report"
-  | "resume_job_match"
-  | "resume_tailoring_draft";
+export const CAPABILITIES = [
+  "job_search",
+  "job_research",
+  "resume",
+  "application_tracking",
+  "interview",
+  "calendar",
+  "action_center",
+  "career_task",
+] as const;
+export type Capability = (typeof CAPABILITIES)[number];
 
-export const REPORT_KINDS = new Set<ReportKind>([
+export const REPORT_KIND_LIST = [
   "job_research_report",
   "mock_interview_report",
   "interview_preparation",
   "interview_retro_report",
   "resume_job_match",
   "resume_tailoring_draft",
-]);
+] as const;
+export type ReportKind = (typeof REPORT_KIND_LIST)[number];
+export const REPORT_KINDS = new Set<ReportKind>(REPORT_KIND_LIST);
+
+export const REPORT_DELIVERY_STATUSES = ["current", "outdated", "superseded"] as const;
+export type ReportDeliveryStatus = (typeof REPORT_DELIVERY_STATUSES)[number];
+
+export const INTERACTION_KINDS = [
+  "single_selection",
+  "multiple_selection",
+  "confirmation",
+  "free_text",
+  "approval",
+  "file_upload",
+] as const;
+export type InteractionKind = (typeof INTERACTION_KINDS)[number];
+
+/**
+ * Scopes whose buttons send a bound `InteractionResponse` back rather than
+ * prose. The server routes the reply by this value, so an unknown scope must
+ * fail at the parse boundary instead of producing a button that posts a
+ * response the server will reject.
+ */
+export const INTERACTION_SCOPES = [
+  "resume_analysis_confirmation",
+  "capability_confirmation",
+] as const;
+export type InteractionScope = (typeof INTERACTION_SCOPES)[number];
 
 export interface InteractionOption {
   label: string;
-  description?: string;
-  selection_index?: number;
-  value?: string;
+  description?: string | null;
+  selection_index?: number | null;
+  value?: string | null;
 }
 
 export type PublicStreamEvent =
@@ -56,17 +86,11 @@ export type PublicStreamEvent =
   | {
       type: "interaction_required";
       interaction_id: string;
-      kind:
-        | "single_selection"
-        | "multiple_selection"
-        | "confirmation"
-        | "free_text"
-        | "approval"
-        | "file_upload";
+      kind: InteractionKind;
       prompt: string;
       options: InteractionOption[];
       allow_free_text: boolean;
-      scope?: "resume_analysis_confirmation";
+      scope?: InteractionScope | null;
     }
   | { type: "content_delta"; delta: string }
   | {
@@ -80,7 +104,7 @@ export type PublicStreamEvent =
       type: "report_ready";
       kind: ReportKind;
       resource_id: string;
-      status_at_delivery?: "current" | "outdated" | "superseded" | null;
+      status_at_delivery?: ReportDeliveryStatus | null;
       anchored_by_other_job?: boolean | null;
     }
   | {
@@ -103,7 +127,7 @@ export type PublicStreamEvent =
       message: string;
     };
 
-const EVENT_TYPES = new Set<PublicStreamEvent["type"]>([
+export const EVENT_TYPES = [
   "turn_started",
   "progress",
   "capability_started",
@@ -116,7 +140,18 @@ const EVENT_TYPES = new Set<PublicStreamEvent["type"]>([
   "turn_suspended",
   "turn_completed",
   "turn_failed",
-]);
+] as const satisfies readonly PublicStreamEvent["type"][];
+
+// Compile-time exhaustiveness: adding a variant to PublicStreamEvent without
+// listing it here fails to type-check.
+type MissingEventType = Exclude<PublicStreamEvent["type"], (typeof EVENT_TYPES)[number]>;
+const _everyEventTypeListed: MissingEventType extends never ? true : never = true;
+void _everyEventTypeListed;
+
+const EVENT_TYPE_SET = new Set<string>(EVENT_TYPES);
+const INTERACTION_KIND_SET = new Set<string>(INTERACTION_KINDS);
+const INTERACTION_SCOPE_SET = new Set<string>(INTERACTION_SCOPES);
+const REPORT_DELIVERY_STATUS_SET = new Set<string>(REPORT_DELIVERY_STATUSES);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -126,7 +161,7 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
   if (!isRecord(value) || typeof value.type !== "string") {
     throw new Error("SSE_EVENT_INVALID");
   }
-  if (!EVENT_TYPES.has(value.type as PublicStreamEvent["type"])) {
+  if (!EVENT_TYPE_SET.has(value.type)) {
     throw new Error("SSE_EVENT_UNSUPPORTED");
   }
 
@@ -136,6 +171,9 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
       if (typeof value.turn_id !== "string") throw new Error("SSE_EVENT_INVALID");
       break;
     case "progress":
+      // Stage and capability only choose a status line, never a code path, so
+      // an unknown value is not worth failing the turn over: it is accepted
+      // here and the contract test reports the set mismatch by name.
       if (typeof value.stage !== "string" || typeof value.message !== "string") {
         throw new Error("SSE_EVENT_INVALID");
       }
@@ -145,16 +183,22 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
       if (typeof value.capability !== "string" || typeof value.message !== "string") {
         throw new Error("SSE_EVENT_INVALID");
       }
+      if (value.type === "capability_completed" && typeof value.state !== "string") {
+        throw new Error("SSE_EVENT_INVALID");
+      }
       break;
     case "interaction_required":
+      // The kind picks the widget and the scope decides whether a button posts
+      // a bound response; both are closed sets the server routes on.
       if (
         typeof value.interaction_id !== "string" ||
         typeof value.kind !== "string" ||
+        !INTERACTION_KIND_SET.has(value.kind) ||
         typeof value.prompt !== "string" ||
         !Array.isArray(value.options) ||
         typeof value.allow_free_text !== "boolean" ||
-        (value.scope !== undefined &&
-          value.scope !== "resume_analysis_confirmation")
+        (value.scope != null &&
+          (typeof value.scope !== "string" || !INTERACTION_SCOPE_SET.has(value.scope)))
       ) {
         throw new Error("SSE_EVENT_INVALID");
       }
@@ -181,9 +225,8 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
         typeof value.kind !== "string" ||
         !REPORT_KINDS.has(value.kind as ReportKind) ||
         (value.status_at_delivery != null &&
-          !["current", "outdated", "superseded"].includes(
-            String(value.status_at_delivery),
-          )) ||
+          (typeof value.status_at_delivery !== "string" ||
+            !REPORT_DELIVERY_STATUS_SET.has(value.status_at_delivery))) ||
         (value.anchored_by_other_job != null &&
           typeof value.anchored_by_other_job !== "boolean")
       ) {

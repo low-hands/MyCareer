@@ -90,7 +90,7 @@ describe("chatReducer", () => {
       type: "stream_event",
       event: { type: "content_delta", delta: "项目深度可以，系统设计偏弱。" },
     });
-    const state = chatReducer(streamed, {
+    const first = chatReducer(streamed, {
       type: "stream_event",
       event: {
         type: "report_ready",
@@ -98,15 +98,35 @@ describe("chatReducer", () => {
         resource_id: "rep-1",
       },
     });
+    // A second report in the same turn must not replace the first: the server
+    // stores both on the message (`resources`, plural) and so must we.
+    const second = chatReducer(first, {
+      type: "stream_event",
+      event: {
+        type: "report_ready",
+        kind: "interview_retro_report",
+        resource_id: "retro-1",
+      },
+    });
+    // The same report delivered again updates its card rather than adding one.
+    const state = chatReducer(second, {
+      type: "stream_event",
+      event: {
+        type: "report_ready",
+        kind: "mock_interview_report",
+        resource_id: "rep-1",
+        status_at_delivery: "outdated",
+      },
+    });
 
     const assistant = state.messages.find((item) => item.id === "a-1");
-    expect(assistant?.resource).toEqual({
-      kind: "mock_interview_report",
-      resourceId: "rep-1",
-    });
+    expect(assistant?.resources).toEqual([
+      { kind: "mock_interview_report", resourceId: "rep-1", statusAtDelivery: "outdated" },
+      { kind: "interview_retro_report", resourceId: "retro-1" },
+    ]);
     // The summary is what stays in the bubble; the report is behind the card.
     expect(assistant?.content).toBe("项目深度可以，系统设计偏弱。");
-    expect(state.messages.find((item) => item.id === "u-1")?.resource).toBeUndefined();
+    expect(state.messages.find((item) => item.id === "u-1")?.resources).toBeUndefined();
   });
 
   it("hydrates a persisted conversation without inventing a running turn", () => {
@@ -118,7 +138,7 @@ describe("chatReducer", () => {
           id: "history-2",
           role: "assistant",
           content: "这是岗位分析。",
-          resource: { kind: "job_research_report", resourceId: "report-1" },
+          resources: [{ kind: "job_research_report", resourceId: "report-1" }],
         },
       ],
     });
@@ -131,6 +151,6 @@ describe("chatReducer", () => {
     expect(state.activeAssistantMessageId).toBeNull();
     // A reload has to leave the report reachable, or the transcript keeps a
     // summary of something the user can no longer open.
-    expect(state.messages[1]?.resource?.resourceId).toBe("report-1");
+    expect(state.messages[1]?.resources?.[0]?.resourceId).toBe("report-1");
   });
 });

@@ -1,4 +1,4 @@
-import type { ReportKind } from "./events";
+import type { ReportDeliveryStatus, ReportKind } from "./events";
 import type {
   ArtifactReadyEvent,
   ClientActionEvent,
@@ -11,7 +11,7 @@ export type ChatPhase = "idle" | "running" | "awaiting_input" | "completed" | "f
 export interface MessageResource {
   kind: ReportKind;
   resourceId: string;
-  statusAtDelivery?: "current" | "outdated" | "superseded" | null;
+  statusAtDelivery?: ReportDeliveryStatus | null;
   anchoredByOtherJob?: boolean | null;
 }
 
@@ -20,14 +20,29 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   /**
-   * The stored report this message only summarizes, when it has one.
+   * The stored reports this message only summarizes.
    *
    * Attached to the message rather than kept in a turn-level list so a
-   * restored transcript and a live turn agree: after a reload the reference
-   * comes back on the message it belonged to, and several reports across a
-   * conversation each stay next to the reply that produced them.
+   * restored transcript and a live turn agree: after a reload the references
+   * come back on the message they belonged to, and several reports across a
+   * conversation each stay next to the reply that produced them. Plural
+   * because one turn can store two reports (a research report and a match);
+   * the transcript endpoint returns them as `resources` for the same reason.
    */
-  resource?: MessageResource;
+  resources?: MessageResource[];
+}
+
+/** Appends `resource`, or replaces the entry with the same identity so a
+ * re-delivered report updates its card instead of adding a second one. */
+function withResource(
+  resources: MessageResource[],
+  resource: MessageResource,
+): MessageResource[] {
+  const index = resources.findIndex(
+    (item) => item.kind === resource.kind && item.resourceId === resource.resourceId,
+  );
+  if (index === -1) return [...resources, resource];
+  return resources.map((item, position) => (position === index ? resource : item));
 }
 
 export interface ChatState {
@@ -126,23 +141,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, interaction: event, progress: null };
     case "artifact_ready":
       return { ...state, artifacts: [...state.artifacts, event] };
-    case "report_ready":
+    case "report_ready": {
+      const resource: MessageResource = {
+        kind: event.kind,
+        resourceId: event.resource_id,
+        statusAtDelivery: event.status_at_delivery,
+        anchoredByOtherJob: event.anchored_by_other_job,
+      };
       return {
         ...state,
         messages: state.messages.map((message) =>
           message.id === state.activeAssistantMessageId
-            ? {
-                ...message,
-                resource: {
-                  kind: event.kind,
-                  resourceId: event.resource_id,
-                  statusAtDelivery: event.status_at_delivery,
-                  anchoredByOtherJob: event.anchored_by_other_job,
-                },
-              }
+            ? { ...message, resources: withResource(message.resources ?? [], resource) }
             : message,
         ),
       };
+    }
     case "client_action":
       return { ...state, clientActions: [...state.clientActions, event] };
     case "turn_suspended":

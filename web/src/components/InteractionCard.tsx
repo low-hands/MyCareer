@@ -17,7 +17,7 @@ interface InteractionCardProps {
 }
 
 function optionValue(option: InteractionRequiredEvent["options"][number]): string {
-  if (option.selection_index !== undefined) return String(option.selection_index);
+  if (option.selection_index != null) return String(option.selection_index);
   return option.value ?? option.label;
 }
 
@@ -66,10 +66,13 @@ export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: 
               aria-pressed={isMultiple ? active : undefined}
               onClick={() => {
                 if (!isMultiple) {
+                  // Any scoped interaction binds its confirm/cancel buttons to
+                  // the durable interaction id; the parser has already limited
+                  // scope to the values the server routes on.
                   onReply({
                     message: option.label,
                     interactionResponse:
-                      interaction.scope === "resume_analysis_confirmation" &&
+                      interaction.scope != null &&
                       (value === "confirm" || value === "cancel")
                         ? {
                             interaction_id: interaction.interaction_id,
