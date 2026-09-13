@@ -2,37 +2,37 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "7e23bcbd8346e9fa365ed7f6cefeba3869a4f42ef9a29dcd4b7b93f9f6ab5054",
-  "recorded_at": "2026-09-11T14:14:33.988307+00:00",
+  "recorded_at": "2026-09-13T15:48:45.194418+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找的城市；如果还有目标岗位方向或关键词，也一并发我。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想看的城市，以及岗位方向或关键词（例如：上海，产品经理）。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:17:13.753995+00:00",
+      "recorded_at": "2026-09-13T15:48:47.324523+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找的城市；如果还有目标岗位方向或关键词，也一并发我。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想看的城市，以及岗位方向或关键词（例如：上海，产品经理）。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:15:34.997467+00:00",
+      "recorded_at": "2026-09-13T15:48:47.507872+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想看的城市；如果有具体岗位方向或关键词，也可以一并发来。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想看的城市（例如上海、北京、深圳）和岗位方向；我再帮你打开招聘搜索。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:14:33.988307+00:00",
+      "recorded_at": "2026-09-13T15:48:45.194418+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找的岗位方向和城市，例如“上海后端开发”或“杭州产品经理”。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"想看什么岗位方向、哪个城市？例如：上海的产品经理，或北京的后端开发。\"}"
         }
       ]
     }

@@ -100,8 +100,35 @@ _NOTES_GUARDED_CAPABILITIES = (
     }
 )
 
+_EXTERNAL_WRITE_CAPABILITIES = frozenset(
+    {
+        "execute_calendar_proposal",
+    }
+)
+"""Writes whose effect lands outside this deployment's own stores.
+
+The axis is where the effect lives, not how risky it feels. A calendar event
+exists on Google's servers and is visible to anyone the calendar is shared with;
+nothing here can roll it back, only issue a second write. An application row,
+a memory tombstone or an exported file lives in a store this process owns and
+can be amended, retired or deleted by a later turn.
+
+Reading an external system is not an external write: ``sync_application_emails``
+fetches mail and writes local events, ``research_job`` searches the web and
+writes a local report. ``open_job_search`` only asks the client to open a URL
+and never touches the platform itself. All three stay internal.
+
+External writes carry a system-level Review verdict
+(``system_capability_verdict``) and their own turn budget. New writes that
+send, post, book or pay on the user's behalf belong in this set on the day
+they are added; a WRITE that is not listed here is claiming to be reversible
+from within this codebase.
+"""
+
 if _READ_CAPABILITIES & _WRITE_CAPABILITIES:
     raise RuntimeError("a Main Agent capability cannot be both READ and WRITE")
+if _EXTERNAL_WRITE_CAPABILITIES - _WRITE_CAPABILITIES:
+    raise RuntimeError("an external write must be declared as a WRITE capability")
 
 TOOL_EFFECTS: Mapping[str, ToolEffect] = MappingProxyType(
     {
@@ -157,3 +184,15 @@ def effect_for(name: str) -> ToolEffect:
         return TOOL_EFFECTS[name]
     except KeyError as error:
         raise ValueError(f"Main Agent capability has no declared effect: {name}") from error
+
+
+def is_external_write(name: str) -> bool:
+    """Whether this capability's effect lands outside the deployment's stores."""
+
+    return name in _EXTERNAL_WRITE_CAPABILITIES
+
+
+def declared_write_capabilities() -> frozenset[str]:
+    """Names an owner rule such as ``confirm_before`` may refer to."""
+
+    return _WRITE_CAPABILITIES

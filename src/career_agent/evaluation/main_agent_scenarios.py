@@ -504,22 +504,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset({"find_saved_jobs"}),
             ),
         ),
-        # The single evening sample labelled its confirmation question final;
-        # the same evening's A/B missed 1 in 10. One draw cannot carry a pass^k
-        # gate, so the assertion stays and the miss is declared below. Raise to
-        # 3 samples at the next recording rather than now: a higher count with
-        # a one-sample cassette only reports "re-record it".
-        recording_samples=1,
-        known_gap=(
-            "On gpt-5.6-terra, evening of 2026-09-11 with 69 tools offered, "
-            "the one recorded sample asks the user to confirm the Rust filter "
-            "but labels the turn final instead of ask_user; the runtime then "
-            "presents the question without a bound interaction. It does not "
-            "retry find_saved_jobs, so the guard's purpose holds. A "
-            "same-evening A/B outside the catalogue labelled 9 of 10 correctly. "
-            "Nothing in the runtime can relabel a decision; the miss is the "
-            "model's, at n=1."
-        ),
+        # The 2026-09-11 single sample labelled its confirmation question
+        # final and was declared a known gap; the 2026-09-13 recording under
+        # the 088 tool surface labelled it ask_user, so the declaration came
+        # off and the sample count rose to the three that a pass^k gate needs.
+        recording_samples=3,
     ),
     TrajectoryScenario(
         name="a_stale_note_is_reviewed_before_reuse",
@@ -1062,18 +1051,11 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset({"research_job"}),
             ),
         ),
+        # The 2026-09-11 evening cut missed 1/3 (a 'final' claiming a research
+        # run that never happened) and carried a known_gap; the 2026-09-13
+        # recording under the 088 tool surface bound report-a 3/3, so the
+        # declaration came off. The mirror scenario below still carries its own.
         recording_samples=3,
-        known_gap=(
-            "On gpt-5.6-terra, evening of 2026-09-11 with 69 tools offered, "
-            "one of three samples answers 'final' without reading anything, "
-            "saying it had mistakenly started a new research run — an action "
-            "that never happened in this turn. The other two bind report-a's "
-            "handle. The afternoon cut (68 tools) and a same-evening A/B with "
-            "68 tools bound it 3/3 and 5/5; the 69-tool A/B arm was cut off by "
-            "a gateway 400, so whether the extra tool matters is unknown. "
-            "Nothing in the runtime can supply the read the model did not ask "
-            "for; this is a model miss, at a rate n=3 cannot estimate."
-        ),
     ),
     TrajectoryScenario(
         name="a_report_made_this_turn_without_an_index_cannot_be_named",

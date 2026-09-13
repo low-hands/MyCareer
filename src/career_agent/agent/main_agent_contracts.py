@@ -8,7 +8,7 @@ import json
 import re
 from typing import Annotated, Any, Literal, Protocol, get_args
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.delivery_policy import is_failed, is_waiting
@@ -18,6 +18,7 @@ from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
 )
 from career_agent.agent.token_budget import serialized_token_count
+from career_agent.agent.tool_effects import declared_write_capabilities, is_external_write
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
@@ -418,9 +419,38 @@ def system_capability_verdict(capability: str) -> RuleVerdict:
     The model may formulate a settings change, but it cannot authorize the
     change that governs itself. Keeping this outside ``BehaviorPolicyContext``
     prevents a future owner-facing field from accidentally weakening it.
+
+    External writes sit on the same footing. Once an event is on the user's
+    calendar or a message has left the mailbox, no later turn can undo it, so
+    the model's reading of "yes, go ahead" is not enough: the owner presses the
+    button on the exact sealed arguments. Owner rules may only add restrictions
+    on top of this floor.
     """
 
-    return "review" if capability == "update_owner_settings" else "permit"
+    if capability == "update_owner_settings" or is_external_write(capability):
+        return "review"
+    return "permit"
+
+
+ConfirmBefore = tuple[str, ...]
+"""Capabilities the owner wants to approve individually before they run."""
+
+
+def canonical_confirm_before(value: ConfirmBefore) -> ConfirmBefore:
+    """Only declared WRITE capabilities, deduplicated and sorted.
+
+    A rule naming an unknown or read-only capability would never fire, and an
+    owner who typed it believes they are protected. Rejecting it at the boundary
+    keeps the settings document honest. Sorting makes the stored form canonical
+    so a reorder is not mistaken for a policy change.
+    """
+
+    unknown = sorted(set(value) - declared_write_capabilities())
+    if unknown:
+        raise ValueError(
+            "confirm_before only accepts WRITE capabilities; unknown: " + ", ".join(unknown)
+        )
+    return tuple(sorted(set(value)))
 
 
 class UserPreferencesContext(ContractModel):
@@ -440,6 +470,12 @@ class BehaviorPolicyContext(ContractModel):
 
     revision: int = Field(default=0, ge=0)
     application_confirmation: Literal["always_ask", "on_user_report"] = "on_user_report"
+    confirm_before: ConfirmBefore = ()
+
+    @field_validator("confirm_before")
+    @classmethod
+    def normalise_confirm_before(cls, value: ConfirmBefore) -> ConfirmBefore:
+        return canonical_confirm_before(value)
 
     def _owner_rule_verdicts(self, capability: str) -> tuple[RuleVerdict, ...]:
         """Only owner-editable rules; system invariants do not belong here."""
@@ -452,6 +488,7 @@ class BehaviorPolicyContext(ContractModel):
                     and self.application_confirmation == "always_ask",
                     "review",
                 ),
+                (capability in self.confirm_before, "review"),
             )
             if applies
         )
@@ -1415,7 +1452,7 @@ _HANDLE_SUFFIX_LENGTH = 6
 
 NEXT_ACTION_LIMIT = 200
 # Arguments are model-authored, so unlike a receipt nothing upstream bounds them.
-# Ten observations carrying an unbounded dict would break the character budget
+# A window of observations carrying an unbounded dict would break the character budget
 # this file declares, so an oversized set is dropped rather than truncated: a
 # half-recorded call would read as a call that was made with different arguments,
 # which is worse than a call whose arguments are simply not shown.
@@ -1565,21 +1602,23 @@ class ToolResult(ContractModel):
 ToolObservation = ToolResult
 
 
-# Shared window for the contract, runtime, and trajectory evaluator. Ten holds
-# six reads, one write, two projection corrections, and one authorization
-# refusal without forcing unrelated refusal classes to share a counter.
-MAX_DECISION_OBSERVATIONS = 10
+# Shared window for the contract, runtime, and trajectory evaluator. Eleven
+# holds six reads, one internal write, one external write, two projection
+# corrections, and one authorization refusal without forcing unrelated refusal
+# classes to share a counter.
+MAX_DECISION_OBSERVATIONS = 11
 MAX_DECISION_OBSERVATION_BODIES = 1
 DECISION_OBSERVATION_RECEIPT_LIMIT = DELIVERY_SUMMARY_LIMIT
 DECISION_OBSERVATION_BODY_LIMIT = 6_000
-# Raised from 16_000 when observations began recording their arguments. The
-# increase is exactly that record's worst case (ten observations x a 200-char
-# argument bound), not a number chosen to make a test pass: without arguments,
+# Raised from 16_000 to 18_000 when observations began recording their
+# arguments (ten observations x a 200-char argument bound): without arguments,
 # two calls to one capability project identically, so a model that researched
-# job 1 and then job 2 could not tell its own two observations apart. Measured
-# reality is far below either figure — a real turn's whole context was 1_340
-# chars against 11_979 of tool schemas.
-MAX_DECISION_OBSERVATION_CHARS = 18_000
+# job 1 and then job 2 could not tell its own two observations apart. Raised
+# again to 18_400 when the window grew to eleven for the external-write
+# budget; the declared worst shape then measures 18_367. Measured reality is
+# far below either figure — a real turn's whole context was 1_340 chars
+# against 11_979 of tool schemas.
+MAX_DECISION_OBSERVATION_CHARS = 18_400
 
 
 class DecisionObservation(ContractModel):
@@ -2310,12 +2349,29 @@ class MainAgentContext(ContractModel):
             **(
                 {
                     "behavior_policy": {
-                        "application_confirmation": (
-                            self.preferences.application_confirmation
-                        )
+                        **(
+                            {
+                                "application_confirmation": (
+                                    self.preferences.application_confirmation
+                                )
+                            }
+                            if self.preferences.application_confirmation
+                            != "on_user_report"
+                            else {}
+                        ),
+                        **(
+                            {
+                                "confirm_before": list(
+                                    self.preferences.behavior_policy.confirm_before
+                                )
+                            }
+                            if self.preferences.behavior_policy.confirm_before
+                            else {}
+                        ),
                     }
                 }
                 if self.preferences.application_confirmation != "on_user_report"
+                or self.preferences.behavior_policy.confirm_before
                 else {}
             ),
             "task": {
@@ -2889,12 +2945,28 @@ class UpdateOwnerSettingsToolArguments(ContractModel):
 
     boss_search: Literal["explicit_request_only", "allowed"] | None = None
     application_confirmation: Literal["always_ask", "on_user_report"] | None = None
+    confirm_before: ConfirmBefore | None = Field(
+        default=None,
+        description=(
+            "Full replacement list of WRITE capability names the owner wants to "
+            "approve one by one before they run. Pass an empty list to clear."
+        ),
+    )
 
     @model_validator(mode="after")
     def changes_something(self) -> "UpdateOwnerSettingsToolArguments":
-        if self.boss_search is None and self.application_confirmation is None:
+        if (
+            self.boss_search is None
+            and self.application_confirmation is None
+            and self.confirm_before is None
+        ):
             raise ValueError("an owner-settings proposal must change at least one setting")
         return self
+
+    @field_validator("confirm_before")
+    @classmethod
+    def normalise_confirm_before(cls, value: ConfirmBefore | None) -> ConfirmBefore | None:
+        return None if value is None else canonical_confirm_before(value)
 
 
 class UpdateApplicationStatusToolArguments(ContractModel):

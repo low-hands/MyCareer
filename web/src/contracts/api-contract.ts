@@ -2167,6 +2167,7 @@ export const API_CONTRACT = {
               "after": {
                 "behavior_policy": {
                   "application_confirmation": "on_user_report",
+                  "confirm_before": [],
                   "revision": 1
                 },
                 "preferences": {
@@ -2177,6 +2178,7 @@ export const API_CONTRACT = {
               "before": {
                 "behavior_policy": {
                   "application_confirmation": "on_user_report",
+                  "confirm_before": [],
                   "revision": 0
                 },
                 "preferences": {
@@ -2211,6 +2213,14 @@ export const API_CONTRACT = {
                 "title": "Application Confirmation",
                 "type": "string"
               },
+              "confirm_before": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Confirm Before",
+                "type": "array"
+              },
               "revision": {
                 "default": 0,
                 "minimum": 0,
@@ -2229,6 +2239,7 @@ export const API_CONTRACT = {
                 "$ref": "#/$defs/BehaviorPolicyContext",
                 "default": {
                   "application_confirmation": "on_user_report",
+                  "confirm_before": [],
                   "revision": 0
                 }
               },
@@ -2356,6 +2367,7 @@ export const API_CONTRACT = {
           "owner_settings": {
             "behavior_policy": {
               "application_confirmation": "on_user_report",
+              "confirm_before": [],
               "revision": 1
             },
             "preferences": {
@@ -2380,6 +2392,14 @@ export const API_CONTRACT = {
                 "title": "Application Confirmation",
                 "type": "string"
               },
+              "confirm_before": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Confirm Before",
+                "type": "array"
+              },
               "revision": {
                 "default": 0,
                 "minimum": 0,
@@ -2398,6 +2418,7 @@ export const API_CONTRACT = {
                 "$ref": "#/$defs/BehaviorPolicyContext",
                 "default": {
                   "application_confirmation": "on_user_report",
+                  "confirm_before": [],
                   "revision": 0
                 }
               },

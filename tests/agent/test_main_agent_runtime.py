@@ -572,6 +572,7 @@ def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> No
 def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None:
     from career_agent.agent.main_agent_runtime import (
         DEFAULT_MAX_AUTHORIZATION_REFUSALS,
+        DEFAULT_MAX_EXTERNAL_WRITE_CALLS,
         DEFAULT_MAX_PROJECTION_REFUSALS,
         DEFAULT_MAX_READ_CALLS,
         DEFAULT_MAX_WRITE_CALLS,
@@ -588,6 +589,7 @@ def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None
     assert (
         DEFAULT_MAX_READ_CALLS
         + DEFAULT_MAX_WRITE_CALLS
+        + DEFAULT_MAX_EXTERNAL_WRITE_CALLS
         + DEFAULT_MAX_PROJECTION_REFUSALS
         + DEFAULT_MAX_AUTHORIZATION_REFUSALS
         <= MAX_DECISION_OBSERVATIONS
@@ -603,6 +605,7 @@ def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None
             tools=MainAgentToolRegistry(),
             max_read_calls=7,
             max_write_calls=1,
+            max_external_write_calls=1,
             max_projection_refusals=2,
             max_authorization_refusals=1,
         )
@@ -1958,8 +1961,8 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
     assert (
         MAX_DECISION_OBSERVATION_BODIES * DECISION_OBSERVATION_BODY_LIMIT
         + MAX_DECISION_OBSERVATIONS * DECISION_OBSERVATION_RECEIPT_LIMIT
-    ) == 12_000
-    assert decision_observation_chars(observations) == 17_244
+    ) == 12_600
+    assert decision_observation_chars(observations) == 18_367
     assert decision_observation_chars(observations) <= (
         MAX_DECISION_OBSERVATION_CHARS
     )
@@ -4193,6 +4196,226 @@ def test_settings_review_is_a_system_invariant_not_an_owner_editable_rule() -> N
 
     assert settings.behavior_policy.capability_verdict("update_owner_settings") == "permit"
     assert settings.capability_verdict("update_owner_settings") == "review"
+
+
+def test_external_writes_default_to_review_below_any_owner_rule() -> None:
+    """An event on the user's calendar cannot be undone by a later turn.
+
+    So the floor for an external write is the owner's button, not the model's
+    reading of "yes". No owner-editable rule reaches this verdict: the
+    behaviour policy alone still says permit, and the system says review.
+    """
+
+    settings = AgentPreferencesContext()
+
+    assert settings.behavior_policy.capability_verdict("execute_calendar_proposal") == "permit"
+    assert settings.capability_verdict("execute_calendar_proposal") == "review"
+    # The local preview beside it is an ordinary internal write.
+    assert settings.capability_verdict("prepare_interview_calendar_sync") == "permit"
+    assert settings.capability_verdict("create_application") == "permit"
+
+
+def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> None:
+    from career_agent.agent.main_agent_contracts import (
+        BehaviorPolicyContext,
+        UpdateOwnerSettingsToolArguments,
+        canonical_confirm_before,
+    )
+
+    assert canonical_confirm_before(
+        ("update_application_status", "create_application", "create_application")
+    ) == ("create_application", "update_application_status")
+    assert canonical_confirm_before(()) == ()
+    with pytest.raises(ValueError, match="search_career_history"):
+        canonical_confirm_before(("search_career_history",))
+    with pytest.raises(ValueError, match="unknown: drop_tables"):
+        canonical_confirm_before(("drop_tables",))
+
+    policy = BehaviorPolicyContext(
+        confirm_before=["update_application_status", "create_application"]
+    )
+    assert policy.confirm_before == ("create_application", "update_application_status")
+    assert policy.capability_verdict("create_application") == "review"
+    assert policy.capability_verdict("update_interview") == "permit"
+    with pytest.raises(ValidationError):
+        BehaviorPolicyContext(confirm_before=["get_daily_brief"])
+
+    # The model's proposal is validated to the same vocabulary, and an empty
+    # list is a change (clear the rule) rather than "nothing to do".
+    assert UpdateOwnerSettingsToolArguments(confirm_before=[]).confirm_before == ()
+    with pytest.raises(ValidationError):
+        UpdateOwnerSettingsToolArguments()
+    with pytest.raises(ValidationError):
+        UpdateOwnerSettingsToolArguments(confirm_before=["get_daily_brief"])
+
+
+def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
+    tmp_path,
+) -> None:
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[str] = []
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append(name)
+            return ToolObservation(
+                tool_name=name,
+                state="interview_ready",
+                message="已记录。",
+                payload={"interview_round_id": "ir-1"},
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    path = tmp_path / "context.sqlite3"
+    store = CareerContextStore(path)
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    initial = manager.preferences(user_id="u1")
+    manager.update_owner_settings(
+        user_id="u1",
+        desired=initial.model_copy(
+            update={
+                "behavior_policy": initial.behavior_policy.model_copy(
+                    update={"confirm_before": ("create_interview",)}
+                )
+            }
+        ),
+        expected_revision=initial.revision,
+        actor_type="cli",
+        actor_id="test",
+    )
+    registry = Registry()
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="update_interview", arguments={}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="create_interview", arguments={}),
+        ),
+        AgentDecision(action="final", message="好的。"),
+    )
+
+    result = Runtime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=registry,
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(path),
+        max_read_calls=5,
+        max_write_calls=2,
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="记一下面试")
+
+    # The unlisted write ran; the listed one stopped at the seal.
+    assert registry.calls == ["update_interview"]
+    assert result.tool_result.state == "capability_confirmation_required"
+    assert "你设置了此操作需要确认" in result.tool_result.message
+    assert decisions.contexts[0].model_context()["behavior_policy"] == {
+        "confirm_before": ["create_interview"]
+    }
+
+
+def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None:
+    """One local record plus one external booking fits in a turn.
+
+    Under a single WRITE bucket the second call below was refused for budget
+    before authorization ever looked at it; now it reaches the review seal.
+    The external ceiling is its own counter, so an exhausted internal budget
+    still refuses internal writes and never borrows the external slot.
+    """
+
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[str] = []
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append(name)
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已记录。",
+                payload={"application_id": "app-1"},
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    path = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(path))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    registry = Registry()
+
+    result = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="create_application", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="update_application_status", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
+            ),
+            AgentDecision(action="final", message="请确认。"),
+        ),
+        tools=registry,
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(path),
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="记录并加日历")
+
+    states = [item.state for item in result.context.tool_observations]
+    # The seal reads the proposal back to describe it to the owner; nothing
+    # external ran.
+    assert registry.calls == ["create_application", "get_calendar_proposal"]
+    assert states == [
+        "application_ready",
+        "authorization_refused",
+        "capability_confirmation_required",
+    ]
+    assert "本轮 WRITE 委派预算已经用完" in result.context.tool_observations[1].message
+    assert result.delegated_write_count == 1
+
+    runtime = Runtime(
+        context_manager=manager,
+        decision_maker=_never_called_decision_maker(),
+        tools=registry,
+    )
+    control = {"read_calls": 2, "write_calls": 3, "external_write_calls": 1}
+    assert runtime._budget_bucket(control, name="search_career_history", effect="READ") == (
+        "READ", 2, 6
+    )
+    assert runtime._budget_bucket(control, name="create_application", effect="WRITE") == (
+        "WRITE", 2, 1
+    )
+    assert runtime._budget_bucket(
+        control, name="execute_calendar_proposal", effect="WRITE"
+    ) == ("WRITE_EXTERNAL", 1, 1)
+    with pytest.raises(ValueError, match="max_external_write_calls"):
+        Runtime(
+            context_manager=manager,
+            decision_maker=_never_called_decision_maker(),
+            tools=registry,
+            max_external_write_calls=0,
+        )
 
 
 def test_reproposing_an_applying_confirmation_reports_in_progress_not_waiting(

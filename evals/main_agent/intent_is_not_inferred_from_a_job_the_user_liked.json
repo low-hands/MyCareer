@@ -2,21 +2,21 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "fc32290082bd8c025a28e0c1c07367579ca4ce9b78fe27ac0674c34dd3d76801",
-  "recorded_at": "2026-09-11T14:18:45.455227+00:00",
+  "recorded_at": "2026-09-13T15:48:40.082682+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步：查看职位详情、用简历匹配、研究公司，还是准备申请？\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位进行哪一步？可以选择：1）用你的简历匹配岗位；2）研究公司和业务；3）针对岗位定制简历；4）暂时只保存/查看岗位信息。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:18:45.455227+00:00",
+      "recorded_at": "2026-09-13T15:48:40.082682+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步：查看职位详情、用简历匹配、研究公司，还是准备申请？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位进行哪一步？可以选择：1）用你的简历匹配岗位；2）研究公司和业务；3）针对岗位定制简历；4）暂时只保存/查看岗位信息。\"}"
         }
       ]
     }
