@@ -32,3 +32,6 @@ data/
 # tiktoken vocab is filled at install/build, not committed.
 src/career_agent/agent/_static/tiktoken_cache/*
 !src/career_agent/agent/_static/tiktoken_cache/.gitignore
+
+# Claude Code per-machine permissions
+.claude/settings.local.json
