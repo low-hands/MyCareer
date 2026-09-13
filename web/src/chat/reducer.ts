@@ -87,6 +87,7 @@ export type ChatAction =
       awaitingInput?: boolean;
     }
   | { type: "stream_event"; event: PublicStreamEvent }
+  | { type: "resubmit" }
   | { type: "transport_failed"; message: string }
   | { type: "transport_lost" }
   | { type: "reset" };
@@ -124,6 +125,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       ],
       activeAssistantMessageId: action.assistantMessageId,
       progress: "正在连接 Career Agent……",
+      interaction: null,
+      artifacts: [],
+      clientActions: [],
+      error: null,
+    };
+  }
+  if (action.type === "resubmit") {
+    // The same request goes out again under the same key, so the failed
+    // exchange stays where it is and only its reply is written over.
+    return {
+      ...state,
+      phase: "running",
+      messages: state.messages.map((message) =>
+        message.id === state.activeAssistantMessageId ? { ...message, content: "" } : message,
+      ),
+      progress: "正在重新连接 Career Agent……",
       interaction: null,
       artifacts: [],
       clientActions: [],

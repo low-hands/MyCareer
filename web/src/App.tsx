@@ -70,6 +70,13 @@ const VIEW_GROUPS: {
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+interface PendingRequest {
+  conversationId: string;
+  message: string;
+  interactionResponse?: InteractionResponse;
+  idempotencyKey: string;
+}
 const GOOGLE_OAUTH_CALLBACK = consumeGoogleOAuthCallback();
 
 function localId(key: string, prefix: string): string {
@@ -124,6 +131,10 @@ export default function App() {
     return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
   });
   const controller = useRef<AbortController | null>(null);
+  // The last request as sent, key included. Re-sending it under the same key
+  // lets the server answer from its receipt when the turn did run, and run it
+  // when it did not; the client never has to know which.
+  const lastRequest = useRef<PendingRequest | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
   const busy = state.phase === "running" || state.phase === "recovering";
   const canSubmit = draft.trim().length > 0 && !busy && !historyLoading;
@@ -185,26 +196,54 @@ export default function App() {
     const message = rawMessage.trim();
     if (!message || busy || historyLoading) return;
     setDraft("");
-    const nextController = new AbortController();
-    controller.current = nextController;
+    const request: PendingRequest = {
+      conversationId,
+      message,
+      interactionResponse,
+      idempotencyKey: crypto.randomUUID(),
+    };
+    lastRequest.current = request;
     dispatch({
       type: "submit",
       messageId: crypto.randomUUID(),
       assistantMessageId: crypto.randomUUID(),
       content: message,
     });
+    await streamTurn(request);
+  }
+
+  async function resendLastRequest(): Promise<void> {
+    const request = lastRequest.current;
+    if (!request || request.conversationId !== conversationId || busy || historyLoading) return;
+    if (state.activeAssistantMessageId) {
+      dispatch({ type: "resubmit" });
+    } else {
+      dispatch({
+        type: "submit",
+        messageId: crypto.randomUUID(),
+        assistantMessageId: crypto.randomUUID(),
+        content: request.message,
+      });
+    }
+    await streamTurn(request);
+  }
+
+  async function streamTurn(request: PendingRequest): Promise<void> {
+    const { message, interactionResponse } = request;
+    const nextController = new AbortController();
+    controller.current = nextController;
     let turnStarted = false;
     try {
       for await (const event of streamChat(
         {
-          conversation_id: conversationId,
+          conversation_id: request.conversationId,
           message,
           interaction_response: interactionResponse,
         },
         {
           apiBaseUrl: API_BASE_URL,
           signal: nextController.signal,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: request.idempotencyKey,
         },
       )) {
         turnStarted = true;
@@ -267,7 +306,7 @@ export default function App() {
     if (signal.aborted) return;
     dispatch({
       type: "transport_failed",
-      message: `${reason} 连接中断后没有读到这一轮的回复；服务器可能仍在处理，稍后可点“重新读取”。`,
+      message: `${reason} 连接中断后没有读到这一轮的回复；服务器可能仍在处理，稍后可点“重新读取”，或“重新发送”同一请求。`,
     });
   }
 
@@ -653,6 +692,16 @@ export default function App() {
                     disabled={historyLoading}
                   >
                     重新读取
+                  </button>
+                ) : null}
+                {state.phase === "failed" && lastRequest.current?.conversationId === conversationId ? (
+                  <button
+                    type="button"
+                    className="error-banner-action"
+                    onClick={() => void resendLastRequest()}
+                    disabled={historyLoading}
+                  >
+                    重新发送
                   </button>
                 ) : null}
               </div>

@@ -16,7 +16,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolObservation,
     canonical_confirm_before,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.main_agent_runtime import MainAgentRuntime, ReplayedTurn
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.mock_interview_graph import (
     MockInterviewGraph,
@@ -86,6 +86,9 @@ from career_agent.storage.run_events import SQLiteTraceRecorder
 from career_agent.storage.capability_confirmations import (
     CapabilityConfirmationSettledError,
     SQLiteCapabilityConfirmationStore,
+)
+from career_agent.storage.turn_receipts import (
+    SQLiteTurnReceiptStore,
 )
 from career_agent.storage.action_executions import (
     RESULT_STATE_RECEIPT_KEY,
@@ -254,6 +257,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         # deployment that loses one while keeping the other would enforce a rule
         # it cannot let the owner satisfy.
         capability_confirmation_store=SQLiteCapabilityConfirmationStore(
+            Path(args.context_store).expanduser()
+        ),
+        turn_receipt_store=SQLiteTurnReceiptStore(
             Path(args.context_store).expanduser()
         ),
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
@@ -912,6 +918,26 @@ def _write_chat_payload(
     json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
     output.write("\n")
     return _failure_exit_code(failed_result) if failed_result else EXIT_OK
+
+
+def _write_chat_replay(
+    turn: ReplayedTurn,
+    *,
+    user_id: str,
+    session_id: str,
+    output: TextIO,
+) -> int:
+    payload = {
+        "state": "replayed",
+        "user_id": user_id,
+        "session_id": session_id,
+        "request_id": turn.request_id,
+        "turn_id": turn.turn_id,
+        "assistant_message": turn.assistant_message,
+    }
+    json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
+    output.write("\n")
+    return EXIT_OK
 
 
 def _write_chat_error(error: Exception, output: TextIO, *, code: int, next_action: str | None = None) -> int:
@@ -1918,6 +1944,13 @@ def main(
                 user_message=args.message,
                 request_id=args.request_id,
             )
+            if isinstance(turn, ReplayedTurn):
+                return _write_chat_replay(
+                    turn,
+                    user_id=args.user_id,
+                    session_id=args.session_id,
+                    output=stdout,
+                )
             return _write_chat_payload(
                 turn,
                 user_id=args.user_id,
