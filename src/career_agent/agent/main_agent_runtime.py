@@ -48,6 +48,7 @@ from career_agent.agent.delivery_policy import (
 from career_agent.agent.tool_effects import (
     ToolEffect,
     effect_for,
+    is_external_write,
     is_notes_guarded,
     replay_safe,
 )
@@ -272,6 +273,7 @@ fabricated one, because none exists.
 """
 
 DEFAULT_MAX_WRITE_CALLS = 1
+DEFAULT_MAX_EXTERNAL_WRITE_CALLS = 1
 DEFAULT_MAX_PROJECTION_REFUSALS = 2
 DEFAULT_MAX_AUTHORIZATION_REFUSALS = 1
 DEFAULT_MAX_FAILURE_RETRIES = 2
@@ -295,7 +297,13 @@ class PendingAction(TypedDict, total=False):
 
 class LoopControl(TypedDict, total=False):
     read_calls: int
+    # Every write, internal or external: the durable write slot and the turn's
+    # delegated write count are derived from it.
     write_calls: int
+    # The subset of ``write_calls`` whose effect left this deployment. Budgeted
+    # separately so a reversible local record and an external booking are not
+    # competing for one slot.
+    external_write_calls: int
     projection_refusals: int
     authorization_refusals: int
     fingerprints: tuple[str, ...]
@@ -416,11 +424,13 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH, episode_reconciler: EpisodeReconciler | None = None) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_external_write_calls: int = DEFAULT_MAX_EXTERNAL_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH, episode_reconciler: EpisodeReconciler | None = None) -> None:
         if max_read_calls < 1:
             raise ValueError("max_read_calls must be at least one")
         if max_write_calls < 1:
             raise ValueError("max_write_calls must be at least one")
+        if max_external_write_calls < 1:
+            raise ValueError("max_external_write_calls must be at least one")
         if max_projection_refusals < 1:
             raise ValueError("max_projection_refusals must be at least one")
         if max_authorization_refusals < 1:
@@ -432,6 +442,7 @@ class MainAgentRuntime:
         if (
             max_read_calls
             + max_write_calls
+            + max_external_write_calls
             + max_projection_refusals
             + max_authorization_refusals
             > MAX_DECISION_OBSERVATIONS
@@ -453,6 +464,7 @@ class MainAgentRuntime:
         self._episode_reconcile_locks: dict[str, Any] = {}
         self._max_read_calls = max_read_calls
         self._max_write_calls = max_write_calls
+        self._max_external_write_calls = max_external_write_calls
         self._max_projection_refusals = max_projection_refusals
         self._max_authorization_refusals = max_authorization_refusals
         self._max_failure_retries = max_failure_retries
@@ -2505,14 +2517,13 @@ class MainAgentRuntime:
         # owner approves has to be the concrete action, arguments included, and
         # those do not exist yet.
         control = self._control(state)
-        used = control.get("read_calls", 0) if effect == "READ" else control.get("write_calls", 0)
-        limit = self._max_read_calls if effect == "READ" else self._max_write_calls
+        bucket, used, limit = self._budget_bucket(control, name=name, effect=effect)
         if used >= limit:
             return self._authorization_refusal(
                 state,
                 name=name,
                 reason=(
-                    f"本轮 {effect} 委派预算已经用完；请基于已有结果作答，"
+                    f"本轮 {bucket} 委派预算已经用完；请基于已有结果作答，"
                     "或说明需要下一轮继续。"
                 ),
                 next_action=(
@@ -2653,6 +2664,29 @@ class MainAgentRuntime:
             },
         }
 
+    def _budget_bucket(
+        self, control: LoopControl, *, name: str, effect: ToolEffect
+    ) -> tuple[str, int, int]:
+        """Which per-turn budget this call draws on: ``(label, used, limit)``.
+
+        Writes are two buckets, split by where the effect lives rather than by
+        how the tool is named. A reversible local record and an external
+        booking used to share one slot, so "record the application and put the
+        interview on the calendar" could never finish in a turn; a WRITE that
+        left the deployment now has its own slot and its own ceiling.
+        """
+
+        if effect == "READ":
+            return "READ", control.get("read_calls", 0), self._max_read_calls
+        external_used = control.get("external_write_calls", 0)
+        if is_external_write(name):
+            return "WRITE_EXTERNAL", external_used, self._max_external_write_calls
+        return (
+            "WRITE",
+            control.get("write_calls", 0) - external_used,
+            self._max_write_calls,
+        )
+
     def _seal_for_owner_confirmation(
         self, state: MainAgentState, *, name: str, arguments: dict[str, Any]
     ) -> MainAgentState:
@@ -2667,16 +2701,26 @@ class MainAgentRuntime:
         deployment cannot durably enforce must not read as permission.
         """
 
+        external = is_external_write(name)
+        rule = (
+            "这个操作会写入外部系统，写入后无法由这里撤回，因此必须由你亲自确认"
+            if external
+            else "你设置了这个操作需要先经你确认"
+        )
         if self._capability_confirmation_store is None:
             return self._authorization_refusal(
                 state,
                 name=name,
-                reason="你设置了这个操作需要先经你确认，但本次部署无法保存待确认动作。",
-                next_action="告诉用户这个操作被设置为需要确认，但当前无法记录确认请求。",
+                reason=f"{rule}，但本次部署无法保存待确认动作。",
+                next_action="告诉用户这个操作需要确认，但当前无法记录确认请求。",
             )
         context = state["context"]
-        display_summary = self._owner_confirmation_summary(
-            context=context, name=name, arguments=arguments
+        display_summary = (
+            self._external_write_summary(name=name, arguments=arguments)
+            if external
+            else self._owner_confirmation_summary(
+                context=context, name=name, arguments=arguments
+            )
         )
         confirmation = self._capability_confirmation_store.seal(
             user_id=context.profile.user_id,
@@ -2705,7 +2749,14 @@ class MainAgentRuntime:
         result = ToolObservation(
             tool_name=name,
             state="capability_confirmation_required",
-            message=f"{display_summary}\n你设置了此操作需要确认。是否执行？",
+            message=(
+                f"{display_summary}\n"
+                + (
+                    "这是一次外部写入，执行后无法由这里撤回。是否执行？"
+                    if external
+                    else "你设置了此操作需要确认。是否执行？"
+                )
+            ),
             # The id is deliberately absent from the message: it is a runtime
             # identifier and the model has no use for it. It travels in the
             # payload, which the harness reads and the model's observation does
@@ -2765,8 +2816,47 @@ class MainAgentRuntime:
                     "投递记录确认规则 → "
                     f"{arguments['application_confirmation']}"
                 )
+            if arguments.get("confirm_before") is not None:
+                listed = "、".join(arguments["confirm_before"]) or "（清空）"
+                changes.append(f"执行前需逐项确认的操作 → {listed}")
             return "准备更新持久设置：" + "；".join(changes) + "。"
         return f"准备执行 {name}。"
+
+    def _external_write_summary(self, *, name: str, arguments: dict[str, Any]) -> str:
+        """What will land outside this deployment, in the owner's terms.
+
+        Read live from the store the write will act on, because the owner is
+        approving the concrete event and not the model's recollection of it.
+        A read that fails still yields a summary: the gate must never be
+        skipped because its description could not be rendered.
+        """
+
+        if name == "execute_calendar_proposal":
+            try:
+                proposal = self._tools.invoke_atomic_tool(
+                    "get_calendar_proposal", dict(arguments)
+                )
+            except Exception:  # noqa: BLE001 - rendering must not block the gate
+                proposal = None
+            if proposal is not None and proposal.state == "calendar_proposal_ready":
+                operation = proposal.payload.get("operation")
+                event = proposal.payload.get("payload")
+                expires_at = proposal.payload.get("expires_at")
+                if isinstance(event, dict):
+                    return (
+                        f"准备写入外部 Calendar（{operation}）："
+                        f"{event.get('title')}，"
+                        f"{event.get('start_at')} → {event.get('end_at')}"
+                        f"（{event.get('timezone')}），"
+                        f"地点 {event.get('location') or '未提供'}；"
+                        f"预览有效期至 {expires_at}。"
+                    )
+                return (
+                    f"准备在外部 Calendar 上执行 {operation}；"
+                    f"预览有效期至 {expires_at}。"
+                )
+            return "准备执行已预览的 Calendar 变更。"
+        return f"准备向外部系统写入：{name}。"
 
     @staticmethod
     def _after_authorize(
@@ -3152,6 +3242,10 @@ class MainAgentRuntime:
             effect = pending["effect"]
             budget_key = "read_calls" if effect == "READ" else "write_calls"
             control[budget_key] = control.get(budget_key, 0) + 1
+            if effect == "WRITE" and is_external_write(pending["name"]):
+                control["external_write_calls"] = (
+                    control.get("external_write_calls", 0) + 1
+                )
             fingerprint = self._tool_call_fingerprint(state["decision"])
             fingerprints = control.get("fingerprints", ())
             if fingerprint not in fingerprints:

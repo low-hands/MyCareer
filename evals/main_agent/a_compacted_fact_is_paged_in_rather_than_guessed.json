@@ -2,9 +2,9 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "248051c68e10cfa17daf222ce6833c88558cbeee12a689d7df6baa765db60b1d",
-  "recorded_at": "2026-09-11T14:44:36.591467+00:00",
+  "recorded_at": "2026-09-13T15:50:53.933144+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 8,
-          "query": "目标公司 公司名 全名 指定 美团"
+          "query": "目标公司 公司名 指定 美团 算法工程师"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:41:19.754454+00:00",
+      "recorded_at": "2026-09-13T15:49:49.760373+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,14 +28,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司名 全名 指定 美团"
+              "query": "目标公司 公司名 指定 美团 算法工程师"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:41:48.631038+00:00",
+      "recorded_at": "2026-09-13T15:49:49.110201+00:00",
       "steps": [
         {
           "tool_call": {
@@ -43,22 +43,22 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司 美团 全名"
+              "query": "目标公司 公司全名 美团"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:44:36.591467+00:00",
+      "recorded_at": "2026-09-13T15:50:53.933144+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
               "from_sequence": 1,
-              "query": "目标公司 公司全名 指定 美团",
-              "through_sequence": 8
+              "through_sequence": 8,
+              "query": "目标公司 公司名 指定 美团 算法工程师"
             }
           }
         }

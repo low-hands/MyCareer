@@ -2,21 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "fc32290082bd8c025a28e0c1c07367579ca4ce9b78fe27ac0674c34dd3d76801",
-  "recorded_at": "2026-09-11T14:18:37.808630+00:00",
+  "recorded_at": "2026-09-13T15:48:55.943876+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"明白。你先完成提交，提交成功后告诉我，我再帮你记录这次申请。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"明白。你是准备提交但还没投出，还是已经实际提交了？如果还没提交，我可以先帮你做简历匹配或针对岗位优化；只有你确认已实际投递后，我才能记录申请。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:18:37.808630+00:00",
+      "recorded_at": "2026-09-13T15:48:55.943876+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"明白。你先完成提交，提交成功后告诉我，我再帮你记录这次申请。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"明白。你是准备提交但还没投出，还是已经实际提交了？如果还没提交，我可以先帮你做简历匹配或针对岗位优化；只有你确认已实际投递后，我才能记录申请。\"}"
         }
       ]
     }

@@ -4724,7 +4724,12 @@ class MainAgentToolRegistry:
                         "application_confirmation": (
                             model_arguments.application_confirmation
                             or current.behavior_policy.application_confirmation
-                        )
+                        ),
+                        "confirm_before": (
+                            current.behavior_policy.confirm_before
+                            if model_arguments.confirm_before is None
+                            else model_arguments.confirm_before
+                        ),
                     }
                 ),
             }

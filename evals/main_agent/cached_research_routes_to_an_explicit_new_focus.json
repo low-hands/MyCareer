@@ -2,17 +2,18 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "cdd70ae9fbd3523d0172d0f3ee2238bf98c47f0cd2ae270ac2e36f3b38429fbf",
-  "recorded_at": "2026-09-11T14:41:18.760721+00:00",
+  "recorded_at": "2026-09-13T15:49:23.542485+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手分析：主要竞争对手、产品/业务差异、市场定位与竞争格局",
-          "max_sources": 8,
-          "selection_index": 1
+          "selection_index": null,
+          "focus": "以竞争对手为新重点：识别该岗位所属业务/市场的主要竞争对手，并比较其产品、市场定位和竞争格局。",
+          "user_provided_context": null,
+          "max_sources": 8
         }
       }
     }
@@ -20,15 +21,16 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:41:18.760721+00:00",
+      "recorded_at": "2026-09-13T15:49:23.542485+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手分析：主要竞争对手、产品/业务差异、市场定位与竞争格局",
-              "max_sources": 8,
-              "selection_index": 1
+              "selection_index": null,
+              "focus": "以竞争对手为新重点：识别该岗位所属业务/市场的主要竞争对手，并比较其产品、市场定位和竞争格局。",
+              "user_provided_context": null,
+              "max_sources": 8
             }
           }
         }

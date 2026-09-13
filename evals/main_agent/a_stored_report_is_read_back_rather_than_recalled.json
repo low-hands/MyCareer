@@ -2,14 +2,15 @@
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
   "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "2934ee1d14f36b9cb6a778c289449da943379ca235d3e55da981a49bf975f94f",
-  "recorded_at": "2026-09-11T14:30:25.008241+00:00",
+  "recorded_at": "2026-09-13T15:48:52.207890+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
+          "selection_index": null,
           "reference": "report_9ca510"
         }
       }
@@ -18,12 +19,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:30:25.008241+00:00",
+      "recorded_at": "2026-09-13T15:48:52.207890+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
+              "selection_index": null,
               "reference": "report_9ca510"
             }
           }

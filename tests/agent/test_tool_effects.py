@@ -9,7 +9,12 @@ import pytest
 
 from career_agent.agent.main_agent_contracts import ToolObservation
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_effects import TOOL_EFFECTS, effect_for
+from career_agent.agent.tool_effects import (
+    TOOL_EFFECTS,
+    declared_write_capabilities,
+    effect_for,
+    is_external_write,
+)
 
 
 _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))
@@ -175,3 +180,22 @@ def test_every_write_handler_result_constructor_declares_execution_outcome() -> 
                 missing.append((name, call.lineno))
 
     assert missing == []
+
+
+def test_external_writes_are_a_declared_subset_of_writes() -> None:
+    """Where an effect lands is a registry decision, never a guess from a name.
+
+    Only writes can be external, and only ``execute_calendar_proposal`` leaves
+    the deployment today: the preview beside it writes a local proposal, and
+    the calendar/email sync tools pull into local stores. Widening this set is
+    a review decision, because every member defaults to the owner's button.
+    """
+
+    writes = {name for name, effect in TOOL_EFFECTS.items() if effect == "WRITE"}
+    external = {name for name in TOOL_EFFECTS if is_external_write(name)}
+
+    assert external == {"execute_calendar_proposal"}
+    assert external <= writes
+    assert not is_external_write("prepare_interview_calendar_sync")
+    assert not is_external_write("search_career_history")
+    assert declared_write_capabilities() == frozenset(writes)

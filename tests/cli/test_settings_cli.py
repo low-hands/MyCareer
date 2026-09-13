@@ -32,3 +32,52 @@ def test_cli_settings_distinguish_soft_preferences_from_behavior_policy(tmp_path
         "preferences", "behavior_policy"
     ]
 
+
+
+def test_cli_confirm_before_replaces_the_list_and_refuses_non_write_names(tmp_path):
+    path = tmp_path / "context.sqlite3"
+    code, changed = _run(
+        [
+            "settings", "set", "--user-id", "u1",
+            "--confirm-before", "update_application_status, create_application,create_application",
+            "--context-store", str(path),
+        ]
+    )
+    assert code == 0
+    assert changed["owner_settings"]["behavior_policy"]["confirm_before"] == [
+        "create_application", "update_application_status",
+    ]
+
+    errors = StringIO()
+    rejected = main(
+        [
+            "settings", "set", "--user-id", "u1",
+            "--confirm-before", "search_career_history",
+            "--context-store", str(path),
+        ],
+        stdout=StringIO(),
+        stderr=errors,
+    )
+    assert rejected != 0
+    assert "search_career_history" in errors.getvalue()
+
+    code, kept = _run(
+        [
+            "settings", "set", "--user-id", "u1",
+            "--boss-search", "allowed",
+            "--context-store", str(path),
+        ]
+    )
+    assert kept["owner_settings"]["behavior_policy"]["confirm_before"] == [
+        "create_application", "update_application_status",
+    ]
+
+    code, cleared = _run(
+        [
+            "settings", "set", "--user-id", "u1",
+            "--confirm-before", "",
+            "--context-store", str(path),
+        ]
+    )
+    assert code == 0
+    assert cleared["owner_settings"]["behavior_policy"]["confirm_before"] == []

@@ -14,6 +14,7 @@ from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.semantic_career_retrieval import optional_semantic_retriever
 from career_agent.agent.main_agent_contracts import (
     ToolObservation,
+    canonical_confirm_before,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -817,6 +818,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--boss-search",
         choices=("explicit_request_only", "allowed"),
         help="Whether job search may run without being explicitly asked for.",
+    )
+    settings_set.add_argument(
+        "--confirm-before",
+        help=(
+            "Comma-separated WRITE capability names to approve one by one "
+            "before they run; replaces the current list. Pass '' to clear."
+        ),
     )
     for sub in (settings_show, settings_set, settings_history):
         sub.add_argument("--user-id", required=True, help="Whose rules to act on.")
@@ -1846,9 +1854,26 @@ def main(
             )
             return EXIT_OK
         if args.settings_command == "set":
-            if args.application_confirmation is None and args.boss_search is None:
+            if (
+                args.application_confirmation is None
+                and args.boss_search is None
+                and args.confirm_before is None
+            ):
                 stderr.write("settings set needs at least one rule to change\n")
                 return EXIT_ARGUMENT_ERROR
+            confirm_before = current.behavior_policy.confirm_before
+            if args.confirm_before is not None:
+                try:
+                    confirm_before = canonical_confirm_before(
+                        tuple(
+                            item.strip()
+                            for item in args.confirm_before.split(",")
+                            if item.strip()
+                        )
+                    )
+                except ValueError as error:
+                    stderr.write(f"{error}\n")
+                    return EXIT_ARGUMENT_ERROR
             desired = current.model_copy(
                 update={
                     "preferences": current.preferences.model_copy(
@@ -1862,7 +1887,8 @@ def main(
                             "application_confirmation": (
                                 args.application_confirmation
                                 or current.behavior_policy.application_confirmation
-                            )
+                            ),
+                            "confirm_before": confirm_before,
                         }
                     ),
                 }

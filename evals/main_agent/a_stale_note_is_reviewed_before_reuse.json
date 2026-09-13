@@ -2,21 +2,21 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "8098096cbbe1c6cca34b13db5abddef8975055f10d72a5efe7efa3b54b6bec13",
-  "recorded_at": "2026-09-11T14:27:36.499697+00:00",
+  "recorded_at": "2026-09-13T15:48:45.851118+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请提供你想找工作的城市（例如：北京、上海、深圳）。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的岗位方向（例如 Rust 后端、嵌入式开发）和城市；如果只看远程岗位，也请直接说明“远程”。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:27:36.499697+00:00",
+      "recorded_at": "2026-09-13T15:48:45.851118+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请提供你想找工作的城市（例如：北京、上海、深圳）。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的岗位方向（例如 Rust 后端、嵌入式开发）和城市；如果只看远程岗位，也请直接说明“远程”。\"}"
         }
       ]
     }

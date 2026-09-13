@@ -2,37 +2,37 @@
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "6b70cfef355ed7ca6cb470f929c9b1c05c11cc25aac7cb0ab6e7b3e58de28702",
-  "recorded_at": "2026-09-11T14:41:18.696049+00:00",
+  "recorded_at": "2026-09-13T15:49:50.094495+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位（示例科技的算法工程师，序号 1），不存在第 2 个岗位。请指定序号 1，或先搜索并保存更多岗位。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个。请改选第 1 个岗位，或先查找/保存其他岗位。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:41:22.052440+00:00",
+      "recorded_at": "2026-09-13T15:49:46.656893+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位（示例科技的算法工程师，序号 1），不存在第 2 个岗位。请指定序号 1，或先搜索并保存更多岗位。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个。请改选第 1 个岗位，或先查找/保存其他岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:41:13.411223+00:00",
+      "recorded_at": "2026-09-13T15:49:51.846712+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请先选择岗位 1，或告诉我你要查找的岗位。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位（示例科技｜算法工程师），不存在第 2 个岗位。请确认是否打开第 1 个岗位的完整 JD，或先提供/保存其他岗位。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:41:18.696049+00:00",
+      "recorded_at": "2026-09-13T15:49:50.094495+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个岗位。请打开第 1 个岗位，还是先查找其他已保存岗位？\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前已保存岗位列表中只有 1 个岗位，没有第 2 个岗位。你可以回复“打开第 1 个岗位”，或让我帮你查找其他已保存岗位。\"}"
         }
       ]
     }

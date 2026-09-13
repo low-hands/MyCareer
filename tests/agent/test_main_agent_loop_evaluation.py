@@ -42,8 +42,12 @@ from career_agent.evaluation.trajectory import ReplayClient
 from career_agent.harness.observability import InMemoryTraceRecorder
 from career_agent.harness.streaming import (
     InteractionRequiredEvent,
+    InteractionResponse,
     TurnCompletedEvent,
     TurnSuspendedEvent,
+)
+from career_agent.storage.capability_confirmations import (
+    SQLiteCapabilityConfirmationStore,
 )
 from career_agent.storage.context import CareerContextStore
 
@@ -93,6 +97,7 @@ def _runtime(
     results: Sequence[ToolObservation],
     task: ConversationTaskState | None = None,
     max_read_calls: int = 6,
+    with_confirmations: bool = False,
 ) -> tuple[
     MainAgentRuntime,
     _ScriptedRegistry,
@@ -123,6 +128,13 @@ def _runtime(
         tools=tools,
         trace_recorder=recorder,
         max_read_calls=max_read_calls,
+        capability_confirmation_store=(
+            SQLiteCapabilityConfirmationStore(
+                tmp_path / "loop-evaluation.sqlite3"
+            )
+            if with_confirmations
+            else None
+        ),
     )
     return runtime, tools, client, manager, recorder
 
@@ -353,25 +365,43 @@ def test_a_recorded_calendar_preview_suspends_without_an_extra_model_decision(
     assert not any(isinstance(event, TurnCompletedEvent) for event in public_events)
 
 
-def test_an_uncertain_calendar_write_returns_to_the_model_and_is_not_reissued(
+def test_an_uncertain_calendar_write_stops_at_the_owner_and_is_not_reissued(
     tmp_path: Path,
 ) -> None:
+    """An external write is never the model's call to make.
+
+    The model's "execute" reaches the seal, not the calendar: the turn stops
+    with the concrete event for the owner to approve. The owner's click runs
+    it once without consulting the model again, and an outcome the provider
+    could not confirm is recorded as unknown and never retried.
+    """
+
     runtime, tools, client, _, recorder = _runtime(
         tmp_path,
-        responses=(
-            _tool_call("execute_calendar_proposal"),
-            _final(
-                "Calendar 写入结果暂时无法确认，我不会重复执行；"
-                "需要重新核对后再生成预览。"
-            ),
-        ),
+        responses=(_tool_call("execute_calendar_proposal"),),
         results=(
-                ToolObservation(
-                    tool_name="execute_calendar_proposal",
-                    state="calendar_write_failed",
-                    message="Calendar 写入结果暂时无法确认。",
-                    execution_outcome="unknown",
-                    payload={
+            ToolObservation(
+                tool_name="get_calendar_proposal",
+                state="calendar_proposal_ready",
+                message="预览已准备。",
+                payload={
+                    "operation": "create_event",
+                    "payload": {
+                        "title": "面试：ACME 二面",
+                        "start_at": "2026-09-05T10:00:00+08:00",
+                        "end_at": "2026-09-05T11:00:00+08:00",
+                        "timezone": "Asia/Shanghai",
+                        "location": "线上",
+                    },
+                    "expires_at": "2026-09-05T18:00:00+00:00",
+                },
+            ),
+            ToolObservation(
+                tool_name="execute_calendar_proposal",
+                state="calendar_write_failed",
+                message="Calendar 写入结果暂时无法确认。",
+                execution_outcome="unknown",
+                payload={
                     "error_code": "GOOGLE_CALENDAR_TRANSPORT_ERROR",
                     "retryable": False,
                     "outcome_unknown": True,
@@ -385,17 +415,41 @@ def test_an_uncertain_calendar_write_returns_to_the_model_and_is_not_reissued(
             ),
             active_interview_round_id="interview-1",
         ),
+        with_confirmations=True,
     )
 
-    turn = runtime.run_turn(
+    stopped = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="确认执行日历变更"
     )
 
-    assert [name for name, _ in tools.calls] == ["execute_calendar_proposal"]
-    assert len(client.requests) == 2
-    failed = _request_context(client, 1)["tool_observations"][-1]
-    assert failed["state"] == "calendar_write_failed"
-    assert failed["facts"] == {"retryable": False}
+    assert [name for name, _ in tools.calls] == ["get_calendar_proposal"]
+    assert len(client.requests) == 1
+    assert stopped.tool_result.state == "capability_confirmation_required"
+    assert "面试：ACME 二面" in stopped.tool_result.message
+    assert "外部写入" in stopped.tool_result.message
+    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
+
+    turn = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert [name for name, _ in tools.calls] == [
+        "get_calendar_proposal",
+        "execute_calendar_proposal",
+    ]
+    assert len(client.requests) == 1
+    failed = turn.context.tool_observations[-1]
+    assert failed.state == "calendar_write_failed"
+    assert failed.facts == {"retryable": False}
+    assert turn.tool_result.execution_outcome == "unknown"
     assert turn.context.task.active_calendar_proposal_id is None
     assert turn.delegated_write_count == 1
     event_types = [event.event_type for event in _recorded_events(recorder)]

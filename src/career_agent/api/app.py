@@ -16,10 +16,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_contracts import OwnerSettingsContext
+from career_agent.agent.main_agent_contracts import (
+    ConfirmBefore,
+    OwnerSettingsContext,
+    canonical_confirm_before,
+)
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -104,6 +108,18 @@ class OwnerSettingsPatchRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     boss_search: Literal["explicit_request_only", "allowed"] | None = None
     application_confirmation: Literal["always_ask", "on_user_report"] | None = None
+    confirm_before: ConfirmBefore | None = Field(
+        default=None,
+        description=(
+            "Full replacement list of WRITE capability names to approve one by "
+            "one before they run. An empty list clears the rule."
+        ),
+    )
+
+    @field_validator("confirm_before")
+    @classmethod
+    def normalise_confirm_before(cls, value: ConfirmBefore | None) -> ConfirmBefore | None:
+        return None if value is None else canonical_confirm_before(value)
 
 
 class OwnerSettingsResponse(BaseModel):
@@ -499,7 +515,11 @@ def create_app(
         request: OwnerSettingsPatchRequest,
         principal: ApiKeyPrincipal = Depends(require_scope(SETTINGS_WRITE)),
     ) -> OwnerSettingsResponse:
-        if request.boss_search is None and request.application_confirmation is None:
+        if (
+            request.boss_search is None
+            and request.application_confirmation is None
+            and request.confirm_before is None
+        ):
             raise HTTPException(status_code=422, detail="At least one setting is required")
         store = settings_store()
         current = store.get_owner_settings(principal.user_id) or OwnerSettingsContext()
@@ -516,7 +536,12 @@ def create_app(
                         "application_confirmation": (
                             request.application_confirmation
                             or current.behavior_policy.application_confirmation
-                        )
+                        ),
+                        "confirm_before": (
+                            current.behavior_policy.confirm_before
+                            if request.confirm_before is None
+                            else request.confirm_before
+                        ),
                     }
                 ),
             }

@@ -2,31 +2,30 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "c88fb607ad404ca10a7153ade6597c1111310b863c8c941a53f96e9f779f68c4",
-  "recorded_at": "2026-09-11T14:39:59.539259+00:00",
+  "recorded_at": "2026-09-13T15:49:02.815114+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"抱歉，我刚才误操作又启动了新的调研流程。  \\n如果你问的是**示例科技**那份已有调研，我需要读取对应的已保存调研报告内容后才能准确回答；当前可见上下文里没有直接显示“主要竞争对手”的正文。\"}"
+      "tool_call": {
+        "name": "get_job_research",
+        "arguments": {
+          "selection_index": null,
+          "reference": "report_440400"
+        }
+      }
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:40:32.949436+00:00",
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"抱歉，我刚才误操作又启动了新的调研流程。  \\n如果你问的是**示例科技**那份已有调研，我需要读取对应的已保存调研报告内容后才能准确回答；当前可见上下文里没有直接显示“主要竞争对手”的正文。\"}"
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-11T14:40:34.298626+00:00",
+      "recorded_at": "2026-09-13T15:48:59.966492+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
+              "selection_index": null,
               "reference": "report_440400"
             }
           }
@@ -34,12 +33,27 @@
       ]
     },
     {
-      "recorded_at": "2026-09-11T14:39:59.539259+00:00",
+      "recorded_at": "2026-09-13T15:49:02.107456+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
+              "selection_index": null,
+              "reference": "report_440400"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-13T15:49:02.815114+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "selection_index": null,
               "reference": "report_440400"
             }
           }

@@ -2,21 +2,37 @@
   "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
   "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "cc773c24bfa8fb571eb93649fc920e8003971365ce49225a6cc2590b891a87c7",
+  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
   "context_shape_fingerprint": "51cec3fa7258df8ac87deacff01179e20b8dd6c4d8532c2f1c10e8ff891391c7",
-  "recorded_at": "2026-09-11T14:46:08.618702+00:00",
+  "recorded_at": "2026-09-13T15:56:53.045926+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我可以帮你找岗位。你想找什么方向/关键词、城市，以及平台？例如：\\n\\n- 方向：后端 / Rust / 数据分析 / 产品经理\\n- 城市：上海 / 北京 / 深圳 / 远程\\n- 平台：BOSS 直聘\\n\\n如果你想先按 **Rust** 找，我需要你确认一下，因为目前这只是未确认的工作笔记，不会直接拿来筛选。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的城市，以及目标岗位或关键词（例如：后端开发、Rust 工程师）。\"}"
     }
   ],
-  "sample_count": 1,
+  "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-11T14:46:08.618702+00:00",
+      "recorded_at": "2026-09-13T15:57:07.351477+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我可以帮你找岗位。你想找什么方向/关键词、城市，以及平台？例如：\\n\\n- 方向：后端 / Rust / 数据分析 / 产品经理\\n- 城市：上海 / 北京 / 深圳 / 远程\\n- 平台：BOSS 直聘\\n\\n如果你想先按 **Rust** 找，我需要你确认一下，因为目前这只是未确认的工作笔记，不会直接拿来筛选。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的城市，以及目标岗位或关键词（例如：后端开发、Rust 工程师）。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-13T15:57:14.382027+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么类型的岗位？请告诉我一个关键词或方向（比如 Rust、后端、数据分析、产品经理），以及城市。如果你想在 BOSS 上找新岗位，我也可以帮你打开对应搜索页。\"}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-13T15:56:53.045926+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我想找的岗位方向和城市（例如“后端开发，上海”）；我再为你打开对应的职位搜索。\"}"
         }
       ]
     }

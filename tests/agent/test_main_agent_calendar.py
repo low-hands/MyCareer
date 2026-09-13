@@ -11,6 +11,10 @@ from career_agent.domain.calendar import (
     CalendarEventLink,
     CalendarEventPayload,
 )
+from career_agent.harness.streaming import InteractionResponse
+from career_agent.storage.capability_confirmations import (
+    SQLiteCapabilityConfirmationStore,
+)
 from career_agent.storage.context import CareerContextStore
 
 
@@ -33,6 +37,9 @@ class Calendar:
         self.execute_calls = []
 
     def prepare_interview_sync(self, **kwargs):
+        return self.proposal
+
+    def get_proposal(self, **kwargs):
         return self.proposal
 
     def execute_proposal(self, **kwargs):
@@ -60,7 +67,16 @@ class Decisions:
 def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_turn(
     tmp_path,
 ) -> None:
-    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    """The external write runs only after the owner presses the button.
+
+    Before B3 the second turn executed on the model's reading of "确认执行":
+    a soft consent, decided by the component whose judgement is under review.
+    The preview still stops the same-turn write; the next turn now seals the
+    exact proposal for the owner and runs it once on the UI-bound yes.
+    """
+
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     seeded = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="seed active interview"
@@ -103,7 +119,9 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
     assert "面试 · Acme · AI Engineer" in preview.assistant_message
     assert "只有你明确确认后" in preview.assistant_message
 
-    confirmed_runtime = MainAgentRuntime(
+    # The model reading "yes" is not consent. Without a confirmation store the
+    # write is refused outright rather than falling through to execution.
+    unsealed = MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(
             [
@@ -111,15 +129,64 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
                     action="tool_call",
                     tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
                 ),
-                AgentDecision(action="final", message="已同步到 Calendar。"),
+                AgentDecision(action="final", message="现在无法执行。"),
             ]
         ),
         tools=tools,
+    ).run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认执行刚才的日历变更"
     )
-    confirmed_runtime.run_turn(
+    assert calendar.execute_calls == []
+    refusal = unsealed.context.tool_observations[-1]
+    assert refusal.state == "authorization_refused"
+    assert "外部系统" in refusal.message
+
+    sealed = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(
+            [
+                AgentDecision(
+                    action="tool_call",
+                    tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
+                ),
+                AgentDecision(action="final", message="请确认。"),
+            ]
+        ),
+        tools=tools,
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(database),
+    ).run_turn(
         user_id="u1", conversation_id="c1", user_message="确认执行刚才的日历变更"
     )
 
+    assert calendar.execute_calls == []
+    assert sealed.tool_result.state == "capability_confirmation_required"
+    # The owner approves the concrete event, read live from the proposal.
+    assert "面试 · Acme · AI Engineer" in sealed.tool_result.message
+    assert "无法由这里撤回" in sealed.tool_result.message
+    gate = MainAgentRuntime._interaction_event(result=sealed, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
+
+    class NeverAsked:
+        def decide(self, context, tool_specs):
+            raise AssertionError("a confirmed action must not re-ask the model")
+
+    confirmed = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=NeverAsked(),
+        tools=tools,
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(database),
+    ).run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+
+    assert confirmed.tool_result.state == "calendar_sync_complete"
     assert calendar.execute_calls == [
         {"user_id": "u1", "proposal_id": "proposal-1"}
     ]
