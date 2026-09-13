@@ -11,6 +11,7 @@ from typing import Any, Callable, Literal, Protocol
 from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.harness.capability_steps import notify_capability_step
 from career_agent.security.redaction import redact, redact_text
 
 
@@ -177,8 +178,6 @@ def traced_model_call(
     def decorate(function):
         @wraps(function)
         def wrapped(*args, **kwargs):
-            if ACTIVE_TRACE_CONTEXT.get() is None:
-                return function(*args, **kwargs)
             if when is not None:
                 try:
                     should_trace = when(*args, **kwargs)
@@ -196,6 +195,9 @@ def traced_model_call(
                 # leaves the more specific stage resolver stale.
                 resolved_stage = function.__name__
             safe_stage = str(resolved_stage)
+            notify_capability_step(safe_stage, kind="model")
+            if ACTIVE_TRACE_CONTEXT.get() is None:
+                return function(*args, **kwargs)
             details = {
                 "worker": type(args[0]).__name__ if args else function.__qualname__
             }
@@ -257,6 +259,7 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
         self._stage = stage
         self._worker = worker
         self._started: dict[object, float] = {}
+        self._requests = 0
         self._lock = Lock()
 
     def on_chat_model_start(
@@ -268,12 +271,15 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         del serialized, messages, kwargs
-        if ACTIVE_TRACE_CONTEXT.get() is None:
-            return
         with self._lock:
             if run_id in self._started:
                 return
             self._started[run_id] = perf_counter()
+            self._requests += 1
+            requests = self._requests
+        notify_capability_step(self._stage, kind="model", index=requests)
+        if ACTIVE_TRACE_CONTEXT.get() is None:
+            return
         record_active_trace(
             "model_attempt",
             self._stage,
@@ -305,6 +311,9 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
             started = self._started.pop(run_id, None)
         if started is None:
             return
+        notify_capability_step(self._stage, kind="retry")
+        if ACTIVE_TRACE_CONTEXT.get() is None:
+            return
         retryable = getattr(error, "retryable", None)
         record_active_trace(
             "model_failed",
@@ -317,6 +326,30 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
             details={"worker": self._worker},
             model_call_category="capability_agent",
         )
+
+
+class CapabilityToolStepCallback(BaseCallbackHandler):
+    """Announce each LangChain tool a Deep Agent runs, by tool name only.
+
+    Passed through ``invoke(config=...)`` so it inherits to the agent's tool
+    nodes; provider-hosted tools such as Responses API web search never run
+    as LangChain tools and so never reach it.
+    """
+
+    def __init__(self, *, stage: str) -> None:
+        self._stage = stage
+
+    def on_tool_start(
+        self,
+        serialized: dict[str, Any],
+        input_str: str,
+        **kwargs: Any,
+    ) -> None:
+        del input_str
+        name = kwargs.get("name") or serialized.get("name")
+        if not isinstance(name, str) or not name:
+            return
+        notify_capability_step(f"{self._stage}.{name}", kind="tool")
 
 
 def safe_trace_fields(

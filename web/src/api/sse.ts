@@ -105,19 +105,34 @@ async function errorFromResponse(response: Response): Promise<ChatStreamHttpErro
   return new ChatStreamHttpError(response.status, code, message);
 }
 
+export interface ChatStreamOptions {
+  apiBaseUrl?: string;
+  signal?: AbortSignal;
+  /**
+   * Sent as `Idempotency-Key`. The server anchors this turn's external writes
+   * (calendar, applications) to it, so a later request carrying the same key
+   * for the same conversation is recognised as the same attempt instead of
+   * writing twice. It does not make the whole turn idempotent: the model still
+   * runs and a new reply is still stored.
+   */
+  idempotencyKey?: string;
+}
+
 export async function* streamChat(
   request: ChatStreamRequest,
-  options: { apiBaseUrl?: string; signal?: AbortSignal } = {},
+  options: ChatStreamOptions = {},
 ): AsyncGenerator<PublicStreamEvent> {
   const apiBaseUrl = (options.apiBaseUrl ?? "/api").replace(/\/$/, "");
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+  };
+  if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
   let response: Response;
   try {
     response = await fetch(`${apiBaseUrl}/v1/chat/stream`, {
       method: "POST",
-      headers: {
-        Accept: "text/event-stream",
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(request),
       signal: options.signal,
     });

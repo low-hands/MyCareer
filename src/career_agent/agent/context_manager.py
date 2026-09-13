@@ -95,6 +95,10 @@ class _Pressure:
     source: Literal["estimated", "carried", "legacy", "seam", "overflow_only"]
 
 
+CompactionPhase = Literal["load", "commit"]
+CompactionListener = Callable[[CompactionPhase], None]
+
+
 class ContextManager:
     _MAX_STATIC_INPUT_FRACTION = 0.5
     # Shares of what the static request leaves, so raising the input budget
@@ -189,6 +193,17 @@ class ContextManager:
         self._compaction_failures: dict[
             tuple[str, str], tuple[int, datetime | None]
         ] = {}
+        self._compaction_listener: CompactionListener | None = None
+
+    def on_compaction(self, listener: CompactionListener | None) -> None:
+        """Hear when a summarizer call begins, and in which phase of the turn.
+
+        Compaction is the one step of a load or a commit that waits on a model,
+        so it is the one step whose duration the reader cannot otherwise
+        account for. The runtime turns this into a progress event; the manager
+        itself knows nothing about streams.
+        """
+        self._compaction_listener = listener
 
     def now(self) -> datetime:
         """The one clock for stamping proposals and expiring them.
@@ -262,6 +277,7 @@ class ContextManager:
             user_id=user_id,
             conversation_id=conversation_id,
             trigger="occupancy",
+            phase="load",
             measure=lambda after_sequence: self._recent_pressure(
                 user_id=user_id,
                 conversation_id=conversation_id,
@@ -1132,6 +1148,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             trigger=compaction_trigger,
+            phase="commit",
             measure=lambda after_sequence: self._commit_pressure(
                 user_id=context.profile.user_id,
                 conversation_id=context.conversation_id,
@@ -1316,6 +1333,7 @@ class ContextManager:
         user_id: str,
         conversation_id: str,
         trigger: Literal["occupancy", "seam"],
+        phase: CompactionPhase,
         measure: Callable[[int], _Pressure],
     ) -> _Pressure | None:
         """Compact one batch if the turn is under pressure.
@@ -1335,6 +1353,7 @@ class ContextManager:
             user_id=user_id,
             conversation_id=conversation_id,
             trigger=trigger,
+            phase=phase,
             require_occupancy=trigger == "occupancy",
             measure=measure,
         )
@@ -1345,6 +1364,7 @@ class ContextManager:
         user_id: str,
         conversation_id: str,
         trigger: Literal["occupancy", "seam"],
+        phase: CompactionPhase,
         require_occupancy: bool,
         measure: Callable[[int], _Pressure],
     ) -> _Pressure | None:
@@ -1384,6 +1404,11 @@ class ContextManager:
             user_id=user_id, conversation_id=conversation_id
         ):
             return pressure
+        if self._compaction_listener is not None:
+            try:
+                self._compaction_listener(phase)
+            except Exception:
+                pass
         try:
             content = self._summary_worker.summarize(
                 previous=previous.content if previous else None,

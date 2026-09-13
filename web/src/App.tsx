@@ -1,6 +1,7 @@
 import { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import {
+  type ConversationTranscript,
   type ConversationView,
   deleteConversation,
   fetchConversationMessages,
@@ -9,6 +10,13 @@ import {
 import { seedCaptureApiKey } from "./api/auth";
 import { streamChat, type InteractionResponse } from "./api/sse";
 import { chatReducer, initialChatState } from "./chat/reducer";
+import {
+  RECOVERY_ATTEMPTS,
+  RECOVERY_INTERVAL_MS,
+  hydrationFrom,
+  sleep,
+  turnIsStored,
+} from "./chat/recovery";
 import { InteractionCard } from "./components/InteractionCard";
 import { ReportCard } from "./components/ReportCard";
 import { MarkdownContent } from "./components/MarkdownContent";
@@ -108,13 +116,16 @@ export default function App() {
   const [conversationListError, setConversationListError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  // Bumped to re-read the current conversation's transcript without changing
+  // conversations: the "重新读取" fallback after a recovery that found nothing.
+  const [transcriptReloads, setTranscriptReloads] = useState(0);
   const [conversationPanelWidth, setConversationPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
     return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
   });
   const controller = useRef<AbortController | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
-  const busy = state.phase === "running";
+  const busy = state.phase === "running" || state.phase === "recovering";
   const canSubmit = draft.trim().length > 0 && !busy && !historyLoading;
 
   useEffect(() => () => controller.current?.abort(), []);
@@ -140,31 +151,7 @@ export default function App() {
       signal: request.signal,
     })
       .then((transcript) => {
-        const messages = transcript.messages.map((message, index) => ({
-          id: `history-${conversationId}-${index}`,
-          role: message.role,
-          content: message.content,
-          resources: message.resources.map((resource) => ({
-            kind: resource.kind,
-            resourceId: resource.resource_id,
-            statusAtDelivery: resource.status_at_delivery,
-            anchoredByOtherJob: resource.anchored_by_other_job,
-          })),
-        }));
-        if (transcript.pending_interaction_body) {
-          messages.push({
-            id: `pending-${conversationId}`,
-            role: "assistant",
-            content: transcript.pending_interaction_body,
-            resources: [],
-          });
-        }
-        dispatch({
-          type: "hydrate",
-          messages,
-          interaction: transcript.pending_interaction,
-          awaitingInput: Boolean(transcript.active_workflow),
-        });
+        dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
       })
       .catch((cause: unknown) => {
         if (!request.signal.aborted) {
@@ -178,13 +165,14 @@ export default function App() {
         if (!request.signal.aborted) setHistoryLoading(false);
       });
     return () => request.abort();
-  }, [conversationId]);
+  }, [conversationId, transcriptReloads]);
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
 
   const statusLabel = useMemo(() => {
     if (state.phase === "running") return "处理中";
+    if (state.phase === "recovering") return "正在恢复";
     if (state.phase === "awaiting_input") return "等待你的回复";
     if (state.phase === "failed") return "本轮失败";
     return "可以开始";
@@ -205,6 +193,7 @@ export default function App() {
       assistantMessageId: crypto.randomUUID(),
       content: message,
     });
+    let turnStarted = false;
     try {
       for await (const event of streamChat(
         {
@@ -212,8 +201,13 @@ export default function App() {
           message,
           interaction_response: interactionResponse,
         },
-        { apiBaseUrl: API_BASE_URL, signal: nextController.signal },
+        {
+          apiBaseUrl: API_BASE_URL,
+          signal: nextController.signal,
+          idempotencyKey: crypto.randomUUID(),
+        },
       )) {
+        turnStarted = true;
         if (
           event.type === "client_action" &&
           event.action === "open_url" &&
@@ -232,13 +226,49 @@ export default function App() {
       }
     } catch (error) {
       if (nextController.signal.aborted) return;
-      dispatch({
-        type: "transport_failed",
-        message: error instanceof Error ? error.message : "连接失败，请稍后重试。",
-      });
+      const reason = error instanceof Error ? error.message : "连接失败，请稍后重试。";
+      if (!turnStarted) {
+        // Rejected or unreachable before any event: nothing ran server-side.
+        dispatch({ type: "transport_failed", message: reason });
+        return;
+      }
+      dispatch({ type: "transport_lost" });
+      await recoverTurn(message, reason, nextController.signal);
     } finally {
       if (controller.current === nextController) controller.current = null;
     }
+  }
+
+  /**
+   * The stream died after the turn began. The server finishes the turn on its
+   * own and stores the reply, so read the transcript back until the reply for
+   * `sentMessage` shows up, then show that instead of a failure. A turn can
+   * legitimately outlast the polling window (long tool runs), so giving up
+   * says "unconfirmed", not "failed", and leaves a manual re-read.
+   */
+  async function recoverTurn(sentMessage: string, reason: string, signal: AbortSignal): Promise<void> {
+    for (let attempt = 0; attempt < RECOVERY_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) await sleep(RECOVERY_INTERVAL_MS, signal);
+      if (signal.aborted) return;
+      let transcript: ConversationTranscript;
+      try {
+        transcript = await fetchConversationMessages(conversationId, {
+          apiBaseUrl: API_BASE_URL,
+          signal,
+        });
+      } catch {
+        continue;
+      }
+      if (!turnIsStored(transcript, sentMessage)) continue;
+      dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
+      setCompletedTurns((count) => count + 1);
+      return;
+    }
+    if (signal.aborted) return;
+    dispatch({
+      type: "transport_failed",
+      message: `${reason} 连接中断后没有读到这一轮的回复；服务器可能仍在处理，稍后可点“重新读取”。`,
+    });
   }
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -612,7 +642,21 @@ export default function App() {
               </a>
             ))}
 
-            {state.error ? <div className="error-banner" role="alert">{state.error}</div> : null}
+            {state.error ? (
+              <div className="error-banner" role="alert">
+                {state.error}
+                {state.phase === "failed" ? (
+                  <button
+                    type="button"
+                    className="error-banner-action"
+                    onClick={() => setTranscriptReloads((count) => count + 1)}
+                    disabled={historyLoading}
+                  >
+                    重新读取
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className={`composer ${state.interaction ? "has-interaction" : ""}`}>

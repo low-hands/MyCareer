@@ -302,3 +302,35 @@ def test_a_code_in_the_subject_is_scrubbed_on_both_the_model_and_store_paths(
             for row in connection.execute("SELECT subject FROM email_messages")
         ]
     assert subjects and all("483920" not in subject for subject in subjects)
+
+
+def test_sync_reports_account_and_message_progress_without_mail_content(
+    tmp_path: Path,
+) -> None:
+    from career_agent.harness.capability_steps import (
+        CapabilityStep,
+        observing_capability_steps,
+    )
+
+    store = SQLiteEmailTrackingStore(tmp_path / "email.sqlite3")
+    account = store.add_account(
+        user_id="u1", provider="gmail", email_address="user@gmail.com",
+        credential_ref="env:GMAIL_SECRET",
+    )
+    metadata = RemoteEmailMetadata(
+        external_message_id="m2",
+        sender="Newsletter <news@example.com>",
+        subject="Weekly product digest",
+        received_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    service = EmailTrackingService(store, Applications(), Resolver(Connector(metadata)))
+    steps: list[CapabilityStep] = []
+
+    with observing_capability_steps(steps.append):
+        service.sync(user_id="u1", account_id=account.id)
+
+    assert steps == [
+        CapabilityStep(stage="email_sync.fetch", kind="io", index=1, total=1),
+        CapabilityStep(stage="email_sync.scan", kind="io", index=1, total=1),
+    ]
+    assert "news@example.com" not in repr(steps)

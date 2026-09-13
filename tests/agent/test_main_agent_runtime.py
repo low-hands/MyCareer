@@ -5,6 +5,7 @@ from io import StringIO
 import hashlib
 import json
 import sqlite3
+import time
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -896,6 +897,209 @@ def test_runtime_streams_real_progress_and_fake_final_content(tmp_path) -> None:
     assert "".join(
         event.delta for event in events if event.type == "content_delta"
     ) == result.assistant_message
+
+
+def test_the_reply_streams_before_the_turn_is_saved(tmp_path) -> None:
+    agent, _, _ = build_runtime(
+        tmp_path,
+        AgentDecision(action="final", message="答案在保存之前就发出。"),
+    )
+    events = []
+
+    agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="请直接回答",
+        event_sink=events.append,
+    )
+
+    kinds = [
+        (event.type, getattr(event, "stage", None)) for event in events
+    ]
+    first_delta = kinds.index(("content_delta", None))
+    saving = kinds.index(("progress", "saving"))
+    assert first_delta < saving < kinds.index(("turn_completed", None))
+
+
+def test_a_commit_failure_after_the_reply_names_the_save_not_the_answer(
+    tmp_path, monkeypatch
+) -> None:
+    agent, _, manager = build_runtime(
+        tmp_path,
+        AgentDecision(action="final", message="这条回复已经生成。"),
+    )
+
+    def broken_commit(**kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(manager, "commit_turn", broken_commit)
+    events = []
+
+    with pytest.raises(sqlite3.OperationalError):
+        agent.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="请直接回答",
+            event_sink=events.append,
+        )
+
+    assert "".join(
+        event.delta for event in events if event.type == "content_delta"
+    ) == "这条回复已经生成。"
+    failed = events[-1]
+    assert failed.type == "turn_failed"
+    assert failed.code == "TURN_COMMIT_FAILED"
+    assert "未能保存" in failed.message
+
+
+def test_a_failure_before_any_reply_stays_a_plain_turn_failure(tmp_path) -> None:
+    class Exploding:
+        def decide(self, context, tool_names):
+            raise RuntimeError("provider down")
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    agent = MainAgentRuntime(
+        context_manager=manager, decision_maker=Exploding(), tools=CountingRegistry()
+    )
+    events = []
+
+    with pytest.raises(RuntimeError):
+        agent.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="请直接回答",
+            event_sink=events.append,
+        )
+
+    assert not [event for event in events if event.type == "content_delta"]
+    assert events[-1].type == "turn_failed"
+    assert events[-1].code == "TURN_EXECUTION_FAILED"
+
+
+def test_a_decision_retry_and_a_long_wait_are_announced_as_progress(
+    tmp_path,
+) -> None:
+    from career_agent.agent.decision_attempts import (
+        DecisionAttempt,
+        notify_decision_attempt,
+    )
+
+    class RetryingDecisionMaker:
+        def decide(self, context, tool_names):
+            notify_decision_attempt(
+                DecisionAttempt(attempt=1, max_attempts=2, elapsed_seconds=0.0)
+            )
+            notify_decision_attempt(
+                DecisionAttempt(
+                    attempt=2,
+                    max_attempts=2,
+                    elapsed_seconds=61.2,
+                    previous_error_code="MAIN_AGENT_TRANSPORT_ERROR",
+                )
+            )
+            time.sleep(0.15)
+            return AgentDecision(action="final", message="完成。")
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    agent = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=RetryingDecisionMaker(),
+        tools=CountingRegistry(),
+    )
+    agent.DECISION_HEARTBEAT_SECONDS = 0.05
+    events = []
+
+    agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="请直接回答",
+        event_sink=events.append,
+    )
+
+    deciding = [
+        event.message
+        for event in events
+        if event.type == "progress" and event.stage == "deciding"
+    ]
+    assert deciding[0] == "正在判断下一步操作……"
+    assert "上一次请求超时或连接中断，正在重新判断（第 2/2 次，已等待 61 秒）……" in deciding
+    assert any(message.startswith("仍在等待模型判断（已等待") for message in deciding)
+
+
+def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
+    tmp_path,
+) -> None:
+    from career_agent.harness.capability_steps import notify_capability_step
+
+    class Registry(MainAgentToolRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            notify_capability_step("resume_analysis")
+            notify_capability_step("internal_label_nobody_maps")
+            notify_capability_step("resume_analysis", kind="retry")
+            notify_capability_step("job_research", index=2)
+            notify_capability_step("job_research.read_file", kind="tool")
+            notify_capability_step("email_sync.scan", kind="io", index=3, total=12)
+            time.sleep(0.15)
+            return ToolObservation(
+                tool_name=name,
+                state="resume_analysis_ready",
+                message="分析完成。",
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    agent = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="analyze_resume", arguments={}),
+            ),
+            AgentDecision(action="final", message="完成。"),
+        ),
+        tools=Registry(),
+    )
+    agent.DECISION_HEARTBEAT_SECONDS = 0.05
+    events = []
+
+    agent.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="分析简历",
+        event_sink=events.append,
+    )
+
+    running = [
+        event.message
+        for event in events
+        if event.type == "progress" and event.stage == "running_capability"
+    ]
+    assert running[:5] == [
+        "正在分析简历内容……",
+        "正在分析简历内容时请求失败，正在重试……",
+        "正在调研岗位背景（第 2 次调用模型）……",
+        "正在阅读工作指南……",
+        "正在扫描邮件（第 3/12 项）……",
+    ]
+    assert not any("internal_label" in message for message in running)
+    heartbeat = next(
+        event
+        for event in events
+        if event.type == "progress" and event.message.startswith("正在扫描邮件（已等待")
+    )
+    completed = next(event for event in events if event.type == "capability_completed")
+    assert events.index(heartbeat) < events.index(completed)
 
 
 def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:

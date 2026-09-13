@@ -102,8 +102,9 @@ class FakeDeepAgent:
         self.output = output
         self.state = None
 
-    def invoke(self, state):
+    def invoke(self, state, *, config=None):
         self.state = state
+        self.config = config
         return {"structured_response": self.output}
 
 

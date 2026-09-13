@@ -35,6 +35,7 @@ from career_agent.agent.resume_tailoring_contracts import (
 from career_agent.storage.resumes import StoredResumeDocument
 from career_agent.harness.observability import (
     CapabilityModelTraceCallback,
+    CapabilityToolStepCallback,
     traced_model_call,
 )
 
@@ -96,7 +97,12 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
         )
         try:
             state = self._agent.invoke(
-                {"messages": [{"role": "user", "content": content}]}
+                {"messages": [{"role": "user", "content": content}]},
+                config={
+                    "callbacks": [
+                        CapabilityToolStepCallback(stage="resume_tailoring")
+                    ]
+                },
             )
         except RateLimitError as error:
             raise AgentWorkerError(
@@ -346,7 +352,12 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
         )
         try:
             state = self._agent.invoke(
-                {"messages": [{"role": "user", "content": content}]}
+                {"messages": [{"role": "user", "content": content}]},
+                config={
+                    "callbacks": [
+                        CapabilityToolStepCallback(stage="resume_finalization")
+                    ]
+                },
             )
         except RateLimitError as error:
             raise AgentWorkerError(
