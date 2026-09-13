@@ -17,7 +17,7 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
-from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, RuntimeAction
+from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError
 from career_agent.cli import main as cli_main
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -28,6 +28,7 @@ from career_agent.storage.action_executions import (
     ActionExecutionConflictError,
     SQLiteActionExecutionStore,
 )
+from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse
 
 
@@ -1126,6 +1127,193 @@ def test_stream_observer_failure_does_not_fail_business_turn(tmp_path) -> None:
         user_id="u1", conversation_id="c1", user_message="下一轮"
     ).recent_messages
     assert history[-1].content == "仍然完成。"
+
+
+def _receipted_runtime(tmp_path, decision_maker):
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decision_maker,
+        tools=CountingRegistry(),
+        turn_receipt_store=SQLiteTurnReceiptStore(database),
+    )
+    return runtime, manager
+
+
+def test_a_repeated_request_is_answered_from_its_receipt_without_a_second_turn(
+    tmp_path,
+) -> None:
+    """Turn-level idempotency: same key, same answer, nothing executed again."""
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="final", message="第一段回答。\n\n第二段回答。"),
+    )
+    runtime, manager = _receipted_runtime(tmp_path, decisions)
+
+    live = []
+    first = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="请直接回答",
+        request_id="request-1",
+        event_sink=live.append,
+    )
+    replayed = []
+    second = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="请直接回答",
+        request_id="request-1",
+        event_sink=replayed.append,
+    )
+
+    assert decisions.decisions == []  # the model was consulted exactly once
+    assert isinstance(second, ReplayedTurn)
+    assert second.turn_id == live[0].turn_id
+    assert second.assistant_message == first.assistant_message
+    assert [event.type for event in replayed] == [
+        "turn_started",
+        "content_delta",
+        "turn_completed",
+    ]
+    assert replayed[0].turn_id == live[0].turn_id
+    assert replayed[-1].turn_id == live[-1].turn_id
+    assert not any(event.type == "progress" for event in replayed)
+    history = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="下一轮"
+    ).recent_messages
+    assert [message.content for message in history] == [
+        "请直接回答",
+        first.assistant_message,
+    ]
+
+
+def test_a_receipt_is_complete_even_when_the_observer_dropped_mid_stream(tmp_path) -> None:
+    runtime, _ = _receipted_runtime(
+        tmp_path,
+        SequenceDecisionMaker(AgentDecision(action="final", message="仍然完成。")),
+    )
+    seen = 0
+
+    def dropping_sink(event) -> None:
+        nonlocal seen
+        seen += 1
+        if event.type == "content_delta":
+            raise RuntimeError("client disconnected")
+
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续执行",
+        request_id="request-1",
+        event_sink=dropping_sink,
+    )
+    replayed = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="继续执行",
+        request_id="request-1",
+        event_sink=replayed.append,
+    )
+
+    assert seen > 1
+    assert "".join(e.delta for e in replayed if e.type == "content_delta") == "仍然完成。"
+    assert replayed[-1].type == "turn_completed"
+
+
+def test_a_failed_attempt_does_not_keep_its_key(tmp_path) -> None:
+    class Flaky(SequenceDecisionMaker):
+        def __init__(self) -> None:
+            super().__init__(AgentDecision(action="final", message="第二次成功。"))
+            self.failed = False
+
+        def decide(self, context, tool_names):
+            if not self.failed:
+                self.failed = True
+                raise RuntimeError("provider unavailable")
+            return super().decide(context, tool_names)
+
+    runtime, _ = _receipted_runtime(tmp_path, Flaky())
+    failed = []
+    with pytest.raises(RuntimeError):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="再试一次",
+            request_id="request-1",
+            event_sink=failed.append,
+        )
+    assert failed[-1].type == "turn_failed"
+
+    retried = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="再试一次",
+        request_id="request-1",
+    )
+    assert isinstance(retried, MainAgentTurnResult)
+    assert retried.assistant_message == "第二次成功。"
+
+
+def test_a_key_whose_turn_is_still_running_is_refused_not_replayed(tmp_path) -> None:
+    runtime, _ = _receipted_runtime(
+        tmp_path,
+        SequenceDecisionMaker(AgentDecision(action="final", message="完成。")),
+    )
+    receipts = runtime._turn_receipt_store
+    assert receipts.begin(
+        user_id="u1", conversation_id="c1", request_id="request-1", turn_id="turn-elsewhere"
+    ) is None
+
+    events = []
+    with pytest.raises(TurnInProgressError):
+        runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="完成",
+            request_id="request-1",
+            event_sink=events.append,
+        )
+    assert [event.type for event in events] == ["turn_failed"]
+    assert events[0].code == "TURN_IN_PROGRESS"
+    assert events[0].turn_id == "turn-elsewhere"
+
+
+def test_a_suspended_turn_replays_its_interaction(tmp_path) -> None:
+    runtime, _ = _receipted_runtime(
+        tmp_path,
+        SequenceDecisionMaker(
+            AgentDecision(action="ask_user", message="你想先看哪一个岗位？"),
+        ),
+    )
+    live = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我找岗位",
+        request_id="request-1",
+        event_sink=live.append,
+    )
+    replayed = []
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="帮我找岗位",
+        request_id="request-1",
+        event_sink=replayed.append,
+    )
+
+    live_types = [event.type for event in live]
+    assert "interaction_required" in live_types and live_types[-1] == "turn_suspended"
+    assert [event.type for event in replayed] == [
+        "turn_started",
+        "interaction_required",
+        "turn_suspended",
+    ]
+    assert replayed[1] == next(e for e in live if e.type == "interaction_required")
+    assert replayed[2] == live[-1]
 
 
 def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:

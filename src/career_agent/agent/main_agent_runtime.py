@@ -129,6 +129,11 @@ from career_agent.storage.action_executions import (
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.intent_versions import intent_entry_id
+from career_agent.storage.turn_receipts import (
+    REPLAYED_EVENT_TYPES,
+    SQLiteTurnReceiptStore,
+    TurnReceipt,
+)
 
 _STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
     "main_agent_stream_sink",
@@ -171,6 +176,29 @@ is fine while nothing crosses a process boundary as an origin: the CLI publishes
 need a real discriminator — an instance field, a Pydantic tagged union, or an
 explicit codec — and this is not one.
 """
+
+
+class TurnInProgressError(RuntimeError):
+    """The request's first attempt has not settled, so it cannot be replayed yet."""
+
+    def __init__(self, request_id: str) -> None:
+        super().__init__(f"request {request_id} is still running")
+        self.request_id = request_id
+
+
+@dataclass(frozen=True)
+class ReplayedTurn:
+    """A repeated request answered from its receipt; nothing executed."""
+
+    turn_id: str
+    request_id: str
+    events: tuple[PublicStreamEvent, ...]
+
+    @property
+    def assistant_message(self) -> str:
+        return "".join(
+            event.delta for event in self.events if isinstance(event, ContentDeltaEvent)
+        )
 
 
 @dataclass(frozen=True)
@@ -424,7 +452,7 @@ class MainAgentRuntime:
         }
     )
 
-    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_external_write_calls: int = DEFAULT_MAX_EXTERNAL_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH, episode_reconciler: EpisodeReconciler | None = None) -> None:
+    def __init__(self, *, context_manager: ContextManager, decision_maker: DecisionMaker, tools: MainAgentToolRegistry, career_context_projector: CareerContextProjector | None = None, max_read_calls: int = DEFAULT_MAX_READ_CALLS, max_write_calls: int = DEFAULT_MAX_WRITE_CALLS, max_external_write_calls: int = DEFAULT_MAX_EXTERNAL_WRITE_CALLS, max_projection_refusals: int = DEFAULT_MAX_PROJECTION_REFUSALS, max_authorization_refusals: int = DEFAULT_MAX_AUTHORIZATION_REFUSALS, max_failure_retries: int = DEFAULT_MAX_FAILURE_RETRIES, owned_resources: tuple[Any, ...] = (), trace_recorder: TraceRecorder | None = None, action_execution_store: SQLiteActionExecutionStore | None = None, capability_confirmation_store: SQLiteCapabilityConfirmationStore | None = None, turn_receipt_store: SQLiteTurnReceiptStore | None = None, action_policy_epoch: int = ACTION_EXECUTION_POLICY_EPOCH, episode_reconciler: EpisodeReconciler | None = None) -> None:
         if max_read_calls < 1:
             raise ValueError("max_read_calls must be at least one")
         if max_write_calls < 1:
@@ -471,6 +499,7 @@ class MainAgentRuntime:
         self._trace_recorder = trace_recorder
         self._action_execution_store = action_execution_store
         self._capability_confirmation_store = capability_confirmation_store
+        self._turn_receipt_store = turn_receipt_store
         self._action_policy_epoch = action_policy_epoch
         self._owned_resources = owned_resources
         self._closed = False
@@ -680,11 +709,15 @@ class MainAgentRuntime:
         request_id: str | None = None,
         interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
-    ) -> MainAgentTurnResult:
+    ) -> MainAgentTurnResult | ReplayedTurn:
         """Run one committed turn and optionally publish presentation-only events.
 
         The sink is held outside graph state and checkpoints. A broken observer
         never gets authority to fail or mutate the business turn.
+
+        With a receipt store, ``request_id`` identifies the turn as a whole: a
+        request whose key already committed is answered from its receipt and
+        returns a ``ReplayedTurn`` without executing anything.
         """
 
         turn_id = uuid4().hex
@@ -692,6 +725,20 @@ class MainAgentRuntime:
             request_id = request_id.strip()
             if not request_id or len(request_id) > 200:
                 raise ValueError("request_id must contain 1 to 200 characters")
+        receipt_owner: tuple[SQLiteTurnReceiptStore, str] | None = None
+        if request_id is not None and self._turn_receipt_store is not None:
+            existing = self._turn_receipt_store.begin(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                request_id=request_id,
+                turn_id=turn_id,
+            )
+            if existing is not None:
+                return self._replay_turn(existing, event_sink=event_sink)
+            receipt_owner = (self._turn_receipt_store, request_id)
+        answered: list[PublicStreamEvent] = []
+        if receipt_owner is not None:
+            event_sink = self._answer_recording_sink(event_sink, answered)
         sink_token = _STREAM_SINK.set(event_sink)
         action_token = _ACTION_INVOCATION.set((turn_id, request_id))
         trace_token = _TRACE_CONTEXT.set(
@@ -725,6 +772,14 @@ class MainAgentRuntime:
                 turn_id=turn_id,
                 conversation_id=conversation_id,
             )
+            if receipt_owner is not None:
+                self._settle_turn_receipt(
+                    receipt_owner,
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    turn_id=turn_id,
+                    answered=tuple(answered),
+                )
             return result
         except Exception as error:
             self._invalidate_episode_reconciliation(user_id)
@@ -734,6 +789,14 @@ class MainAgentRuntime:
                 error=error,
                 reply_delivered=reply_delivered,
             )
+            if receipt_owner is not None:
+                self._settle_turn_receipt(
+                    receipt_owner,
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    turn_id=turn_id,
+                    answered=None,
+                )
             if reply_delivered:
                 # The reader already has the reply; what failed is keeping it.
                 # Say so instead of a generic failure that reads as if the text
@@ -758,6 +821,86 @@ class MainAgentRuntime:
             _STREAM_SINK.reset(sink_token)
             _TRACE_CONTEXT.reset(trace_token)
             _ACTION_INVOCATION.reset(action_token)
+
+    @staticmethod
+    def _answer_recording_sink(
+        event_sink: StreamEventSink | None,
+        answered: list[PublicStreamEvent],
+    ) -> StreamEventSink:
+        """Keep the events that make up the answer before handing them on.
+
+        Recording happens ahead of the observer, so a client that disconnects
+        mid-stream still leaves a complete receipt behind.
+        """
+
+        def sink(event: PublicStreamEvent) -> None:
+            if isinstance(event, REPLAYED_EVENT_TYPES):
+                answered.append(event)
+            if event_sink is not None:
+                event_sink(event)
+
+        return sink
+
+    @staticmethod
+    def _settle_turn_receipt(
+        owner: tuple[SQLiteTurnReceiptStore, str],
+        *,
+        user_id: str,
+        conversation_id: str,
+        turn_id: str,
+        answered: tuple[PublicStreamEvent, ...] | None,
+    ) -> None:
+        store, request_id = owner
+        try:
+            if answered is None:
+                store.fail(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    request_id=request_id,
+                    turn_id=turn_id,
+                )
+            else:
+                store.commit(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    request_id=request_id,
+                    turn_id=turn_id,
+                    events=answered,
+                )
+        except Exception:
+            # The receipt is a convenience for a retrying client. Failing to
+            # write it must not undo a turn whose effects are already durable.
+            return
+
+    def _replay_turn(
+        self,
+        receipt: TurnReceipt,
+        *,
+        event_sink: StreamEventSink | None,
+    ) -> ReplayedTurn:
+        """Answer a repeated request from its receipt instead of executing."""
+
+        sink_token = _STREAM_SINK.set(event_sink)
+        try:
+            if receipt.status == "RUNNING":
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=receipt.turn_id,
+                        code="TURN_IN_PROGRESS",
+                        message="这条请求仍在处理中；稍后重新读取对话即可看到结果。",
+                    )
+                )
+                raise TurnInProgressError(receipt.request_id)
+            self._emit(TurnStartedEvent(turn_id=receipt.turn_id))
+            for event in receipt.events:
+                self._emit(event)
+        finally:
+            _STREAM_SINK.reset(sink_token)
+        return ReplayedTurn(
+            turn_id=receipt.turn_id,
+            request_id=receipt.request_id,
+            events=receipt.events,
+        )
 
     @staticmethod
     def _emit_trace(

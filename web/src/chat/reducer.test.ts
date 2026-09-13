@@ -183,4 +183,36 @@ describe("chatReducer", () => {
     expect(recovered.phase).toBe("completed");
     expect(recovered.messages.at(-1)?.content).toBe("核心要求是……");
   });
+
+  it("resubmits a failed exchange in place and overwrites only its reply", () => {
+    let state = chatReducer(initialChatState, {
+      type: "submit",
+      messageId: "user-1",
+      assistantMessageId: "assistant-1",
+      content: "分析岗位",
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: { type: "content_delta", delta: "核心" },
+    });
+    state = chatReducer(state, { type: "transport_failed", message: "断了" });
+
+    state = chatReducer(state, { type: "resubmit" });
+
+    expect(state.phase).toBe("running");
+    expect(state.error).toBeNull();
+    expect(state.messages.map((message) => message.id)).toEqual(["user-1", "assistant-1"]);
+    expect(state.messages.at(-1)?.content).toBe("");
+
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: { type: "content_delta", delta: "核心要求是……" },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: { type: "turn_completed", turn_id: "turn-1" },
+    });
+    expect(state.phase).toBe("completed");
+    expect(state.messages.at(-1)?.content).toBe("核心要求是……");
+  });
 });
