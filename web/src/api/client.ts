@@ -1,4 +1,8 @@
-import type { PublicStreamEvent, ReportKind } from "../chat/events";
+import type {
+  PublicStreamEvent,
+  ReportDeliveryStatus,
+  ReportKind,
+} from "../chat/events";
 
 export interface ActionItemView {
   id: string;
@@ -61,7 +65,7 @@ export interface SavedJobView {
   salary: string | null;
   source_name: string;
   source_url: string | null;
-  pursuit_status?: "open" | "dismissed";
+  pursuit_status: "open" | "dismissed";
   availability_status: string;
   captured_at: string;
   last_checked_at: string;
@@ -89,7 +93,7 @@ export interface ConversationView {
 export interface ConversationResourceView {
   kind: ReportKind;
   resource_id: string;
-  status_at_delivery: "current" | "outdated" | "superseded" | null;
+  status_at_delivery: ReportDeliveryStatus | null;
   anchored_by_other_job: boolean | null;
 }
 
@@ -97,7 +101,8 @@ export interface ConversationMessageView {
   role: "user" | "assistant";
   content: string;
   created_at: string;
-  resource: ConversationResourceView | null;
+  /** Plural: one turn can store two reports, and each gets its own card. */
+  resources: ConversationResourceView[];
 }
 
 export interface ReportView {
@@ -622,7 +627,7 @@ export function fetchReport(
   kind: ReportKind,
   resourceId: string,
   deliveryContext: {
-    statusAtDelivery?: "current" | "outdated" | "superseded" | null;
+    statusAtDelivery?: ReportDeliveryStatus | null;
     anchoredByOtherJob?: boolean | null;
   },
   options: ReadOptions,

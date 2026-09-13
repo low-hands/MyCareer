@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "vitest run"
+    "typecheck": "tsc -b",
+    "test": "tsc -b && vitest run"
   },
   "dependencies": {
     "react": "^19.2.8",

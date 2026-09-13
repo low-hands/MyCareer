@@ -144,21 +144,19 @@ export default function App() {
           id: `history-${conversationId}-${index}`,
           role: message.role,
           content: message.content,
-          resource: message.resource
-            ? {
-                kind: message.resource.kind,
-                resourceId: message.resource.resource_id,
-                statusAtDelivery: message.resource.status_at_delivery,
-                anchoredByOtherJob: message.resource.anchored_by_other_job,
-              }
-            : undefined,
+          resources: message.resources.map((resource) => ({
+            kind: resource.kind,
+            resourceId: resource.resource_id,
+            statusAtDelivery: resource.status_at_delivery,
+            anchoredByOtherJob: resource.anchored_by_other_job,
+          })),
         }));
         if (transcript.pending_interaction_body) {
           messages.push({
             id: `pending-${conversationId}`,
             role: "assistant",
             content: transcript.pending_interaction_body,
-            resource: undefined,
+            resources: [],
           });
         }
         dispatch({
@@ -553,7 +551,7 @@ export default function App() {
             {state.messages.filter((message) =>
               Boolean(
                 message.content
-                || message.resource
+                || message.resources?.length
                 || (message.role === "assistant" && busy),
               )
             ).map((message) => (
@@ -570,12 +568,13 @@ export default function App() {
                     <span className="typing">● ● ●</span>
                   ) : null}
                 </div>
-                {message.resource ? (
+                {message.resources?.map((resource) => (
                   <ReportCard
-                    resource={message.resource}
+                    key={`${resource.kind}-${resource.resourceId}`}
+                    resource={resource}
                     apiBaseUrl={API_BASE_URL}
                   />
-                ) : null}
+                ))}
               </article>
             ))}
 

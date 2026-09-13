@@ -251,7 +251,7 @@ class ConversationResourceView(BaseModel):
 class ConversationMessageView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    role: str
+    role: Literal["user", "assistant"]
     content: str
     created_at: datetime
     resources: tuple[ConversationResourceView, ...] = ()
