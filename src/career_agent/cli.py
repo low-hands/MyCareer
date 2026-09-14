@@ -406,8 +406,9 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument(
         "--message",
         help=(
-            "Current user message. Required unless the turn answers a pending "
-            "interaction, where it defaults to the label of the option chosen."
+            "Current user message. Required for a normal turn; not allowed when "
+            "answering a pending interaction, where the transcript records the "
+            "label of the option chosen, exactly as the web client sends it."
         ),
     )
     interaction = chat.add_mutually_exclusive_group()
@@ -428,10 +429,11 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument(
         "--interaction-scope",
         choices=("capability_confirmation", "resume_analysis_confirmation"),
-        default="capability_confirmation",
         help=(
-            "Scope of the interaction being answered (default: "
-            "capability_confirmation, the owner's gate on external writes)."
+            "Scope of the interaction being answered, as printed in "
+            "pending_interaction (default: capability_confirmation, the owner's "
+            "gate on external writes). Only valid with --confirm-interaction or "
+            "--cancel-interaction."
         ),
     )
     chat.add_argument(
@@ -904,19 +906,27 @@ def _chat_tool_result_payload(result: ToolObservation) -> dict[str, object]:
 
 
 def _chat_interaction_response(args: argparse.Namespace) -> InteractionResponse | None:
+    if args.confirm_interaction is None and args.cancel_interaction is None:
+        if args.interaction_scope is not None:
+            raise ValueError(
+                "--interaction-scope only applies together with "
+                "--confirm-interaction or --cancel-interaction"
+            )
+        return None
+    if args.message is not None:
+        raise ValueError(
+            "--message cannot be combined with --confirm-interaction or "
+            "--cancel-interaction: answering an interaction records the label "
+            "of the option chosen, as the web client does"
+        )
+    scope = args.interaction_scope or "capability_confirmation"
     if args.confirm_interaction is not None:
         return InteractionResponse(
-            interaction_id=args.confirm_interaction,
-            scope=args.interaction_scope,
-            action="confirm",
+            interaction_id=args.confirm_interaction, scope=scope, action="confirm"
         )
-    if args.cancel_interaction is not None:
-        return InteractionResponse(
-            interaction_id=args.cancel_interaction,
-            scope=args.interaction_scope,
-            action="cancel",
-        )
-    return None
+    return InteractionResponse(
+        interaction_id=args.cancel_interaction, scope=scope, action="cancel"
+    )
 
 
 def _chat_user_message(
@@ -924,17 +934,17 @@ def _chat_user_message(
 ) -> str:
     """What this turn records as the user's words.
 
-    Answering an interaction is a button press, not prose; without ``--message``
-    the transcript gets the same label the web client would have sent.
+    Answering an interaction is a button press, not prose: the transcript gets
+    the same label the web client would have sent, and nothing else.
     """
 
-    if args.message is not None:
-        return args.message
     if interaction_response is None:
-        raise ValueError(
-            "--message is required unless --confirm-interaction or "
-            "--cancel-interaction answers a pending interaction"
-        )
+        if args.message is None:
+            raise ValueError(
+                "--message is required unless --confirm-interaction or "
+                "--cancel-interaction answers a pending interaction"
+            )
+        return args.message
     return scoped_interaction_message(
         interaction_response.scope, interaction_response.action
     )
@@ -977,7 +987,29 @@ def _chat_pending_interaction_event(
     return None
 
 
-def _chat_pending_interaction_payload(turn, *, session_id: str) -> dict[str, object] | None:
+def _chat_replayed_interaction_event(
+    turn: ReplayedTurn,
+) -> InteractionRequiredEvent | None:
+    """The gate the original run published, if it stopped at one.
+
+    A replay executes nothing, so the pending interaction is whatever the
+    receipt recorded; the runtime answers it by id exactly as it would have
+    answered the first time.
+    """
+
+    return next(
+        (
+            event
+            for event in reversed(turn.events)
+            if isinstance(event, InteractionRequiredEvent) and event.scope is not None
+        ),
+        None,
+    )
+
+
+def _chat_pending_interaction_payload(
+    event: InteractionRequiredEvent | None,
+) -> dict[str, object] | None:
     """A pending gate, addressed to whoever runs the CLI.
 
     A sealed confirmation can only be answered with its interaction id; a
@@ -986,7 +1018,6 @@ def _chat_pending_interaction_payload(turn, *, session_id: str) -> dict[str, obj
     exact flags that answer it.
     """
 
-    event = _chat_pending_interaction_event(turn, session_id=session_id)
     if event is None or event.scope is None:
         return None
     scope_flag = (
@@ -1048,7 +1079,7 @@ def _write_chat_payload(
             for artifact in turn.artifacts
         ],
         "pending_interaction": _chat_pending_interaction_payload(
-            turn, session_id=session_id
+            _chat_pending_interaction_event(turn, session_id=session_id)
         ),
         # Addressed to whoever runs the CLI, not to the agent: it never entered
         # the model's context, so the model cannot act on it.
@@ -1073,6 +1104,9 @@ def _write_chat_replay(
         "request_id": turn.request_id,
         "turn_id": turn.turn_id,
         "assistant_message": turn.assistant_message,
+        "pending_interaction": _chat_pending_interaction_payload(
+            _chat_replayed_interaction_event(turn)
+        ),
     }
     json.dump(payload, output, ensure_ascii=False, separators=(",", ":"))
     output.write("\n")
