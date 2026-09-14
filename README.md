@@ -15,6 +15,24 @@ uvicorn career_agent.api.app:app --workers 1      # 也可以
 
 启动时进程会对会话库所在目录的 `api-server.lock`（默认 `~/.career-agent/api-server.lock`）取独占锁并持有到退出。锁跟着业务数据库走，与只存 API key 的 `CAREER_AGENT_DATA_DIR` 无关。第二个进程取不到锁会立即启动失败并给出提示；`WEB_CONCURRENCY` 等变量大于 1 也会在启动时被拒绝。锁由内核随进程退出自动释放，崩溃后无需手工清理。
 
+同一进程内同时运行的 turn 数有上限（默认 3，`CAREER_AGENT_MAX_CONCURRENT_TURNS` 可改）。每个 turn 在模型调用期间独占一个工作线程，不设上限时多个对话同时发送会把线程占满、等模型超时才恢复。超出上限的请求立即返回 `503 TURN_CAPACITY_EXHAUSTED`（带 `Retry-After`），提示"当前任务较多，请稍后再试"；没有排队。同一对话重复发送仍然是 `409 CONVERSATION_TURN_IN_PROGRESS`。
+
+## 备份与恢复
+
+工作区 = `~/.career-agent/*.sqlite3` 全部业务库 + `~/.career-agent/working-notes/` + `$CAREER_AGENT_DATA_DIR/api_keys.sqlite3`。请在开始保存正式简历和求职记录前养成备份习惯：
+
+```bash
+career-agent backup create                       # 复制到 ~/.career-agent-backups/<UTC 时间戳>/
+career-agent backup create --dest /Volumes/usb/career-2026-09-14
+career-agent backup verify --source ~/.career-agent-backups/20260914T120000Z
+career-agent backup restore --source ~/.career-agent-backups/20260914T120000Z --yes
+```
+
+- `create` 用 SQLite 在线备份 API 逐库复制（WAL 里已提交的页也带上），逐库跑 `integrity_check`，并写 `manifest.json`（每个文件的大小 + SHA-256）。目标目录必须不存在或为空。可以在 API 运行时执行。
+- `verify` 核对 manifest 里每个文件存在、大小和 SHA-256 一致、数据库通过 `integrity_check`；有任何问题退出码为 5。
+- `restore` 先 `verify`，不通过则一个文件都不动；必须停掉 API（restore 会尝试取 `api-server.lock`，取不到即拒绝）；覆盖前先把当前工作区备份到 `~/.career-agent-backups/pre-restore-<时间戳>/`（`--no-safety-copy` 可跳过）；按文件名匹配当前配置的库路径，所以换机器、换用户名也能恢复；恢复时会清掉目标库旁的 `-wal/-shm/-journal` 残留，恢复完再跑一次 `integrity_check`。
+- 非默认库路径的用户给 `backup` 传和 `chat` 一样的 `--*-store` 参数。
+
 ## Gmail OAuth 配置
 
 Gmail 连接需要应用管理员先创建 Google OAuth Client。普通用户授权 Gmail 时不会看到或填写 Client Secret。

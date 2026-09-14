@@ -6,6 +6,7 @@ import os
 import sqlite3
 import sys
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
@@ -107,6 +108,14 @@ from career_agent.services.job_comparison import JobComparisonService
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.working_notes import WorkingNotesStore
+from career_agent.storage.backup import (
+    BackupError,
+    BackupPlan,
+    create_backup,
+    restore_backup,
+    verify_backup,
+)
+from career_agent.api.single_worker import SingleWorkerError, SingleWorkerLock, lock_path_for
 
 
 EXIT_OK = 0
@@ -792,6 +801,60 @@ def build_parser() -> argparse.ArgumentParser:
             "capture:write and nothing else."
         ),
     )
+    backup_command = subparsers.add_parser(
+        "backup",
+        help="Back up, verify and restore the whole local workspace.",
+        description=(
+            "The workspace is every SQLite store plus the working-notes directory. "
+            "A backup copies all of them at once into one directory with a "
+            "checksummed manifest; restore refuses to touch the live workspace "
+            "unless that whole set verifies, and keeps a safety copy of what it "
+            "replaces."
+        ),
+    )
+    backup_subparsers = backup_command.add_subparsers(dest="backup_command", required=True)
+    backup_create = backup_subparsers.add_parser(
+        "create", help="Copy every store into a new directory and write manifest.json."
+    )
+    backup_create.add_argument(
+        "--dest",
+        default=None,
+        help=(
+            "Directory to create. Defaults to ~/.career-agent-backups/<UTC timestamp>. "
+            "Must not exist or must be empty."
+        ),
+    )
+    backup_verify = backup_subparsers.add_parser(
+        "verify", help="Check a backup's files against its manifest and SQLite integrity_check."
+    )
+    backup_verify.add_argument("--source", required=True, help="Backup directory.")
+    backup_restore = backup_subparsers.add_parser(
+        "restore", help="Replace the current workspace with a verified backup."
+    )
+    backup_restore.add_argument("--source", required=True, help="Backup directory.")
+    backup_restore.add_argument(
+        "--yes",
+        action="store_true",
+        help="Required. Restore overwrites the current stores (after a safety copy).",
+    )
+    backup_restore.add_argument(
+        "--no-safety-copy",
+        action="store_true",
+        help="Do not back up the current workspace before overwriting it.",
+    )
+    for backup_parser in (backup_create, backup_verify, backup_restore):
+        backup_parser.add_argument(
+            "--context-store",
+            default="~/.career-agent/context.sqlite3",
+            help="Local session and context store path.",
+        )
+        backup_parser.add_argument(
+            "--api-key-store",
+            default=None,
+            help="API key store path. Defaults to $CAREER_AGENT_DATA_DIR/api_keys.sqlite3.",
+        )
+        _add_runtime_options(backup_parser)
+
     keys_subparsers = keys_command.add_subparsers(dest="keys_command", required=True)
     issue_keys = keys_subparsers.add_parser(
         "issue", help="Mint a key. Its secret is printed once and never stored."
@@ -1268,6 +1331,119 @@ def _run_action_settle(args, stdout) -> int:
     )
     stdout.write("\n")
     return EXIT_OK
+
+
+def _backup_plan(args: argparse.Namespace) -> BackupPlan:
+    """Every path the runtime opens from these arguments. Kept in one place so
+    a new store cannot be added to the runtime without deciding whether it is
+    part of the backup."""
+
+    context_store = Path(args.context_store).expanduser()
+    api_key_store = (
+        Path(args.api_key_store).expanduser()
+        if args.api_key_store
+        else Path(os.environ.get("CAREER_AGENT_DATA_DIR", "data")) / "api_keys.sqlite3"
+    )
+    databases = (
+        context_store,
+        Path(args.resume_store),
+        Path(args.application_store),
+        Path(args.job_store),
+        Path(args.job_research_store),
+        Path(args.job_research_checkpoint_store),
+        Path(args.email_store),
+        Path(args.action_store),
+        Path(args.calendar_store),
+        Path(args.mock_interview_store),
+        Path(args.mock_interview_checkpoint_store),
+        Path(args.run_events_store),
+        api_key_store,
+    )
+    return BackupPlan(
+        databases=tuple(path.expanduser() for path in databases),
+        directories=(context_store.with_name("working-notes"),),
+    )
+
+
+def _run_backup(args, stdout) -> int:
+    plan = _backup_plan(args)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    def emit(payload: dict) -> None:
+        stdout.write(json.dumps(payload, ensure_ascii=False, indent=2))
+        stdout.write("\n")
+
+    try:
+        if args.backup_command == "create":
+            destination = (
+                Path(args.dest).expanduser()
+                if args.dest
+                else Path("~/.career-agent-backups").expanduser() / stamp
+            )
+            manifest = create_backup(plan, destination)
+            emit(
+                {
+                    "backup": str(destination),
+                    "created_at": manifest.created_at.isoformat(),
+                    "files": len(manifest.entries),
+                    "bytes": sum(entry.size for entry in manifest.entries),
+                    "entries": [entry.name for entry in manifest.entries],
+                }
+            )
+            return EXIT_OK
+        if args.backup_command == "verify":
+            report = verify_backup(Path(args.source))
+            emit(
+                {
+                    "backup": str(report.directory),
+                    "ok": report.ok,
+                    "created_at": (
+                        report.manifest.created_at.isoformat() if report.manifest else None
+                    ),
+                    "files": len(report.manifest.entries) if report.manifest else 0,
+                    "problems": list(report.problems),
+                }
+            )
+            return EXIT_OK if report.ok else EXIT_WORKFLOW_ERROR
+        if not args.yes:
+            emit(
+                {
+                    "error": "restore overwrites the current workspace; re-run with --yes",
+                }
+            )
+            return EXIT_ARGUMENT_ERROR
+        # The API holds this lock for its whole life. Swapping database files
+        # under a process with open connections is how a restore corrupts
+        # both the old and the new copy, so a running server is a hard stop.
+        workspace_dir = Path(args.context_store).expanduser().parent
+        lock = SingleWorkerLock(lock_path_for(workspace_dir))
+        try:
+            lock.acquire()
+        except SingleWorkerError as error:
+            emit({"error": f"API 正在运行，请先停止后再恢复。{error}"})
+            return EXIT_WORKFLOW_ERROR
+        try:
+            safety_copy_dir = (
+                None
+                if args.no_safety_copy
+                else Path("~/.career-agent-backups").expanduser() / f"pre-restore-{stamp}"
+            )
+            report = restore_backup(
+                Path(args.source), plan, safety_copy_dir=safety_copy_dir
+            )
+        finally:
+            lock.release()
+        emit(
+            {
+                "restored": list(report.restored),
+                "skipped_no_target": list(report.skipped_missing_target),
+                "safety_copy": str(report.safety_copy) if report.safety_copy else None,
+            }
+        )
+        return EXIT_OK
+    except BackupError as error:
+        emit({"error": str(error)})
+        return EXIT_WORKFLOW_ERROR
 
 
 def _run_api_keys(args, stdout) -> int:
@@ -1984,6 +2160,8 @@ def main(
             return EXIT_ARGUMENT_ERROR
     if args.command == "api-keys":
         return _run_api_keys(args, stdout)
+    if args.command == "backup":
+        return _run_backup(args, stdout)
     if args.command == "actions" and args.actions_command == "settle":
         return _run_action_settle(args, stdout)
     if args.command == "actions":

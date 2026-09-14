@@ -145,6 +145,42 @@ describe("streamChat", () => {
     });
   });
 
+  it("turns a full server into a retry-later message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            detail: {
+              code: "TURN_CAPACITY_EXHAUSTED",
+              message: "Internal message",
+              max_concurrent_turns: 3,
+            },
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json", "Retry-After": "10" },
+          },
+        ),
+      ),
+    );
+
+    const consume = async () => {
+      for await (const _event of streamChat({
+        conversation_id: "c3",
+        message: "再来一个",
+      })) {
+        // The response fails before yielding an event.
+      }
+    };
+
+    await expect(consume()).rejects.toMatchObject({
+      status: 503,
+      code: "TURN_CAPACITY_EXHAUSTED",
+      message: "当前任务较多，请稍后再试。",
+    });
+  });
+
   it("replaces the browser's Failed to fetch with an actionable message", async () => {
     vi.stubGlobal(
       "fetch",
