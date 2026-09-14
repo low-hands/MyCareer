@@ -14,6 +14,7 @@ from career_agent.agent.main_agent_runtime import (
     MainAgentRuntime,
     MainAgentTurnResult,
     ModelDecision,
+    ReplayedTurn,
     RuntimeAction,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
@@ -22,6 +23,7 @@ from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.harness.observability import conversation_trace_key
 from career_agent.harness.streaming import (
+    ContentDeltaEvent,
     InteractionResponse,
     capability_confirmation_event,
     resume_analysis_confirmation_event,
@@ -884,11 +886,114 @@ def test_chat_cancels_a_resume_analysis_interaction_in_its_scope() -> None:
     ]
 
 
-def test_chat_keeps_an_explicit_message_when_answering_an_interaction() -> None:
+def test_chat_refuses_a_message_alongside_an_interaction_answer(capsys) -> None:
+    """A button press carries no prose: free text here would be recorded as
+    the user's words (and mined for preferences) while the action still ran."""
     interaction = capability_confirmation_event(
         conversation_id="s1", confirmation_id="confirmation-1", prompt="x"
     ).interaction_id
     runtime = InteractionRuntime(_final_turn())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            [
+                "chat",
+                "--user-id",
+                "u1",
+                "--session-id",
+                "s1",
+                "--confirm-interaction",
+                interaction,
+                "--message",
+                "别执行",
+            ],
+            runtime_factory=lambda args: runtime,
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+
+    assert exit_info.value.code == 2
+    assert "--message cannot be combined" in capsys.readouterr().err
+    assert runtime.calls == []
+
+
+def test_chat_refuses_an_interaction_scope_without_an_interaction(capsys) -> None:
+    runtime = InteractionRuntime(_final_turn())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            [
+                "chat",
+                "--user-id",
+                "u1",
+                "--session-id",
+                "s1",
+                "--message",
+                "你好",
+                "--interaction-scope",
+                "resume_analysis_confirmation",
+            ],
+            runtime_factory=lambda args: runtime,
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+
+    assert exit_info.value.code == 2
+    assert "--interaction-scope only applies" in capsys.readouterr().err
+    assert runtime.calls == []
+
+
+def test_chat_replays_the_gate_a_repeated_request_stopped_at() -> None:
+    """A retry with the same ``--request-id`` must hand back the interaction
+    id, or the only way forward is a new turn that seals a second request."""
+    gate = capability_confirmation_event(
+        conversation_id="s1", confirmation_id="confirmation-1", prompt="写入日历？"
+    )
+    replayed = ReplayedTurn(
+        turn_id="turn-1",
+        request_id="request-1",
+        events=(ContentDeltaEvent(delta="需要你确认。"), gate),
+    )
+    output = StringIO()
+
+    code = main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--message",
+            "把面试写进日历",
+            "--request-id",
+            "request-1",
+        ],
+        runtime_factory=lambda args: Runtime(replayed),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    payload = json.loads(output.getvalue())
+    assert code == 0
+    assert payload["state"] == "replayed"
+    assert payload["assistant_message"] == "需要你确认。"
+    assert payload["pending_interaction"] == {
+        "interaction_id": gate.interaction_id,
+        "scope": "capability_confirmation",
+        "kind": gate.kind,
+        "options": [option.model_dump(mode="json") for option in gate.options],
+        "confirm_with": f"--confirm-interaction {gate.interaction_id}",
+        "cancel_with": f"--cancel-interaction {gate.interaction_id}",
+    }
+
+
+def test_chat_replays_no_gate_when_the_original_turn_finished() -> None:
+    replayed = ReplayedTurn(
+        turn_id="turn-1",
+        request_id="request-1",
+        events=(ContentDeltaEvent(delta="已写入。"),),
+    )
+    output = StringIO()
 
     main(
         [
@@ -897,18 +1002,17 @@ def test_chat_keeps_an_explicit_message_when_answering_an_interaction() -> None:
             "u1",
             "--session-id",
             "s1",
-            "--confirm-interaction",
-            interaction,
             "--message",
-            "对，就这样执行",
+            "把面试写进日历",
+            "--request-id",
+            "request-1",
         ],
-        runtime_factory=lambda args: runtime,
-        stdout=StringIO(),
+        runtime_factory=lambda args: Runtime(replayed),
+        stdout=output,
         stderr=StringIO(),
     )
 
-    assert runtime.calls[0][2] == "对，就这样执行"
-    assert runtime.calls[0][4].action == "confirm"
+    assert json.loads(output.getvalue())["pending_interaction"] is None
 
 
 def test_chat_refuses_confirming_and_cancelling_the_same_interaction() -> None:
