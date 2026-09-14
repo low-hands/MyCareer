@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.context_manager import ContextManager
@@ -203,6 +204,153 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
     assert stored_reply == "研究完成。"
     assert "Enterprise Retrieval Product" not in stored_reply
     assert len(stored_reply) <= DELIVERY_SUMMARY_LIMIT
+
+
+COMPANIES = {"job-h": "历史科技甲", "job-s": "示例科技"}
+
+
+class TwoCompanyJobs:
+    """A saved job at each company; search filters by the company named."""
+
+    def search_saved_jobs(self, *, user_id, query, limit=20, include_dismissed=False):
+        return tuple(
+            StoredJobSummary(
+                job_posting_id=job_posting_id,
+                title="算法工程师",
+                company_name=company,
+                source_name="test",
+                availability_status="active",
+                captured_at=NOW,
+                last_checked_at=NOW,
+            )
+            for job_posting_id, company in COMPANIES.items()
+            if company in query
+        )
+
+    def get_job(self, *, user_id, job_posting_id):
+        company = COMPANIES.get(job_posting_id)
+        if company is None:
+            return None
+        return SimpleNamespace(
+            posting=SimpleNamespace(
+                id=job_posting_id, title="算法工程师", company_name=company
+            )
+        )
+
+
+def _company_result(job_posting_id: str) -> JobResearchResult:
+    base = _result()
+    company = COMPANIES[job_posting_id]
+    run = base.run.model_copy(
+        update={
+            "id": f"run-{job_posting_id}",
+            "job_posting_id": job_posting_id,
+            "report_id": f"report-{job_posting_id}",
+        }
+    )
+    report = base.report.model_copy(
+        update={
+            "id": f"report-{job_posting_id}",
+            "run_id": run.id,
+            "job_posting_id": job_posting_id,
+            "summary": f"{company}的主要竞争对手是{company}竞品。",
+        }
+    )
+    return JobResearchResult(run=run, report=report, sources=base.sources, cached=False)
+
+
+class TwoCompanyResearch:
+    def __init__(self) -> None:
+        self.reads: list[dict] = []
+
+    def research(self, *, user_id, job_posting_id, **kwargs):
+        return _company_result(job_posting_id)
+
+    def get_report(self, *, user_id, report_id=None, job_posting_id=None):
+        self.reads.append({"report_id": report_id, "job_posting_id": job_posting_id})
+        if report_id is not None:
+            job_posting_id = report_id.removeprefix("report-")
+        return _company_result(job_posting_id)
+
+
+class ScriptedDecisions:
+    """Decisions that may look at the context they are deciding on."""
+
+    def __init__(self, *steps) -> None:
+        self.steps = list(steps)
+        self.contexts: list[MainAgentContext] = []
+
+    def decide(self, context, tool_specs):
+        self.contexts.append(context)
+        step = self.steps.pop(0)
+        return step(context) if callable(step) else step
+
+
+def _call(name: str, **arguments) -> AgentDecision:
+    return AgentDecision(
+        action="tool_call", tool_call=ToolCall(name=name, arguments=arguments)
+    )
+
+
+def test_a_report_handle_for_another_company_is_refused_before_it_is_read(
+    tmp_path,
+) -> None:
+    """End to end: the borrowed handle never reaches the service.
+
+    The trajectory ``a_report_made_this_turn_without_an_index_cannot_be_named``
+    records the model answering a question about 示例科技 through the handle
+    of 历史科技甲's earlier report. The refusal comes back as a soft
+    ``invalid_input`` naming the grounded selection index, the model retries
+    with it, and the report that is read is the company the user asked about.
+    """
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    research = TwoCompanyResearch()
+    tools = MainAgentToolRegistry(
+        job_repository=TwoCompanyJobs(),
+        job_research_service=research,
+    )
+
+    def borrow(context: MainAgentContext) -> AgentDecision:
+        handles = tuple(context.reference_handles())
+        assert len(handles) == 1
+        return _call("get_job_research", reference=handles[0])
+
+    decisions = ScriptedDecisions(
+        _call("find_saved_jobs", query="历史科技甲"),
+        _call("research_job", selection_index=1, focus="competitors"),
+        AgentDecision(action="final", message="历史科技甲的调研好了。"),
+        _call("find_saved_jobs", query="示例科技"),
+        borrow,
+        _call("get_job_research", selection_index=1),
+        AgentDecision(action="final", message="示例科技的竞争对手如上。"),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager, decision_maker=decisions, tools=tools
+    )
+    runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="调研一下历史科技甲"
+    )
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
+    )
+
+    refused = decisions.contexts[-2].tool_observations[-1]
+    assert refused.tool_name == "get_job_research"
+    assert refused.state == "invalid_input"
+    assert "selection_index 1（示例科技）" in refused.message
+    # The service saw exactly one read, and it was the right company's.
+    assert research.reads == [{"report_id": None, "job_posting_id": "job-s"}]
+    assert result.tool_result is not None
+    assert result.tool_result.state == "job_research_ready"
+    assert result.context.task.active_job_research_report_id == "report-job-s"
+    assert result.assistant_message == "示例科技的竞争对手如上。"
+    assert "历史科技甲竞品" not in MainAgentRuntime._assistant_message(
+        result.tool_result
+    )
 
 
 def test_job_research_projection_uses_indexes_and_hides_internal_ids() -> None:

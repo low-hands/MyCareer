@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { fetchReport, type ReportView } from "../api/client";
+import { ApiError, fetchReport, type ReportView } from "../api/client";
 import type { MessageResource } from "../chat/reducer";
 import { AppIcon } from "./AppIcon";
 import { MarkdownContent } from "./MarkdownContent";
@@ -32,12 +32,14 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [report, setReport] = useState<ReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
 
   useEffect(() => {
     if (!expanded) return;
     const request = new AbortController();
     setReport(null);
     setError(null);
+    setRemoved(false);
     void fetchReport(resource.kind, resource.resourceId, {
       statusAtDelivery: resource.statusAtDelivery,
       anchoredByOtherJob: resource.anchoredByOtherJob,
@@ -49,9 +51,14 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
         if (!request.signal.aborted) setReport(value);
       })
       .catch((cause: unknown) => {
-        if (!request.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "读取报告失败。");
+        if (request.signal.aborted) return;
+        // The transcript still lists the resource, but the content behind it
+        // was deleted along with the job or memory it depended on.
+        if (cause instanceof ApiError && cause.status === 404) {
+          setRemoved(true);
+          return;
         }
+        setError(cause instanceof Error ? cause.message : "读取报告失败。");
       });
     return () => request.abort();
   }, [expanded, resource.kind, resource.resourceId, resource.statusAtDelivery, resource.anchoredByOtherJob, apiBaseUrl]);
@@ -65,6 +72,7 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
         onClick={() => {
           setReport(null);
           setError(null);
+          setRemoved(false);
           setExpanded((open) => !open);
         }}
       >
@@ -73,7 +81,7 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
         </span>
         <span className="report-card-label">
           <strong>{report?.title ?? resource.title ?? KIND_LABELS[resource.kind]}</strong>
-          <small>{report?.subtitle ?? "点开查看完整内容"}</small>
+          <small>{report?.subtitle ?? (removed ? "内容已删除" : "点开查看完整内容")}</small>
         </span>
         <span className="report-card-toggle" aria-hidden="true">
           {expanded ? "收起" : "展开"}
@@ -85,6 +93,8 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
             <div className="error-banner" role="alert">
               {error}
             </div>
+          ) : removed ? (
+            <div role="status">内容已删除，无法继续查看。</div>
           ) : report?.availability === "expired" ? (
             <div role="status">内容已过期，无法继续查看。</div>
           ) : report ? (

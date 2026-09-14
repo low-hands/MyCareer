@@ -3629,6 +3629,42 @@ def project_open_job_search_arguments(
     ).model_dump()
 
 
+def _reject_borrowed_report_reference(
+    context: MainAgentContext, *, reference: str, report_id: str
+) -> None:
+    """A report handle is titled after its company; the request must be too.
+
+    ``resolve_reference`` proves the handle was issued, not that it is the one
+    the user meant. When the user names a saved-job company and the handle's
+    title names a different one, the read would answer about the wrong company
+    while looking grounded, so it is refused in favour of the company's own
+    selection index. A message that also names the handle's company, or names
+    no candidate company at all, is left to the model.
+    """
+    held = next(
+        item for item in context.referenced_resources()
+        if item.resource_id == report_id
+    )
+    title = (held.title or "").strip()
+    if not title or title in context.user_message:
+        return
+    asked = tuple(
+        (index, candidate.company_name)
+        for index, candidate in enumerate(context.task.saved_job_candidates, start=1)
+        if candidate.company_name
+        and candidate.company_name in context.user_message
+        and candidate.company_name not in title
+    )
+    if not asked:
+        return
+    selectors = "、".join(f"{index}（{company}）" for index, company in asked)
+    raise ValueError(
+        f"resource reference '{reference}' is titled '{title}', not the company "
+        f"the user asked about; use selection_index {selectors} or say that "
+        "report is not reachable"
+    )
+
+
 def project_job_research_arguments(
     context: MainAgentContext,
     name: str,
@@ -3658,12 +3694,14 @@ def project_job_research_arguments(
         model_arguments = GetJobResearchToolArguments.model_validate(arguments)
         selection_index = model_arguments.selection_index
         if model_arguments.reference is not None:
-            payload = {
-                "report_id": context.resolve_reference(
-                    reference=model_arguments.reference,
-                    kind="job_research_report",
-                )
-            }
+            report_id = context.resolve_reference(
+                reference=model_arguments.reference,
+                kind="job_research_report",
+            )
+            _reject_borrowed_report_reference(
+                context, reference=model_arguments.reference, report_id=report_id
+            )
+            payload = {"report_id": report_id}
         elif selection_index is not None:
             if not 1 <= selection_index <= len(context.task.saved_job_candidates):
                 raise ValueError("saved-job selection index is out of range")

@@ -59,15 +59,6 @@ class TurnReceipt:
     content_status: ReceiptContentStatus = "available"
 
 
-ALL_TURNS = ""
-"""``turn_id`` of a redaction that covers every turn started before it was made.
-
-Used when a whole conversation is deleted: the turns it had are gone with it,
-so the marker names the moment instead of the turns. A turn started after that
-moment answers into a conversation the deletion never saw, and keeps its receipt.
-"""
-
-
 def _create_redactions_table(connection: sqlite3.Connection) -> None:
     columns = {
         row[1]
@@ -75,7 +66,7 @@ def _create_redactions_table(connection: sqlite3.Connection) -> None:
     }
     if columns and "turn_id" not in columns:
         # The first shape marked a conversation forever. Carry its rows over as
-        # "every turn up to now", which is all they could correctly have meant.
+        # "every turn it has right now", which is all they could correctly mean.
         connection.execute(
             "ALTER TABLE turn_receipt_redactions RENAME TO turn_receipt_redactions_v1"
         )
@@ -84,18 +75,18 @@ def _create_redactions_table(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS turn_receipt_redactions (
             user_id TEXT NOT NULL,
             conversation_id TEXT NOT NULL,
-            turn_id TEXT NOT NULL DEFAULT '',
+            turn_id TEXT NOT NULL,
             redacted_at TEXT NOT NULL,
             PRIMARY KEY(user_id, conversation_id, turn_id)
         )
         """
     )
     if columns and "turn_id" not in columns:
-        connection.execute(
-            "INSERT OR IGNORE INTO turn_receipt_redactions "
-            "SELECT user_id, conversation_id, ?, ? FROM turn_receipt_redactions_v1",
-            (ALL_TURNS, datetime.now(timezone.utc).isoformat()),
-        )
+        now = datetime.now(timezone.utc)
+        for user_id, conversation_id in connection.execute(
+            "SELECT user_id, conversation_id FROM turn_receipt_redactions_v1"
+        ).fetchall():
+            redact_conversation_receipts_on(connection, user_id, conversation_id, now=now)
         connection.execute("DROP TABLE turn_receipt_redactions_v1")
 
 
@@ -126,13 +117,29 @@ def redact_conversation_receipts_on(
     *,
     now: datetime | None = None,
 ) -> None:
-    """Clear every receipt of turns started up to now in this conversation.
+    """Clear every receipt this conversation has at this moment.
 
     For deleting a conversation whole, or for content whose turn is unknown.
-    Turns that begin afterwards are not covered.
+    The turns are read inside the caller's transaction, so a turn that begins
+    afterwards is not one of them and keeps its receipt: no clock comparison
+    decides which side of the deletion it fell on.
     """
 
-    _redact_on(connection, user_id, conversation_id, (ALL_TURNS,), now=now)
+    if not _has_receipts_table(connection):
+        return
+    turn_ids = tuple(
+        row[0]
+        for row in connection.execute(
+            "SELECT DISTINCT turn_id FROM turn_receipts "
+            "WHERE user_id = ? AND conversation_id = ?",
+            (user_id, conversation_id),
+        ).fetchall()
+    )
+    redact_turn_receipts_on(connection, user_id, conversation_id, turn_ids, now=now)
+
+
+def _has_receipts_table(connection: sqlite3.Connection) -> bool:
+    return bool(connection.execute("PRAGMA table_info(turn_receipts)").fetchall())
 
 
 def _redact_on(
@@ -155,14 +162,6 @@ def _redact_on(
     if not columns:
         return
     content_status = ", content_status = 'deleted'" if "content_status" in columns else ""
-    if ALL_TURNS in turn_ids:
-        connection.execute(
-            f"UPDATE turn_receipts SET events_json = '[]'{content_status} "
-            "WHERE user_id = ? AND conversation_id = ? "
-            "AND julianday(started_at) <= julianday(?)",
-            (user_id, conversation_id, redacted_at),
-        )
-        return
     placeholders = ",".join("?" for _ in turn_ids)
     connection.execute(
         f"UPDATE turn_receipts SET events_json = '[]'{content_status} "
@@ -178,20 +177,9 @@ def _is_redacted_on(
     turn_id: str,
 ) -> bool:
     return connection.execute(
-        """
-        SELECT 1 FROM turn_receipt_redactions AS redactions
-        WHERE redactions.user_id = ? AND redactions.conversation_id = ?
-          AND (redactions.turn_id = ?
-               OR (redactions.turn_id = ? AND EXISTS (
-                   SELECT 1 FROM turn_receipts AS receipts
-                   WHERE receipts.user_id = redactions.user_id
-                     AND receipts.conversation_id = redactions.conversation_id
-                     AND receipts.turn_id = ?
-                     AND julianday(receipts.started_at)
-                         <= julianday(redactions.redacted_at)
-               )))
-        """,
-        (user_id, conversation_id, turn_id, ALL_TURNS, turn_id),
+        "SELECT 1 FROM turn_receipt_redactions "
+        "WHERE user_id = ? AND conversation_id = ? AND turn_id = ?",
+        (user_id, conversation_id, turn_id),
     ).fetchone() is not None
 
 
@@ -422,13 +410,9 @@ class SQLiteTurnReceiptStore:
                 SELECT 1 FROM turn_receipt_redactions AS redactions
                 WHERE redactions.user_id = turn_receipts.user_id
                   AND redactions.conversation_id = turn_receipts.conversation_id
-                  AND (redactions.turn_id = turn_receipts.turn_id
-                       OR (redactions.turn_id = ?
-                           AND julianday(turn_receipts.started_at)
-                               <= julianday(redactions.redacted_at)))
+                  AND redactions.turn_id = turn_receipts.turn_id
             )
-            """,
-            (ALL_TURNS,),
+            """
         )
 
     @staticmethod

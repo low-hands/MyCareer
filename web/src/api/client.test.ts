@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ApiError,
   deleteConversation,
   deleteSavedJob,
   fetchApplicationMockInterviews,
   fetchEmailWorkspace,
+  fetchReport,
   fetchSavedJobs,
   importResume,
   setJobPursuit,
@@ -133,5 +135,18 @@ describe("workspace client identity boundary", () => {
     expect(String(url)).toBe("/api/v1/resumes/import");
     expect(request?.method).toBe("POST");
     expect(request?.body).toBeInstanceOf(FormData);
+  });
+
+  it("reports a missing delivered body by status so the card can say deleted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{\"detail\":\"报告不存在。\"}", { status: 404 })),
+    );
+
+    const failure = await fetchReport("delivered_body", "body-1", {}, { apiBaseUrl: "/api" })
+      .then(() => null, (cause: unknown) => cause);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).status).toBe(404);
   });
 });

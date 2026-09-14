@@ -183,6 +183,9 @@ def test_source_card_reads_current_job_without_copying_body_or_model_refs(
     other = dict(key, request_id="r2")
     receipts.begin(**other, turn_id="t2")
     receipts.commit(**other, turn_id="t2", events=(ContentDeltaEvent(delta="无关"),))
+    assert reader.delete_job(user_id="u1", job_posting_id="job-missing") == "not_found"
+    assert store.get_delivered_body("u1", body_id) is not None
+    assert receipts.get(**key).content_status == "available"
     assert reader.delete_job(user_id="u1", job_posting_id=saved.posting.id) == "deleted"
     assert store.get_delivered_body("u1", body_id) is None
     receipt = receipts.get(**key)

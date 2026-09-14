@@ -291,6 +291,61 @@ def test_job_research_reads_back_the_referenced_report_not_the_active_one() -> N
     }
 
 
+def _titled_report_context(user_message: str) -> MainAgentContext:
+    """One stored report titled after 历史科技甲, one saved job at 示例科技."""
+    message = _message("上周的调研好了。", kind="job_research_report", resource_id="report-h1")
+    titled = message.model_copy(
+        update={
+            "resource_refs": (
+                message.resource_refs[0].model_copy(update={"title": "历史科技甲"}),
+            )
+        }
+    )
+    return _context(
+        titled,
+        task=ConversationTaskState(
+            saved_job_candidates=(
+                SavedJobCandidateContextItem(
+                    job_posting_id="job-1", title="算法工程师", company_name="示例科技"
+                ),
+            ),
+        ),
+    ).model_copy(update={"user_message": user_message})
+
+
+def test_a_report_handle_titled_for_another_company_is_refused() -> None:
+    """The handle was issued, but not for the company the user named.
+
+    Reading it would answer about 历史科技甲 while the user asked about 示例科技,
+    and nothing downstream could tell. The refusal names the grounded route.
+    """
+    context = _titled_report_context("示例科技那份调研里，他们的主要竞争对手是谁？")
+
+    with pytest.raises(ValueError, match="selection_index 1（示例科技）"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+@pytest.mark.parametrize(
+    "user_message",
+    (
+        "那份报告里怎么说的",
+        "历史科技甲那份调研里竞争对手是谁",
+        "把示例科技和历史科技甲的调研放一起看",
+    ),
+)
+def test_a_report_handle_is_kept_when_its_company_is_named_or_none_is(
+    user_message: str,
+) -> None:
+    context = _titled_report_context(user_message)
+
+    projected = project_job_research_arguments(
+        context, "get_job_research", {"reference": _only_handle(context)}
+    )
+    assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+
 def test_job_research_rejects_two_selectors_at_once() -> None:
     """One selector names one report; two disagree with no way to choose."""
     context = _context(
