@@ -27,6 +27,7 @@ from career_agent.harness.capability_steps import (
 )
 from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
+from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.services.free_text_preferences import is_explicit_confirmation
 from career_agent.harness.observability import (
@@ -332,6 +333,13 @@ class PendingAction(TypedDict, total=False):
     # owner rule is not re-judged for an action they have already approved.
     owner_confirmed: bool
     confirmation_id: str
+    # A deterministic runtime policy chose this action; the model is not asked
+    # to revise it and, once it ran, not asked to continue the turn either.
+    policy_owned: bool
+    # A policy-owned read that only opens the turn: after it runs the turn
+    # continues at ``hydrate`` and the model decides with its observation in
+    # hand, instead of ending at ``present``.
+    policy_prelude: bool
 
 
 class LoopControl(TypedDict, total=False):
@@ -597,6 +605,7 @@ class MainAgentRuntime:
             "observe",
             self._after_observe,
             {
+                "hydrate": "hydrate",
                 "decide": "decide",
                 "present": "present",
                 "interrupt": "interrupt",
@@ -2072,6 +2081,7 @@ class MainAgentRuntime:
                 "career_memory_scope_keys": self._free_text_preference_scope_keys(
                     context
                 ),
+                **self._explicit_span_prelude(context),
                 "artifact_ids": (),
                 "tool_results": (),
                 "control": {
@@ -2106,6 +2116,49 @@ class MainAgentRuntime:
             delegated_read_count=control.get("read_calls", 0),
             delegated_write_count=control.get("write_calls", 0),
             career_memory_scope_keys=state.get("career_memory_scope_keys", ()),
+        )
+
+    def _explicit_span_prelude(self, context: MainAgentContext) -> MainAgentState:
+        """Open the turn with the exact history read the user already specified.
+
+        A message that names a sequence span is a complete
+        ``read_conversation_span`` call; asking the model to make it let it ask
+        the user to repeat the range instead. The runtime makes the call under
+        the same rule the model is given — both watermarks present — and the
+        model then decides with the span's observation in front of it. It is
+        never a guess: an unclear or invalid range stays with the model.
+        """
+
+        if context.through_sequence < 1 or context.recent_from_sequence is None:
+            return {}
+        span = explicit_sequence_span(context.user_message)
+        if span is None or not self._offers_tool("read_conversation_span"):
+            return {}
+        arguments = {
+            "from_sequence": span.from_sequence,
+            "through_sequence": span.through_sequence,
+        }
+        return {
+            "decision": AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="read_conversation_span", arguments=arguments),
+            ),
+            "pending": {
+                "name": "read_conversation_span",
+                "policy_owned": True,
+                "policy_prelude": True,
+                "arguments": arguments,
+            },
+        }
+
+    def _offers_tool(self, name: str) -> bool:
+        """Whether ``name`` is among the tools the model is offered this turn."""
+
+        schemas = getattr(self, "_decision_tool_schemas", None)
+        if schemas is None:
+            schemas = self._tools.schemas()
+        return any(
+            schema.get("function", {}).get("name") == name for schema in schemas
         )
 
     def _run_free_text_preference_confirmation(
@@ -2577,13 +2630,20 @@ class MainAgentRuntime:
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
         free_text_scope_keys = self._free_text_preference_scope_keys(context)
+        # A prelude read that brought the turn here has been observed; the
+        # model's first decision must not inherit its policy ownership.
+        pending: PendingAction = {}
         if self._career_context_projector is None:
-            return {"career_memory_scope_keys": free_text_scope_keys}
+            return {
+                "pending": pending,
+                "career_memory_scope_keys": free_text_scope_keys,
+            }
         memory = self._career_context_projector.project(
             user_id=context.profile.user_id,
             query=context.user_message,
         )
         return {
+            "pending": pending,
             "context": context.model_copy(update={"career_memory": memory}),
             "career_memory_scope_keys": tuple(
                 dict.fromkeys(
@@ -2689,6 +2749,7 @@ class MainAgentRuntime:
         runtime_owned = bool(state.get("pending", {}).get("runtime_owned"))
         owner_confirmed = bool(state.get("pending", {}).get("owner_confirmed"))
         policy_owned = bool(state.get("pending", {}).get("policy_owned"))
+        policy_prelude = bool(state.get("pending", {}).get("policy_prelude"))
         if runtime_owned:
             if name not in self._tools.runtime_workflow_names:
                 raise ValueError(f"Unknown runtime-owned workflow: {name}")
@@ -2802,6 +2863,7 @@ class MainAgentRuntime:
                     "synthetic_kind": "projection",
                     "runtime_owned": runtime_owned,
                     "policy_owned": policy_owned,
+                    "policy_prelude": policy_prelude,
                 },
             }
         # Runtime-owned input is execution data, not model-authored. A confirmed
@@ -2869,6 +2931,7 @@ class MainAgentRuntime:
                     "synthetic_kind": "projection",
                     "runtime_owned": runtime_owned,
                     "policy_owned": policy_owned,
+                    "policy_prelude": policy_prelude,
                 },
             }
         if verdict == "review":
@@ -2884,6 +2947,7 @@ class MainAgentRuntime:
                 "runtime_owned": runtime_owned,
                 "owner_confirmed": owner_confirmed,
                 "policy_owned": policy_owned,
+                "policy_prelude": policy_prelude,
                 "effect": effect,
                 "arguments": arguments,
             },
@@ -3543,13 +3607,17 @@ class MainAgentRuntime:
     @staticmethod
     def _after_observe(
         state: MainAgentState,
-    ) -> Literal["decide", "present", "interrupt"]:
+    ) -> Literal["hydrate", "decide", "present", "interrupt"]:
         pending = state["pending"]
         result = pending["result"]
         # A capability that already produced a complete, bound interaction
         # contract does not need an LLM to paraphrase or rediscover its prompt.
         if result.disposition == "interaction_required":
             return "interrupt"
+        # A prelude read opened the turn before the model saw anything; the
+        # ordinary turn now starts, with the read among its observations.
+        if pending.get("policy_prelude"):
+            return "hydrate"
         # A workflow-owned input must not fall through to the general decision
         # model after execution. Its successor is already defined by the child
         # workflow result, and the raw input was intentionally withheld from
