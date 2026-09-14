@@ -489,6 +489,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "applications"}
           onAskAgent={startAgentTask}
+          onOpenConversation={openConversation}
         />
         <JobsPanel
           apiBaseUrl={API_BASE_URL}

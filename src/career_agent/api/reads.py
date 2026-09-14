@@ -177,6 +177,9 @@ class ApplicationCreateRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2_000)
 
 
+RESUMABLE_MOCK_INTERVIEW_STATUSES = frozenset({"created", "active", "paused"})
+
+
 class MockInterviewSessionView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -188,6 +191,7 @@ class MockInterviewSessionView(BaseModel):
     max_primary_questions: int
     report_id: str | None = None
     summary: str | None = None
+    conversation_id: str | None = None
     created_at: datetime
     completed_at: datetime | None = None
     updated_at: datetime
@@ -557,6 +561,15 @@ class WorkspaceReader:
                     if turn.turn_type == "primary" and turn.status == "evaluated"
                 )
             )
+            conversation_id = (
+                self._context.conversation_owning_run(
+                    user_id=user_id,
+                    workflow="mock_interview",
+                    run_id=session.id,
+                )
+                if session.status in RESUMABLE_MOCK_INTERVIEW_STATUSES
+                else None
+            )
             sessions.append(
                 MockInterviewSessionView(
                     session_id=session.id,
@@ -570,6 +583,7 @@ class WorkspaceReader:
                     max_primary_questions=session.max_primary_questions,
                     report_id=report.id if report is not None else None,
                     summary=report.summary if report is not None else None,
+                    conversation_id=conversation_id,
                     created_at=session.created_at,
                     completed_at=session.completed_at,
                     updated_at=session.updated_at,
