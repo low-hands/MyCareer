@@ -18,6 +18,13 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime, ReplayedTurn
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.harness.streaming import (
+    InteractionRequiredEvent,
+    InteractionResponse,
+    capability_confirmation_event,
+    resume_analysis_confirmation_event,
+    scoped_interaction_message,
+)
 from career_agent.agent.mock_interview_graph import (
     MockInterviewGraph,
     StoredMockInterviewSourceProvider,
@@ -396,7 +403,37 @@ def build_parser() -> argparse.ArgumentParser:
     chat = subparsers.add_parser("chat", help="Send one natural-language turn to the Main Agent.", description="Run one non-interactive Main Agent turn. The agent decides whether to enter a registered workflow.", epilog="Example: career-agent chat --user-id u1 --session-id s1 --message 'Help me find AI Engineer jobs'")
     chat.add_argument("--user-id", required=True, help="Stable user identifier.")
     chat.add_argument("--session-id", required=True, help="Conversation session identifier.")
-    chat.add_argument("--message", required=True, help="Current user message.")
+    chat.add_argument(
+        "--message",
+        help=(
+            "Current user message. Required unless the turn answers a pending "
+            "interaction, where it defaults to the label of the option chosen."
+        ),
+    )
+    interaction = chat.add_mutually_exclusive_group()
+    interaction.add_argument(
+        "--confirm-interaction",
+        metavar="INTERACTION_ID",
+        help=(
+            "Answer the pending interaction printed by the previous turn as "
+            "'confirm'. The sealed action runs exactly as it was shown; the "
+            "model is not consulted again."
+        ),
+    )
+    interaction.add_argument(
+        "--cancel-interaction",
+        metavar="INTERACTION_ID",
+        help="Answer the pending interaction printed by the previous turn as 'cancel'.",
+    )
+    chat.add_argument(
+        "--interaction-scope",
+        choices=("capability_confirmation", "resume_analysis_confirmation"),
+        default="capability_confirmation",
+        help=(
+            "Scope of the interaction being answered (default: "
+            "capability_confirmation, the owner's gate on external writes)."
+        ),
+    )
     chat.add_argument(
         "--request-id",
         help=(
@@ -866,6 +903,105 @@ def _chat_tool_result_payload(result: ToolObservation) -> dict[str, object]:
     return result.model_dump(mode="json")
 
 
+def _chat_interaction_response(args: argparse.Namespace) -> InteractionResponse | None:
+    if args.confirm_interaction is not None:
+        return InteractionResponse(
+            interaction_id=args.confirm_interaction,
+            scope=args.interaction_scope,
+            action="confirm",
+        )
+    if args.cancel_interaction is not None:
+        return InteractionResponse(
+            interaction_id=args.cancel_interaction,
+            scope=args.interaction_scope,
+            action="cancel",
+        )
+    return None
+
+
+def _chat_user_message(
+    args: argparse.Namespace, interaction_response: InteractionResponse | None
+) -> str:
+    """What this turn records as the user's words.
+
+    Answering an interaction is a button press, not prose; without ``--message``
+    the transcript gets the same label the web client would have sent.
+    """
+
+    if args.message is not None:
+        return args.message
+    if interaction_response is None:
+        raise ValueError(
+            "--message is required unless --confirm-interaction or "
+            "--cancel-interaction answers a pending interaction"
+        )
+    return scoped_interaction_message(
+        interaction_response.scope, interaction_response.action
+    )
+
+
+def _chat_pending_interaction_event(
+    turn, *, session_id: str
+) -> InteractionRequiredEvent | None:
+    """The scoped gates the CLI can answer, rebuilt from durable state.
+
+    Only interactions with a scope are listed: those are the ones the runtime
+    routes on ``InteractionResponse`` rather than on a natural-language reply,
+    so a CLI user needs their id. The same builders serve the SSE stream and
+    the transcript reload, so all three clients see one id.
+    """
+
+    tool_result = turn.tool_result
+    if tool_result is None:
+        return None
+    if tool_result.state == "capability_confirmation_required":
+        confirmation_id = tool_result.payload.get("confirmation_id")
+        if not isinstance(confirmation_id, str):
+            return None
+        return capability_confirmation_event(
+            conversation_id=session_id,
+            confirmation_id=confirmation_id,
+            prompt=tool_result.message,
+        )
+    task = getattr(turn.context, "task", None)
+    if (
+        tool_result.state == "resume_analysis_ready"
+        and task is not None
+        and task.resume_analysis_status == "pending"
+        and task.active_resume_analysis_id is not None
+    ):
+        return resume_analysis_confirmation_event(
+            conversation_id=session_id,
+            analysis_id=task.active_resume_analysis_id,
+        )
+    return None
+
+
+def _chat_pending_interaction_payload(turn, *, session_id: str) -> dict[str, object] | None:
+    """A pending gate, addressed to whoever runs the CLI.
+
+    A sealed confirmation can only be answered with its interaction id; a
+    fresh natural-language turn saying "yes" would make the model propose the
+    write again and seal another request. The payload carries the id and the
+    exact flags that answer it.
+    """
+
+    event = _chat_pending_interaction_event(turn, session_id=session_id)
+    if event is None or event.scope is None:
+        return None
+    scope_flag = (
+        "" if event.scope == "capability_confirmation" else f" --interaction-scope {event.scope}"
+    )
+    return {
+        "interaction_id": event.interaction_id,
+        "scope": event.scope,
+        "kind": event.kind,
+        "options": [option.model_dump(mode="json") for option in event.options],
+        "confirm_with": f"--confirm-interaction {event.interaction_id}{scope_flag}",
+        "cancel_with": f"--cancel-interaction {event.interaction_id}{scope_flag}",
+    }
+
+
 def _write_chat_payload(
     turn,
     *,
@@ -911,6 +1047,9 @@ def _write_chat_payload(
             artifact.reference.model_dump(mode="json")
             for artifact in turn.artifacts
         ],
+        "pending_interaction": _chat_pending_interaction_payload(
+            turn, session_id=session_id
+        ),
         # Addressed to whoever runs the CLI, not to the agent: it never entered
         # the model's context, so the model cannot act on it.
         "maintenance_notice": notice,
@@ -1935,14 +2074,24 @@ def main(
         )
         return EXIT_OK
     if args.command == "chat":
+        try:
+            interaction_response = _chat_interaction_response(args)
+            user_message = _chat_user_message(args, interaction_response)
+        except ValueError as error:
+            parser.error(str(error))
         runtime = None
         try:
             runtime = runtime_factory(args) if runtime_factory else build_main_agent_runtime(args)
             turn = runtime.run_turn(
                 user_id=args.user_id,
                 conversation_id=args.session_id,
-                user_message=args.message,
+                user_message=user_message,
                 request_id=args.request_id,
+                **(
+                    {"interaction_response": interaction_response}
+                    if interaction_response is not None
+                    else {}
+                ),
             )
             if isinstance(turn, ReplayedTurn):
                 return _write_chat_replay(
