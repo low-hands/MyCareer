@@ -45,6 +45,7 @@ export interface MockInterviewSessionView {
   max_primary_questions: number;
   report_id: string | null;
   summary: string | null;
+  conversation_id: string | null;
   created_at: string;
   completed_at: string | null;
   updated_at: string;

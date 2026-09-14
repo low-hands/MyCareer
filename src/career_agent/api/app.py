@@ -34,6 +34,11 @@ from career_agent.api.reads import (
     build_workspace_reader,
 )
 from career_agent.api.integrations import build_integration_router
+from career_agent.api.single_worker import (
+    SingleWorkerLock,
+    lock_path_for,
+    refuse_multi_worker_configuration,
+)
 from career_agent.harness.streaming import (
     InteractionResponse,
     PublicStreamEvent,
@@ -329,6 +334,20 @@ def build_api_key_store() -> ApiKeyStore:
     )
 
 
+def build_single_worker_lock(args: argparse.Namespace | None = None) -> SingleWorkerLock:
+    """Lock the directory holding the conversation store, not the API-key store.
+
+    ``ConversationRunGate`` guards turn commits, and those land in the stores
+    the runtime opens from these parsed arguments (``~/.career-agent`` by
+    default). ``CAREER_AGENT_DATA_DIR`` only holds ``api_keys.sqlite3``; two
+    processes with different key directories would still share every business
+    database, so the lock must live where the business databases live.
+    """
+
+    context_store = Path((args or _runtime_args_from_env()).context_store).expanduser()
+    return SingleWorkerLock(lock_path_for(context_store.parent))
+
+
 def create_app(
     *,
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
@@ -338,6 +357,7 @@ def create_app(
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
     integration_service_factory: Callable[[], IntegrationConnectionService] | None = None,
     owner_settings_store_factory: Callable[[], CareerContextStore] | None = None,
+    single_worker_lock_factory: Callable[[], SingleWorkerLock | None] | None = None,
     heartbeat_seconds: float = 15.0,
     synthetic_content_delay_seconds: float = 0.025,
 ) -> FastAPI:
@@ -364,38 +384,51 @@ def create_app(
     )
     key_store_factory = api_key_store_factory or build_api_key_store
     settings_factory = owner_settings_store_factory or build_owner_settings_store
+    lock_factory = single_worker_lock_factory or build_single_worker_lock
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # ``ConversationRunGate`` below is per process, so the process must be
+        # the only one on these databases. Taken before any store is opened
+        # and held until shutdown; a second worker fails here, not at commit.
+        refuse_multi_worker_configuration()
+        lock = lock_factory()
+        if lock is not None:
+            lock.acquire()
+        app.state.single_worker_lock = lock
         runtime: MainAgentRuntime | None = None
-        startup_error: dict[str, str] | None = None
         try:
-            runtime = factory()
-        except AgentConfigurationError as error:
-            startup_error = {
-                "code": error.code,
-                "message": (
-                    f"服务尚未配置完成：{error} "
-                    "请在 .env 补齐这些配置后重启 FastAPI。"
-                ),
-            }
-        app.state.runtime = runtime
-        app.state.startup_error = startup_error
-        app.state.run_gate = ConversationRunGate()
-        # Opened before anything is served. Unlike the model runtime, a missing
-        # credential store is not a degraded mode the dashboard can survive: it
-        # is the difference between an authenticated API and an open one, so
-        # ``authenticate`` refuses every request rather than assuming a default.
-        app.state.api_key_store = key_store_factory()
-        app.state.capture_repository = None
-        app.state.owner_settings_store = None
-        app.state.action_center = None
-        try:
+            startup_error: dict[str, str] | None = None
+            try:
+                runtime = factory()
+            except AgentConfigurationError as error:
+                startup_error = {
+                    "code": error.code,
+                    "message": (
+                        f"服务尚未配置完成：{error} "
+                        "请在 .env 补齐这些配置后重启 FastAPI。"
+                    ),
+                }
+            app.state.runtime = runtime
+            app.state.startup_error = startup_error
+            app.state.run_gate = ConversationRunGate()
+            # Opened before anything is served. Unlike the model runtime, a missing
+            # credential store is not a degraded mode the dashboard can survive: it
+            # is the difference between an authenticated API and an open one, so
+            # ``authenticate`` refuses every request rather than assuming a default.
+            app.state.api_key_store = key_store_factory()
+            app.state.capture_repository = None
+            app.state.owner_settings_store = None
+            app.state.action_center = None
             yield
         finally:
-            close = getattr(runtime, "close", None) if runtime is not None else None
-            if close is not None:
-                close()
+            try:
+                close = getattr(runtime, "close", None) if runtime is not None else None
+                if close is not None:
+                    close()
+            finally:
+                if lock is not None:
+                    lock.release()
 
     application = FastAPI(
         title="Career Agent API",
@@ -715,4 +748,5 @@ def run() -> None:
         host="127.0.0.1",
         port=int(os.environ.get("CAREER_AGENT_API_PORT", "8000")),
         reload=False,
+        workers=1,
     )

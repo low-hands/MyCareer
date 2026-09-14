@@ -37,6 +37,7 @@ type PageProps = {
   refreshToken: number;
   hidden: boolean;
   onAskAgent: (prompt: string) => void;
+  onOpenConversation?: (conversationId: string) => void;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -277,12 +278,14 @@ function ApplicationPracticePanel({
   apiBaseUrl,
   refreshToken,
   onAskAgent,
+  onOpenConversation,
   onClose,
 }: {
   application: ApplicationView;
   apiBaseUrl: string;
   refreshToken: number;
   onAskAgent: (prompt: string) => void;
+  onOpenConversation?: (conversationId: string) => void;
   onClose: () => void;
 }) {
   const load = useCallback(
@@ -357,7 +360,17 @@ function ApplicationPracticePanel({
                 </button>
               ) : null}
               {session.status === "active" || session.status === "paused" ? (
-                <small className="workflow-note">这轮练习只能在最初发起它的对话中继续；此处暂不支持直接跳转。</small>
+                session.conversation_id && onOpenConversation ? (
+                  <button
+                    type="button"
+                    className="card-agent-action"
+                    onClick={() => onOpenConversation(session.conversation_id!)}
+                  >
+                    回到原对话继续练习
+                  </button>
+                ) : (
+                  <small className="workflow-note">这轮练习只能在最初发起它的对话中继续；没有找到仍持有它的对话。</small>
+                )
               ) : null}
             </article>
           ))}
@@ -439,6 +452,7 @@ export function ApplicationsPanel(props: PageProps) {
           apiBaseUrl={props.apiBaseUrl}
           refreshToken={props.refreshToken}
           onAskAgent={props.onAskAgent}
+          onOpenConversation={props.onOpenConversation}
           onClose={() => setPracticeApplication(null)}
         />
       ) : null}

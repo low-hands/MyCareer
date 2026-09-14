@@ -18,6 +18,7 @@ export const API_CONTRACT = {
           "sessions": [
             {
               "completed_at": "2026-09-12T12:00:00Z",
+              "conversation_id": null,
               "created_at": "2026-09-12T12:00:00Z",
               "interview_type": "behavioral",
               "interview_type_label": "行为面",
@@ -31,6 +32,7 @@ export const API_CONTRACT = {
             },
             {
               "completed_at": null,
+              "conversation_id": "conv-1",
               "created_at": "2026-09-12T12:00:00Z",
               "interview_type": "technical",
               "interview_type_label": "技术面",
@@ -38,7 +40,7 @@ export const API_CONTRACT = {
               "question_count": 2,
               "report_id": null,
               "session_id": "mock-2",
-              "status": "running",
+              "status": "active",
               "summary": null,
               "updated_at": "2026-09-12T12:00:00Z"
             }
@@ -63,6 +65,18 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Completed At"
+              },
+              "conversation_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Conversation Id"
               },
               "created_at": {
                 "format": "date-time",

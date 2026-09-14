@@ -2134,6 +2134,24 @@ class CareerContextStore:
             row = connection.execute("SELECT payload FROM conversation_task_state WHERE user_id = ? AND conversation_id = ?", (user_id, conversation_id)).fetchone()
         return ConversationTaskState.model_validate_json(row[0]) if row else None
 
+    def conversation_owning_run(
+        self, *, user_id: str, workflow: str, run_id: str
+    ) -> str | None:
+        """The conversation whose task state still holds ``run_id`` for ``workflow``."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT conversation_id FROM conversation_task_state
+                WHERE user_id = ?
+                  AND json_extract(payload, '$.active_workflow') = ?
+                  AND json_extract(payload, '$.run_id') = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (user_id, workflow, run_id),
+            ).fetchone()
+        return row[0] if row else None
+
     def upsert_task(
         self,
         *,

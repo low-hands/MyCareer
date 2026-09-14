@@ -2,6 +2,19 @@
 
 Career Agent：面向求职流程的本地 Agent 与管理工作区。
 
+## 运行后端
+
+后端是本地 SQLite、单进程部署，**只支持单 worker**：
+
+```bash
+career-agent-api                                  # 等价于 uvicorn --workers 1
+uvicorn career_agent.api.app:app --workers 1      # 也可以
+```
+
+不要用 `--workers 2+`、`WEB_CONCURRENCY>1` 启动，也不要让多个 API 实例共用同一套业务数据库（默认 `~/.career-agent/*.sqlite3`）。同一会话的 turn 互斥（`ConversationRunGate`）只在单进程内生效；多进程共用数据库会让同一会话并发执行两个 turn。
+
+启动时进程会对会话库所在目录的 `api-server.lock`（默认 `~/.career-agent/api-server.lock`）取独占锁并持有到退出。锁跟着业务数据库走，与只存 API key 的 `CAREER_AGENT_DATA_DIR` 无关。第二个进程取不到锁会立即启动失败并给出提示；`WEB_CONCURRENCY` 等变量大于 1 也会在启动时被拒绝。锁由内核随进程退出自动释放，崩溃后无需手工清理。
+
 ## Gmail OAuth 配置
 
 Gmail 连接需要应用管理员先创建 Google OAuth Client。普通用户授权 Gmail 时不会看到或填写 Client Secret。

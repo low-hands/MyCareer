@@ -351,6 +351,7 @@ def test_application_mock_interviews_are_owner_scoped_and_bounded(
         "max_primary_questions": 6,
         "report_id": "mock-report-1",
         "summary": "结构清晰，需要补充量化结果。",
+        "conversation_id": None,
         "created_at": NOW.isoformat().replace("+00:00", "Z"),
         "completed_at": NOW.isoformat().replace("+00:00", "Z"),
         "updated_at": NOW.isoformat().replace("+00:00", "Z"),

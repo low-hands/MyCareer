@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from career_agent.api import app as app_module
+from career_agent.api.single_worker import SingleWorkerLock, lock_path_for
 from career_agent.storage.api_keys import (
     CAPTURE_WRITE,
     CHAT_WRITE,
@@ -20,6 +22,24 @@ from career_agent.storage.api_keys import (
     SQLiteApiKeyStore,
     WORKSPACE_READ,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolated_single_worker_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Keep the default single-worker lock out of the real ``~/.career-agent``.
+
+    ``create_app`` without an explicit factory would otherwise lock the
+    developer's own data directory, and two tests could not both hold it.
+    """
+
+    lock_dir = tmp_path / "career-agent-home"
+    monkeypatch.setattr(
+        app_module,
+        "build_single_worker_lock",
+        lambda args=None: SingleWorkerLock(lock_path_for(lock_dir)),
+    )
+    monkeypatch.delenv("WEB_CONCURRENCY", raising=False)
+    return lock_dir
 
 
 @pytest.fixture
