@@ -21,6 +21,11 @@ from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactRef
 from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.harness.observability import conversation_trace_key
+from career_agent.harness.streaming import (
+    InteractionResponse,
+    capability_confirmation_event,
+    resume_analysis_confirmation_event,
+)
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
@@ -646,3 +651,343 @@ def test_chat_reports_a_runtime_failure_as_one_json_object() -> None:
     assert code == 6
     assert payload["state"] == "failed"
     assert payload["error_code"] == "CHAT_ERROR"
+
+
+class InteractionRuntime(Runtime):
+    """A runtime that also records the scoped answer the CLI forwards."""
+
+    def run_turn(
+        self,
+        *,
+        user_id,
+        conversation_id,
+        user_message,
+        request_id=None,
+        interaction_response=None,
+    ):
+        self.calls.append(
+            (user_id, conversation_id, user_message, request_id, interaction_response)
+        )
+        return self.turn
+
+
+def _final_turn(message: str = "好的。") -> MainAgentTurnResult:
+    return MainAgentTurnResult(
+        origin=ModelDecision(AgentDecision(action="final", message=message)),
+        context=type("Context", (), {"task": None})(),
+        assistant_message=message,
+    )
+
+
+def test_chat_prints_the_owner_gate_with_the_flags_that_answer_it() -> None:
+    """A sealed confirmation is answered by id, so the id must reach the CLI user."""
+    turn = MainAgentTurnResult(
+        origin=ModelDecision(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
+            )
+        ),
+        context=type("Context", (), {"task": None})(),
+        assistant_message="要把这场面试写入 Google Calendar 吗？",
+        tool_result=ToolObservation(
+            tool_name="execute_calendar_proposal",
+            state="capability_confirmation_required",
+            message="要把这场面试写入 Google Calendar 吗？",
+            payload={"confirmation_id": "confirmation-1"},
+        ),
+    )
+    output = StringIO()
+
+    code = main(
+        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "同步到日历"],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    payload = json.loads(output.getvalue())
+    assert code == 0
+    pending = payload["pending_interaction"]
+    expected = capability_confirmation_event(
+        conversation_id="s1", confirmation_id="confirmation-1", prompt="x"
+    )
+    assert pending["interaction_id"] == expected.interaction_id
+    assert pending["scope"] == "capability_confirmation"
+    assert pending["kind"] == "approval"
+    assert [option["value"] for option in pending["options"]] == ["confirm", "cancel"]
+    assert pending["confirm_with"] == f"--confirm-interaction {expected.interaction_id}"
+    assert pending["cancel_with"] == f"--cancel-interaction {expected.interaction_id}"
+
+
+def test_chat_prints_the_resume_analysis_gate_with_its_scope() -> None:
+    """The same event the SSE stream and transcript reload rebuild, so one id."""
+    task = type(
+        "Task",
+        (),
+        {
+            "resume_analysis_status": "pending",
+            "active_resume_analysis_id": "analysis-1",
+        },
+    )()
+    turn = MainAgentTurnResult(
+        origin=ModelDecision(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="analyze_resume", arguments={}),
+            )
+        ),
+        context=type("Context", (), {"task": task})(),
+        assistant_message="请核对候选事实。",
+        tool_result=ToolObservation(
+            tool_name="analyze_resume",
+            state="resume_analysis_ready",
+            message="请核对候选事实。",
+            payload={"analysis_id": "analysis-1"},
+        ),
+    )
+    output = StringIO()
+
+    code = main(
+        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "分析我的简历"],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    payload = json.loads(output.getvalue())
+    assert code == 0
+    pending = payload["pending_interaction"]
+    expected = resume_analysis_confirmation_event(
+        conversation_id="s1", analysis_id="analysis-1"
+    )
+    assert pending["interaction_id"] == expected.interaction_id
+    assert pending["scope"] == "resume_analysis_confirmation"
+    assert pending["kind"] == "confirmation"
+    assert pending["confirm_with"] == (
+        f"--confirm-interaction {expected.interaction_id}"
+        " --interaction-scope resume_analysis_confirmation"
+    )
+    assert pending["cancel_with"] == (
+        f"--cancel-interaction {expected.interaction_id}"
+        " --interaction-scope resume_analysis_confirmation"
+    )
+
+
+def test_chat_prints_no_gate_once_the_resume_analysis_is_no_longer_pending() -> None:
+    task = type(
+        "Task",
+        (),
+        {
+            "resume_analysis_status": "confirmed",
+            "active_resume_analysis_id": "analysis-1",
+        },
+    )()
+    turn = MainAgentTurnResult(
+        origin=ModelDecision(AgentDecision(action="final", message=None)),
+        context=type("Context", (), {"task": task})(),
+        assistant_message="已导入。",
+        tool_result=ToolObservation(
+            tool_name="analyze_resume",
+            state="resume_analysis_ready",
+            message="已导入。",
+        ),
+    )
+    output = StringIO()
+
+    main(
+        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "好"],
+        runtime_factory=lambda args: Runtime(turn),
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    assert json.loads(output.getvalue())["pending_interaction"] is None
+
+
+def test_chat_confirms_a_pending_interaction_with_the_web_clients_words() -> None:
+    """``--message`` is optional here; the transcript reads as if the button was pressed."""
+    interaction = capability_confirmation_event(
+        conversation_id="s1", confirmation_id="confirmation-1", prompt="x"
+    ).interaction_id
+    runtime = InteractionRuntime(_final_turn("已写入日历。"))
+    output = StringIO()
+
+    code = main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--confirm-interaction",
+            interaction,
+        ],
+        runtime_factory=lambda args: runtime,
+        stdout=output,
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert runtime.calls == [
+        (
+            "u1",
+            "s1",
+            "确认执行",
+            None,
+            InteractionResponse(
+                interaction_id=interaction,
+                scope="capability_confirmation",
+                action="confirm",
+            ),
+        )
+    ]
+    assert runtime.closed is True
+
+
+def test_chat_cancels_a_resume_analysis_interaction_in_its_scope() -> None:
+    interaction = resume_analysis_confirmation_event(
+        conversation_id="s1", analysis_id="analysis-1"
+    ).interaction_id
+    runtime = InteractionRuntime(_final_turn("已取消导入。"))
+
+    code = main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--cancel-interaction",
+            interaction,
+            "--interaction-scope",
+            "resume_analysis_confirmation",
+        ],
+        runtime_factory=lambda args: runtime,
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert runtime.calls == [
+        (
+            "u1",
+            "s1",
+            "取消导入",
+            None,
+            InteractionResponse(
+                interaction_id=interaction,
+                scope="resume_analysis_confirmation",
+                action="cancel",
+            ),
+        )
+    ]
+
+
+def test_chat_keeps_an_explicit_message_when_answering_an_interaction() -> None:
+    interaction = capability_confirmation_event(
+        conversation_id="s1", confirmation_id="confirmation-1", prompt="x"
+    ).interaction_id
+    runtime = InteractionRuntime(_final_turn())
+
+    main(
+        [
+            "chat",
+            "--user-id",
+            "u1",
+            "--session-id",
+            "s1",
+            "--confirm-interaction",
+            interaction,
+            "--message",
+            "对，就这样执行",
+        ],
+        runtime_factory=lambda args: runtime,
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert runtime.calls[0][2] == "对，就这样执行"
+    assert runtime.calls[0][4].action == "confirm"
+
+
+def test_chat_refuses_confirming_and_cancelling_the_same_interaction() -> None:
+    interaction = capability_confirmation_event(
+        conversation_id="s1", confirmation_id="confirmation-1", prompt="x"
+    ).interaction_id
+    runtime = InteractionRuntime(_final_turn())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            [
+                "chat",
+                "--user-id",
+                "u1",
+                "--session-id",
+                "s1",
+                "--confirm-interaction",
+                interaction,
+                "--cancel-interaction",
+                interaction,
+            ],
+            runtime_factory=lambda args: runtime,
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+
+    assert exit_info.value.code == 2
+    assert runtime.calls == []
+
+
+def test_chat_still_requires_a_message_for_an_ordinary_turn() -> None:
+    runtime = InteractionRuntime(_final_turn())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            ["chat", "--user-id", "u1", "--session-id", "s1"],
+            runtime_factory=lambda args: runtime,
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+
+    assert exit_info.value.code == 2
+    assert runtime.calls == []
+
+
+def test_chat_rejects_an_interaction_id_that_is_not_one() -> None:
+    runtime = InteractionRuntime(_final_turn())
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            [
+                "chat",
+                "--user-id",
+                "u1",
+                "--session-id",
+                "s1",
+                "--confirm-interaction",
+                "yes",
+            ],
+            runtime_factory=lambda args: runtime,
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+
+    assert exit_info.value.code == 2
+    assert runtime.calls == []
+
+
+def test_chat_passes_no_interaction_argument_on_an_ordinary_turn() -> None:
+    """``Runtime.run_turn`` has no ``interaction_response`` parameter, so this
+    would raise if the CLI forwarded one; the assertion makes the intent explicit."""
+    runtime = Runtime(_final_turn())
+
+    code = main(
+        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "你好"],
+        runtime_factory=lambda args: runtime,
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert runtime.calls == [("u1", "s1", "你好", None)]

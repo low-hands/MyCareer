@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from hashlib import sha256
 from typing import Annotated, Literal, Protocol, TypeAlias
 
@@ -232,6 +232,39 @@ def interaction_id(*durable_parts: object) -> str:
     return f"interaction_{sha256(canonical.encode('utf-8')).hexdigest()[:20]}"
 
 
+InteractionScope: TypeAlias = Literal[
+    "resume_analysis_confirmation", "capability_confirmation"
+]
+
+_CAPABILITY_CONFIRMATION_OPTIONS = (
+    InteractionOption(value="confirm", label="确认执行"),
+    InteractionOption(value="cancel", label="不要执行"),
+)
+_RESUME_ANALYSIS_CONFIRMATION_OPTIONS = (
+    InteractionOption(value="confirm", label="确认并导入"),
+    InteractionOption(value="cancel", label="取消导入"),
+)
+_SCOPED_OPTIONS: Mapping[InteractionScope, tuple[InteractionOption, ...]] = {
+    "capability_confirmation": _CAPABILITY_CONFIRMATION_OPTIONS,
+    "resume_analysis_confirmation": _RESUME_ANALYSIS_CONFIRMATION_OPTIONS,
+}
+
+
+def scoped_interaction_message(
+    scope: InteractionScope, action: Literal["confirm", "cancel"]
+) -> str:
+    """The user message a scoped answer carries: the label of the button pressed.
+
+    The web client sends the option's label as the turn's user message, so a
+    client without buttons (the CLI) uses the same text and the transcript
+    reads identically whichever client answered.
+    """
+
+    return next(
+        option.label for option in _SCOPED_OPTIONS[scope] if option.value == action
+    )
+
+
 def capability_confirmation_event(
     *, conversation_id: str, confirmation_id: str, prompt: str
 ) -> InteractionRequiredEvent:
@@ -250,10 +283,7 @@ def capability_confirmation_event(
         scope="capability_confirmation",
         kind="approval",
         prompt=prompt,
-        options=(
-            InteractionOption(value="confirm", label="确认执行"),
-            InteractionOption(value="cancel", label="不要执行"),
-        ),
+        options=_CAPABILITY_CONFIRMATION_OPTIONS,
     )
 
 
@@ -271,10 +301,7 @@ def resume_analysis_confirmation_event(
         scope="resume_analysis_confirmation",
         kind="confirmation",
         prompt="请核对上面的候选事实。确认后才会写入职业事实库。",
-        options=(
-            InteractionOption(value="confirm", label="确认并导入"),
-            InteractionOption(value="cancel", label="取消导入"),
-        ),
+        options=_RESUME_ANALYSIS_CONFIRMATION_OPTIONS,
     )
 
 
