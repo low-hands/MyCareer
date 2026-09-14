@@ -1,7 +1,7 @@
 import type {
   PublicStreamEvent,
   ReportDeliveryStatus,
-  ReportKind,
+  ReportResourceKind,
 } from "../chat/events";
 
 export interface ActionItemView {
@@ -91,10 +91,11 @@ export interface ConversationView {
 }
 
 export interface ConversationResourceView {
-  kind: ReportKind;
+  kind: ReportResourceKind;
   resource_id: string;
   status_at_delivery: ReportDeliveryStatus | null;
   anchored_by_other_job: boolean | null;
+  title: string | null;
 }
 
 export interface ConversationMessageView {
@@ -106,6 +107,7 @@ export interface ConversationMessageView {
 }
 
 export interface ReportView {
+  availability?: "available" | "expired";
   kind: string;
   resource_id: string;
   title: string;
@@ -624,7 +626,7 @@ export async function deleteConversation(
 }
 
 export function fetchReport(
-  kind: ReportKind,
+  kind: ReportResourceKind,
   resourceId: string,
   deliveryContext: {
     statusAtDelivery?: ReportDeliveryStatus | null;

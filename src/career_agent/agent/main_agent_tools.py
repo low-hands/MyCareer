@@ -10,11 +10,15 @@ import sqlite3
 from typing import Any, Literal
 from urllib.parse import urlencode
 
+from career_agent.agent.delivered_body_contracts import (
+    BodyDependency,
+    MockInterviewBodySource,
+    ResumeAnalysisBodySource,
+    SavedJobBodySource,
+)
 from career_agent.agent.mock_interview_contracts import (
-    MockInterviewExchange,
     MockInterviewGraphResult,
     MockInterviewQuestionSummary,
-    MockInterviewQuestionView,
     MockInterviewResultView,
     MockInterviewStartRequest,
 )
@@ -25,6 +29,7 @@ from career_agent.agent.conversation_span_presenter import render_conversation_s
 from career_agent.agent.job_research_presenter import summarize_job_research
 from career_agent.agent.summary_text import clamp, condense
 from career_agent.agent.mock_interview_presenter import (
+    mock_interview_question_view,
     render_mock_interview_turn,
     summarize_mock_interview_question,
     summarize_mock_interview_report,
@@ -2154,7 +2159,7 @@ class MainAgentToolRegistry:
         )
         if question_number is not None:
             return self._mock_interview_question_observation(
-                turns=turns, question_number=int(question_number)
+                turns=turns, question_number=int(question_number), session_id=session.id
             )
         return self._mock_interview_result_observation(
             user_id=user_id, session=session, report=report, turns=turns
@@ -2162,7 +2167,8 @@ class MainAgentToolRegistry:
 
     @staticmethod
     def _mock_interview_question_observation(
-        *, turns: tuple[MockInterviewTurn, ...], question_number: int
+        *, turns: tuple[MockInterviewTurn, ...], question_number: int,
+        session_id: str,
     ) -> ToolObservation:
         """Return one exchange in full, follow-ups included.
 
@@ -2171,37 +2177,21 @@ class MainAgentToolRegistry:
         ``message`` is what the durable conversation row keeps and carries into
         every later turn's recent window.
         """
-        matching = tuple(
-            turn for turn in turns if turn.plan_item_number == question_number
-        )
-        if not matching:
+        view = mock_interview_question_view(turns, question_number)
+        if view is None:
             return ToolObservation(
                 tool_name="get_mock_interview_result",
                 state="no_mock_interview_result_found",
                 message=f"这次模拟面试没有第 {question_number} 题。",
             )
-        view = MockInterviewQuestionView(
-            question_number=question_number,
-            exchanges=tuple(
-                MockInterviewExchange(
-                    turn_type=turn.turn_type,
-                    question=turn.question,
-                    answer=turn.answer,
-                    rating=(
-                        turn.evaluation.rating if turn.evaluation is not None else None
-                    ),
-                    evaluation_summary=(
-                        turn.evaluation.summary if turn.evaluation is not None else None
-                    ),
-                )
-                for turn in matching
-            ),
-        )
         return ToolObservation(
             tool_name="get_mock_interview_result",
             state="mock_interview_question_found",
             message=summarize_mock_interview_question(view),
             payload=view.model_dump(mode="json"),
+            body_source=MockInterviewBodySource(
+                session_id=session_id, question_number=question_number
+            ),
         )
 
     def _mock_interview_result_observation(
@@ -2725,6 +2715,12 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_daily_brief",
             state="daily_brief_ready",
+            body_dependencies=tuple(
+                BodyDependency(kind=item.source_type, resource_id=item.source_id)
+                for items in sections.values()
+                for item in items
+                if item.source_type in {"application", "interview_round", "email_event"}
+            ),
             message=f"今日职业简报包含 {count} 个待办事项。" if count else "今日没有待办事项。",
             # The receipt can only carry the total without becoming the report,
             # but the split is what a follow-up turns on. ``waiting`` is an open
@@ -3529,6 +3525,7 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_saved_job",
             state="saved_job_ready",
+            body_source=SavedJobBodySource(job_posting_id=record.posting.id),
             message=f"已读取 {record.posting.title}（{record.posting.company_name}）的完整 JD。",
             payload=payload,
         )
@@ -3687,6 +3684,9 @@ class MainAgentToolRegistry:
             tool_name="analyze_resume",
             state="resume_analysis_ready",
             disposition="interaction_required",
+            body_source=ResumeAnalysisBodySource(
+                analysis_id=draft.id, expires_at=draft.expires_at
+            ),
             message=f"已分析该简历版本，提取出 {len(draft.result.records)} 段候选经历。",
             # Whether to ask the candidate anything before confirming turns on
             # the clarification and warning counts, which the receipt cannot
@@ -3731,6 +3731,9 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_resume_analysis",
             state="resume_analysis_ready",
+            body_source=ResumeAnalysisBodySource(
+                analysis_id=draft.id, expires_at=draft.expires_at
+            ),
             message=f"已读取这次简历分析，其中有 {len(draft.result.records)} 段候选经历。",
             next_action=(
                 "这份分析还没确认。确认由用户在界面上完成，你不能代他确认。"
@@ -4231,6 +4234,10 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="compare_saved_jobs",
             state="saved_jobs_compared",
+            body_dependencies=tuple(
+                BodyDependency(kind="job", resource_id=row.job_posting_id)
+                for row in comparison.rows
+            ),
             message=f"已对比 {len(comparison.rows)} 个已保存岗位。",
             payload={"comparison": comparison.model_dump(mode="json")},
         )

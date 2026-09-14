@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -11,7 +11,16 @@ import sqlite3
 from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
+
+from career_agent.agent.delivered_body_contracts import (
+    BodyDependency,
+    DeliveredBodySource,
+)
+from career_agent.storage.turn_receipts import (
+    redact_conversation_receipts_on,
+    redact_turn_receipts_on,
+)
 
 from career_agent.agent.main_agent_contracts import (
     MAX_CONVERSATION_SPAN_MESSAGES,
@@ -130,6 +139,54 @@ class StoredConversationMessage(BaseModel):
     message: ConversationMessageContext
 
 
+class DeliveredBodyDraft(BaseModel):
+    """A body a turn showed in full while its row kept only a receipt.
+
+    Written beside the assistant row it belongs to, so a reloaded transcript
+    can open what the stream once displayed. The reader's copy only: the
+    decision model keeps seeing the bounded row, which is why this is not a
+    ``resource_ref`` on the message.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: str = Field(min_length=1)
+    """The tool-result state that produced the body."""
+
+    title: str = Field(min_length=1)
+    retention: Literal["snapshot", "source"] = "snapshot"
+    body: str = ""
+    source: DeliveredBodySource | None = None
+    dependencies: tuple[BodyDependency, ...] = ()
+
+    @model_validator(mode="after")
+    def retention_matches_content(self) -> "DeliveredBodyDraft":
+        if self.retention == "snapshot":
+            if not self.body or self.source is not None:
+                raise ValueError("snapshots require a body and no source")
+        elif self.source is None or self.body:
+            raise ValueError("source cards require a handle and no body")
+        return self
+
+
+class StoredDeliveredBodyReference(BaseModel):
+    """Where a kept body sits in the transcript, without the body itself."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    body_id: str
+    sequence: int
+    kind: str
+    title: str
+
+
+class StoredDeliveredBody(DeliveredBodyDraft):
+    body_id: str
+    conversation_id: str
+    sequence: int
+    created_at: datetime
+
+
 class OwnerSettingsConflictError(RuntimeError):
     """The caller edited a stale settings revision."""
 
@@ -196,7 +253,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                15,
+                17,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -213,11 +270,90 @@ class CareerContextStore:
                     13: self._upgrade_to_v13,
                     14: self._upgrade_to_v14,
                     15: self._upgrade_to_v15,
+                    16: self._upgrade_to_v16,
+                    17: self._upgrade_to_v17,
                 },
             )
             apply_episode_schema(connection)
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _upgrade_to_v16(connection: sqlite3.Connection) -> None:
+        columns = {row[1] for row in connection.execute(
+            "PRAGMA table_info(conversation_delivered_bodies)"
+        )}
+        for name, definition in (
+            ("retention", "TEXT NOT NULL DEFAULT 'snapshot'"),
+            ("source_json", "TEXT"),
+            ("dependencies_json", "TEXT"),
+        ):
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE conversation_delivered_bodies ADD COLUMN {name} {definition}"
+                )
+        for user_id, conversation_id in connection.execute(
+            "SELECT DISTINCT user_id, conversation_id FROM conversation_delivered_bodies "
+            "WHERE kind NOT IN ('daily_brief_ready', 'saved_jobs_compared')"
+        ).fetchall():
+            redact_conversation_receipts_on(connection, user_id, conversation_id)
+        connection.execute(
+            """
+            DELETE FROM conversation_delivered_bodies
+            WHERE kind NOT IN ('daily_brief_ready', 'saved_jobs_compared')
+              OR EXISTS (
+                  SELECT 1 FROM memory_deletion_message_suppressions AS hidden
+                  WHERE hidden.user_id = conversation_delivered_bodies.user_id
+                    AND hidden.conversation_id = conversation_delivered_bodies.conversation_id
+                    AND hidden.sequence = conversation_delivered_bodies.sequence
+              )
+            """
+        )
+        for user_id, conversation_id in connection.execute(
+            "SELECT DISTINCT user_id, conversation_id FROM memory_deletion_message_suppressions"
+        ).fetchall():
+            redact_conversation_receipts_on(connection, user_id, conversation_id)
+
+    @staticmethod
+    def _upgrade_to_v17(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(conversation_messages)")
+        }
+        if "turn_id" not in columns:
+            connection.execute("ALTER TABLE conversation_messages ADD COLUMN turn_id TEXT")
+
+    @staticmethod
+    def _redact_receipts_for_rows(
+        connection: sqlite3.Connection,
+        user_id: str,
+        rows: Iterable[tuple[str, int]],
+    ) -> None:
+        """Clear the receipts of the turns that wrote these transcript rows.
+
+        A row that predates turn recording cannot name its turn, so the whole
+        conversation up to now is cleared instead: over-redacting bounded
+        history beats letting removed content replay.
+        """
+
+        by_conversation: dict[str, set[str]] = {}
+        unattributed: set[str] = set()
+        for conversation_id, sequence in rows:
+            row = connection.execute(
+                "SELECT turn_id FROM conversation_messages "
+                "WHERE user_id = ? AND conversation_id = ? AND sequence = ?",
+                (user_id, conversation_id, sequence),
+            ).fetchone()
+            if row is None or row[0] is None:
+                unattributed.add(conversation_id)
+            else:
+                by_conversation.setdefault(conversation_id, set()).add(str(row[0]))
+        for conversation_id in sorted(unattributed):
+            redact_conversation_receipts_on(connection, user_id, conversation_id)
+        for conversation_id, turn_ids in sorted(by_conversation.items()):
+            if conversation_id not in unattributed:
+                redact_turn_receipts_on(
+                    connection, user_id, conversation_id, sorted(turn_ids)
+                )
 
     @staticmethod
     def _upgrade_to_v14(connection: sqlite3.Connection) -> None:
@@ -699,8 +835,40 @@ class CareerContextStore:
             "ON owner_settings_events(user_id, actor_type, actor_id)"
         )
         connection.execute("CREATE TABLE IF NOT EXISTS conversation_task_state (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id))")
-        connection.execute("CREATE TABLE IF NOT EXISTS conversation_messages (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id, conversation_id, sequence))")
+        connection.execute("CREATE TABLE IF NOT EXISTS conversation_messages (user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL, payload TEXT NOT NULL, turn_id TEXT, PRIMARY KEY(user_id, conversation_id, sequence))")
         connection.execute("CREATE INDEX IF NOT EXISTS conversation_messages_recent_idx ON conversation_messages(user_id, conversation_id, sequence DESC)")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_delivered_bodies (
+                user_id TEXT NOT NULL,
+                body_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                retention TEXT NOT NULL DEFAULT 'snapshot',
+                source_json TEXT,
+                dependencies_json TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, body_id)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS conversation_delivered_bodies_message_idx "
+            "ON conversation_delivered_bodies(user_id, conversation_id, sequence)"
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS delivered_body_deleted_dependencies (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                PRIMARY KEY(user_id, kind, resource_id)
+            )
+            """
+        )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS conversation_summaries (
@@ -755,9 +923,11 @@ class CareerContextStore:
             ).fetchone()
             if present is None:
                 return False
+            redact_conversation_receipts_on(connection, user_id, conversation_id)
             for table in (
                 "conversation_summaries",
                 "conversation_messages",
+                "conversation_delivered_bodies",
                 "conversation_task_state",
                 "conversation_message_memory_bindings",
                 "memory_deletion_message_suppressions",
@@ -2026,6 +2196,121 @@ class CareerContextStore:
             for row in reversed(rows)
         )
 
+    def list_delivered_body_references(
+        self,
+        user_id: str,
+        conversation_id: str,
+        *,
+        from_sequence: int,
+    ) -> tuple[StoredDeliveredBodyReference, ...]:
+        """The kept bodies on rows at or after ``from_sequence``, oldest first.
+
+        References only: a conversation can hold many bodies of thousands of
+        characters each, and restoring the transcript should not pull them all.
+        Bodies on suppressed rows are left out the way the rows themselves are.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT bodies.body_id, bodies.sequence, bodies.kind, bodies.title
+                FROM conversation_delivered_bodies AS bodies
+                WHERE bodies.user_id = ? AND bodies.conversation_id = ?
+                  AND bodies.sequence >= ?
+                  AND EXISTS (
+                      SELECT 1 FROM conversation_messages AS message
+                      WHERE message.user_id = bodies.user_id
+                        AND message.conversation_id = bodies.conversation_id
+                        AND message.sequence = bodies.sequence
+                  )
+                  AND NOT EXISTS (
+                        SELECT 1 FROM memory_deletion_message_suppressions AS hidden
+                        WHERE hidden.user_id = bodies.user_id
+                          AND hidden.conversation_id = bodies.conversation_id
+                          AND hidden.sequence = bodies.sequence
+                      )
+                ORDER BY bodies.sequence ASC, bodies.rowid ASC
+                """,
+                (user_id, conversation_id, from_sequence),
+            ).fetchall()
+        return tuple(
+            StoredDeliveredBodyReference(
+                body_id=row[0], sequence=row[1], kind=row[2], title=row[3]
+            )
+            for row in rows
+        )
+
+    def get_delivered_body(
+        self, user_id: str, body_id: str
+    ) -> StoredDeliveredBody | None:
+        """One kept body, or nothing once its row has been suppressed."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT bodies.body_id, bodies.conversation_id, bodies.sequence,
+                       bodies.kind, bodies.title, bodies.body, bodies.created_at,
+                       bodies.retention, bodies.source_json, bodies.dependencies_json
+                FROM conversation_delivered_bodies AS bodies
+                WHERE bodies.user_id = ? AND bodies.body_id = ?
+                  AND EXISTS (
+                      SELECT 1 FROM conversation_messages AS message
+                      WHERE message.user_id = bodies.user_id
+                        AND message.conversation_id = bodies.conversation_id
+                        AND message.sequence = bodies.sequence
+                  )
+                  AND NOT EXISTS (
+                        SELECT 1 FROM memory_deletion_message_suppressions AS hidden
+                        WHERE hidden.user_id = bodies.user_id
+                          AND hidden.conversation_id = bodies.conversation_id
+                          AND hidden.sequence = bodies.sequence
+                      )
+                """,
+                (user_id, body_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return StoredDeliveredBody(
+            body_id=row[0],
+            conversation_id=row[1],
+            sequence=row[2],
+            kind=row[3],
+            title=row[4],
+            body=row[5],
+            created_at=datetime.fromisoformat(row[6]),
+            retention=row[7],
+            source=TypeAdapter(DeliveredBodySource).validate_json(row[8]) if row[8] else None,
+            dependencies=TypeAdapter(tuple[BodyDependency, ...]).validate_json(row[9] or "[]"),
+        )
+
+    def purge_delivered_body_dependency(
+        self, *, user_id: str, dependency: BodyDependency
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "INSERT OR IGNORE INTO delivered_body_deleted_dependencies VALUES (?, ?, ?)",
+                (user_id, dependency.kind, dependency.resource_id),
+            )
+            rows = connection.execute(
+                """
+                SELECT body_id, conversation_id, sequence
+                FROM conversation_delivered_bodies AS bodies
+                WHERE user_id = ?
+                  AND (dependencies_json IS NULL OR EXISTS (
+                      SELECT 1 FROM json_each(bodies.dependencies_json) AS dependency
+                      WHERE json_extract(dependency.value, '$.kind') = ?
+                        AND json_extract(dependency.value, '$.resource_id') = ?
+                  ))
+                """,
+                (user_id, dependency.kind, dependency.resource_id),
+            ).fetchall()
+            connection.executemany(
+                "DELETE FROM conversation_delivered_bodies WHERE user_id = ? AND body_id = ?",
+                ((user_id, row[0]) for row in rows),
+            )
+            self._redact_receipts_for_rows(
+                connection, user_id, {(str(row[1]), int(row[2])) for row in rows}
+            )
+
     def list_messages(self, user_id: str, conversation_id: str, *, limit: int, after_sequence: int = 0) -> tuple[ConversationMessageContext, ...]:
         return tuple(
             record.message
@@ -2407,6 +2692,19 @@ class CareerContextStore:
             affected_conversations = tuple(
                 sorted({conversation_id for conversation_id, _ in bound_rows})
             )
+            connection.execute(
+                """
+                DELETE FROM conversation_delivered_bodies
+                WHERE user_id = ? AND EXISTS (
+                    SELECT 1 FROM memory_deletion_message_suppressions AS hidden
+                    WHERE hidden.user_id = conversation_delivered_bodies.user_id
+                      AND hidden.conversation_id = conversation_delivered_bodies.conversation_id
+                      AND hidden.sequence = conversation_delivered_bodies.sequence
+                )
+                """,
+                (user_id,),
+            )
+            self._redact_receipts_for_rows(connection, user_id, sorted(bound_rows))
             summary_count = 0
             if affected_conversations:
                 placeholders = ",".join("?" for _ in affected_conversations)
@@ -2817,8 +3115,10 @@ class CareerContextStore:
         task: ConversationTaskState,
         user_message: ConversationMessageContext,
         assistant_message: ConversationMessageContext,
+        assistant_bodies: tuple[DeliveredBodyDraft, ...] = (),
         episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
         memory_scope_keys: tuple[str, ...] = (),
+        turn_id: str | None = None,
     ) -> None:
         """Append one turn. The transcript is never pruned here.
 
@@ -2827,6 +3127,15 @@ class CareerContextStore:
         irreversible loss for nothing, since the read is already limited to the
         same number of messages, and it would take the resource references the
         archived-resource lookup scans for along with it.
+
+        ``assistant_bodies`` land in the same transaction, keyed to the
+        assistant row's sequence: a body without its row, or a row whose body
+        was lost to a crash between two writes, would both read as a transcript
+        that never showed it.
+
+        ``turn_id`` names the runtime turn that wrote the rows, which is also
+        the key of its receipt. Removing content from these rows later clears
+        that one receipt; without it the whole conversation's receipts go.
         """
 
         messages = (user_message, assistant_message)
@@ -2848,17 +3157,19 @@ class CareerContextStore:
             latest_summary_sequence = summary_sequence_row[0] if summary_sequence_row else 0
             next_sequence = max(latest_message_sequence, latest_summary_sequence) + 1
             connection.executemany(
-                "INSERT INTO conversation_messages(user_id, conversation_id, sequence, payload) VALUES (?, ?, ?, ?)",
+                "INSERT INTO conversation_messages(user_id, conversation_id, sequence, payload, turn_id) VALUES (?, ?, ?, ?, ?)",
                 [
                     (
                         user_id,
                         conversation_id,
                         next_sequence + offset,
                         message.model_dump_json(),
+                        turn_id,
                     )
                     for offset, message in enumerate(messages)
                 ],
             )
+            assistant_sequence = next_sequence + len(messages) - 1
             scope_keys = tuple(dict.fromkeys(memory_scope_keys))
             connection.executemany(
                 """
@@ -2907,6 +3218,43 @@ class CareerContextStore:
                     if scope_key in deleted_scope_keys
                 ),
             )
+            suppressed = bool(set(scope_keys) & deleted_scope_keys)
+            deleted_dependencies = {
+                (row[0], row[1])
+                for row in connection.execute(
+                    "SELECT kind, resource_id FROM delivered_body_deleted_dependencies WHERE user_id = ?",
+                    (user_id,),
+                )
+            }
+            withheld = suppressed
+            for draft in assistant_bodies:
+                if suppressed or any(
+                    (dependency.kind, dependency.resource_id) in deleted_dependencies
+                    for dependency in draft.dependencies
+                ):
+                    withheld = True
+                    continue
+                connection.execute(
+                    """
+                    INSERT INTO conversation_delivered_bodies(
+                        user_id, body_id, conversation_id, sequence,
+                        kind, title, body, created_at, retention, source_json,
+                        dependencies_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id, f"body_{uuid4().hex}", conversation_id,
+                        assistant_sequence, draft.kind, draft.title, draft.body, now,
+                        draft.retention,
+                        draft.source.model_dump_json() if draft.source else None,
+                        json.dumps([item.model_dump(mode="json") for item in draft.dependencies]),
+                    ),
+                )
+            if withheld:
+                if turn_id is None:
+                    redact_conversation_receipts_on(connection, user_id, conversation_id)
+                else:
+                    redact_turn_receipts_on(connection, user_id, conversation_id, (turn_id,))
             for draft in episode_drafts:
                 SQLiteCareerEpisodeStore.upsert_on(
                     connection,

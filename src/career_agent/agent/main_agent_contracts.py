@@ -12,6 +12,10 @@ from pydantic import AliasChoices, Field, field_validator, model_validator
 
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.delivery_policy import is_failed, is_waiting
+from career_agent.agent.delivered_body_contracts import (
+    BodyDependency,
+    DeliveredBodySource,
+)
 from career_agent.agent.conversation_memory_contracts import (
     SUMMARY_ITEM_MAX_CHARS,
     SUMMARY_SOURCE_MAX_CHARS,
@@ -1551,6 +1555,8 @@ class ToolResult(ContractModel):
     next_action: str | None = Field(default=None, max_length=NEXT_ACTION_LIMIT)
     """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
+    body_source: DeliveredBodySource | None = Field(default=None, exclude=True)
+    body_dependencies: tuple[BodyDependency, ...] = Field(default=(), exclude=True)
     resource_ref: ConversationResourceReference | None = None
     resource_refs: tuple[ConversationResourceReference, ...] = Field(
         default=(),

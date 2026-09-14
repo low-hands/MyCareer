@@ -32,6 +32,12 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.agent.delivered_body_contracts import (
+    BodyDependency,
+    MockInterviewBodySource,
+    ResumeAnalysisBodySource,
+    SavedJobBodySource,
+)
 from career_agent.security.authentication import require_scope
 from career_agent.storage.api_keys import (
     ApiKeyPrincipal,
@@ -72,6 +78,8 @@ from career_agent.agent.interview_retro_presenter import render_interview_retro
 from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.agent.mock_interview_presenter import (
     INTERVIEW_TYPE_LABELS,
+    mock_interview_question_view,
+    render_mock_interview_question,
     render_mock_interview_report,
 )
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
@@ -231,6 +239,16 @@ class ConversationView(BaseModel):
     last_active_at: datetime
 
 
+DELIVERED_BODY_KIND = "delivered_body"
+"""The transcript resource kind for a body kept beside its row.
+
+A row that condenses a body no card holds (a daily brief, a resume analysis,
+a job comparison) carries one of these, so the UI can open what the stream
+showed. Only the reader ever sees the kind: it is not a
+``ConversationResourceReference`` and never reaches the decision model.
+"""
+
+
 class ConversationResourceView(BaseModel):
     """The report a message's prose was drawn from, for the UI to fetch.
 
@@ -246,6 +264,9 @@ class ConversationResourceView(BaseModel):
     resource_id: str
     status_at_delivery: str | None = None
     anchored_by_other_job: bool | None = None
+    title: str | None = None
+    """What to call the card before its body is fetched, when the kind alone
+    does not say: a ``delivered_body`` may be a brief or a comparison."""
 
 
 class ConversationMessageView(BaseModel):
@@ -414,6 +435,7 @@ class ReportView(BaseModel):
     subtitle: str
     body: str
     created_at: datetime
+    availability: Literal["available", "expired"] = "available"
 
 
 class DashboardStats(BaseModel):
@@ -615,11 +637,14 @@ class WorkspaceReader:
             user_id=user_id
         ):
             return "has_application"
-        if self._jobs.delete_job(
+        deleted = self._jobs.delete_job(
             user_id=user_id, job_posting_id=job_posting_id
-        ):
-            return "deleted"
-        return "not_found"
+        )
+        self._context.purge_delivered_body_dependency(
+            user_id=user_id,
+            dependency=BodyDependency(kind="job", resource_id=job_posting_id),
+        )
+        return "deleted" if deleted else "not_found"
 
     def job_detail(
         self, *, user_id: str, job_posting_id: str
@@ -747,27 +772,47 @@ class WorkspaceReader:
         pending_confirmation = (
             pending_confirmations[0] if pending_confirmations else None
         )
+        records = self._context.list_message_records(
+            user_id,
+            conversation_id,
+            limit=limit,
+        )
+        # Kept bodies follow their rows: a body on a row outside this page is
+        # not listed, and one whose row is suppressed is already filtered out.
+        kept_bodies: dict[int, list[ConversationResourceView]] = {}
+        if records:
+            for kept in self._context.list_delivered_body_references(
+                user_id,
+                conversation_id,
+                from_sequence=records[0].sequence,
+            ):
+                kept_bodies.setdefault(kept.sequence, []).append(
+                    ConversationResourceView(
+                        kind=DELIVERED_BODY_KIND,
+                        resource_id=kept.body_id,
+                        title=kept.title,
+                    )
+                )
         return ConversationTranscriptResponse(
             messages=tuple(
                 ConversationMessageView(
-                    role=item.role,
-                    content=item.content,
-                    created_at=item.created_at,
-                    resources=tuple(
-                        ConversationResourceView(
-                            kind=reference.kind,
-                            resource_id=reference.resource_id,
-                            status_at_delivery=reference.status_at_delivery,
-                            anchored_by_other_job=reference.anchored_by_other_job,
-                        )
-                        for reference in item.resource_refs
+                    role=record.message.role,
+                    content=record.message.content,
+                    created_at=record.message.created_at,
+                    resources=(
+                        *(
+                            ConversationResourceView(
+                                kind=reference.kind,
+                                resource_id=reference.resource_id,
+                                status_at_delivery=reference.status_at_delivery,
+                                anchored_by_other_job=reference.anchored_by_other_job,
+                            )
+                            for reference in record.message.resource_refs
+                        ),
+                        *kept_bodies.get(record.sequence, ()),
                     ),
                 )
-                for item in self._context.list_messages(
-                    user_id,
-                    conversation_id,
-                    limit=limit,
-                )
+                for record in records
             ),
             active_workflow=task.active_workflow if task else None,
             phase=task.phase if task else None,
@@ -1095,6 +1140,7 @@ class WorkspaceReader:
             "interview_retro_report": self._interview_retro_report,
             "resume_job_match": self._resume_job_match,
             "resume_tailoring_draft": self._resume_tailoring_draft,
+            DELIVERED_BODY_KIND: self._delivered_body,
         }
         reader = readers.get(kind)
         if reader is None:
@@ -1269,6 +1315,87 @@ class WorkspaceReader:
             body=render_resume_job_match(stored.result),
             created_at=stored.created_at,
         )
+
+    def _delivered_body(self, user_id: str, body_id: str) -> ReportView | None:
+        stored = self._context.get_delivered_body(user_id, body_id)
+        if stored is None:
+            return None
+        body = stored.body
+        subtitle = "历史快照（截至生成时间）"
+        availability: Literal["available", "expired"] = "available"
+        if stored.retention == "snapshot":
+            for dependency in stored.dependencies:
+                if not self._body_dependency_exists(user_id, dependency):
+                    self._context.purge_delivered_body_dependency(
+                        user_id=user_id, dependency=dependency
+                    )
+                    return None
+        elif isinstance(stored.source, SavedJobBodySource):
+            job = self._jobs.get_job(
+                user_id=user_id, job_posting_id=stored.source.job_posting_id
+            )
+            if job is None:
+                return None
+            body = job.snapshot.content.strip()
+            subtitle = "当前岗位描述"
+        elif isinstance(stored.source, ResumeAnalysisBodySource):
+            now = datetime.now(timezone.utc)
+            if now >= stored.source.expires_at:
+                body, subtitle, availability = "", "简历分析已过期", "expired"
+            else:
+                analysis = self._resume_analyses.get(
+                    user_id=user_id, analysis_id=stored.source.analysis_id, now=now
+                )
+                if analysis is None:
+                    return None
+                body = render_resume_analysis(analysis.result)
+                subtitle = "简历分析"
+        elif isinstance(stored.source, MockInterviewBodySource):
+            session = self._mock_interviews.get_session(
+                user_id=user_id, session_id=stored.source.session_id
+            )
+            if session is None:
+                return None
+            view = mock_interview_question_view(
+                self._mock_interviews.list_turns(user_id=user_id, session_id=session.id),
+                stored.source.question_number,
+            )
+            if view is None:
+                return None
+            body = render_mock_interview_question(view)
+            subtitle = f"第 {stored.source.question_number} 题及追问"
+        else:
+            return None
+        return ReportView(
+            kind=DELIVERED_BODY_KIND,
+            resource_id=stored.body_id,
+            title=stored.title,
+            subtitle=subtitle,
+            body=body,
+            created_at=stored.created_at,
+            availability=availability,
+        )
+
+    def _body_dependency_exists(self, user_id: str, dependency: BodyDependency) -> bool:
+        if dependency.kind == "job":
+            return self._jobs.get_job(
+                user_id=user_id, job_posting_id=dependency.resource_id
+            ) is not None
+        if dependency.kind == "interview_round":
+            return self._interviews.get(
+                user_id=user_id, interview_round_id=dependency.resource_id
+            ) is not None
+        if dependency.kind == "email_event":
+            return self._email.get_event(
+                user_id=user_id, event_id=dependency.resource_id
+            ) is not None
+        try:
+            self._applications.get_application(
+                user_id=user_id, application_id=dependency.resource_id
+            )
+        except ApplicationInputNotFoundError:
+            return False
+        return True
 
     def _resume_tailoring_draft(
         self, user_id: str, draft_id: str

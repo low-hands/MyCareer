@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 
 from career_agent.agent.mock_interview_contracts import (
+    MockInterviewExchange,
     MockInterviewGraphResult,
     MockInterviewQuestionView,
     MockInterviewResultView,
 )
 from career_agent.agent.summary_text import condense
-from career_agent.domain.mock_interviews.models import MockInterviewReport
+from career_agent.domain.mock_interviews.models import MockInterviewReport, MockInterviewTurn
 
 
 _MARKDOWN_LINK_BRACKET = re.compile(r"([\[\]])")
@@ -32,6 +33,27 @@ def _escape_markdown_text(value: str) -> str:
     )
     escaped_urls = _MARKDOWN_HTTP_URL.sub(r"\1:" + "\u200b", escaped_headings)
     return _MARKDOWN_WWW_URL.sub(r"\1" + "\u200b", escaped_urls)
+
+
+def mock_interview_question_view(
+    turns: tuple[MockInterviewTurn, ...], question_number: int
+) -> MockInterviewQuestionView | None:
+    matching = tuple(turn for turn in turns if turn.plan_item_number == question_number)
+    if not matching:
+        return None
+    return MockInterviewQuestionView(
+        question_number=question_number,
+        exchanges=tuple(
+            MockInterviewExchange(
+                turn_type=turn.turn_type,
+                question=turn.question,
+                answer=turn.answer,
+                rating=turn.evaluation.rating if turn.evaluation else None,
+                evaluation_summary=turn.evaluation.summary if turn.evaluation else None,
+            )
+            for turn in matching
+        ),
+    )
 
 
 def render_mock_interview_report(report: MockInterviewReport) -> str:

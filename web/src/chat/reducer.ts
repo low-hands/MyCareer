@@ -1,4 +1,4 @@
-import type { ReportDeliveryStatus, ReportKind } from "./events";
+import type { ReportDeliveryStatus, ReportResourceKind } from "./events";
 import type {
   ArtifactReadyEvent,
   ClientActionEvent,
@@ -20,10 +20,12 @@ export type ChatPhase =
   | "failed";
 
 export interface MessageResource {
-  kind: ReportKind;
+  kind: ReportResourceKind;
   resourceId: string;
   statusAtDelivery?: ReportDeliveryStatus | null;
   anchoredByOtherJob?: boolean | null;
+  /** The card's heading before its body is fetched, when the kind alone does not say. */
+  title?: string | null;
 }
 
 export interface ChatMessage {

@@ -42,6 +42,7 @@ from career_agent.harness.memory_telemetry import (
 )
 from career_agent.agent.delivery_policy import (
     condenses_message,
+    policy_for,
     delivers_body_elsewhere,
     is_failed,
 )
@@ -77,6 +78,11 @@ from career_agent.agent.mock_interview_presenter import (
 )
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
 from career_agent.agent.resume_analysis_presenter import render_resume_analysis
+from career_agent.agent.delivered_body_contracts import (
+    BodyDependency,
+    ResumeAnalysisBodySource,
+    SavedJobBodySource,
+)
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
 from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
@@ -128,6 +134,7 @@ from career_agent.storage.action_executions import (
     RESULT_STATE_RECEIPT_KEY,
     SQLiteActionExecutionStore,
 )
+from career_agent.storage.context import DeliveredBodyDraft
 from career_agent.storage.intent_versions import intent_entry_id
 from career_agent.storage.turn_receipts import (
     REPLAYED_EVENT_TYPES,
@@ -779,6 +786,17 @@ class MainAgentRuntime:
                     conversation_id=conversation_id,
                     turn_id=turn_id,
                     answered=tuple(answered),
+                    body_expires_at=min(
+                        (
+                            output.body_source.expires_at
+                            for output in (
+                                result.tool_results
+                                or ((result.tool_result,) if result.tool_result else ())
+                            )
+                            if isinstance(output.body_source, ResumeAnalysisBodySource)
+                        ),
+                        default=None,
+                    ),
                 )
             return result
         except Exception as error:
@@ -849,6 +867,7 @@ class MainAgentRuntime:
         conversation_id: str,
         turn_id: str,
         answered: tuple[PublicStreamEvent, ...] | None,
+        body_expires_at: datetime | None = None,
     ) -> None:
         store, request_id = owner
         try:
@@ -866,6 +885,7 @@ class MainAgentRuntime:
                     request_id=request_id,
                     turn_id=turn_id,
                     events=answered,
+                    body_expires_at=body_expires_at,
                 )
         except Exception:
             # The receipt is a convenience for a retrying client. Failing to
@@ -892,14 +912,27 @@ class MainAgentRuntime:
                 )
                 raise TurnInProgressError(receipt.request_id)
             self._emit(TurnStartedEvent(turn_id=receipt.turn_id))
-            for event in receipt.events:
+            events = receipt.events
+            if receipt.content_status != "available":
+                events = (
+                    ContentDeltaEvent(
+                        delta=(
+                            "内容已删除。"
+                            if receipt.content_status == "deleted"
+                            else "回执正文已过期，请查看历史对话。"
+                        ),
+                        delivery="synthetic",
+                    ),
+                    TurnCompletedEvent(turn_id=receipt.turn_id),
+                )
+            for event in events:
                 self._emit(event)
         finally:
             _STREAM_SINK.reset(sink_token)
         return ReplayedTurn(
             turn_id=receipt.turn_id,
             request_id=receipt.request_id,
-            events=receipt.events,
+            events=events,
         )
 
     @staticmethod
@@ -1122,6 +1155,7 @@ class MainAgentRuntime:
                     + "".join(sentences)
                     + "请先核对这些记录的实际状态，再决定是否重做。"
                 ),
+                turn_id=turn_id,
             )
         except Exception:
             # Best effort, exactly like the trace recorder: a conversation row
@@ -1230,6 +1264,10 @@ class MainAgentRuntime:
                     screen=result.assistant_message,
                     composed=False,
                 ),
+                assistant_bodies=MainAgentRuntime._delivered_bodies(
+                    result.tool_results
+                    or ((result.tool_result,) if result.tool_result else ())
+                ),
                 episode_drafts=drafts_from_tool_results(
                     user_id=user_id,
                     conversation_id=conversation_id,
@@ -1237,6 +1275,7 @@ class MainAgentRuntime:
                     or ((result.tool_result,) if result.tool_result else ()),
                 ),
                 memory_scope_keys=result.career_memory_scope_keys,
+                turn_id=self._active_turn_id(),
             )
             return result
 
@@ -1280,6 +1319,10 @@ class MainAgentRuntime:
                     assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
                         result.tool_results
                     ),
+                    assistant_bodies=MainAgentRuntime._delivered_bodies(
+                        result.tool_results
+                    ),
+                    turn_id=self._active_turn_id(),
                 )
             return result
 
@@ -1328,6 +1371,9 @@ class MainAgentRuntime:
                 assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
                     result.tool_results
                 ),
+                assistant_bodies=MainAgentRuntime._delivered_bodies(
+                    result.tool_results
+                ),
                 episode_drafts=drafts_from_tool_results(
                     user_id=user_id,
                     conversation_id=conversation_id,
@@ -1335,8 +1381,14 @@ class MainAgentRuntime:
                     or ((result.tool_result,) if result.tool_result else ()),
                 ),
                 memory_scope_keys=result.career_memory_scope_keys,
+                turn_id=self._active_turn_id(),
             )
         return result
+
+    @staticmethod
+    def _active_turn_id() -> str | None:
+        invocation = _ACTION_INVOCATION.get()
+        return invocation[0] if invocation is not None else None
 
     def _deliver_stream_events(
         self,
@@ -3661,16 +3713,45 @@ class MainAgentRuntime:
         """
         bodies: list[str] = []
         for result in results:
-            if not condenses_message(result.state):
-                continue
-            if delivers_body_elsewhere(result.state):
+            policy = policy_for(result.state)
+            if not policy.condensed_message or policy.delivers_body_elsewhere:
                 continue
             rendered = MainAgentRuntime._assistant_message(result)
-            # A repeated identical render adds nothing but length; two different
-            # jobs rendering differently must both survive.
             if rendered and rendered not in bodies:
                 bodies.append(rendered)
         return "\n\n".join(bodies)
+
+    @staticmethod
+    def _delivered_bodies(
+        results: tuple[MainAgentToolOutput, ...],
+    ) -> tuple[DeliveredBodyDraft, ...]:
+        drafts: list[DeliveredBodyDraft] = []
+        for result in results:
+            policy = policy_for(result.state)
+            if policy.body_retention == "none" or policy.body_title is None:
+                continue
+            if policy.body_retention == "source" and result.body_source is None:
+                continue
+            draft = DeliveredBodyDraft(
+                kind=result.state,
+                title=policy.body_title,
+                retention=policy.body_retention,
+                body=(
+                    MainAgentRuntime._assistant_message(result)
+                    if policy.body_retention == "snapshot" else ""
+                ),
+                source=result.body_source,
+                dependencies=(
+                    (*result.body_dependencies, BodyDependency(
+                        kind="job", resource_id=result.body_source.job_posting_id
+                    ))
+                    if isinstance(result.body_source, SavedJobBodySource)
+                    else result.body_dependencies
+                ),
+            )
+            if draft not in drafts:
+                drafts.append(draft)
+        return tuple(drafts)
 
     @staticmethod
     def _interrupt(state: MainAgentState) -> MainAgentState:
@@ -3738,16 +3819,9 @@ class MainAgentRuntime:
         * Full row: screen and transcript keep the same text.
         * Summary row + resource card: the message is the same bounded prose
           live and after refresh; the entity-backed card owns the full body.
-        * Summary row + message body: the full text is deliberately live-only,
-          while the transcript always keeps the tool's deterministic receipt.
-          Daily Brief and Resume Analysis use this shape because their bodies
-          have nowhere else to go but should not occupy the recent window
-          indefinitely. Keeping a prefix of the body would look complete while
-          silently favouring whichever sections happened to come first.
-
-        Therefore live equality is an invariant only for the first two shapes,
-        not for every call to this function. In the third shape, refreshing is
-        expected to replace the ephemeral body with its bounded historical row.
+        * Summary row + message body: the transcript keeps the receipt.
+          ``body_retention`` independently selects a snapshot card, a source
+          card, or no retained body.
 
         Normally keyed on the state's declared policy. A missing reference is
         treated as a broken instance of a card policy and fails open to the

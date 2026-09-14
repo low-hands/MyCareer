@@ -51,11 +51,23 @@ class DeliveryPolicy:
     delivery, which is only contradictory if the two are one flag.
     """
 
+    body_title: str | None = None
+    """The restored card's heading, independent of the live delivery."""
+
+    body_retention: Literal["none", "snapshot", "source"] = "none"
+
     def __post_init__(self) -> None:
         if self.body_delivery == "resource_card" and self.durable_message != "summary":
             raise ValueError(
                 "a card-delivered body must not also be kept in the row"
             )
+        keeps_body = self.body_retention != "none"
+        if keeps_body != (self.body_title is not None):
+            raise ValueError("a retained body requires a card title")
+        if keeps_body and (
+            self.durable_message != "summary" or self.body_delivery != "message"
+        ):
+            raise ValueError("only condensed message bodies need separate retention")
         if self.waiting and self.outcome == "failed":
             raise ValueError("a failed result must return to orchestration, not wait")
 
@@ -66,7 +78,6 @@ class DeliveryPolicy:
     @property
     def delivers_body_elsewhere(self) -> bool:
         return self.body_delivery == "resource_card"
-
 
 _WAITING = DeliveryPolicy(waiting=True)
 _FAILED = DeliveryPolicy(outcome="failed")
@@ -81,14 +92,13 @@ def _card() -> DeliveryPolicy:
     )
 
 
-def _summarised() -> DeliveryPolicy:
-    """The body is the message, but the row keeps a bounded line instead.
-
-    For results with no card behind them: whatever is displayed is the only
-    delivery there will be, so it is streamed in full, while the row records
-    the outcome rather than carrying the body into every later turn.
-    """
-    return DeliveryPolicy(durable_message="summary")
+def _summarised(
+    title: str | None = None,
+    retention: Literal["none", "snapshot", "source"] = "none",
+) -> DeliveryPolicy:
+    return DeliveryPolicy(
+        durable_message="summary", body_title=title, body_retention=retention
+    )
 
 
 _POLICIES: dict[str, DeliveryPolicy] = {
@@ -134,29 +144,29 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "mock_interview_restart_failed": _FAILED,
     "resume_tailoring_not_ready": _FAILED,
     # Report-shaped. Presenter renders the screen, ``message`` is the row.
-    "daily_brief_ready": _summarised(),
+    "daily_brief_ready": _summarised("每日简报", "snapshot"),
     "interview_preparation_ready": _card(),
     "interview_retro_recorded": _card(),
     "job_research_ready": _card(),
     "mock_interview_completed": _card(),
     "mock_interview_result_found": _card(),
-    "resume_analysis_ready": _summarised(),
+    "resume_analysis_ready": _summarised("简历分析", "source"),
     "resume_job_match_ready": _card(),
     "resume_tailoring_draft_ready": _card(),
     # Reading a saved job asks for its immutable JD body. The raw JD text is
     # delivered live, while the transcript keeps the bounded receipt.
-    "saved_job_ready": _summarised(),
+    "saved_job_ready": _summarised("岗位描述原文", "source"),
     # The comparison table is rendered prose, far richer than its receipt.
     # Registered plain, the model could not see it and the reader would lose
     # it once the model — not the presenter — writes the message.
-    "saved_jobs_compared": _summarised(),
+    "saved_jobs_compared": _summarised("岗位对比", "snapshot"),
     # Split screen and row without the writer: one mock interview exchange is
     # read back verbatim, so restating it would only cost fidelity, but the
     # answer it quotes is up to 20k characters and cannot enter the row.
     # Bounded row, full delivery: the exchange is quoted verbatim because
     # that is what was asked for, and the answer it quotes runs to twenty
     # thousand characters, which the row cannot carry.
-    "mock_interview_question_found": _summarised(),
+    "mock_interview_question_found": _summarised("模拟面试问答回看", "source"),
     # Historical rows are useful as a turn-local observation, but storing the
     # rendered span would immediately put the recalled text back into every
     # later recent window. Keep only the bounded receipt in conversation.
