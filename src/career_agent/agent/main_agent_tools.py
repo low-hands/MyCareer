@@ -3276,6 +3276,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                job_posting_id=result.report.job_posting_id,
+                company_key=result.report.company_key,
                 title=title,
                 description=description,
                 status_at_delivery=result.report.status,
@@ -3325,6 +3327,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                job_posting_id=result.report.job_posting_id,
+                company_key=result.report.company_key,
                 title=title,
                 description=description,
                 status_at_delivery=result.report.status,
@@ -3369,6 +3373,8 @@ class MainAgentToolRegistry:
             resource_ref=ConversationResourceReference(
                 kind="job_research_report",
                 resource_id=result.report.id,
+                job_posting_id=result.report.job_posting_id,
+                company_key=result.report.company_key,
                 title=title,
                 description=description,
                 status_at_delivery=result.report.status,

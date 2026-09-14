@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -186,6 +187,13 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
     assert result.tool_result.resource_ref.title == "岗位研究报告"
     assert result.tool_result.resource_ref.description == (
         "公司调研；该岗位与企业检索可靠性直接相关。"
+    )
+    # The reference carries the report's identity for later entity checks,
+    # while the model-facing projection still never sees the ids.
+    assert result.tool_result.resource_ref.job_posting_id == "job-secret"
+    assert result.tool_result.resource_ref.company_key is None
+    assert "job-secret" not in json.dumps(
+        result.context.model_context(), ensure_ascii=False
     )
     assert result.context.model_context()["task"]["job_research_status"] == "current"
     assert tools.capability_kind("research_job") == "workflow"

@@ -6,7 +6,7 @@ import hmac
 from datetime import datetime, timedelta, timezone
 import json
 import re
-from typing import Annotated, Any, Literal, Protocol, get_args
+from typing import Annotated, Any, Literal, NamedTuple, Protocol, get_args
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 
@@ -33,6 +33,7 @@ from career_agent.domain.interviews import (
     InterviewStatus,
 )
 from career_agent.domain.job_discovery import ContractModel
+from career_agent.domain.job_research.models import company_key
 from career_agent.domain.mock_interviews import MockInterviewType
 
 
@@ -958,6 +959,18 @@ class ConversationResourceReference(ContractModel):
     # should say that its draft has since been superseded.
     status_at_delivery: Literal["current", "outdated", "superseded"] | None = None
     anchored_by_other_job: bool | None = None
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    company_key: str | None = Field(default=None, min_length=1, max_length=300)
+    """The employer a research report is about, as identity rather than prose.
+
+    ``title`` is for a reader; these are for a check. Whether the handle the
+    model passes back is about the company the user asked for is decided by
+    comparing the report's ``company_key`` (and the anchoring ``job_posting_id``)
+    against the saved job in hand, so a user writing "字节" for a job saved under
+    "字节跳动" is matched through the job entity, not through the spelling.
+    Filled by job research alone; missing on references written before it was
+    recorded, which then fall back to their title.
+    """
     title: str | None = Field(
         default=None,
         validation_alias=AliasChoices("title", "label"),
@@ -1015,6 +1028,12 @@ class ConversationResourceReference(ContractModel):
             raise ValueError(
                 "delivery-time render metadata is scoped to job research; "
                 "other resource kinds derive current state when read"
+            )
+        if self.kind != "job_research_report" and (
+            self.job_posting_id is not None or self.company_key is not None
+        ):
+            raise ValueError(
+                "company identity on a reference is scoped to job research"
             )
         return self
 
@@ -3629,39 +3648,145 @@ def project_open_job_search_arguments(
     ).model_dump()
 
 
+def _report_is_about(
+    held: ConversationResourceReference, candidate: SavedJobCandidateContextItem
+) -> bool:
+    """Whether a held report and a saved job name the same employer.
+
+    Decided on identity when the reference carries it: the anchoring job or the
+    company key the report is stored under, which the saved job's formal name
+    folds to the same way. References written before identity was recorded
+    have only a title to go on and are read the old way.
+    """
+    if held.job_posting_id is not None or held.company_key is not None:
+        if held.job_posting_id == candidate.job_posting_id:
+            return True
+        return (
+            held.company_key is not None
+            and bool(candidate.company_name.strip())
+            and company_key(candidate.company_name) == held.company_key
+        )
+    return bool(candidate.company_name) and candidate.company_name in (
+        held.title or ""
+    )
+
+
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+
+
+def _company_mention(company_name: str, user_message: str) -> str | None:
+    """The longest leading part of ``company_name`` the message writes out.
+
+    Users shorten employers from the front — "字节" for "字节跳动", "ByteDance"
+    for "ByteDance Ltd" — so a leading part of at least two CJK characters, or
+    three otherwise, is taken as naming the company. This only decides what
+    the request is *about*, never which report answers it.
+    """
+    name = company_key(company_name) if company_name.strip() else ""
+    message = " ".join(user_message.split()).casefold()
+    for end in range(len(name), 1, -1):
+        prefix = name[:end].rstrip()
+        minimum = 2 if _CJK.search(prefix) else 3
+        if len(prefix) >= minimum and prefix in message:
+            return prefix
+    return None
+
+
+class _AskedCompanies(NamedTuple):
+    jobs: tuple[tuple[int, SavedJobCandidateContextItem], ...]
+    ambiguous_mention: str | None
+
+
+def _companies_asked_for(
+    context: MainAgentContext,
+    held: ConversationResourceReference,
+) -> _AskedCompanies:
+    """The saved jobs this turn's request is about, as (selection_index, job).
+
+    A search the model ran this turn already resolved the user's wording —
+    short name, alias, or otherwise — to job entities, so when every job it
+    returned belongs to one employer, that employer is what the user asked
+    about. Absent such a search, a company counts when the message writes out
+    its name or a leading part of it; a mixed result list says nothing about
+    which company was meant. A leading part that heads more than one company
+    — "中国" for both 中国移动 and 中国银行, or a saved job and the held report
+    alike — names none of them, and is reported as ambiguous instead.
+    """
+    numbered = tuple(enumerate(context.task.saved_job_candidates, start=1))
+    searched_this_turn = any(
+        observation.tool_name == "find_saved_jobs"
+        and observation.state == "saved_jobs_found"
+        for observation in context.tool_observations
+    )
+    if searched_this_turn and len(
+        {
+            company_key(candidate.company_name)
+            for _, candidate in numbered
+            if candidate.company_name.strip()
+        }
+    ) == 1:
+        return _AskedCompanies(numbered, None)
+    held_company = held.company_key or ""
+    asked: list[tuple[int, SavedJobCandidateContextItem]] = []
+    companies_by_mention: dict[str, set[str]] = {}
+    for index, candidate in numbered:
+        mention = _company_mention(candidate.company_name, context.user_message)
+        if mention is None:
+            continue
+        asked.append((index, candidate))
+        named = companies_by_mention.setdefault(mention, set())
+        named.add(company_key(candidate.company_name))
+        if held_company.startswith(mention):
+            named.add(held_company)
+    ambiguous = next(
+        (mention for mention, named in companies_by_mention.items() if len(named) > 1),
+        None,
+    )
+    return _AskedCompanies(tuple(asked), ambiguous)
+
+
 def _reject_borrowed_report_reference(
     context: MainAgentContext, *, reference: str, report_id: str
 ) -> None:
-    """A report handle is titled after its company; the request must be too.
+    """A report handle is bound to a company; the request must be about it.
 
     ``resolve_reference`` proves the handle was issued, not that it is the one
-    the user meant. When the user names a saved-job company and the handle's
-    title names a different one, the read would answer about the wrong company
-    while looking grounded, so it is refused in favour of the company's own
-    selection index. A message that also names the handle's company, or names
-    no candidate company at all, is left to the model.
+    the user meant. When the request is about a saved-job company and the held
+    report is about a different one, the read would answer about the wrong
+    company while looking grounded, so it is refused in favour of the company's
+    own selection index. A request that also covers the report's company, or
+    is about no saved-job company at all, is left to the model; one whose short
+    name fits several companies is refused until the user says which.
     """
     held = next(
         item for item in context.referenced_resources()
         if item.resource_id == report_id
     )
     title = (held.title or "").strip()
-    if not title or title in context.user_message:
+    if title and title in context.user_message:
         return
-    asked = tuple(
-        (index, candidate.company_name)
-        for index, candidate in enumerate(context.task.saved_job_candidates, start=1)
-        if candidate.company_name
-        and candidate.company_name in context.user_message
-        and candidate.company_name not in title
-    )
+    asked, ambiguous = _companies_asked_for(context, held)
     if not asked:
         return
-    selectors = "、".join(f"{index}（{company}）" for index, company in asked)
+    selectors = "、".join(
+        f"{index}（{candidate.company_name}）" for index, candidate in asked
+    )
+    if ambiguous is not None:
+        raise ValueError(
+            f"'{ambiguous}' names more than one saved company, so resource "
+            f"reference '{reference}' cannot be read as the one the user meant; "
+            f"ask which company is meant (saved: selection_index {selectors}) "
+            "instead of guessing"
+        )
+    if any(_report_is_about(held, candidate) for _, candidate in asked):
+        return
+    about = f"titled '{title}'" if title else "about another company"
     raise ValueError(
-        f"resource reference '{reference}' is titled '{title}', not the company "
+        f"resource reference '{reference}' is {about}, not the company "
         f"the user asked about; use selection_index {selectors} or say that "
-        "report is not reachable"
+        "report is not reachable. A company named by a short name or alias "
+        "must be resolved with find_saved_jobs first, never by guessing which "
+        "title it means"
     )
 
 

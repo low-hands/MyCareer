@@ -29,6 +29,7 @@ from career_agent.agent.main_agent_contracts import (
     project_mock_interview_result_arguments,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.domain.job_research.models import company_key
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
@@ -168,8 +169,11 @@ def test_job_research_reference_keeps_delivery_time_render_context() -> None:
         "resource_id": "report-1",
         "status_at_delivery": "outdated",
         "anchored_by_other_job": True,
-        # Untitled here on purpose: legacy rows are still readable, while the
-        # projection omits absent metadata rather than showing a blank field.
+        # Untitled and unbound here on purpose: legacy rows are still readable,
+        # while the projection omits absent metadata rather than showing a
+        # blank field.
+        "job_posting_id": None,
+        "company_key": None,
         "title": None,
         "description": None,
     }
@@ -344,6 +348,217 @@ def test_a_report_handle_is_kept_when_its_company_is_named_or_none_is(
         context, "get_job_research", {"reference": _only_handle(context)}
     )
     assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+
+def _bound_report_context(
+    user_message: str,
+    *,
+    report_job: str = "job-h1",
+    report_company: str = "历史科技甲",
+    candidates: tuple[tuple[str, str], ...] = (("job-1", "字节跳动"),),
+    searched_this_turn: bool = False,
+) -> MainAgentContext:
+    """One stored report bound to its company entity, plus saved jobs.
+
+    The reference carries ``job_posting_id``/``company_key`` the way every new
+    producer writes them; its title is deliberately a different spelling so a
+    test cannot pass by matching prose.
+    """
+    message = _message("上周的调研好了。", kind="job_research_report", resource_id="report-h1")
+    bound = message.model_copy(
+        update={
+            "resource_refs": (
+                message.resource_refs[0].model_copy(
+                    update={
+                        "title": f"{report_company}（研究）",
+                        "job_posting_id": report_job,
+                        "company_key": company_key(report_company),
+                    }
+                ),
+            )
+        }
+    )
+    observations = (
+        (
+            DecisionObservation(
+                tool_name="find_saved_jobs",
+                state="saved_jobs_found",
+                message=f"找到 {len(candidates)} 个已保存岗位。",
+            ),
+        )
+        if searched_this_turn
+        else ()
+    )
+    return _context(
+        bound,
+        task=ConversationTaskState(
+            saved_job_candidates=tuple(
+                SavedJobCandidateContextItem(
+                    job_posting_id=job_id, title="算法工程师", company_name=company
+                )
+                for job_id, company in candidates
+            ),
+        ),
+    ).model_copy(
+        update={"user_message": user_message, "tool_observations": observations}
+    )
+
+
+def test_a_report_handle_for_another_company_is_refused_when_the_user_wrote_an_alias() -> None:
+    """The user wrote 字节, the job is saved as 字节跳动, the report is about 历史科技甲.
+
+    No spelling of the company appears verbatim anywhere, so a text check would
+    let the wrong report through. The search the model ran this turn resolved
+    字节 to the saved job, and the report's company key says it is not that
+    employer.
+    """
+    context = _bound_report_context(
+        "字节那份调研里，他们的主要竞争对手是谁？", searched_this_turn=True
+    )
+
+    with pytest.raises(ValueError, match="selection_index 1（字节跳动）"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+def test_an_alias_written_without_a_search_still_refuses_another_companys_report() -> None:
+    """No find_saved_jobs ran this turn, so nothing resolved 字节 to an entity.
+
+    The leading part of a saved job's company name is still enough to know the
+    request is about that company and not the report's; the refusal points at
+    the saved job so the model resolves the alias instead of guessing a title.
+    """
+    context = _bound_report_context("字节那份调研里，他们的主要竞争对手是谁？")
+
+    with pytest.raises(ValueError, match="find_saved_jobs"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+def test_a_short_name_heading_several_saved_companies_is_refused_as_ambiguous() -> None:
+    """"中国" heads both 中国移动 and 中国银行; the report being about one of them
+    does not make it the one the user meant."""
+    context = _bound_report_context(
+        "中国那份调研怎么说",
+        report_company="中国银行",
+        candidates=(("job-1", "中国移动"), ("job-2", "中国银行")),
+    )
+
+    with pytest.raises(ValueError, match="more than one saved company"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+def test_a_short_name_shared_by_the_held_report_and_a_saved_job_is_ambiguous() -> None:
+    """腾讯 heads both the report's 腾讯 and the saved job's 腾讯音乐, so neither is
+    picked; the model has to ask."""
+    context = _bound_report_context(
+        "腾讯那份调研怎么说",
+        report_company="腾讯",
+        candidates=(("job-1", "腾讯音乐"),),
+    )
+
+    with pytest.raises(ValueError, match="more than one saved company"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+def test_an_ascii_short_name_needs_three_characters() -> None:
+    """"AB" is too short to name "ABC Robotics", so the handle is left to the
+    model; "abc" is enough and sends it to the saved job."""
+    kept = _bound_report_context(
+        "AB 那份调研怎么说", candidates=(("job-1", "ABC Robotics"),)
+    )
+    projected = project_job_research_arguments(
+        kept, "get_job_research", {"reference": _only_handle(kept)}
+    )
+    assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+    refused = _bound_report_context(
+        "abc 那份调研怎么说", candidates=(("job-1", "ABC Robotics"),)
+    )
+    with pytest.raises(ValueError, match="selection_index 1（ABC Robotics）"):
+        project_job_research_arguments(
+            refused, "get_job_research", {"reference": _only_handle(refused)}
+        )
+
+
+def test_a_report_handle_is_kept_when_bound_to_the_company_the_alias_resolved_to() -> None:
+    """Same alias, but the held report is about the company the search found.
+
+    Its title spells the company differently from the saved job; identity, not
+    title text, is what keeps the read grounded.
+    """
+    context = _bound_report_context(
+        "字节那份调研里，他们的主要竞争对手是谁？",
+        report_job="job-other-role",
+        report_company="BYTEDANCE  LTD",
+        candidates=(("job-1", "ByteDance Ltd"),),
+        searched_this_turn=True,
+    )
+    assert "ByteDance Ltd" not in (
+        context.recent_messages[0].resource_refs[0].title or ""
+    )
+
+    projected = project_job_research_arguments(
+        context, "get_job_research", {"reference": _only_handle(context)}
+    )
+    assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+
+def test_a_report_handle_is_kept_when_it_anchors_the_job_the_alias_resolved_to() -> None:
+    """A report anchored by the very saved job is about that job's company,
+    whatever its stored company key says."""
+    context = _bound_report_context(
+        "字节那份调研里怎么说的",
+        report_job="job-1",
+        report_company="旧名字",
+        searched_this_turn=True,
+    )
+
+    projected = project_job_research_arguments(
+        context, "get_job_research", {"reference": _only_handle(context)}
+    )
+    assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+
+def test_a_mixed_search_result_does_not_pin_the_request_to_one_company() -> None:
+    """A role search returning several employers says nothing about which one
+    the user meant, so the handle is left to the model."""
+    context = _bound_report_context(
+        "那份调研里怎么说的",
+        candidates=(("job-1", "字节跳动"), ("job-2", "示例科技")),
+        searched_this_turn=True,
+    )
+
+    projected = project_job_research_arguments(
+        context, "get_job_research", {"reference": _only_handle(context)}
+    )
+    assert projected == {"user_id": "u1", "report_id": "report-h1"}
+
+
+def test_a_bound_report_is_refused_on_identity_even_when_its_title_echoes_the_name() -> None:
+    """A title containing the asked-for name cannot vouch for a reference whose
+    identity says it is about someone else."""
+    context = _bound_report_context("字节跳动那份调研怎么说", report_company="字节跳动前员工创业公司")
+    reference = context.recent_messages[0].resource_refs[0]
+    assert "字节跳动" in (reference.title or "")
+
+    with pytest.raises(ValueError, match="selection_index 1（字节跳动）"):
+        project_job_research_arguments(
+            context, "get_job_research", {"reference": _only_handle(context)}
+        )
+
+
+def test_company_identity_on_a_reference_is_scoped_to_job_research() -> None:
+    with pytest.raises(ValueError, match="scoped to job research"):
+        ConversationResourceReference(
+            kind="mock_interview_report", resource_id="rep-1", company_key="acme"
+        )
 
 
 def test_job_research_rejects_two_selectors_at_once() -> None:
