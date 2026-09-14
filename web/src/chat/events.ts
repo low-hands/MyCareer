@@ -35,6 +35,7 @@ export const REPORT_KIND_LIST = [
   "resume_tailoring_draft",
 ] as const;
 export type ReportKind = (typeof REPORT_KIND_LIST)[number];
+export type ReportResourceKind = ReportKind | "delivered_body";
 export const REPORT_KINDS = new Set<ReportKind>(REPORT_KIND_LIST);
 
 export const REPORT_DELIVERY_STATUSES = ["current", "outdated", "superseded"] as const;

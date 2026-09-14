@@ -823,13 +823,15 @@ export const API_CONTRACT = {
                   "anchored_by_other_job": false,
                   "kind": "job_research_report",
                   "resource_id": "report-1",
-                  "status_at_delivery": "current"
+                  "status_at_delivery": "current",
+                  "title": null
                 },
                 {
                   "anchored_by_other_job": null,
                   "kind": "resume_job_match",
                   "resource_id": "match-1",
-                  "status_at_delivery": null
+                  "status_at_delivery": null,
+                  "title": null
                 }
               ],
               "role": "assistant"
@@ -942,6 +944,18 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Status At Delivery"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
               }
             },
             "required": [
@@ -2509,6 +2523,7 @@ export const API_CONTRACT = {
     "ReportView": {
       "examples": [
         {
+          "availability": "available",
           "body": "## 公司概况\n\n……",
           "created_at": "2026-09-12T12:00:00Z",
           "kind": "job_research_report",
@@ -2521,6 +2536,15 @@ export const API_CONTRACT = {
         "additionalProperties": false,
         "description": "One stored report, rendered for the person who owns it.\n\nThe conversation row for a report-producing turn keeps only the short prose\nthe user read; the report itself lives in its own entity. This is how the UI\ngets from that message's ``resource`` back to the full text, so ``body`` is\nthe same rendered Markdown the turn originally put on screen rather than a\nsecond, thinner summary of it.",
         "properties": {
+          "availability": {
+            "default": "available",
+            "enum": [
+              "available",
+              "expired"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
           "body": {
             "title": "Body",
             "type": "string"

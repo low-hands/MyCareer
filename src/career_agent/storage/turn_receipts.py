@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
 import sqlite3
-from typing import Literal
+from typing import Iterable, Literal
 
 from pydantic import TypeAdapter
 
@@ -24,6 +24,8 @@ from career_agent.storage.schema import apply_schema
 
 
 TurnReceiptStatus = Literal["RUNNING", "COMMITTED", "FAILED"]
+ReceiptContentStatus = Literal["available", "deleted", "expired"]
+RECEIPT_BODY_TTL = timedelta(hours=24)
 
 REPLAYED_EVENT_TYPES = (
     ContentDeltaEvent,
@@ -54,6 +56,143 @@ class TurnReceipt:
     events: tuple[PublicStreamEvent, ...]
     started_at: datetime
     settled_at: datetime | None
+    content_status: ReceiptContentStatus = "available"
+
+
+ALL_TURNS = ""
+"""``turn_id`` of a redaction that covers every turn started before it was made.
+
+Used when a whole conversation is deleted: the turns it had are gone with it,
+so the marker names the moment instead of the turns. A turn started after that
+moment answers into a conversation the deletion never saw, and keeps its receipt.
+"""
+
+
+def _create_redactions_table(connection: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(turn_receipt_redactions)")
+    }
+    if columns and "turn_id" not in columns:
+        # The first shape marked a conversation forever. Carry its rows over as
+        # "every turn up to now", which is all they could correctly have meant.
+        connection.execute(
+            "ALTER TABLE turn_receipt_redactions RENAME TO turn_receipt_redactions_v1"
+        )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS turn_receipt_redactions (
+            user_id TEXT NOT NULL,
+            conversation_id TEXT NOT NULL,
+            turn_id TEXT NOT NULL DEFAULT '',
+            redacted_at TEXT NOT NULL,
+            PRIMARY KEY(user_id, conversation_id, turn_id)
+        )
+        """
+    )
+    if columns and "turn_id" not in columns:
+        connection.execute(
+            "INSERT OR IGNORE INTO turn_receipt_redactions "
+            "SELECT user_id, conversation_id, ?, ? FROM turn_receipt_redactions_v1",
+            (ALL_TURNS, datetime.now(timezone.utc).isoformat()),
+        )
+        connection.execute("DROP TABLE turn_receipt_redactions_v1")
+
+
+def redact_turn_receipts_on(
+    connection: sqlite3.Connection,
+    user_id: str,
+    conversation_id: str,
+    turn_ids: Iterable[str],
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Clear the receipts of exactly these turns, settled or still running.
+
+    A receipt holds what one turn answered, so content removed from the
+    transcript is only ever inside the receipts of the turns that showed it.
+    Other turns of the same conversation keep replaying normally.
+    """
+
+    turn_ids = tuple(dict.fromkeys(turn_id for turn_id in turn_ids if turn_id))
+    if turn_ids:
+        _redact_on(connection, user_id, conversation_id, turn_ids, now=now)
+
+
+def redact_conversation_receipts_on(
+    connection: sqlite3.Connection,
+    user_id: str,
+    conversation_id: str,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Clear every receipt of turns started up to now in this conversation.
+
+    For deleting a conversation whole, or for content whose turn is unknown.
+    Turns that begin afterwards are not covered.
+    """
+
+    _redact_on(connection, user_id, conversation_id, (ALL_TURNS,), now=now)
+
+
+def _redact_on(
+    connection: sqlite3.Connection,
+    user_id: str,
+    conversation_id: str,
+    turn_ids: tuple[str, ...],
+    *,
+    now: datetime | None,
+) -> None:
+    redacted_at = (now or datetime.now(timezone.utc)).isoformat()
+    _create_redactions_table(connection)
+    connection.executemany(
+        "INSERT OR REPLACE INTO turn_receipt_redactions VALUES (?, ?, ?, ?)",
+        ((user_id, conversation_id, turn_id, redacted_at) for turn_id in turn_ids),
+    )
+    columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(turn_receipts)")
+    }
+    if not columns:
+        return
+    content_status = ", content_status = 'deleted'" if "content_status" in columns else ""
+    if ALL_TURNS in turn_ids:
+        connection.execute(
+            f"UPDATE turn_receipts SET events_json = '[]'{content_status} "
+            "WHERE user_id = ? AND conversation_id = ? "
+            "AND julianday(started_at) <= julianday(?)",
+            (user_id, conversation_id, redacted_at),
+        )
+        return
+    placeholders = ",".join("?" for _ in turn_ids)
+    connection.execute(
+        f"UPDATE turn_receipts SET events_json = '[]'{content_status} "
+        f"WHERE user_id = ? AND conversation_id = ? AND turn_id IN ({placeholders})",
+        (user_id, conversation_id, *turn_ids),
+    )
+
+
+def _is_redacted_on(
+    connection: sqlite3.Connection,
+    user_id: str,
+    conversation_id: str,
+    turn_id: str,
+) -> bool:
+    return connection.execute(
+        """
+        SELECT 1 FROM turn_receipt_redactions AS redactions
+        WHERE redactions.user_id = ? AND redactions.conversation_id = ?
+          AND (redactions.turn_id = ?
+               OR (redactions.turn_id = ? AND EXISTS (
+                   SELECT 1 FROM turn_receipts AS receipts
+                   WHERE receipts.user_id = redactions.user_id
+                     AND receipts.conversation_id = redactions.conversation_id
+                     AND receipts.turn_id = ?
+                     AND julianday(receipts.started_at)
+                         <= julianday(redactions.redacted_at)
+               )))
+        """,
+        (user_id, conversation_id, turn_id, ALL_TURNS, turn_id),
+    ).fetchone() is not None
 
 
 class SQLiteTurnReceiptStore:
@@ -83,7 +222,11 @@ class SQLiteTurnReceiptStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "turn_receipts", 1, self._migrate)
+            apply_schema(
+                connection, "turn_receipts", 2, self._migrate,
+                {2: self._upgrade_to_v2},
+            )
+            self._purge_expired_on(connection, datetime.now(timezone.utc))
         os.chmod(self.path, 0o600)
 
     def begin(
@@ -105,6 +248,7 @@ class SQLiteTurnReceiptStore:
         started_at = now or datetime.now(timezone.utc)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            self._purge_expired_on(connection, started_at)
             row = connection.execute(
                 self._SELECT
                 + " WHERE user_id = ? AND conversation_id = ? AND request_id = ?",
@@ -134,6 +278,7 @@ class SQLiteTurnReceiptStore:
         turn_id: str,
         events: tuple[PublicStreamEvent, ...],
         now: datetime | None = None,
+        body_expires_at: datetime | None = None,
     ) -> None:
         self._settle(
             user_id=user_id,
@@ -143,6 +288,7 @@ class SQLiteTurnReceiptStore:
             status="COMMITTED",
             events=coalesce_content(events),
             now=now,
+            body_expires_at=body_expires_at,
         )
 
     def fail(
@@ -170,8 +316,11 @@ class SQLiteTurnReceiptStore:
         user_id: str,
         conversation_id: str,
         request_id: str,
+        now: datetime | None = None,
     ) -> TurnReceipt | None:
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._purge_expired_on(connection, now or datetime.now(timezone.utc))
             row = connection.execute(
                 self._SELECT
                 + " WHERE user_id = ? AND conversation_id = ? AND request_id = ?",
@@ -189,36 +338,98 @@ class SQLiteTurnReceiptStore:
         status: TurnReceiptStatus,
         events: tuple[PublicStreamEvent, ...],
         now: datetime | None,
+        body_expires_at: datetime | None = None,
     ) -> None:
         settled_at = now or datetime.now(timezone.utc)
+        deadline = min(
+            settled_at + RECEIPT_BODY_TTL,
+            body_expires_at or settled_at + RECEIPT_BODY_TTL,
+        )
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            redacted = _is_redacted_on(connection, user_id, conversation_id, turn_id)
             # Only the attempt that owns the row may settle it. A stale settle
             # from an attempt that lost the key must not overwrite the winner.
             connection.execute(
                 """
                 UPDATE turn_receipts
-                SET status = ?, events_json = ?, settled_at = ?
+                SET status = ?, events_json = ?, settled_at = ?, content_status = ?,
+                    body_expires_at = ?
                 WHERE user_id = ? AND conversation_id = ? AND request_id = ?
                   AND turn_id = ? AND status = 'RUNNING'
                 """,
                 (
                     status,
                     json.dumps(
-                        [event.model_dump(mode="json") for event in events],
+                        [] if redacted else [event.model_dump(mode="json") for event in events],
                         ensure_ascii=False,
                     ),
                     settled_at.isoformat(),
+                    "deleted" if redacted else "available",
+                    deadline.isoformat(),
                     user_id,
                     conversation_id,
                     request_id,
                     turn_id,
                 ),
             )
+            self._purge_expired_on(connection, settled_at)
 
     _SELECT = (
         "SELECT user_id, conversation_id, request_id, turn_id, status, "
-        "events_json, started_at, settled_at FROM turn_receipts"
+        "events_json, started_at, settled_at, content_status FROM turn_receipts"
     )
+
+    def purge_expired(self, *, now: datetime | None = None) -> int:
+        with self._connect() as connection:
+            return self._purge_expired_on(connection, now or datetime.now(timezone.utc))
+
+    @staticmethod
+    def _purge_expired_on(connection: sqlite3.Connection, now: datetime) -> int:
+        # A redaction only has to outlive the receipts it could still catch,
+        # and nothing settles later than its own body would have lasted.
+        connection.execute(
+            "DELETE FROM turn_receipt_redactions WHERE julianday(redacted_at) <= julianday(?)",
+            ((now - RECEIPT_BODY_TTL).isoformat(),),
+        )
+        return connection.execute(
+            """
+            UPDATE turn_receipts SET events_json = '[]', content_status = 'expired'
+            WHERE status = 'COMMITTED' AND content_status = 'available'
+              AND (julianday(settled_at) <= julianday(?)
+                   OR julianday(body_expires_at) <= julianday(?))
+            """,
+            ((now - RECEIPT_BODY_TTL).isoformat(), now.isoformat()),
+        ).rowcount
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(turn_receipts)")
+        }
+        if "content_status" not in columns:
+            connection.execute(
+                "ALTER TABLE turn_receipts ADD COLUMN content_status "
+                "TEXT NOT NULL DEFAULT 'available'"
+            )
+        if "body_expires_at" not in columns:
+            connection.execute("ALTER TABLE turn_receipts ADD COLUMN body_expires_at TEXT")
+        _create_redactions_table(connection)
+        connection.execute(
+            """
+            UPDATE turn_receipts SET events_json = '[]', content_status = 'deleted'
+            WHERE EXISTS (
+                SELECT 1 FROM turn_receipt_redactions AS redactions
+                WHERE redactions.user_id = turn_receipts.user_id
+                  AND redactions.conversation_id = turn_receipts.conversation_id
+                  AND (redactions.turn_id = turn_receipts.turn_id
+                       OR (redactions.turn_id = ?
+                           AND julianday(turn_receipts.started_at)
+                               <= julianday(redactions.redacted_at)))
+            )
+            """,
+            (ALL_TURNS,),
+        )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -233,10 +444,13 @@ class SQLiteTurnReceiptStore:
                 events_json TEXT NOT NULL,
                 started_at TEXT NOT NULL,
                 settled_at TEXT,
+                content_status TEXT NOT NULL DEFAULT 'available',
+                body_expires_at TEXT,
                 PRIMARY KEY(user_id, conversation_id, request_id)
             );
             """
         )
+        _create_redactions_table(connection)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
@@ -254,6 +468,7 @@ class SQLiteTurnReceiptStore:
             events=tuple(_EVENTS.validate_python(json.loads(row[5]))),
             started_at=datetime.fromisoformat(row[6]),
             settled_at=datetime.fromisoformat(row[7]) if row[7] else None,
+            content_status=row[8],
         )
 
 

@@ -17,6 +17,7 @@ const KIND_LABELS: Record<MessageResource["kind"], string> = {
   interview_retro_report: "真实面试复盘",
   resume_job_match: "简历岗位匹配",
   resume_tailoring_draft: "简历定制草稿",
+  delivered_body: "完整内容",
 };
 
 /**
@@ -35,6 +36,7 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
   useEffect(() => {
     if (!expanded) return;
     const request = new AbortController();
+    setReport(null);
     setError(null);
     void fetchReport(resource.kind, resource.resourceId, {
       statusAtDelivery: resource.statusAtDelivery,
@@ -43,7 +45,9 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
       apiBaseUrl,
       signal: request.signal,
     })
-      .then(setReport)
+      .then((value) => {
+        if (!request.signal.aborted) setReport(value);
+      })
       .catch((cause: unknown) => {
         if (!request.signal.aborted) {
           setError(cause instanceof Error ? cause.message : "读取报告失败。");
@@ -58,14 +62,18 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
         type="button"
         className="report-card-header"
         aria-expanded={expanded}
-        onClick={() => setExpanded((open) => !open)}
+        onClick={() => {
+          setReport(null);
+          setError(null);
+          setExpanded((open) => !open);
+        }}
       >
         <span className="report-card-icon" aria-hidden="true">
           <AppIcon name="document" size={16} />
         </span>
         <span className="report-card-label">
-          <strong>{report?.title ?? KIND_LABELS[resource.kind]}</strong>
-          <small>{report?.subtitle ?? "点开查看完整报告"}</small>
+          <strong>{report?.title ?? resource.title ?? KIND_LABELS[resource.kind]}</strong>
+          <small>{report?.subtitle ?? "点开查看完整内容"}</small>
         </span>
         <span className="report-card-toggle" aria-hidden="true">
           {expanded ? "收起" : "展开"}
@@ -77,6 +85,8 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
             <div className="error-banner" role="alert">
               {error}
             </div>
+          ) : report?.availability === "expired" ? (
+            <div role="status">内容已过期，无法继续查看。</div>
           ) : report ? (
             <MarkdownContent content={report.body} className="markdown-content" />
           ) : (

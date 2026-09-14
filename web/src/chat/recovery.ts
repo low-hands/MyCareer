@@ -22,6 +22,7 @@ export function hydrationFrom(
       resourceId: resource.resource_id,
       statusAtDelivery: resource.status_at_delivery,
       anchoredByOtherJob: resource.anchored_by_other_job,
+      title: resource.title,
     })),
   }));
   if (transcript.pending_interaction_body) {

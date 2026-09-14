@@ -37,7 +37,11 @@ from career_agent.harness.observability import (
     record_active_trace,
 )
 from career_agent.services.episode_consolidation import mock_interview_exit_draft
-from career_agent.storage.context import CareerContextStore, StoredConversationMessage
+from career_agent.storage.context import (
+    CareerContextStore,
+    DeliveredBodyDraft,
+    StoredConversationMessage,
+)
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.storage.intent_versions import intent_entry_id
 from career_agent.storage.working_notes import WorkingNotesSnapshot
@@ -1118,7 +1122,7 @@ class ContextManager:
             }
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = ()) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None) -> None:
         now = datetime.now(timezone.utc)
         # This is deliberately exposure-level provenance. Every career scope
         # shown to the model binds both stored messages in the turn, even when
@@ -1137,8 +1141,10 @@ class ContextManager:
             task=task,
             user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
+            assistant_bodies=assistant_bodies,
             episode_drafts=episode_drafts,
             memory_scope_keys=memory_scope_keys,
+            turn_id=turn_id,
         )
         carried = self._carried_request_tokens.pop(
             (context.profile.user_id, context.conversation_id), None
@@ -1195,6 +1201,8 @@ class ContextManager:
         task: ConversationTaskState,
         assistant_message: str,
         assistant_resource_refs: tuple[ConversationResourceReference, ...] = (),
+        assistant_bodies: tuple[DeliveredBodyDraft, ...] = (),
+        turn_id: str | None = None,
     ) -> None:
         """Write the whole run as the request that began it and the reply.
 
@@ -1250,8 +1258,10 @@ class ContextManager:
             task=task.model_copy(update={"workflow_entry_message": None}),
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
+            assistant_bodies=assistant_bodies,
             compaction_trigger="seam",
             episode_drafts=episode_drafts,
+            turn_id=turn_id,
         )
 
     def commit_workflow_turn(
