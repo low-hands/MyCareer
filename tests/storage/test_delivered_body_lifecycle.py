@@ -14,7 +14,10 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.harness.streaming import ContentDeltaEvent, TurnCompletedEvent
 from career_agent.storage.context import CareerContextStore, DeliveredBodyDraft
-from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
+from career_agent.storage.turn_receipts import (
+    SQLiteTurnReceiptStore,
+    redact_conversation_receipts_on,
+)
 
 
 KEY = {"user_id": "u1", "conversation_id": "c1", "request_id": "request-1"}
@@ -227,6 +230,34 @@ def test_conversation_deletion_keeps_receipt_key_before_or_after_settlement(
         "turn_completed",
     ]
     assert events[-1].turn_id == "turn-1"
+
+
+def test_a_turn_begun_at_the_deletion_instant_is_not_swept_up(tmp_path: Path) -> None:
+    """Membership, not the clock, decides which turns a deletion covers.
+
+    Redaction used to compare ``started_at`` against the deletion time, which
+    put a turn begun in the same instant on the wrong side. Freezing every
+    clock to one value makes that comparison useless on purpose.
+    """
+    path = tmp_path / "context.sqlite3"
+    store, receipts = CareerContextStore(path), SQLiteTurnReceiptStore(path)
+    _commit(store)
+    frozen = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+    receipts.begin(**KEY, turn_id="turn-1", now=frozen)
+    receipts.commit(
+        **KEY, turn_id="turn-1", events=(ContentDeltaEvent(delta="PRIVATE"),), now=frozen
+    )
+    with sqlite3.connect(path) as connection:
+        redact_conversation_receipts_on(connection, "u1", "c1", now=frozen)
+    later = dict(KEY, request_id="request-2")
+    receipts.begin(**later, turn_id="turn-2", now=frozen)
+    receipts.commit(
+        **later, turn_id="turn-2", events=(ContentDeltaEvent(delta="NEW"),), now=frozen
+    )
+    assert receipts.get(**KEY, now=frozen).content_status == "deleted"
+    fresh = receipts.get(**later, now=frozen)
+    assert fresh.content_status == "available"
+    assert [event.delta for event in fresh.events] == ["NEW"]
 
 
 @pytest.mark.parametrize("source_deadline", [False, True])

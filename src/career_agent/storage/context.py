@@ -292,23 +292,15 @@ class CareerContextStore:
                 connection.execute(
                     f"ALTER TABLE conversation_delivered_bodies ADD COLUMN {name} {definition}"
                 )
+        # Rows written before v16 carry neither a source handle nor their
+        # dependencies, so nothing could ever cascade into them: drop them all
+        # rather than keep copies no deletion can reach.
         for user_id, conversation_id in connection.execute(
             "SELECT DISTINCT user_id, conversation_id FROM conversation_delivered_bodies "
             "WHERE kind NOT IN ('daily_brief_ready', 'saved_jobs_compared')"
         ).fetchall():
             redact_conversation_receipts_on(connection, user_id, conversation_id)
-        connection.execute(
-            """
-            DELETE FROM conversation_delivered_bodies
-            WHERE kind NOT IN ('daily_brief_ready', 'saved_jobs_compared')
-              OR EXISTS (
-                  SELECT 1 FROM memory_deletion_message_suppressions AS hidden
-                  WHERE hidden.user_id = conversation_delivered_bodies.user_id
-                    AND hidden.conversation_id = conversation_delivered_bodies.conversation_id
-                    AND hidden.sequence = conversation_delivered_bodies.sequence
-              )
-            """
-        )
+        connection.execute("DELETE FROM conversation_delivered_bodies")
         for user_id, conversation_id in connection.execute(
             "SELECT DISTINCT user_id, conversation_id FROM memory_deletion_message_suppressions"
         ).fetchall():
@@ -2295,11 +2287,11 @@ class CareerContextStore:
                 SELECT body_id, conversation_id, sequence
                 FROM conversation_delivered_bodies AS bodies
                 WHERE user_id = ?
-                  AND (dependencies_json IS NULL OR EXISTS (
+                  AND EXISTS (
                       SELECT 1 FROM json_each(bodies.dependencies_json) AS dependency
                       WHERE json_extract(dependency.value, '$.kind') = ?
                         AND json_extract(dependency.value, '$.resource_id') = ?
-                  ))
+                  )
                 """,
                 (user_id, dependency.kind, dependency.resource_id),
             ).fetchall()

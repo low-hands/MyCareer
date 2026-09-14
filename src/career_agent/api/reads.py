@@ -637,14 +637,15 @@ class WorkspaceReader:
             user_id=user_id
         ):
             return "has_application"
-        deleted = self._jobs.delete_job(
+        if not self._jobs.delete_job(
             user_id=user_id, job_posting_id=job_posting_id
-        )
+        ):
+            return "not_found"
         self._context.purge_delivered_body_dependency(
             user_id=user_id,
             dependency=BodyDependency(kind="job", resource_id=job_posting_id),
         )
-        return "deleted" if deleted else "not_found"
+        return "deleted"
 
     def job_detail(
         self, *, user_id: str, job_posting_id: str

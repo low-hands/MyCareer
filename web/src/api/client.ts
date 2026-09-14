@@ -251,7 +251,14 @@ export interface Dashboard {
   next_actions: ActionItemView[];
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  readonly status: number | null;
+
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.status = status;
+  }
+}
 
 export async function getJson<T>(
   path: string,
@@ -265,7 +272,7 @@ export async function getJson<T>(
     signal: options.signal,
   });
   if (!response.ok) {
-    throw new ApiError(`${path} 返回 ${response.status}`);
+    throw new ApiError(`${path} 返回 ${response.status}`, response.status);
   }
   return (await response.json()) as T;
 }
