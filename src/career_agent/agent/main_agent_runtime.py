@@ -51,9 +51,13 @@ from career_agent.agent.tool_effects import (
     effect_for,
     is_external_write,
     is_notes_guarded,
+    is_preference_bound,
     replay_safe,
 )
-from career_agent.agent.working_notes_guard import working_notes_only_tokens
+from career_agent.agent.working_notes_guard import (
+    remembered_preference_without_authority,
+    working_notes_only_tokens,
+)
 from career_agent.storage.capability_confirmations import (
     CapabilityConfirmationExpiredError,
     CapabilityConfirmationInProgressError,
@@ -2809,14 +2813,10 @@ class MainAgentRuntime:
             if is_notes_guarded(name) and not runtime_owned and not owner_confirmed
             else ()
         )
+        notes_refusal: ToolObservation | None = None
         if note_only_tokens:
-            if (
-                control.get("projection_refusals", 0)
-                >= self._max_projection_refusals
-            ):
-                return {"authorization_route": "present"}
             visible_tokens = [token[:32] for token in note_only_tokens[:8]]
-            result = ToolObservation(
+            notes_refusal = ToolObservation(
                 tool_name=name,
                 state="working_notes_derived_argument",
                 message=(
@@ -2831,11 +2831,41 @@ class MainAgentRuntime:
                 payload={"tokens": visible_tokens, "tool_name": name},
                 execution_outcome="not_committed",
             )
+        elif (
+            is_preference_bound(name)
+            and not runtime_owned
+            and not owner_confirmed
+            and remembered_preference_without_authority(state["context"])
+        ):
+            notes_refusal = ToolObservation(
+                tool_name=name,
+                state="working_notes_derived_argument",
+                message=(
+                    "用户要求按“你记得的偏好”做选择，但当前没有任何已确认的偏好来源，"
+                    "只有工作笔记里未确认的观察；据此比较或推荐会把猜测当作偏好。"
+                ),
+                next_action=(
+                    "先把工作笔记里的观察原样说给用户、请用户确认或修正，"
+                    "再根据确认后的偏好选择；不要先调用比较或推荐类工具。"
+                ),
+                payload={
+                    "tokens": [],
+                    "tool_name": name,
+                    "referent": "remembered_preference",
+                },
+                execution_outcome="not_committed",
+            )
+        if notes_refusal is not None:
+            if (
+                control.get("projection_refusals", 0)
+                >= self._max_projection_refusals
+            ):
+                return {"authorization_route": "present"}
             return {
                 "authorization_route": "observe",
                 "pending": {
                     "name": name,
-                    "result": result,
+                    "result": notes_refusal,
                     "synthetic_kind": "projection",
                     "runtime_owned": runtime_owned,
                     "policy_owned": policy_owned,

@@ -59,6 +59,146 @@ def working_notes_only_tokens(
     )
 
 
+# Phrasings by which a user hands the choice to what the agent has stored about
+# them.  "按我的偏好" without a memory verb is included: the user is not stating
+# a preference in that sentence, so the referent has to come from memory too.
+_REMEMBERED_PREFERENCE_APPEALS = (
+    "你记得的",
+    "你记得我",
+    "你记住的",
+    "你了解的我",
+    "你知道的我",
+    "按我的偏好",
+    "按照我的偏好",
+    "根据我的偏好",
+    "按我偏好",
+    "按我的喜好",
+    "根据我的喜好",
+    "按我平时的",
+    "按我一贯的",
+)
+
+
+def remembered_preference_without_authority(context: MainAgentContext) -> bool:
+    """Whether "by the preference you remember" can only mean the scratchpad.
+
+    The lexical guard sees a note literal in an argument; it cannot see a call
+    such as ``compare_saved_jobs([1, 2])`` whose whole reason is a note. This
+    is the complementary check on the request instead of the arguments: the
+    user delegated the choice to remembered preference, no confirmed source
+    holds one, and the working notes do hold something. The only preference
+    the call could act on is then an unconfirmed guess, so the model is asked
+    to confirm it first.
+
+    Recent user messages are not consulted. A preference the user stated a
+    moment ago is authoritative, but this check cannot tell which sentence
+    it was; a request phrased as a memory appeal with the answer in the window
+    costs one confirming question, which is the safe side of the error.
+    """
+
+    notes = context.working_notes
+    if notes is None or not notes.markdown.strip():
+        return False
+    if not any(
+        appeal in context.user_message for appeal in _REMEMBERED_PREFERENCE_APPEALS
+    ):
+        return False
+    return not _notes_preference_is_confirmed(context, notes.markdown)
+
+
+# Scratchpad boilerplate that says a note is about a preference without saying
+# which one. Shared with a confirmed statement it proves nothing.
+_PREFERENCE_BOILERPLATE = frozenset(
+    {
+        "偏好", "喜好", "喜欢", "倾向", "更想", "想要", "希望",
+        "用户", "可能", "似乎", "大概", "观察", "记录", "确认", "未确认",
+        "待确认", "已确认", "岗位", "公司", "工作",
+    }
+)
+
+
+_OBSERVATION_SEPARATORS = re.compile(r"[\n\r、；;，,。.]+")
+
+
+def _note_observations(markdown: str) -> tuple[tuple[str, ...], ...]:
+    """Split the scratchpad into single observations, each as its tokens.
+
+    Headings are structure, not remembered facts. A line that lists several
+    preferences is several observations, so confirming one of them cannot vouch
+    for its neighbours on the same line.
+    """
+
+    observations: list[tuple[str, ...]] = []
+    for line in markdown.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        for clause in _OBSERVATION_SEPARATORS.split(line):
+            tokens = tuple(
+                token
+                for token in surface_tokens(clause)
+                if token not in _PREFERENCE_BOILERPLATE
+            )
+            if tokens:
+                observations.append(tokens)
+    return tuple(observations)
+
+
+def _notes_preference_is_confirmed(context: MainAgentContext, markdown: str) -> bool:
+    """Whether confirmed sources state everything the scratchpad remembers.
+
+    Existence of *some* confirmed fact is not enough: a confirmed city says
+    nothing about a note's "prefers large companies", and acting on the note
+    because the city exists would be the unconfirmed guess the guard is for.
+    Nor is one confirmed observation enough for the rest: the request is for
+    "my remembered preferences" as a whole, and the guard cannot tell which
+    observation the model will lean on, so each one needs its own confirmed
+    source overlapping it in a token that carries the preference itself rather
+    than the word "preference".
+    """
+
+    observations = _note_observations(markdown)
+    if not observations:
+        return False
+    confirmed_surface = normalized_surface(
+        "\n".join(_confirmed_preference_text(context))
+    )
+    if not confirmed_surface:
+        return False
+    return all(
+        any(surface_contains_token(confirmed_surface, token) for token in tokens)
+        for tokens in observations
+    )
+
+
+def _confirmed_preference_text(context: MainAgentContext) -> tuple[str, ...]:
+    text: list[str] = [
+        item.statement
+        for item in context.free_text_preferences
+        if item.status == "active"
+    ]
+    profile = context.profile
+    if profile.default_city:
+        text.append(profile.default_city)
+    text.extend(constraint.value for constraint in profile.hard_constraints)
+    for target in profile.current_targets:
+        text.extend(
+            value
+            for value in (
+                target.title,
+                target.city,
+                target.salary_expectation,
+                target.experience,
+                target.education,
+            )
+            if value
+        )
+    summary = context.conversation_summary
+    if summary is not None:
+        text.extend(summary.user_goals)
+        text.extend(summary.active_constraints)
+    return tuple(text)
+
+
 def _tokens_from_values(
     value: Any, *, field_name: str | None = None
 ) -> tuple[str, ...]:

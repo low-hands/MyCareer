@@ -15,8 +15,10 @@ from career_agent.agent.main_agent_contracts import (
     CareerProfileContext,
     ConversationMessageContext,
     ConversationTaskState,
+    CurrentTargetContext,
     DecisionObservation,
     FreeTextPreferenceContext,
+    HardConstraintContext,
     MainAgentContext,
     SavedJobCandidateContextItem,
     ToolCall,
@@ -26,7 +28,10 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.tool_effects import is_notes_guarded
-from career_agent.agent.working_notes_guard import working_notes_only_tokens
+from career_agent.agent.working_notes_guard import (
+    remembered_preference_without_authority,
+    working_notes_only_tokens,
+)
 from career_agent.harness.observability import InMemoryTraceRecorder
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
@@ -309,6 +314,220 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
     assert allowed["authorization_route"] == "act"
     runtime._act({**allowed_state, **allowed})
     assert len(registry.calls) == 1
+
+
+_REMEMBERED = "按你记得的我的偏好，这两个岗位直接推荐一个。"
+_TWO_JOBS = ConversationTaskState(
+    saved_job_candidates=(
+        SavedJobCandidateContextItem(
+            job_posting_id="job-1", title="算法工程师", company_name="甲"
+        ),
+        SavedJobCandidateContextItem(
+            job_posting_id="job-2", title="算法工程师", company_name="乙"
+        ),
+    )
+)
+
+
+def _confirmed_preference() -> FreeTextPreferenceContext:
+    return FreeTextPreferenceContext(
+        scope_key="freeform.person_default/scale",
+        topic_key="company_scale",
+        statement="偏好大厂",
+        status="active",
+        observed_at=_NOW,
+        confirmed_at=_NOW,
+        update_id="intent_update_" + "b" * 32,
+    )
+
+
+def test_a_remembered_preference_with_only_notes_behind_it_is_refused() -> None:
+    context = _context(
+        user_message=_REMEMBERED,
+        working_notes=WorkingNotesContext(
+            markdown="- 未确认观察：用户可能更偏好大厂。", revision="aaaaaaaaaaaa"
+        ),
+        task=_TWO_JOBS,
+    )
+
+    assert remembered_preference_without_authority(context)
+    # The lexical guard sees nothing: the indexes carry no note token.
+    assert working_notes_only_tokens(
+        arguments={"selection_indexes": [1, 2]}, context=context
+    ) == ()
+
+
+_LARGE_COMPANY_NOTE = WorkingNotesContext(
+    markdown="- 未确认观察：用户可能更偏好大厂。", revision="aaaaaaaaaaaa"
+)
+
+
+@pytest.mark.parametrize("authority", ("preference", "constraint", "summary"))
+def test_a_confirmed_source_stating_the_noted_preference_lets_the_request_through(
+    authority: str,
+) -> None:
+    updates: dict = {
+        "user_message": _REMEMBERED,
+        "task": _TWO_JOBS,
+        "working_notes": _LARGE_COMPANY_NOTE,
+    }
+    if authority == "preference":
+        updates["free_text_preferences"] = (_confirmed_preference(),)
+    elif authority == "constraint":
+        updates["profile"] = CareerProfileContext(
+            user_id="u1",
+            hard_constraints=(
+                HardConstraintContext(relation="company_scale", value="大厂"),
+            ),
+        )
+    else:
+        updates["conversation_summary"] = ConversationSummaryContent(
+            user_goals=("想去大厂做算法",)
+        )
+
+    assert not remembered_preference_without_authority(_context(**updates))
+
+
+@pytest.mark.parametrize("authority", ("city", "target", "other_preference"))
+def test_a_confirmed_fact_about_something_else_does_not_vouch_for_the_note(
+    authority: str,
+) -> None:
+    """A confirmed city or target role says nothing about "prefers large
+    companies"; the note stays the only source and the request is refused."""
+    updates: dict = {
+        "user_message": _REMEMBERED,
+        "task": _TWO_JOBS,
+        "working_notes": _LARGE_COMPANY_NOTE,
+    }
+    if authority == "city":
+        updates["profile"] = CareerProfileContext(user_id="u1", default_city="上海")
+    elif authority == "target":
+        updates["profile"] = CareerProfileContext(
+            user_id="u1",
+            current_targets=(
+                CurrentTargetContext(
+                    target_role_id="role-1", title="算法工程师", priority=1
+                ),
+            ),
+        )
+    else:
+        updates["free_text_preferences"] = (
+            _confirmed_preference().model_copy(
+                update={"topic_key": "work_mode", "statement": "偏好远程办公"}
+            ),
+        )
+
+    assert remembered_preference_without_authority(_context(**updates))
+
+
+def test_confirming_one_observation_does_not_vouch_for_its_neighbour() -> None:
+    """A note listing "prefers large companies" next to "accepts little
+    autonomy" is two observations; confirming autonomy leaves the large-company
+    preference unconfirmed, so the request is still refused."""
+    updates: dict = {
+        "user_message": _REMEMBERED,
+        "task": _TWO_JOBS,
+        "working_notes": WorkingNotesContext(
+            markdown="## 未确认观察\n- 用户可能更偏好大厂、接受较少自主权。",
+            revision="aaaaaaaaaaaa",
+        ),
+        "free_text_preferences": (
+            _confirmed_preference().model_copy(
+                update={"topic_key": "autonomy", "statement": "接受较少自主权"}
+            ),
+        ),
+    }
+
+    assert remembered_preference_without_authority(_context(**updates))
+
+    updates["free_text_preferences"] += (_confirmed_preference(),)
+    assert not remembered_preference_without_authority(_context(**updates))
+
+
+def test_the_request_guard_needs_both_a_memory_appeal_and_notes() -> None:
+    quarantined = _confirmed_preference().model_copy(
+        update={"status": "quarantined", "confirmed_at": None}
+    )
+    # Naming the preference in the message is a statement, not an appeal.
+    assert not remembered_preference_without_authority(
+        _context(user_message="我偏好大厂，这两个岗位直接推荐一个。", task=_TWO_JOBS)
+    )
+    # Nothing remembered at all: there is no guess the choice could rest on.
+    assert not remembered_preference_without_authority(
+        _context(user_message=_REMEMBERED, working_notes=None, task=_TWO_JOBS)
+    )
+    # A quarantined preference is not yet confirmed either.
+    assert remembered_preference_without_authority(
+        _context(
+            user_message=_REMEMBERED,
+            task=_TWO_JOBS,
+            free_text_preferences=(quarantined,),
+        )
+    )
+
+
+class _ComparingRegistry(_Registry):
+    def __init__(self) -> None:
+        super().__init__()
+        self._atomic_handlers["compare_saved_jobs"] = self._invoke
+
+
+def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
+    tmp_path,
+) -> None:
+    """The scenario ``working_notes_never_choose_or_rank_a_job``, at the runtime.
+
+    ``compare_saved_jobs([1, 2])`` carries no note token, so only the request
+    itself can show that the choice would rest on the scratchpad.
+    """
+    registry = _ComparingRegistry()
+    runtime = _IdentityProjectionRuntime(
+        context_manager=ContextManager(
+            CareerContextStore(tmp_path / "context.sqlite3")
+        ),
+        decision_maker=_NeverDecisionMaker(),
+        tools=registry,
+    )
+    state = {
+        "context": _context(
+            user_message=_REMEMBERED,
+            working_notes=WorkingNotesContext(
+                markdown="- 未确认观察：用户可能更偏好大厂。",
+                revision="aaaaaaaaaaaa",
+            ),
+            task=_TWO_JOBS,
+        ),
+        "decision": AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="compare_saved_jobs",
+                arguments={"selection_indexes": [1, 2]},
+            ),
+        ),
+        "control": {},
+        "pending": {},
+    }
+
+    refused = runtime._authorize(state)
+    assert refused["authorization_route"] == "observe"
+    result = refused["pending"]["result"]
+    assert result.state == "working_notes_derived_argument"
+    assert result.execution_outcome == "not_committed"
+    assert result.payload == {
+        "tokens": [],
+        "tool_name": "compare_saved_jobs",
+        "referent": "remembered_preference",
+    }
+    assert "确认" in result.next_action
+    assert registry.calls == []
+
+    confirmed = {
+        **state,
+        "context": state["context"].model_copy(
+            update={"free_text_preferences": (_confirmed_preference(),)}
+        ),
+    }
+    assert runtime._authorize(confirmed)["authorization_route"] == "act"
 
 
 def test_owner_confirmed_seal_is_not_rejudged_by_the_notes_guard(

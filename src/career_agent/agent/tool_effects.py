@@ -100,6 +100,18 @@ _NOTES_GUARDED_CAPABILITIES = (
     }
 )
 
+# Capabilities whose result is a choice among the user's options — a ranking,
+# a fit verdict, an application.  When the user asks for one "by the preference
+# you remember" and nothing confirmed is remembered, the choice would rest on
+# the scratchpad alone.
+_PREFERENCE_BOUND_CAPABILITIES = frozenset(
+    {
+        "compare_saved_jobs",
+        "match_resume_to_job",
+        "create_application",
+    }
+)
+
 _EXTERNAL_WRITE_CAPABILITIES = frozenset(
     {
         "execute_calendar_proposal",
@@ -147,6 +159,8 @@ if _RUNTIME_OWNED_CAPABILITIES - _WRITE_CAPABILITIES:
     raise RuntimeError("a runtime-owned workflow must be declared as a WRITE capability")
 if _RUNTIME_OWNED_CAPABILITIES & _EXTERNAL_WRITE_CAPABILITIES:
     raise RuntimeError("an external write cannot bypass owner rules as runtime-owned")
+if _PREFERENCE_BOUND_CAPABILITIES - (_READ_CAPABILITIES | _WRITE_CAPABILITIES):
+    raise RuntimeError("a preference-bound capability must be a declared capability")
 
 TOOL_EFFECTS: Mapping[str, ToolEffect] = MappingProxyType(
     {
@@ -195,6 +209,12 @@ def is_notes_guarded(name: str) -> bool:
     """Whether note-only argument content must be reviewed before execution."""
 
     return name in _NOTES_GUARDED_CAPABILITIES
+
+
+def is_preference_bound(name: str) -> bool:
+    """Whether a remembered-preference request must have a confirmed source."""
+
+    return name in _PREFERENCE_BOUND_CAPABILITIES
 
 
 def effect_for(name: str) -> ToolEffect:
