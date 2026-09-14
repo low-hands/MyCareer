@@ -4419,14 +4419,26 @@ def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> N
     with pytest.raises(ValueError, match="unknown: drop_tables"):
         canonical_confirm_before(("drop_tables",))
 
+    # A rule the runtime would never consult is refused at the boundary rather
+    # than stored as false protection: these two run on the runtime's own
+    # ownership rule inside a mock interview and skip owner rules entirely.
+    with pytest.raises(ValueError, match="handle_mock_interview_input"):
+        canonical_confirm_before(("handle_mock_interview_input",))
+    with pytest.raises(ValueError, match="retry_mock_interview"):
+        canonical_confirm_before(("retry_mock_interview", "create_interview"))
+
     policy = BehaviorPolicyContext(
         confirm_before=["update_application_status", "create_application"]
     )
     assert policy.confirm_before == ("create_application", "update_application_status")
     assert policy.capability_verdict("create_application") == "review"
     assert policy.capability_verdict("update_interview") == "permit"
-    with pytest.raises(ValidationError):
-        BehaviorPolicyContext(confirm_before=["get_daily_brief"])
+    # The stored form is read, not re-judged: a capability renamed after the
+    # rule was written must not make every load of the document fail. The
+    # stale entry stays visible (so the owner can remove it) and is inert.
+    stale = BehaviorPolicyContext(confirm_before=["record_interview_legacy", "get_daily_brief"])
+    assert stale.confirm_before == ("get_daily_brief", "record_interview_legacy")
+    assert stale.capability_verdict("create_interview") == "permit"
 
     # The model's proposal is validated to the same vocabulary, and an empty
     # list is a change (clear the rule) rather than "nothing to do".

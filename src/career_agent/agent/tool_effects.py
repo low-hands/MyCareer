@@ -125,10 +125,28 @@ they are added; a WRITE that is not listed here is claiming to be reversible
 from within this codebase.
 """
 
+_RUNTIME_OWNED_CAPABILITIES = frozenset(
+    {
+        "handle_mock_interview_input",
+        "retry_mock_interview",
+    }
+)
+"""Writes the runtime invokes on its own ownership rule, never on a model call.
+
+They continue a workflow the user already entered (an answer inside a running
+mock interview) and ``_authorize`` permits them without consulting owner rules,
+so a ``confirm_before`` entry naming one would never fire. Must mirror the
+registry's ``runtime_workflow_names``.
+"""
+
 if _READ_CAPABILITIES & _WRITE_CAPABILITIES:
     raise RuntimeError("a Main Agent capability cannot be both READ and WRITE")
 if _EXTERNAL_WRITE_CAPABILITIES - _WRITE_CAPABILITIES:
     raise RuntimeError("an external write must be declared as a WRITE capability")
+if _RUNTIME_OWNED_CAPABILITIES - _WRITE_CAPABILITIES:
+    raise RuntimeError("a runtime-owned workflow must be declared as a WRITE capability")
+if _RUNTIME_OWNED_CAPABILITIES & _EXTERNAL_WRITE_CAPABILITIES:
+    raise RuntimeError("an external write cannot bypass owner rules as runtime-owned")
 
 TOOL_EFFECTS: Mapping[str, ToolEffect] = MappingProxyType(
     {
@@ -193,6 +211,23 @@ def is_external_write(name: str) -> bool:
 
 
 def declared_write_capabilities() -> frozenset[str]:
-    """Names an owner rule such as ``confirm_before`` may refer to."""
+    """Every capability whose declared effect is WRITE."""
 
     return _WRITE_CAPABILITIES
+
+
+def is_runtime_owned(name: str) -> bool:
+    """Whether the runtime, not the model, decides to invoke this capability."""
+
+    return name in _RUNTIME_OWNED_CAPABILITIES
+
+
+def owner_rule_capabilities() -> frozenset[str]:
+    """Names an owner rule such as ``confirm_before`` may refer to.
+
+    A write the model can propose is stopped by ``_authorize`` when an owner
+    rule says ``review``; a runtime-owned write is not, so a rule naming it
+    would be accepted and never enforced.
+    """
+
+    return _WRITE_CAPABILITIES - _RUNTIME_OWNED_CAPABILITIES
