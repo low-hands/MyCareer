@@ -102,6 +102,9 @@ async function errorFromResponse(response: Response): Promise<ChatStreamHttpErro
   if (code === "CONVERSATION_TURN_IN_PROGRESS") {
     message = "这个对话还有一轮正在处理中，请等待它结束后再发送。";
   }
+  if (code === "TURN_CAPACITY_EXHAUSTED") {
+    message = "当前任务较多，请稍后再试。";
+  }
   return new ChatStreamHttpError(response.status, code, message);
 }
 

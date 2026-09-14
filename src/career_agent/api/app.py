@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import os
@@ -143,18 +143,65 @@ class ConversationBusyError(Exception):
     pass
 
 
-class ConversationRunGate:
-    """Reject overlapping turns for one conversation without serializing users."""
+class TurnCapacityError(Exception):
+    def __init__(self, max_active: int) -> None:
+        super().__init__(f"{max_active} turns are already running")
+        self.max_active = max_active
 
-    def __init__(self) -> None:
+
+DEFAULT_MAX_CONCURRENT_TURNS = 3
+MAX_CONCURRENT_TURNS_ENV = "CAREER_AGENT_MAX_CONCURRENT_TURNS"
+
+
+def max_concurrent_turns_from_env(
+    environ: Mapping[str, str] | None = None,
+) -> int:
+    raw = (environ if environ is not None else os.environ).get(MAX_CONCURRENT_TURNS_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_MAX_CONCURRENT_TURNS
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValueError(
+            f"{MAX_CONCURRENT_TURNS_ENV}={raw!r} 无效：需要不小于 1 的整数。"
+        )
+    return value
+
+
+class ConversationRunGate:
+    """Reject overlapping turns for one conversation without serializing users.
+
+    Also caps how many turns run at once in this process. Every turn holds a
+    worker thread for the whole model call, so with no cap a burst of
+    conversations can hold every thread until the model times out and the
+    machine feels hung. There is no queue: a refused turn is refused now, and
+    the client asks again.
+    """
+
+    def __init__(self, *, max_active: int | None = DEFAULT_MAX_CONCURRENT_TURNS) -> None:
+        if max_active is not None and max_active < 1:
+            raise ValueError("max_active must be at least 1")
         self._guard = asyncio.Lock()
         self._active: set[tuple[str, str]] = set()
+        self._max_active = max_active
+
+    @property
+    def max_active(self) -> int | None:
+        return self._max_active
+
+    @property
+    def active_count(self) -> int:
+        return len(self._active)
 
     async def acquire(self, user_id: str, conversation_id: str) -> None:
         key = (user_id, conversation_id)
         async with self._guard:
             if key in self._active:
                 raise ConversationBusyError
+            if self._max_active is not None and len(self._active) >= self._max_active:
+                raise TurnCapacityError(self._max_active)
             self._active.add(key)
 
     async def release(self, user_id: str, conversation_id: str) -> None:
@@ -358,6 +405,7 @@ def create_app(
     integration_service_factory: Callable[[], IntegrationConnectionService] | None = None,
     owner_settings_store_factory: Callable[[], CareerContextStore] | None = None,
     single_worker_lock_factory: Callable[[], SingleWorkerLock | None] | None = None,
+    max_concurrent_turns: int | None = None,
     heartbeat_seconds: float = 15.0,
     synthetic_content_delay_seconds: float = 0.025,
 ) -> FastAPI:
@@ -365,6 +413,8 @@ def create_app(
         raise ValueError("heartbeat_seconds must be positive")
     if synthetic_content_delay_seconds < 0:
         raise ValueError("synthetic_content_delay_seconds cannot be negative")
+    if max_concurrent_turns is not None and max_concurrent_turns < 1:
+        raise ValueError("max_concurrent_turns must be at least 1")
     factory = runtime_factory or build_api_runtime
     capture_factory = capture_repository_factory or build_capture_repository
     # Read endpoints are built eagerly and separately from the agent runtime:
@@ -392,6 +442,11 @@ def create_app(
         # the only one on these databases. Taken before any store is opened
         # and held until shutdown; a second worker fails here, not at commit.
         refuse_multi_worker_configuration()
+        turn_cap = (
+            max_concurrent_turns
+            if max_concurrent_turns is not None
+            else max_concurrent_turns_from_env()
+        )
         lock = lock_factory()
         if lock is not None:
             lock.acquire()
@@ -411,7 +466,7 @@ def create_app(
                 }
             app.state.runtime = runtime
             app.state.startup_error = startup_error
-            app.state.run_gate = ConversationRunGate()
+            app.state.run_gate = ConversationRunGate(max_active=turn_cap)
             # Opened before anything is served. Unlike the model runtime, a missing
             # credential store is not a degraded mode the dashboard can survive: it
             # is the difference between an authenticated API and an open one, so
@@ -488,6 +543,18 @@ def create_app(
                     "code": "CONVERSATION_TURN_IN_PROGRESS",
                     "message": "This conversation already has a running turn.",
                 },
+            ) from error
+        except TurnCapacityError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "TURN_CAPACITY_EXHAUSTED",
+                    "message": (
+                        f"当前任务较多（已有 {error.max_active} 轮在处理），请稍后再试。"
+                    ),
+                    "max_concurrent_turns": error.max_active,
+                },
+                headers={"Retry-After": "10"},
             ) from error
 
         async def release_gate() -> None:
