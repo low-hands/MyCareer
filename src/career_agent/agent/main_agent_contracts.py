@@ -18,7 +18,7 @@ from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
 )
 from career_agent.agent.token_budget import serialized_token_count
-from career_agent.agent.tool_effects import declared_write_capabilities, is_external_write
+from career_agent.agent.tool_effects import is_external_write, owner_rule_capabilities
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
@@ -437,19 +437,31 @@ ConfirmBefore = tuple[str, ...]
 
 
 def canonical_confirm_before(value: ConfirmBefore) -> ConfirmBefore:
-    """Only declared WRITE capabilities, deduplicated and sorted.
+    """Only WRITE capabilities an owner rule can stop, deduplicated and sorted.
 
-    A rule naming an unknown or read-only capability would never fire, and an
-    owner who typed it believes they are protected. Rejecting it at the boundary
-    keeps the settings document honest. Sorting makes the stored form canonical
-    so a reorder is not mistaken for a policy change.
+    A rule naming an unknown, read-only or runtime-owned capability would never
+    fire, and an owner who typed it believes they are protected. Rejecting it at
+    the write boundary (tool arguments, API request, CLI flag) keeps the settings
+    document honest. Sorting makes the stored form canonical so a reorder is not
+    mistaken for a policy change.
+
+    This is a boundary check, not a storage invariant: a stored document is
+    read with ``stored_confirm_before`` so a capability renamed or removed after
+    the rule was written still lets the owner load and edit their settings.
     """
 
-    unknown = sorted(set(value) - declared_write_capabilities())
+    unknown = sorted(set(value) - owner_rule_capabilities())
     if unknown:
         raise ValueError(
-            "confirm_before only accepts WRITE capabilities; unknown: " + ", ".join(unknown)
+            "confirm_before only accepts owner-confirmable WRITE capabilities; unknown: "
+            + ", ".join(unknown)
         )
+    return stored_confirm_before(value)
+
+
+def stored_confirm_before(value: ConfirmBefore) -> ConfirmBefore:
+    """The canonical stored form, without judging the names against today's registry."""
+
     return tuple(sorted(set(value)))
 
 
@@ -475,7 +487,10 @@ class BehaviorPolicyContext(ContractModel):
     @field_validator("confirm_before")
     @classmethod
     def normalise_confirm_before(cls, value: ConfirmBefore) -> ConfirmBefore:
-        return canonical_confirm_before(value)
+        # Read side. Names are judged where they are written; a rule for a
+        # capability that no longer exists is inert here, not a reason every
+        # turn that loads this document fails.
+        return stored_confirm_before(value)
 
     def _owner_rule_verdicts(self, capability: str) -> tuple[RuleVerdict, ...]:
         """Only owner-editable rules; system invariants do not belong here."""

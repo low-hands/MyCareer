@@ -199,3 +199,45 @@ def test_external_writes_are_a_declared_subset_of_writes() -> None:
     assert not is_external_write("prepare_interview_calendar_sync")
     assert not is_external_write("search_career_history")
     assert declared_write_capabilities() == frozenset(writes)
+
+
+def _runtime_workflow_handler_names() -> set[str]:
+    """Keys assigned into ``_runtime_workflow_handlers`` in the registry source."""
+    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "update"
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "_runtime_workflow_handlers"
+        ):
+            continue
+        for argument in node.args:
+            if isinstance(argument, ast.Dict):
+                names.update(
+                    key.value
+                    for key in argument.keys
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str)
+                )
+    return names
+
+
+def test_owner_rules_cannot_name_a_write_the_runtime_invokes_on_its_own() -> None:
+    """``confirm_before`` may only name writes ``_authorize`` actually judges.
+
+    Runtime-owned workflow entries are permitted without consulting owner rules
+    (``verdict = "permit" if runtime_owned ...``), so accepting them in a rule
+    would tell the owner they are protected when nothing will ever stop the
+    call. The declared set must mirror the registry, both directions.
+    """
+    from career_agent.agent.tool_effects import is_runtime_owned, owner_rule_capabilities
+
+    runtime_owned = {name for name in TOOL_EFFECTS if is_runtime_owned(name)}
+
+    assert runtime_owned == _runtime_workflow_handler_names()
+    assert runtime_owned == {"handle_mock_interview_input", "retry_mock_interview"}
+    assert owner_rule_capabilities() == declared_write_capabilities() - runtime_owned
+    assert "execute_calendar_proposal" in owner_rule_capabilities()
+    assert "create_interview" in owner_rule_capabilities()
