@@ -5,6 +5,7 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import math
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -151,6 +152,8 @@ class TurnCapacityError(Exception):
 
 DEFAULT_MAX_CONCURRENT_TURNS = 3
 MAX_CONCURRENT_TURNS_ENV = "CAREER_AGENT_MAX_CONCURRENT_TURNS"
+DEFAULT_SHUTDOWN_DRAIN_SECONDS = 30.0
+SHUTDOWN_DRAIN_SECONDS_ENV = "CAREER_AGENT_SHUTDOWN_DRAIN_SECONDS"
 
 
 def max_concurrent_turns_from_env(
@@ -166,6 +169,23 @@ def max_concurrent_turns_from_env(
     if value < 1:
         raise ValueError(
             f"{MAX_CONCURRENT_TURNS_ENV}={raw!r} 无效：需要不小于 1 的整数。"
+        )
+    return value
+
+
+def shutdown_drain_seconds_from_env(
+    environ: Mapping[str, str] | None = None,
+) -> float:
+    raw = (environ if environ is not None else os.environ).get(SHUTDOWN_DRAIN_SECONDS_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_SHUTDOWN_DRAIN_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        value = -1.0
+    if not math.isfinite(value) or value < 0:
+        raise ValueError(
+            f"{SHUTDOWN_DRAIN_SECONDS_ENV}={raw!r} 无效：需要不小于 0 的有限秒数。"
         )
     return value
 
@@ -186,6 +206,8 @@ class ConversationRunGate:
         self._guard = asyncio.Lock()
         self._active: set[tuple[str, str]] = set()
         self._max_active = max_active
+        self._idle = asyncio.Event()
+        self._idle.set()
 
     @property
     def max_active(self) -> int | None:
@@ -203,10 +225,29 @@ class ConversationRunGate:
             if self._max_active is not None and len(self._active) >= self._max_active:
                 raise TurnCapacityError(self._max_active)
             self._active.add(key)
+            self._idle.clear()
 
     async def release(self, user_id: str, conversation_id: str) -> None:
         async with self._guard:
             self._active.discard((user_id, conversation_id))
+            if not self._active:
+                self._idle.set()
+
+    async def drain(self, timeout: float) -> bool:
+        """Wait until no turn is admitted; ``False`` if some still are after ``timeout``.
+
+        A turn stays admitted until its detached producer sees the synchronous
+        runtime return, client connected or not, so an idle gate means no turn
+        thread is executing in this process.
+        """
+
+        if self._idle.is_set():
+            return True
+        try:
+            await asyncio.wait_for(self._idle.wait(), timeout=timeout)
+        except TimeoutError:
+            return False
+        return True
 
 
 class GateAwareStreamingResponse(StreamingResponse):
@@ -406,6 +447,7 @@ def create_app(
     owner_settings_store_factory: Callable[[], CareerContextStore] | None = None,
     single_worker_lock_factory: Callable[[], SingleWorkerLock | None] | None = None,
     max_concurrent_turns: int | None = None,
+    shutdown_drain_seconds: float | None = None,
     heartbeat_seconds: float = 15.0,
     synthetic_content_delay_seconds: float = 0.025,
 ) -> FastAPI:
@@ -415,6 +457,10 @@ def create_app(
         raise ValueError("synthetic_content_delay_seconds cannot be negative")
     if max_concurrent_turns is not None and max_concurrent_turns < 1:
         raise ValueError("max_concurrent_turns must be at least 1")
+    if shutdown_drain_seconds is not None and (
+        not math.isfinite(shutdown_drain_seconds) or shutdown_drain_seconds < 0
+    ):
+        raise ValueError("shutdown_drain_seconds must be a finite, non-negative number")
     factory = runtime_factory or build_api_runtime
     capture_factory = capture_repository_factory or build_capture_repository
     # Read endpoints are built eagerly and separately from the agent runtime:
@@ -447,11 +493,17 @@ def create_app(
             if max_concurrent_turns is not None
             else max_concurrent_turns_from_env()
         )
+        drain_seconds = (
+            shutdown_drain_seconds
+            if shutdown_drain_seconds is not None
+            else shutdown_drain_seconds_from_env()
+        )
         lock = lock_factory()
         if lock is not None:
             lock.acquire()
         app.state.single_worker_lock = lock
         runtime: MainAgentRuntime | None = None
+        gate: ConversationRunGate | None = None
         try:
             startup_error: dict[str, str] | None = None
             try:
@@ -466,7 +518,8 @@ def create_app(
                 }
             app.state.runtime = runtime
             app.state.startup_error = startup_error
-            app.state.run_gate = ConversationRunGate(max_active=turn_cap)
+            gate = ConversationRunGate(max_active=turn_cap)
+            app.state.run_gate = gate
             # Opened before anything is served. Unlike the model runtime, a missing
             # credential store is not a degraded mode the dashboard can survive: it
             # is the difference between an authenticated API and an open one, so
@@ -477,13 +530,21 @@ def create_app(
             app.state.action_center = None
             yield
         finally:
-            try:
-                close = getattr(runtime, "close", None) if runtime is not None else None
-                if close is not None:
-                    close()
-            finally:
-                if lock is not None:
-                    lock.release()
+            # A turn whose client has gone keeps running in a detached producer
+            # thread, and the lock promises the next process that nothing here
+            # is still executing. So: wait for those turns, and if some outlive
+            # the wait, leave the lock (and the stores under them) to the
+            # kernel, which releases only once the process is truly gone.
+            drained = gate is None or await gate.drain(drain_seconds)
+            app.state.shutdown_drained = drained
+            if drained:
+                try:
+                    close = getattr(runtime, "close", None) if runtime is not None else None
+                    if close is not None:
+                        close()
+                finally:
+                    if lock is not None:
+                        lock.release()
 
     application = FastAPI(
         title="Career Agent API",

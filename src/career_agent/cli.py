@@ -127,8 +127,18 @@ EXIT_UNKNOWN_ERROR = 6
 
 
 def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
+    """Wire the production runtime. Called only by the workspace lock's holder.
+
+    Both callers (``chat`` and the API lifespan) take ``api-server.lock`` before
+    calling this, so at this point no other process can be executing a turn.
+    That is what lets the turn receipts left ``RUNNING`` by a dead process be
+    settled here: they would otherwise answer ``TURN_IN_PROGRESS`` forever.
+    """
+
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
     context_store = CareerContextStore(Path(args.context_store).expanduser())
+    turn_receipt_store = SQLiteTurnReceiptStore(Path(args.context_store).expanduser())
+    turn_receipt_store.fail_orphaned_running()
     episode_store = SQLiteCareerEpisodeStore(
         Path(args.context_store).expanduser()
     )
@@ -276,9 +286,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         capability_confirmation_store=SQLiteCapabilityConfirmationStore(
             Path(args.context_store).expanduser()
         ),
-        turn_receipt_store=SQLiteTurnReceiptStore(
-            Path(args.context_store).expanduser()
-        ),
+        turn_receipt_store=turn_receipt_store,
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,

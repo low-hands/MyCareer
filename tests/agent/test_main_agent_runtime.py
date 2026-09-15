@@ -25,6 +25,7 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
 from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.action_executions import (
+    RESULT_STATE_RECEIPT_KEY,
     ActionExecutionConflictError,
     SQLiteActionExecutionStore,
 )
@@ -1279,6 +1280,192 @@ def test_a_key_whose_turn_is_still_running_is_refused_not_replayed(tmp_path) -> 
     assert [event.type for event in events] == ["turn_failed"]
     assert events[0].code == "TURN_IN_PROGRESS"
     assert events[0].turn_id == "turn-elsewhere"
+
+
+def _crashed_process_runtime(tmp_path, *decisions):
+    """A runtime whose predecessor died mid-turn under ``request-1``.
+
+    Returns the runtime, its ledger, and the registry that counts external
+    calls. The caller decides what the dead process had reached in the ledger
+    before ``fail_orphaned_running`` runs as it would at startup.
+    """
+
+    class Registry(MainAgentToolRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls += 1
+            return ToolObservation(
+                tool_name=name,
+                state="application_ready",
+                message="已创建投递记录。",
+                payload={
+                    "application_id": "app-fresh",
+                    "job_posting_id": "job-1",
+                    "resume_version_id": "resume-1",
+                    "status": "submitted",
+                    "created": True,
+                },
+                execution_outcome="committed",
+            )
+
+    class Runtime(MainAgentRuntime):
+        @staticmethod
+        def _project_atomic_tool_arguments(context, name, arguments):
+            return {"user_id": context.profile.user_id, **arguments}
+
+    database = tmp_path / "context.sqlite3"
+    manager = ContextManager(CareerContextStore(database))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    receipts = SQLiteTurnReceiptStore(database)
+    ledger = SQLiteActionExecutionStore(database)
+    registry = Registry()
+    assert receipts.begin(
+        user_id="u1", conversation_id="c1", request_id="request-1", turn_id="turn-dead"
+    ) is None
+    runtime = Runtime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(*decisions),
+        tools=registry,
+        action_execution_store=ledger,
+        turn_receipt_store=receipts,
+    )
+    return runtime, ledger, registry
+
+
+def _write_fingerprint(tool: str) -> str:
+    """What the runtime records for ``tool`` called with no arguments by ``u1``."""
+
+    return hashlib.sha256(
+        json.dumps(
+            {"tool": tool, "arguments": {"user_id": "u1"}},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+
+
+def test_a_stale_running_key_with_no_write_is_retried_after_recovery(tmp_path) -> None:
+    """Crash before any write: the key must not say TURN_IN_PROGRESS forever."""
+
+    runtime, ledger, registry = _crashed_process_runtime(
+        tmp_path,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="create_application", arguments={}),
+        ),
+        AgentDecision(action="final", message="这次完成了。"),
+    )
+    assert ledger.list_for_anchor(user_id="u1", conversation_id="c1", anchor="request-1") == ()
+
+    recovered = runtime._turn_receipt_store.fail_orphaned_running()
+    assert [item.turn_id for item in recovered] == ["turn-dead"]
+
+    retried = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录投递", request_id="request-1"
+    )
+
+    assert isinstance(retried, MainAgentTurnResult)
+    assert registry.calls == 1
+    assert retried.assistant_message == "这次完成了。"
+    assert retried.context.task.active_application_id == "app-fresh"
+    receipt = runtime._turn_receipt_store.get(
+        user_id="u1", conversation_id="c1", request_id="request-1"
+    )
+    assert receipt.status == "COMMITTED"
+    assert receipt.turn_id != "turn-dead"
+
+
+def test_a_stale_running_key_whose_write_succeeded_replays_it_after_recovery(
+    tmp_path,
+) -> None:
+    """Crash after the write settled: the retry repairs state, never re-writes."""
+
+    runtime, ledger, registry = _crashed_process_runtime(
+        tmp_path,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="create_application", arguments={}),
+        ),
+        AgentDecision(action="final", message="已恢复投递状态。"),
+    )
+    execution, _ = ledger.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="create_application",
+        fingerprint=_write_fingerprint("create_application"),
+        policy_epoch=1,
+    )
+    ledger.succeed(
+        action_id=execution.action_id,
+        output={
+            RESULT_STATE_RECEIPT_KEY: "application_ready",
+            "application_id": "app-durable",
+            "job_posting_id": "job-1",
+            "resume_version_id": "resume-1",
+            "status": "submitted",
+        },
+    )
+
+    runtime._turn_receipt_store.fail_orphaned_running()
+    retried = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录投递", request_id="request-1"
+    )
+
+    assert registry.calls == 0
+    assert retried.tool_result.state == "action_execution_replayed"
+    assert retried.context.task.active_application_id == "app-durable"
+    assert retried.context.task.active_application_status == "submitted"
+    assert retried.assistant_message == "已恢复投递状态。"
+
+
+def test_a_stale_running_key_with_a_pending_write_demands_reconciliation(
+    tmp_path,
+) -> None:
+    """Crash mid-write: the outcome is unknown, so the retry may not redo it.
+
+    ``create_interview`` has nothing downstream that dedupes, so unlike
+    ``create_application`` a pending slot cannot simply be reissued.
+    """
+
+    runtime, ledger, registry = _crashed_process_runtime(
+        tmp_path,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="create_interview", arguments={}),
+        ),
+        AgentDecision(action="final", message="有一次未确认的操作需要先核对。"),
+    )
+    stranded, _ = ledger.prepare(
+        user_id="u1",
+        conversation_id="c1",
+        anchor="request-1",
+        request_id="request-1",
+        write_slot=0,
+        tool_name="create_interview",
+        fingerprint=_write_fingerprint("create_interview"),
+        policy_epoch=1,
+    )
+
+    runtime._turn_receipt_store.fail_orphaned_running()
+    retried = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="记录投递", request_id="request-1"
+    )
+
+    assert registry.calls == 0
+    assert retried.tool_result.state == "action_reconciliation_required"
+    assert retried.model_decision.action == "final"
+    assert [item.action_id for item in ledger.list_pending()] == [stranded.action_id]
 
 
 def test_a_suspended_turn_replays_its_interaction(tmp_path) -> None:
