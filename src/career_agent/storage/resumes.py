@@ -39,6 +39,33 @@ class StoredResumeDocument(BaseModel):
     raw_bytes: bytes
 
 
+class ResumeImportConflictError(ValueError):
+    """An idempotency key was reused for a different import request."""
+
+
+def import_request_fingerprint(
+    *,
+    content: bytes,
+    document_format: str,
+    name: str | None,
+    resume_id: str | None,
+    target_role_id: str | None,
+) -> str:
+    """What one import asked for, as a digest the receipt can be checked against.
+
+    The file hash alone is deliberately not the identity: the same file imported
+    under a different name or target role is a different, intended import.
+    """
+    parts = (
+        hashlib.sha256(content).hexdigest(),
+        document_format,
+        (name or "").strip(),
+        resume_id or "",
+        target_role_id or "",
+    )
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
 class ResumeStore:
     def __init__(self, path: Path) -> None:
         self.path = path.expanduser()
@@ -48,7 +75,7 @@ class ResumeStore:
             apply_schema(
                 connection,
                 "resumes",
-                8,
+                9,
                 self._migrate,
                 upgrades={
                     4: self._add_target_role_intent_columns,
@@ -56,6 +83,9 @@ class ResumeStore:
                     6: upgrade_intent_version_schema,
                     7: upgrade_intent_semantic_stance_schema,
                     8: upgrade_intent_valid_until_schema,
+                    # Version 9 adds ``resume_import_receipts``; the baseline
+                    # creates it, so an existing file needs no data change.
+                    9: lambda connection: None,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -206,7 +236,15 @@ class ResumeStore:
             connection.execute("BEGIN IMMEDIATE")
             return capture_intent_version(connection, candidate=candidate)
 
-    def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None) -> tuple[Resume, ResumeVersion]:
+    def import_document(self, *, user_id: str, content: bytes, document_format: str, name: str | None = None, resume_id: str | None = None, target_role_id: str | None = None, idempotency_key: str | None = None) -> tuple[Resume, ResumeVersion]:
+        """Store one immutable version, or replay the one an earlier retry stored.
+
+        ``idempotency_key`` is scoped to the user. A key seen before with the
+        same request returns the version it created without writing anything;
+        the same key with a different request is refused, because silently
+        answering with the earlier version would hide that the retry changed
+        its mind. Without a key every call creates a new version.
+        """
         if bool(name) == bool(resume_id):
             raise ValueError("Provide exactly one of name or resume_id.")
         if document_format not in {"pdf", "text", "markdown"}:
@@ -217,10 +255,37 @@ class ResumeStore:
             raise ValueError("A target_role_id is required for a new resume.")
         if resume_id and target_role_id:
             raise ValueError("target_role_id cannot change when appending a version.")
+        if idempotency_key is not None:
+            idempotency_key = idempotency_key.strip()
+            if not idempotency_key or len(idempotency_key) > 200:
+                raise ValueError("idempotency_key must contain 1 to 200 characters.")
         now = datetime.now(timezone.utc)
         digest = hashlib.sha256(content).hexdigest()
+        fingerprint = import_request_fingerprint(
+            content=content,
+            document_format=document_format,
+            name=name,
+            resume_id=resume_id,
+            target_role_id=target_role_id,
+        )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if idempotency_key is not None:
+                receipt = connection.execute(
+                    "SELECT request_fingerprint, resume_version_id FROM resume_import_receipts WHERE user_id = ? AND idempotency_key = ?",
+                    (user_id, idempotency_key),
+                ).fetchone()
+                if receipt is not None:
+                    if receipt[0] != fingerprint:
+                        raise ResumeImportConflictError(
+                            "Idempotency-Key was already used for a different resume import."
+                        )
+                    replayed = self._get_version(connection, user_id=user_id, resume_version_id=receipt[1])
+                    if replayed is None:
+                        raise ResumeImportConflictError(
+                            "The resume version this Idempotency-Key created no longer exists."
+                        )
+                    return replayed
             if resume_id:
                 row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
                 if row is None:
@@ -242,6 +307,11 @@ class ResumeStore:
                 connection.execute("UPDATE resumes SET latest_version_id = ?, updated_at = ? WHERE id = ? AND user_id = ?", (version.id, now.isoformat(), resume.id, user_id))
             connection.execute("INSERT INTO resume_versions(id, resume_id, version_number, source_type, document_format, content_sha256, byte_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (version.id, version.resume_id, version.version_number, version.source_type, version.document_format, version.content_sha256, version.byte_size, version.created_at.isoformat()))
             connection.execute("INSERT INTO resume_version_documents(resume_version_id, content) VALUES (?, ?)", (version.id, content))
+            if idempotency_key is not None:
+                connection.execute(
+                    "INSERT INTO resume_import_receipts(user_id, idempotency_key, request_fingerprint, resume_id, resume_version_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (user_id, idempotency_key, fingerprint, resume.id, version.id, now.isoformat()),
+                )
         os.chmod(self.path, 0o600)
         return resume, version
 
@@ -270,20 +340,31 @@ class ResumeStore:
         self, *, user_id: str, resume_version_id: str
     ) -> tuple[Resume, ResumeVersion] | None:
         with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT resume.id, resume.user_id, resume.target_role_id,
-                       resume.name, resume.status, resume.latest_version_id,
-                       resume.created_at, resume.updated_at,
-                       version.id, version.resume_id, version.version_number,
-                       version.source_type, version.document_format,
-                       version.content_sha256, version.byte_size, version.created_at
-                FROM resume_versions AS version
-                JOIN resumes AS resume ON resume.id = version.resume_id
-                WHERE version.id = ? AND resume.user_id = ?
-                """,
-                (resume_version_id, user_id),
-            ).fetchone()
+            return self._get_version(
+                connection, user_id=user_id, resume_version_id=resume_version_id
+            )
+
+    def _get_version(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        resume_version_id: str,
+    ) -> tuple[Resume, ResumeVersion] | None:
+        row = connection.execute(
+            """
+            SELECT resume.id, resume.user_id, resume.target_role_id,
+                   resume.name, resume.status, resume.latest_version_id,
+                   resume.created_at, resume.updated_at,
+                   version.id, version.resume_id, version.version_number,
+                   version.source_type, version.document_format,
+                   version.content_sha256, version.byte_size, version.created_at
+            FROM resume_versions AS version
+            JOIN resumes AS resume ON resume.id = version.resume_id
+            WHERE version.id = ? AND resume.user_id = ?
+            """,
+            (resume_version_id, user_id),
+        ).fetchone()
         if row is None:
             return None
         return self._resume(row[:8]), self._version(row[8:])
@@ -535,6 +616,7 @@ class ResumeStore:
             connection.execute("CREATE TABLE resume_versions (id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id), version_number INTEGER NOT NULL, source_type TEXT NOT NULL, document_format TEXT NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(resume_id, version_number))")
             connection.execute("CREATE TABLE resume_version_documents (resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id), content BLOB NOT NULL)")
         connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, city TEXT, salary_expectation TEXT, experience TEXT, education TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
+        connection.execute("CREATE TABLE IF NOT EXISTS resume_import_receipts (user_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_fingerprint TEXT NOT NULL, resume_id TEXT NOT NULL REFERENCES resumes(id), resume_version_id TEXT NOT NULL REFERENCES resume_versions(id), created_at TEXT NOT NULL, PRIMARY KEY(user_id, idempotency_key))")
         self._add_target_role_intent_columns(connection)
         apply_intent_version_schema(connection)
         # Intentional cumulative-baseline exception: pre-registry databases do

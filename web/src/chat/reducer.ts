@@ -1,4 +1,5 @@
-import type { ReportDeliveryStatus, ReportResourceKind } from "./events";
+import type { MessageResourceKind } from "../api/client";
+import type { ReportDeliveryStatus } from "./events";
 import type {
   ArtifactReadyEvent,
   ClientActionEvent,
@@ -20,12 +21,18 @@ export type ChatPhase =
   | "failed";
 
 export interface MessageResource {
-  kind: ReportResourceKind;
+  kind: MessageResourceKind;
   resourceId: string;
   statusAtDelivery?: ReportDeliveryStatus | null;
   anchoredByOtherJob?: boolean | null;
   /** The card's heading before its body is fetched, when the kind alone does not say. */
   title?: string | null;
+  /** Snapshot text kept with the message (format, size, upload time of a resume). */
+  description?: string | null;
+  /** False once the asset behind a `resume_version` was deleted; undefined when untracked. */
+  available?: boolean | null;
+  /** Set for a `resume_version` whose resume still exists, for the document link. */
+  resumeId?: string | null;
 }
 
 export interface ChatMessage {
@@ -81,7 +88,14 @@ export const initialChatState: ChatState = {
 };
 
 export type ChatAction =
-  | { type: "submit"; messageId: string; assistantMessageId: string; content: string }
+  | {
+      type: "submit";
+      messageId: string;
+      assistantMessageId: string;
+      content: string;
+      /** Resume versions attached to the user message, shown as chips on it. */
+      resources?: MessageResource[];
+    }
   | {
       type: "hydrate";
       messages: ChatMessage[];
@@ -122,7 +136,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       phase: "running",
       messages: [
         ...state.messages,
-        { id: action.messageId, role: "user", content: action.content },
+        {
+          id: action.messageId,
+          role: "user",
+          content: action.content,
+          ...(action.resources?.length ? { resources: action.resources } : {}),
+        },
         { id: action.assistantMessageId, role: "assistant", content: "" },
       ],
       activeAssistantMessageId: action.assistantMessageId,

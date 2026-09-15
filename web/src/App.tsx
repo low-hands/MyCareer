@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import {
   type ConversationTranscript,
@@ -8,7 +8,17 @@ import {
   fetchConversations,
 } from "./api/client";
 import { seedCaptureApiKey } from "./api/auth";
-import { streamChat, type InteractionResponse } from "./api/sse";
+import { streamChat, type InteractionResponse, type TurnInputResource } from "./api/sse";
+import {
+  DEFAULT_ATTACHMENT_PROMPT,
+  attachmentFromImport,
+  droppedResumeFile,
+  formatBytes,
+  toInputResources,
+  toMessageResources,
+  withAttachment,
+  type ResumeAttachment,
+} from "./chat/attachments";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import {
   RECOVERY_ATTEMPTS,
@@ -18,7 +28,9 @@ import {
   turnIsStored,
 } from "./chat/recovery";
 import { InteractionCard } from "./components/InteractionCard";
-import { ReportCard } from "./components/ReportCard";
+import { ReportCard, isReportResource } from "./components/ReportCard";
+import { ResumeAttachmentCard } from "./components/ResumeAttachmentCard";
+import { ResumeImporter } from "./components/ResumeImporter";
 import { MarkdownContent } from "./components/MarkdownContent";
 import { AppIcon, type AppIconName } from "./components/AppIcon";
 import { DailyBriefPanel } from "./pages/DailyBrief";
@@ -75,6 +87,7 @@ interface PendingRequest {
   conversationId: string;
   message: string;
   interactionResponse?: InteractionResponse;
+  inputResources: TurnInputResource[];
   idempotencyKey: string;
 }
 const GOOGLE_OAUTH_CALLBACK = consumeGoogleOAuthCallback();
@@ -85,12 +98,6 @@ function localId(key: string, prefix: string): string {
   const created = `${prefix}-${crypto.randomUUID()}`;
   window.localStorage.setItem(key, created);
   return created;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function isAllowedJobSearchUrl(value: string): boolean {
@@ -130,6 +137,13 @@ export default function App() {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
     return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
   });
+  // Resume versions picked for the next message. They are already in the
+  // library; sending attaches their ids, never their contents.
+  const [attachments, setAttachments] = useState<ResumeAttachment[]>([]);
+  // A file dropped or picked in chat, waiting for the import form to name it.
+  const [pendingUpload, setPendingUpload] = useState<File | null>(null);
+  const [importerOpen, setImporterOpen] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const controller = useRef<AbortController | null>(null);
   // The last request as sent, key included. Re-sending it under the same key
   // lets the server answer from its receipt when the turn did run, and run it
@@ -137,7 +151,7 @@ export default function App() {
   const lastRequest = useRef<PendingRequest | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
   const busy = state.phase === "running" || state.phase === "recovering";
-  const canSubmit = draft.trim().length > 0 && !busy && !historyLoading;
+  const canSubmit = (draft.trim().length > 0 || attachments.length > 0) && !busy && !historyLoading;
 
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
@@ -192,14 +206,20 @@ export default function App() {
   async function sendMessage(
     rawMessage: string,
     interactionResponse?: InteractionResponse,
+    resources: ResumeAttachment[] = attachments,
   ): Promise<void> {
-    const message = rawMessage.trim();
+    // An interaction reply answers the agent's question; it does not carry
+    // attachments, and it must not consume the ones queued for the next message.
+    const attached = interactionResponse ? [] : resources;
+    const message = rawMessage.trim() || (attached.length ? DEFAULT_ATTACHMENT_PROMPT : "");
     if (!message || busy || historyLoading) return;
     setDraft("");
+    if (attached.length) setAttachments([]);
     const request: PendingRequest = {
       conversationId,
       message,
       interactionResponse,
+      inputResources: toInputResources(attached),
       idempotencyKey: crypto.randomUUID(),
     };
     lastRequest.current = request;
@@ -208,6 +228,7 @@ export default function App() {
       messageId: crypto.randomUUID(),
       assistantMessageId: crypto.randomUUID(),
       content: message,
+      resources: toMessageResources(attached),
     });
     await streamTurn(request);
   }
@@ -239,6 +260,7 @@ export default function App() {
           conversation_id: request.conversationId,
           message,
           interaction_response: interactionResponse,
+          ...(request.inputResources.length ? { input_resources: request.inputResources } : {}),
         },
         {
           apiBaseUrl: API_BASE_URL,
@@ -315,6 +337,34 @@ export default function App() {
     void sendMessage(draft);
   }
 
+  function attachResume(attachment: ResumeAttachment): void {
+    setAttachments((current) => withAttachment(current, attachment));
+  }
+
+  function openImporter(file: File | null): void {
+    if (busy) return;
+    setPendingUpload(file);
+    setImporterOpen(true);
+  }
+
+  function closeImporter(): void {
+    setImporterOpen(false);
+    setPendingUpload(null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>): void {
+    event.preventDefault();
+    setDragActive(false);
+    const file = droppedResumeFile(event.dataTransfer.files);
+    if (file) openImporter(file);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>): void {
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+    event.preventDefault();
+    if (!busy) setDragActive(true);
+  }
+
   function newConversation(): void {
     if (busy) return;
     const next = `conversation-${crypto.randomUUID()}`;
@@ -322,16 +372,19 @@ export default function App() {
     setConversationId(next);
     dispatch({ type: "reset" });
     setDraft("");
+    setAttachments([]);
     setView("chat");
   }
 
-  function startAgentTask(prompt: string): void {
+  function startAgentTask(prompt: string, resource?: ResumeAttachment): void {
     setView("chat");
+    const resources = resource ? withAttachment(attachments, resource) : attachments;
     if (busy || historyLoading) {
       setDraft(prompt);
+      if (resource) setAttachments(resources);
       return;
     }
-    void sendMessage(prompt);
+    void sendMessage(prompt, undefined, resources);
   }
 
   function openConversation(nextConversationId: string): void {
@@ -356,6 +409,7 @@ export default function App() {
         setConversationId(next);
         dispatch({ type: "reset" });
         setDraft("");
+        setAttachments([]);
       }
     } catch (cause) {
       setConversationListError(cause instanceof Error ? cause.message : "删除会话失败。");
@@ -638,13 +692,21 @@ export default function App() {
                     <span className="typing">● ● ●</span>
                   ) : null}
                 </div>
-                {message.resources?.map((resource) => (
-                  <ReportCard
-                    key={`${resource.kind}-${resource.resourceId}`}
-                    resource={resource}
-                    apiBaseUrl={API_BASE_URL}
-                  />
-                ))}
+                {message.resources?.map((resource) =>
+                  isReportResource(resource) ? (
+                    <ReportCard
+                      key={`${resource.kind}-${resource.resourceId}`}
+                      resource={resource}
+                      apiBaseUrl={API_BASE_URL}
+                    />
+                  ) : (
+                    <ResumeAttachmentCard
+                      key={`${resource.kind}-${resource.resourceId}`}
+                      resource={resource}
+                      apiBaseUrl={API_BASE_URL}
+                    />
+                  ),
+                )}
               </article>
             ))}
 
@@ -709,7 +771,54 @@ export default function App() {
             ) : null}
           </div>
 
-          <div className={`composer ${state.interaction ? "has-interaction" : ""}`}>
+          <div
+            className={`composer ${state.interaction ? "has-interaction" : ""} ${dragActive ? "is-drop-target" : ""}`}
+            onDragOver={handleDragOver}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+          >
+            {importerOpen ? (
+              <div className="composer-importer" role="dialog" aria-label="导入简历并附到消息">
+                <div className="composer-importer-header">
+                  <strong>导入简历并附到消息</strong>
+                  <small>与简历库使用同一导入服务；原文件只保存一份在简历库。</small>
+                </div>
+                <ResumeImporter
+                  key={pendingUpload ? `${pendingUpload.name}-${pendingUpload.size}-${pendingUpload.lastModified}` : "picker"}
+                  apiBaseUrl={API_BASE_URL}
+                  initialFile={pendingUpload}
+                  submitLabel="导入并附到消息"
+                  onCancel={closeImporter}
+                  onImported={(result) => {
+                    attachResume(attachmentFromImport(result));
+                    setCompletedTurns((count) => count + 1);
+                    closeImporter();
+                  }}
+                />
+              </div>
+            ) : null}
+            {attachments.length > 0 ? (
+              <div className="composer-attachments" aria-label="将随消息发送的简历版本">
+                {attachments.map((item) => (
+                  <span className="attachment-chip" key={item.resumeVersionId}>
+                    <AppIcon name="document" size={14} />
+                    <span>
+                      <strong>{item.name} v{item.versionNumber}</strong>
+                      <small>{item.documentFormat.toUpperCase()} · {formatBytes(item.byteSize)}</small>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`移除附件：${item.name} v${item.versionNumber}`}
+                      disabled={busy}
+                      onClick={() => setAttachments((current) => current.filter((entry) => entry.resumeVersionId !== item.resumeVersionId))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <small className="attachment-privacy">发送后，提取出的简历内容会发给配置的模型供应商。</small>
+              </div>
+            ) : null}
             {state.interaction ? (
               <InteractionCard
                 interaction={state.interaction}
@@ -723,12 +832,28 @@ export default function App() {
             <form className="composer-entry" onSubmit={submit}>
               <label htmlFor="message">给 Career Agent 发消息</label>
               <div className="composer-box">
+                <button
+                  type="button"
+                  className="composer-attach"
+                  aria-label="附上简历"
+                  title="选择或拖入简历文件（PDF、TXT、Markdown）"
+                  disabled={busy}
+                  onClick={() => openImporter(null)}
+                >
+                  <AppIcon name="plus" size={17} />
+                </button>
                 <textarea
                   id="message"
                   rows={2}
                   value={draft}
                   disabled={busy}
-                  placeholder={state.phase === "awaiting_input" ? "输入你的选择或回答…" : "描述你现在想完成的事情…"}
+                  placeholder={
+                    state.phase === "awaiting_input"
+                      ? "输入你的选择或回答…"
+                      : attachments.length
+                        ? `不填则发送“${DEFAULT_ATTACHMENT_PROMPT}”`
+                        : "描述你现在想完成的事情，或拖入一份简历…"
+                  }
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey && canSubmit) {
@@ -739,7 +864,7 @@ export default function App() {
                 />
                 <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
               </div>
-              <small>Enter 发送 · Shift + Enter 换行</small>
+              <small>Enter 发送 · Shift + Enter 换行 · 拖入简历可直接导入并附到消息</small>
             </form>
           </div>
           </section>

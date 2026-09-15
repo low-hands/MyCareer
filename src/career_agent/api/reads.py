@@ -24,12 +24,25 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+import re
+from urllib.parse import quote
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
+from fastapi import Path as FastAPIPath
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.agent.delivered_body_contracts import (
@@ -70,7 +83,12 @@ from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
-from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.resumes import (
+    ResumeImportConflictError,
+    ResumeStore,
+    StoredResumeDocument,
+)
+from career_agent.domain.resume import ResumeVersion
 from career_agent.agent.interview_preparation_presenter import (
     render_interview_preparation,
 )
@@ -93,7 +111,10 @@ from career_agent.agent.resume_tailoring_presenter import (
     TailoringChangeReviewView,
     render_resume_tailoring,
 )
-from career_agent.agent.main_agent_contracts import OwnerSettingsContext
+from career_agent.agent.main_agent_contracts import (
+    ConversationResourceReference,
+    OwnerSettingsContext,
+)
 from career_agent.domain.job_research import (
     JobResearchDraft,
     JobResearchFindingDraft,
@@ -271,6 +292,17 @@ class ConversationResourceView(BaseModel):
     title: str | None = None
     """What to call the card before its body is fetched, when the kind alone
     does not say: a ``delivered_body`` may be a brief or a comparison."""
+    description: str | None = None
+    available: bool | None = None
+    """Whether the referenced resource can still be opened.
+
+    Set for user-supplied inputs such as a ``resume_version``: the snapshot
+    (title, description) stays on the row after the resume is deleted, and
+    this flag is what tells the UI to render it as gone rather than as a link.
+    ``None`` means the kind does not track availability here."""
+    resume_id: str | None = None
+    """The owning resume of an available ``resume_version``, so the UI can
+    address the document route without a second lookup."""
 
 
 class ConversationMessageView(BaseModel):
@@ -293,6 +325,56 @@ class ConversationTranscriptResponse(BaseModel):
     pending_interaction_body: str | None = None
 
 
+RESUME_DOCUMENT_MEDIA_TYPES: dict[str, tuple[str, str]] = {
+    "pdf": ("application/pdf", "pdf"),
+    "text": ("text/plain; charset=utf-8", "txt"),
+    "markdown": ("text/markdown; charset=utf-8", "md"),
+}
+
+_FILENAME_UNSAFE = re.compile(r"[\x00-\x1f\x7f\\/:*?\"<>|;%]")
+
+
+def resume_document_filename(
+    resume_name: str, *, version_number: int, extension: str
+) -> str:
+    """A download name built from the resume, safe to place in a header.
+
+    Control characters, path separators and header-significant punctuation
+    are dropped; the stem is bounded so a long resume name cannot inflate the
+    header. An empty stem falls back to a neutral name rather than to an
+    extension-only filename.
+    """
+    stem = _FILENAME_UNSAFE.sub("", resume_name).strip(" .")
+    stem = " ".join(stem.split())[:80] or "resume"
+    return f"{stem}-v{version_number}.{extension}"
+
+
+def content_disposition(disposition: str, filename: str) -> str:
+    """RFC 6266 value with an ASCII fallback and a UTF-8 ``filename*``.
+
+    Control characters are dropped here as well as upstream, so the header
+    stays a single line whatever name it is handed; the ASCII form keeps the
+    characters a plain quoted-string can carry, and the percent-encoded form
+    carries the rest.
+    """
+    filename = _FILENAME_UNSAFE.sub("", filename)
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii")
+    ascii_name = ascii_name.strip() or "resume"
+    encoded = quote(filename, safe="")
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
+
+
+class ResumeVersionView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    resume_id: str
+    version_number: int
+    document_format: str
+    byte_size: int
+    created_at: datetime
+
+
 class ResumeView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -306,6 +388,8 @@ class ResumeView(BaseModel):
     document_format: str
     byte_size: int
     updated_at: datetime
+    versions: tuple[ResumeVersionView, ...] = ()
+    """Every immutable version, newest first."""
 
 
 class TargetRoleView(BaseModel):
@@ -816,12 +900,7 @@ class WorkspaceReader:
                     created_at=record.message.created_at,
                     resources=(
                         *(
-                            ConversationResourceView(
-                                kind=reference.kind,
-                                resource_id=reference.resource_id,
-                                status_at_delivery=reference.status_at_delivery,
-                                anchored_by_other_job=reference.anchored_by_other_job,
-                            )
+                            self._resource_view(user_id, reference)
                             for reference in record.message.resource_refs
                         ),
                         *kept_bodies.get(record.sequence, ()),
@@ -858,6 +937,31 @@ class WorkspaceReader:
             ),
         )
 
+    def _resource_view(
+        self, user_id: str, reference: ConversationResourceReference
+    ) -> ConversationResourceView:
+        if reference.kind != "resume_version":
+            return ConversationResourceView(
+                kind=reference.kind,
+                resource_id=reference.resource_id,
+                status_at_delivery=reference.status_at_delivery,
+                anchored_by_other_job=reference.anchored_by_other_job,
+            )
+        # The row keeps the snapshot; whether the version is still reachable is
+        # decided now, so a deleted resume shows as gone without rewriting
+        # history.
+        located = self._resumes.get_version(
+            user_id=user_id, resume_version_id=reference.resource_id
+        )
+        return ConversationResourceView(
+            kind=reference.kind,
+            resource_id=reference.resource_id,
+            title=reference.title,
+            description=reference.description,
+            available=located is not None,
+            resume_id=located[0].id if located is not None else None,
+        )
+
     def resumes(self, *, user_id: str) -> tuple[ResumeView, ...]:
         roles = {
             role.id: role
@@ -888,9 +992,42 @@ class WorkspaceReader:
                     document_format=latest.document_format,
                     byte_size=latest.byte_size,
                     updated_at=resume.updated_at,
+                    versions=tuple(
+                        ResumeVersionView(
+                            id=version.id,
+                            resume_id=version.resume_id,
+                            version_number=version.version_number,
+                            document_format=version.document_format,
+                            byte_size=version.byte_size,
+                            created_at=version.created_at,
+                        )
+                        for version in versions
+                    ),
                 )
             )
         return tuple(views)
+
+    def resume_version_document(
+        self, *, user_id: str, resume_id: str, resume_version_id: str
+    ) -> tuple[StoredResumeDocument, str, ResumeVersion] | None:
+        """The stored bytes of one version, with a download filename.
+
+        Ownership is checked on the version, and the version is then checked
+        against the resume it was addressed under: a version id that belongs to
+        the user but to a different resume is not served.
+        """
+        located = self._resumes.get_version(
+            user_id=user_id, resume_version_id=resume_version_id
+        )
+        if located is None or located[0].id != resume_id:
+            return None
+        resume, version = located
+        document = self._resumes.read_version_document(
+            user_id=user_id, resume_version_id=resume_version_id
+        )
+        if document is None:
+            return None
+        return document, resume.name, version
 
     def target_roles(self, *, user_id: str) -> tuple[TargetRoleView, ...]:
         return tuple(
@@ -932,6 +1069,7 @@ class WorkspaceReader:
         name: str | None,
         resume_id: str | None,
         target_role_id: str | None,
+        idempotency_key: str | None = None,
     ) -> ResumeImportResponse:
         resume, version = self._resumes.import_document(
             user_id=user_id,
@@ -940,6 +1078,7 @@ class WorkspaceReader:
             name=name,
             resume_id=resume_id,
             target_role_id=target_role_id,
+            idempotency_key=idempotency_key,
         )
         return ResumeImportResponse(
             resume_id=resume.id,
@@ -1906,8 +2045,30 @@ def build_read_router(
         name: str | None = Form(default=None),
         resume_id: str | None = Form(default=None),
         target_role_id: str | None = Form(default=None),
+        client_upload_id: str | None = Form(default=None, min_length=1, max_length=200),
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+        idempotency_key: str | None = Header(
+            default=None,
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=200,
+        ),
     ) -> ResumeImportResponse:
+        """Store one resume version, replaying the earlier result on a retry.
+
+        ``Idempotency-Key`` (or the ``client_upload_id`` form field for clients
+        that cannot set headers) is scoped to the authenticated user. Repeating
+        it with the same file and form returns the version the first call
+        stored; repeating it with a different request is refused with 409.
+        """
+        if idempotency_key is not None and client_upload_id is not None and idempotency_key != client_upload_id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_RESUME_IMPORT",
+                    "message": "Idempotency-Key and client_upload_id disagree.",
+                },
+            )
         try:
             content = await file.read(MAX_RESUME_IMPORT_BYTES + 1)
             content, document_format = validate_resume_document(
@@ -1921,7 +2082,13 @@ def build_read_router(
                 name=name,
                 resume_id=resume_id,
                 target_role_id=target_role_id,
+                idempotency_key=idempotency_key or client_upload_id,
             )
+        except ResumeImportConflictError as error:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "RESUME_IMPORT_CONFLICT", "message": str(error)},
+            ) from error
         except ValueError as error:
             raise HTTPException(
                 status_code=400,
@@ -1929,6 +2096,63 @@ def build_read_router(
             ) from error
         finally:
             await file.close()
+
+    @router.get(
+        "/resumes/{resume_id}/versions/{version_id}/document",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {
+                    "application/pdf": {},
+                    "text/plain; charset=utf-8": {},
+                    "text/markdown; charset=utf-8": {},
+                }
+            }
+        },
+    )
+    async def resume_version_document(
+        resume_id: str = FastAPIPath(min_length=1, max_length=200),
+        version_id: str = FastAPIPath(min_length=1, max_length=200),
+        download: bool = Query(default=False),
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> Response:
+        """The original bytes of one version, for the owner to view or save.
+
+        PDF is served inline so the browser can render it; text and Markdown
+        are served as plain text (never as HTML) so a resume cannot script the
+        page that previews it. ``?download=1`` switches to an attachment.
+        """
+        located = workspace().resume_version_document(
+            user_id=principal.user_id,
+            resume_id=resume_id,
+            resume_version_id=version_id,
+        )
+        if located is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "RESUME_VERSION_NOT_FOUND",
+                    "message": "Resume version not found or does not belong to the current user.",
+                },
+            )
+        document, resume_name, version = located
+        media_type, extension = RESUME_DOCUMENT_MEDIA_TYPES[document.document_format]
+        filename = resume_document_filename(
+            resume_name, version_number=version.version_number, extension=extension
+        )
+        disposition = "attachment" if download else "inline"
+        if document.document_format == "markdown" and not download:
+            # Browsers download text/markdown; an inline preview wants text.
+            media_type = RESUME_DOCUMENT_MEDIA_TYPES["text"][0]
+        return Response(
+            content=document.raw_bytes,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": content_disposition(disposition, filename),
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "private, no-store",
+            },
+        )
 
     @router.get("/email", response_model=EmailWorkspaceResponse)
     async def email(

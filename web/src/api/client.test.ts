@@ -9,6 +9,7 @@ import {
   fetchReport,
   fetchSavedJobs,
   importResume,
+  resumeDocumentUrl,
   setJobPursuit,
 } from "./client";
 
@@ -135,6 +136,43 @@ describe("workspace client identity boundary", () => {
     expect(String(url)).toBe("/api/v1/resumes/import");
     expect(request?.method).toBe("POST");
     expect(request?.body).toBeInstanceOf(FormData);
+  });
+
+  it("sends the upload's idempotency key as a header so a retry cannot duplicate the version", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+        resume_id: "r1",
+        resume_version_id: "v1",
+        name: "主简历",
+        version_number: 1,
+        document_format: "markdown",
+        byte_size: 8,
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await importResume(
+      {
+        file: new File(["# Resume"], "resume.md", { type: "text/markdown" }),
+        resumeId: "r1",
+        idempotencyKey: "upload-123",
+      },
+      { apiBaseUrl: "/api" },
+    );
+
+    const [, request] = fetchMock.mock.calls[0];
+    expect(new Headers(request?.headers).get("Idempotency-Key")).toBe("upload-123");
+    expect((request?.body as FormData).get("resume_id")).toBe("r1");
+    expect(result).toMatchObject({ resume_id: "r1", resume_version_id: "v1" });
+  });
+
+  it("builds ownership-checked document links for viewing and downloading", () => {
+    expect(resumeDocumentUrl("r 1", "v/1", { apiBaseUrl: "/api/" })).toBe(
+      "/api/v1/resumes/r%201/versions/v%2F1/document",
+    );
+    expect(resumeDocumentUrl("r1", "v1", { apiBaseUrl: "/api", download: true })).toBe(
+      "/api/v1/resumes/r1/versions/v1/document?download=true",
+    );
   });
 
   it("reports a missing delivered body by status so the card can say deleted", async () => {

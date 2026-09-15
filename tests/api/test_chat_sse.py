@@ -609,3 +609,53 @@ def test_a_rejected_overlapping_turn_is_counted_not_only_refused(
     # The user comes from the credential, so a rejection is attributed to whoever
     # actually holds the key rather than to a name the request supplied.
     assert runtime.rejected == [("u1", "c1")]
+
+
+def test_input_resources_reach_the_runtime_typed_and_deduplicated(api_keys, auth) -> None:
+    """The version id travels as a structured field, never inside the message."""
+
+    class ResourceRuntime(Runtime):
+        def run_turn(self, *, input_resources=(), **arguments):
+            self.input_resources = input_resources
+            return super().run_turn(**arguments)
+
+    runtime = ResourceRuntime()
+    app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
+
+    with TestClient(app) as client:
+        accepted = client.post(
+            "/v1/chat/stream",
+            headers=auth,
+            json={
+                "conversation_id": "c1",
+                "message": "帮我分析这份简历",
+                "input_resources": [{"kind": "resume_version", "id": "rv-1"}],
+            },
+        )
+        repeated = client.post(
+            "/v1/chat/stream",
+            headers=auth,
+            json={
+                "conversation_id": "c1",
+                "message": "再看一次",
+                "input_resources": [
+                    {"kind": "resume_version", "id": "rv-1"},
+                    {"kind": "resume_version", "id": "rv-1"},
+                ],
+            },
+        )
+        unknown_kind = client.post(
+            "/v1/chat/stream",
+            headers=auth,
+            json={
+                "conversation_id": "c1",
+                "message": "看看",
+                "input_resources": [{"kind": "portfolio", "id": "p-1"}],
+            },
+        )
+
+    assert accepted.status_code == 200
+    assert [(r.kind, r.id) for r in runtime.input_resources] == [("resume_version", "rv-1")]
+    assert runtime.calls == [("u1", "c1", "帮我分析这份简历")]
+    assert repeated.status_code == 422
+    assert unknown_kind.status_code == 422

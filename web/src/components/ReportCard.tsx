@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
 
 import { ApiError, fetchReport, type ReportView } from "../api/client";
+import type { ReportResourceKind } from "../chat/events";
 import type { MessageResource } from "../chat/reducer";
 import { AppIcon } from "./AppIcon";
 import { MarkdownContent } from "./MarkdownContent";
 
+/** A message resource that is a stored report, as opposed to an attached resume. */
+export type ReportResource = MessageResource & { kind: ReportResourceKind };
+
+export function isReportResource(resource: MessageResource): resource is ReportResource {
+  return resource.kind !== "resume_version";
+}
+
 interface ReportCardProps {
-  resource: MessageResource;
+  resource: ReportResource;
   apiBaseUrl: string;
 }
 
-const KIND_LABELS: Record<MessageResource["kind"], string> = {
+const KIND_LABELS: Record<ReportResourceKind, string> = {
   job_research_report: "公司调研报告",
   mock_interview_report: "模拟面试报告",
   interview_preparation: "面试准备材料",

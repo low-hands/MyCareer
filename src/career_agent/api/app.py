@@ -43,6 +43,7 @@ from career_agent.api.single_worker import (
 from career_agent.harness.streaming import (
     InteractionResponse,
     PublicStreamEvent,
+    TurnInputResource,
     astream_turn_events,
 )
 from career_agent.security.authentication import require_scope
@@ -78,6 +79,26 @@ class ChatStreamRequest(BaseModel):
     conversation_id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=100_000)
     interaction_response: InteractionResponse | None = None
+    input_resources: tuple[TurnInputResource, ...] = Field(default=(), max_length=8)
+    """Structured references to durable user assets this message is about.
+
+    A resume is attached by ``resume_version`` id, never by pasting the file
+    or its id into ``message``. The runtime resolves each id against the
+    authenticated user; one that does not resolve fails the turn.
+    """
+
+    @field_validator("input_resources")
+    @classmethod
+    def _distinct_input_resources(
+        cls, value: tuple[TurnInputResource, ...]
+    ) -> tuple[TurnInputResource, ...]:
+        seen: set[tuple[str, str]] = set()
+        for resource in value:
+            key = (resource.kind, resource.id)
+            if key in seen:
+                raise ValueError("input_resources must not repeat a resource")
+            seen.add(key)
+        return value
 
 
 class BrowserJobCaptureRequest(BaseModel):
@@ -372,6 +393,7 @@ async def _sse_stream(
                 user_message=request.message,
                 request_id=request_id,
                 interaction_response=request.interaction_response,
+                input_resources=request.input_resources,
                 content_delay_seconds=synthetic_content_delay_seconds,
             ):
                 await queue.put(event)
