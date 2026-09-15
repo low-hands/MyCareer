@@ -17,6 +17,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
+from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -294,7 +295,12 @@ class GateAwareStreamingResponse(StreamingResponse):
 
 
 def _runtime_args_from_env() -> argparse.Namespace:
-    return build_parser().parse_args(
+    # This runs before ``OpenAICompatibleAgentConfig.from_env`` gets a chance
+    # to load the workspace dotenv file. Load it here so API-only settings such
+    # as the main-model timeout work from the same deployment file as the model
+    # endpoint and key; an explicitly exported value still wins.
+    load_dotenv()
+    args = build_parser().parse_args(
         [
             "chat",
             "--user-id",
@@ -305,6 +311,23 @@ def _runtime_args_from_env() -> argparse.Namespace:
             "runtime-bootstrap",
         ]
     )
+    raw_timeout = os.environ.get("MAIN_AGENT_TIMEOUT_SECONDS")
+    if raw_timeout is None:
+        return args
+    try:
+        timeout_seconds = float(raw_timeout)
+    except ValueError as error:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            "MAIN_AGENT_TIMEOUT_SECONDS must be a finite positive number.",
+        ) from error
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            "MAIN_AGENT_TIMEOUT_SECONDS must be a finite positive number.",
+        )
+    args.main_agent_timeout_seconds = timeout_seconds
+    return args
 
 
 def build_api_runtime() -> MainAgentRuntime:

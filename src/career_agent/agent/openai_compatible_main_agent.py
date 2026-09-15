@@ -46,13 +46,13 @@ from career_agent.agent.structured_responses import provider_code
 from career_agent.agent.token_budget import count_tokens
 
 
-DEFAULT_MAX_DECISION_ATTEMPTS = 2
+DEFAULT_MAX_DECISION_ATTEMPTS = 3
 """HTTP attempts one decision may take before the turn fails.
 
-One retry, not the SDK's three: every attempt can run to the full timeout, and
-four silent minutes read as a hang. The retry is announced (see
-``decision_attempts``), so one is enough to ride out a dropped connection
-without hiding a provider that is actually down.
+Two retries, not the SDK's unobserved defaults: every attempt can run to the
+full timeout, so the bound must stay small. Each retry is announced (see
+``decision_attempts``) and uses capped exponential backoff. This is enough to
+ride out a short provider-capacity wobble without hiding a sustained outage.
 """
 
 DEFAULT_MAX_OUTPUT_TOKENS = 16384
@@ -85,7 +85,7 @@ asking again cannot repeat a write. Executing only the first call would leave
 the model believing the others had happened too.
 """
 
-_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+_RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 
 
 def max_output_tokens_from_env(
@@ -189,7 +189,8 @@ def _add_control_state(
 
 
 def _retry_delay_seconds(attempt: int) -> float:
-    return min(0.5 * attempt, 2.0)
+    """Delay after a failed 1-based attempt, capped to bound recovery time."""
+    return min(0.5 * (2 ** (attempt - 1)), 2.0)
 
 
 def _base_url(endpoint: str) -> str:
@@ -231,7 +232,7 @@ class _StaticRequestMetadata:
 class _AttemptLog:
     """Every HTTP attempt one decision made, retries included.
 
-    A timeout, a dropped connection and 408/409/429/5xx are retried, so a
+    A timeout, a dropped connection and 429/502/503/504 are retried, so a
     slow decision may be one slow response or several stalled ones, and
     without this the trace cannot tell which. The hooks run once per attempt
     on the thread making the call: an attempt that never received a response
@@ -725,7 +726,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             raise AgentWorkerError(
                 f"MAIN_AGENT_REJECTED_{status}{provider_code(error)}",
                 "Main Agent model rejected the request.",
-                retryable=status in _RETRYABLE_STATUS_CODES or status >= 500,
+                retryable=status in _RETRYABLE_STATUS_CODES,
             ) from error
 
     @staticmethod

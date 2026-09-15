@@ -84,6 +84,30 @@ def test_api_runtime_bootstrap_no_longer_requires_boss_cli(
     assert not hasattr(args, "boss_data_dir")
 
 
+def test_api_runtime_reads_main_agent_timeout_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAIN_AGENT_TIMEOUT_SECONDS", "120")
+
+    args = _runtime_args_from_env()
+
+    assert args.main_agent_timeout_seconds == 120.0
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "0", "-1", "inf", "nan"])
+def test_api_runtime_rejects_invalid_main_agent_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    monkeypatch.setenv("MAIN_AGENT_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(AgentConfigurationError) as caught:
+        _runtime_args_from_env()
+
+    assert caught.value.code == "AGENT_CONFIGURATION_INVALID"
+    assert "MAIN_AGENT_TIMEOUT_SECONDS" in str(caught.value)
+
+
 def _events(body: str) -> list[tuple[str, dict]]:
     parsed = []
     for block in body.split("\n\n"):

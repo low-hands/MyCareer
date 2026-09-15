@@ -865,6 +865,66 @@ def test_each_retry_is_announced_with_the_previous_failure(monkeypatch) -> None:
     ]
 
 
+@pytest.mark.parametrize("status", [429, 502, 503, 504])
+def test_transient_provider_rejections_use_bounded_exponential_backoff(
+    monkeypatch, status: int
+) -> None:
+    import httpx
+
+    calls = []
+    delays = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(status, json={"error": {"message": "busy"}})
+
+    maker = _maker_over_transport(monkeypatch, handler, max_attempts=3)
+    maker._sleep = delays.append
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    expected_code = (
+        "MAIN_AGENT_RATE_LIMITED"
+        if status == 429
+        else f"MAIN_AGENT_REJECTED_{status}"
+    )
+    assert raised.value.code.startswith(expected_code)
+    assert raised.value.retryable is True
+    assert len(calls) == 3
+    assert delays == [0.5, 1.0]
+
+
+@pytest.mark.parametrize("status", [408, 409, 500, 501, 505])
+def test_other_provider_rejections_are_not_retried(monkeypatch, status: int) -> None:
+    import httpx
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(status, json={"error": {"message": "rejected"}})
+
+    maker = _maker_over_transport(monkeypatch, handler, max_attempts=3)
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="hello",
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(context, ())
+
+    assert raised.value.code.startswith(f"MAIN_AGENT_REJECTED_{status}")
+    assert raised.value.retryable is False
+    assert len(calls) == 1
+
+
 def test_a_non_retryable_rejection_is_not_retried(monkeypatch) -> None:
     import httpx
 
