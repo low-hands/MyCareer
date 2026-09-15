@@ -23,7 +23,7 @@
 1. 启动 Career Agent 的 FastAPI 和 Web 页面。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载已解压的扩展程序”，选择本目录。
-4. 在**同一个 Chrome** 里先打开一次 `http://127.0.0.1:5173/`，让扩展同步本地用户标识。这一步不可跳过：扩展通过 app bridge 从 Web 页面的 `localStorage` 读取 `career-agent:user-id` 并写入 `chrome.storage`，缺少它时保存请求会失败。
+4. 在**同一个 Chrome** 里先打开一次 `http://127.0.0.1:5173/`，让扩展同步单独签发的 `capture:write` API key。这一步不可跳过：扩展通过 app bridge 从 Web 页面的 `localStorage` 读取 capture key 并写入 `chrome.storage`，缺少它时保存请求会失败。
 5. 在同一个 Chrome 里登录并正常浏览 BOSS 直聘。详情加载完整后，右下角会出现预览；只有点击保存才会写入本地岗位库。
 
 如果 BOSS 出现登录墙或安全验证，请在页面中手动完成。扩展不会尝试绕过验证。
