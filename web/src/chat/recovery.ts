@@ -23,6 +23,13 @@ export function hydrationFrom(
       statusAtDelivery: resource.status_at_delivery,
       anchoredByOtherJob: resource.anchored_by_other_job,
       title: resource.title,
+      ...(resource.kind === "resume_version"
+        ? {
+            description: resource.description ?? null,
+            available: resource.available ?? null,
+            resumeId: resource.resume_id ?? null,
+          }
+        : {}),
     })),
   }));
   if (transcript.pending_interaction_body) {

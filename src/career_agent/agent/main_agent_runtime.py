@@ -25,7 +25,7 @@ from career_agent.harness.capability_steps import (
     CapabilityStep,
     observing_capability_steps,
 )
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
@@ -67,6 +67,11 @@ from career_agent.storage.capability_confirmations import (
     arguments_hash,
 )
 from career_agent.agent.main_agent_reducers import reduce_task_state
+from career_agent.agent.input_resources import (
+    InputResourceNotFoundError,
+    InputResourceRejectedError,
+    resolve_input_resources,
+)
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.interview_retro_presenter import (
@@ -126,6 +131,7 @@ from career_agent.harness.streaming import (
     StreamEventSink,
     TurnCompletedEvent,
     TurnFailedEvent,
+    TurnInputResource,
     TurnStartedEvent,
     TurnSuspendedEvent,
     interaction_id,
@@ -729,6 +735,7 @@ class MainAgentRuntime:
         request_id: str | None = None,
         interaction_response: InteractionResponse | None = None,
         event_sink: StreamEventSink | None = None,
+        input_resources: tuple[TurnInputResource, ...] = (),
     ) -> MainAgentTurnResult | ReplayedTurn:
         """Run one committed turn and optionally publish presentation-only events.
 
@@ -785,6 +792,7 @@ class MainAgentRuntime:
                 user_message=user_message,
                 interaction_response=interaction_response,
                 before_commit=deliver_reply,
+                input_resources=input_resources,
             )
             self._record_turn(turn_id=turn_id, conversation_id=conversation_id, result=result)
             self._deliver_stream_events(
@@ -837,6 +845,22 @@ class MainAgentRuntime:
                         turn_id=turn_id,
                         code="TURN_COMMIT_FAILED",
                         message="回复已生成，但本轮状态未能保存；刷新后这条回复可能不会保留。",
+                    )
+                )
+            elif isinstance(error, InputResourceNotFoundError):
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code="INPUT_RESOURCE_NOT_FOUND",
+                        message="附带的简历版本不存在或不属于当前用户，请重新选择后再发送。",
+                    )
+                )
+            elif isinstance(error, InputResourceRejectedError):
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code="INPUT_RESOURCE_REJECTED",
+                        message="当前模拟面试进行中，此时不会读取附带的简历。请完成或退出当前流程后再发送。",
                     )
                 )
             else:
@@ -1240,11 +1264,29 @@ class MainAgentRuntime:
         user_message: str,
         interaction_response: InteractionResponse | None = None,
         before_commit: Callable[[MainAgentTurnResult], None] | None = None,
+        input_resources: tuple[TurnInputResource, ...] = (),
     ) -> MainAgentTurnResult:
         self._reconcile_episodes(user_id)
         routing_task = self._context_manager.get_task(
             user_id=user_id,
             conversation_id=conversation_id,
+        )
+        # Checked before any context is built, so a turn that names a version
+        # the user does not own, or attaches one while a workflow is reading
+        # the messages itself, fails without writing anything.
+        if input_resources and self._owns_next_turn(routing_task):
+            raise InputResourceRejectedError(
+                f"{routing_task.active_workflow} owns this conversation; "
+                "attachments are not read until it completes"
+            )
+        attached_resumes = (
+            resolve_input_resources(
+                self._tools.resume_store,
+                user_id=user_id,
+                resources=input_resources,
+            )
+            if input_resources
+            else ()
         )
         bare_confirmation_target = routing_task.bare_confirmation_target
         if bare_confirmation_target is not None:
@@ -1254,10 +1296,13 @@ class MainAgentRuntime:
                 task=routing_task,
             )
         if interaction_response is not None:
-            context = self._context_manager.load_for_turn(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message=user_message,
+            context = self._attach_input_resources(
+                self._context_manager.load_for_turn(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    user_message=user_message,
+                ),
+                attached_resumes,
             )
             try:
                 result = self._run_interaction_response(
@@ -1339,10 +1384,13 @@ class MainAgentRuntime:
                 )
             return result
 
-        context = self._context_manager.load_for_turn(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            user_message=user_message,
+        context = self._attach_input_resources(
+            self._context_manager.load_for_turn(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_message=user_message,
+            ),
+            attached_resumes,
         )
         try:
             result = self._run_loaded_context(
@@ -1397,6 +1445,31 @@ class MainAgentRuntime:
                 turn_id=self._active_turn_id(),
             )
         return result
+
+    @staticmethod
+    def _attach_input_resources(
+        context: MainAgentContext,
+        attached_resumes: tuple[AttachedResumeContext, ...],
+    ) -> MainAgentContext:
+        """Place verified attachments on the turn and make the last one active.
+
+        The active version is what ``analyze_resume`` and its siblings resolve
+        "this resume" to, so attaching a version is the same act as choosing
+        it; the stored reference on the user message is what keeps the choice
+        from drifting when the resume later gains a newer version.
+        """
+        if not attached_resumes:
+            return context
+        return context.model_copy(
+            update={
+                "attached_resumes": attached_resumes,
+                "task": context.task.model_copy(
+                    update={
+                        "active_resume_version_id": attached_resumes[-1].resume_version_id,
+                    }
+                ),
+            }
+        )
 
     @staticmethod
     def _active_turn_id() -> str | None:
@@ -3526,7 +3599,10 @@ class MainAgentRuntime:
                     # the clipped one.
                     user_message=context.stored_user_message(),
                 )
-                refresh_updates: dict[str, Any] = {"task": updated.task}
+                refresh_updates: dict[str, Any] = {
+                    "task": updated.task,
+                    "attached_resumes": context.attached_resumes,
+                }
                 updated = refreshed.model_copy(update=refresh_updates)
             effect = pending["effect"]
             budget_key = "read_calls" if effect == "READ" else "write_calls"

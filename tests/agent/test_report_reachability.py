@@ -59,6 +59,10 @@ def test_the_resource_contract_covers_every_card_reader_kind() -> None:
         "interview_retro_report",
         "resume_job_match",
         "resume_tailoring_draft",
+        # The one user-supplied kind: an exact resume version attached to a
+        # user message. It is opened through the resume document route rather
+        # than a card reader, and never appears on an assistant message.
+        "resume_version",
     }
     # The original three also have entity-keyed model routes after their
     # archived reference leaves the bounded prompt catalogue. The newer three

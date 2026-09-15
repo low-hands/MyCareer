@@ -215,6 +215,8 @@ def split_context_cache_data(
         volatile_data["working_notes"] = projected["working_notes"]
     if "career_episodes" in projected:
         volatile_data["career_episodes"] = projected["career_episodes"]
+    if "attached_resumes" in projected:
+        volatile_data["attached_resumes"] = projected["attached_resumes"]
     return stable_data, volatile_data
 
 
@@ -300,6 +302,8 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
         data["working_notes"] = projected["working_notes"]
     if "career_episodes" in projected:
         data["career_episodes"] = projected["career_episodes"]
+    if "attached_resumes" in projected:
+        data["attached_resumes"] = projected["attached_resumes"]
     stable_data, volatile_data = split_context_cache_data(data)
 
     recent_messages = []
@@ -321,6 +325,16 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     current_user_message = context.user_message
     if context.user_message_clipped:
         current_user_message += _CONTENT_CLIPPED_MARKER
+    # The same footer a stored message carries, so the attachment reads the
+    # same way now as it will next turn; its metadata and excerpt sit in
+    # ``attached_resumes`` under the same handle.
+    attached = context.user_input_resource_refs()
+    if attached:
+        footer = [
+            f"[runtime resources: {handles[reference.resource_id]} {reference.kind}]"
+            for reference in attached
+        ]
+        current_user_message += "\n\n" + "\n".join(footer)
 
     return DecisionMessageProjection(
         control=control,

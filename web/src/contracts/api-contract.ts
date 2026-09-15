@@ -835,15 +835,21 @@ export const API_CONTRACT = {
               "resources": [
                 {
                   "anchored_by_other_job": false,
+                  "available": null,
+                  "description": null,
                   "kind": "job_research_report",
                   "resource_id": "report-1",
+                  "resume_id": null,
                   "status_at_delivery": "current",
                   "title": null
                 },
                 {
                   "anchored_by_other_job": null,
+                  "available": null,
+                  "description": null,
                   "kind": "resume_job_match",
                   "resource_id": "match-1",
+                  "resume_id": null,
                   "status_at_delivery": null,
                   "title": null
                 }
@@ -939,6 +945,30 @@ export const API_CONTRACT = {
                 "default": null,
                 "title": "Anchored By Other Job"
               },
+              "available": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Available"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
               "kind": {
                 "title": "Kind",
                 "type": "string"
@@ -946,6 +976,18 @@ export const API_CONTRACT = {
               "resource_id": {
                 "title": "Resource Id",
                 "type": "string"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
               },
               "status_at_delivery": {
                 "anyOf": [
@@ -2660,10 +2702,53 @@ export const API_CONTRACT = {
           "status": "active",
           "target_role": "AI 产品经理",
           "updated_at": "2026-09-12T12:00:00Z",
-          "version_count": 2
+          "version_count": 2,
+          "versions": []
         }
       ],
       "schema": {
+        "$defs": {
+          "ResumeVersionView": {
+            "additionalProperties": false,
+            "properties": {
+              "byte_size": {
+                "title": "Byte Size",
+                "type": "integer"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "document_format": {
+                "title": "Document Format",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "resume_id": {
+                "title": "Resume Id",
+                "type": "string"
+              },
+              "version_number": {
+                "title": "Version Number",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "resume_id",
+              "version_number",
+              "document_format",
+              "byte_size",
+              "created_at"
+            ],
+            "title": "ResumeVersionView",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "properties": {
           "byte_size": {
@@ -2706,6 +2791,14 @@ export const API_CONTRACT = {
           "version_count": {
             "title": "Version Count",
             "type": "integer"
+          },
+          "versions": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/ResumeVersionView"
+            },
+            "title": "Versions",
+            "type": "array"
           }
         },
         "required": [
@@ -3074,6 +3167,7 @@ export const API_CONTRACT = {
       "examples": [
         {
           "conversation_id": "conv-1",
+          "input_resources": [],
           "interaction_response": {
             "action": "confirm",
             "interaction_id": "interaction_0123456789abcdef0123",
@@ -3117,6 +3211,29 @@ export const API_CONTRACT = {
             ],
             "title": "InteractionResponse",
             "type": "object"
+          },
+          "TurnInputResource": {
+            "additionalProperties": false,
+            "description": "A durable user asset the message is about, named by id rather than prose.\n\nOnly ``resume_version`` exists for now: the exact immutable version the\nuser attached, which the runtime verifies belongs to the authenticated\nuser before any of it reaches the model. The id is never trusted from the\nmessage text, and the file itself never travels in the request.",
+            "properties": {
+              "id": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Id",
+                "type": "string"
+              },
+              "kind": {
+                "const": "resume_version",
+                "title": "Kind",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "title": "TurnInputResource",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -3126,6 +3243,15 @@ export const API_CONTRACT = {
             "minLength": 1,
             "title": "Conversation Id",
             "type": "string"
+          },
+          "input_resources": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/TurnInputResource"
+            },
+            "maxItems": 8,
+            "title": "Input Resources",
+            "type": "array"
           },
           "interaction_response": {
             "anyOf": [

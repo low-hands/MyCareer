@@ -53,3 +53,28 @@ def validate_resume_document(filename: str, content: bytes) -> tuple[bytes, str]
     if not text.strip():
         raise ValueError("Resume text must contain non-whitespace content.")
     return content, document_format
+
+
+def extract_resume_text(document_format: str, content: bytes) -> str | None:
+    """Plain text of a stored resume, or ``None`` when none can be read.
+
+    A scanned PDF yields no text and an undecodable upload yields nothing at
+    all; both come back as ``None`` so callers never mistake an empty
+    extraction for an empty resume. Whitespace is collapsed per line so the
+    layout noise of a PDF does not consume the caller's budget.
+    """
+    if document_format == "pdf":
+        try:
+            reader = PdfReader(BytesIO(content), strict=False)
+            pages = [page.extract_text() or "" for page in reader.pages]
+        except Exception:
+            return None
+        raw = "\n".join(pages)
+    else:
+        try:
+            raw = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return None
+    lines = [" ".join(line.split()) for line in raw.splitlines()]
+    text = "\n".join(line for line in lines if line)
+    return text or None

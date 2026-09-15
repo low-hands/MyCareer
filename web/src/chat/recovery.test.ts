@@ -82,4 +82,33 @@ describe("hydrationFrom", () => {
     ]);
     expect(hydration.awaitingInput).toBe(true);
   });
+
+  it("restores a resume attachment's snapshot, including that it is no longer reachable", () => {
+    const stored = transcript([{ role: "user", content: "帮我分析这份简历" }]);
+    stored.messages[0].resources = [
+      {
+        kind: "resume_version",
+        resource_id: "version-2",
+        status_at_delivery: null,
+        anchored_by_other_job: null,
+        title: "主简历 v2",
+        description: "pdf · 2048 bytes",
+        available: false,
+        resume_id: null,
+      },
+    ];
+    const [message] = hydrationFrom("c1", stored).messages;
+    expect(message.resources).toEqual([
+      {
+        kind: "resume_version",
+        resourceId: "version-2",
+        statusAtDelivery: null,
+        anchoredByOtherJob: null,
+        title: "主简历 v2",
+        description: "pdf · 2048 bytes",
+        available: false,
+        resumeId: null,
+      },
+    ]);
+  });
 });

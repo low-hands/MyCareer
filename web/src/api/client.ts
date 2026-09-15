@@ -91,12 +91,19 @@ export interface ConversationView {
   last_active_at: string;
 }
 
+export type MessageResourceKind = ReportResourceKind | "resume_version";
+
 export interface ConversationResourceView {
-  kind: ReportResourceKind;
+  kind: MessageResourceKind;
   resource_id: string;
   status_at_delivery: ReportDeliveryStatus | null;
   anchored_by_other_job: boolean | null;
   title: string | null;
+  description?: string | null;
+  /** Whether the referenced asset can still be opened; null when not tracked. */
+  available?: boolean | null;
+  /** The owning resume of a `resume_version` that is still accessible. */
+  resume_id?: string | null;
 }
 
 export interface ConversationMessageView {
@@ -128,6 +135,15 @@ export interface ConversationTranscript {
   pending_interaction_body: string | null;
 }
 
+export interface ResumeVersionView {
+  id: string;
+  resume_id: string;
+  version_number: number;
+  document_format: string;
+  byte_size: number;
+  created_at: string;
+}
+
 export interface ResumeView {
   id: string;
   name: string;
@@ -139,6 +155,8 @@ export interface ResumeView {
   document_format: string;
   byte_size: number;
   updated_at: string;
+  /** Newest first. */
+  versions: ResumeVersionView[];
 }
 
 export interface TargetRoleView {
@@ -487,6 +505,12 @@ export async function importResume(
     name?: string;
     resumeId?: string;
     targetRoleId?: string;
+    /**
+     * Sent as `Idempotency-Key`. A retry of the same upload (same file, name,
+     * role and destination) returns the version already created instead of a
+     * second one; a different request under the same key is refused.
+     */
+    idempotencyKey?: string;
   },
   options: ReadOptions,
 ): Promise<ResumeImportResult> {
@@ -495,9 +519,11 @@ export async function importResume(
   if (values.name) body.set("name", values.name);
   if (values.resumeId) body.set("resume_id", values.resumeId);
   if (values.targetRoleId) body.set("target_role_id", values.targetRoleId);
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (values.idempotencyKey) headers["Idempotency-Key"] = values.idempotencyKey;
   const response = await fetch(`${options.apiBaseUrl}/v1/resumes/import`, {
     method: "POST",
-    headers: { Accept: "application/json" },
+    headers,
     body,
     signal: options.signal,
   });
@@ -512,6 +538,17 @@ export async function importResume(
     throw new ApiError(message);
   }
   return (await response.json()) as ResumeImportResult;
+}
+
+/** The stored original of one resume version, served by the owner-checked route. */
+export function resumeDocumentUrl(
+  resumeId: string,
+  versionId: string,
+  options: { apiBaseUrl: string; download?: boolean },
+): string {
+  const base = options.apiBaseUrl.replace(/\/$/, "");
+  const path = `${base}/v1/resumes/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}/document`;
+  return options.download ? `${path}?download=true` : path;
 }
 
 export function fetchEmailWorkspace(options: ReadOptions): Promise<EmailWorkspace> {

@@ -682,6 +682,11 @@ class MainAgentToolRegistry:
             return "atomic_tool"
         raise ValueError(f"Unknown main-agent capability: {name}")
 
+    @property
+    def resume_store(self) -> ResumeStore | None:
+        """The store that owns resume versions, for the runtime to verify inputs against."""
+        return self._resume_store
+
     def schemas(self) -> tuple[dict[str, Any], ...]:
         schemas = []
         if self._conversation_store is not None:

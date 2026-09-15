@@ -85,6 +85,19 @@ class InteractionResponse(StreamContract):
     action: Literal["confirm", "cancel"]
 
 
+class TurnInputResource(StreamContract):
+    """A durable user asset the message is about, named by id rather than prose.
+
+    Only ``resume_version`` exists for now: the exact immutable version the
+    user attached, which the runtime verifies belongs to the authenticated
+    user before any of it reaches the model. The id is never trusted from the
+    message text, and the file itself never travels in the request.
+    """
+
+    kind: Literal["resume_version"]
+    id: str = Field(min_length=1, max_length=200)
+
+
 class InteractionRequiredEvent(StreamContract):
     type: Literal["interaction_required"] = "interaction_required"
     interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
@@ -221,6 +234,7 @@ class StreamableTurnRuntime(Protocol):
         user_message: str,
         request_id: str | None = None,
         interaction_response: InteractionResponse | None = None,
+        input_resources: tuple[TurnInputResource, ...] = (),
         event_sink: StreamEventSink | None = None,
     ) -> object: ...
 
@@ -329,6 +343,7 @@ async def astream_turn_events(
     user_message: str,
     request_id: str | None = None,
     interaction_response: InteractionResponse | None = None,
+    input_resources: tuple[TurnInputResource, ...] = (),
     content_delay_seconds: float = 0.0,
 ) -> AsyncIterator[PublicStreamEvent]:
     """Bridge the synchronous runtime to an async SSE/WebSocket consumer.
@@ -366,6 +381,8 @@ async def astream_turn_events(
                 turn_arguments["request_id"] = request_id
             if interaction_response is not None:
                 turn_arguments["interaction_response"] = interaction_response
+            if input_resources:
+                turn_arguments["input_resources"] = tuple(input_resources)
             runtime.run_turn(**turn_arguments)
         finally:
             post(sentinel)

@@ -1122,8 +1122,10 @@ class ContextManager:
             }
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None, user_resource_refs: tuple[ConversationResourceReference, ...] | None = None) -> None:
         now = datetime.now(timezone.utc)
+        if user_resource_refs is None:
+            user_resource_refs = context.user_input_resource_refs()
         # This is deliberately exposure-level provenance. Every career scope
         # shown to the model binds both stored messages in the turn, even when
         # the reply did not visibly use it. A tombstone may therefore suppress
@@ -1139,7 +1141,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
-            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now),
+            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now, resource_refs=user_resource_refs),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
             assistant_bodies=assistant_bodies,
             episode_drafts=episode_drafts,
@@ -1185,7 +1187,8 @@ class ContextManager:
         request and must be the one the caller reports.
         """
         held = task.hold_entry_message(
-            self._truncate(context.stored_user_message())
+            self._truncate(context.stored_user_message()),
+            context.user_input_resource_refs(),
         )
         self.commit_workflow_turn(
             context=context,
@@ -1217,6 +1220,7 @@ class ContextManager:
         # releasing the slot clears the field, and that release is exactly what
         # brought us here.
         entry = context.task.workflow_entry_message
+        entry_refs = context.task.workflow_entry_resource_refs
         episode_drafts: tuple[CareerEpisodeDraft, ...] = ()
         if (
             context.task.active_workflow == "mock_interview"
@@ -1255,7 +1259,13 @@ class ContextManager:
                     "user_message_clipped": False,
                 }
             ),
-            task=task.model_copy(update={"workflow_entry_message": None}),
+            user_resource_refs=entry_refs,
+            task=task.model_copy(
+                update={
+                    "workflow_entry_message": None,
+                    "workflow_entry_resource_refs": (),
+                }
+            ),
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
             assistant_bodies=assistant_bodies,

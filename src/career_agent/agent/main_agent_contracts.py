@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal, NamedTuple, Protocol, get_args
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
+from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
 from career_agent.agent.delivery_policy import is_failed, is_waiting
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
@@ -725,6 +725,8 @@ class ConversationTaskState(ContractModel):
     manual_search_query: str | None = None
     candidates: tuple[CandidateContextItem, ...] = ()
     workflow_entry_message: str | None = None
+    workflow_entry_resource_refs: tuple["ConversationResourceReference", ...] = ()
+    """The inputs attached to the held request, written back with it on exit."""
     pending_job_intent_update: JobIntentUpdate | None = None
     pending_free_text_preference: FreeTextPreferenceConfirmationProposal | None = None
     pending_memory_amendment: MemoryAmendmentProposal | None = None
@@ -880,6 +882,11 @@ class ConversationTaskState(ContractModel):
                     if self.active_workflow == workflow
                     else None
                 ),
+                "workflow_entry_resource_refs": (
+                    self.workflow_entry_resource_refs
+                    if self.active_workflow == workflow
+                    else ()
+                ),
             }
         )
 
@@ -903,7 +910,11 @@ class ConversationTaskState(ContractModel):
             if name.startswith("active_") and name.endswith("_id")
         }
 
-    def hold_entry_message(self, message: str) -> "ConversationTaskState":
+    def hold_entry_message(
+        self,
+        message: str,
+        resource_refs: tuple["ConversationResourceReference", ...] = (),
+    ) -> "ConversationTaskState":
         """Keep the request a multi-turn workflow has not answered yet.
 
         The workflow's own turns are not written to the conversation, so the
@@ -911,7 +922,12 @@ class ConversationTaskState(ContractModel):
         keeps the request and its reply in one write instead of leaving the
         conversation mid-exchange for as long as the run lasts.
         """
-        return self.model_copy(update={"workflow_entry_message": message})
+        return self.model_copy(
+            update={
+                "workflow_entry_message": message,
+                "workflow_entry_resource_refs": resource_refs,
+            }
+        )
 
     def leave_workflow(self) -> "ConversationTaskState":
         """Release the slot and clear the scoped fields together.
@@ -928,6 +944,7 @@ class ConversationTaskState(ContractModel):
                 "selected_result_ref": None,
                 "manual_search_query": None,
                 "workflow_entry_message": None,
+                "workflow_entry_resource_refs": (),
             }
         )
 
@@ -940,6 +957,11 @@ class ConversationResourceReference(ContractModel):
     which track what the user is discussing now and are overwritten every time
     the focus moves. Reading back the report a turn produced needs the former;
     resolving "this report" with no antecedent needs the latter.
+
+    ``resume_version`` is the one kind a *user* message carries: the exact
+    immutable version the user attached to that turn. The row keeps only the
+    id and a display snapshot, never the file, and it keeps pointing at that
+    version after the resume gains newer ones or is deleted.
     """
 
     kind: Literal[
@@ -949,6 +971,7 @@ class ConversationResourceReference(ContractModel):
         "interview_retro_report",
         "resume_job_match",
         "resume_tailoring_draft",
+        "resume_version",
     ]
     resource_id: str = Field(min_length=1)
     # Job research alone needs delivery-time render metadata because
@@ -1485,8 +1508,39 @@ _HANDLE_PREFIXES = {
     "interview_retro_report": "retro",
     "resume_job_match": "match",
     "resume_tailoring_draft": "tailoring",
+    "resume_version": "resume",
 }
 _HANDLE_SUFFIX_LENGTH = 6
+
+ATTACHED_RESUME_EXCERPT_CHARS = 12_000
+"""Extracted resume text a turn may show the model, summed over all attachments."""
+
+
+class AttachedResumeContext(ContractModel):
+    """One resume version the user attached to this turn, as the model sees it.
+
+    Built by the runtime after verifying the version belongs to the
+    authenticated user; nothing here comes from the request body except the
+    id, and the id itself is excluded from the projection. ``excerpt`` is the
+    extracted text, cut to this attachment's share of the turn's
+    ``ATTACHED_RESUME_EXCERPT_CHARS`` — enough to discuss the resume, without
+    the file or the full text ever entering the stored conversation.
+    """
+
+    resume_version_id: str = Field(min_length=1, exclude=True)
+    resume_id: str = Field(min_length=1, exclude=True)
+    resume_name: str = Field(min_length=1, max_length=200)
+    version_number: int = Field(ge=1)
+    is_latest_version: bool
+    target_role: str | None = Field(default=None, max_length=200)
+    document_format: Literal["pdf", "text", "markdown"]
+    byte_size: int = Field(ge=0)
+    uploaded_at: datetime
+    excerpt: str | None = Field(default=None, max_length=ATTACHED_RESUME_EXCERPT_CHARS)
+    excerpt_truncated: bool = False
+    text_unavailable: bool = False
+    """True when no text could be read from the file, such as a scanned PDF."""
+
 
 NEXT_ACTION_LIMIT = 200
 # Arguments are model-authored, so unlike a receipt nothing upstream bounds them.
@@ -2007,6 +2061,11 @@ class MainAgentContext(ContractModel):
         max_length=MAX_DECISION_OBSERVATIONS,
     )
     conversation_summary: ConversationSummaryContent | None = None
+    attached_resumes: tuple[AttachedResumeContext, ...] = Field(
+        default=(), max_length=8
+    )
+    """Exact resume versions the current user message is about, already verified."""
+
     user_message: str = Field(min_length=1)
     user_message_source: str | None = Field(default=None, exclude=True)
     """The message as the user sent it, kept only when ``user_message`` was clipped."""
@@ -2024,6 +2083,28 @@ class MainAgentContext(ContractModel):
             self.user_message_source
             if self.user_message_source is not None
             else self.user_message
+        )
+
+    def user_input_resource_refs(self) -> tuple[ConversationResourceReference, ...]:
+        """The references the stored user message carries for its attachments.
+
+        Only the id and a display snapshot: the excerpt is turn-local and the
+        file stays in the resume library.
+        """
+        return tuple(
+            ConversationResourceReference(
+                kind="resume_version",
+                resource_id=item.resume_version_id,
+                title=clamp(
+                    f"{item.resume_name} v{item.version_number}", limit=80
+                ),
+                description=clamp(
+                    f"{item.document_format} · {item.byte_size} bytes · "
+                    f"上传于 {item.uploaded_at.isoformat()}",
+                    limit=200,
+                ),
+            )
+            for item in self.attached_resumes
         )
 
     @model_validator(mode="before")
@@ -2110,6 +2191,7 @@ class MainAgentContext(ContractModel):
                 for message in (*self.archived_resources, *self.recent_messages)
                 for reference in message.resource_refs
             ),
+            *self.user_input_resource_refs(),
             *(
                 observation.resource_ref
                 for observation in self.tool_observations
@@ -2590,6 +2672,19 @@ class MainAgentContext(ContractModel):
                 self.conversation_summary.model_dump(mode="json")
                 if self.conversation_summary
                 else None
+            ),
+            **(
+                {
+                    "attached_resumes": tuple(
+                        {
+                            "reference": handles[item.resume_version_id],
+                            **item.model_dump(mode="json"),
+                        }
+                        for item in self.attached_resumes
+                    )
+                }
+                if self.attached_resumes
+                else {}
             ),
             "user_message": self.user_message,
         }

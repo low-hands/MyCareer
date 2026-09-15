@@ -26,7 +26,10 @@ import {
   setJobAvailability,
   setJobPursuit,
   type SavedJobDetail,
+  resumeDocumentUrl,
+  type ResumeVersionView,
 } from "../api/client";
+import { attachmentFromImport, attachmentFromVersion, type ResumeAttachment } from "../chat/attachments";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 import { ReportCard } from "../components/ReportCard";
 import { ResumeImporter } from "../components/ResumeImporter";
@@ -36,7 +39,8 @@ type PageProps = {
   apiBaseUrl: string;
   refreshToken: number;
   hidden: boolean;
-  onAskAgent: (prompt: string) => void;
+  /** `resource` pins the message to one exact resume version via `input_resources`. */
+  onAskAgent: (prompt: string, resource?: ResumeAttachment) => void;
   onOpenConversation?: (conversationId: string) => void;
 };
 
@@ -768,29 +772,76 @@ export function ResumesPanel(props: PageProps) {
           onImported={(result) => {
             setShowImporter(false);
             state.reload();
-            props.onAskAgent(`刚刚导入了简历“${result.name}”v${result.version_number}，请分析这份简历`);
+            props.onAskAgent("帮我分析这份简历", attachmentFromImport(result));
           }}
         />
       ) : null}
       {state.data && state.data.length > 0 ? (
         <div className="card-grid">
-          {state.data.map((item) => (
-            <article className="resume-card" key={item.id}>
-              <span className="document-preview"><AppIcon name="document" size={28} /><small>{item.document_format.toUpperCase()}</small></span>
-              <div className="card-body">
-                <span className="card-kicker">{item.target_role}</span>
-                <h2>{item.name}</h2>
-                <p>最新 v{item.latest_version_number} · 共 {item.version_count} 个版本</p>
-                <div className="card-meta"><span>{formatBytes(item.byte_size)}</span><time>{dateLabel(item.updated_at)} 更新</time></div>
-                <button type="button" className="card-agent-action" onClick={() => props.onAskAgent(`分析简历库里的“${item.name}”最新版本`)}>让 Agent 分析</button>
-              </div>
-            </article>
-          ))}
+          {state.data.map((item) => {
+            const [latest, ...older] = item.versions;
+            return (
+              <article className="resume-card" key={item.id}>
+                <span className="document-preview"><AppIcon name="document" size={28} /><small>{item.document_format.toUpperCase()}</small></span>
+                <div className="card-body">
+                  <span className="card-kicker">{item.target_role}</span>
+                  <h2>{item.name}</h2>
+                  <p>最新 v{item.latest_version_number} · 共 {item.version_count} 个版本</p>
+                  <div className="card-meta"><span>{formatBytes(item.byte_size)}</span><time>{dateLabel(item.updated_at)} 更新</time></div>
+                  {latest ? (
+                    <ResumeVersionRow resumeName={item.name} version={latest} apiBaseUrl={props.apiBaseUrl} onAskAgent={props.onAskAgent} latest />
+                  ) : null}
+                  {older.length > 0 ? (
+                    <details className="resume-version-history">
+                      <summary>历史版本（{older.length}）</summary>
+                      {older.map((version) => (
+                        <ResumeVersionRow key={version.id} resumeName={item.name} version={version} apiBaseUrl={props.apiBaseUrl} onAskAgent={props.onAskAgent} />
+                      ))}
+                    </details>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : !showImporter ? (
         <EmptyState icon="document" title="还没有简历" description="先导入 PDF、TXT 或 Markdown；导入后可立即交给 Agent 分析。" action="导入一份简历" onAction={() => setShowImporter(true)} />
       ) : null}
     </section>
+  );
+}
+
+/**
+ * One stored version: when it was uploaded, its format and size, and the
+ * three things a person can do with it. "让 Agent 分析" sends this exact
+ * version's id, so the conversation stays pinned to it even after a newer
+ * version is imported.
+ */
+function ResumeVersionRow({
+  resumeName,
+  version,
+  apiBaseUrl,
+  onAskAgent,
+  latest = false,
+}: {
+  resumeName: string;
+  version: ResumeVersionView;
+  apiBaseUrl: string;
+  onAskAgent: PageProps["onAskAgent"];
+  latest?: boolean;
+}) {
+  return (
+    <div className={`resume-version-row ${latest ? "is-latest" : ""}`}>
+      <div>
+        <strong>v{version.version_number}{latest ? " · 最新" : ""}</strong>
+        <small>{version.document_format.toUpperCase()} · {formatBytes(version.byte_size)} · {new Date(version.created_at).toLocaleString("zh-CN")} 上传</small>
+      </div>
+      <div className="resume-version-actions">
+        <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl })} target="_blank" rel="noreferrer">查看原文件</a>
+        <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl, download: true })}>下载</a>
+        <button type="button" onClick={() => onAskAgent(`帮我分析简历“${resumeName}”的 v${version.version_number}`, attachmentFromVersion(resumeName, version))}>让 Agent 分析</button>
+      </div>
+    </div>
   );
 }
 

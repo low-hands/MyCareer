@@ -60,6 +60,31 @@ describe("streamChat", () => {
     });
   });
 
+  it("sends attached resume versions as structured input_resources, not prose", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        'event: turn_completed\ndata: {"type":"turn_completed","turn_id":"turn-1"}\n\n',
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    for await (const _event of streamChat({
+      conversation_id: "c1",
+      message: "帮我分析这份简历",
+      input_resources: [{ kind: "resume_version", id: "version-7" }],
+    })) {
+      // Consume the response so the request completes.
+    }
+
+    const request = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(String(request?.body))).toEqual({
+      conversation_id: "c1",
+      message: "帮我分析这份简历",
+      input_resources: [{ kind: "resume_version", id: "version-7" }],
+    });
+  });
+
   it("sends the idempotency key as a header when given one", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
       new Response(

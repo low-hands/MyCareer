@@ -8,6 +8,13 @@ export interface ChatStreamRequest {
   conversation_id: string;
   message: string;
   interaction_response?: InteractionResponse;
+  /** Exact resume versions the runtime should verify and hand to the agent. */
+  input_resources?: TurnInputResource[];
+}
+
+export interface TurnInputResource {
+  kind: "resume_version";
+  id: string;
 }
 
 export interface InteractionResponse {
