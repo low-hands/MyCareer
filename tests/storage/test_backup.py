@@ -282,3 +282,228 @@ def test_cli_backup_restore_refuses_while_the_api_holds_the_workspace_lock(tmp_p
     assert code == 5
     assert "API 正在运行" in refused["error"]
     assert _rows(root / "context.sqlite3") == ["ctx-1", "ctx-2"]
+
+
+def test_cli_backup_create_refuses_while_the_api_holds_the_workspace_lock(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    _make_db(root / "context.sqlite3", ["ctx-1"])
+
+    lock = SingleWorkerLock(lock_path_for(root))
+    lock.acquire()
+    try:
+        code, refused = _run(
+            ["backup", "create", "--dest", str(tmp_path / "b1"), *_store_args(root)]
+        )
+        assert code == 5
+        assert "API 正在运行" in refused["error"]
+        assert "--allow-running-api" in refused["error"]
+        assert not (tmp_path / "b1" / "manifest.json").exists()
+
+        code, created = _run(
+            [
+                "backup", "create", "--dest", str(tmp_path / "b2"),
+                "--allow-running-api", *_store_args(root),
+            ]
+        )
+    finally:
+        lock.release()
+
+    assert code == 0
+    assert created["consistent_snapshot"] is False
+    assert created["warnings"]
+    manifest = json.loads((tmp_path / "b2" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["consistent_snapshot"] is False
+
+    code, verified = _run(["backup", "verify", "--source", str(tmp_path / "b2")])
+    assert (code, verified["ok"], verified["consistent_snapshot"]) == (0, True, False)
+    assert "same moment" in verified["warnings"][0]
+
+    _make_db(root / "context.sqlite3", ["ctx-2"])
+    code, restored = _run(
+        [
+            "backup", "restore", "--source", str(tmp_path / "b2"), "--yes",
+            "--no-safety-copy", *_store_args(root),
+        ]
+    )
+    assert code == 0
+    assert _rows(root / "context.sqlite3") == ["ctx-1"]
+    assert "same moment" in restored["warnings"][0]
+
+
+def test_cli_backup_create_holding_the_lock_is_a_consistent_snapshot(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    _make_db(root / "context.sqlite3", ["ctx-1"])
+
+    code, created = _run(["backup", "create", "--dest", str(tmp_path / "b1"), *_store_args(root)])
+
+    assert code == 0
+    assert (created["consistent_snapshot"], created["warnings"]) == (True, [])
+    # The lock is released again once the copy is written.
+    lock = SingleWorkerLock(lock_path_for(root))
+    lock.acquire()
+    lock.release()
+    _, verified = _run(["backup", "verify", "--source", str(tmp_path / "b1")])
+    assert (verified["consistent_snapshot"], verified["warnings"]) == (True, [])
+
+
+def test_a_manifest_without_the_consistency_flag_is_unknown_and_warns(tmp_path):
+    from career_agent.storage.backup import (
+        BackupManifest,
+        UNKNOWN_SNAPSHOT_WARNING,
+        VerificationReport,
+    )
+
+    manifest = BackupManifest.from_json({"version": 1, "created_at": "2026-09-14T00:00:00+00:00", "entries": []})
+    assert manifest.consistent_snapshot is None
+    report = VerificationReport(directory=tmp_path, manifest=manifest, problems=())
+    assert report.ok
+    assert report.warnings == (UNKNOWN_SNAPSHOT_WARNING,)
+    with pytest.raises(BackupError):
+        BackupManifest.from_json(
+            {"version": 1, "created_at": "2026-09-14T00:00:00+00:00", "entries": [], "consistent_snapshot": "no"}
+        )
+
+
+def test_cli_write_commands_refuse_while_the_api_holds_the_workspace_lock(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    store = root / "context.sqlite3"
+
+    lock = SingleWorkerLock(lock_path_for(root))
+    lock.acquire()
+    try:
+        out = StringIO()
+        code = main(
+            ["settings", "set", "--user-id", "u1", "--boss-search", "allowed",
+             "--context-store", str(store)],
+            stdout=out,
+            stderr=StringIO(),
+        )
+    finally:
+        lock.release()
+
+    assert code == 5
+    assert "正在使用该工作区" in json.loads(out.getvalue())["error"]
+    assert not store.exists()
+
+
+def test_cli_read_commands_do_not_need_the_workspace_lock(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    store = root / "context.sqlite3"
+
+    lock = SingleWorkerLock(lock_path_for(root))
+    lock.acquire()
+    try:
+        out = StringIO()
+        code = main(
+            ["settings", "show", "--user-id", "u1", "--context-store", str(store)],
+            stdout=out,
+            stderr=StringIO(),
+        )
+    finally:
+        lock.release()
+
+    assert code == 0
+    assert json.loads(out.getvalue())["user_id"] == "u1"
+
+
+def test_cli_write_commands_lock_beside_the_context_store_whatever_other_stores_are_given(tmp_path):
+    """One lock for the workspace: a command writing a resume database in
+    another directory still contends with the API and ``backup`` on the
+    context store's lock, so spread-out databases cannot be written under a
+    running backup."""
+    from career_agent.api.single_worker import SingleWorkerLock, lock_path_for
+    from career_agent.cli import main
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    holder = SingleWorkerLock(lock_path_for(workspace))
+    holder.acquire()
+    out = StringIO()
+    try:
+        code = main(
+            [
+                "target-role",
+                "create",
+                "--user-id",
+                "u1",
+                "--title",
+                "Backend",
+                "--resume-store",
+                str(other / "resumes.sqlite3"),
+                "--context-store",
+                str(workspace / "context.sqlite3"),
+            ],
+            stdout=out,
+            stderr=StringIO(),
+        )
+    finally:
+        holder.release()
+    assert code == 5
+    assert not (other / "api-server.lock").exists()
+    assert not (other / "resumes.sqlite3").exists()
+
+
+def test_cli_api_key_writes_take_the_workspace_lock(tmp_path):
+    """The key database is part of a backup, so issuing or revoking keys is a
+    workspace write and waits for backup/restore like any other."""
+    from career_agent.api.single_worker import SingleWorkerLock, lock_path_for
+    from career_agent.cli import main
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    holder = SingleWorkerLock(lock_path_for(workspace))
+    holder.acquire()
+    out = StringIO()
+    try:
+        code = main(
+            [
+                "api-keys",
+                "issue",
+                "--user-id",
+                "u1",
+                "--name",
+                "browser",
+                "--scope",
+                "chat:write",
+                "--api-key-store",
+                str(tmp_path / "api_keys.sqlite3"),
+                "--context-store",
+                str(workspace / "context.sqlite3"),
+            ],
+            stdout=out,
+            stderr=StringIO(),
+        )
+    finally:
+        holder.release()
+    assert code == 5
+    assert not (tmp_path / "api_keys.sqlite3").exists()
+
+
+def test_cli_reports_a_lock_it_cannot_open_instead_of_crashing(tmp_path):
+    from career_agent.cli import main
+
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("")
+    out = StringIO()
+    code = main(
+        [
+            "settings",
+            "set",
+            "--user-id",
+            "u1",
+            "--boss-search",
+            "allowed",
+            "--context-store",
+            str(blocker / "context.sqlite3"),
+        ],
+        stdout=out,
+        stderr=StringIO(),
+    )
+    assert code == 3
+    assert "工作区锁" in json.loads(out.getvalue())["error"]

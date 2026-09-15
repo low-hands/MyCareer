@@ -1,3 +1,4 @@
+import copy
 import json
 from datetime import datetime, timezone
 
@@ -1210,3 +1211,264 @@ def test_main_agent_rejects_malformed_json_instead_of_showing_it_as_prose() -> N
         )
 
     assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"
+
+
+def _config() -> OpenAICompatibleAgentConfig:
+    return OpenAICompatibleAgentConfig(
+        endpoint="https://example.test/v1/chat/completions",
+        api_key="test",
+        model="test-model",
+    )
+
+
+def _context() -> MainAgentContext:
+    return MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="Find work.",
+    )
+
+
+def _tool_call(name: str, arguments: str = "{}"):
+    function = type("Function", (), {"name": name, "arguments": arguments})()
+    return type("ToolCall", (), {"function": function})()
+
+
+def _response(*, tool_calls=(), content=None, finish_reason="stop", usage=None):
+    message = type(
+        "Message", (), {"content": content, "tool_calls": list(tool_calls)}
+    )()
+    choice = type(
+        "Choice", (), {"message": message, "finish_reason": finish_reason}
+    )()
+    return type("Response", (), {"choices": [choice], "usage": usage})()
+
+
+def _control_state(messages: list[dict]) -> dict:
+    reminders = [
+        message["content"]
+        for message in messages
+        if message["role"] == "user"
+        and isinstance(message["content"], str)
+        and message["content"].startswith(f"<{CONTROL_REMINDER_TAG}>")
+    ]
+    assert len(reminders) == 1
+    return _control_json(reminders[0])
+
+
+class ScriptedCompletions:
+    def __init__(self, responses) -> None:
+        self._responses = list(responses)
+        self.requests: list[dict] = []
+
+    def create(self, **kwargs):
+        # The runtime edits its message list between requests; keep what each
+        # request actually carried.
+        self.requests.append(copy.deepcopy(kwargs))
+        return self._responses.pop(0)
+
+
+def _scripted_maker(*responses):
+    completions = ScriptedCompletions(responses)
+    client = type(
+        "Client", (), {"chat": type("Chat", (), {"completions": completions})()}
+    )()
+    return OpenAICompatibleMainAgentDecisionMaker(_config(), client=client), completions
+
+
+def test_the_request_disables_parallel_tool_calls() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search")])
+    )
+
+    maker.decide(_context(), ("open_job_search",))
+
+    assert completions.requests[0]["parallel_tool_calls"] is False
+
+
+def test_several_tool_calls_are_not_silently_reduced_to_the_first() -> None:
+    maker, completions = _scripted_maker(
+        _response(
+            tool_calls=[
+                _tool_call("list_applications"),
+                _tool_call("record_application", '{"job_id": "j1"}'),
+            ]
+        ),
+        _response(tool_calls=[_tool_call("record_application", '{"job_id": "j1"}')]),
+    )
+
+    decision = maker.decide(_context(), ("list_applications", "record_application"))
+
+    # The model chose again with the situation explained; the runtime did not
+    # pick for it.
+    assert decision.tool_call.name == "record_application"
+    assert len(completions.requests) == 2
+    first_messages = completions.requests[0]["messages"]
+    second_messages = completions.requests[1]["messages"]
+    # The finding travels in the harness control state, the one position the
+    # system prompt calls authoritative; no extra user-role message is added.
+    assert len(second_messages) == len(first_messages)
+    assert [m["role"] for m in second_messages] == [m["role"] for m in first_messages]
+    assert second_messages[-1] == first_messages[-1]
+    assert "rejected_tool_calls" not in _control_state(first_messages)
+    rejected = _control_state(second_messages)["rejected_tool_calls"]
+    assert rejected["tool_calls"] == ["list_applications", "record_application"]
+    assert rejected["executed"] is False
+    assert "None of them ran" in rejected["reason"]
+    assert "exactly one tool call" in rejected["reason"]
+    changed = [
+        index
+        for index, (before, after) in enumerate(zip(first_messages, second_messages))
+        if before != after
+    ]
+    assert len(changed) == 1
+    # The cache key is over the stable prefix, which is untouched.
+    assert completions.requests[1]["extra_body"] == completions.requests[0]["extra_body"]
+
+
+def test_a_reprompted_decision_reports_the_usage_of_both_responses() -> None:
+    doubled = [_tool_call("list_applications"), _tool_call("record_application")]
+    maker, _ = _scripted_maker(
+        _response(
+            tool_calls=doubled,
+            usage={"prompt_tokens": 1000, "prompt_tokens_details": {"cached_tokens": 800}},
+        ),
+        _response(
+            tool_calls=[_tool_call("record_application")],
+            usage={"prompt_tokens": 1100, "prompt_tokens_details": {"cached_tokens": 900}},
+        ),
+    )
+
+    maker.decide(_context(), ("list_applications", "record_application"))
+    metrics = maker.consume_cache_metrics()
+
+    assert metrics["decision_responses"] == 2
+    assert metrics["input_units"] == 2100
+    assert metrics["cached_input_units"] == 1700
+    assert metrics["cache_read_input_tokens"] == 1700
+    assert metrics["cache_hit_ratio"] == pytest.approx(1700 / 2100)
+    assert metrics["cache_metrics_reported"] is True
+    assert metrics["cache_metrics_sample_count"] == 2
+
+
+def test_a_single_response_decision_reports_one_response() -> None:
+    maker, _ = _scripted_maker(
+        _response(
+            tool_calls=[_tool_call("record_application")],
+            usage={"prompt_tokens": 1000, "prompt_tokens_details": {"cached_tokens": 800}},
+        ),
+    )
+
+    maker.decide(_context(), ("record_application",))
+    metrics = maker.consume_cache_metrics()
+
+    assert "decision_responses" not in metrics
+    assert metrics["input_units"] == 1000
+
+
+def test_a_model_that_keeps_returning_several_tool_calls_fails_the_decision() -> None:
+    doubled = [_tool_call("list_applications"), _tool_call("record_application")]
+    maker, completions = _scripted_maker(
+        _response(tool_calls=doubled),
+        _response(tool_calls=doubled),
+        _response(tool_calls=[_tool_call("record_application")]),
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ("list_applications", "record_application"))
+
+    assert raised.value.code == "MAIN_AGENT_PARALLEL_TOOL_CALLS"
+    assert raised.value.retryable is False
+    assert "list_applications, record_application" in raised.value.detail
+    # One reprompt, then fail closed: no third request, nothing executed.
+    assert len(completions.requests) == 2
+
+
+def test_a_single_tool_call_still_decides_without_a_reprompt() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword": "AI"}')])
+    )
+
+    decision = maker.decide(_context(), ("open_job_search",))
+
+    assert decision.tool_call.arguments == {"keyword": "AI"}
+    assert len(completions.requests) == 1
+
+
+def test_a_long_final_answer_within_the_budget_is_delivered_whole() -> None:
+    from career_agent.agent.openai_compatible_main_agent import DEFAULT_MAX_OUTPUT_TOKENS
+    from career_agent.agent.token_budget import count_tokens
+
+    # 8000 CJK characters: the product's MODEL_REPLY_LIMIT, and the longest
+    # answer the model is expected to produce in one decision. Mixed prose
+    # rather than one repeated phrase, so the token count is not flattered
+    # by the tokenizer memorising the repeat.
+    sentences = [
+        f"第{index}点：该岗位要求{index * 7 % 13}年以上分布式系统经验，你在上一家公司负责过订单链路的容量规划与故障复盘。"
+        for index in range(1, 400)
+    ]
+    body = "".join(sentences)[:8000]
+    assert len(body) == 8000
+    content = json.dumps({"action": "final", "message": body}, ensure_ascii=False)
+    maker, completions = _scripted_maker(_response(content=content))
+
+    decision = maker.decide(_context(), ())
+
+    assert decision.action == "final"
+    assert decision.message == body
+    assert completions.requests[0]["max_tokens"] == DEFAULT_MAX_OUTPUT_TOKENS
+    # The mock ignores max_tokens, so the budget is checked with the project's
+    # own estimator: the whole answer must leave at least a third of the
+    # budget for the reasoning tokens that share it.
+    answer_tokens = count_tokens(content)
+    assert answer_tokens <= DEFAULT_MAX_OUTPUT_TOKENS * 2 // 3, answer_tokens
+
+
+def test_a_long_answer_cut_off_by_the_budget_delivers_nothing_partial() -> None:
+    body = "这个岗位" * 400
+    maker, _ = _scripted_maker(
+        _response(
+            content=json.dumps({"action": "final", "message": body})[:-40],
+            finish_reason="length",
+        )
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ())
+
+    assert raised.value.code == "MAIN_AGENT_RESPONSE_TRUNCATED"
+
+
+def test_output_budget_is_read_from_the_environment() -> None:
+    from career_agent.agent.openai_compatible_main_agent import (
+        DEFAULT_MAX_OUTPUT_TOKENS,
+        max_output_tokens_from_env,
+    )
+
+    assert max_output_tokens_from_env({}) == DEFAULT_MAX_OUTPUT_TOKENS
+    assert max_output_tokens_from_env({"MAIN_AGENT_MAX_OUTPUT_TOKENS": " "}) == DEFAULT_MAX_OUTPUT_TOKENS
+    assert max_output_tokens_from_env({"MAIN_AGENT_MAX_OUTPUT_TOKENS": "4096"}) == 4096
+    for bad in ("abc", "100", "0"):
+        with pytest.raises(AgentConfigurationError) as raised:
+            max_output_tokens_from_env({"MAIN_AGENT_MAX_OUTPUT_TOKENS": bad})
+        assert "MAIN_AGENT_MAX_OUTPUT_TOKENS" in str(raised.value)
+
+
+def test_from_env_applies_the_configured_output_budget() -> None:
+    maker, completions = _scripted_maker(
+        _response(content=json.dumps({"action": "final", "message": "ok"}))
+    )
+    environ = {
+        "MAIN_AGENT_BASE_URL": "https://example.test/v1",
+        "MAIN_AGENT_API_KEY": "k",
+        "MAIN_AGENT_MODEL": "m",
+        "MAIN_AGENT_MAX_OUTPUT_TOKENS": "4096",
+    }
+    client = type(
+        "Client", (), {"chat": type("Chat", (), {"completions": completions})()}
+    )()
+    maker = OpenAICompatibleMainAgentDecisionMaker.from_env(environ=environ, client=client)
+
+    maker.decide(_context(), ())
+
+    assert completions.requests[0]["max_tokens"] == 4096

@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 import secrets
 import time
 from threading import Lock
@@ -24,7 +25,11 @@ from career_agent.agent.decision_attempts import (
     notify_decision_attempt,
 )
 from career_agent.agent.decision_messages import assemble_decision_messages
-from career_agent.agent.decision_messages import CACHEABLE_CONTEXT_SLOTS
+from career_agent.agent.decision_messages import (
+    CACHEABLE_CONTEXT_SLOTS,
+    CONTROL_CONTEXT_LABEL,
+    CONTROL_REMINDER_TAG,
+)
 from career_agent.agent.job_discovery_contracts import ContractModel
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
@@ -33,6 +38,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
 )
 from career_agent.agent.openai_compatible_client import (
+    AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
@@ -49,15 +55,137 @@ four silent minutes read as a hang. The retry is announced (see
 without hiding a provider that is actually down.
 """
 
-DEFAULT_MAX_OUTPUT_TOKENS = 2048
+DEFAULT_MAX_OUTPUT_TOKENS = 16384
 """Completion budget for one decision.
 
 Reasoning providers count their thinking inside ``completion_tokens``, so the
 room left for the decision itself is this minus the reasoning. A decision that
-still hits the ceiling is reported as truncated rather than as malformed.
+still hits the ceiling is reported as truncated rather than as malformed, and
+nothing of it is shown: a cut-off answer may be missing the conclusion or the
+caveat, and the model treats a shown answer as delivered.
+
+The same call both picks tools and writes the final answer. The longest answer
+the product keeps (``MODEL_REPLY_LIMIT``, 8000 chars) is 8-9k tokens as
+Unicode JSON by ``token_budget.count_tokens`` before any reasoning, so this is
+the size at which truncation of an ordinary long answer becomes rare, not a
+guarantee that no answer is ever cut off. It has to fit in the model's context
+window together with ``MAIN_AGENT_MAX_INPUT_TOKENS``. Overridable per
+deployment with ``MAIN_AGENT_MAX_OUTPUT_TOKENS``.
+"""
+
+MAX_OUTPUT_TOKENS_ENV_SUFFIX = "_MAX_OUTPUT_TOKENS"
+MIN_OUTPUT_TOKENS = 256
+
+MAX_SINGLE_CALL_REPROMPTS = 1
+"""How many times a decision that returned several tool calls is asked again.
+
+The request already sets ``parallel_tool_calls=False``; this is the second
+line for providers that ignore it. Nothing has executed at this point, so
+asking again cannot repeat a write. Executing only the first call would leave
+the model believing the others had happened too.
 """
 
 _RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+
+
+def max_output_tokens_from_env(
+    environ: Mapping[str, str] | None = None, *, prefix: str = "MAIN_AGENT"
+) -> int:
+    raw = (environ if environ is not None else os.environ).get(
+        f"{prefix}{MAX_OUTPUT_TOKENS_ENV_SUFFIX}", ""
+    ).strip()
+    if not raw:
+        return DEFAULT_MAX_OUTPUT_TOKENS
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            f"{prefix}{MAX_OUTPUT_TOKENS_ENV_SUFFIX} must be an integer.",
+        ) from error
+    if value < MIN_OUTPUT_TOKENS:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            f"{prefix}{MAX_OUTPUT_TOKENS_ENV_SUFFIX} must be at least {MIN_OUTPUT_TOKENS}.",
+        )
+    return value
+
+
+_SUMMED_RESPONSE_METRICS = (
+    "input_units",
+    "uncached_input_tokens",
+    "cache_creation_input_tokens",
+    "cached_input_units",
+    "cache_read_input_tokens",
+)
+
+
+def _sum_response_metrics(
+    previous: Mapping[str, Any], latest: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Per-turn usage over every response one decision took.
+
+    A decision that was asked again (several tool calls came back) costs two
+    responses; keeping only the last would under-report the turn. Token
+    counts add up, the global sample counters are already cumulative, and
+    ``cache_metrics_reported`` holds only if every response reported.
+    """
+    merged: dict[str, Any] = {**latest}
+    for key in _SUMMED_RESPONSE_METRICS:
+        values = [
+            source[key]
+            for source in (previous, latest)
+            if isinstance(source.get(key), int)
+        ]
+        if values:
+            merged[key] = sum(values)
+    merged["cache_metrics_reported"] = bool(
+        previous.get("cache_metrics_reported")
+    ) and bool(latest.get("cache_metrics_reported"))
+    if merged["cache_metrics_reported"]:
+        input_units = merged["input_units"]
+        merged["cache_hit_ratio"] = (
+            merged["cached_input_units"] / input_units if input_units else 0.0
+        )
+    else:
+        merged.pop("cache_hit_ratio", None)
+    merged["decision_responses"] = int(previous.get("decision_responses", 1)) + 1
+    return merged
+
+
+def _add_control_state(
+    messages: list[dict[str, Any]], additions: Mapping[str, Any]
+) -> None:
+    """Merge ``additions`` into the harness control-state reminder in place.
+
+    The reminder is the single position the system prompt names as
+    authoritative runtime state, so runtime findings mid-decision go there
+    rather than into a new user-role message that would read as user speech.
+    It sits after the cached stable prefix, so the cache key is unaffected.
+    """
+    head = f"<{CONTROL_REMINDER_TAG}>\n{CONTROL_CONTEXT_LABEL}\n"
+    tail = f"\n</{CONTROL_REMINDER_TAG}>"
+    for index, message in enumerate(messages):
+        content = message.get("content")
+        if (
+            message.get("role") == "user"
+            and isinstance(content, str)
+            and content.startswith(head)
+            and content.endswith(tail)
+        ):
+            control = json.loads(content[len(head) : -len(tail)])
+            control.update(additions)
+            messages[index] = {
+                **message,
+                "content": head
+                + json.dumps(control, ensure_ascii=False, sort_keys=True)
+                + tail,
+            }
+            return
+    raise AgentWorkerError(
+        "MAIN_AGENT_CONTROL_STATE_MISSING",
+        "Main Agent request has no harness control-state message.",
+    )
 
 
 def _retry_delay_seconds(attempt: int) -> float:
@@ -280,6 +408,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     ),
                 }
             )
+        previous = self._cache_metrics.get()
+        if previous is not None:
+            metrics = _sum_response_metrics(previous, metrics)
         self._cache_metrics.set(metrics)
 
     def _spotlight_nonce(self, context: MainAgentContext) -> str:
@@ -427,7 +558,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
 
     @classmethod
     def from_env(cls, *, environ: Mapping[str, str] | None = None, client: Any | None = None) -> "OpenAICompatibleMainAgentDecisionMaker":
-        return cls(OpenAICompatibleAgentConfig.from_env(environ=environ, prefix="MAIN_AGENT"), client=client)
+        prefix = "MAIN_AGENT"
+        return cls(
+            OpenAICompatibleAgentConfig.from_env(environ=environ, prefix=prefix),
+            client=client,
+            max_output_tokens=max_output_tokens_from_env(environ, prefix=prefix),
+        )
 
     def decide(
         self,
@@ -461,25 +597,61 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "mode": "explicit",
                     "ttl": "30m",
                 }
-        response = self._request_with_retries(
-            messages=messages, tools=tools, request_options=request_options
-        )
-        self._record_cache_metrics(response)
-        choice = response.choices[0] if response.choices else None
-        message = choice.message if choice is not None else None
-        if message is None:
-            raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
-        finish_reason = getattr(choice, "finish_reason", None)
-        if isinstance(finish_reason, str):
-            self._finish_reason.set(finish_reason)
-        if finish_reason == "length":
-            # Cut off mid-decision. Fail-closed like malformed JSON, but under
-            # its own code: the fix is budget, not the model's formatting.
-            raise AgentWorkerError(
-                "MAIN_AGENT_RESPONSE_TRUNCATED",
-                "Main Agent model ran out of output tokens before finishing its decision.",
+        reprompts = 0
+        while True:
+            response = self._request_with_retries(
+                messages=messages, tools=tools, request_options=request_options
             )
-        tool_calls = getattr(message, "tool_calls", None) or ()
+            self._record_cache_metrics(response)
+            choice = response.choices[0] if response.choices else None
+            message = choice.message if choice is not None else None
+            if message is None:
+                raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
+            finish_reason = getattr(choice, "finish_reason", None)
+            if isinstance(finish_reason, str):
+                self._finish_reason.set(finish_reason)
+            if finish_reason == "length":
+                # Cut off mid-decision. Fail-closed like malformed JSON, but under
+                # its own code: the fix is budget, not the model's formatting.
+                raise AgentWorkerError(
+                    "MAIN_AGENT_RESPONSE_TRUNCATED",
+                    "Main Agent model ran out of output tokens before finishing its decision.",
+                )
+            tool_calls = tuple(getattr(message, "tool_calls", None) or ())
+            if len(tool_calls) <= 1:
+                break
+            names = [
+                getattr(getattr(call, "function", None), "name", None) or "?"
+                for call in tool_calls
+            ]
+            if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                raise AgentWorkerError(
+                    "MAIN_AGENT_PARALLEL_TOOL_CALLS",
+                    "Main Agent model returned several tool calls where exactly one "
+                    "is executed per step.",
+                    detail=", ".join(names),
+                )
+            reprompts += 1
+            # The assistant message itself cannot be echoed back: a tool_calls
+            # message without matching tool results is rejected by the API.
+            # What came back goes into the harness control state instead, the
+            # one position the system prompt names as authoritative runtime
+            # state; a trailing user-role note would read as user speech.
+            _add_control_state(
+                messages,
+                {
+                    "rejected_tool_calls": {
+                        "tool_calls": names,
+                        "executed": False,
+                        "reason": (
+                            "The previous reply requested these tool calls at "
+                            "once. None of them ran. This runtime executes exactly "
+                            "one tool call per step: reply with the single tool "
+                            "call to run first, or with a final answer."
+                        ),
+                    }
+                },
+            )
         if tool_calls:
             call = tool_calls[0]
             function = call.function
@@ -537,6 +709,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 max_tokens=self._max_output_tokens,
                 tools=list(tools),
                 tool_choice="auto",
+                parallel_tool_calls=False,
                 messages=messages,
                 timeout=self._config.timeout_seconds,
                 **request_options,

@@ -11,6 +11,14 @@ verifies.
 SQLite copies go through the online backup API rather than ``shutil.copy``:
 a plain copy of a database in WAL mode can miss committed pages that still
 live in ``-wal``, and the backup API produces a single self-contained file.
+
+Each copy is consistent with itself, not with the others: the databases are
+copied one after another, so a turn committing in between leaves the set
+from two moments (an application recorded in one file, the conversation that
+recorded it absent from another). The set is one point in time only when
+nothing writes during the copy, which the CLI guarantees by holding the API's
+single-worker lock. A copy taken without it is marked ``consistent_snapshot:
+false`` in the manifest and reported as such by ``verify``.
 """
 
 from __future__ import annotations
@@ -24,7 +32,7 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
-from typing import Literal
+from typing import Literal, Optional
 
 
 MANIFEST_NAME = "manifest.json"
@@ -101,12 +109,19 @@ class BackupEntry:
 class BackupManifest:
     created_at: datetime
     entries: tuple[BackupEntry, ...]
+    consistent_snapshot: Optional[bool] = True
+    """Whether every entry comes from the same moment. False when the copy was
+    taken while the API could still write, so files may disagree with each
+    other even though each passes its own integrity check. None when the
+    manifest predates the flag: those backups could be taken with the API
+    running, so nothing is known about them either way."""
     version: int = MANIFEST_VERSION
 
     def to_json(self) -> dict[str, object]:
         return {
             "version": self.version,
             "created_at": self.created_at.isoformat(),
+            "consistent_snapshot": self.consistent_snapshot,
             "entries": [entry.to_json() for entry in self.entries],
         }
 
@@ -126,9 +141,13 @@ class BackupManifest:
             created_at = datetime.fromisoformat(str(payload["created_at"]))
         except (KeyError, ValueError) as error:
             raise BackupError("manifest created_at is missing or invalid") from error
+        consistent = payload.get("consistent_snapshot")
+        if consistent is not None and not isinstance(consistent, bool):
+            raise BackupError("manifest consistent_snapshot must be a boolean")
         return cls(
             created_at=created_at,
             entries=tuple(BackupEntry.from_json(entry) for entry in entries),
+            consistent_snapshot=consistent,
         )
 
 
@@ -142,12 +161,36 @@ class VerificationReport:
     def ok(self) -> bool:
         return not self.problems
 
+    @property
+    def warnings(self) -> tuple[str, ...]:
+        """Findings that do not fail verification but a restorer should know.
+        A backup that is not one point in time is still every byte it was
+        written as, so it verifies; it just may not agree with itself."""
+        if self.manifest is None:
+            return ()
+        if self.manifest.consistent_snapshot is None:
+            return (UNKNOWN_SNAPSHOT_WARNING,)
+        if not self.manifest.consistent_snapshot:
+            return (INCONSISTENT_SNAPSHOT_WARNING,)
+        return ()
+
+
+INCONSISTENT_SNAPSHOT_WARNING = (
+    "backup was taken while the API could still write; its databases may not "
+    "be from the same moment"
+)
+UNKNOWN_SNAPSHOT_WARNING = (
+    "backup manifest predates the consistent_snapshot flag; whether its "
+    "databases are from the same moment is unknown"
+)
+
 
 @dataclass(frozen=True)
 class RestoreReport:
     restored: tuple[str, ...]
     skipped_missing_target: tuple[str, ...]
     safety_copy: Path | None
+    warnings: tuple[str, ...] = ()
 
 
 def _sha256(path: Path) -> str:
@@ -220,9 +263,16 @@ def _directory_files(root: Path) -> list[Path]:
     return files
 
 
-def create_backup(plan: BackupPlan, destination: Path) -> BackupManifest:
-    """Write one consistent copy of every existing workspace path into
-    ``destination``, which must not exist yet or must be an empty directory."""
+def create_backup(
+    plan: BackupPlan, destination: Path, *, consistent_snapshot: bool = True
+) -> BackupManifest:
+    """Write one copy of every existing workspace path into ``destination``,
+    which must not exist yet or must be an empty directory.
+
+    The caller says with ``consistent_snapshot`` whether it has made sure
+    nothing writes to the workspace meanwhile (the CLI holds the API lock);
+    this function only copies and records the answer in the manifest.
+    """
 
     destination = destination.expanduser()
     if destination.exists():
@@ -278,6 +328,7 @@ def create_backup(plan: BackupPlan, destination: Path) -> BackupManifest:
     manifest = BackupManifest(
         created_at=datetime.now(timezone.utc).replace(microsecond=0),
         entries=tuple(entries),
+        consistent_snapshot=consistent_snapshot,
     )
     manifest_path = destination / MANIFEST_NAME
     manifest_path.write_text(
@@ -423,4 +474,5 @@ def restore_backup(
         restored=tuple(restored),
         skipped_missing_target=tuple(skipped),
         safety_copy=safety_copy,
+        warnings=report.warnings,
     )

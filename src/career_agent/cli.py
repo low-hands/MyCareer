@@ -109,6 +109,7 @@ from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.working_notes import WorkingNotesStore
 from career_agent.storage.backup import (
+    INCONSISTENT_SNAPSHOT_WARNING,
     BackupError,
     BackupPlan,
     create_backup,
@@ -405,6 +406,20 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--non-interactive", action="store_true", help="Never prompt for input.")
 
 
+def _add_lock_anchor(parser: argparse.ArgumentParser) -> None:
+    """A write command that does not open the context store still takes the
+    workspace lock beside it, so it and the API/backup contend for one file."""
+
+    parser.add_argument(
+        "--context-store",
+        default="~/.career-agent/context.sqlite3",
+        help=(
+            "Context store of the workspace this write belongs to. Only its "
+            "directory is used here, to take the workspace's api-server.lock."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="career-agent", description="Run the local Career Agent application.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -533,6 +548,7 @@ def build_parser() -> argparse.ArgumentParser:
     target_role_create.add_argument("--title", required=True, help="Target role title, such as AI Engineer.")
     target_role_create.add_argument("--priority", type=int, default=0, help="Lower values appear first (default: 0).")
     target_role_create.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume store path.")
+    _add_lock_anchor(target_role_create)
     target_role_list = target_role_subparsers.add_parser("list", help="List target-role categories.")
     target_role_list.add_argument("--user-id", required=True, help="Target-role owner identifier.")
     target_role_list.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume store path.")
@@ -547,6 +563,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume_import.add_argument("--target-role-id", help="Required target-role category for a new resume family.")
     resume_import.add_argument("--file", type=Path, required=True, help="PDF or UTF-8 .txt/.md/.markdown resume file.")
     resume_import.add_argument("--resume-store", default="~/.career-agent/resumes.sqlite3", help="Local resume store path.")
+    _add_lock_anchor(resume_import)
     resume_list = resume_subparsers.add_parser("list", help="List safe resume metadata.")
     resume_list.add_argument("--user-id", required=True, help="Resume owner identifier.")
     resume_list.add_argument("--target-role-id", help="Filter to one target-role category.")
@@ -584,6 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
     email_add.add_argument("--address", required=True)
     email_add.add_argument("--credential-env", required=True, help="Environment variable containing Gmail OAuth JSON or a QQ authorization code.")
     email_add.add_argument("--email-store", default="~/.career-agent/email.sqlite3")
+    _add_lock_anchor(email_add)
     email_list = email_subparsers.add_parser("list-accounts", help="List safe email account metadata.")
     email_list.add_argument("--user-id", required=True)
     email_list.add_argument("--email-store", default="~/.career-agent/email.sqlite3")
@@ -610,6 +628,7 @@ def build_parser() -> argparse.ArgumentParser:
     calendar_add.add_argument(
         "--calendar-store", default="~/.career-agent/calendar.sqlite3"
     )
+    _add_lock_anchor(calendar_add)
     calendar_list = calendar_subparsers.add_parser(
         "list-accounts", help="List safe Calendar account metadata."
     )
@@ -824,6 +843,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Must not exist or must be empty."
         ),
     )
+    backup_create.add_argument(
+        "--allow-running-api",
+        action="store_true",
+        help=(
+            "Copy even while the API is running. Each database is then consistent "
+            "with itself but not necessarily with the others; the manifest records "
+            "consistent_snapshot=false and verify/restore warn about it."
+        ),
+    )
     backup_verify = backup_subparsers.add_parser(
         "verify", help="Check a backup's files against its manifest and SQLite integrity_check."
     )
@@ -885,12 +913,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Issue a key that never expires. Deliberate, not the default.",
     )
     issue_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
+    _add_lock_anchor(issue_keys)
     list_keys = keys_subparsers.add_parser("list", help="Show keys without secrets.")
     list_keys.add_argument("--user-id", default=None)
     list_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
     revoke_keys = keys_subparsers.add_parser("revoke", help="Retire one key.")
     revoke_keys.add_argument("--key-id", required=True)
     revoke_keys.add_argument("--api-key-store", default="data/api_keys.sqlite3")
+    _add_lock_anchor(revoke_keys)
 
     settings = subparsers.add_parser(
         "settings",
@@ -1373,6 +1403,12 @@ def _run_backup(args, stdout) -> int:
         stdout.write(json.dumps(payload, ensure_ascii=False, indent=2))
         stdout.write("\n")
 
+    # The API holds this lock for its whole life. Holding it here is what
+    # makes a backup one point in time across all the databases (they are
+    # copied one after another), and what keeps a restore from swapping
+    # files under open connections.
+    lock = build_workspace_lock(args)
+
     try:
         if args.backup_command == "create":
             destination = (
@@ -1380,11 +1416,36 @@ def _run_backup(args, stdout) -> int:
                 if args.dest
                 else Path("~/.career-agent-backups").expanduser() / stamp
             )
-            manifest = create_backup(plan, destination)
+            try:
+                lock.acquire()
+                holding_lock = True
+            except SingleWorkerError as error:
+                if not args.allow_running_api:
+                    emit(
+                        {
+                            "error": (
+                                "API 正在运行，请先停止后再备份，否则各库可能不是同一时刻的快照。"
+                                f"如接受该风险可加 --allow-running-api。{error}"
+                            )
+                        }
+                    )
+                    return EXIT_WORKFLOW_ERROR
+                holding_lock = False
+            try:
+                manifest = create_backup(
+                    plan, destination, consistent_snapshot=holding_lock
+                )
+            finally:
+                if holding_lock:
+                    lock.release()
             emit(
                 {
                     "backup": str(destination),
                     "created_at": manifest.created_at.isoformat(),
+                    "consistent_snapshot": manifest.consistent_snapshot,
+                    "warnings": (
+                        [] if manifest.consistent_snapshot else [INCONSISTENT_SNAPSHOT_WARNING]
+                    ),
                     "files": len(manifest.entries),
                     "bytes": sum(entry.size for entry in manifest.entries),
                     "entries": [entry.name for entry in manifest.entries],
@@ -1400,8 +1461,12 @@ def _run_backup(args, stdout) -> int:
                     "created_at": (
                         report.manifest.created_at.isoformat() if report.manifest else None
                     ),
+                    "consistent_snapshot": (
+                        report.manifest.consistent_snapshot if report.manifest else None
+                    ),
                     "files": len(report.manifest.entries) if report.manifest else 0,
                     "problems": list(report.problems),
+                    "warnings": list(report.warnings),
                 }
             )
             return EXIT_OK if report.ok else EXIT_WORKFLOW_ERROR
@@ -1412,11 +1477,6 @@ def _run_backup(args, stdout) -> int:
                 }
             )
             return EXIT_ARGUMENT_ERROR
-        # The API holds this lock for its whole life. Swapping database files
-        # under a process with open connections is how a restore corrupts
-        # both the old and the new copy, so a running server is a hard stop.
-        workspace_dir = Path(args.context_store).expanduser().parent
-        lock = SingleWorkerLock(lock_path_for(workspace_dir))
         try:
             lock.acquire()
         except SingleWorkerError as error:
@@ -1438,6 +1498,7 @@ def _run_backup(args, stdout) -> int:
                 "restored": list(report.restored),
                 "skipped_no_target": list(report.skipped_missing_target),
                 "safety_copy": str(report.safety_copy) if report.safety_copy else None,
+                "warnings": list(report.warnings),
             }
         )
         return EXIT_OK
@@ -1974,6 +2035,44 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         return EXIT_ARGUMENT_ERROR
 
 
+def build_workspace_lock(args: argparse.Namespace) -> SingleWorkerLock:
+    """The one lock the API, ``backup`` and every write command contend for.
+
+    It sits beside the context store whatever other store paths a command was
+    given, so databases spread over several directories still share it. Tests
+    replace this to keep the CLI out of the developer's ``~/.career-agent``.
+    """
+
+    workspace_dir = Path(args.context_store).expanduser().parent
+    return SingleWorkerLock(lock_path_for(workspace_dir))
+
+
+_WRITE_SUBCOMMANDS: dict[str, tuple[str, frozenset[str]]] = {
+    "actions": ("actions_command", frozenset({"settle"})),
+    "memory": ("memory_command", frozenset({"apply"})),
+    "settings": ("settings_command", frozenset({"set"})),
+    "target-role": ("target_role_command", frozenset({"create"})),
+    "resume": ("resume_command", frozenset({"import"})),
+    "email": ("email_command", frozenset({"add-account"})),
+    "calendar": ("calendar_command", frozenset({"add-account"})),
+    "api-keys": ("keys_command", frozenset({"issue", "revoke"})),
+}
+
+
+def _writes_workspace(args: argparse.Namespace) -> bool:
+    """Whether a command must hold the workspace lock. ``backup`` takes it
+    itself; read-only commands and ``memory export`` (a file outside the
+    workspace) need none."""
+
+    if args.command == "chat":
+        return True
+    entry = _WRITE_SUBCOMMANDS.get(args.command)
+    if entry is None:
+        return False
+    attribute, subcommands = entry
+    return getattr(args, attribute) in subcommands
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -1986,6 +2085,63 @@ def main(
     stderr = stderr or sys.stderr
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not _writes_workspace(args):
+        return _dispatch(
+            args,
+            parser=parser,
+            runtime_factory=runtime_factory,
+            resume_store_factory=resume_store_factory,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    lock = build_workspace_lock(args)
+    try:
+        lock.acquire()
+    except SingleWorkerError as error:
+        stdout.write(
+            json.dumps(
+                {
+                    "error": (
+                        "API 或另一个写命令正在使用该工作区，请先停止后再执行。"
+                        f"{error}"
+                    )
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        return EXIT_WORKFLOW_ERROR
+    except OSError as error:
+        stdout.write(
+            json.dumps(
+                {"error": f"无法创建或打开工作区锁 {lock.path}：{error}"},
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        return EXIT_CONFIGURATION_ERROR
+    try:
+        return _dispatch(
+            args,
+            parser=parser,
+            runtime_factory=runtime_factory,
+            resume_store_factory=resume_store_factory,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    finally:
+        lock.release()
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    *,
+    parser: argparse.ArgumentParser,
+    runtime_factory: Callable[[argparse.Namespace], MainAgentRuntime] | None,
+    resume_store_factory: Callable[[argparse.Namespace], ResumeStore] | None,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
     if args.command == "target-role":
         try:
             store = resume_store_factory(args) if resume_store_factory else ResumeStore(Path(args.resume_store).expanduser())

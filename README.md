@@ -15,6 +15,8 @@ uvicorn career_agent.api.app:app --workers 1      # 也可以
 
 启动时进程会对会话库所在目录的 `api-server.lock`（默认 `~/.career-agent/api-server.lock`）取独占锁并持有到退出。锁跟着业务数据库走，与只存 API key 的 `CAREER_AGENT_DATA_DIR` 无关。第二个进程取不到锁会立即启动失败并给出提示；`WEB_CONCURRENCY` 等变量大于 1 也会在启动时被拒绝。锁由内核随进程退出自动释放，崩溃后无需手工清理。
 
+会写库的命令行子命令（`chat`、`actions settle`、`memory apply`、`settings set`、`target-role create`、`resume import`、`email add-account`、`calendar add-account`、`api-keys issue/revoke`）执行期间也会取同一把锁：API 运行时它们会被拒绝并提示先停止 API，反过来 API 也不会在这些命令执行期间启动。锁的位置只由 `--context-store` 决定（其他 `--*-store` 指到别的目录也不影响），所以数据库分散在多个目录时仍是同一把锁；没有 `--context-store` 的写命令为此额外接受该参数。只读子命令（`list`/`show`/`report`/`reconcile` 等）和 `memory export`（写到工作区外的文件）不取锁。锁文件无法创建或打开时命令以配置错误（退出码 3）返回 JSON 错误。
+
 同一进程内同时运行的 turn 数有上限（默认 3，`CAREER_AGENT_MAX_CONCURRENT_TURNS` 可改）。每个 turn 在模型调用期间独占一个工作线程，不设上限时多个对话同时发送会把线程占满、等模型超时才恢复。超出上限的请求立即返回 `503 TURN_CAPACITY_EXHAUSTED`（带 `Retry-After`），提示"当前任务较多，请稍后再试"；没有排队。同一对话重复发送仍然是 `409 CONVERSATION_TURN_IN_PROGRESS`。
 
 ## 备份与恢复
@@ -28,7 +30,7 @@ career-agent backup verify --source ~/.career-agent-backups/20260914T120000Z
 career-agent backup restore --source ~/.career-agent-backups/20260914T120000Z --yes
 ```
 
-- `create` 用 SQLite 在线备份 API 逐库复制（WAL 里已提交的页也带上），逐库跑 `integrity_check`，并写 `manifest.json`（每个文件的大小 + SHA-256）。目标目录必须不存在或为空。可以在 API 运行时执行。
+- `create` 用 SQLite 在线备份 API 逐库复制（WAL 里已提交的页也带上），逐库跑 `integrity_check`，并写 `manifest.json`（每个文件的大小 + SHA-256）。目标目录必须不存在或为空。**须先停掉 API**：各库是逐个复制的，API 运行中一个 turn 可能落在两次复制之间，导致各库不是同一时刻（比如 applications 里已记录、context 里没有对应会话）。`create` 会去取 `api-server.lock`，取不到即拒绝；`--allow-running-api` 可强行备份，此时 manifest 记 `consistent_snapshot: false`，`verify`/`restore` 都会带 warning 提示。没有该字段的旧 manifest 视为一致性未知（`consistent_snapshot: null`），同样带 warning。
 - `verify` 核对 manifest 里每个文件存在、大小和 SHA-256 一致、数据库通过 `integrity_check`；有任何问题退出码为 5。
 - `restore` 先 `verify`，不通过则一个文件都不动；必须停掉 API（restore 会尝试取 `api-server.lock`，取不到即拒绝）；覆盖前先把当前工作区备份到 `~/.career-agent-backups/pre-restore-<时间戳>/`（`--no-safety-copy` 可跳过）；按文件名匹配当前配置的库路径，所以换机器、换用户名也能恢复；恢复时会清掉目标库旁的 `-wal/-shm/-journal` 残留，恢复完再跑一次 `integrity_check`。
 - 非默认库路径的用户给 `backup` 传和 `chat` 一样的 `--*-store` 参数。
