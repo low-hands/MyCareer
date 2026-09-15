@@ -202,6 +202,11 @@ class SQLiteTurnReceiptStore:
     A failed attempt does not keep its key. Whoever retries under the same key
     wants the turn to happen, and the ledger still protects every write the
     failed attempt already reached, so re-executing is the safe reading.
+
+    A ``RUNNING`` row whose process died is the one case ``begin`` cannot tell
+    apart on its own: the row looks exactly like a turn that is still going.
+    ``fail_orphaned_running`` settles that from outside, by whoever can prove
+    nothing is executing (the single-worker lock holder at startup).
     """
 
     def __init__(self, path: Path) -> None:
@@ -297,6 +302,44 @@ class SQLiteTurnReceiptStore:
             events=(),
             now=now,
         )
+
+    def fail_orphaned_running(
+        self, *, now: datetime | None = None
+    ) -> tuple[TurnReceipt, ...]:
+        """Settle every ``RUNNING`` receipt as ``FAILED`` and return what they were.
+
+        Only correct when the caller knows no turn is executing: the workspace
+        lock (``api-server.lock``) is exclusive and held for the whole life of
+        the one process that runs turns, so at that process's startup any
+        ``RUNNING`` row can only be left over from a process that died before
+        settling. Left alone it answers ``TURN_IN_PROGRESS`` to its own
+        Idempotency-Key forever.
+
+        ``FAILED`` releases the key to the next attempt, the same way a turn that
+        failed in-process does. What the retry then does is decided per write
+        by the action ledger, which anchors on the same request id: a write that
+        never started runs; one that ``SUCCEEDED`` is replayed from its receipt;
+        one still ``PENDING`` is refused until an operator reconciles it.
+        """
+
+        settled_at = now or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                self._SELECT + " WHERE status = 'RUNNING' ORDER BY started_at, turn_id"
+            ).fetchall()
+            if not rows:
+                return ()
+            connection.execute(
+                """
+                UPDATE turn_receipts
+                SET status = 'FAILED', events_json = '[]', settled_at = ?,
+                    body_expires_at = ?
+                WHERE status = 'RUNNING'
+                """,
+                (settled_at.isoformat(), (settled_at + RECEIPT_BODY_TTL).isoformat()),
+            )
+        return tuple(self._receipt(row) for row in rows)
 
     def get(
         self,

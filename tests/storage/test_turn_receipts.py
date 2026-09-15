@@ -82,6 +82,45 @@ def test_only_the_owning_attempt_can_settle_a_receipt(tmp_path: Path) -> None:
     assert store.get(**KEY).status == "COMMITTED"
 
 
+def test_orphaned_running_receipts_are_failed_and_release_their_keys(tmp_path: Path) -> None:
+    """A process that dies mid-turn leaves RUNNING rows nobody will ever settle."""
+
+    store = SQLiteTurnReceiptStore(tmp_path / "context.sqlite3")
+    assert store.begin(**KEY, turn_id="turn-1", now=NOW) is None
+    other = {**KEY, "conversation_id": "c2", "request_id": "request-2"}
+    assert store.begin(**other, turn_id="turn-2", now=NOW) is None
+    done = {**KEY, "request_id": "request-3"}
+    assert store.begin(**done, turn_id="turn-3", now=NOW) is None
+    store.commit(**done, turn_id="turn-3", events=(TurnCompletedEvent(turn_id="turn-3"),), now=NOW)
+
+    # A new process starts: the lock proves nothing is executing.
+    recovered = store.fail_orphaned_running(now=NOW)
+
+    assert [(item.turn_id, item.status) for item in recovered] == [
+        ("turn-1", "RUNNING"),
+        ("turn-2", "RUNNING"),
+    ]
+    assert store.get(**KEY).status == "FAILED"
+    assert store.get(**KEY).settled_at == NOW
+    assert store.get(**other).status == "FAILED"
+    assert store.get(**done).status == "COMMITTED"
+
+    # The key is free again, exactly as after an in-process failure.
+    assert store.begin(**KEY, turn_id="turn-4", now=NOW) is None
+    fresh = store.get(**KEY)
+    assert fresh.turn_id == "turn-4"
+    assert store.fail_orphaned_running(now=NOW) == (fresh,)
+
+
+def test_recovery_with_nothing_running_changes_nothing(tmp_path: Path) -> None:
+    store = SQLiteTurnReceiptStore(tmp_path / "context.sqlite3")
+    assert store.begin(**KEY, turn_id="turn-1", now=NOW) is None
+    store.commit(**KEY, turn_id="turn-1", events=(TurnCompletedEvent(turn_id="turn-1"),), now=NOW)
+
+    assert store.fail_orphaned_running(now=NOW) == ()
+    assert store.get(**KEY).status == "COMMITTED"
+
+
 def test_keys_are_scoped_to_user_and_conversation(tmp_path: Path) -> None:
     store = SQLiteTurnReceiptStore(tmp_path / "context.sqlite3")
     assert store.begin(**KEY, turn_id="turn-1", now=NOW) is None
