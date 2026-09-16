@@ -21,6 +21,7 @@ from career_agent.storage.resume_job_matches import (
     SQLiteResumeJobMatchStore,
     StoredResumeJobMatch,
 )
+from conftest import enter_tool_profile
 
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
@@ -94,6 +95,7 @@ def build_runtime(tmp_path, decisions):
     manager.upsert_profile(
         CareerProfileContext(user_id="u1", default_city="上海")
     )
+    enter_tool_profile(manager, "job")
     tools = MainAgentToolRegistry(
         job_repository=Jobs(),
         job_comparison_service=JobComparisonService(Jobs(), NoMatches()),

@@ -285,6 +285,7 @@ def test_the_new_question_reaches_the_candidate_and_claims_the_next_turn(
         task=ConversationTaskState(
             active_application_id="app-1",
             active_workflow="mock_interview",
+            tool_profile="interview",
             phase="mock_interview_checkpoint_missing",
             run_id=stuck_id,
         ),
@@ -348,6 +349,7 @@ def test_a_failed_replacement_does_not_claim_the_next_runtime_turn(tmp_path) -> 
         task=ConversationTaskState(
             active_application_id="app-1",
             active_workflow="mock_interview",
+            tool_profile="interview",
             phase="mock_interview_checkpoint_missing",
             run_id=started.session_id,
         ),

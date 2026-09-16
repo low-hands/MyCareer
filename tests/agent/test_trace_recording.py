@@ -28,6 +28,7 @@ from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
 from career_agent.harness.observability import InMemoryTraceRecorder
+from conftest import enter_tool_profile
 
 
 class FailingEmailService:
@@ -46,6 +47,7 @@ class Decisions:
 def _runtime(tmp_path, email_service, recorder) -> MainAgentRuntime:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    enter_tool_profile(manager, "application")
     return MainAgentRuntime(
         context_manager=manager,
         decision_maker=Decisions(

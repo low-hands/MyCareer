@@ -13,6 +13,7 @@ from career_agent.agent.main_agent_runtime import (
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
+from conftest import enter_tool_profile
 
 
 class SequenceDecisionMaker:
@@ -33,6 +34,7 @@ def test_free_text_preference_cannot_be_confirmed_before_readback(tmp_path) -> N
         conversation_id="c1",
         user_message="我想清楚了，不去大厂。",
     )
+    enter_tool_profile(manager, "memory")
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -278,6 +280,7 @@ def test_ambiguous_role_scope_is_clarified_before_activation(tmp_path) -> None:
     assert proposal is not None
     assert proposal.needs_scope_clarification
 
+    enter_tool_profile(manager, "memory")
     confirmed = MainAgentRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(

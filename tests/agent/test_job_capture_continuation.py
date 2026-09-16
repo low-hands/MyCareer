@@ -205,6 +205,12 @@ def test_the_continuation_pins_the_snapshot_it_was_saved_with(tmp_path) -> None:
     decisions = RecordingDecisionMaker(
         AgentDecision(action="final", message="已保存，我可以继续做匹配分析。"),
         AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="route_to_capability", arguments={"domain": "resume"}
+            ),
+        ),
+        AgentDecision(
             action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={})
         ),
         AgentDecision(action="final", message="匹配分析如下。"),

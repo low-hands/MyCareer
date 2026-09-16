@@ -32,6 +32,15 @@ class SequenceDecisionMaker:
         return self.decisions.pop(0)
 
 
+def _route(domain: str) -> AgentDecision:
+    return AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(
+            name="route_to_capability", arguments={"domain": domain}
+        ),
+    )
+
+
 def build_application_agent(tmp_path, decisions):
     resumes = ResumeStore(tmp_path / "resumes.sqlite3")
     role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -103,6 +112,7 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
                     arguments={"query": job.posting.title},
                 ),
             ),
+            _route("resume"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
@@ -121,6 +131,7 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
                     arguments={"selection_index": 1},
                 ),
             ),
+            _route("application"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
@@ -248,6 +259,7 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
             update={
                 "active_job_posting_id": job.posting.id,
                 "active_resume_version_id": tailored_version.id,
+                "tool_profile": "resume",
                 "resume_candidates": (
                     ResumeCandidateContextItem(
                         resume_id=other_resume.id,
@@ -269,6 +281,7 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
                     name="get_resume_metadata", arguments={"selection_index": 1}
                 ),
             ),
+            _route("application"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="create_application", arguments={}),
@@ -286,7 +299,7 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
     assert result.tool_results[0].payload["resume"]["latest_version_id"] == (
         other_version.id
     )
-    assert result.tool_results[1].payload["resume_version_id"] == (
+    assert result.tool_results[-1].payload["resume_version_id"] == (
         tailored_version.id
     )
     schema = next(

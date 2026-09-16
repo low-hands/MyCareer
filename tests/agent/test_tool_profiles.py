@@ -43,9 +43,11 @@ class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
         self.contexts = []
+        self.schemas = []
 
     def decide(self, context, tool_names):
         self.contexts.append(context)
+        self.schemas.append(tool_names)
         if not self.decisions:
             raise AssertionError("Main Agent requested more decisions than expected")
         return self.decisions.pop(0)
@@ -243,6 +245,61 @@ def test_route_persists_profile_re_enters_decide_and_spends_no_budget(tmp_path) 
     assert reloaded.task.tool_profile == "interview"
 
 
+def _offered(schemas) -> set[str]:
+    return {schema["function"]["name"] for schema in schemas}
+
+
+def test_model_receives_exactly_the_profile_schemas_and_the_same_tuple_within_a_profile(
+    tmp_path,
+) -> None:
+    manager = _manager(tmp_path)
+    tools = _registry()
+    registered = _offered(tools.schemas())
+    assert len(registered) > len(profile_tools("resume"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name=ROUTE_TOOL, arguments={"domain": "resume"})),
+        # Routing to the current profile re-enters decide without switching.
+        AgentDecision(action="tool_call", tool_call=ToolCall(name=ROUTE_TOOL, arguments={"domain": "resume"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name=ROUTE_TOOL, arguments={"domain": "core"})),
+        AgentDecision(action="final", message="完成。"),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="看看我的简历")
+
+    core, resume, resume_again, core_again = decisions.schemas
+    assert _offered(core) == profile_tools("core") & registered
+    assert _offered(resume) == profile_tools("resume") & registered
+    assert "analyze_resume" in _offered(resume)
+    assert "analyze_resume" not in _offered(core)
+    assert "match_resume_to_job" not in _offered(core)
+    assert not (_offered(resume) - profile_tools("resume"))
+    # The prefix cache depends on the same object being reused within a
+    # profile and swapped exactly at the switch.
+    assert resume is resume_again
+    assert core is core_again
+    assert core is not resume
+
+
+def test_schema_filtering_only_offers_tools_the_registry_installs(tmp_path) -> None:
+    manager = _manager(tmp_path)
+    tools = MainAgentToolRegistry(job_repository=object(), resume_store=object())
+    registered = _offered(tools.schemas())
+    assert "analyze_resume" not in registered
+    assert "list_resumes" in registered
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name=ROUTE_TOOL, arguments={"domain": "resume"})),
+        AgentDecision(action="final", message="完成。"),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="看看我的简历")
+
+    offered = _offered(decisions.schemas[1])
+    assert offered == profile_tools("resume") & registered
+    assert offered <= registered
+
+
 def test_routing_to_the_current_profile_does_not_switch_and_is_deduplicated(tmp_path) -> None:
     manager = _manager(tmp_path)
     tools = CountingRegistry()
@@ -259,3 +316,45 @@ def test_routing_to_the_current_profile_does_not_switch_and_is_deduplicated(tmp_
     assert [item.state for item in result.tool_results] == ["tool_profile_unchanged"]
     assert result.context.tool_observations[-1].state == "authorization_refused"
     assert result.context.task.tool_profile == "core"
+
+
+class _EmailService:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def sync(self, **kwargs):
+        self.calls.append(kwargs)
+        raise AssertionError("an out-of-profile tool must never reach its service")
+
+    def list_events(self, **kwargs):
+        return ()
+
+
+def test_a_tool_outside_the_current_profile_is_refused_before_it_runs(tmp_path) -> None:
+    """Filtering the schemas hides a tool; authorization has to refuse it too.
+
+    A model can name a tool from memory that its current profile never offered.
+    The refusal is a soft observation so the model can route and retry, and the
+    same name runs once the profile is right.
+    """
+
+    manager = _manager(tmp_path)
+    service = _EmailService()
+    tools = MainAgentToolRegistry(email_tracking_service=service)
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="sync_application_emails", arguments={})),
+        AgentDecision(action="final", message="先不查邮箱。"),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="查邮箱")
+
+    assert service.calls == []
+    assert result.context.task.email_sync_phase is None
+    assert result.context.task.tool_profile == "core"
+    refusal = result.context.tool_observations[-1]
+    assert refusal.tool_name == "sync_application_emails"
+    assert refusal.state == "authorization_refused"
+    assert "core" in refusal.message
+    assert ROUTE_TOOL in (refusal.next_action or "")
+    assert "sync_application_emails" not in _offered(decisions.schemas[0])

@@ -219,6 +219,10 @@ def _normalize_tool_specs(
     return tuple(normalized)
 
 
+_STATIC_REQUEST_CACHE_LIMIT = 16
+"""Distinct offered tool sets kept; a bound only tests with fresh tuples reach."""
+
+
 @dataclass(frozen=True)
 class _StaticRequestMetadata:
     source_specs: object
@@ -313,7 +317,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._cache_metrics: ContextVar[dict[str, Any] | None] = (
             ContextVar(f"main_agent_cache_metrics_{id(self)}", default=None)
         )
-        self._static_request_cache: _StaticRequestMetadata | None = None
+        # One entry per offered tool set (one per tool profile), keyed by the
+        # identity of the specs tuple the runtime hands over unchanged.
+        self._static_request_cache: dict[int, _StaticRequestMetadata] = {}
         self._static_request_lock = Lock()
         self._cache_metric_lock = Lock()
         self._cache_metric_samples = 0
@@ -430,7 +436,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         tool_specs: tuple[dict[str, Any] | str, ...],
     ) -> _StaticRequestMetadata:
         with self._static_request_lock:
-            cached = self._static_request_cache
+            cached = self._static_request_cache.get(id(tool_specs))
             if cached is not None and cached.source_specs is tool_specs:
                 return cached
             tools = _normalize_tool_specs(tool_specs)
@@ -476,7 +482,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     ).hexdigest()[:32]
                 ),
             )
-            self._static_request_cache = metadata
+            if len(self._static_request_cache) >= _STATIC_REQUEST_CACHE_LIMIT:
+                self._static_request_cache.clear()
+            self._static_request_cache[id(tool_specs)] = metadata
             return metadata
 
     @staticmethod

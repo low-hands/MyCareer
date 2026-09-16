@@ -13,6 +13,7 @@ from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
+from conftest import enter_tool_profile
 
 
 class SequenceDecisionMaker:
@@ -36,9 +37,11 @@ def _final() -> AgentDecision:
     return AgentDecision(action="final", message="")
 
 
-def _runtime(tmp_path, *decisions):
+def _runtime(tmp_path, *decisions, profile=None):
     context = CareerContextStore(tmp_path / "context.sqlite3")
     history = CareerHistoryStore(tmp_path / "career.sqlite3")
+    if profile is not None:
+        enter_tool_profile(context, profile)
     maker = SequenceDecisionMaker(*decisions)
     runtime = MainAgentRuntime(
         context_manager=ContextManager(context),
@@ -83,6 +86,7 @@ def test_career_fact_stays_quarantined_until_next_turn_confirmation(
                 "reason": "用户明确补充了这段经历的团队规模。",
             },
         ),
+        profile="memory",
     )
     proposed = runtime.run_turn(
         user_id="u1",
@@ -186,6 +190,7 @@ def test_stale_bare_confirmation_cannot_confirm_an_older_fact(
                 "reason": "用户明确补充了这段经历的团队规模。",
             },
         ),
+        profile="memory",
     )
     proposed = proposed_runtime.run_turn(
         user_id="u1",
