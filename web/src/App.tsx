@@ -29,6 +29,11 @@ import {
   nextCaptureEvents,
   openJobSearchViaBridge,
 } from "./chat/jobCapture";
+import {
+  newStandaloneAgentTask,
+  standaloneAgentTaskStep,
+  type StandaloneAgentTask,
+} from "./chat/agentTask";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import {
   RECOVERY_ATTEMPTS,
@@ -138,6 +143,12 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [conversationListError, setConversationListError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Which conversation's transcript the chat is showing. A task queued for a
+  // new conversation sends only once this catches up with conversationId.
+  const [hydratedConversationId, setHydratedConversationId] = useState<string | null>(null);
+  // A library task waiting for its own conversation: queued while a turn runs
+  // or a transcript loads, then switched to and sent exactly once.
+  const [standaloneTask, setStandaloneTask] = useState<StandaloneAgentTask | null>(null);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   // Bumped to re-read the current conversation's transcript without changing
   // conversations: the "重新读取" fallback after a recovery that found nothing.
@@ -205,6 +216,7 @@ export default function App() {
     })
       .then((transcript) => {
         dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
+        setHydratedConversationId(conversationId);
       })
       .catch((cause: unknown) => {
         if (!request.signal.aborted) {
@@ -269,6 +281,23 @@ export default function App() {
     void continueFromCapture(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureEvents, conversationId, busy, historyLoading]);
+  useEffect(() => {
+    if (!standaloneTask) return;
+    const step = standaloneAgentTaskStep(standaloneTask, {
+      conversationId,
+      hydratedConversationId,
+      busy,
+      historyLoading,
+    });
+    if (step === "switch") {
+      switchConversation(standaloneTask.conversationId);
+      return;
+    }
+    if (step !== "send") return;
+    setStandaloneTask(null);
+    void sendMessage(standaloneTask.prompt, undefined, [standaloneTask.resource]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [standaloneTask, conversationId, hydratedConversationId, busy, historyLoading]);
 
   const statusLabel = useMemo(() => {
     if (state.phase === "running") return "处理中";
@@ -512,15 +541,30 @@ export default function App() {
     if (!busy) setDragActive(true);
   }
 
-  function newConversation(): void {
-    if (busy) return;
-    const next = `conversation-${crypto.randomUUID()}`;
+  function switchConversation(next: string): void {
     window.localStorage.setItem("career-agent:conversation-id", next);
     setConversationId(next);
     dispatch({ type: "reset" });
     setDraft("");
     setAttachments([]);
     setView("chat");
+  }
+
+  function newConversation(): void {
+    if (busy) return;
+    switchConversation(`conversation-${crypto.randomUUID()}`);
+  }
+
+  /**
+   * A resume picked in the library is a task of its own: it runs in a new
+   * conversation with only that version attached, never inheriting the open
+   * chat's job, interview state or queued attachments. While a turn runs the
+   * task waits for it rather than interrupting it or degrading to a draft.
+   */
+  function startResumeAnalysis(prompt: string, resource: ResumeAttachment): void {
+    setView("chat");
+    if (standaloneTask) return;
+    setStandaloneTask(newStandaloneAgentTask(prompt, resource));
   }
 
   function startAgentTask(prompt: string, resource?: ResumeAttachment): void {
@@ -720,6 +764,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "resumes"}
           onAskAgent={startAgentTask}
+          onAnalyzeResume={startResumeAnalysis}
         />
         <ResearchPanel
           apiBaseUrl={API_BASE_URL}
@@ -818,6 +863,18 @@ export default function App() {
             ) : null}
 
             {historyLoading ? <div className="history-loading"><span className="spinner" /> 正在恢复对话…</div> : null}
+
+            {standaloneTask ? (
+              <div className="standalone-task-notice" role="status">
+                <span className="spinner" />
+                <span>
+                  {busy || historyLoading
+                    ? `当前任务结束后，将在新对话中分析简历“${standaloneTask.resource.name}” v${standaloneTask.resource.versionNumber}`
+                    : `正在打开新对话，分析简历“${standaloneTask.resource.name}” v${standaloneTask.resource.versionNumber}…`}
+                </span>
+                <button type="button" onClick={() => setStandaloneTask(null)}>取消</button>
+              </div>
+            ) : null}
 
             {state.messages.filter((message) =>
               Boolean(
