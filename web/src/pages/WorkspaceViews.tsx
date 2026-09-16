@@ -41,6 +41,11 @@ type PageProps = {
   hidden: boolean;
   /** `resource` pins the message to one exact resume version via `input_resources`. */
   onAskAgent: (prompt: string, resource?: ResumeAttachment) => void;
+  /**
+   * Analyse one exact resume version as a task of its own, in a new
+   * conversation, instead of inside whatever chat is open.
+   */
+  onAnalyzeResume?: (prompt: string, resource: ResumeAttachment) => void;
   onOpenConversation?: (conversationId: string) => void;
 };
 
@@ -757,6 +762,7 @@ export function ResumesPanel(props: PageProps) {
   const load = useCallback((signal: AbortSignal) => fetchResumes({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]);
   const state = usePageData<ResumeView[]>(load, props.refreshToken, !props.hidden);
   const [showImporter, setShowImporter] = useState(false);
+  const analyzeResume = props.onAnalyzeResume ?? props.onAskAgent;
   return (
     <section className="management-page" hidden={props.hidden}>
       <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} />
@@ -772,7 +778,7 @@ export function ResumesPanel(props: PageProps) {
           onImported={(result) => {
             setShowImporter(false);
             state.reload();
-            props.onAskAgent("帮我分析这份简历", attachmentFromImport(result));
+            analyzeResume("帮我分析这份简历", attachmentFromImport(result));
           }}
         />
       ) : null}
@@ -789,13 +795,13 @@ export function ResumesPanel(props: PageProps) {
                   <p>最新 v{item.latest_version_number} · 共 {item.version_count} 个版本</p>
                   <div className="card-meta"><span>{formatBytes(item.byte_size)}</span><time>{dateLabel(item.updated_at)} 更新</time></div>
                   {latest ? (
-                    <ResumeVersionRow resumeName={item.name} version={latest} apiBaseUrl={props.apiBaseUrl} onAskAgent={props.onAskAgent} latest />
+                    <ResumeVersionRow resumeName={item.name} version={latest} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} latest />
                   ) : null}
                   {older.length > 0 ? (
                     <details className="resume-version-history">
                       <summary>历史版本（{older.length}）</summary>
                       {older.map((version) => (
-                        <ResumeVersionRow key={version.id} resumeName={item.name} version={version} apiBaseUrl={props.apiBaseUrl} onAskAgent={props.onAskAgent} />
+                        <ResumeVersionRow key={version.id} resumeName={item.name} version={version} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} />
                       ))}
                     </details>
                   ) : null}
@@ -821,13 +827,13 @@ function ResumeVersionRow({
   resumeName,
   version,
   apiBaseUrl,
-  onAskAgent,
+  onAnalyze,
   latest = false,
 }: {
   resumeName: string;
   version: ResumeVersionView;
   apiBaseUrl: string;
-  onAskAgent: PageProps["onAskAgent"];
+  onAnalyze: (prompt: string, resource: ResumeAttachment) => void;
   latest?: boolean;
 }) {
   return (
@@ -839,7 +845,7 @@ function ResumeVersionRow({
       <div className="resume-version-actions">
         <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl })} target="_blank" rel="noreferrer">查看原文件</a>
         <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl, download: true })}>下载</a>
-        <button type="button" onClick={() => onAskAgent(`帮我分析简历“${resumeName}”的 v${version.version_number}`, attachmentFromVersion(resumeName, version))}>让 Agent 分析</button>
+        <button type="button" onClick={() => onAnalyze(`帮我分析简历“${resumeName}”的 v${version.version_number}`, attachmentFromVersion(resumeName, version))}>让 Agent 分析</button>
       </div>
     </div>
   );
