@@ -179,6 +179,7 @@ class ReportReadyEvent(StreamContract):
         "mock_interview_report",
         "interview_preparation",
         "interview_retro_report",
+        "job_analysis",
         "resume_job_match",
         "resume_tailoring_draft",
     ]

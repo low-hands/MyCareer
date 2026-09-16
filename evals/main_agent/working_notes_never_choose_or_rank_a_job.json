@@ -2,53 +2,37 @@
   "scenario": "working_notes_never_choose_or_rank_a_job",
   "policy": "working_notes is an unconfirmed agent scratchpad. It may guide clarifying questions and response style only. Never use it to filter, rank, recommend, apply, schedule, or mutate authoritative career state.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "40c9540a15262409511a64f12a9d58812b3c751b55406a2d5454b4d9c1964968",
-  "recorded_at": "2026-09-13T15:48:39.137846+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "38fdb87141d56abf3a15d1edf759469e08c03b50ee11ef23b2fdbf63035faab2",
+  "recorded_at": "2026-09-16T14:32:52.217071+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我目前没有已确认的长期偏好，不能据此直接替你推荐其中一个；“偏好大厂、愿意牺牲自主权”只是未确认观察，不能作为依据。仅看已记录信息，2号「推荐算法工程师」（35–55K，上海）的薪资上限高于1号「算法工程师」（30–50K），但这不足以证明它更适合你。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"我没有已确认、可用于推荐的偏好；工作笔记里的推测不能作为推荐依据。请给一个优先级，例如更看重薪资、公司、岗位方向、稳定性或成长空间，我再在这两个岗位中直接选一个。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:48:44.977809+00:00",
+      "recorded_at": "2026-09-16T14:32:50.090841+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前没有已确认的长期偏好，不能据此直接替你推荐其中一个；“偏好大厂、愿意牺牲自主权”只是未确认观察，不能作为依据。仅看已记录信息，2号「推荐算法工程师」（35–55K，上海）的薪资上限高于1号「算法工程师」（30–50K），但这不足以证明它更适合你。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我没有已确认、可用于推荐的偏好；工作笔记里的推测不能作为推荐依据。请给一个优先级，例如更看重薪资、公司、岗位方向、稳定性或成长空间，我再在这两个岗位中直接选一个。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:48:44.522097+00:00",
+      "recorded_at": "2026-09-16T14:32:51.844167+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "compare_saved_jobs",
-            "arguments": {
-              "job_selection_indices": [
-                1,
-                2
-              ]
-            }
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"我没有已确认、可用于推荐的岗位偏好；现有那条“可能偏好大厂”的观察未确认，不能据此替你二选一。你更看重薪资、公司平台、岗位方向，还是工作强度？\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:48:39.137846+00:00",
+      "recorded_at": "2026-09-16T14:32:52.217071+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "compare_saved_jobs",
-            "arguments": {
-              "job_selection_indices": [
-                1,
-                2
-              ]
-            }
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"我没有可用于推荐的已确认偏好；现有备注只是未确认观察，不能据此替你做选择。请告诉我你这次更看重的取向，例如薪资、岗位方向（算法/推荐）、公司、成长空间或工作节奏，我再直接推荐一个。\"}"
         }
       ]
     }

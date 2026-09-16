@@ -86,6 +86,7 @@ from career_agent.agent.main_agent_contracts import (
     GetResumeJobMatchToolArguments,
     GetResumeTailoringDraftToolArguments,
     GetSavedJobToolArguments,
+    AnalyzeJobToolArguments,
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
@@ -192,6 +193,11 @@ from career_agent.services.job_research import (
     JobResearchRunNotRetryableError,
     JobResearchService,
 )
+from career_agent.agent.job_analysis_contracts import SENIORITY_LABELS
+from career_agent.services.job_analysis import (
+    JobAnalysisInputNotFoundError,
+    JobAnalysisService,
+)
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
@@ -283,6 +289,7 @@ class MainAgentToolRegistry:
         *,
         job_repository: JobPostingRepository | None = None,
         job_comparison_service: JobComparisonService | None = None,
+        job_analysis_service: JobAnalysisService | None = None,
         career_profile_store: CareerProfileStore | None = None,
         resume_store: ResumeStore | None = None,
         resume_analysis_service: ResumeAnalysisService | None = None,
@@ -337,6 +344,7 @@ class MainAgentToolRegistry:
             )
         self._job_repository = job_repository
         self._job_comparison_service = job_comparison_service
+        self._job_analysis_service = job_analysis_service
         self._career_profile_store = career_profile_store
         self._resume_store = resume_store
         self._resume_analysis_service = resume_analysis_service
@@ -409,6 +417,8 @@ class MainAgentToolRegistry:
             )
         if job_comparison_service is not None:
             self._atomic_handlers["compare_saved_jobs"] = self._compare_saved_jobs
+        if job_analysis_service is not None:
+            self._atomic_handlers["analyze_job"] = self._analyze_job
         if job_research_service is not None:
             self._workflow_handlers.update(
                 {
@@ -1246,6 +1256,17 @@ class MainAgentToolRegistry:
                         },
                     },
                 ]
+            )
+        if self._job_analysis_service is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "analyze_job",
+                        "description": "Analyze one saved job's complete JD on its own: core objective, inferred seniority, S/A/B/C tiered requirements with JD quotes, core competencies, implicit requirements, ATS keywords, HR / hiring-manager focus, likely interview topics, red flags, and information gaps. Pass selection_index after find_saved_jobs, or omit it to use the active job. Reads only the JD text: no resume, no preferences, no online research. Use match_resume_to_job instead when the user wants a comparison against a resume.",
+                        "parameters": AnalyzeJobToolArguments.model_json_schema(),
+                    },
+                }
             )
         if self._resume_job_match_service is not None:
             schemas.extend(
@@ -3555,7 +3576,10 @@ class MainAgentToolRegistry:
             include_dismissed=False,
         )
         payload = {
-            "items": [item.model_dump(mode="json") for item in items],
+            "items": [
+                item.model_dump(mode="json", exclude={"jd_snapshot_id"})
+                for item in items
+            ],
             "query": model_arguments.query,
         }
         return ToolObservation(
@@ -4349,6 +4373,91 @@ class MainAgentToolRegistry:
             ),
             message=f"已对比 {len(comparison.rows)} 个已保存岗位。",
             payload={"comparison": comparison.model_dump(mode="json")},
+        )
+
+    def _analyze_job(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_analysis_service is None:
+            raise ValueError("Job analysis service is not configured")
+        user_id = str(arguments["user_id"])
+        pinned_snapshot_id = arguments.get("jd_snapshot_id")
+        model_arguments = AnalyzeJobToolArguments.model_validate(
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "jd_snapshot_id"}
+            }
+        )
+        if model_arguments.job_posting_id is None:
+            raise ValueError("analyze_job requires job_posting_id")
+        try:
+            stored = self._job_analysis_service.analyze(
+                user_id=user_id,
+                job_posting_id=model_arguments.job_posting_id,
+                **(
+                    {"jd_snapshot_id": pinned_snapshot_id}
+                    if isinstance(pinned_snapshot_id, str)
+                    else {}
+                ),
+            )
+        except JobAnalysisInputNotFoundError as error:
+            return ToolObservation(
+                tool_name="analyze_job",
+                state="saved_job_not_found",
+                message=(
+                    "没有找到这个职位对应的 JD 版本，或它不属于当前用户。"
+                    if error.input_kind == "jd_snapshot"
+                    else "没有找到这个已保存职位，或它不属于当前用户。"
+                ),
+                payload={
+                    "missing_input": error.input_kind,
+                    "job_posting_id": model_arguments.job_posting_id,
+                },
+                execution_outcome="not_committed",
+            )
+        except AgentWorkerError as error:
+            return ToolObservation(
+                tool_name="analyze_job",
+                state="failed",
+                message="岗位 JD 分析暂时失败，请稍后重试。" if error.retryable else "岗位 JD 分析失败。",
+                payload={
+                    "job_posting_id": model_arguments.job_posting_id,
+                    "error_code": error.code,
+                    "retryable": error.retryable,
+                },
+                execution_outcome="not_committed",
+            )
+        result = stored.analysis.to_result()
+        if result is None:
+            raise ValueError("Job analysis service returned a legacy analysis without tiers")
+        job = self._job_display(user_id=user_id, job_posting_id=stored.job_posting_id)
+        title = (
+            self._resource_title(job[0], job[1], "JD 分析")
+            if job is not None
+            else self._resource_title("岗位 JD 分析")
+        )
+        description = self._resource_description(
+            f"仅基于 JD 文本的岗位分析；判定层级为{SENIORITY_LABELS[result.seniority]}。{result.summary}"
+        )
+        return ToolObservation(
+            tool_name="analyze_job",
+            state="job_analysis_ready",
+            message=f"已完成岗位 JD 分析，判定层级为{SENIORITY_LABELS[result.seniority]}，共 {len(result.requirements)} 条分级要求。",
+            payload={
+                "analysis_id": stored.id,
+                "job_posting_id": stored.job_posting_id,
+                "jd_snapshot_id": stored.jd_snapshot_id,
+                "analyzer_version": stored.analyzer_version,
+                "created_at": stored.created_at.isoformat(),
+                **result.model_dump(mode="json"),
+            },
+            resource_ref=ConversationResourceReference(
+                kind="job_analysis",
+                resource_id=stored.id,
+                job_posting_id=stored.job_posting_id,
+                title=title,
+                description=description,
+            ),
+            execution_outcome="committed",
         )
 
     def _match_resume_to_job(self, arguments: dict[str, Any]) -> ToolObservation:

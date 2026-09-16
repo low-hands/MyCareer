@@ -61,6 +61,7 @@ def _reachable_via_action_item(task: ConversationTaskState) -> bool:
 PRECONDITIONS: dict[str, Precondition] = {
     # Saved jobs and their derived runs.
     "get_saved_job": _reachable_via_job,
+    "analyze_job": _reachable_via_job,
     "research_job": _reachable_via_job,
     "compare_saved_jobs": lambda t: bool(t.saved_job_candidates),
     # Resumes and their immutable versions.
@@ -151,6 +152,7 @@ _NEEDS_PROPOSAL = "先调用对应的 propose_* 工具向用户展示提案"
 
 REQUIREMENTS: dict[str, str] = {
     "get_saved_job": _NEEDS_JOB,
+    "analyze_job": _NEEDS_JOB,
     "research_job": _NEEDS_JOB,
     "compare_saved_jobs": "先用 find_saved_jobs 列出可比较的岗位",
     "get_resume_metadata": "先用 list_resumes 列出简历",

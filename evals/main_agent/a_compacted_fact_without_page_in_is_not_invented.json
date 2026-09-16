@@ -2,37 +2,47 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "c6274b63225b7eb0bb89cc7148429de87dc4a46d289ff5dbda1ac50a1158b31a",
-  "recorded_at": "2026-09-13T15:50:10.360989+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "4a86d64260e1e9ca479ee120a999b78d336aaf897621a5b268075fcf2fbebd62",
+  "recorded_at": "2026-09-16T14:34:44.331998+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定的目标公司全名；当前可见信息只显示你想找算法工程师岗位，并且优先从已保存岗位中挑选。\"}"
+      "tool_call": {
+        "name": "route_to_capability",
+        "arguments": {
+          "domain": "job"
+        }
+      }
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:50:01.842456+00:00",
+      "recorded_at": "2026-09-16T14:34:41.425924+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定的目标公司全名；当前可见信息只显示你想找算法工程师岗位，并且优先从已保存岗位中挑选。\"}"
+          "tool_call": {
+            "name": "route_to_capability",
+            "arguments": {
+              "domain": "job"
+            }
+          }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:50:02.665146+00:00",
+      "recorded_at": "2026-09-16T14:34:43.217870+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你一开始指定的目标公司全名；当前窗口里只明确提到了美团，不能据此推断你的目标公司。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见记录没有写出你一开始指定的目标公司全名；只知道“美团”是窗口中的对照项。请把目标公司的名称再发我一次。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:50:10.360989+00:00",
+      "recorded_at": "2026-09-16T14:34:44.331998+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前能看到的上下文里没有保留你一开始指定的公司名称，因此无法可靠确认全名；只知道刚才看的美团不是最初目标。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见记录里没有你一开始指定的目标公司全名，只有“找算法工程师岗位”。请再提供公司名称，或说明当时的岗位线索。\"}"
         }
       ]
     }

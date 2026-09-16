@@ -11,6 +11,12 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from career_agent.agent.job_analysis_contracts import (
+    JobAnalysisResult,
+    QuotedFinding,
+    Seniority,
+    TieredRequirement,
+)
 from career_agent.domain.job_discovery import (
     JDSnapshot,
     JobDetail,
@@ -46,6 +52,14 @@ the list only grows, which is how a shortlist stops being read at all.
 
 
 class JDAnalysisPayload(BaseModel):
+    """What one JD analysis says, as stored.
+
+    The first five fields are the original flat summary and stay so rows
+    written before the tiered analysis existed still read. Everything after
+    them is the tiered ``JobAnalysisResult`` laid out flat; ``to_result``
+    rebuilds it and returns ``None`` for a legacy row that never had one.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     job_summary: str
@@ -53,6 +67,52 @@ class JDAnalysisPayload(BaseModel):
     required_skills: tuple[str, ...] = ()
     preferred_qualifications: tuple[str, ...] = ()
     clarification_questions: tuple[str, ...] = ()
+    core_objective: str | None = None
+    seniority: Seniority | None = None
+    requirements: tuple[TieredRequirement, ...] = ()
+    core_competencies: tuple[str, ...] = ()
+    implicit_requirements: tuple[QuotedFinding, ...] = ()
+    ats_keywords: tuple[str, ...] = ()
+    hr_focus: tuple[str, ...] = ()
+    hiring_manager_focus: tuple[str, ...] = ()
+    likely_interview_topics: tuple[str, ...] = ()
+    red_flags: tuple[QuotedFinding, ...] = ()
+    information_gaps: tuple[str, ...] = ()
+
+    @classmethod
+    def from_result(cls, result: JobAnalysisResult) -> JDAnalysisPayload:
+        return cls(
+            job_summary=result.summary,
+            core_objective=result.core_objective,
+            seniority=result.seniority,
+            requirements=result.requirements,
+            core_competencies=result.core_competencies,
+            implicit_requirements=result.implicit_requirements,
+            ats_keywords=result.ats_keywords,
+            hr_focus=result.hr_focus,
+            hiring_manager_focus=result.hiring_manager_focus,
+            likely_interview_topics=result.likely_interview_topics,
+            red_flags=result.red_flags,
+            information_gaps=result.information_gaps,
+        )
+
+    def to_result(self) -> JobAnalysisResult | None:
+        if self.core_objective is None or self.seniority is None:
+            return None
+        return JobAnalysisResult(
+            core_objective=self.core_objective,
+            seniority=self.seniority,
+            requirements=self.requirements,
+            core_competencies=self.core_competencies,
+            implicit_requirements=self.implicit_requirements,
+            ats_keywords=self.ats_keywords,
+            hr_focus=self.hr_focus,
+            hiring_manager_focus=self.hiring_manager_focus,
+            likely_interview_topics=self.likely_interview_topics,
+            red_flags=self.red_flags,
+            information_gaps=self.information_gaps,
+            summary=self.job_summary,
+        )
 
 
 class StoredJDAnalysis(BaseModel):
@@ -62,6 +122,7 @@ class StoredJDAnalysis(BaseModel):
     job_posting_id: str
     jd_snapshot_id: str
     analyzer_version: str
+    content_fingerprint: str = ""
     analysis: JDAnalysisPayload
     created_at: datetime
 
@@ -94,6 +155,8 @@ class StoredJobSummary(BaseModel):
     pursuit_status: PursuitStatus = "open"
     captured_at: datetime
     last_checked_at: datetime
+    jd_snapshot_id: str | None = None
+    jd_version: int | None = None
 
 
 class JobPostingRepository(Protocol):
@@ -145,7 +208,17 @@ class JobPostingRepository(Protocol):
         jd_snapshot_id: str,
         analyzer_version: str,
         analysis: JDAnalysisPayload,
+        content_fingerprint: str = "",
     ) -> StoredJDAnalysis: ...
+
+    def find_analysis(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+        content_fingerprint: str,
+    ) -> StoredJDAnalysis | None: ...
 
     def get_latest_analysis(
         self,
@@ -153,6 +226,12 @@ class JobPostingRepository(Protocol):
         user_id: str,
         job_posting_id: str,
         analyzer_version: str | None = None,
+    ) -> StoredJDAnalysis | None: ...
+
+    def get_analysis(self, *, user_id: str, analysis_id: str) -> StoredJDAnalysis | None: ...
+
+    def get_latest_analysis_any_snapshot(
+        self, *, user_id: str, job_posting_id: str
     ) -> StoredJDAnalysis | None: ...
 
     def mark_availability(self, *, user_id: str, job_posting_id: str, status: AvailabilityStatus, checked_at: datetime | None = None) -> bool: ...
@@ -263,23 +342,39 @@ class SQLiteJobPostingRepository:
         run_link_columns = {row[1] for row in connection.execute("PRAGMA table_info(job_run_links)")}
         if "jd_snapshot_id" not in run_link_columns:
             connection.execute("ALTER TABLE job_run_links ADD COLUMN jd_snapshot_id TEXT REFERENCES jd_snapshots(id)")
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jd_analyses (
-                id TEXT PRIMARY KEY,
-                jd_snapshot_id TEXT NOT NULL,
-                analyzer_version TEXT NOT NULL,
-                analysis_json TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                UNIQUE(jd_snapshot_id, analyzer_version),
-                FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
+        connection.execute(SQLiteJobPostingRepository._JD_ANALYSES_TABLE)
+        analysis_columns = {row[1] for row in connection.execute("PRAGMA table_info(jd_analyses)")}
+        if "content_fingerprint" not in analysis_columns:
+            # SQLite cannot alter a table-level UNIQUE in place; rebuild the table.
+            connection.execute("ALTER TABLE jd_analyses RENAME TO jd_analyses_legacy")
+            connection.execute(SQLiteJobPostingRepository._JD_ANALYSES_TABLE)
+            connection.execute(
+                "INSERT INTO jd_analyses(id, jd_snapshot_id, analyzer_version, content_fingerprint, analysis_json, created_at) "
+                "SELECT id, jd_snapshot_id, analyzer_version, '', analysis_json, created_at FROM jd_analyses_legacy"
             )
-            """
-        )
+            connection.execute("DROP TABLE jd_analyses_legacy")
         connection.execute("CREATE INDEX IF NOT EXISTS jd_analyses_snapshot_created_idx ON jd_analyses(jd_snapshot_id, created_at DESC)")
         connection.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS job_posting_fts USING fts5(job_posting_id UNINDEXED, user_id UNINDEXED, title, company_name, city, jd_content, tokenize='unicode61')"
         )
+
+    _JD_ANALYSES_TABLE = """
+        CREATE TABLE IF NOT EXISTS jd_analyses (
+            id TEXT PRIMARY KEY,
+            jd_snapshot_id TEXT NOT NULL,
+            analyzer_version TEXT NOT NULL,
+            content_fingerprint TEXT NOT NULL DEFAULT '',
+            analysis_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(jd_snapshot_id, analyzer_version, content_fingerprint),
+            FOREIGN KEY(jd_snapshot_id) REFERENCES jd_snapshots(id)
+        )
+    """
+
+    _ANALYSIS_COLUMNS = (
+        "a.id, a.jd_snapshot_id, a.analyzer_version, a.content_fingerprint, "
+        "a.analysis_json, a.created_at"
+    )
 
     def save_detail(
         self,
@@ -667,6 +762,7 @@ class SQLiteJobPostingRepository:
         jd_snapshot_id: str,
         analyzer_version: str,
         analysis: JDAnalysisPayload,
+        content_fingerprint: str = "",
     ) -> StoredJDAnalysis:
         if not user_id or not jd_snapshot_id or not analyzer_version.strip():
             raise ValueError("user_id, jd_snapshot_id, and analyzer_version are required")
@@ -681,8 +777,9 @@ class SQLiteJobPostingRepository:
             if owner is None:
                 raise ValueError("JD snapshot not found for this user")
             existing = connection.execute(
-                "SELECT id, jd_snapshot_id, analyzer_version, analysis_json, created_at FROM jd_analyses WHERE jd_snapshot_id = ? AND analyzer_version = ?",
-                (jd_snapshot_id, analyzer_version),
+                f"SELECT {self._ANALYSIS_COLUMNS} FROM jd_analyses a "
+                "WHERE a.jd_snapshot_id = ? AND a.analyzer_version = ? AND a.content_fingerprint = ?",
+                (jd_snapshot_id, analyzer_version, content_fingerprint),
             ).fetchone()
             if existing is not None:
                 return self._analysis_from_row(owner[0], existing)
@@ -691,15 +788,35 @@ class SQLiteJobPostingRepository:
                 job_posting_id=owner[0],
                 jd_snapshot_id=jd_snapshot_id,
                 analyzer_version=analyzer_version,
+                content_fingerprint=content_fingerprint,
                 analysis=payload,
                 created_at=created_at,
             )
             connection.execute(
-                "INSERT INTO jd_analyses(id, jd_snapshot_id, analyzer_version, analysis_json, created_at) VALUES (?, ?, ?, ?, ?)",
-                (stored.id, jd_snapshot_id, analyzer_version, payload.model_dump_json(), created_at.isoformat()),
+                "INSERT INTO jd_analyses(id, jd_snapshot_id, analyzer_version, content_fingerprint, analysis_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (stored.id, jd_snapshot_id, analyzer_version, content_fingerprint, payload.model_dump_json(), created_at.isoformat()),
             )
         os.chmod(self.path, 0o600)
         return stored
+
+    def find_analysis(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+        content_fingerprint: str,
+    ) -> StoredJDAnalysis | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"SELECT {self._ANALYSIS_COLUMNS}, s.job_posting_id "
+                "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
+                "JOIN job_postings p ON p.id = s.job_posting_id "
+                "WHERE p.user_id = ? AND a.jd_snapshot_id = ? "
+                "AND a.analyzer_version = ? AND a.content_fingerprint = ?",
+                (user_id, jd_snapshot_id, analyzer_version, content_fingerprint),
+            ).fetchone()
+        return self._analysis_from_row(row[6], row) if row else None
 
     def get_latest_analysis(
         self,
@@ -709,7 +826,7 @@ class SQLiteJobPostingRepository:
         analyzer_version: str | None = None,
     ) -> StoredJDAnalysis | None:
         sql = (
-            "SELECT a.id, a.jd_snapshot_id, a.analyzer_version, a.analysis_json, a.created_at "
+            f"SELECT {self._ANALYSIS_COLUMNS} "
             "FROM job_postings p JOIN jd_analyses a ON a.jd_snapshot_id = p.latest_snapshot_id "
             "WHERE p.user_id = ? AND p.id = ?"
         )
@@ -720,6 +837,39 @@ class SQLiteJobPostingRepository:
         sql += " ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1"
         with self._connect() as connection:
             row = connection.execute(sql, params).fetchone()
+        return self._analysis_from_row(job_posting_id, row) if row else None
+
+    def get_analysis(
+        self, *, user_id: str, analysis_id: str
+    ) -> StoredJDAnalysis | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"SELECT {self._ANALYSIS_COLUMNS}, s.job_posting_id "
+                "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
+                "JOIN job_postings p ON p.id = s.job_posting_id "
+                "WHERE p.user_id = ? AND a.id = ?",
+                (user_id, analysis_id),
+            ).fetchone()
+        return self._analysis_from_row(row[6], row) if row else None
+
+    def get_latest_analysis_any_snapshot(
+        self, *, user_id: str, job_posting_id: str
+    ) -> StoredJDAnalysis | None:
+        """The newest analysis across every JD version, including superseded ones.
+
+        ``get_latest_analysis`` answers "is the current JD analysed"; this one
+        answers "was this job ever analysed", which is what separates a job
+        whose JD changed since its analysis from one never analysed at all.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                f"SELECT {self._ANALYSIS_COLUMNS} "
+                "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
+                "JOIN job_postings p ON p.id = s.job_posting_id "
+                "WHERE p.user_id = ? AND p.id = ? "
+                "ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1",
+                (user_id, job_posting_id),
+            ).fetchone()
         return self._analysis_from_row(job_posting_id, row) if row else None
 
     def find_by_source(
@@ -817,6 +967,7 @@ class SQLiteJobPostingRepository:
             job_posting_id=row[0], title=row[1], company_name=row[2], city=row[3], salary=row[4],
             source_name=row[5], source_url=row[6], availability_status=row[7],
             pursuit_status=row[8], captured_at=row[9], last_checked_at=row[10],
+            jd_snapshot_id=row[11], jd_version=row[12],
         )
 
     @classmethod
@@ -828,7 +979,7 @@ class SQLiteJobPostingRepository:
         jd_snapshot_id: str,
     ) -> StoredJDAnalysis | None:
         row = connection.execute(
-            "SELECT a.id, a.jd_snapshot_id, a.analyzer_version, a.analysis_json, a.created_at "
+            f"SELECT {cls._ANALYSIS_COLUMNS} "
             "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
             "JOIN job_postings p ON p.id = s.job_posting_id "
             "WHERE p.user_id = ? AND a.jd_snapshot_id = ? "
@@ -850,14 +1001,15 @@ class SQLiteJobPostingRepository:
             job_posting_id=job_posting_id,
             jd_snapshot_id=row[1],
             analyzer_version=row[2],
-            analysis=JDAnalysisPayload.model_validate_json(row[3]),
-            created_at=row[4],
+            content_fingerprint=row[3],
+            analysis=JDAnalysisPayload.model_validate_json(row[4]),
+            created_at=row[5],
         )
 
     _SUMMARY_SELECT = """
         SELECT p.id, p.title, p.company_name, p.city, p.salary, p.source_name,
                p.source_url, p.availability_status, p.pursuit_status,
-               s.captured_at, p.last_checked_at
+               s.captured_at, p.last_checked_at, s.id, s.version
         FROM job_postings p
         JOIN jd_snapshots s ON s.id = p.latest_snapshot_id
     """

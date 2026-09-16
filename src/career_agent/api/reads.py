@@ -93,6 +93,11 @@ from career_agent.agent.interview_preparation_presenter import (
     render_interview_preparation,
 )
 from career_agent.agent.interview_retro_presenter import render_interview_retro
+from career_agent.agent.job_analysis_contracts import (
+    SENIORITY_LABELS,
+    JobAnalysisResult,
+)
+from career_agent.agent.job_analysis_presenter import render_job_analysis
 from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.agent.mock_interview_presenter import (
     INTERVIEW_TYPE_LABELS,
@@ -248,6 +253,17 @@ class SavedJobView(BaseModel):
     preferred_qualifications: tuple[str, ...] = ()
     clarification_questions: tuple[str, ...] = ()
     analyzed_at: datetime | None = None
+    jd_snapshot_id: str | None = None
+    jd_version: int | None = None
+    # ``stale``: the newest analysis belongs to an earlier JD version, so the
+    # current version is still waiting. ``ready`` always refers to the current
+    # version; the historical analysis stays readable either way.
+    jd_analysis_status: Literal["none", "ready", "stale"] = "none"
+    jd_analysis_version: int | None = None
+    jd_analysis: JobAnalysisResult | None = None
+    resume_match_status: Literal["none", "ready", "stale"] = "none"
+    resume_match_fit: str | None = None
+    resume_match_at: datetime | None = None
 
 
 class ConversationView(BaseModel):
@@ -808,9 +824,23 @@ class WorkspaceReader:
         for item in self._jobs.list_jobs(
             user_id=user_id, limit=limit, include_dismissed=include_dismissed
         ):
-            analysis = self._jobs.get_latest_analysis(
+            current = self._jobs.get_latest_analysis(
                 user_id=user_id,
                 job_posting_id=item.job_posting_id,
+            )
+            analysis = current or self._jobs.get_latest_analysis_any_snapshot(
+                user_id=user_id,
+                job_posting_id=item.job_posting_id,
+            )
+            analysis_version = (
+                self._jobs.get_snapshot(
+                    user_id=user_id, jd_snapshot_id=analysis.jd_snapshot_id
+                )
+                if analysis is not None and current is None
+                else None
+            )
+            match = self._resume_matches.find_latest_for_job(
+                user_id=user_id, job_posting_id=item.job_posting_id
             )
             views.append(SavedJobView(
                 id=item.job_posting_id,
@@ -835,6 +865,28 @@ class WorkspaceReader:
                     analysis.analysis.clarification_questions if analysis else ()
                 ),
                 analyzed_at=analysis.created_at if analysis else None,
+                jd_snapshot_id=item.jd_snapshot_id,
+                jd_version=item.jd_version,
+                jd_analysis_status=(
+                    "none" if analysis is None else "ready" if current else "stale"
+                ),
+                jd_analysis_version=(
+                    item.jd_version
+                    if current is not None
+                    else analysis_version.version
+                    if analysis_version is not None
+                    else None
+                ),
+                jd_analysis=analysis.analysis.to_result() if analysis else None,
+                resume_match_status=(
+                    "none"
+                    if match is None
+                    else "ready"
+                    if match.jd_snapshot_id == item.jd_snapshot_id
+                    else "stale"
+                ),
+                resume_match_fit=match.result.overall_fit if match else None,
+                resume_match_at=match.created_at if match else None,
             ))
         return tuple(views)
 
@@ -1332,6 +1384,7 @@ class WorkspaceReader:
             "mock_interview_report": self._mock_interview_report,
             "interview_preparation": self._interview_preparation,
             "interview_retro_report": self._interview_retro_report,
+            "job_analysis": self._job_analysis,
             "resume_job_match": self._resume_job_match,
             "resume_tailoring_draft": self._resume_tailoring_draft,
             DELIVERED_BODY_KIND: self._delivered_body,
@@ -1507,6 +1560,34 @@ class WorkspaceReader:
             title="简历与岗位匹配",
             subtitle=f"{subject} · {stored.result.overall_fit}",
             body=render_resume_job_match(stored.result),
+            created_at=stored.created_at,
+        )
+
+    def _job_analysis(self, user_id: str, analysis_id: str) -> ReportView | None:
+        stored = self._jobs.get_analysis(user_id=user_id, analysis_id=analysis_id)
+        if stored is None:
+            return None
+        result = stored.analysis.to_result()
+        if result is None:
+            return None
+        job = self._jobs.get_job(
+            user_id=user_id, job_posting_id=stored.job_posting_id
+        )
+        snapshot = self._jobs.get_snapshot(
+            user_id=user_id, jd_snapshot_id=stored.jd_snapshot_id
+        )
+        subject = (
+            f"{job.posting.company_name} {job.posting.title}"
+            if job is not None
+            else "已保存岗位"
+        )
+        version = f" · JD 第 {snapshot.version} 版" if snapshot is not None else ""
+        return ReportView(
+            kind="job_analysis",
+            resource_id=stored.id,
+            title="岗位 JD 分析",
+            subtitle=f"{subject} · {SENIORITY_LABELS[result.seniority]}{version}",
+            body=render_job_analysis(result),
             created_at=stored.created_at,
         )
 

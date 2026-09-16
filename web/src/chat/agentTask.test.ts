@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { newStandaloneAgentTask, standaloneAgentTaskStep } from "./agentTask";
-import type { ResumeAttachment } from "./attachments";
+import { isJobAttachment, type JobAttachment, type ResumeAttachment } from "./attachments";
 
 const resource: ResumeAttachment = {
   resumeId: "resume-1",
@@ -17,8 +17,23 @@ describe("standalone agent task", () => {
   it("gets its own conversation and keeps the exact resume version", () => {
     const task = newStandaloneAgentTask("帮我分析简历“AI Resume”的 v1", resource);
     expect(task.conversationId).toMatch(/^conversation-/);
-    expect(task.resource.resumeVersionId).toBe("resume_version-v1");
+    expect(isJobAttachment(task.resource)).toBe(false);
+    expect(task.resource).toMatchObject({ resumeVersionId: "resume_version-v1" });
     expect(newStandaloneAgentTask("x", resource).conversationId).not.toBe(task.conversationId);
+  });
+
+  it("carries a JD snapshot on its own, with no resume beside it", () => {
+    const job: JobAttachment = {
+      kind: "jd_snapshot",
+      jdSnapshotId: "snapshot-3",
+      jobPostingId: "job-1",
+      title: "AI 产品经理",
+      companyName: "示例科技",
+      jdVersion: 3,
+    };
+    const task = newStandaloneAgentTask("分析 JD", job);
+    expect(isJobAttachment(task.resource)).toBe(true);
+    expect(task.resource).toMatchObject({ jdSnapshotId: "snapshot-3" });
   });
 
   it("waits for a running turn instead of interrupting it", () => {

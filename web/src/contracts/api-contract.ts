@@ -1570,6 +1570,54 @@ export const API_CONTRACT = {
               "clarification_questions": [],
               "company_name": "示例科技",
               "id": "job-1",
+              "jd_analysis": {
+                "ats_keywords": [
+                  "AI 产品",
+                  "大模型"
+                ],
+                "core_competencies": [
+                  "需求抽象"
+                ],
+                "core_objective": "把大模型能力落到可上线的产品功能中。",
+                "hiring_manager_focus": [
+                  "落地案例"
+                ],
+                "hr_focus": [
+                  "稳定性"
+                ],
+                "implicit_requirements": [
+                  {
+                    "jd_quote": "与算法同学协作",
+                    "text": "能与算法团队直接对接"
+                  }
+                ],
+                "information_gaps": [
+                  "未说明团队规模"
+                ],
+                "likely_interview_topics": [
+                  "需求拆解思路"
+                ],
+                "red_flags": [
+                  {
+                    "jd_quote": "能适应快节奏",
+                    "text": "工时未说明"
+                  }
+                ],
+                "requirements": [
+                  {
+                    "jd_quote": "3 年以上互联网产品经验",
+                    "kind": "fact",
+                    "text": "3 年以上产品经验",
+                    "tier": "S"
+                  }
+                ],
+                "seniority": "mid",
+                "summary": "偏产品策略，要求有 AI 落地经验。"
+              },
+              "jd_analysis_status": "stale",
+              "jd_analysis_version": 1,
+              "jd_snapshot_id": null,
+              "jd_version": 2,
               "last_checked_at": "2026-09-12T12:00:00Z",
               "preferred_qualifications": [
                 "有大模型应用经验"
@@ -1582,6 +1630,9 @@ export const API_CONTRACT = {
               "responsibilities": [
                 "负责 AI 产品规划"
               ],
+              "resume_match_at": "2026-09-12T12:00:00Z",
+              "resume_match_fit": "moderate",
+              "resume_match_status": "ready",
               "salary": "25-35K",
               "source_name": "BOSS直聘",
               "source_url": "https://www.zhipin.com/job_detail/example.html",
@@ -1787,6 +1838,146 @@ export const API_CONTRACT = {
             "title": "DashboardStats",
             "type": "object"
           },
+          "JobAnalysisResult": {
+            "additionalProperties": false,
+            "properties": {
+              "ats_keywords": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 40,
+                "title": "Ats Keywords",
+                "type": "array"
+              },
+              "core_competencies": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "title": "Core Competencies",
+                "type": "array"
+              },
+              "core_objective": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "title": "Core Objective",
+                "type": "string"
+              },
+              "hiring_manager_focus": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Hiring Manager Focus",
+                "type": "array"
+              },
+              "hr_focus": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Hr Focus",
+                "type": "array"
+              },
+              "implicit_requirements": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuotedFinding"
+                },
+                "maxItems": 15,
+                "title": "Implicit Requirements",
+                "type": "array"
+              },
+              "information_gaps": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Information Gaps",
+                "type": "array"
+              },
+              "likely_interview_topics": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "title": "Likely Interview Topics",
+                "type": "array"
+              },
+              "red_flags": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuotedFinding"
+                },
+                "maxItems": 10,
+                "title": "Red Flags",
+                "type": "array"
+              },
+              "requirements": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/TieredRequirement"
+                },
+                "maxItems": 40,
+                "title": "Requirements",
+                "type": "array"
+              },
+              "seniority": {
+                "enum": [
+                  "fresh_graduate",
+                  "junior",
+                  "mid",
+                  "senior",
+                  "lead"
+                ],
+                "title": "Seniority",
+                "type": "string"
+              },
+              "summary": {
+                "maxLength": 3000,
+                "minLength": 1,
+                "title": "Summary",
+                "type": "string"
+              }
+            },
+            "required": [
+              "core_objective",
+              "seniority",
+              "summary"
+            ],
+            "title": "JobAnalysisResult",
+            "type": "object"
+          },
+          "QuotedFinding": {
+            "additionalProperties": false,
+            "description": "A conclusion that is not stated in the JD, pinned to the text behind it.",
+            "properties": {
+              "jd_quote": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Jd Quote",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "jd_quote"
+            ],
+            "title": "QuotedFinding",
+            "type": "object"
+          },
           "SavedJobView": {
             "additionalProperties": false,
             "properties": {
@@ -1864,6 +2055,63 @@ export const API_CONTRACT = {
                 "title": "Id",
                 "type": "string"
               },
+              "jd_analysis": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/JobAnalysisResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "jd_analysis_status": {
+                "default": "none",
+                "enum": [
+                  "none",
+                  "ready",
+                  "stale"
+                ],
+                "title": "Jd Analysis Status",
+                "type": "string"
+              },
+              "jd_analysis_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Analysis Version"
+              },
+              "jd_snapshot_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Snapshot Id"
+              },
+              "jd_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Version"
+              },
               "last_checked_at": {
                 "format": "date-time",
                 "title": "Last Checked At",
@@ -1901,6 +2149,41 @@ export const API_CONTRACT = {
                 },
                 "title": "Responsibilities",
                 "type": "array"
+              },
+              "resume_match_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Match At"
+              },
+              "resume_match_fit": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Match Fit"
+              },
+              "resume_match_status": {
+                "default": "none",
+                "enum": [
+                  "none",
+                  "ready",
+                  "stale"
+                ],
+                "title": "Resume Match Status",
+                "type": "string"
               },
               "salary": {
                 "anyOf": [
@@ -1945,6 +2228,50 @@ export const API_CONTRACT = {
               "last_checked_at"
             ],
             "title": "SavedJobView",
+            "type": "object"
+          },
+          "TieredRequirement": {
+            "additionalProperties": false,
+            "description": "One requirement graded by how much the posting hinges on it.\n\nS is a gate the JD states outright; A is what the role is really hiring\nfor; B distinguishes candidates without disqualifying anyone; C is\nmentioned but incidental. ``kind`` says whether the requirement is\nwritten in the JD (``fact``) or read between its lines (``inference``);\neither way ``jd_quote`` is the sentence it rests on.",
+            "properties": {
+              "jd_quote": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Jd Quote",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "fact",
+                  "inference"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              },
+              "tier": {
+                "enum": [
+                  "S",
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "title": "Tier",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "tier",
+              "kind",
+              "jd_quote"
+            ],
+            "title": "TieredRequirement",
             "type": "object"
           }
         },
@@ -3190,6 +3517,11 @@ export const API_CONTRACT = {
           "clarification_questions": [],
           "company_name": "示例科技",
           "id": "job-1",
+          "jd_analysis": null,
+          "jd_analysis_status": "none",
+          "jd_analysis_version": null,
+          "jd_snapshot_id": null,
+          "jd_version": null,
           "last_checked_at": "2026-09-12T12:00:00Z",
           "preferred_qualifications": [
             "有大模型应用经验"
@@ -3202,6 +3534,9 @@ export const API_CONTRACT = {
           "responsibilities": [
             "负责 AI 产品规划"
           ],
+          "resume_match_at": null,
+          "resume_match_fit": null,
+          "resume_match_status": "none",
           "salary": null,
           "source_name": "BOSS直聘",
           "source_url": null,
@@ -3209,6 +3544,192 @@ export const API_CONTRACT = {
         }
       ],
       "schema": {
+        "$defs": {
+          "JobAnalysisResult": {
+            "additionalProperties": false,
+            "properties": {
+              "ats_keywords": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 40,
+                "title": "Ats Keywords",
+                "type": "array"
+              },
+              "core_competencies": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "title": "Core Competencies",
+                "type": "array"
+              },
+              "core_objective": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "title": "Core Objective",
+                "type": "string"
+              },
+              "hiring_manager_focus": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Hiring Manager Focus",
+                "type": "array"
+              },
+              "hr_focus": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Hr Focus",
+                "type": "array"
+              },
+              "implicit_requirements": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuotedFinding"
+                },
+                "maxItems": 15,
+                "title": "Implicit Requirements",
+                "type": "array"
+              },
+              "information_gaps": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Information Gaps",
+                "type": "array"
+              },
+              "likely_interview_topics": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "title": "Likely Interview Topics",
+                "type": "array"
+              },
+              "red_flags": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuotedFinding"
+                },
+                "maxItems": 10,
+                "title": "Red Flags",
+                "type": "array"
+              },
+              "requirements": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/TieredRequirement"
+                },
+                "maxItems": 40,
+                "title": "Requirements",
+                "type": "array"
+              },
+              "seniority": {
+                "enum": [
+                  "fresh_graduate",
+                  "junior",
+                  "mid",
+                  "senior",
+                  "lead"
+                ],
+                "title": "Seniority",
+                "type": "string"
+              },
+              "summary": {
+                "maxLength": 3000,
+                "minLength": 1,
+                "title": "Summary",
+                "type": "string"
+              }
+            },
+            "required": [
+              "core_objective",
+              "seniority",
+              "summary"
+            ],
+            "title": "JobAnalysisResult",
+            "type": "object"
+          },
+          "QuotedFinding": {
+            "additionalProperties": false,
+            "description": "A conclusion that is not stated in the JD, pinned to the text behind it.",
+            "properties": {
+              "jd_quote": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Jd Quote",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "jd_quote"
+            ],
+            "title": "QuotedFinding",
+            "type": "object"
+          },
+          "TieredRequirement": {
+            "additionalProperties": false,
+            "description": "One requirement graded by how much the posting hinges on it.\n\nS is a gate the JD states outright; A is what the role is really hiring\nfor; B distinguishes candidates without disqualifying anyone; C is\nmentioned but incidental. ``kind`` says whether the requirement is\nwritten in the JD (``fact``) or read between its lines (``inference``);\neither way ``jd_quote`` is the sentence it rests on.",
+            "properties": {
+              "jd_quote": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Jd Quote",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "fact",
+                  "inference"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              },
+              "tier": {
+                "enum": [
+                  "S",
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "title": "Tier",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "tier",
+              "kind",
+              "jd_quote"
+            ],
+            "title": "TieredRequirement",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "properties": {
           "analysis_summary": {
@@ -3285,6 +3806,63 @@ export const API_CONTRACT = {
             "title": "Id",
             "type": "string"
           },
+          "jd_analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/JobAnalysisResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "jd_analysis_status": {
+            "default": "none",
+            "enum": [
+              "none",
+              "ready",
+              "stale"
+            ],
+            "title": "Jd Analysis Status",
+            "type": "string"
+          },
+          "jd_analysis_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Jd Analysis Version"
+          },
+          "jd_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Jd Snapshot Id"
+          },
+          "jd_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Jd Version"
+          },
           "last_checked_at": {
             "format": "date-time",
             "title": "Last Checked At",
@@ -3322,6 +3900,41 @@ export const API_CONTRACT = {
             },
             "title": "Responsibilities",
             "type": "array"
+          },
+          "resume_match_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Match At"
+          },
+          "resume_match_fit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Match Fit"
+          },
+          "resume_match_status": {
+            "default": "none",
+            "enum": [
+              "none",
+              "ready",
+              "stale"
+            ],
+            "title": "Resume Match Status",
+            "type": "string"
           },
           "salary": {
             "anyOf": [
@@ -3856,6 +4469,13 @@ export const API_CONTRACT = {
       },
       {
         "anchored_by_other_job": null,
+        "kind": "job_analysis",
+        "resource_id": "job_analysis-1",
+        "status_at_delivery": null,
+        "type": "report_ready"
+      },
+      {
+        "anchored_by_other_job": null,
         "kind": "resume_job_match",
         "resource_id": "resume_job_match-1",
         "status_at_delivery": null,
@@ -4383,6 +5003,7 @@ export const API_CONTRACT = {
                 "mock_interview_report",
                 "interview_preparation",
                 "interview_retro_report",
+                "job_analysis",
                 "resume_job_match",
                 "resume_tailoring_draft"
               ],

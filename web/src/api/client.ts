@@ -58,6 +58,41 @@ export interface ApplicationMockInterviews {
   sessions: MockInterviewSessionView[];
 }
 
+export type JobSeniority = "fresh_graduate" | "junior" | "mid" | "senior" | "lead";
+export type RequirementTier = "S" | "A" | "B" | "C";
+export type RequirementKind = "fact" | "inference";
+
+export interface TieredRequirement {
+  text: string;
+  tier: RequirementTier;
+  kind: RequirementKind;
+  jd_quote: string;
+}
+
+export interface QuotedFinding {
+  text: string;
+  jd_quote: string;
+}
+
+/** JD-only analysis: grounded in the posting text alone, never in a resume. */
+export interface JobAnalysisResult {
+  core_objective: string;
+  seniority: JobSeniority;
+  requirements: TieredRequirement[];
+  core_competencies: string[];
+  implicit_requirements: QuotedFinding[];
+  ats_keywords: string[];
+  hr_focus: string[];
+  hiring_manager_focus: string[];
+  likely_interview_topics: string[];
+  red_flags: QuotedFinding[];
+  information_gaps: string[];
+  summary: string;
+}
+
+/** `stale`: the JD has a newer snapshot than the one this result was computed on. */
+export type JobDerivedStatus = "none" | "ready" | "stale";
+
 export interface SavedJobView {
   id: string;
   title: string;
@@ -77,6 +112,14 @@ export interface SavedJobView {
   preferred_qualifications: string[];
   clarification_questions: string[];
   analyzed_at: string | null;
+  jd_snapshot_id: string | null;
+  jd_version: number | null;
+  jd_analysis_status: JobDerivedStatus;
+  jd_analysis_version: number | null;
+  jd_analysis: JobAnalysisResult | null;
+  resume_match_status: JobDerivedStatus;
+  resume_match_fit: string | null;
+  resume_match_at: string | null;
 }
 
 export interface ConversationView {

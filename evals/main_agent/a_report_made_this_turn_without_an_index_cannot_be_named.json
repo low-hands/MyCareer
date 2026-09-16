@@ -2,16 +2,15 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "d084e025ee79e9047a777ba0f6f99558f90941334b7fcf4bbec2305cc1eae8a0",
-  "recorded_at": "2026-09-13T15:49:05.974782+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "a0ac5ec65c38b50da2c11366f3ca11b982fba7bec5a7ab146ca300f1b36c1cd3",
+  "recorded_at": "2026-09-16T14:33:39.052556+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "selection_index": null,
-          "reference": "report_662e28"
+          "selection_index": 1
         }
       }
     }
@@ -19,70 +18,65 @@
   "sample_count": 5,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:49:03.206568+00:00",
+      "recorded_at": "2026-09-16T14:33:30.126233+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": null,
-              "reference": "report_662e28"
+              "selection_index": 1
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:49:03.789082+00:00",
+      "recorded_at": "2026-09-16T14:33:33.495951+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": null,
-              "reference": "report_662e28"
+              "selection_index": 1
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:49:05.370528+00:00",
+      "recorded_at": "2026-09-16T14:33:36.492637+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": null,
-              "reference": "report_662e28"
+              "selection_index": 1
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:49:08.308395+00:00",
+      "recorded_at": "2026-09-16T14:33:39.028997+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": 1,
-              "reference": null
+              "selection_index": 1
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:49:05.974782+00:00",
+      "recorded_at": "2026-09-16T14:33:39.052556+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": null,
-              "reference": "report_662e28"
+              "selection_index": 1
             }
           }
         }

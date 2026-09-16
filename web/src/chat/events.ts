@@ -33,6 +33,7 @@ export const REPORT_KIND_LIST = [
   "interview_retro_report",
   "resume_job_match",
   "resume_tailoring_draft",
+  "job_analysis",
 ] as const;
 export type ReportKind = (typeof REPORT_KIND_LIST)[number];
 export type ReportResourceKind = ReportKind | "delivered_body";

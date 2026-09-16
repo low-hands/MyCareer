@@ -466,6 +466,18 @@ def _resume_job_match_ready(
     )
 
 
+def _job_analysis_ready(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    return task.model_copy(
+        update={
+            "active_job_analysis_id": result.payload.get("analysis_id"),
+            "job_analysis_status": "ready",
+            "active_job_posting_id": result.payload.get("job_posting_id"),
+        }
+    )
+
+
 def _tailoring_draft_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -767,6 +779,7 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
         ("saved_jobs_found", "no_saved_jobs_found"), _find_saved_jobs
     ),
     "get_saved_job": _entry(("saved_job_ready",), _get_saved_job),
+    "analyze_job": _entry(("job_analysis_ready",), _job_analysis_ready),
     **_fanout(
         ("research_job", "retry_job_research", "get_job_research"),
         ("job_research_ready", "job_research_failed"),

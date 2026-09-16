@@ -67,6 +67,16 @@ async function consume(): Promise<PublicStreamEvent[]> {
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe("capture follow-up", () => {
+  it("records the save and offers analysis instead of asking for it", () => {
+    const message = captureFollowUpMessage(capture);
+    expect(message).toContain("示例科技");
+    expect(message).toContain("让 Agent 分析");
+    expect(message).not.toContain("继续分析");
+    expect(captureInputResources(capture)).toEqual([{ kind: "jd_snapshot", id: "snapshot-1" }]);
+  });
+});
+
 describe("capture acknowledgements", () => {
   it.each([completed, suspended])("acknowledges only after $type", async (terminal) => {
     const events: PublicStreamEvent[] = [

@@ -149,6 +149,7 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "daily_brief_ready": _summarised("每日简报", "snapshot"),
     "interview_preparation_ready": _card(),
     "interview_retro_recorded": _card(),
+    "job_analysis_ready": _card(),
     "job_research_ready": _card(),
     "mock_interview_completed": _card(),
     "mock_interview_result_found": _card(),

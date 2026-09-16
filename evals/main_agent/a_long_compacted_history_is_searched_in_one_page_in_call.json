@@ -2,17 +2,15 @@
   "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "248051c68e10cfa17daf222ce6833c88558cbeee12a689d7df6baa765db60b1d",
-  "recorded_at": "2026-09-13T15:50:01.657725+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "864e51c34438d32c8e380407e66faaf67caea74c960ccce82c02e91cd3586387",
+  "recorded_at": "2026-09-16T14:34:38.282730+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "read_conversation_span",
+        "name": "route_to_capability",
         "arguments": {
-          "from_sequence": 1,
-          "through_sequence": 120,
-          "query": "目标公司 公司 美团"
+          "domain": "job"
         }
       }
     }
@@ -20,15 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:50:01.657725+00:00",
+      "recorded_at": "2026-09-16T14:34:38.282730+00:00",
       "steps": [
         {
           "tool_call": {
-            "name": "read_conversation_span",
+            "name": "route_to_capability",
             "arguments": {
-              "from_sequence": 1,
-              "through_sequence": 120,
-              "query": "目标公司 公司 美团"
+              "domain": "job"
             }
           }
         }

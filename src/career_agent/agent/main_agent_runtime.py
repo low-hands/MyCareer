@@ -95,6 +95,8 @@ from career_agent.agent.delivered_body_contracts import (
     ResumeAnalysisBodySource,
     SavedJobBodySource,
 )
+from career_agent.agent.job_analysis_contracts import JobAnalysisResult
+from career_agent.agent.job_analysis_presenter import render_job_analysis
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
 from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
@@ -677,6 +679,7 @@ class MainAgentRuntime:
             "open_job_search",
             "find_saved_jobs",
             "get_saved_job",
+            "analyze_job",
         }:
             return "job_search"
         if "job_research" in name or name in {"research_job", "retry_job_research"}:
@@ -2516,6 +2519,7 @@ class MainAgentRuntime:
     _CAPABILITY_STEP_MESSAGES: ClassVar[dict[str, str]] = {
         "resume_analysis": "正在分析简历内容",
         "resume_job_match": "正在比对简历与岗位要求",
+        "job_analysis": "正在分析岗位 JD",
         "resume_job_match_state_audit": "正在核对简历比对结果",
         "resume_tailoring": "正在起草定制简历",
         "resume_draft_review": "正在审校简历草稿",
@@ -4268,6 +4272,10 @@ class MainAgentRuntime:
             match = MainAgentRuntime._resume_job_match_result(result)
             if match is not None:
                 return render_resume_job_match(match)
+        if result.state == "job_analysis_ready":
+            analysis = MainAgentRuntime._job_analysis_result(result)
+            if analysis is not None:
+                return render_job_analysis(analysis)
         if result.state == "resume_tailoring_draft_ready":
             tailoring = MainAgentRuntime._resume_tailoring_result(result)
             if tailoring is not None:
@@ -4410,6 +4418,15 @@ class MainAgentRuntime:
                 key: result.payload.get(key)
                 for key in ResumeJobMatchResult.model_fields
             },
+        )
+
+    @staticmethod
+    def _job_analysis_result(
+        result: MainAgentToolOutput,
+    ) -> JobAnalysisResult | None:
+        return MainAgentRuntime._validated(
+            JobAnalysisResult,
+            {key: result.payload.get(key) for key in JobAnalysisResult.model_fields},
         )
 
     @staticmethod
@@ -4604,7 +4621,12 @@ class MainAgentRuntime:
             return project_constraint_retirement_arguments(
                 context, name, arguments
             )
-        if name in {"find_saved_jobs", "get_saved_job", "compare_saved_jobs"}:
+        if name in {
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "analyze_job",
+        }:
             return project_saved_job_arguments(context, name, arguments)
         if name == "get_job_research":
             return project_job_research_arguments(context, name, arguments)

@@ -21,6 +21,7 @@ const KIND_LABELS: Record<ReportResourceKind, string> = {
   interview_retro_report: "真实面试复盘",
   resume_job_match: "简历岗位匹配",
   resume_tailoring_draft: "简历定制草稿",
+  job_analysis: "岗位 JD 分析",
   delivered_body: "完整内容",
 };
 

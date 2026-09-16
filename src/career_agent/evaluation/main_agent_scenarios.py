@@ -229,6 +229,7 @@ def compacted_span_context(
     if page_in:
         return _context(
             user_message=user_message,
+            task=ConversationTaskState(tool_profile="memory"),
             conversation_summary=_SPAN_SUMMARY,
             through_sequence=len(_SPAN_PRE_WATERMARK),
             recent_from_sequence=len(_SPAN_PRE_WATERMARK) + 1,
@@ -236,6 +237,7 @@ def compacted_span_context(
         )
     return _context(
         user_message=user_message,
+        task=ConversationTaskState(tool_profile="memory"),
         conversation_summary=_SPAN_SUMMARY,
         recent_messages=_SPAN_POST_WATERMARK,
     )
@@ -245,6 +247,7 @@ def stuffed_span_context(*, user_message: str) -> MainAgentContext:
     """The same turns with pre-watermark originals forced back into the window."""
     return _context(
         user_message=user_message,
+        task=ConversationTaskState(tool_profile="memory"),
         recent_messages=_SPAN_PRE_WATERMARK + _SPAN_POST_WATERMARK,
     )
 
@@ -322,7 +325,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # The costly failure is a nationwide search the user never wanted, and
         # it is invisible: open_job_search only opens a browser page, so nothing
         # downstream reports that the search was unscoped.
-        context=_context(user_message="帮我找找工作吧"),
+        context=_context(
+            user_message="帮我找找工作吧",
+            task=ConversationTaskState(tool_profile="job"),
+        ),
         decisive_facts=(
             "career_profile.memory/profile.md",
             "task.target_roles",
@@ -346,6 +352,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="看看我的简历和这个岗位match不match",
             task=ConversationTaskState(
+                tool_profile="resume",
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
                 active_resume_version_id="rv-1",
@@ -377,7 +384,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             user_message=(
                 "请把我的求职意向记下来：我想找上海的算法岗，期望薪资 40K 以上"
             ),
-            task=ConversationTaskState(),
+            task=ConversationTaskState(tool_profile="job"),
         ),
         decisive_facts=("task.target_roles", "user_message"),
         steps=(
@@ -409,6 +416,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="这个岗位看着还不错",
             task=ConversationTaskState(
+                tool_profile="job",
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -439,6 +447,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 revision="aaaaaaaaaaaa",
             ),
             task=ConversationTaskState(
+                tool_profile="job",
                 saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
             ),
         ),
@@ -456,19 +465,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
-        known_gap=(
-            "On gpt-5.6-terra, evening of 2026-09-11 with 69 tools offered, "
-            "one of three samples lists the saved jobs with find_saved_jobs "
-            "instead of asking; the afternoon cut with 68 tools asked all "
-            "three times. A same-evening A/B outside the catalogue was worse: "
-            "2/5 (68 tools) and 4/5 (69 tools) called compare_saved_jobs on "
-            "both candidates, which this step forbids. The lexical guard cannot "
-            "see it: a comparison of [1, 2] carries no note-derived token. Since "
-            "2026-09-14 the runtime refuses preference-bound tools when the user "
-            "appeals to remembered preference and no confirmed source holds one "
-            "(remembered_preference_without_authority), so the comparison is not "
-            "executed; this step still measures whether the model asks first."
-        ),
     ),
     TrajectoryScenario(
         name="a_note_derived_filter_is_confirmed_with_the_user",
@@ -479,6 +475,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
+            task=ConversationTaskState(tool_profile="job"),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户可能偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -521,6 +518,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
+            task=ConversationTaskState(tool_profile="job"),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -554,6 +552,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="可以",
             task=ConversationTaskState(
+                tool_profile="memory",
                 pending_job_intent_update=JobIntentUpdate(city="上海"),
                 bare_confirmation_target=None,
             ),
@@ -594,6 +593,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我准备投这个岗位了",
             task=ConversationTaskState(
+                tool_profile="application",
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -612,6 +612,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="把这场面试同步到我的日历",
             task=ConversationTaskState(
+                tool_profile="interview",
                 active_interview_round_id="round-1",
                 interview_candidates=(
                     InterviewCandidateContextItem(
@@ -713,6 +714,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认，执行吧",
             task=ConversationTaskState(
+                tool_profile="interview",
                 active_calendar_proposal_id="proposal-1",
                 active_calendar_proposal_expires_at=datetime(
                     2026, 8, 31, 12, tzinfo=timezone.utc
@@ -735,6 +737,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我那场面试怎么样了",
             task=ConversationTaskState(
+                tool_profile="interview",
                 active_interview_round_id="round-1",
                 interview_candidates=(
                     InterviewCandidateContextItem(
@@ -769,6 +772,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="那份调研里说这家公司的主要竞争对手是谁？",
             task=ConversationTaskState(
+                tool_profile="job",
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -824,7 +828,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # differed only in an opaque suffix, presented as the complete set.
         context=_context(
             user_message="上个月 Shopee 那份调研里，他们的主要竞争对手是谁？",
-            task=ConversationTaskState(),
+            task=ConversationTaskState(tool_profile="job"),
             archived_resources=tuple(
                 ConversationMessageContext(
                     role="assistant",
@@ -975,6 +979,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
+                tool_profile="job",
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1085,6 +1090,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
+                tool_profile="job",
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1139,20 +1145,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=5,
-        known_gap=(
-            "On gpt-5.6-terra four of five samples borrow the handle titled "
-            "历史科技甲 for a question about 示例科技; the fifth uses the "
-            "grounded saved-job selector. Earlier terra cuts: 1/3 (afternoon, "
-            "68 tools) and, in a same-evening A/B outside the catalogue, 2/5 "
-            "with update_owner_settings withheld against 4/5 with it offered. "
-            "The luna recording refused all three times. The gap is the "
-            "model's, not noise; whether the 69th tool widens it is not "
-            "separable from time-of-day drift at n=5. Since 2026-09-14 the "
-            "get_job_research projection refuses a handle whose title names a "
-            "different company from the saved-job company the user asked about "
-            "(text match, not entity binding); this step still measures whether "
-            "the model borrows the handle at all."
-        ),
     ),
     TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",
@@ -1170,6 +1162,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="上次那份调研里提到的竞品是谁来着",
             task=ConversationTaskState(
+                tool_profile="job",
                 saved_job_candidates=(_SAVED_JOB,),
             ),
             archived_resources=(
@@ -1311,6 +1304,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "不是 weak 就到这里。"
             ),
             task=ConversationTaskState(
+                tool_profile="resume",
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 active_resume_job_match_id="match-1",
@@ -1349,6 +1343,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
+                tool_profile="resume",
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1392,6 +1387,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
+                tool_profile="resume",
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1444,6 +1440,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="调研完了吗？一句话说说结论就行。",
             task=ConversationTaskState(
+                tool_profile="job",
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1506,6 +1503,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果是刚完成的新报告就直接结束。"
             ),
             task=ConversationTaskState(
+                tool_profile="job",
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1546,7 +1544,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # never told, so a model that loops burns the whole budget on one call.
         context=_context(
             user_message="看看我保存的岗位",
-            task=ConversationTaskState(),
+            task=ConversationTaskState(tool_profile="job"),
         ),
         decisive_facts=("task.candidates",),
         steps=(
@@ -1572,6 +1570,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
+            task=ConversationTaskState(tool_profile="job"),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1601,6 +1600,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
+            task=ConversationTaskState(tool_profile="job"),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1631,6 +1631,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认执行刚才的日历变更",
             task=ConversationTaskState(
+                tool_profile="interview",
                 active_interview_round_id="interview-1",
             ),
             tool_observations=(
@@ -1669,6 +1670,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="再查一下我保存的算法岗位",
+            task=ConversationTaskState(tool_profile="job"),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1717,6 +1719,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我刚在官网投了示例科技的算法工程师，帮我记一下。",
             task=ConversationTaskState(
+                tool_profile="application",
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -1763,7 +1766,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="打开第 2 个岗位的完整 JD",
-            task=ConversationTaskState(saved_job_candidates=(_SAVED_JOB,)),
+            task=ConversationTaskState(
+                tool_profile="job",
+                saved_job_candidates=(_SAVED_JOB,),
+            ),
             tool_observations=(
                 DecisionObservation(
                     tool_name="get_saved_job",

@@ -2,9 +2,9 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "318d4a7f8003b00d18c519d49298a447c914799a382020af53e64bcdb6b2a7b4",
-  "recorded_at": "2026-09-13T15:51:58.217358+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "ac5309cca0cd6d982999e9bc8bc28e95d7b65bfc411f34b6b6c3c51b1841ce03",
+  "recorded_at": "2026-09-16T14:34:36.280106+00:00",
   "steps": [
     {
       "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
@@ -13,7 +13,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:49:53.391028+00:00",
+      "recorded_at": "2026-09-16T14:34:33.991769+00:00",
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
@@ -21,18 +21,18 @@
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:49:53.745887+00:00",
+      "recorded_at": "2026-09-16T14:34:33.092694+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"Pinnacle Robotics。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:51:58.217358+00:00",
+      "recorded_at": "2026-09-16T14:34:36.280106+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"Pinnacle Robotics。\"}"
         }
       ]
     }

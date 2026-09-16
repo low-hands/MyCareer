@@ -69,11 +69,17 @@ export function openJobSearchViaBridge(
   });
 }
 
-/** The user-visible message that opens the follow-up turn for a captured job. */
+/**
+ * The user-visible message that opens the follow-up turn for a captured job.
+ *
+ * It records the save and stops there: analysing the JD is a separate task the
+ * user starts from the library, so the text says it is available rather than
+ * asking for it.
+ */
 export function captureFollowUpMessage(event: JobCapturedEventView): string {
   return (
-    `我已经从 BOSS 保存了岗位「${event.title} · ${event.company_name}」。` +
-    `请基于这份 JD 继续分析。`
+    `我已经从 BOSS 保存了岗位「${event.title} · ${event.company_name}」，先记下来就好。` +
+    `暂不需要分析；之后我可以在岗位库点「让 Agent 分析」，再让你仅基于这份 JD 做岗位分析。`
   );
 }
 
