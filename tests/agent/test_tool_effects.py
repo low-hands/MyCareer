@@ -53,7 +53,7 @@ def test_effect_registry_and_handler_registry_are_closed_both_directions() -> No
 
     assert handlers - declared == set()
     assert declared - handlers == set()
-    assert all(effect_for(name) in {"READ", "WRITE"} for name in handlers)
+    assert all(effect_for(name) in {"READ", "WRITE", "CONTROL"} for name in handlers)
 
 
 _MUTATING_CALL = re.compile(

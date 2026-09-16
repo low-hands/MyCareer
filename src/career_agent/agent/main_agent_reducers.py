@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from career_agent.agent.main_agent_contracts import (
     ActionCandidateContextItem,
+    ActiveSavedJobContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
     CareerFactProposal,
@@ -30,6 +31,7 @@ from career_agent.agent.main_agent_contracts import (
     ResumeVersionCandidateContextItem,
     SavedJobCandidateContextItem,
     TargetRoleCandidateContextItem,
+    TOOL_PROFILE_NAMES,
     ToolResult,
 )
 
@@ -100,9 +102,31 @@ def _get_saved_job(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     job = result.payload.get("job", {})
-    return task.model_copy(
-        update={"active_job_posting_id": job.get("job_posting_id")}
+    snapshot = result.payload.get("jd_snapshot", {})
+    focus = (
+        ActiveSavedJobContextItem(
+            job_posting_id=job["job_posting_id"],
+            jd_snapshot_id=snapshot["id"],
+            title=str(job.get("title") or "")[:200] or "未命名岗位",
+            company_name=str(job.get("company_name") or "")[:200] or "未知公司",
+            jd_version=snapshot["version"],
+        )
+        if isinstance(job, dict)
+        and isinstance(snapshot, dict)
+        and job.get("job_posting_id")
+        and snapshot.get("id")
+        and snapshot.get("version")
+        else None
     )
+    if focus is None:
+        return task.model_copy(
+            update={
+                "active_job_posting_id": job.get("job_posting_id")
+                if isinstance(job, dict)
+                else None
+            }
+        )
+    return task.focus_saved_job(focus)
 
 
 def _job_research_ready(
@@ -531,6 +555,15 @@ def _fanout(
     return {name: entry for name in names}
 
 
+def _route_to_capability(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    profile = result.payload.get("tool_profile")
+    if profile not in TOOL_PROFILE_NAMES:
+        return task
+    return task.model_copy(update={"tool_profile": profile})
+
+
 def _propose_job_intent(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -728,6 +761,7 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "confirm_constraint_retirement": _entry(
         ("constraint_retired",), _confirm_constraint_retirement
     ),
+    "route_to_capability": _entry(("tool_profile_switched",), _route_to_capability),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(
         ("saved_jobs_found", "no_saved_jobs_found"), _find_saved_jobs

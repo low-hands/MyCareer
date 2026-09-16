@@ -182,6 +182,7 @@ describe("read response contract", () => {
     expect(withReports?.resources.map((resource) => resource.kind)).toEqual([
       "job_research_report",
       "resume_job_match",
+      "saved_job",
     ]);
     expect("resource" in (withReports ?? {})).toBe(false);
   });

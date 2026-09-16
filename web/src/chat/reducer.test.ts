@@ -129,6 +129,49 @@ describe("chatReducer", () => {
     expect(state.messages.find((item) => item.id === "u-1")?.resources).toBeUndefined();
   });
 
+  it("keeps a JD card and a report card side by side on one assistant message", () => {
+    const submitted = chatReducer(initialChatState, {
+      type: "submit",
+      messageId: "u-1",
+      assistantMessageId: "a-1",
+      content: "保存后帮我调研一下这家公司",
+    });
+    const streamed = chatReducer(submitted, {
+      type: "stream_event",
+      event: { type: "content_delta", delta: "已保存「量霸科技｜AI Agent 实习生」。" },
+    });
+    const withJob = chatReducer(streamed, {
+      type: "stream_event",
+      event: {
+        type: "job_resource_ready",
+        kind: "saved_job",
+        resource_id: "jds-1",
+        job_posting_id: "job-1",
+        title: "量霸科技｜AI Agent 实习生",
+        description: "JD 第 1 版 · BOSS直聘",
+      },
+    });
+    const state = chatReducer(withJob, {
+      type: "stream_event",
+      event: { type: "report_ready", kind: "job_research_report", resource_id: "rep-1" },
+    });
+
+    const assistant = state.messages.find((item) => item.id === "a-1");
+    // The JD text never enters the bubble; the card carries the snapshot id.
+    expect(assistant?.content).toBe("已保存「量霸科技｜AI Agent 实习生」。");
+    expect(assistant?.resources).toEqual([
+      {
+        kind: "saved_job",
+        resourceId: "jds-1",
+        jobPostingId: "job-1",
+        title: "量霸科技｜AI Agent 实习生",
+        description: "JD 第 1 版 · BOSS直聘",
+        available: true,
+      },
+      { kind: "job_research_report", resourceId: "rep-1" },
+    ]);
+  });
+
   it("hydrates a persisted conversation without inventing a running turn", () => {
     const state = chatReducer(initialChatState, {
       type: "hydrate",

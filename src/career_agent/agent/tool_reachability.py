@@ -7,8 +7,10 @@ answers an unmet precondition with a bounded soft refusal.
 
 What remains here is the declarative statement of those preconditions: one
 place to read what a tool needs, checked against the registry so it cannot name
-a tool that does not exist. Nothing in request assembly consumes it, so a wrong
-entry misleads a reader rather than stranding a legal path.
+a tool that does not exist. ``tool_profiles`` reads it to tell the model which
+tools of the current profile are usable now and what the nearest unmet
+requirement is; the schema array itself never consumes it, so a wrong entry
+misleads the model's planning rather than stranding a legal path.
 
 Reference-index readbacks are the one case the table cannot express. Their
 anchor is the conversation window (``recent_messages`` / ``archived_resources``)
@@ -126,7 +128,75 @@ PRECONDITIONS: dict[str, Precondition] = {
             "mock_interview_graph_incompatible",
         }
     ),
+    # Memory writes can only be confirmed once their proposal has been shown.
+    "confirm_free_text_preference": lambda t: (
+        t.pending_free_text_preference is not None
+    ),
+    "confirm_memory_amendment": lambda t: t.pending_memory_amendment is not None,
+    "confirm_memory_tombstone": lambda t: t.pending_memory_tombstone is not None,
+    "confirm_career_fact": lambda t: t.pending_career_fact is not None,
+    "confirm_constraint_retirement": lambda t: (
+        t.pending_constraint_retirement is not None
+    ),
 }
+
+
+_NEEDS_JOB = "先用 find_saved_jobs 列出或选定一个已收藏岗位"
+_NEEDS_RESUME_VERSION = "先用 list_resumes 列出或选定一个简历版本"
+_NEEDS_APPLICATION = "先用 list_applications 列出或选定一条投递记录"
+_NEEDS_INTERVIEW = "先用 list_interviews 列出或选定一轮面试"
+_NEEDS_ACTION_ITEM = "先用 list_action_items 列出待办事项"
+_NEEDS_TAILORING_DRAFT = "先用 draft_resume_tailoring 生成定制草稿"
+_NEEDS_PROPOSAL = "先调用对应的 propose_* 工具向用户展示提案"
+
+REQUIREMENTS: dict[str, str] = {
+    "get_saved_job": _NEEDS_JOB,
+    "research_job": _NEEDS_JOB,
+    "compare_saved_jobs": "先用 find_saved_jobs 列出可比较的岗位",
+    "get_resume_metadata": "先用 list_resumes 列出简历",
+    "analyze_resume": _NEEDS_RESUME_VERSION,
+    "export_resume_artifact": "先选定一个简历版本（定制完成后自动选定）",
+    "get_resume_analysis": "先用 analyze_resume 完成简历分析",
+    "get_resume_job_match": "先用 match_resume_to_job 完成岗位匹配",
+    "draft_resume_tailoring": "定制前需先用 match_resume_to_job 完成岗位匹配",
+    "get_resume_tailoring_draft": _NEEDS_TAILORING_DRAFT,
+    "review_resume_tailoring": _NEEDS_TAILORING_DRAFT,
+    "revise_resume_tailoring": _NEEDS_TAILORING_DRAFT,
+    "finalize_resume_tailoring": _NEEDS_TAILORING_DRAFT,
+    "match_resume_to_job": "需要同时选定一个岗位和一个简历版本",
+    "create_application": "需要同时选定一个岗位和一个简历版本",
+    "get_application": _NEEDS_APPLICATION,
+    "update_application_status": _NEEDS_APPLICATION,
+    "create_interview": _NEEDS_APPLICATION,
+    "get_interview": _NEEDS_INTERVIEW,
+    "update_interview": _NEEDS_INTERVIEW,
+    "complete_interview": _NEEDS_INTERVIEW,
+    "record_interview_retro": _NEEDS_INTERVIEW,
+    "prepare_interview": "先选定一轮面试或一条待办事项",
+    "resolve_email_event": "先用 list_email_events 列出邮件事件",
+    "confirm_job_intent": "先用 propose_job_intent 展示意图变更",
+    "complete_action_item": _NEEDS_ACTION_ITEM,
+    "dismiss_action_item": _NEEDS_ACTION_ITEM,
+    "snooze_action_item": _NEEDS_ACTION_ITEM,
+    "prepare_interview_calendar_sync": _NEEDS_INTERVIEW,
+    "get_calendar_proposal": "先用 prepare_interview_calendar_sync 生成日历预览",
+    "execute_calendar_proposal": "先用 prepare_interview_calendar_sync 生成日历预览",
+    "retry_job_research": "只能重试当前会话里已发起的公司调研",
+    "start_mock_interview": "先选定一条投递记录或一轮面试",
+    "restart_mock_interview": "只有模拟面试检查点丢失或不兼容时才能重启",
+    "confirm_free_text_preference": _NEEDS_PROPOSAL,
+    "confirm_memory_amendment": _NEEDS_PROPOSAL,
+    "confirm_memory_tombstone": _NEEDS_PROPOSAL,
+    "confirm_career_fact": _NEEDS_PROPOSAL,
+    "confirm_constraint_retirement": _NEEDS_PROPOSAL,
+}
+"""One line per precondition, worded as the step that satisfies it."""
+
+if set(REQUIREMENTS) != set(PRECONDITIONS):
+    raise RuntimeError(
+        "every precondition needs exactly one requirement line: "
+        f"{sorted(set(REQUIREMENTS) ^ set(PRECONDITIONS))!r}"
+    )
 
 
 def reachable(name: str, task: ConversationTaskState) -> bool:

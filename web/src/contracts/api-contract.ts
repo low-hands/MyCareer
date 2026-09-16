@@ -303,7 +303,20 @@ export const API_CONTRACT = {
     "BrowserJobCaptureResponse": {
       "examples": [
         {
+          "capture_event_created": false,
+          "capture_event_id": null,
           "company_name": "示例科技",
+          "conversation_id": null,
+          "jd_snapshot_id": "snapshot-1",
+          "job_posting_id": "job-1",
+          "snapshot_version": 1,
+          "title": "AI 产品经理"
+        },
+        {
+          "capture_event_created": true,
+          "capture_event_id": "jobcap_00000000000000000000000000000000",
+          "company_name": "示例科技",
+          "conversation_id": "conv-1",
           "jd_snapshot_id": "snapshot-1",
           "job_posting_id": "job-1",
           "snapshot_version": 1,
@@ -313,9 +326,38 @@ export const API_CONTRACT = {
       "schema": {
         "additionalProperties": false,
         "properties": {
+          "capture_event_created": {
+            "default": false,
+            "title": "Capture Event Created",
+            "type": "boolean"
+          },
+          "capture_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Capture Event Id"
+          },
           "company_name": {
             "title": "Company Name",
             "type": "string"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conversation Id"
           },
           "jd_snapshot_id": {
             "title": "Jd Snapshot Id",
@@ -852,6 +894,16 @@ export const API_CONTRACT = {
                   "resume_id": null,
                   "status_at_delivery": null,
                   "title": null
+                },
+                {
+                  "anchored_by_other_job": null,
+                  "available": true,
+                  "description": "JD 第 1 版 · BOSS直聘",
+                  "kind": "saved_job",
+                  "resource_id": "jds-1",
+                  "resume_id": null,
+                  "status_at_delivery": null,
+                  "title": "示例科技｜AI 产品经理"
                 }
               ],
               "role": "assistant"
@@ -2165,6 +2217,117 @@ export const API_CONTRACT = {
         "type": "object"
       }
     },
+    "JobCapturedEventAckResponse": {
+      "examples": [
+        {
+          "acknowledged": true,
+          "event_id": "jobcap_00000000000000000000000000000000"
+        }
+      ],
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledged": {
+            "title": "Acknowledged",
+            "type": "boolean"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "acknowledged"
+        ],
+        "title": "JobCapturedEventAckResponse",
+        "type": "object"
+      }
+    },
+    "JobCapturedEventsResponse": {
+      "examples": [
+        {
+          "events": [
+            {
+              "company_name": "示例科技",
+              "conversation_id": "conv-1",
+              "created_at": "2026-09-12T12:00:00Z",
+              "id": "jobcap_00000000000000000000000000000000",
+              "jd_snapshot_id": "snapshot-1",
+              "job_posting_id": "job-1",
+              "title": "AI 产品经理"
+            }
+          ]
+        },
+        {
+          "events": []
+        }
+      ],
+      "schema": {
+        "$defs": {
+          "JobCapturedEventView": {
+            "additionalProperties": false,
+            "properties": {
+              "company_name": {
+                "title": "Company Name",
+                "type": "string"
+              },
+              "conversation_id": {
+                "title": "Conversation Id",
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "jd_snapshot_id": {
+                "title": "Jd Snapshot Id",
+                "type": "string"
+              },
+              "job_posting_id": {
+                "title": "Job Posting Id",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "conversation_id",
+              "job_posting_id",
+              "jd_snapshot_id",
+              "title",
+              "company_name",
+              "created_at"
+            ],
+            "title": "JobCapturedEventView",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/$defs/JobCapturedEventView"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "JobCapturedEventsResponse",
+        "type": "object"
+      }
+    },
     "JobClosureResponse": {
       "examples": [
         {
@@ -2931,6 +3094,90 @@ export const API_CONTRACT = {
         "type": "object"
       }
     },
+    "SavedJobSnapshotView": {
+      "examples": [
+        {
+          "captured_at": "2026-09-12T12:00:00Z",
+          "company_name": "示例科技",
+          "jd_snapshot_id": "jds-1",
+          "jd_text": "岗位职责：……\n任职要求：……",
+          "jd_version": 1,
+          "job_posting_id": "job-1",
+          "latest_jd_version": 2,
+          "source_name": "BOSS直聘",
+          "source_url": null,
+          "title": "AI 产品经理"
+        }
+      ],
+      "schema": {
+        "additionalProperties": false,
+        "description": "One immutable JD version, as a ``saved_job`` card opens it.\n\nAddressed by ``jd_snapshot_id`` rather than the posting: the card in an\nold turn keeps opening the text that turn read after the posting has been\ncaptured again. ``latest_jd_version`` lets the card say so.",
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "jd_snapshot_id": {
+            "title": "Jd Snapshot Id",
+            "type": "string"
+          },
+          "jd_text": {
+            "title": "Jd Text",
+            "type": "string"
+          },
+          "jd_version": {
+            "title": "Jd Version",
+            "type": "integer"
+          },
+          "job_posting_id": {
+            "title": "Job Posting Id",
+            "type": "string"
+          },
+          "latest_jd_version": {
+            "title": "Latest Jd Version",
+            "type": "integer"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Url"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jd_snapshot_id",
+          "job_posting_id",
+          "title",
+          "company_name",
+          "source_name",
+          "jd_version",
+          "latest_jd_version",
+          "jd_text",
+          "captured_at"
+        ],
+        "title": "SavedJobSnapshotView",
+        "type": "object"
+      }
+    },
     "SavedJobView": {
       "examples": [
         {
@@ -3174,6 +3421,21 @@ export const API_CONTRACT = {
             "scope": "capability_confirmation"
           },
           "message": "确认执行"
+        },
+        {
+          "conversation_id": "conv-1",
+          "input_resources": [
+            {
+              "id": "jd-1",
+              "kind": "jd_snapshot"
+            }
+          ],
+          "interaction_response": {
+            "action": "confirm",
+            "interaction_id": "interaction_0123456789abcdef0123",
+            "scope": "capability_confirmation"
+          },
+          "message": "我刚在 BOSS 保存了一个岗位，请继续分析。"
         }
       ],
       "schema": {
@@ -3214,7 +3476,7 @@ export const API_CONTRACT = {
           },
           "TurnInputResource": {
             "additionalProperties": false,
-            "description": "A durable user asset the message is about, named by id rather than prose.\n\nOnly ``resume_version`` exists for now: the exact immutable version the\nuser attached, which the runtime verifies belongs to the authenticated\nuser before any of it reaches the model. The id is never trusted from the\nmessage text, and the file itself never travels in the request.",
+            "description": "A durable user asset the message is about, named by id rather than prose.\n\n``resume_version`` is the exact immutable version the user attached;\n``job_posting`` is a saved job the message is about; ``jd_snapshot`` is one\nexact JD version of a saved job, as when the page continues a conversation\nwith the snapshot just captured from a search the agent opened, so the\nconversation stays pinned to that version even after the posting is\ncaptured again. Either way the runtime verifies the id belongs to the\nauthenticated user before any of it reaches the model: the id is never\ntrusted from the message text, and the asset itself never travels in the\nrequest.",
             "properties": {
               "id": {
                 "maxLength": 200,
@@ -3223,7 +3485,11 @@ export const API_CONTRACT = {
                 "type": "string"
               },
               "kind": {
-                "const": "resume_version",
+                "enum": [
+                  "resume_version",
+                  "job_posting",
+                  "jd_snapshot"
+                ],
                 "title": "Kind",
                 "type": "string"
               }
@@ -3624,7 +3890,25 @@ export const API_CONTRACT = {
         "type": "report_ready"
       },
       {
+        "description": "JD 第 1 版 · BOSS直聘",
+        "job_posting_id": "job-1",
+        "kind": "saved_job",
+        "resource_id": "jds-1",
+        "title": "示例科技｜AI 产品经理",
+        "type": "job_resource_ready"
+      },
+      {
         "action": "open_url",
+        "capture_intent_expires_at": null,
+        "capture_intent_id": null,
+        "label": "在 BOSS 直聘打开搜索",
+        "type": "client_action",
+        "url": "https://www.zhipin.com/web/geek/job?query=AI"
+      },
+      {
+        "action": "open_url",
+        "capture_intent_expires_at": "2026-09-12T12:00:00Z",
+        "capture_intent_id": "capint_00000000000000000000000000000000",
         "label": "在 BOSS 直聘打开搜索",
         "type": "client_action",
         "url": "https://www.zhipin.com/web/geek/job?query=AI"
@@ -3777,6 +4061,32 @@ export const API_CONTRACT = {
               "const": "open_url",
               "title": "Action",
               "type": "string"
+            },
+            "capture_intent_expires_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Capture Intent Expires At"
+            },
+            "capture_intent_id": {
+              "anyOf": [
+                {
+                  "pattern": "^capint_[a-f0-9]{32}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Capture Intent Id"
             },
             "label": {
               "maxLength": 240,
@@ -3951,6 +4261,70 @@ export const API_CONTRACT = {
             "prompt"
           ],
           "title": "InteractionRequiredEvent",
+          "type": "object"
+        },
+        "JobResourceReadyEvent": {
+          "additionalProperties": false,
+          "description": "A saved-job card attached to the assistant message, after its prose.\n\n``resource_id`` is the immutable ``jd_snapshot_id``: the card opens the JD\nversion this turn read, not whatever the posting holds later. The title and\ndescription are a display snapshot so the card can still name the job once\nthe posting is deleted; the JD text itself is fetched on demand.",
+          "properties": {
+            "description": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            },
+            "job_posting_id": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Job Posting Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "saved_job",
+              "default": "saved_job",
+              "title": "Kind",
+              "type": "string"
+            },
+            "resource_id": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Resource Id",
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            },
+            "type": {
+              "const": "job_resource_ready",
+              "default": "job_resource_ready",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "resource_id",
+            "job_posting_id"
+          ],
+          "title": "JobResourceReadyEvent",
           "type": "object"
         },
         "ProgressEvent": {
@@ -4171,6 +4545,7 @@ export const API_CONTRACT = {
           "client_action": "#/$defs/ClientActionEvent",
           "content_delta": "#/$defs/ContentDeltaEvent",
           "interaction_required": "#/$defs/InteractionRequiredEvent",
+          "job_resource_ready": "#/$defs/JobResourceReadyEvent",
           "progress": "#/$defs/ProgressEvent",
           "report_ready": "#/$defs/ReportReadyEvent",
           "turn_completed": "#/$defs/TurnCompletedEvent",
@@ -4204,6 +4579,9 @@ export const API_CONTRACT = {
         },
         {
           "$ref": "#/$defs/ReportReadyEvent"
+        },
+        {
+          "$ref": "#/$defs/JobResourceReadyEvent"
         },
         {
           "$ref": "#/$defs/ClientActionEvent"

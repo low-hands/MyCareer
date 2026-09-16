@@ -5,6 +5,7 @@ import json
 from typing import Any, Mapping
 
 from career_agent.agent.main_agent_contracts import MainAgentContext
+from career_agent.agent.tool_profiles import project_tool_availability
 
 
 CONTROL_CONTEXT_LABEL = "Harness control state (authoritative runtime state):"
@@ -30,6 +31,7 @@ _TASK_DATA_KEYS = frozenset(
         "action_candidates",
         "calendar_accounts",
         "saved_jobs",
+        "active_saved_job",
         "target_roles",
         "resumes",
         "resume_versions",
@@ -45,6 +47,7 @@ _TASK_CONTROL_KEYS = frozenset(
         "has_active_resume_version",
         "has_active_resume_artifact",
         "has_active_job_posting",
+        "has_active_jd_snapshot",
         "has_active_job_research_run",
         "has_active_job_research_report",
         "has_active_application",
@@ -54,6 +57,7 @@ _TASK_CONTROL_KEYS = frozenset(
         "has_active_calendar_proposal",
         "active_calendar_proposal_expires_at",
         "active_workflow",
+        "tool_profile",
         "phase",
         "email_sync_phase",
         "resume_analysis_status",
@@ -259,6 +263,9 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
             f"unknown={sorted(unknown)!r}, missing={sorted(missing)!r}"
         )
     task_control = {key: projected_task[key] for key in _TASK_CONTROL_KEYS}
+    # Derived from the profile and precondition tables rather than stored, so
+    # the control slot can never disagree with what the runtime will enforce.
+    task_control.update(project_tool_availability(context.task))
     task_data = {key: projected_task[key] for key in _TASK_DATA_KEYS}
 
     control: dict[str, Any] = {

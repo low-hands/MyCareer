@@ -29,7 +29,12 @@ export function hydrationFrom(
             available: resource.available ?? null,
             resumeId: resource.resume_id ?? null,
           }
-        : {}),
+        : resource.kind === "saved_job"
+          ? {
+              description: resource.description ?? null,
+              available: resource.available ?? null,
+            }
+          : {}),
     })),
   }));
   if (transcript.pending_interaction_body) {

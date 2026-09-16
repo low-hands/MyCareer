@@ -25,7 +25,7 @@ from career_agent.harness.capability_steps import (
     CapabilityStep,
     observing_capability_steps,
 )
-from career_agent.agent.main_agent_contracts import AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
@@ -71,6 +71,7 @@ from career_agent.agent.input_resources import (
     InputResourceNotFoundError,
     InputResourceRejectedError,
     resolve_input_resources,
+    resolve_job_input_resources,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
@@ -125,6 +126,7 @@ from career_agent.harness.streaming import (
     InteractionOption,
     InteractionRequiredEvent,
     InteractionResponse,
+    JobResourceReadyEvent,
     ProgressEvent,
     PublicStreamEvent,
     ReportReadyEvent,
@@ -350,6 +352,9 @@ class PendingAction(TypedDict, total=False):
 
 class LoopControl(TypedDict, total=False):
     read_calls: int
+    # Profile switches. Outside the read/write budgets: they change what the
+    # next decision is offered, not any store.
+    control_calls: int
     # Every write, internal or external: the durable write slot and the turn's
     # delegated write count are derived from it.
     write_calls: int
@@ -1288,6 +1293,15 @@ class MainAgentRuntime:
             if input_resources
             else ()
         )
+        attached_jobs = (
+            resolve_job_input_resources(
+                self._tools.job_repository,
+                user_id=user_id,
+                resources=input_resources,
+            )
+            if input_resources
+            else ()
+        )
         bare_confirmation_target = routing_task.bare_confirmation_target
         if bare_confirmation_target is not None:
             routing_task = self._context_manager.disarm_bare_confirmation(
@@ -1296,13 +1310,16 @@ class MainAgentRuntime:
                 task=routing_task,
             )
         if interaction_response is not None:
-            context = self._attach_input_resources(
-                self._context_manager.load_for_turn(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    user_message=user_message,
-                ),
-                attached_resumes,
+            context = self._refresh_saved_job_focus(
+                self._attach_input_resources(
+                    self._context_manager.load_for_turn(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        user_message=user_message,
+                    ),
+                    attached_resumes,
+                    attached_jobs,
+                )
             )
             try:
                 result = self._run_interaction_response(
@@ -1384,13 +1401,16 @@ class MainAgentRuntime:
                 )
             return result
 
-        context = self._attach_input_resources(
-            self._context_manager.load_for_turn(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message=user_message,
-            ),
-            attached_resumes,
+        context = self._refresh_saved_job_focus(
+            self._attach_input_resources(
+                self._context_manager.load_for_turn(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    user_message=user_message,
+                ),
+                attached_resumes,
+                attached_jobs,
+            )
         )
         try:
             result = self._run_loaded_context(
@@ -1450,24 +1470,89 @@ class MainAgentRuntime:
     def _attach_input_resources(
         context: MainAgentContext,
         attached_resumes: tuple[AttachedResumeContext, ...],
+        attached_jobs: tuple[SavedJobCandidateContextItem, ...] = (),
     ) -> MainAgentContext:
         """Place verified attachments on the turn and make the last one active.
 
         The active version is what ``analyze_resume`` and its siblings resolve
         "this resume" to, so attaching a version is the same act as choosing
         it; the stored reference on the user message is what keeps the choice
-        from drifting when the resume later gains a newer version.
+        from drifting when the resume later gains a newer version. A job
+        attached the same way becomes the active posting and heads the saved
+        job candidates, so ``get_saved_job`` with no selection reads exactly
+        the posting the page named rather than whatever was last discussed.
         """
-        if not attached_resumes:
+        if not attached_resumes and not attached_jobs:
+            return context
+        task_updates: dict[str, Any] = {}
+        if attached_resumes:
+            task_updates["active_resume_version_id"] = attached_resumes[
+                -1
+            ].resume_version_id
+        if attached_jobs:
+            attached_ids = {item.job_posting_id for item in attached_jobs}
+            focused = attached_jobs[-1]
+            task_updates["active_job_posting_id"] = focused.job_posting_id
+            # The attachment names the posting; the pin names the JD version
+            # the page handed over, so later turns keep reading that one.
+            pinned = (
+                ActiveSavedJobContextItem(
+                    job_posting_id=focused.job_posting_id,
+                    jd_snapshot_id=focused.jd_snapshot_id,
+                    title=focused.title,
+                    company_name=focused.company_name,
+                    jd_version=focused.jd_version,
+                )
+                if focused.jd_snapshot_id is not None
+                and focused.jd_version is not None
+                else None
+            )
+            task_updates["active_jd_snapshot_id"] = (
+                pinned.jd_snapshot_id if pinned is not None else None
+            )
+            task_updates["active_saved_job"] = pinned
+            task_updates["saved_job_candidates"] = (
+                *attached_jobs,
+                *(
+                    item
+                    for item in context.task.saved_job_candidates
+                    if item.job_posting_id not in attached_ids
+                ),
+            )
+        return context.model_copy(
+            update={
+                **({"attached_resumes": attached_resumes} if attached_resumes else {}),
+                "task": context.task.model_copy(update=task_updates),
+            }
+        )
+
+    def _refresh_saved_job_focus(self, context: MainAgentContext) -> MainAgentContext:
+        """Tell the model whether the pinned JD can still be read.
+
+        The pin is a statement about an earlier turn; the posting may have been
+        deleted since. One owned lookup per turn keeps the projection honest
+        without ever putting the JD text into the context.
+        """
+        focus = context.task.focused_saved_job()
+        if focus is None:
+            return context
+        repository = self._tools.job_repository
+        if repository is None:
+            return context
+        readable = (
+            repository.get_snapshot(
+                user_id=context.profile.user_id,
+                jd_snapshot_id=focus.jd_snapshot_id,
+            )
+            is not None
+        )
+        if readable == focus.readable:
             return context
         return context.model_copy(
             update={
-                "attached_resumes": attached_resumes,
-                "task": context.task.model_copy(
-                    update={
-                        "active_resume_version_id": attached_resumes[-1].resume_version_id,
-                    }
-                ),
+                "task": context.task.focus_saved_job(
+                    focus.model_copy(update={"readable": readable})
+                )
             }
         )
 
@@ -1489,11 +1574,17 @@ class MainAgentRuntime:
             action = tool_result.payload.get("client_action")
             if not isinstance(action, dict) or action.get("type") != "open_url":
                 continue
+            intent_id = action.get("capture_intent_id")
+            expires_at = action.get("capture_intent_expires_at")
             self._emit(
                 ClientActionEvent(
                     action="open_url",
                     url=str(action.get("url", "")),
                     label=str(action.get("label", "打开岗位搜索页")),
+                    capture_intent_id=str(intent_id) if intent_id else None,
+                    capture_intent_expires_at=(
+                        datetime.fromisoformat(str(expires_at)) if expires_at else None
+                    ),
                 )
             )
 
@@ -1530,15 +1621,30 @@ class MainAgentRuntime:
         # turn holding two stored reports; emitting only the last one would
         # leave a durable report the reader is never handed.
         for reference in self._turn_resource_refs(result.tool_results):
-            self._emit(
-                ReportReadyEvent(
-                    kind=reference.kind,
-                    resource_id=reference.resource_id,
-                    status_at_delivery=reference.status_at_delivery,
-                    anchored_by_other_job=reference.anchored_by_other_job,
-                )
-            )
+            self._emit(MainAgentRuntime._resource_ready_event(reference))
         self._emit(TurnCompletedEvent(turn_id=turn_id))
+
+    @staticmethod
+    def _resource_ready_event(
+        reference: ConversationResourceReference,
+    ) -> ReportReadyEvent | JobResourceReadyEvent:
+        if reference.kind == "saved_job":
+            if reference.job_posting_id is None:
+                raise ValueError("saved_job references name their posting")
+            return JobResourceReadyEvent(
+                resource_id=reference.resource_id,
+                job_posting_id=reference.job_posting_id,
+                title=reference.title,
+                description=reference.description,
+            )
+        if reference.kind == "resume_version":
+            raise ValueError("resume_version references ride on user messages")
+        return ReportReadyEvent(
+            kind=reference.kind,
+            resource_id=reference.resource_id,
+            status_at_delivery=reference.status_at_delivery,
+            anchored_by_other_job=reference.anchored_by_other_job,
+        )
 
     def _deliver_reply(
         self,
@@ -3040,6 +3146,15 @@ class MainAgentRuntime:
 
         if effect == "READ":
             return "READ", control.get("read_calls", 0), self._max_read_calls
+        if effect == "CONTROL":
+            # A compound request legitimately routes once per domain it
+            # touches; the profile count is the natural ceiling, and the
+            # repeated-call fingerprint already refuses the same route twice.
+            return (
+                "CONTROL",
+                control.get("control_calls", 0),
+                len(DOMAIN_TOOL_PROFILES),
+            )
         external_used = control.get("external_write_calls", 0)
         if is_external_write(name):
             return "WRITE_EXTERNAL", external_used, self._max_external_write_calls
@@ -3605,7 +3720,11 @@ class MainAgentRuntime:
                 }
                 updated = refreshed.model_copy(update=refresh_updates)
             effect = pending["effect"]
-            budget_key = "read_calls" if effect == "READ" else "write_calls"
+            budget_key = {
+                "READ": "read_calls",
+                "WRITE": "write_calls",
+                "CONTROL": "control_calls",
+            }[effect]
             control[budget_key] = control.get(budget_key, 0) + 1
             if effect == "WRITE" and is_external_write(pending["name"]):
                 control["external_write_calls"] = (
@@ -3808,8 +3927,20 @@ class MainAgentRuntime:
                 "model_message": reply,
             }
         if result is not None:
-            return {"assistant_message": MainAgentRuntime._assistant_message(result)}
+            return {"assistant_message": MainAgentRuntime._screen_message(result)}
         return {"assistant_message": "本轮可执行步骤已达到上限，请确认后继续。"}
+
+    @staticmethod
+    def _screen_message(result: MainAgentToolOutput) -> str:
+        """The presenter text for a turn the model did not close with prose.
+
+        A saved-job read is the one state whose rendered body is the JD itself.
+        The model reads that body as its observation; the reader gets the card,
+        so the screen carries the receipt rather than the text the card owns.
+        """
+        if result.state == "saved_job_ready" and result.resource_ref is not None:
+            return result.message
+        return MainAgentRuntime._assistant_message(result)
 
     @staticmethod
     def _turn_resource_refs(
@@ -4316,6 +4447,12 @@ class MainAgentRuntime:
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        if name == "route_to_capability":
+            model_arguments = RouteToCapabilityToolArguments.model_validate(arguments)
+            return {
+                "current_tool_profile": context.task.tool_profile,
+                **model_arguments.model_dump(),
+            }
         if name == "read_conversation_span":
             model_arguments = ReadConversationSpanToolArguments.model_validate(
                 arguments

@@ -3,9 +3,12 @@ import { CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent,
 import {
   type ConversationTranscript,
   type ConversationView,
+  type JobCapturedEventView,
+  acknowledgeJobCapture,
   deleteConversation,
   fetchConversationMessages,
   fetchConversations,
+  fetchPendingJobCaptures,
 } from "./api/client";
 import { seedCaptureApiKey } from "./api/auth";
 import { streamChat, type InteractionResponse, type TurnInputResource } from "./api/sse";
@@ -19,6 +22,13 @@ import {
   withAttachment,
   type ResumeAttachment,
 } from "./chat/attachments";
+import {
+  CAPTURE_POLL_INTERVAL_MS,
+  JOB_CAPTURED_MESSAGE,
+  continuePendingJobCapture,
+  nextCaptureEvents,
+  openJobSearchViaBridge,
+} from "./chat/jobCapture";
 import { chatReducer, initialChatState } from "./chat/reducer";
 import {
   RECOVERY_ATTEMPTS,
@@ -28,8 +38,7 @@ import {
   turnIsStored,
 } from "./chat/recovery";
 import { InteractionCard } from "./components/InteractionCard";
-import { ReportCard, isReportResource } from "./components/ReportCard";
-import { ResumeAttachmentCard } from "./components/ResumeAttachmentCard";
+import { MessageResourceCard } from "./components/MessageResourceCard";
 import { ResumeImporter } from "./components/ResumeImporter";
 import { MarkdownContent } from "./components/MarkdownContent";
 import { AppIcon, type AppIconName } from "./components/AppIcon";
@@ -150,10 +159,29 @@ export default function App() {
   // when it did not; the client never has to know which.
   const lastRequest = useRef<PendingRequest | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
+  // Jobs saved from the agent's own BOSS search that have not yet re-entered
+  // their conversation. They live on the server until acknowledged, so a
+  // page that was closed during the save still picks them up here.
+  const [captureEvents, setCaptureEvents] = useState<JobCapturedEventView[]>([]);
+  const [captureRefreshes, setCaptureRefreshes] = useState(0);
+  const captureInFlight = useRef(new Set<string>());
+  const captureAttempted = useRef(new Set<string>());
+  const captureCommitted = useRef(new Set<string>());
+  const captureController = useRef<AbortController | null>(null);
+  const activeConversationId = useRef(conversationId);
+  const activeChatState = useRef(state);
+  activeConversationId.current = conversationId;
+  activeChatState.current = state;
   const busy = state.phase === "running" || state.phase === "recovering";
   const canSubmit = (draft.trim().length > 0 || attachments.length > 0) && !busy && !historyLoading;
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+      captureController.current?.abort();
+    },
+    [],
+  );
   useEffect(() => {
     const request = new AbortController();
     void fetchConversations({ apiBaseUrl: API_BASE_URL, signal: request.signal })
@@ -194,6 +222,53 @@ export default function App() {
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
+  useEffect(() => {
+    const request = new AbortController();
+    void fetchPendingJobCaptures({ apiBaseUrl: API_BASE_URL, signal: request.signal })
+      .then((events) => {
+        if (request.signal.aborted) return;
+        captureAttempted.current.clear();
+        for (const eventId of captureCommitted.current) {
+          if (!events.some((event) => event.id === eventId)) {
+            captureCommitted.current.delete(eventId);
+          }
+        }
+        setCaptureEvents(events);
+      })
+      .catch(() => undefined);
+    const timer = window.setInterval(
+      () => setCaptureRefreshes((count) => count + 1),
+      CAPTURE_POLL_INTERVAL_MS,
+    );
+    return () => {
+      request.abort();
+      window.clearInterval(timer);
+    };
+  }, [captureRefreshes]);
+  useEffect(() => {
+    // The extension nudges the page right after a save; the event itself is
+    // still read from the backend, never taken from the message.
+    function onMessage(event: MessageEvent): void {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data as { type?: unknown } | null;
+      if (data?.type === JOB_CAPTURED_MESSAGE) setCaptureRefreshes((count) => count + 1);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+  useEffect(() => {
+    // One captured job at a time. The continuation checks the target
+    // conversation before posting and stays detached from the visible chat.
+    if (busy || historyLoading) return;
+    const [next] = nextCaptureEvents(
+      captureEvents, captureInFlight.current, captureAttempted.current,
+    );
+    if (!next) return;
+    captureInFlight.current.add(next.id);
+    captureAttempted.current.add(next.id);
+    void continueFromCapture(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureEvents, conversationId, busy, historyLoading]);
 
   const statusLabel = useMemo(() => {
     if (state.phase === "running") return "处理中";
@@ -249,32 +324,90 @@ export default function App() {
     await streamTurn(request);
   }
 
+  async function continueFromCapture(event: JobCapturedEventView): Promise<void> {
+    const request = new AbortController();
+    const chatStateAtStart = activeChatState.current;
+    captureController.current = request;
+    try {
+      if (captureCommitted.current.has(event.id)) {
+        await acknowledgeJobCapture(event.id, {
+          apiBaseUrl: API_BASE_URL,
+          signal: request.signal,
+        });
+        setCaptureEvents((current) => current.filter((item) => item.id !== event.id));
+        captureCommitted.current.delete(event.id);
+        return;
+      }
+      const result = await continuePendingJobCapture(event, {
+        apiBaseUrl: API_BASE_URL,
+        signal: request.signal,
+      });
+      if (result.status !== "committed") return;
+      captureCommitted.current.add(event.id);
+      setCompletedTurns((count) => count + 1);
+      if (
+        activeConversationId.current !== event.conversation_id
+        || activeChatState.current !== chatStateAtStart
+      ) return;
+      for (const streamEvent of result.events) {
+        if (
+          streamEvent.type === "client_action"
+          && streamEvent.action === "open_url"
+          && isAllowedJobSearchUrl(streamEvent.url)
+        ) {
+          void openJobSearch(
+            streamEvent.url,
+            streamEvent.capture_intent_id ?? null,
+            streamEvent.capture_intent_expires_at ?? null,
+          );
+        }
+      }
+      const transcript = await fetchConversationMessages(event.conversation_id, {
+        apiBaseUrl: API_BASE_URL,
+        signal: request.signal,
+      });
+      if (
+        activeConversationId.current === event.conversation_id
+        && activeChatState.current === chatStateAtStart
+      ) {
+        dispatch({
+          type: "hydrate",
+          ...hydrationFrom(event.conversation_id, transcript),
+        });
+      }
+    } catch {
+      // The durable event remains pending and will be reconsidered after polling.
+    } finally {
+      if (captureController.current === request) captureController.current = null;
+      captureInFlight.current.delete(event.id);
+    }
+  }
+
   async function streamTurn(request: PendingRequest): Promise<void> {
     const { message, interactionResponse } = request;
     const nextController = new AbortController();
     controller.current = nextController;
     let turnStarted = false;
     try {
-      for await (const event of streamChat(
-        {
-          conversation_id: request.conversationId,
-          message,
-          interaction_response: interactionResponse,
-          ...(request.inputResources.length ? { input_resources: request.inputResources } : {}),
-        },
-        {
-          apiBaseUrl: API_BASE_URL,
-          signal: nextController.signal,
-          idempotencyKey: request.idempotencyKey,
-        },
-      )) {
+      const body = {
+        conversation_id: request.conversationId,
+        message,
+        interaction_response: interactionResponse,
+        ...(request.inputResources.length ? { input_resources: request.inputResources } : {}),
+      };
+      const options = {
+        apiBaseUrl: API_BASE_URL,
+        signal: nextController.signal,
+        idempotencyKey: request.idempotencyKey,
+      };
+      for await (const event of streamChat(body, options)) {
         turnStarted = true;
         if (
           event.type === "client_action" &&
           event.action === "open_url" &&
           isAllowedJobSearchUrl(event.url)
         ) {
-          window.open(event.url, "_blank", "noopener,noreferrer");
+          void openJobSearch(event.url, event.capture_intent_id ?? null, event.capture_intent_expires_at ?? null);
         }
         if (
           event.type === "turn_completed" ||
@@ -330,6 +463,20 @@ export default function App() {
       type: "transport_failed",
       message: `${reason} 连接中断后没有读到这一轮的回复；服务器可能仍在处理，稍后可点“重新读取”，或“重新发送”同一请求。`,
     });
+  }
+
+  /**
+   * Prefer the extension so the capture intent is bound to the BOSS tab; the
+   * URL is the same either way and never carries the intent. Without the
+   * extension the page opens BOSS itself and a save becomes a plain library save.
+   */
+  async function openJobSearch(
+    url: string,
+    captureIntentId: string | null,
+    captureIntentExpiresAt: string | null,
+  ): Promise<void> {
+    const opened = await openJobSearchViaBridge({ url, captureIntentId, captureIntentExpiresAt });
+    if (!opened) window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -692,21 +839,13 @@ export default function App() {
                     <span className="typing">● ● ●</span>
                   ) : null}
                 </div>
-                {message.resources?.map((resource) =>
-                  isReportResource(resource) ? (
-                    <ReportCard
-                      key={`${resource.kind}-${resource.resourceId}`}
-                      resource={resource}
-                      apiBaseUrl={API_BASE_URL}
-                    />
-                  ) : (
-                    <ResumeAttachmentCard
-                      key={`${resource.kind}-${resource.resourceId}`}
-                      resource={resource}
-                      apiBaseUrl={API_BASE_URL}
-                    />
-                  ),
-                )}
+                {message.resources?.map((resource) => (
+                  <MessageResourceCard
+                    key={`${resource.kind}-${resource.resourceId}`}
+                    resource={resource}
+                    apiBaseUrl={API_BASE_URL}
+                  />
+                ))}
               </article>
             ))}
 

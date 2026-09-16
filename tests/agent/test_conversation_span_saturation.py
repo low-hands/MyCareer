@@ -125,9 +125,10 @@ def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
     assert stuffed_chars - page_in_chars >= 1_000
     # Native turns drop the per-message JSON keys and timestamps, so stuffing
     # costs less than it did in the document-shaped projection. Page-in still
-    # saves more than thirty-five percent of the complete request even after
-    # the fixed, always-present profile Markdown is included.
-    assert page_in_chars * 20 < stuffed_chars * 13
+    # saves more than thirty percent of the complete request even after the
+    # fixed, always-present profile Markdown and the tool-profile availability
+    # disclosure in the control slot are included.
+    assert page_in_chars * 10 < stuffed_chars * 7
 
 
 def test_an_empty_span_observation_does_not_carry_the_window_decoy() -> None:

@@ -91,7 +91,7 @@ export interface ConversationView {
   last_active_at: string;
 }
 
-export type MessageResourceKind = ReportResourceKind | "resume_version";
+export type MessageResourceKind = ReportResourceKind | "resume_version" | "saved_job";
 
 export interface ConversationResourceView {
   kind: MessageResourceKind;
@@ -388,6 +388,35 @@ export function fetchSavedJobDetail(
   );
 }
 
+export interface SavedJobSnapshot {
+  jd_snapshot_id: string;
+  job_posting_id: string;
+  title: string;
+  company_name: string;
+  source_name: string;
+  source_url: string | null;
+  jd_version: number;
+  latest_jd_version: number;
+  jd_text: string;
+  captured_at: string;
+}
+
+/** One immutable JD version, as a conversation card opens it.
+ *
+ * Addressed by snapshot rather than posting so a card in an old turn keeps
+ * opening the text that turn read after the posting was captured again.
+ */
+export function fetchSavedJobSnapshot(
+  jdSnapshotId: string,
+  options: ReadOptions,
+): Promise<SavedJobSnapshot> {
+  return getJson<SavedJobSnapshot>(
+    `/v1/jd-snapshots/${encodeURIComponent(jdSnapshotId)}`,
+    {},
+    options,
+  );
+}
+
 /** Record a closure by hand, for when the extension cannot.
  *
  * The same field the extension writes. It was never a separate source of
@@ -633,6 +662,36 @@ export function fetchCompanyResearch(options: ReadOptions): Promise<CompanyResea
 
 export function fetchConversations(options: ReadOptions): Promise<ConversationView[]> {
   return getJson<ConversationView[]>("/v1/conversations", {}, options);
+}
+
+/** A job saved from the agent's own BOSS search, waiting to re-enter its conversation. */
+export interface JobCapturedEventView {
+  id: string;
+  conversation_id: string;
+  job_posting_id: string;
+  jd_snapshot_id: string;
+  title: string;
+  company_name: string;
+  created_at: string;
+}
+
+export function fetchPendingJobCaptures(options: ReadOptions): Promise<JobCapturedEventView[]> {
+  return getJson<{ events: JobCapturedEventView[] }>("/v1/job-captures/events", {}, options).then(
+    (payload) => payload.events,
+  );
+}
+
+export async function acknowledgeJobCapture(
+  eventId: string,
+  options: ReadOptions,
+): Promise<boolean> {
+  const response = await fetch(
+    `${options.apiBaseUrl}/v1/job-captures/events/${encodeURIComponent(eventId)}/ack`,
+    { method: "POST", headers: { Accept: "application/json" }, signal: options.signal },
+  );
+  if (!response.ok) throw new ApiError(`确认岗位采集事件失败：${response.status}`, response.status);
+  const payload = (await response.json()) as { acknowledged: boolean };
+  return payload.acknowledged;
 }
 
 export function fetchConversationMessages(

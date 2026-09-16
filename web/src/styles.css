@@ -805,3 +805,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .stat-grid, .card-grid { grid-template-columns: 1fr; }
   .stat-card { padding: 15px; }
 }
+.saved-job-card.is-unavailable .report-card-label strong { color: #7d827e; }
+.saved-job-card-actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+.saved-job-card-actions button { padding: 6px 12px; border: 1px solid #ddd8cc; border-radius: 8px; background: #fff; color: #45725f; font-size: 12px; cursor: pointer; }
+.saved-job-card-actions button:hover { background: #f8f6f0; }
+.saved-job-card-actions a { font-size: 12px; color: #45725f; }
+.saved-job-card-text { margin-top: 12px; max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: inherit; color: #2b332e; }

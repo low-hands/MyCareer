@@ -9,10 +9,6 @@ import { MarkdownContent } from "./MarkdownContent";
 /** A message resource that is a stored report, as opposed to an attached resume. */
 export type ReportResource = MessageResource & { kind: ReportResourceKind };
 
-export function isReportResource(resource: MessageResource): resource is ReportResource {
-  return resource.kind !== "resume_version";
-}
-
 interface ReportCardProps {
   resource: ReportResource;
   apiBaseUrl: string;

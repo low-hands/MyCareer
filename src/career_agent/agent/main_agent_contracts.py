@@ -638,6 +638,26 @@ class SavedJobCandidateContextItem(ContractModel):
     company_name: str
     city: str | None = None
     salary: str | None = None
+    jd_snapshot_id: str | None = None
+    jd_version: int | None = Field(default=None, ge=1)
+
+
+class ActiveSavedJobContextItem(ContractModel):
+    """Which saved job, and which JD version of it, the conversation is on.
+
+    ``active_job_posting_id`` says which posting; this pins the snapshot that
+    turn actually read so "this job" keeps resolving to the same text after the
+    posting is re-captured as v2. The ids never reach the model — the
+    projection shows the title, the version and whether the snapshot can
+    still be read.
+    """
+
+    job_posting_id: str = Field(min_length=1)
+    jd_snapshot_id: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=200)
+    company_name: str = Field(min_length=1, max_length=200)
+    jd_version: int = Field(ge=1)
+    readable: bool = True
 
 
 class TargetRoleCandidateContextItem(ContractModel):
@@ -706,6 +726,22 @@ def expired_proposal_message(tool_name: str) -> str:
     )
 
 
+ToolProfile = Literal["core", "job", "resume", "application", "interview", "memory"]
+TOOL_PROFILE_NAMES: tuple[ToolProfile, ...] = get_args(ToolProfile)
+DOMAIN_TOOL_PROFILES: tuple[ToolProfile, ...] = tuple(
+    name for name in TOOL_PROFILE_NAMES if name != "core"
+)
+
+
+class RouteToCapabilityToolArguments(ContractModel):
+    domain: ToolProfile = Field(
+        description=(
+            "The capability domain the user's current request belongs to. "
+            "Choose core to leave a domain once its work is finished."
+        ),
+    )
+
+
 class ConversationTaskState(ContractModel):
     """Durable per-conversation task state.
 
@@ -716,9 +752,17 @@ class ConversationTaskState(ContractModel):
     no run to resume, so claiming it would silently discard a workflow the user
     is still in the middle of. Use ``enter_workflow``/``leave_workflow`` rather
     than updating the fields piecemeal.
+
+    ``tool_profile`` is a separate axis: which fixed group of tools the next
+    decision is made against. It answers "what domain is the user working in",
+    not "is a run suspended", so a resume-tailoring turn changes it while
+    ``active_workflow`` stays ``none``. It is switched only through
+    ``route_to_capability`` and persists across turns so a domain is routed
+    into once, not on every decision.
     """
 
     active_workflow: Literal["job_discovery", "mock_interview", "none"] = "none"
+    tool_profile: ToolProfile = "core"
     run_id: str | None = None
     phase: str | None = None
     selected_result_ref: str | None = None
@@ -755,6 +799,8 @@ class ConversationTaskState(ContractModel):
     active_resume_version_id: str | None = None
     active_resume_artifact_id: str | None = None
     active_job_posting_id: str | None = None
+    active_jd_snapshot_id: str | None = None
+    active_saved_job: ActiveSavedJobContextItem | None = None
     active_job_research_run_id: str | None = None
     active_job_research_report_id: str | None = None
     job_research_status: Literal["current", "outdated", "failed"] | None = None
@@ -778,6 +824,44 @@ class ConversationTaskState(ContractModel):
     resume_version_candidates: tuple[ResumeVersionCandidateContextItem, ...] = ()
     email_event_candidates: tuple[EmailEventCandidateContextItem, ...] = ()
     email_sync_phase: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_saved_job_focus(self) -> "ConversationTaskState":
+        focus = self.active_saved_job
+        if focus is None:
+            return self
+        if focus.jd_snapshot_id != self.active_jd_snapshot_id:
+            raise ValueError("active_saved_job must pin active_jd_snapshot_id")
+        return self
+
+    def focused_saved_job(self) -> ActiveSavedJobContextItem | None:
+        """The pinned JD, only while the posting it belongs to is still active.
+
+        Every reducer that moves ``active_job_posting_id`` to another posting
+        would otherwise have to remember to clear the pin; checking the pair
+        here means a stale pin is simply not used.
+        """
+        focus = self.active_saved_job
+        if focus is None or focus.job_posting_id != self.active_job_posting_id:
+            return None
+        return focus
+
+    def focus_saved_job(
+        self, focus: ActiveSavedJobContextItem | None
+    ) -> "ConversationTaskState":
+        return self.model_copy(
+            update={
+                "active_job_posting_id": (
+                    focus.job_posting_id
+                    if focus is not None
+                    else self.active_job_posting_id
+                ),
+                "active_jd_snapshot_id": (
+                    focus.jd_snapshot_id if focus is not None else None
+                ),
+                "active_saved_job": focus,
+            }
+        )
 
     @model_validator(mode="after")
     def _validate_workflow_slot(self) -> "ConversationTaskState":
@@ -972,8 +1056,12 @@ class ConversationResourceReference(ContractModel):
         "resume_job_match",
         "resume_tailoring_draft",
         "resume_version",
+        "saved_job",
     ]
     resource_id: str = Field(min_length=1)
+    """For ``saved_job`` this is the immutable ``jd_snapshot_id``, never the
+    posting id: the card in an old turn must keep opening the JD version that
+    turn read after the posting is re-captured as a newer one."""
     # Job research alone needs delivery-time render metadata because
     # ``anchored_by_other_job`` is relative to the request that produced this
     # turn and cannot be reconstructed from the report row. Its status is
@@ -1052,7 +1140,12 @@ class ConversationResourceReference(ContractModel):
                 "delivery-time render metadata is scoped to job research; "
                 "other resource kinds derive current state when read"
             )
-        if self.kind != "job_research_report" and (
+        if self.kind == "saved_job":
+            if self.job_posting_id is None:
+                raise ValueError("saved_job references name their posting")
+            if self.company_key is not None:
+                raise ValueError("company_key on a reference is scoped to job research")
+        elif self.kind != "job_research_report" and (
             self.job_posting_id is not None or self.company_key is not None
         ):
             raise ValueError(
@@ -1509,6 +1602,7 @@ _HANDLE_PREFIXES = {
     "resume_job_match": "match",
     "resume_tailoring_draft": "tailoring",
     "resume_version": "resume",
+    "saved_job": "jd",
 }
 _HANDLE_SUFFIX_LENGTH = 6
 
@@ -2504,6 +2598,19 @@ class MainAgentContext(ContractModel):
                     else None
                 ),
                 "active_workflow": self.task.active_workflow,
+                "active_saved_job": (
+                    {
+                        "title": focus.title,
+                        "company_name": focus.company_name,
+                        "jd_version": focus.jd_version,
+                        "resource_status": (
+                            "readable" if focus.readable else "unavailable"
+                        ),
+                    }
+                    if (focus := self.task.focused_saved_job()) is not None
+                    else None
+                ),
+                "tool_profile": self.task.tool_profile,
                 "phase": self.task.phase,
                 "email_sync_phase": self.task.email_sync_phase,
                 "manual_search_query": self.task.manual_search_query,
@@ -3452,6 +3559,16 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         if job_posting_id is None:
             raise ValueError("get_saved_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
+        # "This job" with no selection is the pinned snapshot, not whatever the
+        # posting's latest capture is; an explicit selection reads the latest.
+        focus = context.task.focused_saved_job()
+        payload["jd_snapshot_id"] = (
+            focus.jd_snapshot_id
+            if selection_index is None
+            and focus is not None
+            and focus.job_posting_id == job_posting_id
+            else None
+        )
     return {"user_id": context.profile.user_id, **payload}
 
 
@@ -3738,9 +3855,16 @@ def project_open_job_search_arguments(
     # the conversation is working in, so the only available rule would be "any
     # role that happens to have a city", which would silently search the wrong
     # place. Resolving it properly needs an active target role first.
-    return model_arguments.model_copy(
-        update={"city": model_arguments.city or context.profile.default_city}
-    ).model_dump()
+    return {
+        **model_arguments.model_copy(
+            update={"city": model_arguments.city or context.profile.default_city}
+        ).model_dump(),
+        # The search is opened on behalf of this conversation; the capture
+        # intent it creates has to remember which one, or the job the user
+        # saves from it cannot find its way back.
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+    }
 
 
 def _report_is_about(
