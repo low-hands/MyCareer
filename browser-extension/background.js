@@ -107,25 +107,40 @@ async function readTabIntents() {
   return intents && typeof intents === "object" ? { ...intents } : {};
 }
 
-async function bindTabIntent(tabId, binding) {
-  const intents = await readTabIntents();
-  intents[String(tabId)] = binding;
-  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+// All bindings live in one storage object, so every read-modify-write must
+// run alone: two concurrent updates that both read the same stale object would
+// otherwise let the later write drop the earlier one.
+let tabIntentMutations = Promise.resolve();
+
+function mutateTabIntents(update) {
+  const run = tabIntentMutations.then(async () => {
+    const intents = await readTabIntents();
+    if (update(intents) === false) return;
+    await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+  });
+  tabIntentMutations = run.catch(() => undefined);
+  return run;
 }
 
-async function inheritTabIntent(openerTabId, tabId) {
-  const intents = await readTabIntents();
-  const binding = intents[String(openerTabId)];
-  if (!binding) return;
-  intents[String(tabId)] = binding;
-  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+function bindTabIntent(tabId, binding) {
+  return mutateTabIntents((intents) => {
+    intents[String(tabId)] = binding;
+  });
 }
 
-async function forgetTabIntent(tabId) {
-  const intents = await readTabIntents();
-  if (!(String(tabId) in intents)) return;
-  delete intents[String(tabId)];
-  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+function inheritTabIntent(openerTabId, tabId) {
+  return mutateTabIntents((intents) => {
+    const binding = intents[String(openerTabId)];
+    if (!binding) return false;
+    intents[String(tabId)] = binding;
+  });
+}
+
+function forgetTabIntent(tabId) {
+  return mutateTabIntents((intents) => {
+    if (!(String(tabId) in intents)) return false;
+    delete intents[String(tabId)];
+  });
 }
 
 /** The live intent bound to the tab a save came from, or null. */
