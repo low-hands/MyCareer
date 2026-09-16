@@ -3559,17 +3559,21 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         if job_posting_id is None:
             raise ValueError("get_saved_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
-        # "This job" with no selection is the pinned snapshot, not whatever the
-        # posting's latest capture is; an explicit selection reads the latest.
-        focus = context.task.focused_saved_job()
-        payload["jd_snapshot_id"] = (
-            focus.jd_snapshot_id
-            if selection_index is None
-            and focus is not None
-            and focus.job_posting_id == job_posting_id
-            else None
+        payload["jd_snapshot_id"] = _pinned_jd_snapshot_id(
+            context, job_posting_id=job_posting_id, explicit_selection=selection_index is not None
         )
     return {"user_id": context.profile.user_id, **payload}
+
+
+def _pinned_jd_snapshot_id(
+    context: MainAgentContext, *, job_posting_id: str, explicit_selection: bool
+) -> str | None:
+    # "This job" with no selection is the pinned snapshot, not whatever the
+    # posting's latest capture is; an explicit selection reads the latest.
+    focus = context.task.focused_saved_job()
+    if explicit_selection or focus is None or focus.job_posting_id != job_posting_id:
+        return None
+    return focus.jd_snapshot_id
 
 
 def project_job_intent_arguments(
@@ -4029,6 +4033,9 @@ def project_job_research_arguments(
         if job_posting_id is None:
             raise ValueError("research_job requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
+        payload["jd_snapshot_id"] = _pinned_jd_snapshot_id(
+            context, job_posting_id=job_posting_id, explicit_selection=selection_index is not None
+        )
     elif name == "retry_job_research":
         RetryJobResearchToolArguments.model_validate(arguments)
         if context.task.active_job_research_run_id is None:
@@ -4159,6 +4166,11 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             )
         payload["resume_version_id"] = resume_version_id
         payload["job_posting_id"] = job_posting_id
+        payload["jd_snapshot_id"] = _pinned_jd_snapshot_id(
+            context,
+            job_posting_id=job_posting_id,
+            explicit_selection=job_selection_index is not None,
+        )
     if name == "get_resume_analysis":
         analysis_id = payload.get("analysis_id") or context.task.active_resume_analysis_id
         if analysis_id is None:

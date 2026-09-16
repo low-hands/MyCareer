@@ -3291,8 +3291,13 @@ class MainAgentToolRegistry:
         if self._job_research_service is None:
             raise ValueError("Job research service is not configured")
         user_id = str(arguments["user_id"])
+        pinned_snapshot_id = arguments.get("jd_snapshot_id")
         model_arguments = ResearchJobToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "jd_snapshot_id"}
+            }
         )
         if model_arguments.job_posting_id is None:
             raise ValueError("research_job requires job_posting_id")
@@ -3300,6 +3305,11 @@ class MainAgentToolRegistry:
             result = self._job_research_service.research(
                 user_id=user_id,
                 job_posting_id=model_arguments.job_posting_id,
+                **(
+                    {"jd_snapshot_id": pinned_snapshot_id}
+                    if isinstance(pinned_snapshot_id, str)
+                    else {}
+                ),
                 focus=model_arguments.focus,
                 user_provided_context=model_arguments.user_provided_context,
                 max_sources=model_arguments.max_sources,
@@ -4345,14 +4355,24 @@ class MainAgentToolRegistry:
         if self._resume_job_match_service is None:
             raise ValueError("Resume-job match service is not configured")
         user_id = str(arguments["user_id"])
+        pinned_snapshot_id = arguments.get("jd_snapshot_id")
         model_arguments = MatchResumeToJobToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "jd_snapshot_id"}
+            }
         )
         try:
             stored = self._resume_job_match_service.match(
                 user_id=user_id,
                 resume_version_id=model_arguments.resume_version_id,
                 job_posting_id=model_arguments.job_posting_id,
+                **(
+                    {"jd_snapshot_id": pinned_snapshot_id}
+                    if isinstance(pinned_snapshot_id, str)
+                    else {}
+                ),
             )
         except ResumeJobMatchInputNotFoundError as error:
             return ToolObservation(
@@ -4361,6 +4381,8 @@ class MainAgentToolRegistry:
                 message=(
                     "没有找到这个简历版本，或它不属于当前用户。"
                     if error.input_kind == "resume_version"
+                    else "没有找到这个职位对应的 JD 版本，或它不属于当前用户。"
+                    if error.input_kind == "jd_snapshot"
                     else "没有找到这个已保存职位，或它不属于当前用户。"
                 ),
                 payload={

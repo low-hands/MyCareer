@@ -83,6 +83,7 @@ class JobResearchService:
         *,
         user_id: str,
         job_posting_id: str,
+        jd_snapshot_id: str | None = None,
         focus: str | None = None,
         user_provided_context: str | None = None,
         max_sources: int = 8,
@@ -90,6 +91,13 @@ class JobResearchService:
         job = self._jobs.get_job(user_id=user_id, job_posting_id=job_posting_id)
         if job is None:
             raise JobResearchInputNotFoundError("job_posting")
+        if jd_snapshot_id is not None and jd_snapshot_id != job.snapshot.id:
+            pinned = self._jobs.get_snapshot(
+                user_id=user_id, jd_snapshot_id=jd_snapshot_id
+            )
+            if pinned is None or pinned.job_posting_id != job.posting.id:
+                raise JobResearchInputNotFoundError("jd_snapshot")
+            job = job.model_copy(update={"snapshot": pinned, "analysis": None})
         scope = JobResearchScope(
             focus=focus,
             user_provided_context=(
