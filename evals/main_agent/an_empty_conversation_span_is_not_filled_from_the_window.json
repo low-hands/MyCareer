@@ -2,56 +2,49 @@
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "7ae0a66f58f19e4000160bfc2475261ddd815e45d0637612f78d6ced9dc93872",
-  "context_shape_fingerprint": "62daa0d1ac2d0bbda7aecb86327e494af058c827778cec2868ae315a3a9abbf0",
-  "recorded_at": "2026-09-13T15:50:17.475054+00:00",
+  "prompt_fingerprint": "a2fd75b492a3bf853ec94662e00b5783588564dd557de655987d2f60d90c0d1f",
+  "context_shape_fingerprint": "586fcb9cc3dc55e021a1ad6d7a5b6e484b6bcbee5c61579a0f47eef50de3c6fa",
+  "recorded_at": "2026-09-16T14:35:07.827024+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前窗口只提供到序号 8 的对话记录，无法读取序号 100–110。请确认这些序号是否来自另一个会话，或提供包含该范围的窗口。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前这段会话可读取的历史只到序号 8，无法读取 100 到 110。\"}"
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"已读回序号 100–110，但这个范围里没有记录：返回 0 条。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录。当前会话可回溯范围只到序号 8。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:50:17.744836+00:00",
+      "recorded_at": "2026-09-16T14:34:58.013770+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前窗口只提供到序号 8 的对话记录，无法读取序号 100–110。请确认这些序号是否来自另一个会话，或提供包含该范围的窗口。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前这段会话可读取的历史只到序号 8，无法读取 100 到 110。\"}"
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"已读回序号 100–110，但这个范围里没有记录：返回 0 条。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录。当前会话可回溯范围只到序号 8。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:50:34.169701+00:00",
+      "recorded_at": "2026-09-16T14:34:58.418939+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "read_conversation_span",
-            "arguments": {
-              "from_sequence": 100,
-              "through_sequence": 110,
-              "query": null
-            }
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前这段会话可读取的历史只到序号 8；序号 100–110 不在可访问范围内，因此无法读回。\"}"
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读回的内容；该范围返回 0 条消息。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录（返回 0 条）。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:50:17.475054+00:00",
+      "recorded_at": "2026-09-16T14:35:07.827024+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"目前可读取的对话序号只到 8，无法读取 100–110。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前可读取的本次对话历史只到序号 8，无法读取 100–110。请提供正确的序号范围，或说明你想找的内容关键词，我可以在可用历史中查找。\"}"
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 的对话不存在，读取结果为 0 条。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录。当前会话历史只覆盖到序号 8。\"}"
         }
       ]
     }

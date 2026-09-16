@@ -307,6 +307,26 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实匹配标记",
         ),
+        "job_analysis_ready": (
+            {
+                "analysis_id": internal_id,
+                "job_posting_id": internal_id,
+                "jd_snapshot_id": internal_id,
+                "core_objective": "真实 JD 分析标记",
+                "seniority": "mid",
+                "requirements": [],
+                "core_competencies": [],
+                "implicit_requirements": [],
+                "ats_keywords": [],
+                "hr_focus": [],
+                "hiring_manager_focus": [],
+                "likely_interview_topics": [],
+                "red_flags": [],
+                "information_gaps": [],
+                "summary": "摘要",
+            },
+            "真实 JD 分析标记",
+        ),
         "resume_tailoring_draft_ready": (
             {
                 "draft_id": internal_id,

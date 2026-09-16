@@ -792,6 +792,8 @@ class ConversationTaskState(ContractModel):
     resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
+    active_job_analysis_id: str | None = None
+    job_analysis_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
     resume_tailoring_status: Literal[
         "pending", "in_review", "reviewed", "finalized", "superseded"
@@ -1053,6 +1055,7 @@ class ConversationResourceReference(ContractModel):
         "mock_interview_report",
         "interview_preparation",
         "interview_retro_report",
+        "job_analysis",
         "resume_job_match",
         "resume_tailoring_draft",
         "resume_version",
@@ -1599,6 +1602,7 @@ _HANDLE_PREFIXES = {
     "mock_interview_report": "mock",
     "interview_preparation": "preparation",
     "interview_retro_report": "retro",
+    "job_analysis": "analysis",
     "resume_job_match": "match",
     "resume_tailoring_draft": "tailoring",
     "resume_version": "resume",
@@ -2626,6 +2630,7 @@ class MainAgentContext(ContractModel):
                 ],
                 "resume_analysis_status": self.task.resume_analysis_status,
                 "resume_job_match_status": self.task.resume_job_match_status,
+                "job_analysis_status": self.task.job_analysis_status,
                 "resume_tailoring_status": self.task.resume_tailoring_status,
                 "active_application_status": self.task.active_application_status,
                 "application_candidates": [
@@ -2990,6 +2995,11 @@ class FindSavedJobsToolArguments(ContractModel):
 
 
 class GetSavedJobToolArguments(ContractModel):
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    selection_index: SelectionIndex | None = None
+
+
+class AnalyzeJobToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
     selection_index: SelectionIndex | None = None
 
@@ -3529,6 +3539,8 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
         model_arguments = GetSavedJobToolArguments.model_validate(arguments)
     elif name == "compare_saved_jobs":
         model_arguments = CompareSavedJobsToolArguments.model_validate(arguments)
+    elif name == "analyze_job":
+        model_arguments = AnalyzeJobToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown saved-job tool: {name}")
     payload = model_arguments.model_dump()
@@ -3547,7 +3559,7 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
             job_posting_ids.append(candidates[index - 1].job_posting_id)
         payload["job_posting_ids"] = tuple(job_posting_ids)
         payload["preferred_city"] = context.profile.default_city
-    if name == "get_saved_job":
+    if name in {"get_saved_job", "analyze_job"}:
         selection_index = payload.pop("selection_index", None)
         job_posting_id = context.task.active_job_posting_id
         if selection_index is not None:
@@ -3557,7 +3569,7 @@ def project_saved_job_arguments(context: MainAgentContext, name: str, arguments:
                 selection_index - 1
             ].job_posting_id
         if job_posting_id is None:
-            raise ValueError("get_saved_job requires a selected or active saved job")
+            raise ValueError(f"{name} requires a selected or active saved job")
         payload["job_posting_id"] = job_posting_id
         payload["jd_snapshot_id"] = _pinned_jd_snapshot_id(
             context, job_posting_id=job_posting_id, explicit_selection=selection_index is not None

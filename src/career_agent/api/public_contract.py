@@ -26,6 +26,11 @@ from typing import Any, Literal, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter
 
+from career_agent.agent.job_analysis_contracts import (
+    JobAnalysisResult,
+    QuotedFinding,
+    TieredRequirement,
+)
 from career_agent.agent.main_agent_contracts import (
     BehaviorPolicyContext,
     OwnerSettingsContext,
@@ -318,6 +323,35 @@ def _saved_job(**overrides: Any) -> SavedJobView:
         preferred_qualifications=("有大模型应用经验",),
         clarification_questions=(),
         analyzed_at=_AT,
+        jd_version=2,
+        jd_analysis_status="stale",
+        jd_analysis_version=1,
+        jd_analysis=JobAnalysisResult(
+            core_objective="把大模型能力落到可上线的产品功能中。",
+            seniority="mid",
+            requirements=(
+                TieredRequirement(
+                    text="3 年以上产品经验",
+                    tier="S",
+                    kind="fact",
+                    jd_quote="3 年以上互联网产品经验",
+                ),
+            ),
+            core_competencies=("需求抽象",),
+            implicit_requirements=(
+                QuotedFinding(text="能与算法团队直接对接", jd_quote="与算法同学协作"),
+            ),
+            ats_keywords=("AI 产品", "大模型"),
+            hr_focus=("稳定性",),
+            hiring_manager_focus=("落地案例",),
+            likely_interview_topics=("需求拆解思路",),
+            red_flags=(QuotedFinding(text="工时未说明", jd_quote="能适应快节奏"),),
+            information_gaps=("未说明团队规模",),
+            summary="偏产品策略，要求有 AI 落地经验。",
+        ),
+        resume_match_status="ready",
+        resume_match_fit="moderate",
+        resume_match_at=_AT,
     )
     values.update(overrides)
     return SavedJobView(**values)
@@ -462,6 +496,13 @@ def _read_examples() -> dict[str, list[BaseModel]]:
             application_status="applied",
             analysis_summary=None,
             analyzed_at=None,
+            jd_version=None,
+            jd_analysis_status="none",
+            jd_analysis_version=None,
+            jd_analysis=None,
+            resume_match_status="none",
+            resume_match_fit=None,
+            resume_match_at=None,
         ),
         SavedJobDetailView(
             id="job-1",

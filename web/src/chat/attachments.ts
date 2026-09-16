@@ -1,4 +1,4 @@
-import type { ResumeImportResult, ResumeVersionView } from "../api/client";
+import type { ResumeImportResult, ResumeVersionView, SavedJobView } from "../api/client";
 import type { TurnInputResource } from "../api/sse";
 import type { MessageResource } from "./reducer";
 
@@ -17,6 +17,46 @@ export interface ResumeAttachment {
   documentFormat: string;
   byteSize: number;
   uploadedAt: string | null;
+}
+
+/**
+ * A saved job pinned to one exact JD snapshot, for a task that reads the JD
+ * and nothing else. It is never queued with the chat's resume attachments:
+ * the only place it travels is a standalone task, so a JD-only analysis
+ * cannot silently pick up a resume.
+ */
+export interface JobAttachment {
+  kind: "jd_snapshot";
+  jdSnapshotId: string;
+  jobPostingId: string;
+  title: string;
+  companyName: string;
+  jdVersion: number;
+}
+
+export type ChatAttachment = ResumeAttachment | JobAttachment;
+
+export function isJobAttachment(item: ChatAttachment): item is JobAttachment {
+  return "kind" in item && item.kind === "jd_snapshot";
+}
+
+/** The current JD snapshot of a saved job, or null when none was captured. */
+export function attachmentFromSavedJob(job: SavedJobView): JobAttachment | null {
+  if (job.jd_snapshot_id === null || job.jd_version === null) return null;
+  return {
+    kind: "jd_snapshot",
+    jdSnapshotId: job.jd_snapshot_id,
+    jobPostingId: job.id,
+    title: job.title,
+    companyName: job.company_name,
+    jdVersion: job.jd_version,
+  };
+}
+
+/** The line shown while a standalone task waits for its own conversation. */
+export function attachmentLabel(item: ChatAttachment): string {
+  if (isJobAttachment(item)) return `岗位「${item.companyName} · ${item.title}」的 JD v${item.jdVersion}`;
+  return `简历“${item.name}” v${item.versionNumber}`;
 }
 
 export const MAX_ATTACHMENTS = 8;
@@ -61,20 +101,35 @@ export function withAttachment(
 }
 
 /** The structured references sent with the message, one per exact version. */
-export function toInputResources(attachments: ResumeAttachment[]): TurnInputResource[] {
-  return attachments.map((item) => ({ kind: "resume_version", id: item.resumeVersionId }));
+export function toInputResources(attachments: ChatAttachment[]): TurnInputResource[] {
+  return attachments.map((item) =>
+    isJobAttachment(item)
+      ? { kind: "jd_snapshot", id: item.jdSnapshotId }
+      : { kind: "resume_version", id: item.resumeVersionId },
+  );
 }
 
 /** The chips to show on the sent message until the transcript is re-read. */
-export function toMessageResources(attachments: ResumeAttachment[]): MessageResource[] {
-  return attachments.map((item) => ({
-    kind: "resume_version",
-    resourceId: item.resumeVersionId,
-    resumeId: item.resumeId,
-    title: `${item.name} v${item.versionNumber}`,
-    description: `${item.documentFormat} · ${formatBytes(item.byteSize)}`,
-    available: true,
-  }));
+export function toMessageResources(attachments: ChatAttachment[]): MessageResource[] {
+  return attachments.map((item) =>
+    isJobAttachment(item)
+      ? {
+          kind: "saved_job",
+          resourceId: item.jdSnapshotId,
+          jobPostingId: item.jobPostingId,
+          title: `${item.companyName} · ${item.title}`,
+          description: `JD 快照 v${item.jdVersion}`,
+          available: true,
+        }
+      : {
+          kind: "resume_version",
+          resourceId: item.resumeVersionId,
+          resumeId: item.resumeId,
+          title: `${item.name} v${item.versionNumber}`,
+          description: `${item.documentFormat} · ${formatBytes(item.byteSize)}`,
+          available: true,
+        },
+  );
 }
 
 export function formatBytes(bytes: number): string {

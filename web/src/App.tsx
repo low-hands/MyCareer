@@ -20,6 +20,8 @@ import {
   toInputResources,
   toMessageResources,
   withAttachment,
+  attachmentLabel,
+  type ChatAttachment,
   type ResumeAttachment,
 } from "./chat/attachments";
 import {
@@ -310,7 +312,7 @@ export default function App() {
   async function sendMessage(
     rawMessage: string,
     interactionResponse?: InteractionResponse,
-    resources: ResumeAttachment[] = attachments,
+    resources: ChatAttachment[] = attachments,
   ): Promise<void> {
     // An interaction reply answers the agent's question; it does not carry
     // attachments, and it must not consume the ones queued for the next message.
@@ -561,7 +563,7 @@ export default function App() {
    * chat's job, interview state or queued attachments. While a turn runs the
    * task waits for it rather than interrupting it or degrading to a draft.
    */
-  function startResumeAnalysis(prompt: string, resource: ResumeAttachment): void {
+  function startStandaloneTask(prompt: string, resource: ChatAttachment): void {
     setView("chat");
     if (standaloneTask) return;
     setStandaloneTask(newStandaloneAgentTask(prompt, resource));
@@ -741,6 +743,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "jobs"}
           onAskAgent={startAgentTask}
+          onStartStandaloneTask={startStandaloneTask}
         />
         <DailyBriefPanel
           apiBaseUrl={API_BASE_URL}
@@ -764,7 +767,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "resumes"}
           onAskAgent={startAgentTask}
-          onAnalyzeResume={startResumeAnalysis}
+          onStartStandaloneTask={startStandaloneTask}
         />
         <ResearchPanel
           apiBaseUrl={API_BASE_URL}
@@ -869,8 +872,8 @@ export default function App() {
                 <span className="spinner" />
                 <span>
                   {busy || historyLoading
-                    ? `当前任务结束后，将在新对话中分析简历“${standaloneTask.resource.name}” v${standaloneTask.resource.versionNumber}`
-                    : `正在打开新对话，分析简历“${standaloneTask.resource.name}” v${standaloneTask.resource.versionNumber}…`}
+                    ? `当前任务结束后，将在新对话中分析${attachmentLabel(standaloneTask.resource)}`
+                    : `正在打开新对话，分析${attachmentLabel(standaloneTask.resource)}…`}
                 </span>
                 <button type="button" onClick={() => setStandaloneTask(null)}>取消</button>
               </div>

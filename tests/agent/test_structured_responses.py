@@ -209,6 +209,7 @@ def test_each_capability_keeps_its_own_error_vocabulary() -> None:
 _MIGRATED_WORKERS = {
     "openai_resume_analysis_worker": "RESUME_ANALYSIS",
     "openai_resume_job_match_worker": "RESUME_JOB_MATCH",
+    "openai_job_analysis_worker": "JOB_ANALYSIS",
     "openai_email_tracking_worker": "EMAIL_TRACKING",
     "openai_interview_preparation_worker": "INTERVIEW_PREPARATION",
     "openai_resume_tailoring_reviewer": "RESUME_REVIEW",

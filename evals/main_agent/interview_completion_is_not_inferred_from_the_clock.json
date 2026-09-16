@@ -2,9 +2,9 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "9cb6d8ec82a8594d0e30a5ed7b2a21fdaa840599e6258b7eccfdc0e31073f5a8",
-  "recorded_at": "2026-09-13T15:48:52.923521+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "b134c923713ed3801310fa37865ffd581bfabcb91a8625eb869692626e955e84",
+  "recorded_at": "2026-09-16T14:33:07.364074+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:48:52.923521+00:00",
+      "recorded_at": "2026-09-16T14:33:07.364074+00:00",
       "steps": [
         {
           "tool_call": {

@@ -1,8 +1,9 @@
-import type { ResumeAttachment } from "./attachments";
+import type { ChatAttachment } from "./attachments";
 
 /**
  * A task started from a workspace page that must run in its own, new
- * conversation: analysing a resume version picked in the library. It is
+ * conversation: analysing a resume version picked in the library, or the JD
+ * of a saved job with no resume alongside it. It is
  * created once, switches the visible chat only when that chat is idle, and
  * sends only after the new conversation's (empty) transcript has been
  * hydrated, so the request cannot land in the old conversation or be wiped
@@ -11,7 +12,7 @@ import type { ResumeAttachment } from "./attachments";
 export interface StandaloneAgentTask {
   conversationId: string;
   prompt: string;
-  resource: ResumeAttachment;
+  resource: ChatAttachment;
 }
 
 export interface AgentTaskChatState {
@@ -26,7 +27,7 @@ export type AgentTaskStep = "wait" | "switch" | "send";
 
 export function newStandaloneAgentTask(
   prompt: string,
-  resource: ResumeAttachment,
+  resource: ChatAttachment,
 ): StandaloneAgentTask {
   return { conversationId: `conversation-${crypto.randomUUID()}`, prompt, resource };
 }

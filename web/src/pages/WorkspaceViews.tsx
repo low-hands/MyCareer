@@ -29,7 +29,14 @@ import {
   resumeDocumentUrl,
   type ResumeVersionView,
 } from "../api/client";
-import { attachmentFromImport, attachmentFromVersion, type ResumeAttachment } from "../chat/attachments";
+import {
+  attachmentFromImport,
+  attachmentFromSavedJob,
+  attachmentFromVersion,
+  type ChatAttachment,
+  type ResumeAttachment,
+} from "../chat/attachments";
+import { JobAnalysisDetails } from "../components/JobAnalysisDetails";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 import { ReportCard } from "../components/ReportCard";
 import { ResumeImporter } from "../components/ResumeImporter";
@@ -42,10 +49,11 @@ type PageProps = {
   /** `resource` pins the message to one exact resume version via `input_resources`. */
   onAskAgent: (prompt: string, resource?: ResumeAttachment) => void;
   /**
-   * Analyse one exact resume version as a task of its own, in a new
-   * conversation, instead of inside whatever chat is open.
+   * Run one task of its own in a new conversation, instead of inside whatever
+   * chat is open: analysing an exact resume version, or the JD of a saved job
+   * with nothing but that JD attached.
    */
-  onAnalyzeResume?: (prompt: string, resource: ResumeAttachment) => void;
+  onStartStandaloneTask?: (prompt: string, resource: ChatAttachment) => void;
   onOpenConversation?: (conversationId: string) => void;
 };
 
@@ -469,7 +477,39 @@ export function ApplicationsPanel(props: PageProps) {
   );
 }
 
+const DERIVED_STATUS_LABELS: Record<SavedJobView["jd_analysis_status"], string> = {
+  none: "待分析",
+  ready: "已完成",
+  stale: "当前版本待分析",
+};
+
+export function derivedStatusLabel(status: SavedJobView["jd_analysis_status"]): string {
+  return DERIVED_STATUS_LABELS[status];
+}
+
+function derivedStatusClass(status: SavedJobView["jd_analysis_status"]): string {
+  return status === "ready" ? "status-current" : "status-outdated";
+}
+
+/** The message that starts a JD-only analysis of one saved job. */
+export function jobAnalysisPrompt(job: Pick<SavedJobView, "title" | "company_name">): string {
+  return `请仅基于 JD 文本分析岗位库里的「${job.company_name} · ${job.title}」，不要结合简历。`;
+}
+
 export function JobsPanel(props: PageProps) {
+  // JD analysis is a task of its own: a new conversation with the exact JD
+  // snapshot attached and nothing else, so an open chat's resume, job or
+  // interview state cannot leak into what is meant to be a reading of the JD.
+  // Without a snapshot (nothing captured yet) it falls back to naming the job.
+  const analyzeJob = (item: SavedJobView) => {
+    const prompt = jobAnalysisPrompt(item);
+    const attachment = attachmentFromSavedJob(item);
+    if (attachment && props.onStartStandaloneTask) {
+      props.onStartStandaloneTask(prompt, attachment);
+      return;
+    }
+    props.onAskAgent(prompt);
+  };
   // Ignored jobs are hidden, not gone. Without a way back the button is a
   // one-way door: the row is still there and the store already restores it,
   // but nothing in the product could reach it.
@@ -603,8 +643,16 @@ export function JobsPanel(props: PageProps) {
                   <h2>{item.title}</h2>
                   <p>{item.company_name} · {[item.city, item.salary].filter(Boolean).join(" · ") || item.source_name}</p>
                 </div>
-                <span className={`status-pill ${item.analysis_summary ? "status-current" : "status-outdated"}`}>
-                  {item.analysis_summary ? "已分析" : "待分析"}
+                {/* Two pills for two independent facts: whether the JD itself
+                    has been analysed, and whether a resume was matched against
+                    it. "stale" means the JD was captured again after the
+                    result; the old result stays as history, the pill says the
+                    current version has not been read yet. */}
+                <span className={`status-pill ${derivedStatusClass(item.jd_analysis_status)}`}>
+                  JD 分析·{derivedStatusLabel(item.jd_analysis_status)}
+                </span>
+                <span className={`status-pill ${derivedStatusClass(item.resume_match_status)}`}>
+                  简历匹配·{derivedStatusLabel(item.resume_match_status)}
                 </span>
                 {/* Said beside the analysis badge rather than replacing it:
                     "closed", "long unconfirmed" and "not analysed" are
@@ -621,7 +669,21 @@ export function JobsPanel(props: PageProps) {
                   <span className="status-pill status-outdated">{stalenessLabel(item.last_checked_at)}</span>
                 ) : null}
               </header>
-              {item.analysis_summary ? (
+              {item.jd_analysis ? (
+                <div className="job-analysis-body">
+                  <p className="job-summary">{item.jd_analysis.summary}</p>
+                  <JobAnalysisDetails
+                    analysis={item.jd_analysis}
+                    version={item.jd_analysis_version}
+                    stale={item.jd_analysis_status === "stale"}
+                  />
+                  {item.jd_analysis_status === "stale" ? (
+                    <button type="button" className="link" onClick={() => analyzeJob(item)}>
+                      分析当前版本 JD
+                    </button>
+                  ) : null}
+                </div>
+              ) : item.analysis_summary ? (
                 <div className="job-analysis-body">
                   <p className="job-summary">{item.analysis_summary}</p>
                   {item.required_skills.length > 0 ? (
@@ -637,12 +699,16 @@ export function JobsPanel(props: PageProps) {
               ) : (
                 <div className="job-analysis-pending">
                   <p>完整 JD 已保存，但还没有结构化分析。</p>
-                  <button type="button" onClick={() => props.onAskAgent(`分析岗位库里的「${item.company_name} · ${item.title}」`)}>让 Agent 分析</button>
+                  <button type="button" onClick={() => analyzeJob(item)}>让 Agent 分析</button>
                 </div>
               )}
               <footer>
                 <span>{item.application_status ? STATUS_LABELS[item.application_status] ?? item.application_status : "尚未投递"}</span>
-                <time>{dateLabel(item.captured_at)} 保存{item.analyzed_at ? ` · ${dateLabel(item.analyzed_at)} 分析` : ""}</time>
+                <time>
+                  {dateLabel(item.captured_at)} 保存
+                  {item.analyzed_at ? ` · ${dateLabel(item.analyzed_at)} 分析` : ""}
+                  {item.resume_match_at ? ` · ${dateLabel(item.resume_match_at)} 匹配` : ""}
+                </time>
               </footer>
               {/* Three things one card has to support, because they are the
                   three things that happen after reading a JD: go back to the
@@ -670,6 +736,9 @@ export function JobsPanel(props: PageProps) {
               <div className="job-card-actions">
                 <button type="button" className="link" onClick={() => toggleJd(item.id)}>
                   {openJd === item.id ? "收起 JD" : "查看完整 JD"}
+                </button>
+                <button type="button" className="link" onClick={() => analyzeJob(item)}>
+                  让 Agent 分析
                 </button>
                 <button
                   type="button"
@@ -762,7 +831,7 @@ export function ResumesPanel(props: PageProps) {
   const load = useCallback((signal: AbortSignal) => fetchResumes({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]);
   const state = usePageData<ResumeView[]>(load, props.refreshToken, !props.hidden);
   const [showImporter, setShowImporter] = useState(false);
-  const analyzeResume = props.onAnalyzeResume ?? props.onAskAgent;
+  const analyzeResume = props.onStartStandaloneTask ?? props.onAskAgent;
   return (
     <section className="management-page" hidden={props.hidden}>
       <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} />

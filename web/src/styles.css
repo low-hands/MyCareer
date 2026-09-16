@@ -600,6 +600,20 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .skill-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .skill-chips span { padding: 5px 8px; color: #4b67b3; background: #eef3ff; border-radius: 999px; font-size: 9px; }
 .analysis-question { display: flex; align-items: center; gap: 7px; padding: 9px 10px; color: #a2640b; background: #fff5df; border-radius: 10px; font-size: 9px; }
+.jd-analysis { display: grid; gap: 10px; }
+.jd-analysis-headline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #344054; font-size: 11px; line-height: 1.5; }
+.jd-seniority { padding: 3px 8px; color: #315fcc; background: #eaf1ff; border-radius: 999px; font-size: 9px; font-weight: 650; }
+.jd-objective { flex: 1 1 100%; color: #5f6b7d; }
+.jd-analysis-version { color: #98a2b3; font-size: 9px; }
+.jd-analysis-version.stale { color: #b76b00; }
+.jd-analysis-body { display: grid; gap: 14px; padding-top: 4px; border-top: 1px dashed #edf0f5; }
+.jd-requirements, .jd-quoted-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.jd-requirements li, .jd-quoted-list li { display: grid; gap: 3px; color: #475467; font-size: 10px; line-height: 1.6; }
+.jd-requirements blockquote, .jd-quoted-list blockquote { margin: 0; padding: 4px 8px; color: #8a94a6; background: #f7f8fb; border-left: 2px solid #d0d7e5; border-radius: 0 6px 6px 0; font-size: 9px; }
+.jd-kind { display: inline-block; width: fit-content; padding: 1px 6px; border-radius: 999px; font-size: 8px; font-weight: 650; }
+.jd-kind-fact { color: #1b7f4b; background: #e6f6ec; }
+.jd-kind-inference { color: #a2640b; background: #fff5df; }
+.jd-red-flags > strong { color: #b42318; }
 .job-analysis-pending { min-height: 175px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 24px; text-align: center; }
 .job-analysis-pending p { margin: 0 0 13px; color: #8a94a6; font-size: 11px; }
 .job-analysis-pending button { padding: 8px 11px; color: #315fcc; background: #edf3ff; border: 0; border-radius: 9px; font-size: 10px; font-weight: 650; }

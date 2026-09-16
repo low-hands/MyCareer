@@ -2,15 +2,14 @@
   "scenario": "a_report_older_than_the_window_is_still_read_back",
   "policy": "A working-memory data entry or archived report may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "09e5bc6f13e34e6789f02dec4a89d510b054838b9034258e7efc8b4a441ec5c1",
-  "recorded_at": "2026-09-13T15:49:09.290109+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "ab291fd9ae3e97977837ea06566fd5dabb1f7af7236d3ab32c59c65d5a503e70",
+  "recorded_at": "2026-09-16T14:33:46.464994+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "selection_index": null,
           "reference": "report_9ca510"
         }
       }
@@ -19,13 +18,12 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:49:09.290109+00:00",
+      "recorded_at": "2026-09-16T14:33:46.464994+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "selection_index": null,
               "reference": "report_9ca510"
             }
           }

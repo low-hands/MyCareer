@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 import sqlite3
 
+from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
 from career_agent.agent.job_discovery_contracts import JDAnalysis
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
@@ -239,3 +240,66 @@ def test_availability_distinguishes_closed_from_unknown(tmp_path) -> None:
     assert repository.mark_availability(user_id="u1", job_posting_id=saved.posting.id, status="closed", checked_at=NOW)
     assert repository.list_jobs(user_id="u1", include_dismissed=False)[0].availability_status == "closed"
     assert not repository.mark_availability(user_id="other", job_posting_id=saved.posting.id, status="closed", checked_at=NOW)
+
+
+def tiered_payload() -> JDAnalysisPayload:
+    return JDAnalysisPayload.from_result(
+        JobAnalysisResult(
+            core_objective="搭建可靠的 RAG 与 Agent 系统。",
+            seniority="mid",
+            requirements=(
+                TieredRequirement(text="Python 工程能力", tier="S", kind="fact", jd_quote="精通 Python"),
+            ),
+            core_competencies=("Python",),
+            ats_keywords=("RAG",),
+            summary="中级 AI 工程师岗位。",
+        )
+    )
+
+
+def test_analysis_cache_is_keyed_by_snapshot_version_and_fingerprint(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = repository.save_detail(user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1, detail=detail())
+
+    first = repository.save_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v1", analysis=tiered_payload(), content_fingerprint="fp-1")
+    other_fingerprint = repository.save_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v1", analysis=tiered_payload(), content_fingerprint="fp-2")
+    other_version = repository.save_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v2", analysis=tiered_payload(), content_fingerprint="fp-1")
+
+    assert len({first.id, other_fingerprint.id, other_version.id}) == 3
+    hit = repository.find_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v1", content_fingerprint="fp-1")
+    assert hit is not None
+    assert hit.id == first.id
+    assert hit.content_fingerprint == "fp-1"
+    assert hit.analysis.to_result() is not None
+    assert hit.analysis.to_result().seniority == "mid"
+    assert repository.find_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v1", content_fingerprint="fp-3") is None
+    assert repository.find_analysis(user_id="other", jd_snapshot_id=saved.snapshot.id, analyzer_version="job-analysis-v1", content_fingerprint="fp-1") is None
+    latest = repository.get_latest_analysis(user_id="u1", job_posting_id=saved.posting.id, analyzer_version="job-analysis-v1")
+    assert latest is not None
+    assert latest.id == other_fingerprint.id
+
+
+def test_legacy_analysis_rows_survive_fingerprint_migration(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite3"
+    repository = SQLiteJobPostingRepository(path)
+    saved = repository.save_detail(user_id="u1", run_id="run-1", result_ref="ref-1", selection_index=1, detail=detail())
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE jd_analyses")
+        connection.execute(
+            "CREATE TABLE jd_analyses (id TEXT PRIMARY KEY, jd_snapshot_id TEXT NOT NULL, analyzer_version TEXT NOT NULL, analysis_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(jd_snapshot_id, analyzer_version))"
+        )
+        connection.execute(
+            "INSERT INTO jd_analyses VALUES (?, ?, ?, ?, ?)",
+            ("legacy-1", saved.snapshot.id, "jd-analysis-v1", analysis_payload().model_dump_json(), NOW.isoformat()),
+        )
+
+    rebuilt = SQLiteJobPostingRepository(path)
+    restored = rebuilt.get_job(user_id="u1", job_posting_id=saved.posting.id)
+
+    assert restored is not None
+    assert restored.analysis is not None
+    assert restored.analysis.id == "legacy-1"
+    assert restored.analysis.content_fingerprint == ""
+    assert restored.analysis.analysis.to_result() is None
+    rebuilt.save_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="jd-analysis-v1", analysis=tiered_payload(), content_fingerprint="fp-1")
+    assert rebuilt.find_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="jd-analysis-v1", content_fingerprint="fp-1") is not None

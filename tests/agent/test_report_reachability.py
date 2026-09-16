@@ -57,6 +57,7 @@ def test_the_resource_contract_covers_every_card_reader_kind() -> None:
         "mock_interview_report",
         "interview_preparation",
         "interview_retro_report",
+        "job_analysis",
         "resume_job_match",
         "resume_tailoring_draft",
         # The one user-supplied kind: an exact resume version attached to a

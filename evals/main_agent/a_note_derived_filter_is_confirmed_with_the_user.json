@@ -2,37 +2,37 @@
   "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
   "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "51cec3fa7258df8ac87deacff01179e20b8dd6c4d8532c2f1c10e8ff891391c7",
-  "recorded_at": "2026-09-13T15:56:53.045926+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "38a245e736ca19749ad08c4301bbf7a5de28bf9cc66b23bcd8bae03f601bd8ea",
+  "recorded_at": "2026-09-16T14:32:57.428345+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的城市，以及目标岗位或关键词（例如：后端开发、Rust 工程师）。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我想找的岗位方向和城市，例如“Rust 后端，上海”。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:57:07.351477+00:00",
+      "recorded_at": "2026-09-16T14:32:54.381774+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我你想找的城市，以及目标岗位或关键词（例如：后端开发、Rust 工程师）。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我想找的岗位方向和城市，例如“Rust 后端，上海”。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:57:14.382027+00:00",
+      "recorded_at": "2026-09-16T14:32:56.183220+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么类型的岗位？请告诉我一个关键词或方向（比如 Rust、后端、数据分析、产品经理），以及城市。如果你想在 BOSS 上找新岗位，我也可以帮你打开对应搜索页。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我想找的岗位关键词和城市，例如“后端开发，上海”。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-13T15:56:53.045926+00:00",
+      "recorded_at": "2026-09-16T14:32:57.428345+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我想找的岗位方向和城市（例如“后端开发，上海”）；我再为你打开对应的职位搜索。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找的岗位关键词和城市，例如“杭州 Rust 后端”或“上海 数据分析”。我会为你打开对应的招聘搜索页。\"}"
         }
       ]
     }

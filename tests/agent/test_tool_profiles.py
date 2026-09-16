@@ -70,6 +70,7 @@ def _registry() -> MainAgentToolRegistry:
         resume_store=object(),
         resume_analysis_service=object(),
         resume_job_match_service=object(),
+        job_analysis_service=object(),
         resume_tailoring_service=object(),
         resume_export_service=object(),
         application_service=object(),

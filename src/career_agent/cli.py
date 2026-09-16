@@ -35,6 +35,7 @@ from career_agent.agent.openai_compatible_client import AgentConfigurationError,
 from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
+from career_agent.agent.openai_job_analysis_worker import OpenAIJobAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
 from career_agent.agent.openai_resume_tailoring_reviewer import (
     OpenAIResumeTailoringReviewer,
@@ -63,6 +64,7 @@ from career_agent.services.memory_report import build_memory_report
 from career_agent.services.memory_review import MemoryReviewService
 from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
+from career_agent.services.job_analysis import JobAnalysisService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.services.resume_import import (
     MAX_RESUME_IMPORT_BYTES,
@@ -315,6 +317,10 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
             ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
+            job_analysis_service=JobAnalysisService(
+                job_repository,
+                OpenAIJobAnalysisWorker(resume_analysis_config),
+            ),
             career_profile_store=context_store,
             owner_settings_store=context_store,
             conversation_store=context_store,

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { SavedJobView } from "../api/client";
 import {
   attachmentFromImport,
+  attachmentFromSavedJob,
   attachmentFromVersion,
   droppedResumeFile,
   MAX_ATTACHMENTS,
@@ -69,6 +71,30 @@ describe("resume attachments", () => {
       description: "pdf · 2.0 KB",
       available: true,
     });
+  });
+
+  it("pins a saved job to its current JD snapshot and sends nothing else", () => {
+    const job = {
+      id: "job-1",
+      title: "AI 产品经理",
+      company_name: "示例科技",
+      jd_snapshot_id: "snapshot-3",
+      jd_version: 3,
+    } as SavedJobView;
+    const attached = attachmentFromSavedJob(job);
+    expect(attached).not.toBeNull();
+    expect(toInputResources([attached!])).toEqual([{ kind: "jd_snapshot", id: "snapshot-3" }]);
+    expect(toMessageResources([attached!])).toEqual([
+      {
+        kind: "saved_job",
+        resourceId: "snapshot-3",
+        jobPostingId: "job-1",
+        title: "示例科技 · AI 产品经理",
+        description: "JD 快照 v3",
+        available: true,
+      },
+    ]);
+    expect(attachmentFromSavedJob({ ...job, jd_snapshot_id: null, jd_version: null })).toBeNull();
   });
 
   it("accepts only resume documents from a drop", () => {

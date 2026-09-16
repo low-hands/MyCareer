@@ -43,6 +43,7 @@ _TASK_CONTROL_KEYS = frozenset(
     {
         "has_active_resume_analysis",
         "has_active_resume_job_match",
+        "has_active_job_analysis",
         "has_active_resume_tailoring_draft",
         "has_active_resume_version",
         "has_active_resume_artifact",
@@ -62,6 +63,7 @@ _TASK_CONTROL_KEYS = frozenset(
         "email_sync_phase",
         "resume_analysis_status",
         "resume_job_match_status",
+        "job_analysis_status",
         "resume_tailoring_status",
         "active_application_status",
         "interview_preparation_ready",

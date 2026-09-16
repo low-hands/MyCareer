@@ -2,21 +2,21 @@
   "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
   "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
   "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "6bf5fede30ae83930e4a824ffd005368881a131a9381794da3c2dd19c93be25f",
-  "context_shape_fingerprint": "52f8c164b297de167647a69ef8e2bf701df61d42f45c83fa08acab4fb567081e",
-  "recorded_at": "2026-09-13T15:49:19.391578+00:00",
+  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
+  "context_shape_fingerprint": "f95076396820ae44c6f4f59b5ff5562124ab8c0531a4432c028e3f9e5a69b0ef",
+  "recorded_at": "2026-09-16T14:33:49.836388+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"调研完毕：示例科技将在2026年第二季度拆分检索业务、招聘规模环比扩大约四成，且主要竞对尚未公开同类产品，整体处于扩张窗口。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"调研已完成：公司正加码并独立发展检索业务、招聘规模扩大，但赛道竞争格局仍缺少公开可比信息。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-13T15:49:19.391578+00:00",
+      "recorded_at": "2026-09-16T14:33:49.836388+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"调研完毕：示例科技将在2026年第二季度拆分检索业务、招聘规模环比扩大约四成，且主要竞对尚未公开同类产品，整体处于扩张窗口。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：公司正加码并独立发展检索业务、招聘规模扩大，但赛道竞争格局仍缺少公开可比信息。\"}"
         }
       ]
     }
