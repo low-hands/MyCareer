@@ -9,6 +9,11 @@ by path and stays importable.
 
 from __future__ import annotations
 
+from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.main_agent_contracts import (
+    ConversationTaskState,
+    ToolProfile,
+)
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewInputDecision,
     MockInterviewPlanDraft,
@@ -23,7 +28,32 @@ from career_agent.domain.mock_interviews import (
     MockInterviewQuestionResult,
     MockInterviewScoreDimension,
 )
+from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import StoredResumeDocument
+
+
+def enter_tool_profile(
+    manager: ContextManager | CareerContextStore,
+    profile: ToolProfile,
+    *,
+    user_id: str = "u1",
+    conversation_id: str = "c1",
+) -> None:
+    """Persist the conversation's tool profile as if the model had routed there.
+
+    Domain tools are refused outside their profile, so a test whose decision
+    maker starts straight at a domain tool declares the profile up front instead
+    of spending a decision on ``route_to_capability``. Only the profile changes;
+    any other seeded task state is kept.
+    """
+
+    store = manager._store if isinstance(manager, ContextManager) else manager
+    task = store.get_task(user_id, conversation_id) or ConversationTaskState()
+    store.upsert_task(
+        user_id=user_id,
+        conversation_id=conversation_id,
+        task=task.model_copy(update={"tool_profile": profile}),
+    )
 
 
 def evaluation(

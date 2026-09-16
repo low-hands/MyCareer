@@ -23,6 +23,7 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.career_history import CareerHistoryStore
+from conftest import enter_tool_profile
 
 
 class SequenceDecisionMaker:
@@ -67,6 +68,7 @@ def build_agent(
 ):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
+    enter_tool_profile(manager, "resume", user_id=user_id)
     tools = MainAgentToolRegistry(
         resume_store=store,
         resume_analysis_service=resume_analysis_service,

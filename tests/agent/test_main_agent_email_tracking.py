@@ -32,8 +32,16 @@ class EmailService:
 
 
 class Decisions:
+    EMAIL_TOOLS = frozenset({"sync_application_emails", "list_email_events"})
+
     def __init__(self):
         self.values = [
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
+                    name="route_to_capability", arguments={"domain": "application"}
+                ),
+            ),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="sync_application_emails", arguments={}),
@@ -43,10 +51,12 @@ class Decisions:
 
     def decide(self, context, tool_specs):
         names = {spec["function"]["name"] for spec in tool_specs}
-        assert {
-            "sync_application_emails",
-            "list_email_events",
-        }.issubset(names)
+        # Email tools live in the application profile only; the model has to
+        # route there before it is offered them.
+        if context.task.tool_profile == "application":
+            assert self.EMAIL_TOOLS <= names
+        else:
+            assert not (self.EMAIL_TOOLS & names)
         return self.values.pop(0)
 
 

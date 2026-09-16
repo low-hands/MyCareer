@@ -11,6 +11,7 @@ from career_agent.services.memory_review import MemoryReviewService
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
+from conftest import enter_tool_profile
 
 
 class SequenceDecisionMaker:
@@ -34,10 +35,17 @@ def _final() -> AgentDecision:
     return AgentDecision(action="final", message="")
 
 
-def _runtime(tmp_path, *decisions, project_career_memory: bool = False):
+def _runtime(
+    tmp_path,
+    *decisions,
+    project_career_memory: bool = False,
+    profile=None,
+):
     context = CareerContextStore(tmp_path / "context.sqlite3")
     history = CareerHistoryStore(tmp_path / "career.sqlite3")
     notes = WorkingNotesStore(tmp_path / "working-notes")
+    if profile is not None:
+        enter_tool_profile(context, profile)
     return (
         MainAgentRuntime(
             context_manager=ContextManager(context, working_notes_store=notes),
@@ -145,6 +153,7 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
             },
         ),
         _final(),
+        profile="memory",
     )
     proposed = runtime.run_turn(
         user_id="u1",
@@ -161,6 +170,7 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
         tmp_path,
         _tool("confirm_memory_tombstone"),
         _final(),
+        profile="memory",
     )
     completed = runtime.run_turn(
         user_id="u1",
@@ -217,6 +227,7 @@ def test_amendment_requires_readback_and_refreshes_current_revision(tmp_path) ->
             },
         ),
         _final(),
+        profile="memory",
     )
     proposed = runtime.run_turn(
         user_id="u1",
@@ -233,6 +244,7 @@ def test_amendment_requires_readback_and_refreshes_current_revision(tmp_path) ->
         tmp_path,
         _tool("confirm_memory_amendment"),
         _final(),
+        profile="memory",
     )
     completed = runtime.run_turn(
         user_id="u1",
@@ -278,6 +290,7 @@ def test_tombstone_cannot_execute_in_the_turn_that_prepared_it(tmp_path) -> None
         ),
         _tool("confirm_memory_tombstone"),
         _final(),
+        profile="memory",
     )
     premature = runtime._tools.invoke_atomic_tool(
         "confirm_memory_tombstone",
@@ -332,6 +345,7 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
             {"detail_ref": evidence.detail_ref, "reason": "Delete."},
         ),
         _final(),
+        profile="memory",
     )
     runtime.run_turn(
         user_id="u1",
@@ -343,6 +357,7 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         tmp_path,
         _tool("confirm_memory_tombstone"),
         _final(),
+        profile="memory",
     )
 
     def fail_cleanup(**_kwargs):
@@ -365,6 +380,7 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         tmp_path,
         _tool("confirm_memory_tombstone"),
         _final(),
+        profile="memory",
     )
     retried = retry_runtime.run_turn(
         user_id="u1",
@@ -403,6 +419,7 @@ def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
             {"detail_ref": evidence.detail_ref, "reason": "Delete it."},
         ),
         _final(),
+        profile="memory",
     )
     runtime.run_turn(
         user_id="u1",
@@ -418,6 +435,7 @@ def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
         tmp_path,
         _tool("confirm_memory_tombstone"),
         _final(),
+        profile="memory",
     )
     result = runtime.run_turn(
         user_id="u1",

@@ -10,6 +10,7 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
+from conftest import enter_tool_profile
 
 
 class SequenceDecisionMaker:
@@ -31,7 +32,9 @@ def _final() -> AgentDecision:
     return AgentDecision(action="final", message="")
 
 
-def _runtime(context: CareerContextStore, *decisions):
+def _runtime(context: CareerContextStore, *decisions, profile=None):
+    if profile is not None:
+        enter_tool_profile(context, profile)
     return MainAgentRuntime(
         context_manager=ContextManager(context),
         decision_maker=SequenceDecisionMaker(*decisions),
@@ -62,6 +65,7 @@ def test_retirement_cannot_execute_in_the_turn_that_prepared_it(
             {"constraint": "不接受 996", "reason": "换了岗位。"},
         ),
         _final(),
+        profile="memory",
     )
 
     premature = runtime._tools.invoke_atomic_tool(
@@ -104,6 +108,7 @@ def test_a_confirmed_retirement_stops_the_constraint_applying(tmp_path) -> None:
         ),
         _tool("confirm_constraint_retirement"),
         _final(),
+        profile="memory",
     )
 
     runtime.run_turn(

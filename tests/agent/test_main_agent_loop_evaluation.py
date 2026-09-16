@@ -345,7 +345,10 @@ def test_a_recorded_calendar_preview_suspends_without_an_extra_model_decision(
                 },
             ),
         ),
-        task=ConversationTaskState(active_interview_round_id="interview-1"),
+        task=ConversationTaskState(
+            active_interview_round_id="interview-1",
+            tool_profile="interview",
+        ),
     )
     public_events = []
 
@@ -414,6 +417,7 @@ def test_an_uncertain_calendar_write_stops_at_the_owner_and_is_not_reissued(
                 2026, 9, 5, 18, tzinfo=timezone.utc
             ),
             active_interview_round_id="interview-1",
+            tool_profile="interview",
         ),
         with_confirmations=True,
     )

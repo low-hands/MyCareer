@@ -83,6 +83,12 @@ class Decisions:
             ),
             AgentDecision(
                 action="tool_call",
+                tool_call=ToolCall(
+                    name="route_to_capability", arguments={"domain": "interview"}
+                ),
+            ),
+            AgentDecision(
+                action="tool_call",
                 tool_call=ToolCall(name="prepare_interview", arguments={"selection_index": 1}),
             ),
             AgentDecision(action="final", message="准备重点已整理。"),

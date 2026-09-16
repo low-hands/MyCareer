@@ -120,6 +120,12 @@ class Decisions:
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
+                    name="route_to_capability", arguments={"domain": "job"}
+                ),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(
                     name="research_job",
                     arguments={
                         "selection_index": 1,
@@ -326,6 +332,7 @@ def test_a_report_handle_for_another_company_is_refused_before_it_is_read(
 
     decisions = ScriptedDecisions(
         _call("find_saved_jobs", query="历史科技甲"),
+        _call("route_to_capability", domain="job"),
         _call("research_job", selection_index=1, focus="competitors"),
         AgentDecision(action="final", message="历史科技甲的调研好了。"),
         _call("find_saved_jobs", query="示例科技"),

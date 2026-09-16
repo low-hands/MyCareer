@@ -25,7 +25,7 @@ from career_agent.harness.capability_steps import (
     CapabilityStep,
     observing_capability_steps,
 )
-from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
@@ -47,6 +47,7 @@ from career_agent.agent.delivery_policy import (
     delivers_body_elsewhere,
     is_failed,
 )
+from career_agent.agent.tool_profiles import profile_tools
 from career_agent.agent.tool_effects import (
     ToolEffect,
     effect_for,
@@ -533,16 +534,11 @@ class MainAgentRuntime:
         self._action_policy_epoch = action_policy_epoch
         self._owned_resources = owned_resources
         self._closed = False
+        self._registered_tool_schemas: tuple[dict[str, Any], ...] | None = None
+        self._profile_tool_schemas: dict[ToolProfile, tuple[dict[str, Any], ...]] = {}
+        self._profile_tool_schema_chars: dict[ToolProfile, int] = {}
         request_token_usage = getattr(decision_maker, "request_token_usage", None)
         if callable(request_token_usage):
-            self._decision_tool_schemas = self._tools.schemas()
-            self._decision_tool_schema_chars = len(
-                json.dumps(
-                    self._decision_tool_schemas,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-            )
 
             def estimate_complete_request(
                 context: MainAgentContext,
@@ -556,7 +552,9 @@ class MainAgentRuntime:
                             )
                         }
                     )
-                return request_token_usage(context, self._decision_tool_schemas)
+                return request_token_usage(
+                    context, self._decision_tool_schemas(context.task.tool_profile)
+                )
 
             static_request_token_usage = getattr(
                 decision_maker, "static_request_token_usage", None
@@ -566,8 +564,14 @@ class MainAgentRuntime:
                     "decision makers that report request token usage must also "
                     "report static request token usage"
                 )
-            static_tokens, max_input_tokens = static_request_token_usage(
-                self._decision_tool_schemas
+            # The message and recent-window caps must not move with the
+            # profile, so they are derived from the largest profile's request.
+            static_tokens, max_input_tokens = max(
+                (
+                    static_request_token_usage(self._decision_tool_schemas(profile))
+                    for profile in TOOL_PROFILE_NAMES
+                ),
+                key=lambda usage: usage[0],
             )
             self._context_manager.configure_request_token_estimator(
                 estimate_complete_request,
@@ -2311,7 +2315,9 @@ class MainAgentRuntime:
         if context.through_sequence < 1 or context.recent_from_sequence is None:
             return {}
         span = explicit_sequence_span(context.user_message)
-        if span is None or not self._offers_tool("read_conversation_span"):
+        if span is None or not self._offers_tool(
+            "read_conversation_span", context.task.tool_profile
+        ):
             return {}
         arguments = {
             "from_sequence": span.from_sequence,
@@ -2330,14 +2336,43 @@ class MainAgentRuntime:
             },
         }
 
-    def _offers_tool(self, name: str) -> bool:
-        """Whether ``name`` is among the tools the model is offered this turn."""
+    def _registered_schemas(self) -> tuple[dict[str, Any], ...]:
+        """Every schema the registry installs, read once and reused."""
 
-        schemas = getattr(self, "_decision_tool_schemas", None)
-        if schemas is None:
-            schemas = self._tools.schemas()
+        if self._registered_tool_schemas is None:
+            self._registered_tool_schemas = tuple(self._tools.schemas())
+        return self._registered_tool_schemas
+
+    def _decision_tool_schemas(
+        self, profile: ToolProfile
+    ) -> tuple[dict[str, Any], ...]:
+        """The schemas offered under ``profile``: its tool set ∩ registered tools.
+
+        The tuple is built once per profile and the same object is handed to
+        the decision maker every time, so its request prefix cache stays warm
+        within a profile and is invalidated exactly at a switch.
+        """
+
+        cached = self._profile_tool_schemas.get(profile)
+        if cached is None:
+            offered = profile_tools(profile)
+            cached = tuple(
+                schema
+                for schema in self._registered_schemas()
+                if schema.get("function", {}).get("name") in offered
+            )
+            self._profile_tool_schemas[profile] = cached
+            self._profile_tool_schema_chars[profile] = len(
+                json.dumps(cached, ensure_ascii=False, sort_keys=True)
+            )
+        return cached
+
+    def _offers_tool(self, name: str, profile: ToolProfile = "core") -> bool:
+        """Whether ``name`` is among the tools the model is offered under ``profile``."""
+
         return any(
-            schema.get("function", {}).get("name") == name for schema in schemas
+            schema.get("function", {}).get("name") == name
+            for schema in self._decision_tool_schemas(profile)
         )
 
     def _run_free_text_preference_confirmation(
@@ -2575,15 +2610,10 @@ class MainAgentRuntime:
                 context=context,
             )
             control["episodes_marked"] = True
-        schemas = getattr(self, "_decision_tool_schemas", None)
-        if schemas is None:
-            schemas = self._tools.schemas()
+        tool_profile = context.task.tool_profile
+        schemas = self._decision_tool_schemas(tool_profile)
         context_chars = decision_context_chars(context)
-        tool_schema_chars = getattr(self, "_decision_tool_schema_chars", None)
-        if tool_schema_chars is None:
-            tool_schema_chars = len(
-                json.dumps(schemas, ensure_ascii=False, sort_keys=True)
-            )
+        tool_schema_chars = self._profile_tool_schema_chars[tool_profile]
         details = {
             "conversation_id": context.conversation_id,
             "conversation_key": conversation_trace_key(
@@ -2597,6 +2627,7 @@ class MainAgentRuntime:
                 context.tool_observations
             ),
             "observation_count": len(context.tool_observations),
+            "tool_profile": tool_profile,
             "offered_tool_count": len(schemas),
             "tool_schema_chars": tool_schema_chars,
         }
@@ -2936,6 +2967,22 @@ class MainAgentRuntime:
         else:
             kind = self._tools.capability_kind(name)
         effect = effect_for(name)
+        # Schema filtering only decides what the model sees; the profile is
+        # enforced here so a tool the model was never offered cannot run from a
+        # remembered name. Runtime-, policy- and owner-sealed actions were not
+        # chosen against a profile and are exempt.
+        model_selected = not (runtime_owned or owner_confirmed or policy_owned)
+        tool_profile = state["context"].task.tool_profile
+        if model_selected and name not in profile_tools(tool_profile):
+            return self._authorization_refusal(
+                state,
+                name=name,
+                reason=f"{name} 不在当前 {tool_profile} 工具档内。",
+                next_action=(
+                    "先用 route_to_capability 切到该工具所属的领域，"
+                    "再从 task.available_now 中选择工具。"
+                ),
+            )
         # Owner rules are an authority beside budgets and reachability, and a
         # confirmed seal is the owner having already exercised it: re-judging
         # here would refuse the very action they just approved, which is how

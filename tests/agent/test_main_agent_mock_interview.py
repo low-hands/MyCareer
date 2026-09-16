@@ -192,7 +192,9 @@ def test_runtime_starts_then_resumes_mock_interview_through_the_main_graph(
     )
     manager.commit_turn(
         context=seed,
-        task=ConversationTaskState(active_application_id=application.id),
+        task=ConversationTaskState(
+            active_application_id=application.id, tool_profile="interview"
+        ),
         assistant_message="已选择投递。",
     )
     graph = FakeMockInterviewGraph()
@@ -378,7 +380,9 @@ def _runtime_with_graph(tmp_path, graph, decision_maker, runtime_class=MainAgent
     )
     manager.commit_turn(
         context=seed,
-        task=ConversationTaskState(active_application_id=application.id),
+        task=ConversationTaskState(
+            active_application_id=application.id, tool_profile="interview"
+        ),
         assistant_message="已选择投递。",
     )
     tools = MainAgentToolRegistry(
