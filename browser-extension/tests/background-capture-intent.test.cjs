@@ -211,3 +211,33 @@ test("an expired binding is dropped instead of sent", async () => {
   assert.equal("capture_intent_id" in requests[0], false);
   assert.deepEqual(Object.keys(session.careerAgentTabIntents), []);
 });
+
+test("concurrent bindings for different tabs are both kept", async () => {
+  const { runtime, session } = background(saveResponse());
+  const second = `capint_${"c".repeat(32)}`;
+
+  await Promise.all([
+    runtime.bindTabIntent(100, { intent_id: INTENT, expires_at: 5_000_000 }),
+    runtime.bindTabIntent(200, { intent_id: second, expires_at: 5_000_000 }),
+  ]);
+
+  assert.equal(session.careerAgentTabIntents["100"].intent_id, INTENT);
+  assert.equal(session.careerAgentTabIntents["200"].intent_id, second);
+});
+
+test("bind, inherit and forget interleaved concurrently converge on the right bindings", async () => {
+  const { runtime, session } = background(saveResponse());
+  const second = `capint_${"c".repeat(32)}`;
+  await runtime.bindTabIntent(100, { intent_id: INTENT, expires_at: 5_000_000 });
+
+  await Promise.all([
+    runtime.inheritTabIntent(100, 101),
+    runtime.bindTabIntent(200, { intent_id: second, expires_at: 5_000_000 }),
+    runtime.forgetTabIntent(100),
+    runtime.inheritTabIntent(200, 201),
+  ]);
+
+  assert.deepEqual(Object.keys(session.careerAgentTabIntents).sort(), ["101", "200", "201"]);
+  assert.equal(session.careerAgentTabIntents["101"].intent_id, INTENT);
+  assert.equal(session.careerAgentTabIntents["201"].intent_id, second);
+});
