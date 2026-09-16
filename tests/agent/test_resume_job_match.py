@@ -31,6 +31,7 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchStateFinding,
 )
 from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.harness.streaming import TurnInputResource
 from career_agent.services.resume_job_match import (
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
@@ -870,3 +871,170 @@ def test_main_agent_match_tool_rejects_model_supplied_user_id(tmp_path) -> None:
             conversation_id="c1",
             user_message="越权匹配",
         )
+
+
+def _resave_job(jobs, saved, description: str):
+    captured_at = datetime(2026, 8, 26, tzinfo=timezone.utc)
+    resaved = jobs.save_detail(
+        user_id="u1",
+        run_id="run-2",
+        result_ref="ref-2",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="test",
+            source_job_id="job-1",
+            title="RAG Engineer",
+            company_name="Acme",
+            description=description,
+            captured_at=captured_at,
+            provenance=Provenance(
+                source_name="test",
+                source_job_id="job-1",
+                captured_at=captured_at,
+                operation="detail",
+                adapter_version="test-v1",
+            ),
+        ),
+    )
+    assert resaved.posting.id == saved.posting.id
+    assert resaved.snapshot.version == saved.snapshot.version + 1
+    return resaved
+
+
+def test_service_matches_the_pinned_jd_version_not_the_latest_recapture(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    worker_stub = RecordingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes, jobs, history, worker_stub, SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3")
+    )
+    resaved = _resave_job(jobs, saved, "PRIVATE JD v2: Now a Rust shop.")
+
+    pinned = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+        jd_snapshot_id=saved.snapshot.id,
+    )
+    assert worker_stub.calls[-1]["jd_text"].startswith("PRIVATE JD: Build production RAG")
+    assert pinned.jd_snapshot_id == saved.snapshot.id
+
+    latest = service.match(
+        user_id="u1",
+        resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert worker_stub.calls[-1]["jd_text"].startswith("PRIVATE JD v2")
+    assert latest.jd_snapshot_id == resaved.snapshot.id
+    assert latest.id != pinned.id
+
+
+def test_service_refuses_a_pin_that_is_not_this_postings_snapshot(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    worker_stub = RecordingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes, jobs, history, worker_stub, SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3")
+    )
+    captured_at = datetime(2026, 8, 25, tzinfo=timezone.utc)
+    other = jobs.save_detail(
+        user_id="u1",
+        run_id="run-3",
+        result_ref="ref-3",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="test",
+            source_job_id="job-2",
+            title="Backend Engineer",
+            company_name="Other",
+            description="PRIVATE JD other",
+            captured_at=captured_at,
+            provenance=Provenance(
+                source_name="test",
+                source_job_id="job-2",
+                captured_at=captured_at,
+                operation="detail",
+                adapter_version="test-v1",
+            ),
+        ),
+    )
+
+    for bad_pin in (other.snapshot.id, "jd_snapshot_missing"):
+        with pytest.raises(ResumeJobMatchInputNotFoundError) as error:
+            service.match(
+                user_id="u1",
+                resume_version_id=version.id,
+                job_posting_id=saved.posting.id,
+                jd_snapshot_id=bad_pin,
+            )
+        assert error.value.input_kind == "jd_snapshot"
+    assert worker_stub.calls == []
+
+
+def test_main_agent_match_reads_the_snapshot_the_capture_attached(tmp_path) -> None:
+    """The extension attaches JD v1; the posting is re-saved as v2 before the
+    user asks for a match. "这个岗位" still means v1."""
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    worker_stub = RecordingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes, jobs, history, worker_stub, SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3")
+    )
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="final", message="已保存，我可以继续做匹配分析。"),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="route_to_capability", arguments={"domain": "resume"}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(
+                name="match_resume_to_job",
+                arguments={"resume_version_selection_index": 1},
+            ),
+        ),
+        AgentDecision(action="final", message="匹配分析如下。"),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(
+            job_repository=jobs, resume_store=resumes, resume_job_match_service=service
+        ),
+    )
+
+    first = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我已经保存了岗位，请基于这份 JD 继续。",
+        input_resources=(TurnInputResource(kind="jd_snapshot", id=saved.snapshot.id),),
+    )
+    assert first.context.task.active_jd_snapshot_id == saved.snapshot.id
+    seeded = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="seed")
+    manager.commit_turn(
+        context=seeded,
+        task=seeded.task.model_copy(
+            update={
+                "resume_version_candidates": (
+                    ResumeVersionCandidateContextItem(
+                        resume_version_id=version.id,
+                        version_number=version.version_number,
+                        source_type=version.source_type,
+                        document_format=version.document_format,
+                        byte_size=version.byte_size,
+                    ),
+                ),
+            }
+        ),
+        assistant_message="seeded",
+    )
+    _resave_job(jobs, saved, "PRIVATE JD v2: Now a Rust shop.")
+
+    second = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="分析一下我和这个岗位的匹配度"
+    )
+
+    match = second.tool_results[-1]
+    assert match.state == "resume_job_match_ready", match
+    assert worker_stub.calls[-1]["jd_text"].startswith("PRIVATE JD: Build production RAG")
+    stored = service.get_match(user_id="u1", match_id=match.payload["match_id"])
+    assert stored.jd_snapshot_id == saved.snapshot.id

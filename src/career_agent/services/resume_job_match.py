@@ -62,6 +62,7 @@ class ResumeJobMatchService:
         user_id: str,
         resume_version_id: str,
         job_posting_id: str,
+        jd_snapshot_id: str | None = None,
     ) -> StoredResumeJobMatch:
         if not user_id.strip() or not resume_version_id.strip() or not job_posting_id.strip():
             raise ValueError("user_id, resume_version_id, and job_posting_id are required")
@@ -77,6 +78,17 @@ class ResumeJobMatchService:
         )
         if job is None:
             raise ResumeJobMatchInputNotFoundError("job_posting")
+        # A pinned JD version is the text the conversation has been talking
+        # about; match against it, not against a later recapture of the
+        # posting. A pin that no longer resolves for this posting is refused
+        # instead of quietly reading the latest.
+        if jd_snapshot_id is not None and jd_snapshot_id != job.snapshot.id:
+            pinned = self._job_repository.get_snapshot(
+                user_id=user_id, jd_snapshot_id=jd_snapshot_id
+            )
+            if pinned is None or pinned.job_posting_id != job.posting.id:
+                raise ResumeJobMatchInputNotFoundError("jd_snapshot")
+            job = job.model_copy(update={"snapshot": pinned, "analysis": None})
 
         intent_states, transitions = self._intent_state(
             user_id=user_id,
