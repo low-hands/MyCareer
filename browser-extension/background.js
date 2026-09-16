@@ -3,8 +3,26 @@ const API_ENDPOINTS = API_HOSTS.map((host) => `${host}/v1/browser-captures/jobs`
 const CLOSURE_ENDPOINTS = API_HOSTS.map(
   (host) => `${host}/v1/browser-captures/job-closures`,
 );
+const APP_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"];
+const APP_TAB_PATTERNS = APP_ORIGINS.map((origin) => `${origin}/*`);
+const INTENT_PATTERN = /^capint_[a-f0-9]{32}$/;
+// Intents are bound to BOSS *tabs*, never written into a BOSS URL. Session
+// storage outlives a service-worker restart but not the browser, which is
+// also the lifetime of the tabs it describes.
+const TAB_INTENTS_KEY = "careerAgentTabIntents";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "CAREER_AGENT_OPEN_JOB_SEARCH") {
+    openJobSearch(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({
+        ok: false,
+        code: error.code || "OPEN_FAILED",
+        message: error.message || "无法打开搜索页",
+      }));
+    return true;
+  }
+
   if (message?.type === "CAREER_AGENT_SET_CAPTURE_CREDENTIAL") {
     const apiKey = String(message.api_key || "").trim();
     if (!apiKey.startsWith("cak_")) {
@@ -40,6 +58,114 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+// BOSS opens details in new tabs; a tab spawned from a bound tab inherits its
+// intent so the save made two clicks later still knows which search it came
+// from. Removing a tab drops its binding.
+if (typeof chrome !== "undefined" && chrome.tabs?.onCreated) {
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (tab.openerTabId === undefined || tab.id === undefined) return;
+    inheritTabIntent(tab.openerTabId, tab.id).catch(() => undefined);
+  });
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    forgetTabIntent(tabId).catch(() => undefined);
+  });
+}
+
+/** Open the agent's BOSS search in a fresh tab bound to its capture intent.
+ *
+ * Only the Career Agent page may ask, and only for a BOSS URL. The intent id
+ * is kept beside the tab id here and is never appended to the URL BOSS sees.
+ */
+async function openJobSearch(message, sender) {
+  const senderUrl = sender.tab?.url || sender.url || "";
+  if (!isAppUrl(senderUrl)) {
+    throw captureError("UNTRUSTED_PAGE", "只能从 Career Agent 页面打开搜索");
+  }
+  const url = String(message.url || "");
+  if (!isBossUrl(url)) {
+    throw captureError("UNTRUSTED_URL", "只能打开 BOSS 直聘的搜索页");
+  }
+  const intentId = message.capture_intent_id ? String(message.capture_intent_id) : null;
+  if (intentId !== null && !INTENT_PATTERN.test(intentId)) {
+    throw captureError("INVALID_INTENT", "采集任务标识无效");
+  }
+  const tab = await chrome.tabs.create({ url, active: true });
+  if (intentId !== null && tab?.id !== undefined) {
+    const expiresAt = Date.parse(String(message.capture_intent_expires_at || ""));
+    await bindTabIntent(tab.id, {
+      intent_id: intentId,
+      expires_at: Number.isFinite(expiresAt) ? expiresAt : Date.now() + 2 * 60 * 60 * 1000,
+    });
+  }
+  return { tab_id: tab?.id ?? null, bound: intentId !== null };
+}
+
+async function readTabIntents() {
+  if (!chrome.storage?.session) return {};
+  const stored = await chrome.storage.session.get(TAB_INTENTS_KEY);
+  const intents = stored?.[TAB_INTENTS_KEY];
+  return intents && typeof intents === "object" ? { ...intents } : {};
+}
+
+async function bindTabIntent(tabId, binding) {
+  const intents = await readTabIntents();
+  intents[String(tabId)] = binding;
+  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+}
+
+async function inheritTabIntent(openerTabId, tabId) {
+  const intents = await readTabIntents();
+  const binding = intents[String(openerTabId)];
+  if (!binding) return;
+  intents[String(tabId)] = binding;
+  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+}
+
+async function forgetTabIntent(tabId) {
+  const intents = await readTabIntents();
+  if (!(String(tabId) in intents)) return;
+  delete intents[String(tabId)];
+  await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+}
+
+/** The live intent bound to the tab a save came from, or null. */
+async function tabIntentFor(sender) {
+  const tabId = sender.tab?.id;
+  if (tabId === undefined) return null;
+  const intents = await readTabIntents();
+  const binding = intents[String(tabId)];
+  if (!binding || !INTENT_PATTERN.test(String(binding.intent_id))) return null;
+  if (Number.isFinite(binding.expires_at) && binding.expires_at <= Date.now()) {
+    await forgetTabIntent(tabId);
+    return null;
+  }
+  return String(binding.intent_id);
+}
+
+/** Wake any open Career Agent page so it fetches the durable event now
+ * instead of on its next poll. Best effort: with no page open the event
+ * simply waits on the backend. */
+async function notifyAppPages(body) {
+  if (!body?.conversation_id || !body?.capture_event_id) return;
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: APP_TAB_PATTERNS });
+  } catch {
+    return;
+  }
+  await Promise.all(
+    tabs.map((tab) =>
+      tab.id === undefined
+        ? Promise.resolve()
+        : chrome.tabs.sendMessage(tab.id, {
+            type: "CAREER_AGENT_JOB_CAPTURED",
+            conversation_id: body.conversation_id,
+            capture_event_id: body.capture_event_id,
+          }).catch(() => undefined),
+    ),
+  );
+}
+
 async function saveJob(job, sender) {
   const senderUrl = sender.tab?.url || "";
   if (!isBossUrl(senderUrl) || !job || !isBossUrl(job.source_url)) {
@@ -64,6 +190,11 @@ async function saveJob(job, sender) {
   if (!payload.title || !payload.company_name || !payload.description) {
     throw captureError("INCOMPLETE_JOB", "当前页面还没有加载出完整岗位详情");
   }
+  // Read from the sender's tab, not from anything the page could supply: a
+  // job saved from the user's own browsing has no intent and stays a plain
+  // library save.
+  const intentId = await tabIntentFor(sender);
+  if (intentId !== null) payload.capture_intent_id = intentId;
 
   let lastError = null;
   for (const endpoint of API_ENDPOINTS) {
@@ -79,6 +210,7 @@ async function saveJob(job, sender) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw captureError("API_REJECTED", body.detail || `保存失败（HTTP ${response.status}）`);
+      if (body.capture_event_created) await notifyAppPages(body);
       return body;
     } catch (error) {
       lastError = error;
@@ -128,6 +260,14 @@ async function reportClosed(sourceUrl, sender) {
   }
   if (lastError?.code === "API_REJECTED") throw lastError;
   throw captureError("API_UNREACHABLE", "无法连接本地 Career Agent，请确认后端已启动");
+}
+
+function isAppUrl(value) {
+  try {
+    return APP_ORIGINS.includes(new URL(value).origin);
+  } catch {
+    return false;
+  }
 }
 
 function isBossUrl(value) {

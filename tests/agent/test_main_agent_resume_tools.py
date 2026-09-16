@@ -97,7 +97,7 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="我有哪些 AI Engineer 简历和版本？")
 
-    assert tools.names == ("open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
+    assert tools.names == ("route_to_capability", "open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     role_observation = result.tool_results[0]
     assert role_observation.payload["items"] == [{

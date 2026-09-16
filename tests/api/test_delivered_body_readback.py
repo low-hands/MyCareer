@@ -18,9 +18,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,
-    ToolResult,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerRecord,
     ResumeAnalysisResult,
@@ -133,15 +131,16 @@ def test_source_card_reads_current_job_without_copying_body_or_model_refs(
     tmp_path, api_keys, auth, issue_key
 ):
     saved = _job(tmp_path)
-    result = ToolResult(
-        tool_name="get_saved_job",
-        state="saved_job_ready",
-        message="已读取岗位",
-        body_source=SavedJobBodySource(job_posting_id=saved.posting.id),
+    # Legacy source-backed row; its handle still reads the current posting.
+    draft = DeliveredBodyDraft(
+        kind="saved_job_ready",
+        title="岗位描述原文",
+        retention="source",
+        body="",
+        source=SavedJobBodySource(job_posting_id=saved.posting.id),
+        dependencies=(BodyDependency(kind="job", resource_id=saved.posting.id),),
     )
-    body_id = _store_body(
-        tmp_path, MainAgentRuntime._delivered_bodies((result,))[0], turn_id="t1"
-    )
+    body_id = _store_body(tmp_path, draft, turn_id="t1")
     changed = _job(tmp_path, "更新后的岗位描述")
     assert changed.posting.id == saved.posting.id
     reader = WorkspaceReader(_args(tmp_path))

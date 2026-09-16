@@ -63,6 +63,10 @@ def test_the_resource_contract_covers_every_card_reader_kind() -> None:
         # user message. It is opened through the resume document route rather
         # than a card reader, and never appears on an assistant message.
         "resume_version",
+        # An immutable JD snapshot of a saved job, attached to the assistant
+        # message that read it. Opened through the jd-snapshot route by
+        # ``resource_id``, so the card keeps showing the version it analysed.
+        "saved_job",
     }
     # The original three also have entity-keyed model routes after their
     # archived reference leaves the bounded prompt catalogue. The newer three

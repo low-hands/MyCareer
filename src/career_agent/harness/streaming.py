@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping
+from datetime import datetime
 from hashlib import sha256
 from typing import Annotated, Literal, Protocol, TypeAlias
 
@@ -88,13 +89,18 @@ class InteractionResponse(StreamContract):
 class TurnInputResource(StreamContract):
     """A durable user asset the message is about, named by id rather than prose.
 
-    Only ``resume_version`` exists for now: the exact immutable version the
-    user attached, which the runtime verifies belongs to the authenticated
-    user before any of it reaches the model. The id is never trusted from the
-    message text, and the file itself never travels in the request.
+    ``resume_version`` is the exact immutable version the user attached;
+    ``job_posting`` is a saved job the message is about; ``jd_snapshot`` is one
+    exact JD version of a saved job, as when the page continues a conversation
+    with the snapshot just captured from a search the agent opened, so the
+    conversation stays pinned to that version even after the posting is
+    captured again. Either way the runtime verifies the id belongs to the
+    authenticated user before any of it reaches the model: the id is never
+    trusted from the message text, and the asset itself never travels in the
+    request.
     """
 
-    kind: Literal["resume_version"]
+    kind: Literal["resume_version", "job_posting", "jd_snapshot"]
     id: str = Field(min_length=1, max_length=200)
 
 
@@ -181,11 +187,37 @@ class ReportReadyEvent(StreamContract):
     anchored_by_other_job: bool | None = None
 
 
+class JobResourceReadyEvent(StreamContract):
+    """A saved-job card attached to the assistant message, after its prose.
+
+    ``resource_id`` is the immutable ``jd_snapshot_id``: the card opens the JD
+    version this turn read, not whatever the posting holds later. The title and
+    description are a display snapshot so the card can still name the job once
+    the posting is deleted; the JD text itself is fetched on demand.
+    """
+
+    type: Literal["job_resource_ready"] = "job_resource_ready"
+    kind: Literal["saved_job"] = "saved_job"
+    resource_id: str = Field(min_length=1, max_length=200)
+    job_posting_id: str = Field(min_length=1, max_length=200)
+    title: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class ClientActionEvent(StreamContract):
     type: Literal["client_action"] = "client_action"
     action: Literal["open_url"]
     url: str = Field(pattern=r"^https://", max_length=2000)
     label: str = Field(min_length=1, max_length=240)
+    capture_intent_id: str | None = Field(
+        default=None, pattern=r"^capint_[a-f0-9]{32}$"
+    )
+    """Opaque handle the page passes to the extension over the local bridge.
+
+    Deliberately separate from ``url``: it must never reach the site being
+    opened, and the page is the only party that may hand it to the extension.
+    """
+    capture_intent_expires_at: datetime | None = None
 
 
 class TurnSuspendedEvent(StreamContract):
@@ -216,6 +248,7 @@ PublicStreamEvent: TypeAlias = Annotated[
     | ContentDeltaEvent
     | ArtifactReadyEvent
     | ReportReadyEvent
+    | JobResourceReadyEvent
     | ClientActionEvent
     | TurnSuspendedEvent
     | TurnCompletedEvent

@@ -109,10 +109,22 @@ export type PublicStreamEvent =
       anchored_by_other_job?: boolean | null;
     }
   | {
+      type: "job_resource_ready";
+      kind: "saved_job";
+      /** The immutable `jd_snapshot_id` the card opens, not the posting. */
+      resource_id: string;
+      job_posting_id: string;
+      title?: string | null;
+      description?: string | null;
+    }
+  | {
       type: "client_action";
       action: "open_url";
       url: string;
       label: string;
+      /** Opaque capture intent to bind to the opened tab; never part of `url`. */
+      capture_intent_id?: string | null;
+      capture_intent_expires_at?: string | null;
     }
   | {
       type: "turn_suspended";
@@ -137,6 +149,7 @@ export const EVENT_TYPES = [
   "content_delta",
   "artifact_ready",
   "report_ready",
+  "job_resource_ready",
   "client_action",
   "turn_suspended",
   "turn_completed",
@@ -234,11 +247,25 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
         throw new Error("SSE_EVENT_INVALID");
       }
       break;
+    case "job_resource_ready":
+      if (
+        value.kind !== "saved_job" ||
+        typeof value.resource_id !== "string" ||
+        typeof value.job_posting_id !== "string" ||
+        (value.title != null && typeof value.title !== "string") ||
+        (value.description != null && typeof value.description !== "string")
+      ) {
+        throw new Error("SSE_EVENT_INVALID");
+      }
+      break;
     case "client_action":
       if (
         value.action !== "open_url" ||
         typeof value.url !== "string" ||
-        typeof value.label !== "string"
+        typeof value.label !== "string" ||
+        (value.capture_intent_id != null && typeof value.capture_intent_id !== "string") ||
+        (value.capture_intent_expires_at != null &&
+          typeof value.capture_intent_expires_at !== "string")
       ) {
         throw new Error("SSE_EVENT_INVALID");
       }

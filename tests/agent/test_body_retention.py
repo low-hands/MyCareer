@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.delivered_body_contracts import SavedJobBodySource
 from career_agent.agent.delivery_policy import DELIVERY_POLICIES
 from career_agent.agent.main_agent_contracts import (
+    ConversationResourceReference,
     ConversationSpanMessage,
     ConversationSpanView,
+    ToolObservation,
     ToolResult,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -22,7 +23,6 @@ def test_only_snapshots_and_entity_handles_are_retained() -> None:
         "saved_jobs_compared": "snapshot",
         "resume_analysis_ready": "source",
         "mock_interview_question_found": "source",
-        "saved_job_ready": "source",
     }
 
 
@@ -64,18 +64,23 @@ def test_none_retention_keeps_live_readback_without_a_second_persistent_copy(
     assert MainAgentRuntime._delivered_bodies((output,)) == ()
 
 
-def test_source_metadata_stays_internal_and_only_the_handle_is_persisted() -> None:
-    output = ToolResult(
+def test_a_saved_jd_is_the_models_observation_and_the_readers_card_only() -> None:
+    output = ToolObservation(
         tool_name="get_saved_job",
         state="saved_job_ready",
         message="已读取岗位。",
-        payload={"jd_snapshot": {"content": "LIVE JD BODY"}},
-        body_source=SavedJobBodySource(job_posting_id="internal-job-id"),
+        payload={"jd_snapshot": {"id": "jds_1", "content": "LIVE JD BODY"}},
+        resource_ref=ConversationResourceReference(
+            kind="saved_job",
+            resource_id="jds_1",
+            job_posting_id="internal-job-id",
+            title="示例公司｜工程师",
+            description="JD 第 1 版 · test",
+        ),
     )
-    assert "internal-job-id" not in output.model_dump_json()
-    assert "body_source" not in output.model_dump()
-    assert "LIVE JD BODY" in MainAgentRuntime._undelivered_bodies((output,))
-    bodies = MainAgentRuntime._delivered_bodies((output,))
-    assert len(bodies) == 1 and bodies[0].body == ""
-    assert bodies[0].source == output.body_source
-    assert bodies[0].dependencies[0].resource_id == "internal-job-id"
+    observation = MainAgentRuntime._tool_observation("get_saved_job", output)
+    assert observation.body is not None and "LIVE JD BODY" in observation.body
+    assert "LIVE JD BODY" not in MainAgentRuntime._undelivered_bodies((output,))
+    assert MainAgentRuntime._delivered_bodies((output,)) == ()
+    assert MainAgentRuntime._turn_is_card_backed((output,))
+    assert MainAgentRuntime._turn_resource_refs((output,)) == (output.resource_ref,)

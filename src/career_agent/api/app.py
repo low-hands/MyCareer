@@ -64,6 +64,11 @@ from career_agent.storage.connector_secrets import KeyringConnectorSecretStore
 from career_agent.storage.oauth_flows import SQLiteOAuthFlowStore
 from career_agent.storage.email_tracking import SQLiteEmailTrackingStore
 from career_agent.storage.calendar import SQLiteCalendarStore
+from career_agent.storage.job_captures import (
+    JobCaptureStore,
+    JobCapturedEvent,
+    SQLiteJobCaptureStore,
+)
 from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
 
 
@@ -116,6 +121,16 @@ class BrowserJobCaptureRequest(BaseModel):
     salary: str | None = Field(default=None, max_length=200)
     experience: str | None = Field(default=None, max_length=200)
     education: str | None = Field(default=None, max_length=200)
+    capture_intent_id: str | None = Field(
+        default=None, pattern=r"^capint_[a-f0-9]{32}$"
+    )
+    """The search this save came from, when the agent opened it.
+
+    Optional on purpose: a job saved from the user's own browsing has no
+    intent and goes into the library alone. A stale, foreign, or unknown
+    intent is treated the same way rather than refused, so the save itself
+    never fails over correlation.
+    """
 
 
 class BrowserJobCaptureResponse(BaseModel):
@@ -126,6 +141,49 @@ class BrowserJobCaptureResponse(BaseModel):
     snapshot_version: int
     title: str
     company_name: str
+    conversation_id: str | None = None
+    """The conversation the agent will continue in, when a live intent matched."""
+    capture_event_id: str | None = None
+    capture_event_created: bool = False
+    """False when this posting was already recorded under the same intent."""
+
+
+class JobCapturedEventView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    conversation_id: str
+    job_posting_id: str
+    jd_snapshot_id: str
+    title: str
+    company_name: str
+    created_at: datetime
+
+    @classmethod
+    def from_event(cls, event: JobCapturedEvent) -> "JobCapturedEventView":
+        return cls(
+            id=event.id,
+            conversation_id=event.conversation_id,
+            job_posting_id=event.job_posting_id,
+            jd_snapshot_id=event.jd_snapshot_id,
+            title=event.title,
+            company_name=event.company_name,
+            created_at=event.created_at,
+        )
+
+
+class JobCapturedEventsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    events: tuple[JobCapturedEventView, ...]
+
+
+class JobCapturedEventAckResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str
+    acknowledged: bool
+    """False when the event was unknown, another user's, or already acknowledged."""
 
 
 class OwnerSettingsPatchRequest(BaseModel):
@@ -339,6 +397,11 @@ def build_capture_repository() -> JobPostingRepository:
     return SQLiteJobPostingRepository(Path(args.job_store).expanduser())
 
 
+def build_job_capture_store() -> JobCaptureStore:
+    args = _runtime_args_from_env()
+    return SQLiteJobCaptureStore(Path(args.job_store).expanduser())
+
+
 def build_owner_settings_store() -> CareerContextStore:
     args = _runtime_args_from_env()
     return CareerContextStore(Path(args.context_store).expanduser())
@@ -486,6 +549,7 @@ def create_app(
     runtime_factory: Callable[[], MainAgentRuntime] | None = None,
     api_key_store_factory: Callable[[], ApiKeyStore] | None = None,
     capture_repository_factory: Callable[[], JobPostingRepository] | None = None,
+    job_capture_store_factory: Callable[[], JobCaptureStore] | None = None,
     action_center_factory: Callable[[], ActionCenterService] | None = None,
     workspace_reader_factory: Callable[[], WorkspaceReader] | None = None,
     integration_service_factory: Callable[[], IntegrationConnectionService] | None = None,
@@ -508,6 +572,7 @@ def create_app(
         raise ValueError("shutdown_drain_seconds must be a finite, non-negative number")
     factory = runtime_factory or build_api_runtime
     capture_factory = capture_repository_factory or build_capture_repository
+    capture_store_factory = job_capture_store_factory or build_job_capture_store
     # Read endpoints are built eagerly and separately from the agent runtime:
     # they need no model configuration, so a dashboard stays usable on a machine
     # where the worker keys are missing and /ready is reporting a failure.
@@ -571,6 +636,7 @@ def create_app(
             # ``authenticate`` refuses every request rather than assuming a default.
             app.state.api_key_store = key_store_factory()
             app.state.capture_repository = None
+            app.state.job_capture_store = None
             app.state.owner_settings_store = None
             app.state.action_center = None
             yield
@@ -899,13 +965,82 @@ def create_app(
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
-        return BrowserJobCaptureResponse(
+        response = BrowserJobCaptureResponse(
             job_posting_id=saved.posting.id,
             jd_snapshot_id=saved.snapshot.id,
             snapshot_version=saved.snapshot.version,
             title=saved.posting.title,
             company_name=saved.posting.company_name,
         )
+        if request.capture_intent_id is None:
+            return response
+        # Ownership is checked inside the store: an intent another user
+        # created, or one that has expired, reads as no intent at all, and the
+        # save stays an ordinary library save.
+        intent = _job_capture_store().get_live_intent(
+            user_id=principal.user_id,
+            intent_id=request.capture_intent_id,
+        )
+        if intent is None:
+            return response
+        recording = _job_capture_store().record_capture(
+            intent=intent,
+            job_posting_id=saved.posting.id,
+            jd_snapshot_id=saved.snapshot.id,
+            title=saved.posting.title,
+            company_name=saved.posting.company_name,
+        )
+        return response.model_copy(
+            update={
+                "conversation_id": recording.event.conversation_id,
+                "capture_event_id": recording.event.id,
+                "capture_event_created": recording.created,
+            }
+        )
+
+    def _job_capture_store() -> JobCaptureStore:
+        store: JobCaptureStore | None = application.state.job_capture_store
+        if store is None:
+            store = capture_store_factory()
+            application.state.job_capture_store = store
+        return store
+
+    @application.get(
+        "/v1/job-captures/events",
+        response_model=JobCapturedEventsResponse,
+    )
+    async def pending_job_captures(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        conversation_id: str | None = None,
+    ) -> JobCapturedEventsResponse:
+        """Captures the agent has not yet been told about, oldest first.
+
+        Durable on purpose: the page that opened the search may have been
+        closed when the save happened, and the next page to open reads the
+        same list. Nothing is consumed by reading; the page acknowledges an
+        event only once the follow-up turn has actually started.
+        """
+        events = _job_capture_store().list_pending_events(
+            user_id=principal.user_id,
+            conversation_id=conversation_id or None,
+        )
+        return JobCapturedEventsResponse(
+            events=tuple(JobCapturedEventView.from_event(event) for event in events)
+        )
+
+    @application.post(
+        "/v1/job-captures/events/{event_id}/ack",
+        response_model=JobCapturedEventAckResponse,
+    )
+    async def acknowledge_job_capture(
+        event_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(CHAT_WRITE)),
+    ) -> JobCapturedEventAckResponse:
+        acknowledged = _job_capture_store().acknowledge_event(
+            user_id=principal.user_id,
+            event_id=event_id,
+        )
+        return JobCapturedEventAckResponse(event_id=event_id, acknowledged=acknowledged)
 
     return application
 

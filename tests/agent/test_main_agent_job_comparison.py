@@ -59,6 +59,7 @@ class Jobs:
             salary=None if job_posting_id == "job-2" else "30-50K",
             availability_status="active",
             snapshot=SimpleNamespace(
+                id=f"jds-{job_posting_id}",
                 version=1,
                 content="负责 AI 平台研发与评估。",
                 captured_at=NOW,

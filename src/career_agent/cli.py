@@ -88,6 +88,7 @@ from career_agent.storage.interview_preparations import SQLiteInterviewPreparati
 from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.job_captures import SQLiteJobCaptureStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository, StoredJobRecord, StoredJobSummary
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
@@ -290,6 +291,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,
+            job_capture_store=SQLiteJobCaptureStore(Path(args.job_store).expanduser()),
             job_research_service=job_research_service,
             resume_store=resume_store,
             career_history_store=career_history_store,

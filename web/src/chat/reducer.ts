@@ -33,6 +33,8 @@ export interface MessageResource {
   available?: boolean | null;
   /** Set for a `resume_version` whose resume still exists, for the document link. */
   resumeId?: string | null;
+  /** The posting a `saved_job` card's pinned JD version belongs to. */
+  jobPostingId?: string | null;
 }
 
 export interface ChatMessage {
@@ -205,6 +207,24 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         resourceId: event.resource_id,
         statusAtDelivery: event.status_at_delivery,
         anchoredByOtherJob: event.anchored_by_other_job,
+      };
+      return {
+        ...state,
+        messages: state.messages.map((message) =>
+          message.id === state.activeAssistantMessageId
+            ? { ...message, resources: withResource(message.resources ?? [], resource) }
+            : message,
+        ),
+      };
+    }
+    case "job_resource_ready": {
+      const resource: MessageResource = {
+        kind: event.kind,
+        resourceId: event.resource_id,
+        jobPostingId: event.job_posting_id,
+        title: event.title,
+        description: event.description,
+        available: true,
       };
       return {
         ...state,

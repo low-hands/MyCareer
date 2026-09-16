@@ -14,7 +14,10 @@ from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
     ResumeAnalysisBodySource,
-    SavedJobBodySource,
+)
+from career_agent.agent.input_resources import (
+    saved_job_description,
+    saved_job_title,
 )
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewGraphResult,
@@ -48,6 +51,7 @@ from career_agent.agent.main_agent_contracts import (
     RecordInterviewRetroToolArguments,
     ReadConversationSpanToolArguments,
     ResolveClaimSourceToolArguments,
+    RouteToCapabilityToolArguments,
     GetCareerMemoryDetailToolArguments,
     SearchCareerMemoryToolArguments,
     SearchCareerEpisodesToolArguments,
@@ -211,6 +215,7 @@ from career_agent.services.resume_tailoring import (
     ResumeTailoringService,
     ResumeTailoringSupersededError,
 )
+from career_agent.storage.job_captures import JobCaptureStore
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.context import CareerProfileStore
@@ -299,6 +304,7 @@ class MainAgentToolRegistry:
         episode_store: SQLiteCareerEpisodeStore | None = None,
         semantic_evidence_cache: SemanticEvidenceCache | None = None,
         working_notes_store: WorkingNotesStore | None = None,
+        job_capture_store: JobCaptureStore | None = None,
     ) -> None:
         self._workflow_handlers: dict[str, Callable[[dict[str, Any]], MainAgentToolOutput]] = {}
         # Workflow continuations are runtime-owned capabilities. They share the
@@ -309,6 +315,7 @@ class MainAgentToolRegistry:
             str, Callable[[dict[str, Any]], MainAgentToolOutput]
         ] = {}
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
+            "route_to_capability": self._route_to_capability,
             "open_job_search": self._open_job_search,
         }
         if career_profile_store is not None:
@@ -351,6 +358,7 @@ class MainAgentToolRegistry:
         self._episode_store = episode_store
         self._semantic_evidence_cache = semantic_evidence_cache
         self._working_notes_store = working_notes_store
+        self._job_capture_store = job_capture_store
         self._canonical_scope_resolver = CanonicalScopeResolver()
         if conversation_store is not None:
             self._atomic_handlers["read_conversation_span"] = (
@@ -687,8 +695,34 @@ class MainAgentToolRegistry:
         """The store that owns resume versions, for the runtime to verify inputs against."""
         return self._resume_store
 
+    @property
+    def job_repository(self) -> JobPostingRepository | None:
+        """The repository that owns saved jobs, for the runtime to verify inputs against."""
+        return self._job_repository
+
     def schemas(self) -> tuple[dict[str, Any], ...]:
-        schemas = []
+        schemas: list[dict[str, Any]] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "route_to_capability",
+                    "description": (
+                        "Switch the tool profile to the domain the user's current "
+                        "request belongs to: job (saved jobs, comparison, company "
+                        "research), resume (analysis, job match, tailoring, "
+                        "export), application (applications, status, email "
+                        "events), interview (rounds, preparation, retro, calendar, "
+                        "mock interview) or memory (career facts, preferences, "
+                        "amendments, deletions). task.tool_profile shows the "
+                        "current profile and task.available_now the tools usable "
+                        "in it; route before working in a domain the profile does "
+                        "not cover, once per domain, and route to core when the "
+                        "domain's work is done. Routing changes no data."
+                    ),
+                    "parameters": RouteToCapabilityToolArguments.model_json_schema(),
+                },
+            }
+        ]
         if self._conversation_store is not None:
             schemas.append(
                 {
@@ -3193,7 +3227,15 @@ class MainAgentToolRegistry:
         )
 
     def _open_job_search(self, arguments: dict[str, Any]) -> ToolObservation:
-        model_arguments = OpenJobSearchToolArguments.model_validate(arguments)
+        user_id = arguments.get("user_id")
+        conversation_id = arguments.get("conversation_id")
+        model_arguments = OpenJobSearchToolArguments.model_validate(
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "conversation_id"}
+            }
+        )
         keyword = model_arguments.keyword.strip()
         city = model_arguments.city.strip() if model_arguments.city else None
         query = keyword
@@ -3209,6 +3251,24 @@ class MainAgentToolRegistry:
             params["query"] = f"{city} {keyword}"
         search_url = f"https://www.zhipin.com/web/geek/job?{urlencode(params)}"
         scope = f"（{city}）" if city else ""
+        client_action: dict[str, Any] = {
+            "type": "open_url",
+            "url": search_url,
+            "label": f"在 BOSS 搜索 {keyword}",
+        }
+        if self._job_capture_store is not None and user_id and conversation_id:
+            # The intent rides beside the URL, never inside it: the page hands
+            # it to the extension over the local bridge, so BOSS never sees it
+            # and a pasted link cannot impersonate this conversation.
+            intent = self._job_capture_store.create_intent(
+                user_id=str(user_id),
+                conversation_id=str(conversation_id),
+                platform="boss",
+                keyword=keyword,
+                city=city,
+            )
+            client_action["capture_intent_id"] = intent.id
+            client_action["capture_intent_expires_at"] = intent.expires_at.isoformat()
         return ToolObservation(
             tool_name="open_job_search",
             state="job_search_page_ready",
@@ -3220,11 +3280,7 @@ class MainAgentToolRegistry:
                 "platform": "boss",
                 "keyword": keyword,
                 "city": city,
-                "client_action": {
-                    "type": "open_url",
-                    "url": search_url,
-                    "label": f"在 BOSS 搜索 {keyword}",
-                },
+                "client_action": client_action,
             },
             # This capability commits the client action into the turn result;
             # it does not claim the remote page itself loaded successfully.
@@ -3503,8 +3559,13 @@ class MainAgentToolRegistry:
         if self._job_repository is None:
             raise ValueError("Saved-job repository is not configured")
         user_id = str(arguments["user_id"])
+        pinned_snapshot_id = arguments.get("jd_snapshot_id")
         model_arguments = GetSavedJobToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", "jd_snapshot_id"}
+            }
         )
         record = self._job_repository.get_job(user_id=user_id, job_posting_id=model_arguments.job_posting_id)
         if record is None:
@@ -3514,6 +3575,18 @@ class MainAgentToolRegistry:
                 message="没有找到这个已保存职位，或它不属于当前用户。",
                 payload={"job_posting_id": model_arguments.job_posting_id},
             )
+        # The conversation pinned a JD version; read that one, not the latest
+        # capture, so "this job" means the text the earlier turn showed. A pin
+        # that no longer resolves (or names another posting) falls back to the
+        # latest rather than failing the read.
+        if isinstance(pinned_snapshot_id, str) and pinned_snapshot_id != record.snapshot.id:
+            pinned = self._job_repository.get_snapshot(
+                user_id=user_id, jd_snapshot_id=pinned_snapshot_id
+            )
+            if pinned is not None and pinned.job_posting_id == record.posting.id:
+                record = record.model_copy(
+                    update={"snapshot": pinned, "analysis": None}
+                )
         payload = {
             "job": {
                 "job_posting_id": record.posting.id,
@@ -3526,6 +3599,7 @@ class MainAgentToolRegistry:
                 "availability_status": record.availability_status,
             },
             "jd_snapshot": {
+                "id": record.snapshot.id,
                 "version": record.snapshot.version,
                 "content": record.snapshot.content,
                 "captured_at": record.snapshot.captured_at.isoformat(),
@@ -3536,9 +3610,23 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="get_saved_job",
             state="saved_job_ready",
-            body_source=SavedJobBodySource(job_posting_id=record.posting.id),
             message=f"已读取 {record.posting.title}（{record.posting.company_name}）的完整 JD。",
             payload=payload,
+            # Pinned to the snapshot, not the posting: the posting may be
+            # captured again later, and this turn's card has to keep opening
+            # the text this turn read. Title and description are a display
+            # snapshot so the card still names the job once the posting is gone.
+            resource_ref=ConversationResourceReference(
+                kind="saved_job",
+                resource_id=record.snapshot.id,
+                job_posting_id=record.posting.id,
+                title=saved_job_title(
+                    record.posting.title, record.posting.company_name
+                ),
+                description=saved_job_description(
+                    record.snapshot.version, record.posting.source_name
+                ),
+            ),
         )
 
     def _list_target_roles(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -4984,6 +5072,29 @@ class MainAgentToolRegistry:
             message=clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT),
             payload={"proposal": proposal.model_dump(mode="json")},
             execution_outcome="not_committed",
+        )
+
+    @staticmethod
+    def _route_to_capability(arguments: dict[str, Any]) -> ToolObservation:
+        current = arguments.get("current_tool_profile")
+        model_arguments = RouteToCapabilityToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "current_tool_profile"}
+        )
+        domain = model_arguments.domain
+        if current == domain:
+            return ToolObservation(
+                tool_name="route_to_capability",
+                state="tool_profile_unchanged",
+                message=f"当前已在 {domain} 工具档。",
+                next_action="直接使用 task.available_now 中的工具，不要重复路由。",
+                payload={"tool_profile": domain},
+            )
+        return ToolObservation(
+            tool_name="route_to_capability",
+            state="tool_profile_switched",
+            message=f"工具档已切换为 {domain}。",
+            next_action="根据更新后的 task.available_now 选择下一步工具。",
+            payload={"tool_profile": domain},
         )
 
     def _update_working_notes(self, arguments: dict[str, Any]) -> ToolObservation:

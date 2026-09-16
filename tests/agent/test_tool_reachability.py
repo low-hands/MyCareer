@@ -39,6 +39,10 @@ def _registry() -> MainAgentToolRegistry:
         job_research_service=object(),
         job_comparison_service=object(),
         conversation_store=object(),
+        career_history_store=object(),
+        episode_store=object(),
+        working_notes_store=object(),
+        owner_settings_store=object(),
     )
 
 

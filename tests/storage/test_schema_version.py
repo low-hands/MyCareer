@@ -88,6 +88,7 @@ DECLARED_VERSIONS = {
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
+    "job_captures": 1,
     "job_research": 2,
     "run_events": 2,
     "career_episodes": 8,

@@ -30,7 +30,7 @@ from career_agent.storage.action_executions import (
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
-from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse
+from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent
 
 
 class DecisionMaker:
@@ -38,7 +38,7 @@ class DecisionMaker:
         self.decision = decision
 
     def decide(self, context, tool_names):
-        assert tuple(spec["function"]["name"] for spec in tool_names) == ("open_job_search",)
+        assert tuple(spec["function"]["name"] for spec in tool_names) == ("route_to_capability", "open_job_search")
         return self.decision
 
 
@@ -805,11 +805,12 @@ def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     )
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("open_job_search",)
+    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search")
     assert [spec["function"]["name"] for spec in tools.schemas()] == [
-        "open_job_search"
+        "route_to_capability",
+        "open_job_search",
     ]
-    description = tools.schemas()[0]["function"]["description"]
+    description = tools.schemas()[1]["function"]["description"]
     assert "ask for the city instead of guessing or searching nationwide" in description
     assert result.tool_results[0].state == "job_search_page_ready"
     action = next(event for event in events if isinstance(event, ClientActionEvent))
@@ -873,7 +874,7 @@ def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
     tools = MainAgentToolRegistry(job_repository=repository)
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
     assert tools.capability_kind("open_job_search") == "atomic_tool"
     assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
 
@@ -2736,31 +2737,32 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
     """The card ceiling is a property of the turn, and three forks must agree.
 
     ``_present`` learned this when the reply limit was fixed; the other two
-    forks kept asking ``tool_results[-1]``. A turn that reads a JD (no card) and
-    then a research report (card) ends with a card-backed last result, so:
+    forks kept asking ``tool_results[-1]``. A turn that reads a memory detail
+    (no card) and then a research report (card) ends with a card-backed last
+    result, so:
 
-    * the stream handed delivery to the card and never wrote the JD out — the
-      body had nowhere else to go, so it was simply lost;
+    * the stream handed delivery to the card and never wrote the detail out —
+      the body had nowhere else to go, so it was simply lost;
     * the row re-clamped an already-bounded reply to card length, storing 600
       characters of an answer the reader was shown in full.
 
     Both are invisible in a single-result turn, which is why every existing test
     passed. This one is mixed on purpose.
     """
-    jd_body = "岗位职责\n\n" + "负责端到端的检索系统。" * 60
-    reply = "先说 JD：" + "这个岗位要求的是检索与排序的工程能力。" * 40
+    jd_body = "职业记忆\n\n" + "负责端到端的检索系统。" * 60
+    reply = "先说记忆：" + "这个岗位要求的是检索与排序的工程能力。" * 40
 
     class MixedRegistry(MainAgentToolRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "get_saved_job":
+            if name == "get_career_memory_detail":
                 return ToolResult(
                     tool_name=name,
-                    state="saved_job_ready",
-                    message="已读取该岗位的 JD。",
-                    payload={"jd_snapshot": {"content": jd_body}},
+                    state="career_memory_detail_found",
+                    message="已读取该条职业记忆。",
+                    payload={"body": jd_body},
                 )
             return ToolResult(
                 tool_name=name,
@@ -2786,7 +2788,7 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
         decision_maker=SequenceDecisionMaker(
             AgentDecision(
                 action="tool_call",
-                tool_call=ToolCall(name="get_saved_job", arguments={}),
+                tool_call=ToolCall(name="get_career_memory_detail", arguments={}),
             ),
             AgentDecision(
                 action="tool_call",
@@ -2812,8 +2814,9 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
         user_id="u1", conversation_id="c1", user_message="继续"
     ).recent_messages[-1]
 
-    # Fork one: the JD has no card behind it, so the stream is the only place it
-    # can appear. A card elsewhere in the turn does not excuse dropping it.
+    # Fork one: the detail has no card behind it, so the stream is the only
+    # place it can appear. A card elsewhere in the turn does not excuse
+    # dropping it.
     assert jd_body in streamed
     # Fork two: the reply was already cut at the ceiling this turn earns.
     assert len(reply) > DELIVERY_SUMMARY_LIMIT
@@ -2893,16 +2896,16 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
 def test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last() -> None:
     """Pins ``_present``/``_undelivered_bodies`` against a last-result relapse.
 
-    Two condensed states with no card in one turn — reading a JD, then the daily
-    brief — each hold a body nothing else will ever show. Delivering only
+    Two condensed states with no card in one turn — reading a memory detail,
+    then the daily brief — each hold a body nothing else will ever show. Delivering only
     ``tool_results[-1]`` silently drops the first, which is precisely what the
     presenter used to do to composed turns.
     """
     jd = ToolResult(
-        tool_name="get_saved_job",
-        state="saved_job_ready",
-        message="已读取完整 JD。",
-        payload={"jd_snapshot": {"content": "JD BODY: 精通 Rust。"}},
+        tool_name="get_career_memory_detail",
+        state="career_memory_detail_found",
+        message="已读取职业记忆。",
+        payload={"body": "JD BODY: 精通 Rust。"},
     )
     brief = ToolResult(
         tool_name="get_daily_brief",
@@ -2986,10 +2989,10 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
             "decision": AgentDecision(action="final", message="长" * 5_000),
             "tool_results": (
                 ToolResult(
-                    tool_name="get_saved_job",
-                    state="saved_job_ready",
-                    message="已读取完整 JD。",
-                    payload={"jd_snapshot": {"content": "JD BODY"}},
+                    tool_name="get_career_memory_detail",
+                    state="career_memory_detail_found",
+                    message="已读取职业记忆。",
+                    payload={"body": "JD BODY"},
                 ),
                 card,
             ),
@@ -3166,7 +3169,7 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
 
-    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
     tool_result = result.tool_results[0]
@@ -3215,6 +3218,131 @@ def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> Non
     assert events[-1].type == "turn_suspended"
 
 
+def _saved_job_runtime(tmp_path, repository, *decisions):
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    maker = SequenceDecisionMaker(*decisions)
+    return maker, MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=maker,
+        tools=MainAgentToolRegistry(job_repository=repository),
+    )
+
+
+def test_the_jd_card_follows_the_prose_and_the_prose_never_holds_the_jd(tmp_path) -> None:
+    """Scenario: the JD is not in the reply body; the card comes after it."""
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    job_posting_id = _seed_saved_job(repository)
+    _, agent = _saved_job_runtime(
+        tmp_path,
+        repository,
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"selection_index": 1})),
+        AgentDecision(action="final", message="已读取「Acme｜RAG Engineer」。你想先做匹配分析还是公司调研？"),
+    )
+    events = []
+
+    result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位", event_sink=events.append)
+
+    streamed = "".join(event.delta for event in events if event.type == "content_delta")
+    assert "PRIVATE SAVED JD" not in streamed
+    assert streamed == result.assistant_message
+    card = next(event for event in events if isinstance(event, JobResourceReadyEvent))
+    assert card.resource_id == result.context.task.active_jd_snapshot_id
+    assert card.job_posting_id == job_posting_id
+    assert card.title == "Acme｜RAG Engineer"
+    last_delta = max(index for index, event in enumerate(events) if event.type == "content_delta")
+    assert events.index(card) > last_delta
+    assert isinstance(events[-1], TurnCompletedEvent)
+    stored = CareerContextStore(tmp_path / "context.sqlite3").list_messages("u1", "c1", limit=10)[-1]
+    assert "PRIVATE SAVED JD" not in stored.content
+    assert [ref.kind for ref in stored.resource_refs] == ["saved_job"]
+    assert stored.resource_refs[0].resource_id == card.resource_id
+
+
+def test_this_job_in_the_same_conversation_reads_the_pinned_version(tmp_path) -> None:
+    """Scenario: a later "这个岗位" reads the JD version the conversation
+    pinned, even after the posting has been captured again."""
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    job_posting_id = _seed_saved_job(repository)
+    maker, agent = _saved_job_runtime(
+        tmp_path,
+        repository,
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"selection_index": 1})),
+        AgentDecision(action="final", message="已读取岗位。"),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={})),
+        AgentDecision(action="final", message="这是匹配分析。"),
+    )
+    first = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位")
+    pinned = first.context.task.active_jd_snapshot_id
+    assert pinned is not None
+
+    from datetime import datetime, timezone
+    captured_at = datetime(2026, 8, 24, tzinfo=timezone.utc)
+    updated = repository.save_detail(
+        user_id="u1",
+        run_id="run-v2",
+        result_ref="ref-v2",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="boss",
+            source_job_id="saved-1",
+            title="RAG Engineer",
+            company_name="Acme",
+            description="UPDATED JD v2.",
+            captured_at=captured_at,
+            provenance=Provenance(source_name="boss", source_job_id="saved-1", captured_at=captured_at, operation="detail", adapter_version="test-v1"),
+        ),
+    )
+    assert updated.posting.id == job_posting_id and updated.snapshot.version == 2
+
+    second = agent.run_turn(user_id="u1", conversation_id="c1", user_message="分析一下我和这个岗位的匹配度")
+
+    read = second.tool_results[-1]
+    assert read.state == "saved_job_ready"
+    assert read.payload["jd_snapshot"]["id"] == pinned
+    assert read.payload["jd_snapshot"]["version"] == 1
+    assert read.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
+    assert read.resource_ref is not None and read.resource_ref.resource_id == pinned
+    # The model saw the pinned version named, never guessed from chat text.
+    projected = maker.contexts[3].model_context()
+    assert projected["task"]["active_saved_job"] == {
+        "title": "RAG Engineer",
+        "company_name": "Acme",
+        "jd_version": 1,
+        "resource_status": "readable",
+    }
+    assert job_posting_id not in json.dumps(projected)
+    assert pinned not in json.dumps(projected)
+
+
+def test_a_new_conversation_does_not_inherit_this_job(tmp_path) -> None:
+    """Scenario: "这个岗位" in a fresh conversation has no job to read."""
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    _seed_saved_job(repository)
+    maker, agent = _saved_job_runtime(
+        tmp_path,
+        repository,
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"})),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={"selection_index": 1})),
+        AgentDecision(action="final", message="已读取岗位。"),
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="get_saved_job", arguments={})),
+        AgentDecision(action="final", message="你想看哪个岗位？请先选择或搜索。"),
+    )
+    first = agent.run_turn(user_id="u1", conversation_id="c1", user_message="打开这个职位")
+    assert first.context.task.active_jd_snapshot_id is not None
+
+    second = agent.run_turn(user_id="u1", conversation_id="c2", user_message="分析一下我和这个岗位的匹配度")
+
+    assert second.context.task.active_job_posting_id is None
+    assert second.context.task.active_jd_snapshot_id is None
+    assert maker.contexts[3].model_context()["task"]["active_saved_job"] is None
+    assert not any(result.state == "saved_job_ready" for result in second.tool_results)
+    assert "PRIVATE SAVED JD" not in second.assistant_message
+    assert "PRIVATE SAVED JD" not in json.dumps(maker.contexts[4].model_context())
+
+
 def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -3239,13 +3367,21 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
     assert observation.body == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["jd_snapshot"]["content"] == "PRIVATE SAVED JD: Build production RAG systems."
     assert tool_result.payload["analysis"]["required_skills"] == ["Python"]
-    # The JD reaches the model as an observation body (H). It reaches the reader
-    # here and nowhere else — saved_job_ready has no card — so the model's reply
-    # introduces the body rather than replacing it.
+    # The JD reaches the model as an observation body (H). The reader gets a
+    # card pinned to the snapshot, so the message is the model's prose alone
+    # and the JD text never enters it.
     assert result.model_message == "这是该岗位的完整 JD。"
-    assert result.assistant_message == (
-        "这是该岗位的完整 JD。\n\nPRIVATE SAVED JD: Build production RAG systems."
-    )
+    assert result.assistant_message == "这是该岗位的完整 JD。"
+    assert "PRIVATE SAVED JD" not in result.assistant_message
+    reference = tool_result.resource_ref
+    assert reference is not None and reference.kind == "saved_job"
+    assert reference.resource_id == tool_result.payload["jd_snapshot"]["id"]
+    assert reference.job_posting_id == job_posting_id
+    assert reference.title == "Acme｜RAG Engineer"
+    assert reference.description is not None and reference.description.startswith("JD 第 1 版")
+    task = result.context.task
+    assert task.active_job_posting_id == job_posting_id
+    assert task.active_jd_snapshot_id == reference.resource_id
 
 
 @pytest.mark.parametrize("tool_name,arguments", [

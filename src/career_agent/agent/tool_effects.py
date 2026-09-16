@@ -4,7 +4,22 @@ from types import MappingProxyType
 from typing import Literal, Mapping
 
 
-ToolEffect = Literal["READ", "WRITE"]
+ToolEffect = Literal["READ", "WRITE", "CONTROL"]
+
+
+_CONTROL_CAPABILITIES = frozenset(
+    {
+        "route_to_capability",
+    }
+)
+"""Calls that steer the decision loop itself and touch no domain store.
+
+A CONTROL capability changes which tools the next decision is made against.
+It has no business effect to record: nothing to seal for the owner, nothing to
+replay after a crash, and no read or write budget to draw on. It still leaves
+a step in the trace, because a route is part of the trajectory an evaluation
+replays, and the same route twice in one turn is still a repeated call.
+"""
 
 
 _WRITE_CAPABILITIES = frozenset(
@@ -153,6 +168,8 @@ registry's ``runtime_workflow_names``.
 
 if _READ_CAPABILITIES & _WRITE_CAPABILITIES:
     raise RuntimeError("a Main Agent capability cannot be both READ and WRITE")
+if _CONTROL_CAPABILITIES & (_READ_CAPABILITIES | _WRITE_CAPABILITIES):
+    raise RuntimeError("a CONTROL capability cannot also be READ or WRITE")
 if _EXTERNAL_WRITE_CAPABILITIES - _WRITE_CAPABILITIES:
     raise RuntimeError("an external write must be declared as a WRITE capability")
 if _RUNTIME_OWNED_CAPABILITIES - _WRITE_CAPABILITIES:
@@ -166,6 +183,7 @@ TOOL_EFFECTS: Mapping[str, ToolEffect] = MappingProxyType(
     {
         **dict.fromkeys(_READ_CAPABILITIES, "READ"),
         **dict.fromkeys(_WRITE_CAPABILITIES, "WRITE"),
+        **dict.fromkeys(_CONTROL_CAPABILITIES, "CONTROL"),
     }
 )
 

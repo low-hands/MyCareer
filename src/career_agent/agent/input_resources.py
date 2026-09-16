@@ -1,11 +1,13 @@
 """Resolve the structured inputs a chat turn names into verified context.
 
-A request may attach ``{"kind": "resume_version", "id": ...}``. The id is a
-claim, not a fact: before any of the resume reaches the model this module
-looks the version up under the authenticated user, so a version belonging to
-someone else, or to a resume that no longer exists, is refused as unknown
-rather than silently dropped. What comes back is the controlled shape the
-model may see — metadata and a bounded excerpt — never the file. The bound
+A request may attach ``{"kind": "resume_version", "id": ...}``,
+``{"kind": "job_posting", "id": ...}`` or ``{"kind": "jd_snapshot", "id": ...}``
+(one exact JD version of a saved job). The id is a claim, not a fact: before
+any of the asset reaches the model this module looks it up under the
+authenticated user, so a version or posting belonging to someone else, or one
+that no longer exists, is refused as unknown rather than silently dropped.
+What comes back is the controlled shape the model may see — metadata and a
+bounded excerpt for a resume, the library row for a job — never the file. The bound
 is per turn, not per attachment: ``ATTACHED_RESUME_EXCERPT_CHARS`` is shared
 across everything attached, so eight resumes cannot project eight budgets.
 """
@@ -15,10 +17,21 @@ from __future__ import annotations
 from career_agent.agent.main_agent_contracts import (
     ATTACHED_RESUME_EXCERPT_CHARS,
     AttachedResumeContext,
+    SavedJobCandidateContextItem,
 )
+from career_agent.agent.summary_text import condense
 from career_agent.harness.streaming import TurnInputResource
 from career_agent.services.resume_import import extract_resume_text
+from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
+
+
+def saved_job_title(title: str, company_name: str) -> str:
+    return condense(f"{company_name.strip()}｜{title.strip()}", limit=80)
+
+
+def saved_job_description(version: int, source_name: str) -> str:
+    return condense(f"JD 第 {version} 版 · {source_name.strip()}", limit=200)
 
 
 class InputResourceNotFoundError(LookupError):
@@ -65,12 +78,63 @@ def excerpt_budgets(lengths: tuple[int, ...], total: int) -> tuple[int, ...]:
     return tuple(budgets)
 
 
+def resolve_job_input_resources(
+    repository: JobPostingRepository | None,
+    *,
+    user_id: str,
+    resources: tuple[TurnInputResource, ...],
+) -> tuple[SavedJobCandidateContextItem, ...]:
+    """Verify each named posting belongs to ``user_id`` and return its display row."""
+    jobs = tuple(
+        resource
+        for resource in resources
+        if resource.kind in ("job_posting", "jd_snapshot")
+    )
+    if not jobs:
+        return ()
+    if repository is None:
+        raise InputResourceUnavailableError(
+            "job inputs cannot be resolved without a job repository"
+        )
+    attached: list[SavedJobCandidateContextItem] = []
+    for resource in jobs:
+        if resource.kind == "jd_snapshot":
+            snapshot = repository.get_snapshot(
+                user_id=user_id, jd_snapshot_id=resource.id
+            )
+            if snapshot is None:
+                raise InputResourceNotFoundError(resource)
+            record = repository.get_job(
+                user_id=user_id, job_posting_id=snapshot.job_posting_id
+            )
+        else:
+            record = repository.get_job(user_id=user_id, job_posting_id=resource.id)
+            snapshot = record.snapshot if record is not None else None
+        if record is None or snapshot is None:
+            raise InputResourceNotFoundError(resource)
+        attached.append(
+            SavedJobCandidateContextItem(
+                job_posting_id=record.posting.id,
+                title=record.posting.title[:200],
+                company_name=record.posting.company_name[:200],
+                city=record.city,
+                salary=record.salary,
+                jd_snapshot_id=snapshot.id,
+                jd_version=snapshot.version,
+            )
+        )
+    return tuple(attached)
+
+
 def resolve_input_resources(
     store: ResumeStore | None,
     *,
     user_id: str,
     resources: tuple[TurnInputResource, ...],
 ) -> tuple[AttachedResumeContext, ...]:
+    resources = tuple(
+        resource for resource in resources if resource.kind == "resume_version"
+    )
     if not resources:
         return ()
     if store is None:

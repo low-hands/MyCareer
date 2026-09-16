@@ -768,6 +768,32 @@ class WorkspaceReader:
             captured_at=record.snapshot.captured_at,
         )
 
+    def jd_snapshot(
+        self, *, user_id: str, jd_snapshot_id: str
+    ) -> SavedJobSnapshotView | None:
+        snapshot = self._jobs.get_snapshot(
+            user_id=user_id, jd_snapshot_id=jd_snapshot_id
+        )
+        if snapshot is None:
+            return None
+        record = self._jobs.get_job(
+            user_id=user_id, job_posting_id=snapshot.job_posting_id
+        )
+        if record is None:
+            return None
+        return SavedJobSnapshotView(
+            jd_snapshot_id=snapshot.id,
+            job_posting_id=record.posting.id,
+            title=record.posting.title,
+            company_name=record.posting.company_name,
+            source_name=record.posting.source_name,
+            source_url=record.posting.source_url,
+            jd_version=snapshot.version,
+            latest_jd_version=record.snapshot.version,
+            jd_text=snapshot.content,
+            captured_at=snapshot.captured_at,
+        )
+
     def jobs(
         self, *, user_id: str, limit: int = 100, include_dismissed: bool = False
     ) -> tuple[SavedJobView, ...]:
@@ -940,6 +966,20 @@ class WorkspaceReader:
     def _resource_view(
         self, user_id: str, reference: ConversationResourceReference
     ) -> ConversationResourceView:
+        if reference.kind == "saved_job":
+            # The row keeps the display snapshot; whether the pinned JD version
+            # can still be opened is decided now, so a deleted posting shows
+            # as gone without rewriting the card's name.
+            snapshot = self._jobs.get_snapshot(
+                user_id=user_id, jd_snapshot_id=reference.resource_id
+            )
+            return ConversationResourceView(
+                kind=reference.kind,
+                resource_id=reference.resource_id,
+                title=reference.title,
+                description=reference.description,
+                available=snapshot is not None,
+            )
         if reference.kind != "resume_version":
             return ConversationResourceView(
                 kind=reference.kind,
@@ -1667,6 +1707,28 @@ class SavedJobDetailView(BaseModel):
     captured_at: datetime
 
 
+class SavedJobSnapshotView(BaseModel):
+    """One immutable JD version, as a ``saved_job`` card opens it.
+
+    Addressed by ``jd_snapshot_id`` rather than the posting: the card in an
+    old turn keeps opening the text that turn read after the posting has been
+    captured again. ``latest_jd_version`` lets the card say so.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    jd_snapshot_id: str
+    job_posting_id: str
+    title: str
+    company_name: str
+    source_name: str
+    source_url: str | None = None
+    jd_version: int
+    latest_jd_version: int
+    jd_text: str
+    captured_at: datetime
+
+
 class AvailabilityUpdate(BaseModel):
     """What the user saw on the posting's own page.
 
@@ -1853,6 +1915,34 @@ def build_read_router(
                 },
             )
         return detail
+
+    @router.get(
+        "/jd-snapshots/{jd_snapshot_id}", response_model=SavedJobSnapshotView
+    )
+    async def jd_snapshot(
+        jd_snapshot_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> SavedJobSnapshotView:
+        """The JD version a conversation card is pinned to.
+
+        Scoped to the caller: a snapshot is only found through a posting the
+        caller owns, so another user's id is a 404, not a leak. A posting that
+        has since been deleted takes its snapshots with it; the card keeps its
+        name from the row and reports the text as unavailable.
+        """
+
+        view = workspace().jd_snapshot(
+            user_id=principal.user_id, jd_snapshot_id=jd_snapshot_id
+        )
+        if view is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "JD_SNAPSHOT_NOT_FOUND",
+                    "message": "该岗位已删除或不可访问。",
+                },
+            )
+        return view
 
     @router.put(
         "/jobs/{job_posting_id}/availability", response_model=AvailabilityResponse

@@ -135,6 +135,8 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "capability_confirmation_in_progress": _PLAIN,
     "owner_settings_updated": _PLAIN,
     "owner_settings_conflict": _PLAIN,
+    "tool_profile_switched": _PLAIN,
+    "tool_profile_unchanged": _PLAIN,
     "calendar_sync_not_available": _FAILED,
     "calendar_write_failed": _FAILED,
     "failed": _FAILED,
@@ -153,9 +155,10 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "resume_analysis_ready": _summarised("简历分析", "source"),
     "resume_job_match_ready": _card(),
     "resume_tailoring_draft_ready": _card(),
-    # Reading a saved job asks for its immutable JD body. The raw JD text is
-    # delivered live, while the transcript keeps the bounded receipt.
-    "saved_job_ready": _summarised("岗位描述原文", "source"),
+    # Reading a saved job hands the model the JD as its observation body; the
+    # reader gets a card pinned to the immutable snapshot, and the row keeps
+    # the bounded receipt. The JD text itself never enters the message.
+    "saved_job_ready": _card(),
     # The comparison table is rendered prose, far richer than its receipt.
     # Registered plain, the model could not see it and the reader would lose
     # it once the model — not the presenter — writes the message.
