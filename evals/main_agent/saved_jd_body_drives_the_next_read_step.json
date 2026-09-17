@@ -1,27 +1,33 @@
 {
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
-  "context_shape_fingerprint": "6137366c357e0e073a9caec31a8a5062113df7f62608c8ea1c45d0edc807c77d",
-  "recorded_at": "2026-09-16T14:33:44.775008+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "ce019c4c2e7233a00c0a7963e59341896c0aa8ed0a7da76a35783dc0d83cebda",
+  "context_shape_fingerprint": "85729c4491dd06aea38c51ea7d5cf230a44a113288ca914f2c065c2b341b9139",
+  "recorded_at": "2026-09-17T07:13:48.857218+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "match_resume_to_job",
-        "arguments": {}
+        "arguments": {
+          "resume_version_selection_index": null,
+          "job_selection_index": null
+        }
       }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:33:44.775008+00:00",
+      "recorded_at": "2026-09-17T07:13:48.857218+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "match_resume_to_job",
-            "arguments": {}
+            "arguments": {
+              "resume_version_selection_index": null,
+              "job_selection_index": null
+            }
           }
         }
       ]

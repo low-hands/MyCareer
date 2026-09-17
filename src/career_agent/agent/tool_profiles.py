@@ -22,7 +22,7 @@ cannot be routable without an effect, or have a profile that no route reaches.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Mapping
+from typing import Mapping, TypeVar
 
 from career_agent.agent.main_agent_contracts import (
     DOMAIN_TOOL_PROFILES,
@@ -190,33 +190,46 @@ if effect_for(ROUTE_TOOL) != "CONTROL":
     raise RuntimeError("the route tool must be a CONTROL capability")
 
 MAX_NEXT_REQUIREMENTS = 3
+Schema = TypeVar("Schema", bound=Mapping[str, object])
 
 
 def profile_tools(profile: ToolProfile) -> frozenset[str]:
     return TOOL_PROFILES[profile]
 
 
+def profile_schemas(
+    profile: ToolProfile, schemas: tuple[Schema, ...]
+) -> tuple[Schema, ...]:
+    offered = profile_tools(profile)
+    return tuple(
+        schema
+        for schema in schemas
+        if isinstance(function := schema.get("function"), Mapping)
+        and function.get("name") in offered
+    )
+
+
 def project_tool_availability(task: ConversationTaskState) -> dict[str, object]:
     """What the model can do now under its profile, and the nearest gaps.
 
     ``available_now`` lists the profile's tools whose preconditions hold.
-    ``next_requirements`` names, for the tools of the profile that are not yet
-    usable, the step that would make them so — the domain's own tools first,
-    deduplicated and capped, since a complete blocked-tool map costs tokens on
-    every decision and the runtime enforces every precondition regardless.
+    ``next_requirements`` groups blocked tools by their unmet precondition,
+    with the domain's tools first and the number of groups capped.
     """
 
     tools = profile_tools(task.tool_profile)
     available = sorted(name for name in tools if reachable(name, task))
-    requirements: list[str] = []
+    requirements: dict[str, list[str]] = {}
     domain_first = sorted(tools, key=lambda name: (name in CORE_TOOLS, name))
     for name in domain_first:
         if name in PRECONDITIONS and not reachable(name, task):
             requirement = REQUIREMENTS[name]
-            if requirement not in requirements:
-                requirements.append(requirement)
+            requirements.setdefault(requirement, []).append(name)
     return {
         "tool_profile": task.tool_profile,
         "available_now": available,
-        "next_requirements": requirements[:MAX_NEXT_REQUIREMENTS],
+        "next_requirements": [
+            f"{', '.join(names)}: {requirement}"
+            for requirement, names in list(requirements.items())[:MAX_NEXT_REQUIREMENTS]
+        ],
     }

@@ -25,6 +25,7 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.tool_effects import effect_for
+from career_agent.agent.tool_reachability import REQUIREMENTS, reachable
 from career_agent.agent.tool_profiles import (
     CORE_TOOLS,
     MAX_NEXT_REQUIREMENTS,
@@ -37,6 +38,7 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import CareerProfileContext
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.resumes import ResumeStore
 
 
 class SequenceDecisionMaker:
@@ -191,10 +193,85 @@ def test_availability_is_derived_from_profile_and_preconditions() -> None:
     assert "draft_resume_tailoring" not in ready["available_now"]
 
 
+@pytest.mark.parametrize("profile", TOOL_PROFILE_NAMES)
+@pytest.mark.parametrize("inputs_present", [False, True])
+def test_unmet_requirements_name_only_the_tools_they_block(
+    profile, inputs_present
+) -> None:
+    task = ConversationTaskState(
+        tool_profile=profile,
+        active_resume_version_id="rv-1" if inputs_present else None,
+        active_job_posting_id="job-1" if inputs_present else None,
+    )
+    availability = project_tool_availability(task)
+    requirements = availability["next_requirements"]
+    assert 0 < len(requirements) <= MAX_NEXT_REQUIREMENTS
+    for entry in requirements:
+        names, separator, requirement = entry.partition(": ")
+        assert separator
+        for name in names.split(", "):
+            assert name in profile_tools(profile)
+            assert name not in availability["available_now"]
+            assert not reachable(name, task)
+            assert REQUIREMENTS[name] == requirement
+
+
 def _manager(tmp_path):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     return manager
+
+
+@pytest.mark.parametrize("profile", TOOL_PROFILE_NAMES)
+def test_shared_read_runs_in_every_profile_without_routing(tmp_path, profile) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    store.upsert_task(
+        user_id="u1",
+        conversation_id="c1",
+        task=ConversationTaskState(tool_profile=profile),
+    )
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    tools = CountingRegistry(resume_store=ResumeStore(tmp_path / "resumes.sqlite3"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="list_resumes", arguments={}),
+        ),
+        AgentDecision(action="final", message="已读取简历列表。"),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager, decision_maker=decisions, tools=tools
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="列出我的简历"
+    )
+
+    assert [name for name, _ in tools.calls] == ["list_resumes"]
+    assert result.context.task.tool_profile == profile
+    assert result.delegated_read_count == 1
+    assert result.delegated_write_count == 0
+    assert all("list_resumes" in _offered(schemas) for schemas in decisions.schemas)
+
+
+@pytest.mark.parametrize("has_resume", [False, True])
+@pytest.mark.parametrize("has_job", [False, True])
+@pytest.mark.parametrize("has_match", [False, True])
+def test_input_and_artifact_preconditions_remain_independent(
+    has_resume, has_job, has_match
+) -> None:
+    task = ConversationTaskState(
+        tool_profile="resume",
+        active_resume_version_id="rv-1" if has_resume else None,
+        active_job_posting_id="job-1" if has_job else None,
+        active_resume_job_match_id="match-1" if has_match else None,
+    )
+    available = project_tool_availability(task)["available_now"]
+
+    assert ("analyze_resume" in available) is has_resume
+    assert ("match_resume_to_job" in available) is (has_resume and has_job)
+    assert ("draft_resume_tailoring" in available) is has_match
 
 
 def test_control_slot_carries_profile_and_availability_not_blocked_map(tmp_path) -> None:

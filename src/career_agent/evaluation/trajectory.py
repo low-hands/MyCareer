@@ -6,7 +6,7 @@ model:
 **Contract level** — always runs, needs no API key. Builds the exact context a
 scenario would send and checks that the decision is even *decidable* from it:
 the facts the policy turns on are present in the projection, and every expected
-tool exists in the stable production tool universe. Runtime argument projection,
+tool exists in that step's profile. Runtime argument projection,
 not prompt-shape mutation, owns task-state preconditions.
 
 **Replay level** — runs for scenarios that have a recorded model response.
@@ -23,6 +23,7 @@ import hashlib
 import json
 import math
 import random
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,6 +37,7 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     DecisionObservation,
     MainAgentContext,
+    TOOL_PROFILE_NAMES,
     append_decision_observation,
 )
 from career_agent.agent.openai_compatible_client import (
@@ -46,6 +48,7 @@ from career_agent.agent.openai_compatible_client import (
 from career_agent.agent.openai_compatible_main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
+from career_agent.agent.tool_profiles import profile_schemas
 
 CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
 _MAX_RECORD_JOBS = 32
@@ -56,16 +59,15 @@ _RECORD_MAKERS = threading.local()
 class TrajectoryStep:
     """One decision the model is asked to make inside a scenario.
 
-    A step after the first continues the same conversation with whatever the
-    previous call produced. ``observation`` is what the runtime would have fed
-    back, and ``task_update`` is what the reducer layer would have written into
-    task state — usually the candidate list a ``list_*`` call produces. Both are
-    declared rather than executed: the point is to exercise the decision loop,
-    not the service stack behind it.
+    Each step is a declared decision snapshot. ``observation`` and ``task_update``
+    supply the result and reducer state for that snapshot, independently of the
+    previous model response. Tools are not executed; these probes do not measure
+    end-to-end runtime success.
     """
 
     expect_action: str | None = None
     expect_tool: str | None = None
+    expect_tools: frozenset[str] = frozenset()
     expect_message: str | None = None
     forbid_message_contains: frozenset[str] = frozenset()
     """Substrings the reply must not carry, for delivery the runtime owns.
@@ -98,6 +100,7 @@ class TrajectoryStep:
     failure while three-in-five is the recorded status quo.
     """
 
+    quality_report_unavailable: bool = False
     forbid_tools: frozenset[str] = frozenset()
     expect_arguments: Mapping[str, Any] = field(default_factory=dict)
     """Argument values the call must carry, checked as a subset.
@@ -110,6 +113,8 @@ class TrajectoryStep:
 
     expect_argument_contains: Mapping[str, str] = field(default_factory=dict)
     """Required substring for a string-valued tool argument."""
+
+    expect_nonempty_string_arguments: frozenset[str] = frozenset()
 
     forbid_non_null_arguments: frozenset[str] = frozenset()
     """Argument names for which the call must not invent a value.
@@ -174,6 +179,7 @@ class TrajectoryScenario:
     @property
     def tools(self) -> frozenset[str]:
         expected = {step.expect_tool for step in self.steps if step.expect_tool}
+        expected.update(tool for step in self.steps for tool in step.expect_tools)
         forbidden = set().union(*(step.forbid_tools for step in self.steps))
         return frozenset(expected | forbidden)
 
@@ -182,9 +188,7 @@ class TrajectoryScenario:
             raise ValueError(
                 "trajectory recording_samples must be between 1 and 5"
             )
-        declares_quality = any(
-            step.quality_message_contains_any for step in self.steps
-        )
+        declares_quality = self.has_quality_assertions
         if declares_quality and self.quality_min_pass_rate is None:
             raise ValueError(
                 "a scenario with quality assertions must declare a "
@@ -205,7 +209,10 @@ class TrajectoryScenario:
 
     @property
     def has_quality_assertions(self) -> bool:
-        return any(step.quality_message_contains_any for step in self.steps)
+        return any(
+            step.quality_message_contains_any or step.quality_report_unavailable
+            for step in self.steps
+        )
 
 
 class ReplayClient:
@@ -341,13 +348,7 @@ def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
 
 
 def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
-    """Hash the authority split and native-message layout sent to the model.
-
-    Values are deliberately excluded, but roles are not: moving prior dialogue
-    back into a JSON field must stale a cassette even if a merged contract view
-    still exposes the same facts. JSON sequence elements share a ``[]`` path,
-    so candidate count does not make an otherwise identical shape stale.
-    """
+    """Hash fixture values, authority boundaries and native-message layout."""
     context = scenario.context
     step_shapes = []
     for index, step in enumerate(scenario.steps):
@@ -359,6 +360,7 @@ def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
         step_shapes.append(
             {
                 "step": index,
+                "messages": messages,
                 "control_paths": sorted(_key_paths(projection.control)),
                 "data_paths": sorted(_key_paths(projection.data)),
                 "stable_data_paths": sorted(
@@ -470,7 +472,7 @@ def check_contract(
 
     Runs without a model and catches two invalid test shapes: the context no
     longer carries the fact the policy turns on, or a step expects a tool that
-    does not exist in the stable production universe.
+    is not offered under its active profile.
     """
     failures = []
     projection = scenario.context.model_context()
@@ -480,12 +482,20 @@ def check_contract(
                 f"{scenario.name}: the projection has no '{path}', so this "
                 "policy is no longer decidable from what the model is sent"
             )
-    offered = {spec["function"]["name"] for spec in tool_specs}
+    context = scenario.context
     for index, step in enumerate(scenario.steps):
-        if step.expect_tool is not None and step.expect_tool not in offered:
+        context = _advance(context, step)
+        offered = {
+            spec["function"]["name"]
+            for spec in profile_schemas(context.task.tool_profile, tool_specs)
+        }
+        expected = step.expect_tools | (
+            {step.expect_tool} if step.expect_tool is not None else set()
+        )
+        for name in sorted(expected - offered):
             failures.append(
                 f"{scenario.name}[{index}]: expected tool "
-                f"'{step.expect_tool}' is absent from the production tool universe"
+                f"'{name}' is absent from the {context.task.tool_profile} profile"
             )
     return tuple(failures)
 
@@ -533,6 +543,10 @@ def check_step_quality(
     """
     failures = []
     message = decision.message or ""
+    if step.quality_report_unavailable and not _reports_unavailability(message):
+        failures.append(
+            f"{scenario}[{index}]: reply did not acknowledge an unavailable report"
+        )
     for alternatives in step.quality_message_contains_any:
         if not any(fragment in message for fragment in alternatives):
             failures.append(
@@ -542,10 +556,41 @@ def check_step_quality(
     return tuple(failures)
 
 
+_REPORT_NOUN = r"(?:报告|调研|记录|引用|资料)"
+_UNAVAILABLE_READ = (
+    r"(?:(?:未能|没能|无法|不能)"
+    r"(?:在[^，,。；;！？!?\n]{0,30})?"
+    r"(?:直接|可靠地?|成功|重新)?"
+    r"(?:找到|检索到|查到|获取|取回|读取|定位|访问)"
+    r"|(?:没有|没|未)(?:在[^，,。；;！？!?\n]{0,30})?"
+    r"(?:找到|检索到|查到|获取|取回))"
+)
+_REPORT_UNAVAILABLE = re.compile(
+    rf"{_UNAVAILABLE_READ}[^，,。；;！？!?\n]{{0,32}}{_REPORT_NOUN}"
+    rf"|{_REPORT_NOUN}[^，,。；;！？!?\n]{{0,20}}"
+    rf"(?:{_UNAVAILABLE_READ}|找不到|不可访问|不可用|不存在|缺失)"
+    rf"|(?:没有|缺少|未提供)(?:对应的?|可用的?|可访问的?|匹配的?)?{_REPORT_NOUN}"
+)
+
+
+def _reports_unavailability(message: str) -> bool:
+    """Conservative Chinese report-access rubric, independent of company names."""
+    for sentence in re.split(r"[。；;！？!?\n]", message):
+        if re.search(r"(?:不是|并非).{0,6}(?:没|未|无法|不能)", sentence):
+            continue
+        if _REPORT_UNAVAILABLE.search(sentence):
+            return True
+    return False
+
+
 def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, index: int) -> tuple[str, ...]:
     failures = []
     label = f"{scenario}[{index}]"
     called = decision.tool_call.name if decision.tool_call is not None else None
+    if step.expect_tools and called not in step.expect_tools:
+        failures.append(
+            f"{label}: expected one of {sorted(step.expect_tools)!r}, got {called!r}"
+        )
     if step.expect_action is not None and decision.action != step.expect_action:
         failures.append(
             f"{label}: expected action '{step.expect_action}', got "
@@ -591,6 +636,13 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
                 f"{label}: expected argument {name} to contain {expected!r}, "
                 f"got {actual!r}"
             )
+    for name in sorted(step.expect_nonempty_string_arguments):
+        actual = arguments.get(name)
+        if not isinstance(actual, str) or not actual.strip():
+            failures.append(
+                f"{label}: expected argument {name} to be a nonempty string, "
+                f"got {actual!r}"
+            )
     for name in sorted(step.forbid_non_null_arguments):
         if arguments.get(name) is not None:
             failures.append(
@@ -604,17 +656,17 @@ def trajectory_prompt_fingerprint(
     scenario: TrajectoryScenario,
     tool_specs: tuple[dict[str, Any], ...],
 ) -> str:
-    """Hash the stable prompt/schema prefix for every trajectory step.
-
-    Repeating the fingerprint per step keeps the trajectory shape in the hash,
-    while every step deliberately uses the same installed schema universe.
-    """
+    """Hash the active profile and stable prompt/schema prefix at each step."""
     step_fingerprints = []
+    context = scenario.context
     for index, step in enumerate(scenario.steps):
+        context = _advance(context, step)
+        profile = context.task.tool_profile
         step_fingerprints.append(
             {
                 "step": index,
-                "fingerprint": prompt_fingerprint(tool_specs),
+                "profile": profile,
+                "fingerprint": prompt_fingerprint(profile_schemas(profile, tool_specs)),
             }
         )
     encoded = json.dumps(
@@ -635,9 +687,8 @@ def replay(
 ) -> tuple[str, ...]:
     """Run a scenario against its recording through the real decision maker.
 
-    Each step is evaluated against the same stable schema universe production
-    sends. A forbidden tool is therefore always a real model-policy assertion,
-    while runtime projection independently enforces its prerequisites.
+    Each step receives its profile's schemas. Runtime tests independently cover
+    argument projection, authorization and side effects.
     """
     client = ReplayClient(responses)
     maker = OpenAICompatibleMainAgentDecisionMaker(
@@ -651,10 +702,14 @@ def replay(
     )
     failures: list[str] = []
     context = scenario.context
-    offered_names = {spec["function"]["name"] for spec in tool_specs}
+    schemas_by_profile = {
+        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
+    }
     for index, step in enumerate(scenario.steps):
         context = _advance(context, step)
-        decision = maker.decide(context, tool_specs)
+        schemas = schemas_by_profile[context.task.tool_profile]
+        offered_names = {spec["function"]["name"] for spec in schemas}
+        decision = maker.decide(context, schemas)
         called = (
             decision.tool_call.name if decision.tool_call is not None else None
         )
@@ -693,8 +748,11 @@ def replay_quality(
     from ``replay_cassette``: the two tiers are read by different gates, and a
     caller that only cares about invariants should not have to know this exists.
     """
-    if not any(step.quality_message_contains_any for step in scenario.steps):
+    if not scenario.has_quality_assertions:
         return ()
+    schemas_by_profile = {
+        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
+    }
     graded: list[tuple[str, ...]] = []
     for responses in cassette.recordings:
         client = ReplayClient(responses)
@@ -710,7 +768,7 @@ def replay_quality(
         context = scenario.context
         for index, step in enumerate(scenario.steps):
             context = _advance(context, step)
-            decision = maker.decide(context, tool_specs)
+            decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
             failures.extend(
                 check_step_quality(
                     step, decision, scenario=scenario.name, index=index
@@ -981,12 +1039,15 @@ def _record_one_sample(
     maker = _decision_maker(config)
     steps = []
     context = scenario.context
+    schemas_by_profile = {
+        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
+    }
     for step in scenario.steps:
         context = _advance(context, step)
         decision = None
         for attempt in range(1, max_attempts + 1):
             try:
-                decision = maker.decide(context, tool_specs)
+                decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
                 break
             except AgentWorkerError as error:
                 if not _recording_can_retry(error) or attempt == max_attempts:

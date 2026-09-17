@@ -1,21 +1,29 @@
 {
   "scenario": "stated_intent_is_proposed_before_it_is_recorded",
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "a2fd75b492a3bf853ec94662e00b5783588564dd557de655987d2f60d90c0d1f",
-  "context_shape_fingerprint": "725c013b92db5faec4d53a6b77eeab62810f62ba17b3f17af50bdd23a9c9897d",
-  "recorded_at": "2026-09-16T14:32:55.696966+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "bbcf34da4f273c58a32ad7b618d923a2e9ce726ab5cde2a427f230a52b7021f6",
+  "context_shape_fingerprint": "a8e69d7cf0d9b649ae48117f3af9799fc6089a9b9b1f8dd28e530fd529dd94f6",
+  "recorded_at": "2026-09-17T07:13:27.297345+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我可以记录上海为默认求职城市；但“算法岗”和“40K 以上”属于同一目标岗位的意向，需要先有一个可选的简历目标岗位。你是否已有算法相关的目标岗位分类，或希望先创建/补充一个？\"}"
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      }
     },
     {
       "tool_call": {
         "name": "propose_job_intent",
         "arguments": {
+          "target_role_selection_index": 1,
+          "pref_scope": "global",
+          "timescale": "permanent",
           "city": "上海",
           "salary_expectation": "40K 以上",
-          "target_role_selection_index": 1
+          "experience": null,
+          "education": null,
+          "hard_constraints": []
         }
       }
     }
@@ -23,18 +31,26 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:32:55.696966+00:00",
+      "recorded_at": "2026-09-17T07:13:27.297345+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我可以记录上海为默认求职城市；但“算法岗”和“40K 以上”属于同一目标岗位的意向，需要先有一个可选的简历目标岗位。你是否已有算法相关的目标岗位分类，或希望先创建/补充一个？\"}"
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          }
         },
         {
           "tool_call": {
             "name": "propose_job_intent",
             "arguments": {
+              "target_role_selection_index": 1,
+              "pref_scope": "global",
+              "timescale": "permanent",
               "city": "上海",
               "salary_expectation": "40K 以上",
-              "target_role_selection_index": 1
+              "experience": null,
+              "education": null,
+              "hard_constraints": []
             }
           }
         }

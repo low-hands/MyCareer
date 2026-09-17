@@ -580,7 +580,18 @@ class OwnerSettingsContext(ContractModel):
 AgentPreferencesContext = OwnerSettingsContext
 
 
-SelectionIndex = Annotated[int, Field(ge=1)]
+SelectionIndex = Annotated[
+    int,
+    Field(
+        ge=1,
+        description=(
+            "A 1-based selection_index explicitly shown beside the intended "
+            "object in this tool's corresponding candidate list. Never invent "
+            "an index or borrow numbering from another list or from the order "
+            "of tool observations."
+        ),
+    ),
+]
 """A 1-based pointer into a list the model was shown this turn.
 
 The lower bound belongs to the type, not to each declaration. Written out
@@ -3028,10 +3039,11 @@ class RetryJobResearchToolArguments(ContractModel):
 class GetJobResearchToolArguments(ContractModel):
     """Selectors for reading back one job-research report.
 
-    ``reference`` is the handle a projection line carries, which is the only way
-    to read back a report that is no longer the active one. The internal ids stay
-    declared because handlers receive them after projection; the model-facing
-    schema has them stripped.
+    ``reference`` identifies an exact delivered report. ``selection_index``
+    selects a saved job and reads its company's latest available report, which
+    may differ from a requested historical version. Omitting both uses the
+    active report or job. Internal ids are stripped from model-facing schemas
+    and supplied by argument projection.
     """
 
     report_id: str | None = Field(default=None, min_length=1)

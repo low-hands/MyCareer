@@ -1631,6 +1631,7 @@ export const API_CONTRACT = {
                 "负责 AI 产品规划"
               ],
               "resume_match_at": "2026-09-12T12:00:00Z",
+              "resume_match_count": 0,
               "resume_match_fit": "moderate",
               "resume_match_status": "ready",
               "salary": "25-35K",
@@ -2162,6 +2163,11 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Resume Match At"
+              },
+              "resume_match_count": {
+                "default": 0,
+                "title": "Resume Match Count",
+                "type": "integer"
               },
               "resume_match_fit": {
                 "anyOf": [
@@ -2717,6 +2723,248 @@ export const API_CONTRACT = {
         "type": "object"
       }
     },
+    "JobMatchHistoryResponse": {
+      "examples": [
+        {
+          "items": [
+            {
+              "company_name": "示例科技",
+              "created_at": "2026-09-12T12:00:00Z",
+              "current_jd": false,
+              "jd_available": true,
+              "jd_captured_at": "2026-09-12T12:00:00Z",
+              "jd_snapshot_id": "jds-1",
+              "jd_version": 1,
+              "job_posting_id": "job-1",
+              "job_title": "AI 产品经理",
+              "matcher_version": "resume-job-match-v2",
+              "overall_fit": "moderate",
+              "report_id": "match-1",
+              "resume_available": true,
+              "resume_created_at": "2026-09-12T12:00:00Z",
+              "resume_id": "resume-1",
+              "resume_name": "产品简历",
+              "resume_version_id": "resume-version-1",
+              "resume_version_number": 1,
+              "summary": "部分要求仍需补充证据。"
+            }
+          ],
+          "limit": 20,
+          "offset": 0,
+          "total": 1
+        },
+        {
+          "items": [],
+          "limit": 20,
+          "offset": 0,
+          "total": 0
+        }
+      ],
+      "schema": {
+        "$defs": {
+          "ResumeJobMatchView": {
+            "additionalProperties": false,
+            "properties": {
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Company Name"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "current_jd": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Jd"
+              },
+              "jd_available": {
+                "title": "Jd Available",
+                "type": "boolean"
+              },
+              "jd_captured_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Captured At"
+              },
+              "jd_snapshot_id": {
+                "title": "Jd Snapshot Id",
+                "type": "string"
+              },
+              "jd_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Version"
+              },
+              "job_posting_id": {
+                "title": "Job Posting Id",
+                "type": "string"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Title"
+              },
+              "matcher_version": {
+                "title": "Matcher Version",
+                "type": "string"
+              },
+              "overall_fit": {
+                "title": "Overall Fit",
+                "type": "string"
+              },
+              "report_id": {
+                "title": "Report Id",
+                "type": "string"
+              },
+              "resume_available": {
+                "title": "Resume Available",
+                "type": "boolean"
+              },
+              "resume_created_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Created At"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
+              },
+              "resume_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Name"
+              },
+              "resume_version_id": {
+                "title": "Resume Version Id",
+                "type": "string"
+              },
+              "resume_version_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Number"
+              },
+              "summary": {
+                "title": "Summary",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id",
+              "job_posting_id",
+              "jd_snapshot_id",
+              "jd_available",
+              "resume_version_id",
+              "resume_available",
+              "matcher_version",
+              "created_at",
+              "overall_fit",
+              "summary"
+            ],
+            "title": "ResumeJobMatchView",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/ResumeJobMatchView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "JobMatchHistoryResponse",
+        "type": "object"
+      }
+    },
     "OwnerSettingsHistoryResponse": {
       "examples": [
         {
@@ -3074,11 +3322,214 @@ export const API_CONTRACT = {
           "created_at": "2026-09-12T12:00:00Z",
           "kind": "job_research_report",
           "resource_id": "report-1",
+          "resume_job_match": null,
           "subtitle": "岗位调研 · 2026-09-12",
           "title": "示例科技 · AI 产品经理"
+        },
+        {
+          "availability": "available",
+          "body": "## 整体判断\n\n证据不足。",
+          "created_at": "2026-09-12T12:00:00Z",
+          "kind": "resume_job_match",
+          "resource_id": "legacy-match",
+          "resume_job_match": {
+            "company_name": null,
+            "created_at": "2026-09-12T12:00:00Z",
+            "current_jd": null,
+            "jd_available": false,
+            "jd_captured_at": null,
+            "jd_snapshot_id": "deleted-snapshot",
+            "jd_version": null,
+            "job_posting_id": "deleted-job",
+            "job_title": null,
+            "matcher_version": "legacy",
+            "overall_fit": "insufficient_evidence",
+            "report_id": "legacy-match",
+            "resume_available": false,
+            "resume_created_at": null,
+            "resume_id": null,
+            "resume_name": null,
+            "resume_version_id": "deleted-resume-version",
+            "resume_version_number": null,
+            "summary": "历史输入已不可访问。"
+          },
+          "subtitle": "历史匹配",
+          "title": "简历与岗位匹配"
         }
       ],
       "schema": {
+        "$defs": {
+          "ResumeJobMatchView": {
+            "additionalProperties": false,
+            "properties": {
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Company Name"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "current_jd": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Jd"
+              },
+              "jd_available": {
+                "title": "Jd Available",
+                "type": "boolean"
+              },
+              "jd_captured_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Captured At"
+              },
+              "jd_snapshot_id": {
+                "title": "Jd Snapshot Id",
+                "type": "string"
+              },
+              "jd_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Version"
+              },
+              "job_posting_id": {
+                "title": "Job Posting Id",
+                "type": "string"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Title"
+              },
+              "matcher_version": {
+                "title": "Matcher Version",
+                "type": "string"
+              },
+              "overall_fit": {
+                "title": "Overall Fit",
+                "type": "string"
+              },
+              "report_id": {
+                "title": "Report Id",
+                "type": "string"
+              },
+              "resume_available": {
+                "title": "Resume Available",
+                "type": "boolean"
+              },
+              "resume_created_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Created At"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
+              },
+              "resume_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Name"
+              },
+              "resume_version_id": {
+                "title": "Resume Version Id",
+                "type": "string"
+              },
+              "resume_version_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Number"
+              },
+              "summary": {
+                "title": "Summary",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id",
+              "job_posting_id",
+              "jd_snapshot_id",
+              "jd_available",
+              "resume_version_id",
+              "resume_available",
+              "matcher_version",
+              "created_at",
+              "overall_fit",
+              "summary"
+            ],
+            "title": "ResumeJobMatchView",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "description": "One stored report, rendered for the person who owns it.\n\nThe conversation row for a report-producing turn keeps only the short prose\nthe user read; the report itself lives in its own entity. This is how the UI\ngets from that message's ``resource`` back to the full text, so ``body`` is\nthe same rendered Markdown the turn originally put on screen rather than a\nsecond, thinner summary of it.",
         "properties": {
@@ -3107,6 +3558,17 @@ export const API_CONTRACT = {
           "resource_id": {
             "title": "Resource Id",
             "type": "string"
+          },
+          "resume_job_match": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResumeJobMatchView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "subtitle": {
             "title": "Subtitle",
@@ -3535,6 +3997,7 @@ export const API_CONTRACT = {
             "负责 AI 产品规划"
           ],
           "resume_match_at": null,
+          "resume_match_count": 0,
           "resume_match_fit": null,
           "resume_match_status": "none",
           "salary": null,
@@ -3913,6 +4376,11 @@ export const API_CONTRACT = {
             ],
             "default": null,
             "title": "Resume Match At"
+          },
+          "resume_match_count": {
+            "default": 0,
+            "title": "Resume Match Count",
+            "type": "integer"
           },
           "resume_match_fit": {
             "anyOf": [

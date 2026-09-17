@@ -80,7 +80,10 @@ from career_agent.storage.interview_preparations import SQLiteInterviewPreparati
 from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
-from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
+from career_agent.storage.resume_job_matches import (
+    SQLiteResumeJobMatchStore,
+    StoredResumeJobMatch,
+)
 from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.resumes import (
@@ -264,6 +267,40 @@ class SavedJobView(BaseModel):
     resume_match_status: Literal["none", "ready", "stale"] = "none"
     resume_match_fit: str | None = None
     resume_match_at: datetime | None = None
+    resume_match_count: int = 0
+
+
+class ResumeJobMatchView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    report_id: str
+    job_posting_id: str
+    job_title: str | None = None
+    company_name: str | None = None
+    jd_snapshot_id: str
+    jd_version: int | None = None
+    jd_captured_at: datetime | None = None
+    jd_available: bool
+    current_jd: bool | None = None
+    resume_version_id: str
+    resume_id: str | None = None
+    resume_name: str | None = None
+    resume_version_number: int | None = None
+    resume_created_at: datetime | None = None
+    resume_available: bool
+    matcher_version: str
+    created_at: datetime
+    overall_fit: str
+    summary: str
+
+
+class JobMatchHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: tuple[ResumeJobMatchView, ...] = ()
+    total: int
+    limit: int
+    offset: int
 
 
 class ConversationView(BaseModel):
@@ -540,6 +577,7 @@ class ReportView(BaseModel):
     body: str
     created_at: datetime
     availability: Literal["available", "expired"] = "available"
+    resume_job_match: ResumeJobMatchView | None = None
 
 
 class DashboardStats(BaseModel):
@@ -840,6 +878,9 @@ class WorkspaceReader:
                 else None
             )
             match = self._resume_matches.find_latest_for_job(
+                user_id=user_id, job_posting_id=item.job_posting_id,
+                jd_snapshot_id=item.jd_snapshot_id,
+            ) or self._resume_matches.find_latest_for_job(
                 user_id=user_id, job_posting_id=item.job_posting_id
             )
             views.append(SavedJobView(
@@ -887,8 +928,70 @@ class WorkspaceReader:
                 ),
                 resume_match_fit=match.result.overall_fit if match else None,
                 resume_match_at=match.created_at if match else None,
+                resume_match_count=self._resume_matches.count_for_job(
+                    user_id=user_id, job_posting_id=item.job_posting_id
+                ),
             ))
         return tuple(views)
+
+    def job_matches(
+        self, *, user_id: str, job_posting_id: str, limit: int = 20, offset: int = 0
+    ) -> JobMatchHistoryResponse | None:
+        total = self._resume_matches.count_for_job(
+            user_id=user_id, job_posting_id=job_posting_id
+        )
+        if not total and self._jobs.get_job(
+            user_id=user_id, job_posting_id=job_posting_id
+        ) is None:
+            return None
+        return JobMatchHistoryResponse(
+            items=tuple(
+                self._match_view(user_id, stored)
+                for stored in self._resume_matches.list_for_job(
+                    user_id=user_id, job_posting_id=job_posting_id,
+                    limit=limit, offset=offset,
+                )
+            ),
+            total=total, limit=limit, offset=offset,
+        )
+
+    def _match_view(
+        self, user_id: str, stored: StoredResumeJobMatch
+    ) -> ResumeJobMatchView:
+        job = self._jobs.get_job(
+            user_id=user_id, job_posting_id=stored.job_posting_id
+        )
+        snapshot = self._jobs.get_snapshot(
+            user_id=user_id, jd_snapshot_id=stored.jd_snapshot_id
+        )
+        if snapshot is not None and snapshot.job_posting_id != stored.job_posting_id:
+            snapshot = None
+        source = self._resumes.get_version(
+            user_id=user_id, resume_version_id=stored.resume_version_id
+        )
+        resume, version = source if source else (None, None)
+        inputs = stored.inputs
+        return ResumeJobMatchView(
+            report_id=stored.id,
+            job_posting_id=stored.job_posting_id,
+            job_title=inputs.job_title if inputs else job.posting.title if job else None,
+            company_name=inputs.company_name if inputs else job.posting.company_name if job else None,
+            jd_snapshot_id=stored.jd_snapshot_id,
+            jd_version=inputs.jd_version if inputs else snapshot.version if snapshot else None,
+            jd_captured_at=inputs.jd_captured_at if inputs else snapshot.captured_at if snapshot else None,
+            jd_available=snapshot is not None,
+            current_jd=job.snapshot.id == stored.jd_snapshot_id if job else None,
+            resume_version_id=stored.resume_version_id,
+            resume_id=inputs.resume_id if inputs else resume.id if resume else None,
+            resume_name=inputs.resume_name if inputs else resume.name if resume else None,
+            resume_version_number=inputs.resume_version_number if inputs else version.version_number if version else None,
+            resume_created_at=inputs.resume_created_at if inputs else version.created_at if version else None,
+            resume_available=source is not None,
+            matcher_version=stored.matcher_version,
+            created_at=stored.created_at,
+            overall_fit=stored.result.overall_fit,
+            summary=stored.result.summary,
+        )
 
     def job_count(self, *, user_id: str) -> int:
         return self._jobs.count_jobs(user_id=user_id, include_dismissed=False)
@@ -1399,7 +1502,12 @@ class WorkspaceReader:
                 status_at_delivery=status_at_delivery,
                 anchored_by_other_job=anchored_by_other_job,
             )
-        return reader(user_id, resource_id)
+        view = reader(user_id, resource_id)
+        if view is not None and kind == "resume_job_match":
+            stored = self._resume_matches.get(user_id=user_id, match_id=resource_id)
+            if stored is not None:
+                view = view.model_copy(update={"resume_job_match": self._match_view(user_id, stored)})
+        return view
 
     def _job_research_report(
         self,
@@ -1996,6 +2104,23 @@ def build_read_router(
                 },
             )
         return detail
+
+    @router.get(
+        "/jobs/{job_posting_id}/matches", response_model=JobMatchHistoryResponse
+    )
+    async def job_matches(
+        job_posting_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        limit: int = Query(default=20, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+    ) -> JobMatchHistoryResponse:
+        view = workspace().job_matches(
+            user_id=principal.user_id, job_posting_id=job_posting_id,
+            limit=limit, offset=offset,
+        )
+        if view is None:
+            raise HTTPException(status_code=404, detail="岗位不存在或不可访问。")
+        return view
 
     @router.get(
         "/jd-snapshots/{jd_snapshot_id}", response_model=SavedJobSnapshotView

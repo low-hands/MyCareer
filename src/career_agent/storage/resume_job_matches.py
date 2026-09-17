@@ -12,6 +12,19 @@ from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.storage.schema import apply_schema
 
 
+class ResumeJobMatchInputs(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_title: str
+    company_name: str
+    resume_id: str
+    resume_name: str
+    resume_version_number: int
+    resume_created_at: datetime
+    jd_version: int
+    jd_captured_at: datetime
+
+
 class StoredResumeJobMatch(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -24,6 +37,7 @@ class StoredResumeJobMatch(BaseModel):
     evidence_fingerprint: str
     result: ResumeJobMatchResult
     created_at: datetime
+    inputs: ResumeJobMatchInputs | None = None
 
 
 class SQLiteResumeJobMatchStore:
@@ -35,7 +49,10 @@ class SQLiteResumeJobMatchStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "resume_job_matches", 1, self._migrate)
+            apply_schema(
+                connection, "resume_job_matches", 2, self._migrate,
+                {2: self._add_inputs},
+            )
         os.chmod(self.path, 0o600)
 
     @staticmethod
@@ -72,8 +89,15 @@ class SQLiteResumeJobMatchStore:
             """
                 CREATE INDEX IF NOT EXISTS resume_job_matches_user_job_idx
                 ON resume_job_matches(user_id, job_posting_id, created_at DESC)
-                """
+            """
         )
+        SQLiteResumeJobMatchStore._add_inputs(connection)
+
+    @staticmethod
+    def _add_inputs(connection: sqlite3.Connection) -> None:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(resume_job_matches)")}
+        if "inputs_json" not in columns:
+            connection.execute("ALTER TABLE resume_job_matches ADD COLUMN inputs_json TEXT")
 
     def find(
         self,
@@ -89,7 +113,7 @@ class SQLiteResumeJobMatchStore:
                 """
                 SELECT id, user_id, resume_version_id, job_posting_id,
                        jd_snapshot_id, matcher_version, evidence_fingerprint,
-                       result_json, created_at
+                       result_json, created_at, inputs_json
                 FROM resume_job_matches
                 WHERE user_id = ? AND resume_version_id = ?
                   AND jd_snapshot_id = ? AND matcher_version = ?
@@ -110,27 +134,49 @@ class SQLiteResumeJobMatchStore:
         *,
         user_id: str,
         job_posting_id: str,
+        jd_snapshot_id: str | None = None,
     ) -> StoredResumeJobMatch | None:
-        """The most recent match recorded for a job, whatever resume produced it.
-
-        Comparison reads what already exists rather than matching again, so a
-        job the user never matched simply has no row here and is reported as
-        unknown instead of silently triggering a worker call.
-        """
+        """The newest match for a job, optionally restricted to one JD snapshot."""
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT id, user_id, resume_version_id, job_posting_id,
                        jd_snapshot_id, matcher_version, evidence_fingerprint,
-                       result_json, created_at
+                       result_json, created_at, inputs_json
                 FROM resume_job_matches
                 WHERE user_id = ? AND job_posting_id = ?
+                  AND (? IS NULL OR jd_snapshot_id = ?)
                 ORDER BY created_at DESC, rowid DESC
                 LIMIT 1
                 """,
-                (user_id, job_posting_id),
+                (user_id, job_posting_id, jd_snapshot_id, jd_snapshot_id),
             ).fetchone()
         return self._record(row) if row else None
+
+    def list_for_job(
+        self, *, user_id: str, job_posting_id: str, limit: int = 20, offset: int = 0
+    ) -> tuple[StoredResumeJobMatch, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, user_id, resume_version_id, job_posting_id,
+                       jd_snapshot_id, matcher_version, evidence_fingerprint,
+                       result_json, created_at, inputs_json
+                FROM resume_job_matches
+                WHERE user_id = ? AND job_posting_id = ?
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ? OFFSET ?
+                """,
+                (user_id, job_posting_id, limit, offset),
+            ).fetchall()
+        return tuple(self._record(row) for row in rows)
+
+    def count_for_job(self, *, user_id: str, job_posting_id: str) -> int:
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT COUNT(*) FROM resume_job_matches WHERE user_id = ? AND job_posting_id = ?",
+                (user_id, job_posting_id),
+            ).fetchone()[0]
 
     def get(self, *, user_id: str, match_id: str) -> StoredResumeJobMatch | None:
         with self._connect() as connection:
@@ -138,7 +184,7 @@ class SQLiteResumeJobMatchStore:
                 """
                 SELECT id, user_id, resume_version_id, job_posting_id,
                        jd_snapshot_id, matcher_version, evidence_fingerprint,
-                       result_json, created_at
+                       result_json, created_at, inputs_json
                 FROM resume_job_matches
                 WHERE id = ? AND user_id = ?
                 """,
@@ -156,6 +202,7 @@ class SQLiteResumeJobMatchStore:
         matcher_version: str,
         evidence_fingerprint: str,
         result: ResumeJobMatchResult,
+        inputs: ResumeJobMatchInputs | None = None,
     ) -> StoredResumeJobMatch:
         created_at = datetime.now(timezone.utc)
         match_id = f"resume_job_match_{uuid4().hex}"
@@ -165,8 +212,8 @@ class SQLiteResumeJobMatchStore:
                 INSERT OR IGNORE INTO resume_job_matches(
                     id, user_id, resume_version_id, job_posting_id,
                     jd_snapshot_id, matcher_version, evidence_fingerprint,
-                    result_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    result_json, created_at, inputs_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     match_id,
@@ -178,6 +225,7 @@ class SQLiteResumeJobMatchStore:
                     evidence_fingerprint,
                     result.model_dump_json(),
                     created_at.isoformat(),
+                    inputs.model_dump_json() if inputs else None,
                 ),
             )
         stored = self.find(
@@ -208,4 +256,5 @@ class SQLiteResumeJobMatchStore:
             evidence_fingerprint=row[6],
             result=ResumeJobMatchResult.model_validate_json(row[7]),
             created_at=row[8],
+            inputs=ResumeJobMatchInputs.model_validate_json(row[9]) if row[9] else None,
         )

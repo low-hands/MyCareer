@@ -80,6 +80,8 @@ from career_agent.api.reads import (
     SavedJobDetailView,
     SavedJobSnapshotView,
     SavedJobView,
+    JobMatchHistoryResponse,
+    ResumeJobMatchView,
     TargetRoleView,
 )
 from career_agent.harness.streaming import (
@@ -555,6 +557,33 @@ def _read_examples() -> dict[str, list[BaseModel]]:
             subtitle="岗位调研 · 2026-09-12",
             body="## 公司概况\n\n……",
             created_at=_AT,
+        ),
+        JobMatchHistoryResponse(
+            items=(ResumeJobMatchView(
+                report_id="match-1", job_posting_id="job-1",
+                job_title="AI 产品经理", company_name="示例科技",
+                jd_snapshot_id="jds-1", jd_version=1, jd_captured_at=_AT,
+                jd_available=True, current_jd=False,
+                resume_version_id="resume-version-1", resume_id="resume-1",
+                resume_name="产品简历", resume_version_number=1,
+                resume_created_at=_AT, resume_available=True,
+                matcher_version="resume-job-match-v2", created_at=_AT,
+                overall_fit="moderate", summary="部分要求仍需补充证据。",
+            ),),
+            total=1, limit=20, offset=0,
+        ),
+        JobMatchHistoryResponse(total=0, limit=20, offset=0),
+        ReportView(
+            kind="resume_job_match", resource_id="legacy-match",
+            title="简历与岗位匹配", subtitle="历史匹配", body="## 整体判断\n\n证据不足。",
+            created_at=_AT,
+            resume_job_match=ResumeJobMatchView(
+                report_id="legacy-match", job_posting_id="deleted-job",
+                jd_snapshot_id="deleted-snapshot", jd_available=False,
+                resume_version_id="deleted-resume-version", resume_available=False,
+                matcher_version="legacy", created_at=_AT,
+                overall_fit="insufficient_evidence", summary="历史输入已不可访问。",
+            ),
         ),
         ResumeView(
             id="resume-1",

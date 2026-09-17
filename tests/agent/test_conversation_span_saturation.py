@@ -204,7 +204,7 @@ def test_span_saturation_scenarios_share_one_question_and_stay_decidable() -> No
         "through_sequence": 8,
     }
     assert empty.context.user_message == SPAN_OUT_OF_RANGE_QUESTION
-    assert empty.steps[1].observation == _span_empty_observation()
+    assert empty.context.tool_observations[-1] == _span_empty_observation()
     assert SPAN_WINDOW_DECOY in _projected_text(empty.context)
     for scenario in (page_in, body, ablation, stuffed, empty):
         assert check_contract(scenario, tool_specs=schemas) == ()

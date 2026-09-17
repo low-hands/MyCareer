@@ -1,22 +1,22 @@
 {
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
-  "context_shape_fingerprint": "2c16e4b633bf771590212313ec3523054d5217188db9a027f89e44f78c42c72f",
-  "recorded_at": "2026-09-16T14:33:01.682082+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "context_shape_fingerprint": "1acbaef4e734a0330adcd09f01bd8576eba9c27281dae3d99853fbd4c44200e9",
+  "recorded_at": "2026-09-17T07:13:28.805351+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找岗位的城市，以及目标职位关键词（例如“上海 Rust 后端工程师”）。我会据此打开招聘搜索页供你浏览和收藏职位。\"}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找的岗位关键词（如 Rust 开发、后端工程师）\\n2. 目标城市（如北京、上海、深圳）\\n\\n收到后我会为你打开 BOSS 直聘搜索页。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:33:01.682082+00:00",
+      "recorded_at": "2026-09-17T07:13:28.805351+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找岗位的城市，以及目标职位关键词（例如“上海 Rust 后端工程师”）。我会据此打开招聘搜索页供你浏览和收藏职位。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找的岗位关键词（如 Rust 开发、后端工程师）\\n2. 目标城市（如北京、上海、深圳）\\n\\n收到后我会为你打开 BOSS 直聘搜索页。\"}"
         }
       ]
     }

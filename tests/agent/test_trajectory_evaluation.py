@@ -1152,11 +1152,9 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
     ignored" but "this pair cannot tell the handle apart from the default".
     A prompt sentence would have turned it green while proving nothing.
 
-    Without a number there is no right answer to demand: a bare call returning
-    the wrong report, or saying the report cannot be reached, are both
-    defensible answers to an impossible request, and that open-endedness *is*
-    the problem being removed. So the mirror asserts only what must hold — a
-    number nobody supplied cannot appear.
+    Without a number, no current saved-job candidate identifies the requested
+    company either. A fresh job lookup or clarification is safe; a direct
+    report read would borrow another company's handle or active report.
     """
     _, schemas = offered
     by_name = {scenario.name: scenario for scenario in SCENARIOS}
@@ -1165,6 +1163,7 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
 
     assert numbered.context.user_message == unnumbered.context.user_message
     assert numbered.context.task == unnumbered.context.task
+    assert numbered.context.task.saved_job_candidates == ()
     positive = numbered.context.model_context()
     negative = unnumbered.context.model_context()
     # One key differs, and inside it one field: the handle itself.
@@ -1267,21 +1266,19 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         )
     assert resolved.count("report-a") + missed_calls == numbered.recording_samples
     assert resolved.count("report-h1") == 0
-    # Every mirror sample either uses the grounded saved-job selector or
-    # borrows one of the two visible, differently titled stored handles. The
-    # second is the declared gap; what can never appear is a handle nobody
-    # issued, which resolve_reference would refuse below.
+    # Other visible report handles belong to different companies.
     borrowed = []
-    grounded_selector_count = 0
+    without_reference_count = 0
     for sample in load_cassette(unnumbered.name).recordings:
-        arguments = (sample[0].get("tool_call") or {}).get("arguments", {})
+        call = sample[0].get("tool_call") or {}
+        arguments = call.get("arguments", {})
         reference = arguments.get("reference")
         if reference is None:
-            assert arguments.get("selection_index") == 1
-            grounded_selector_count += 1
+            assert call.get("name") not in {"get_job_research", "research_job"}
+            without_reference_count += 1
         else:
             borrowed.append(reference)
-    assert grounded_selector_count + len(borrowed) == unnumbered.recording_samples
+    assert without_reference_count + len(borrowed) == unnumbered.recording_samples
     if unnumbered.known_gap is None:
         assert borrowed == []
     assert {

@@ -1,40 +1,40 @@
 {
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "a2fd75b492a3bf853ec94662e00b5783588564dd557de655987d2f60d90c0d1f",
-  "context_shape_fingerprint": "2ecee3c5ce9bbcbe14ef255fe9cb1fbfdb01a08ea731291ebde75707c64de807",
-  "recorded_at": "2026-09-16T14:34:04.158878+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "bbcf34da4f273c58a32ad7b618d923a2e9ce726ab5cde2a427f230a52b7021f6",
+  "context_shape_fingerprint": "9c2883c7baa6790a17f5a20f9ca8bb915cc05eb0a06147b8df3cd9946fc50e8f",
+  "recorded_at": "2026-09-17T07:13:55.439665+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "全部已保存岗位",
+          "query": "全部",
           "limit": 20
         }
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"已保存 1 个岗位：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n需要的话，我可以继续解析这个岗位的 JD、对比其他已保存岗位，或调研公司信息。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\\n\\n你可以让我进一步查看完整 JD、分析岗位要求，或结合简历评估匹配度。\"}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:34:04.158878+00:00",
+      "recorded_at": "2026-09-17T07:13:55.439665+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
             "arguments": {
-              "query": "全部已保存岗位",
+              "query": "全部",
               "limit": 20
             }
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"已保存 1 个岗位：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n需要的话，我可以继续解析这个岗位的 JD、对比其他已保存岗位，或调研公司信息。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\\n\\n你可以让我进一步查看完整 JD、分析岗位要求，或结合简历评估匹配度。\"}"
         }
       ]
     }

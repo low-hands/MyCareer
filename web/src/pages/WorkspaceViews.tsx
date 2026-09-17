@@ -37,6 +37,7 @@ import {
   type ResumeAttachment,
 } from "../chat/attachments";
 import { JobAnalysisDetails } from "../components/JobAnalysisDetails";
+import { JobMatchesPanel } from "../components/JobMatchesPanel";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 import { ReportCard } from "../components/ReportCard";
 import { ResumeImporter } from "../components/ResumeImporter";
@@ -53,7 +54,9 @@ type PageProps = {
    * chat is open: analysing an exact resume version, or the JD of a saved job
    * with nothing but that JD attached.
    */
-  onStartStandaloneTask?: (prompt: string, resource: ChatAttachment) => void;
+  onStartStandaloneTask?: (
+    prompt: string, resource: ChatAttachment, additionalResources?: ChatAttachment[],
+  ) => void;
   onOpenConversation?: (conversationId: string) => void;
 };
 
@@ -525,6 +528,7 @@ export function JobsPanel(props: PageProps) {
   // is reading a posting, and keeping several bodies expanded turns the library
   // back into a wall of text.
   const [openJd, setOpenJd] = useState<string | null>(null);
+  const [openMatches, setOpenMatches] = useState<string | null>(null);
   const [jd, setJd] = useState<SavedJobDetail | null>(null);
   const [jdLoading, setJdLoading] = useState(false);
   const toggleJd = useCallback(
@@ -652,7 +656,7 @@ export function JobsPanel(props: PageProps) {
                   JD 分析·{derivedStatusLabel(item.jd_analysis_status)}
                 </span>
                 <span className={`status-pill ${derivedStatusClass(item.resume_match_status)}`}>
-                  简历匹配·{derivedStatusLabel(item.resume_match_status)}
+                  简历匹配·{item.resume_match_status === "none" ? "尚未匹配" : derivedStatusLabel(item.resume_match_status)}
                 </span>
                 {/* Said beside the analysis badge rather than replacing it:
                     "closed", "long unconfirmed" and "not analysed" are
@@ -734,6 +738,14 @@ export function JobsPanel(props: PageProps) {
                 </div>
               ) : null}
               <div className="job-card-actions">
+                <button
+                  type="button"
+                  className="link"
+                  aria-expanded={openMatches === item.id}
+                  onClick={() => setOpenMatches(openMatches === item.id ? null : item.id)}
+                >
+                  {openMatches === item.id ? "收起匹配分析" : `查看匹配分析（${item.resume_match_count ?? 0}）`}
+                </button>
                 <button type="button" className="link" onClick={() => toggleJd(item.id)}>
                   {openJd === item.id ? "收起 JD" : "查看完整 JD"}
                 </button>
@@ -748,6 +760,14 @@ export function JobsPanel(props: PageProps) {
                   让 Agent 研究公司
                 </button>
               </div>
+              {openMatches === item.id && !props.hidden ? (
+                <JobMatchesPanel
+                  job={item}
+                  apiBaseUrl={props.apiBaseUrl}
+                  refreshToken={props.refreshToken}
+                  onStartTask={props.onStartStandaloneTask}
+                />
+              ) : null}
               {item.pursuit_status === "dismissed" ? (
                 <div className="job-card-actions">
                   <span className="ignored-note">已忽略</span>

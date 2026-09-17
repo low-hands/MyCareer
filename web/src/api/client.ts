@@ -120,6 +120,7 @@ export interface SavedJobView {
   resume_match_status: JobDerivedStatus;
   resume_match_fit: string | null;
   resume_match_at: string | null;
+  resume_match_count?: number;
 }
 
 export interface ConversationView {
@@ -158,6 +159,7 @@ export interface ConversationMessageView {
 }
 
 export interface ReportView {
+  resume_job_match?: ResumeJobMatchView | null;
   availability?: "available" | "expired";
   kind: string;
   resource_id: string;
@@ -165,6 +167,47 @@ export interface ReportView {
   subtitle: string;
   body: string;
   created_at: string;
+}
+
+export interface ResumeJobMatchView {
+  report_id: string;
+  job_posting_id: string;
+  job_title: string | null;
+  company_name: string | null;
+  jd_snapshot_id: string;
+  jd_version: number | null;
+  jd_captured_at: string | null;
+  jd_available: boolean;
+  current_jd: boolean | null;
+  resume_version_id: string;
+  resume_id: string | null;
+  resume_name: string | null;
+  resume_version_number: number | null;
+  resume_created_at: string | null;
+  resume_available: boolean;
+  matcher_version: string;
+  created_at: string;
+  overall_fit: string;
+  summary: string;
+}
+
+export interface JobMatchHistory {
+  items: ResumeJobMatchView[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function fetchJobMatches(
+  jobPostingId: string,
+  offset: number,
+  options: ReadOptions,
+): Promise<JobMatchHistory> {
+  return getJson<JobMatchHistory>(
+    `/v1/jobs/${encodeURIComponent(jobPostingId)}/matches`,
+    { offset: String(offset), limit: "20" },
+    options,
+  );
 }
 
 export interface ConversationTranscript {
