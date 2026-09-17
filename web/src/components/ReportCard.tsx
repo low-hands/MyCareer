@@ -5,6 +5,7 @@ import type { ReportResourceKind } from "../chat/events";
 import type { MessageResource } from "../chat/reducer";
 import { AppIcon } from "./AppIcon";
 import { MarkdownContent } from "./MarkdownContent";
+import { MatchProvenance } from "./MatchProvenance";
 
 /** A message resource that is a stored report, as opposed to an attached resume. */
 export type ReportResource = MessageResource & { kind: ReportResourceKind };
@@ -103,7 +104,12 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
           ) : report?.availability === "expired" ? (
             <div role="status">内容已过期，无法继续查看。</div>
           ) : report ? (
-            <MarkdownContent content={report.body} className="markdown-content" />
+            <>
+              {report.resume_job_match ? (
+                <MatchProvenance match={report.resume_job_match} apiBaseUrl={apiBaseUrl} />
+              ) : null}
+              <MarkdownContent content={report.body} className="markdown-content" />
+            </>
           ) : (
             <div className="history-loading">
               <span className="spinner" /> 正在读取报告…

@@ -717,17 +717,19 @@ class MainAgentToolRegistry:
                 "function": {
                     "name": "route_to_capability",
                     "description": (
-                        "Switch the tool profile to the domain the user's current "
-                        "request belongs to: job (saved jobs, comparison, company "
+                        "Expose a required tool outside the current profile by "
+                        "switching to its domain: job (saved jobs, comparison, company "
                         "research), resume (analysis, job match, tailoring, "
                         "export), application (applications, status, email "
                         "events), interview (rounds, preparation, retro, calendar, "
                         "mock interview) or memory (career facts, preferences, "
                         "amendments, deletions). task.tool_profile shows the "
                         "current profile and task.available_now the tools usable "
-                        "in it; route before working in a domain the profile does "
-                        "not cover, once per domain, and route to core when the "
-                        "domain's work is done. Routing changes no data."
+                        "in it. Core tools are shared by every profile. A tool "
+                        "already offered needs no route; its missing inputs or "
+                        "approval must be supplied, not bypassed by routing. "
+                        "Routing only changes the offered tool set, not business "
+                        "data, evidence, or authority."
                     ),
                     "parameters": RouteToCapabilityToolArguments.model_json_schema(),
                 },
@@ -1196,11 +1198,13 @@ class MainAgentToolRegistry:
                                 "title and reference, match the requested company to that "
                                 "same result and pass its exact reference; never borrow a "
                                 "reference from an older chat resource or a differently "
-                                "titled result. If the matching result has no reference, use "
-                                "a grounded saved-job selection_index when one is available, "
-                                "otherwise explain that the report is not reachable. Use "
-                                "selection_index to read the numbered saved job's report, or "
-                                "omit both only when the user actually means the active one."
+                                "titled result. A grounded saved-job selection_index reads "
+                                "that company's latest available report, not a specific "
+                                "historical version. Looking up a saved job cannot recover "
+                                "the identity of a missing historical report. If no selector "
+                                "identifies the requested report, explain that it cannot "
+                                "be read and ask the user to supply it. "
+                                "Omit both only when the user actually means the active one."
                             ),
                             "parameters": GetJobResearchToolArguments.model_json_schema(),
                         },
@@ -1243,7 +1247,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "analyze_resume",
-                            "description": "Analyze a selected resume version, or the active latest version when selection_index is omitted. Use when the user asks to read, extract, review, or analyze resume content. Structured candidates are delivered outside the decision context and are not career facts until explicitly confirmed.",
+                            "description": "Analyze the content of one resume version in isolation and extract structured career-fact candidates for review. Requires a selected resume version, or the active latest version when selection_index is omitted. Structured candidates are delivered outside the decision context and are not career facts until explicitly confirmed.",
                             "parameters": AnalyzeResumeToolArguments.model_json_schema(),
                         },
                     },
@@ -1275,7 +1279,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "match_resume_to_job",
-                            "description": "Compare an exact current-user resume version with one saved job's complete JD. Use resume_version_selection_index and job_selection_index to choose directly from existing candidates, or omit either selector to use its active object. Returns a grounded assessment outside the decision context; does not search online and never returns either original document.",
+                            "description": "Compare an exact current-user resume version with one saved job's complete JD. Requires both objects and reads their source documents itself. Use resume_version_selection_index and job_selection_index to choose directly from existing candidates, or omit either selector to use its active object. Returns a grounded assessment outside the decision context; does not search online and never returns either original document.",
                             "parameters": MatchResumeToJobToolArguments.model_json_schema(),
                         },
                     },

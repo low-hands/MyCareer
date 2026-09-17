@@ -1,3 +1,32 @@
+.job-match-history, .match-provenance {
+  border-top: 1px solid var(--border, #e2e8f0);
+  margin-top: 16px;
+  padding-top: 16px;
+  min-width: 0;
+}
+
+.match-history-item {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+}
+
+.match-provenance dl {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.match-provenance dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-provenance dt { font-weight: 600; }
+.match-resume-picker { display: grid; gap: 12px; margin-top: 12px; }
+.match-resume-picker select { width: 100%; margin-top: 6px; }
+
 :root {
   color: #172033;
   background: #edf3ff;

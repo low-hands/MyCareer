@@ -37,6 +37,7 @@ import {
   type StandaloneAgentTask,
 } from "./chat/agentTask";
 import { chatReducer, initialChatState } from "./chat/reducer";
+import { useConversationComposer } from "./chat/composer";
 import {
   RECOVERY_ATTEMPTS,
   RECOVERY_INTERVAL_MS,
@@ -133,10 +134,11 @@ seedCaptureApiKey();
 
 export default function App() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
-  const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState(() =>
     localId("career-agent:conversation-id", "conversation"),
   );
+  const { draft, setDraft, attachments, setAttachments, discardDraft } =
+    useConversationComposer(conversationId);
   const [view, setView] = useState<View>(GOOGLE_OAUTH_CALLBACK?.view ?? "chat");
   const [integrationNotice, setIntegrationNotice] = useState(GOOGLE_OAUTH_CALLBACK);
   // Bumped when a turn ends so panels refetch: acting in chat has to show up on
@@ -151,6 +153,8 @@ export default function App() {
   // A library task waiting for its own conversation: queued while a turn runs
   // or a transcript loads, then switched to and sent exactly once.
   const [standaloneTask, setStandaloneTask] = useState<StandaloneAgentTask | null>(null);
+  const pendingStandaloneTask = useRef<StandaloneAgentTask | null>(null);
+  const activeStandaloneTask = useRef<StandaloneAgentTask | null>(null);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   // Bumped to re-read the current conversation's transcript without changing
   // conversations: the "重新读取" fallback after a recovery that found nothing.
@@ -159,9 +163,6 @@ export default function App() {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
     return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
   });
-  // Resume versions picked for the next message. They are already in the
-  // library; sending attaches their ids, never their contents.
-  const [attachments, setAttachments] = useState<ResumeAttachment[]>([]);
   // A file dropped or picked in chat, waiting for the import form to name it.
   const [pendingUpload, setPendingUpload] = useState<File | null>(null);
   const [importerOpen, setImporterOpen] = useState(false);
@@ -217,6 +218,7 @@ export default function App() {
       signal: request.signal,
     })
       .then((transcript) => {
+        if (request.signal.aborted) return;
         dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
         setHydratedConversationId(conversationId);
       })
@@ -295,9 +297,15 @@ export default function App() {
       switchConversation(standaloneTask.conversationId);
       return;
     }
-    if (step !== "send") return;
+    if (step !== "send" || pendingStandaloneTask.current !== standaloneTask) return;
+    pendingStandaloneTask.current = null;
+    activeStandaloneTask.current = standaloneTask;
     setStandaloneTask(null);
-    void sendMessage(standaloneTask.prompt, undefined, [standaloneTask.resource]);
+    void sendMessage(standaloneTask.prompt, undefined, [
+      standaloneTask.resource, ...(standaloneTask.additionalResources ?? []),
+    ]).finally(() => {
+      if (activeStandaloneTask.current === standaloneTask) activeStandaloneTask.current = null;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [standaloneTask, conversationId, hydratedConversationId, busy, historyLoading]);
 
@@ -546,9 +554,9 @@ export default function App() {
   function switchConversation(next: string): void {
     window.localStorage.setItem("career-agent:conversation-id", next);
     setConversationId(next);
+    setHistoryLoading(true);
+    setHydratedConversationId(null);
     dispatch({ type: "reset" });
-    setDraft("");
-    setAttachments([]);
     setView("chat");
   }
 
@@ -563,10 +571,29 @@ export default function App() {
    * chat's job, interview state or queued attachments. While a turn runs the
    * task waits for it rather than interrupting it or degrading to a draft.
    */
-  function startStandaloneTask(prompt: string, resource: ChatAttachment): void {
+  function startStandaloneTask(
+    prompt: string, resource: ChatAttachment, additionalResources: ChatAttachment[] = [],
+  ): void {
     setView("chat");
-    if (standaloneTask) return;
-    setStandaloneTask(newStandaloneAgentTask(prompt, resource));
+    const active = activeStandaloneTask.current;
+    const activeInputs = active
+      ? toInputResources([active.resource, ...(active.additionalResources ?? [])]) : null;
+    const inputs = toInputResources([resource, ...additionalResources]);
+    if (
+      pendingStandaloneTask.current
+      || (
+        active?.prompt === prompt
+        && JSON.stringify(activeInputs) === JSON.stringify(inputs)
+      )
+    ) return;
+    const task = newStandaloneAgentTask(prompt, resource, additionalResources);
+    pendingStandaloneTask.current = task;
+    setStandaloneTask(task);
+  }
+
+  function cancelStandaloneTask(): void {
+    pendingStandaloneTask.current = null;
+    setStandaloneTask(null);
   }
 
   function startAgentTask(prompt: string, resource?: ResumeAttachment): void {
@@ -584,8 +611,7 @@ export default function App() {
     if (busy) return;
     setView("chat");
     if (nextConversationId === conversationId) return;
-    window.localStorage.setItem("career-agent:conversation-id", nextConversationId);
-    setConversationId(nextConversationId);
+    switchConversation(nextConversationId);
   }
 
   async function removeConversation(item: ConversationView): Promise<void> {
@@ -595,14 +621,10 @@ export default function App() {
     try {
       await deleteConversation(item.id, { apiBaseUrl: API_BASE_URL });
       setConversations((current) => current.filter((entry) => entry.id !== item.id));
+      discardDraft(item.id);
       setConversationListError(null);
       if (item.id === conversationId) {
-        const next = `conversation-${crypto.randomUUID()}`;
-        window.localStorage.setItem("career-agent:conversation-id", next);
-        setConversationId(next);
-        dispatch({ type: "reset" });
-        setDraft("");
-        setAttachments([]);
+        switchConversation(`conversation-${crypto.randomUUID()}`);
       }
     } catch (cause) {
       setConversationListError(cause instanceof Error ? cause.message : "删除会话失败。");
@@ -872,10 +894,10 @@ export default function App() {
                 <span className="spinner" />
                 <span>
                   {busy || historyLoading
-                    ? `当前任务结束后，将在新对话中分析${attachmentLabel(standaloneTask.resource)}`
-                    : `正在打开新对话，分析${attachmentLabel(standaloneTask.resource)}…`}
+                    ? `当前任务结束后，将在新对话中分析${[standaloneTask.resource, ...(standaloneTask.additionalResources ?? [])].map(attachmentLabel).join(" 与 ")}`
+                    : `正在打开新对话，分析${[standaloneTask.resource, ...(standaloneTask.additionalResources ?? [])].map(attachmentLabel).join(" 与 ")}…`}
                 </span>
-                <button type="button" onClick={() => setStandaloneTask(null)}>取消</button>
+                <button type="button" onClick={cancelStandaloneTask}>取消</button>
               </div>
             ) : null}
 

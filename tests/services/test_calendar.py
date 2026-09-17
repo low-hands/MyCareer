@@ -10,6 +10,7 @@ from career_agent.connectors.calendar import (
 )
 from career_agent.domain.interviews import InterviewRound
 from career_agent.services.calendar import (
+    CalendarAccountNotFoundError,
     CalendarProposalConflictError,
     CalendarService,
     CalendarSyncNotAvailableError,
@@ -103,6 +104,24 @@ def build_service(tmp_path):
         store, interviews, Applications(), Resolver(connector)
     )
     return service, store, account, interviews, connector
+
+
+def test_multiple_accounts_require_selection_before_preparation(tmp_path) -> None:
+    service, store, account, _, connector = build_service(tmp_path)
+    store.add_account(
+        user_id="u1", email_address="work@example.com", calendar_id="primary",
+        credential_ref="env:WORK_CALENDAR_CREDENTIAL", now=NOW,
+    )
+    with pytest.raises(CalendarAccountNotFoundError, match="select one calendar account"):
+        service.prepare_interview_sync(
+            user_id="u1", interview_round_id="interview-1", now=NOW,
+        )
+    proposal = service.prepare_interview_sync(
+        user_id="u1", interview_round_id="interview-1",
+        calendar_account_id=account.id, now=NOW,
+    )
+    assert proposal.calendar_account_id == account.id
+    assert connector.calls == []
 
 
 def test_calendar_requires_proposal_then_reuses_event_for_updates_and_cancel(tmp_path) -> None:

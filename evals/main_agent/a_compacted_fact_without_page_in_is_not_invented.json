@@ -1,48 +1,38 @@
 {
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
-  "context_shape_fingerprint": "4a86d64260e1e9ca479ee120a999b78d336aaf897621a5b268075fcf2fbebd62",
-  "recorded_at": "2026-09-16T14:34:44.331998+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "9f0c41393a57858451314030bfeacac1079d7f0c274a43fe8a92783830b3659d",
+  "context_shape_fingerprint": "b0314d3980bbe49545d32898f42d09269aa28b72b9ff4d5c422fefab5745f663",
+  "recorded_at": "2026-09-17T07:14:12.372867+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "route_to_capability",
-        "arguments": {
-          "domain": "job"
-        }
-      }
+      "content": "{\"action\":\"ask_user\",\"message\":\"我现在看不到你一开始指定的目标公司全名；现有上下文只表明“美团”是对照项，不是原目标。请把公司简称或那份 JD 再发我一下，我再帮你确认全名。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:34:41.425924+00:00",
+      "recorded_at": "2026-09-17T07:14:09.274525+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "route_to_capability",
-            "arguments": {
-              "domain": "job"
-            }
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"我现在看不到你一开始指定的目标公司全名；现有上下文只表明“美团”是对照项，不是原目标。请把公司简称或那份 JD 再发我一下，我再帮你确认全名。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-16T14:34:43.217870+00:00",
+      "recorded_at": "2026-09-17T07:14:10.087205+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见记录没有写出你一开始指定的目标公司全名；只知道“美团”是窗口中的对照项。请把目标公司的名称再发我一次。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前可见的上下文里没有你一开始指定的目标公司全名，只能确认美团是对照项，不能据此猜测。请把公司名或相关原话再发一次。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-16T14:34:44.331998+00:00",
+      "recorded_at": "2026-09-17T07:14:12.372867+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见记录里没有你一开始指定的目标公司全名，只有“找算法工程师岗位”。请再提供公司名称，或说明当时的岗位线索。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名；现有上下文只提到美团是对照岗位，没有保留原目标公司的名称。请把公司简称、JD 标题或当时那句话发我，我再帮你确认全名。\"}"
         }
       ]
     }

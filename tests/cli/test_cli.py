@@ -19,7 +19,9 @@ from career_agent.agent.main_agent_runtime import (
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
+from career_agent.cli import EXIT_WORKFLOW_ERROR, _trajectory_tool_specs, build_parser, main
+from career_agent.evaluation import trajectory
+from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.harness.observability import conversation_trace_key
 from career_agent.harness.streaming import (
@@ -397,7 +399,51 @@ def test_memory_exposure_eval_reads_keyed_tombstones(tmp_path) -> None:
     assert payload["zombie_exposure"]["value"] == 1.0
 
 
-def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:
+@pytest.mark.parametrize(
+    ("passed_samples", "expected_code"),
+    [(0, 2), (2, 2), (3, 0)],
+)
+def test_trajectory_cli_maps_sample_failures_to_exit_status(
+    monkeypatch, passed_samples, expected_code
+) -> None:
+    scenario = next(
+        item for item in SCENARIOS
+        if item.name == "an_empty_conversation_span_is_not_filled_from_the_window"
+    )
+    forbidden_fact = sorted(scenario.steps[0].forbid_message_contains)[0]
+    samples = tuple(
+        (
+            {
+                "content": json.dumps(
+                    {
+                        "action": "final",
+                        "message": (
+                            "该范围没有记录，请提供原话。"
+                            if index < passed_samples
+                            else forbidden_fact
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+            },
+        )
+        for index in range(scenario.recording_samples)
+    )
+    cassette = trajectory.TrajectoryCassette(
+        steps=samples[0],
+        samples=samples,
+        prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
+            scenario, _trajectory_tool_specs()
+        ),
+        context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
+        model="offline",
+    )
+
+    def load_cassette(name):
+        assert name == scenario.name
+        return cassette
+
+    monkeypatch.setattr(trajectory, "load_cassette", load_cassette)
     output = StringIO()
 
     code = main(
@@ -405,7 +451,7 @@ def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:
             "eval",
             "trajectories",
             "--scenario",
-            "an_empty_conversation_span_is_not_filled_from_the_window",
+            scenario.name,
         ],
         stdout=output,
         stderr=StringIO(),
@@ -413,12 +459,12 @@ def test_trajectory_cli_keeps_the_empty_span_first_hop_gap_red() -> None:
     payload = json.loads(output.getvalue())
     result = payload["results"][0]
 
-    assert code == 2
-    assert payload["behaviour_failed"] == 1
+    assert code == expected_code
+    assert payload["contract_failed"] == 0
+    assert payload["behaviour_failed"] == (1 if expected_code else 0)
     assert payload["stale"] == 0
-    assert result["behaviour"] == "failed"
-    assert result["samples_passed"] < result["sample_count"]
-    assert result["known_gap_status"] in {"stable", "intermittent"}
+    assert result["behaviour"] == ("failed" if expected_code else "passed")
+    assert result["samples_passed"] == passed_samples
     assert result["sample_count"] == 3
 
 

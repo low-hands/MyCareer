@@ -13,6 +13,7 @@ export interface StandaloneAgentTask {
   conversationId: string;
   prompt: string;
   resource: ChatAttachment;
+  additionalResources?: ChatAttachment[];
 }
 
 export interface AgentTaskChatState {
@@ -28,8 +29,9 @@ export type AgentTaskStep = "wait" | "switch" | "send";
 export function newStandaloneAgentTask(
   prompt: string,
   resource: ChatAttachment,
+  additionalResources: ChatAttachment[] = [],
 ): StandaloneAgentTask {
-  return { conversationId: `conversation-${crypto.randomUUID()}`, prompt, resource };
+  return { conversationId: `conversation-${crypto.randomUUID()}`, prompt, resource, additionalResources };
 }
 
 /**

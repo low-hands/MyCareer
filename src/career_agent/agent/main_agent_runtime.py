@@ -47,7 +47,7 @@ from career_agent.agent.delivery_policy import (
     delivers_body_elsewhere,
     is_failed,
 )
-from career_agent.agent.tool_profiles import profile_tools
+from career_agent.agent.tool_profiles import profile_schemas, profile_tools
 from career_agent.agent.tool_effects import (
     ToolEffect,
     effect_for,
@@ -2358,12 +2358,7 @@ class MainAgentRuntime:
 
         cached = self._profile_tool_schemas.get(profile)
         if cached is None:
-            offered = profile_tools(profile)
-            cached = tuple(
-                schema
-                for schema in self._registered_schemas()
-                if schema.get("function", {}).get("name") in offered
-            )
+            cached = profile_schemas(profile, self._registered_schemas())
             self._profile_tool_schemas[profile] = cached
             self._profile_tool_schema_chars[profile] = len(
                 json.dumps(cached, ensure_ascii=False, sort_keys=True)

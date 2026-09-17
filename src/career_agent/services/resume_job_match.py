@@ -16,6 +16,7 @@ from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.resume_job_matches import (
+    ResumeJobMatchInputs,
     SQLiteResumeJobMatchStore,
     StoredResumeJobMatch,
 )
@@ -72,6 +73,12 @@ class ResumeJobMatchService:
         )
         if document is None:
             raise ResumeJobMatchInputNotFoundError("resume_version")
+        source = self._resume_store.get_version(
+            user_id=user_id, resume_version_id=resume_version_id
+        )
+        if source is None:
+            raise ResumeJobMatchInputNotFoundError("resume_version")
+        resume, version = source
         job = self._job_repository.get_job(
             user_id=user_id,
             job_posting_id=job_posting_id,
@@ -142,6 +149,16 @@ class ResumeJobMatchService:
             matcher_version=self._matcher_version,
             evidence_fingerprint=evidence_fingerprint,
             result=result,
+            inputs=ResumeJobMatchInputs(
+                job_title=job.posting.title,
+                company_name=job.posting.company_name,
+                resume_id=resume.id,
+                resume_name=resume.name,
+                resume_version_number=version.version_number,
+                resume_created_at=version.created_at,
+                jd_version=job.snapshot.version,
+                jd_captured_at=job.snapshot.captured_at,
+            ),
         )
 
     def get_match(self, *, user_id: str, match_id: str) -> StoredResumeJobMatch:

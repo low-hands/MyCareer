@@ -1,38 +1,38 @@
 {
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
-  "model": "gpt-5.6-terra",
-  "prompt_fingerprint": "2ca2038efab36c8e99009101b5866ba02f0d91ae68a971ade0fd656101d7b4ea",
-  "context_shape_fingerprint": "9484e7650f12547fca592735bdfab1b40b344b5fc32aaca000d236898f631004",
-  "recorded_at": "2026-09-16T14:34:25.040228+00:00",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "context_shape_fingerprint": "927302939f12ca1a32cc8e328e32e6db1fb87fea0af3499bdfc96d249830b26a",
+  "recorded_at": "2026-09-17T07:14:03.935638+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个岗位可打开。\\n\\n1. 算法工程师｜示例科技｜上海｜30–50K\\n\\n请确认是否打开第 1 个岗位的完整 JD。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个。现有岗位是：\\n\\n1. **示例科技｜算法工程师｜上海｜30–50K**\\n\\n如果你想查看它的完整 JD，请回复“打开第 1 个”。\"}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-16T14:34:24.518450+00:00",
+      "recorded_at": "2026-09-17T07:14:03.719842+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个岗位可打开。\\n\\n1. 算法工程师｜示例科技｜上海｜30–50K\\n\\n请确认是否打开第 1 个岗位的完整 JD。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个。现有岗位是：\\n\\n1. **示例科技｜算法工程师｜上海｜30–50K**\\n\\n如果你想查看它的完整 JD，请回复“打开第 1 个”。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-16T14:34:25.011380+00:00",
+      "recorded_at": "2026-09-17T07:15:05.360154+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"当前只保存了 1 个岗位，没有第 2 个可打开。\\n\\n1. 示例科技｜算法工程师｜上海｜30–50K\\n\\n请确认是否要打开第 1 个岗位的完整 JD。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表中只有 1 个岗位：示例科技｜算法工程师（上海，30–50K），不存在第 2 个岗位。你可以回复“打开第 1 个”，或告诉我第 2 个岗位的公司名/职位名，我再帮你查找。\"}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-16T14:34:25.040228+00:00",
+      "recorded_at": "2026-09-17T07:14:03.935638+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前只有 1 个已保存岗位，无法打开第 2 个。请确认是否打开第 1 个岗位「示例科技｜算法工程师｜上海｜30-50K」的完整 JD。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"当前列表只有 1 个岗位，没有第 2 个。现有岗位是：\\n\\n1. **示例科技｜算法工程师｜上海｜30–50K**\\n\\n如果你想打开这个岗位，请回复“打开第 1 个”。\"}"
         }
       ]
     }

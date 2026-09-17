@@ -1238,19 +1238,13 @@ def _failure_exit_code(result: ToolObservation) -> int:
 def _trajectory_tool_specs():
     """Every tool the registry can offer, wired with placeholder services.
 
-    Scenarios never execute a tool, so the services only have to exist. What
-    has to match production is the fixed schema universe offered on every
-    decision. Runtime handler preconditions still apply when a tool is actually
-    executed; there is no task-scoped model-window filter to reproduce here.
+    Scenarios never execute a tool, so the services only have to exist.
+    The trajectory harness filters this registry by each step's active profile.
     """
     import inspect
 
     from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 
-    # Derived from the registry's own signature so that a service added to
-    # production is offered here too and stales every cassette, instead of the
-    # two lists drifting apart in silence (``episode_store`` did, 2026-09-11,
-    # and ``owner_settings_store`` before it, from 68370e4 until the same day).
     parameters = tuple(
         name
         for name in inspect.signature(MainAgentToolRegistry.__init__).parameters

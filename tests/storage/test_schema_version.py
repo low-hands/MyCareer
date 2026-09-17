@@ -82,7 +82,7 @@ DECLARED_VERSIONS = {
     "resume_analysis": 1,
     "resume_tailoring": 1,
     "resume_artifacts": 1,
-    "resume_job_matches": 1,
+    "resume_job_matches": 2,
     "interview_preparations": 1,
     "agent_context": 17,
     "api_keys": 3,
