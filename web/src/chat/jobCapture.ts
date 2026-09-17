@@ -5,6 +5,7 @@ import {
   type JobCapturedEventView,
 } from "../api/client";
 import {
+  ChatStreamHttpError,
   streamChat,
   type ChatStreamOptions,
   type ChatStreamRequest,
@@ -119,6 +120,7 @@ export async function* streamCaptureTurn(
 
 export type CaptureContinuationResult =
   | { status: "waiting"; events: [] }
+  | { status: "discarded"; events: [] }
   | { status: "failed"; events: PublicStreamEvent[] }
   | { status: "committed"; events: PublicStreamEvent[] };
 
@@ -134,16 +136,27 @@ export async function continuePendingJobCapture(
   if (!captureConversationAcceptsInput(transcript)) return { status: "waiting", events: [] };
 
   const events: PublicStreamEvent[] = [];
-  for await (const streamEvent of streamCaptureTurn(
-    {
-      conversation_id: event.conversation_id,
-      message: captureFollowUpMessage(event),
-      input_resources: captureInputResources(event),
-    },
-    event.id,
-    { ...options, apiBaseUrl },
-  )) {
-    events.push(streamEvent);
+  try {
+    for await (const streamEvent of streamCaptureTurn(
+      {
+        conversation_id: event.conversation_id,
+        message: captureFollowUpMessage(event),
+        input_resources: captureInputResources(event),
+      },
+      event.id,
+      { ...options, apiBaseUrl },
+    )) {
+      events.push(streamEvent);
+    }
+  } catch (error) {
+    if (
+      error instanceof ChatStreamHttpError
+      && (
+        error.code === "JOB_CAPTURE_CONVERSATION_UNAVAILABLE"
+        || error.code === "JOB_CAPTURE_NOT_FOUND"
+      )
+    ) return { status: "discarded", events: [] };
+    throw error;
   }
   return events.some(
     (streamEvent) =>

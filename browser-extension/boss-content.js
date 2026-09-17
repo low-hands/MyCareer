@@ -175,8 +175,8 @@
       // Said only when a live intent matched: a job saved from the user's own
       // browsing goes to the library and starts no conversation.
       status.textContent = response.result.conversation_id
-        ? `${saved}，Career Agent 会在原对话继续分析`
-        : saved;
+        ? `${saved}，Career Agent 会在原对话继续`
+        : `${saved}，未续接会话`;
     } catch (error) {
       save.disabled = false;
       save.textContent = "重新保存";

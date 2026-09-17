@@ -179,6 +179,35 @@ describe("capture acknowledgements", () => {
 });
 
 describe("capture retry scheduling", () => {
+  it.each([
+    [410, "JOB_CAPTURE_CONVERSATION_UNAVAILABLE"],
+    [404, "JOB_CAPTURE_NOT_FOUND"],
+  ])("discards a cached capture rejected with %s after deletion", async (status, code) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(transcript())
+      .mockResolvedValueOnce(Response.json(
+        { detail: { code, message: "原会话不可用" } }, { status: Number(status) },
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await continuePendingJobCapture(capture)).toEqual({
+      status: "discarded", events: [],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not discard captures on a temporary server failure", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(transcript())
+      .mockResolvedValueOnce(Response.json(
+        { detail: { code: "TURN_CAPACITY_EXHAUSTED" } }, { status: 503 },
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(continuePendingJobCapture(capture)).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("matches the runtime phases that release mock-interview input", () => {
     expect(captureConversationAcceptsInput({
       active_workflow: "mock_interview",
