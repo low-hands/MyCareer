@@ -122,6 +122,10 @@ class JobCaptureStore(Protocol):
 
     def acknowledge_event(self, *, user_id: str, event_id: str) -> bool: ...
 
+    def get_event(
+        self, *, user_id: str, event_id: str
+    ) -> JobCapturedEvent | None: ...
+
 
 class SQLiteJobCaptureStore:
     """Shares ``jobs.sqlite3`` with the posting repository, under its own version."""
@@ -314,6 +318,17 @@ class SQLiteJobCaptureStore:
                 (intent.id, job_posting_id),
             ).fetchone()
         return JobCaptureRecording(event=self._event_from_row(row), created=False)
+
+    def get_event(
+        self, *, user_id: str, event_id: str
+    ) -> JobCapturedEvent | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"SELECT {self._EVENT_COLUMNS} FROM job_captured_events "
+                "WHERE user_id = ? AND id = ?",
+                (user_id, event_id),
+            ).fetchone()
+        return self._event_from_row(row) if row is not None else None
 
     def list_pending_events(
         self,

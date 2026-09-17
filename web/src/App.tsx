@@ -381,6 +381,10 @@ export default function App() {
         apiBaseUrl: API_BASE_URL,
         signal: request.signal,
       });
+      if (result.status === "discarded") {
+        setCaptureEvents((current) => current.filter((item) => item.id !== event.id));
+        return;
+      }
       if (result.status !== "committed") return;
       captureCommitted.current.add(event.id);
       setCompletedTurns((count) => count + 1);

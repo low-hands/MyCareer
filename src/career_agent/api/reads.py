@@ -1981,6 +1981,8 @@ class TargetRoleCreateRequest(BaseModel):
 def build_read_router(
     action_center_factory: Callable[[], ActionCenterService],
     workspace_reader_factory: Callable[[], WorkspaceReader],
+    *,
+    before_conversation_delete: Callable[[str, str], None] | None = None,
 ) -> APIRouter:
     """Wire the read endpoints against a lazily built service.
 
@@ -2294,6 +2296,8 @@ def build_read_router(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
     ) -> ConversationDeletionResponse:
         """Forget chat/session content while retaining execution audit records."""
+        if before_conversation_delete is not None:
+            before_conversation_delete(principal.user_id, conversation_id)
         if not workspace().delete_conversation(
             user_id=principal.user_id,
             conversation_id=conversation_id,

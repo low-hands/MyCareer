@@ -297,6 +297,9 @@ class ConversationRunGate:
     def active_count(self) -> int:
         return len(self._active)
 
+    def is_active(self, user_id: str, conversation_id: str) -> bool:
+        return (user_id, conversation_id) in self._active
+
     async def acquire(self, user_id: str, conversation_id: str) -> None:
         key = (user_id, conversation_id)
         async with self._guard:
@@ -584,7 +587,22 @@ def create_app(
     )
     # Built on first use, not at import: constructing it opens the local
     # databases, and creating an app must not touch the real store paths.
-    application_router = build_read_router(read_factory, workspace_factory)
+    def ensure_conversation_idle(user_id: str, conversation_id: str) -> None:
+        gate: ConversationRunGate = application.state.run_gate
+        if gate.is_active(user_id, conversation_id):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "CONVERSATION_TURN_IN_PROGRESS",
+                    "message": "这个对话仍在处理中，请等待本轮结束后再删除。",
+                },
+            )
+
+    application_router = build_read_router(
+        read_factory,
+        workspace_factory,
+        before_conversation_delete=ensure_conversation_idle,
+    )
     integration_router = build_integration_router(
         integration_service_factory or build_integration_service
     )
@@ -732,6 +750,13 @@ def create_app(
         async def release_gate() -> None:
             await gate.release(principal.user_id, request.conversation_id)
 
+        try:
+            if idempotency_key and idempotency_key.startswith("jobcap_"):
+                validate_capture_turn(principal.user_id, idempotency_key, request)
+        except BaseException:
+            await release_gate()
+            raise
+
         stream_started = False
 
         async def generate() -> AsyncIterator[str]:
@@ -766,6 +791,46 @@ def create_app(
             store = settings_factory()
             application.state.owner_settings_store = store
         return store
+
+    def conversation_accepts_capture(user_id: str, conversation_id: str) -> bool:
+        session = settings_store().get_session(user_id, conversation_id)
+        return session is not None and session.status == "active"
+
+    def validate_capture_turn(
+        user_id: str, event_id: str, request: ChatStreamRequest
+    ) -> None:
+        store = _job_capture_store()
+        event = store.get_event(user_id=user_id, event_id=event_id)
+        if event is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "JOB_CAPTURE_NOT_FOUND",
+                    "message": "没有找到这个岗位捕获事件。",
+                },
+            )
+        if (
+            request.conversation_id != event.conversation_id
+            or request.input_resources
+            != (TurnInputResource(kind="jd_snapshot", id=event.jd_snapshot_id),)
+            or request.interaction_response is not None
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "JOB_CAPTURE_INPUT_MISMATCH",
+                    "message": "岗位捕获必须续接原会话，并使用保存时的 JD 快照。",
+                },
+            )
+        if not conversation_accepts_capture(user_id, event.conversation_id):
+            store.acknowledge_event(user_id=user_id, event_id=event.id)
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "code": "JOB_CAPTURE_CONVERSATION_UNAVAILABLE",
+                    "message": "岗位已保存；原会话已删除或关闭，未续接会话。",
+                },
+            )
 
     @application.get(
         "/v1/settings",
@@ -981,7 +1046,9 @@ def create_app(
             user_id=principal.user_id,
             intent_id=request.capture_intent_id,
         )
-        if intent is None:
+        if intent is None or not conversation_accepts_capture(
+            principal.user_id, intent.conversation_id
+        ):
             return response
         recording = _job_capture_store().record_capture(
             intent=intent,
@@ -1024,9 +1091,15 @@ def create_app(
             user_id=principal.user_id,
             conversation_id=conversation_id or None,
         )
-        return JobCapturedEventsResponse(
-            events=tuple(JobCapturedEventView.from_event(event) for event in events)
-        )
+        pending: list[JobCapturedEventView] = []
+        for event in events:
+            if conversation_accepts_capture(principal.user_id, event.conversation_id):
+                pending.append(JobCapturedEventView.from_event(event))
+            else:
+                _job_capture_store().acknowledge_event(
+                    user_id=principal.user_id, event_id=event.id
+                )
+        return JobCapturedEventsResponse(events=tuple(pending))
 
     @application.post(
         "/v1/job-captures/events/{event_id}/ack",
