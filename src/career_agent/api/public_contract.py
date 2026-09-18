@@ -40,6 +40,7 @@ from career_agent.api.app import (
     BrowserJobCaptureResponse,
     ChatStreamRequest,
     JobCapturedEventAckResponse,
+    JobCaptureRetryResponse,
     JobCapturedEventView,
     JobCapturedEventsResponse,
     JobClosureResponse,
@@ -703,6 +704,8 @@ def _read_examples() -> dict[str, list[BaseModel]]:
             conversation_id="conv-1",
             capture_event_id=f"jobcap_{'0' * 32}",
             capture_event_created=True,
+            continuation_status="pending",
+            continuation_reason=None,
         ),
         JobCapturedEventsResponse(
             events=(
@@ -714,11 +717,25 @@ def _read_examples() -> dict[str, list[BaseModel]]:
                     title="AI 产品经理",
                     company_name="示例科技",
                     created_at=_AT,
+                    continuation_status="completed",
+                    continuation_turn_id="turn-1",
+                ),
+                JobCapturedEventView(
+                    id=f"jobcap_{'1' * 32}",
+                    conversation_id="conv-1",
+                    job_posting_id="job-2",
+                    jd_snapshot_id="snapshot-2",
+                    title="算法工程师",
+                    company_name="示例科技",
+                    created_at=_AT,
+                    continuation_status="pending",
+                    continuation_turn_id=None,
                 ),
             )
         ),
         JobCapturedEventsResponse(events=()),
         JobCapturedEventAckResponse(event_id=f"jobcap_{'0' * 32}", acknowledged=True),
+        JobCaptureRetryResponse(event_id=f"jobcap_{'0' * 32}", retried=True),
         JobClosureResponse(matched=False, job_posting_id=None),
         OwnerSettingsResponse(owner_settings=owner_settings),
         OwnerSettingsHistoryResponse(

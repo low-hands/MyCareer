@@ -172,11 +172,15 @@
       if (!response?.ok) throw new Error(response?.message || "保存失败");
       save.textContent = "已保存";
       const saved = `JD 快照 v${response.result.snapshot_version} 已进入岗位库`;
-      // Said only when a live intent matched: a job saved from the user's own
-      // browsing goes to the library and starts no conversation.
-      status.textContent = response.result.conversation_id
-        ? `${saved}，Career Agent 会在原对话继续`
-        : `${saved}，未续接会话`;
+      const continuation = response.result.continuation_status;
+      const outcome = continuation === "completed"
+        ? "已续接原会话"
+        : continuation === "pending"
+          ? "后端正在续接原会话，关闭页面不影响处理"
+          : continuation === "failed"
+            ? "续接失败，可在原会话重试"
+            : "未续接会话";
+      status.textContent = `${saved}，${outcome}`;
     } catch (error) {
       save.disabled = false;
       save.textContent = "重新保存";

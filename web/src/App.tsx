@@ -9,6 +9,7 @@ import {
   fetchConversationMessages,
   fetchConversations,
   fetchPendingJobCaptures,
+  retryJobCapture,
 } from "./api/client";
 import { seedCaptureApiKey } from "./api/auth";
 import { streamChat, type InteractionResponse, type TurnInputResource } from "./api/sse";
@@ -27,7 +28,7 @@ import {
 import {
   CAPTURE_POLL_INTERVAL_MS,
   JOB_CAPTURED_MESSAGE,
-  continuePendingJobCapture,
+  captureDeliveryReady,
   nextCaptureEvents,
   openJobSearchViaBridge,
 } from "./chat/jobCapture";
@@ -173,14 +174,11 @@ export default function App() {
   // when it did not; the client never has to know which.
   const lastRequest = useRef<PendingRequest | null>(null);
   const transcript = useRef<HTMLDivElement | null>(null);
-  // Jobs saved from the agent's own BOSS search that have not yet re-entered
-  // their conversation. They live on the server until acknowledged, so a
-  // page that was closed during the save still picks them up here.
+  // Acknowledgment tracks presentation; the backend owns continuation execution.
   const [captureEvents, setCaptureEvents] = useState<JobCapturedEventView[]>([]);
   const [captureRefreshes, setCaptureRefreshes] = useState(0);
   const captureInFlight = useRef(new Set<string>());
   const captureAttempted = useRef(new Set<string>());
-  const captureCommitted = useRef(new Set<string>());
   const captureController = useRef<AbortController | null>(null);
   const activeConversationId = useRef(conversationId);
   const activeChatState = useRef(state);
@@ -244,11 +242,6 @@ export default function App() {
       .then((events) => {
         if (request.signal.aborted) return;
         captureAttempted.current.clear();
-        for (const eventId of captureCommitted.current) {
-          if (!events.some((event) => event.id === eventId)) {
-            captureCommitted.current.delete(eventId);
-          }
-        }
         setCaptureEvents(events);
       })
       .catch(() => undefined);
@@ -273,16 +266,14 @@ export default function App() {
     return () => window.removeEventListener("message", onMessage);
   }, []);
   useEffect(() => {
-    // One captured job at a time. The continuation checks the target
-    // conversation before posting and stays detached from the visible chat.
     if (busy || historyLoading) return;
     const [next] = nextCaptureEvents(
-      captureEvents, captureInFlight.current, captureAttempted.current,
+      captureEvents.filter(captureDeliveryReady), captureInFlight.current, captureAttempted.current,
     );
     if (!next) return;
     captureInFlight.current.add(next.id);
     captureAttempted.current.add(next.id);
-    void continueFromCapture(next);
+    void refreshFromCapture(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureEvents, conversationId, busy, historyLoading]);
   useEffect(() => {
@@ -363,61 +354,36 @@ export default function App() {
     await streamTurn(request);
   }
 
-  async function continueFromCapture(event: JobCapturedEventView): Promise<void> {
+  async function refreshFromCapture(event: JobCapturedEventView): Promise<void> {
     const request = new AbortController();
     const chatStateAtStart = activeChatState.current;
     captureController.current = request;
     try {
-      if (captureCommitted.current.has(event.id)) {
-        await acknowledgeJobCapture(event.id, {
+      if (
+        event.continuation_status === "completed"
+        && activeConversationId.current === event.conversation_id
+      ) {
+        const transcript = await fetchConversationMessages(event.conversation_id, {
           apiBaseUrl: API_BASE_URL,
           signal: request.signal,
         });
-        setCaptureEvents((current) => current.filter((item) => item.id !== event.id));
-        captureCommitted.current.delete(event.id);
-        return;
-      }
-      const result = await continuePendingJobCapture(event, {
-        apiBaseUrl: API_BASE_URL,
-        signal: request.signal,
-      });
-      if (result.status === "discarded") {
-        setCaptureEvents((current) => current.filter((item) => item.id !== event.id));
-        return;
-      }
-      if (result.status !== "committed") return;
-      captureCommitted.current.add(event.id);
-      setCompletedTurns((count) => count + 1);
-      if (
-        activeConversationId.current !== event.conversation_id
-        || activeChatState.current !== chatStateAtStart
-      ) return;
-      for (const streamEvent of result.events) {
         if (
-          streamEvent.type === "client_action"
-          && streamEvent.action === "open_url"
-          && isAllowedJobSearchUrl(streamEvent.url)
+          activeConversationId.current === event.conversation_id
+          && activeChatState.current !== chatStateAtStart
+        ) return;
+        if (
+          activeConversationId.current === event.conversation_id
+          && activeChatState.current === chatStateAtStart
         ) {
-          void openJobSearch(
-            streamEvent.url,
-            streamEvent.capture_intent_id ?? null,
-            streamEvent.capture_intent_expires_at ?? null,
-          );
+          dispatch({ type: "hydrate", ...hydrationFrom(event.conversation_id, transcript) });
         }
       }
-      const transcript = await fetchConversationMessages(event.conversation_id, {
+      await acknowledgeJobCapture(event.id, {
         apiBaseUrl: API_BASE_URL,
         signal: request.signal,
       });
-      if (
-        activeConversationId.current === event.conversation_id
-        && activeChatState.current === chatStateAtStart
-      ) {
-        dispatch({
-          type: "hydrate",
-          ...hydrationFrom(event.conversation_id, transcript),
-        });
-      }
+      setCaptureEvents((current) => current.filter((item) => item.id !== event.id));
+      setCompletedTurns((count) => count + 1);
     } catch {
       // The durable event remains pending and will be reconsidered after polling.
     } finally {
@@ -1002,6 +968,20 @@ export default function App() {
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
           >
+            {captureEvents.filter((event) =>
+              event.conversation_id === conversationId && event.continuation_status === "failed"
+            ).map((event) => (
+              <div key={event.id} role="status">
+                岗位「{event.title}」已保存，续接会话失败。
+                <button type="button" disabled={busy} onClick={() => {
+                  void retryJobCapture(event.id, { apiBaseUrl: API_BASE_URL })
+                    .then(() => setCaptureRefreshes((count) => count + 1))
+                    .catch((cause: unknown) => setConversationListError(
+                      cause instanceof Error ? cause.message : "重试岗位续接失败。",
+                    ));
+                }}>重试续接</button>
+              </div>
+            ))}
             {importerOpen ? (
               <div className="composer-importer" role="dialog" aria-label="导入简历并附到消息">
                 <div className="composer-importer-header">

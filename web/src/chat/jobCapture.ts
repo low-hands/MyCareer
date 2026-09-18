@@ -1,17 +1,4 @@
-import {
-  acknowledgeJobCapture,
-  fetchConversationMessages,
-  type ConversationTranscript,
-  type JobCapturedEventView,
-} from "../api/client";
-import {
-  ChatStreamHttpError,
-  streamChat,
-  type ChatStreamOptions,
-  type ChatStreamRequest,
-  type TurnInputResource,
-} from "../api/sse";
-import type { PublicStreamEvent } from "./events";
+import type { JobCapturedEventView } from "../api/client";
 
 /** Message names shared with the extension's app bridge (`browser-extension/app-bridge.js`). */
 export const OPEN_JOB_SEARCH_MESSAGE = "career-agent:open-job-search";
@@ -22,6 +9,10 @@ export const JOB_CAPTURED_MESSAGE = "career-agent:job-captured";
 export const BRIDGE_TIMEOUT_MS = 800;
 /** Pending events are re-read on this cadence; the bridge nudge only makes it sooner. */
 export const CAPTURE_POLL_INTERVAL_MS = 15_000;
+
+export function captureDeliveryReady(event: JobCapturedEventView): boolean {
+  return event.continuation_status === "completed" || event.continuation_status === "discarded";
+}
 
 export interface OpenJobSearchRequest {
   url: string;
@@ -68,102 +59,6 @@ export function openJobSearchViaBridge(
       target.location.origin,
     );
   });
-}
-
-/**
- * The user-visible message that opens the follow-up turn for a captured job.
- *
- * It records the save and stops there: analysing the JD is a separate task the
- * user starts from the library, so the text says it is available rather than
- * asking for it.
- */
-export function captureFollowUpMessage(event: JobCapturedEventView): string {
-  return (
-    `我已经从 BOSS 保存了岗位「${event.title} · ${event.company_name}」，先记下来就好。` +
-    `暂不需要分析；之后我可以在岗位库点「让 Agent 分析」，再让你仅基于这份 JD 做岗位分析。`
-  );
-}
-
-/** The exact JD version just saved, verified server-side against the caller before the turn runs. */
-export function captureInputResources(event: JobCapturedEventView): TurnInputResource[] {
-  return [{ kind: "jd_snapshot", id: event.jd_snapshot_id }];
-}
-
-export function captureConversationAcceptsInput(
-  transcript: Pick<ConversationTranscript, "active_workflow" | "phase" | "pending_interaction">,
-): boolean {
-  if (transcript.pending_interaction) return false;
-  if (transcript.active_workflow !== "mock_interview") return true;
-  return transcript.phase === "mock_interview_checkpoint_missing"
-    || transcript.phase === "mock_interview_graph_incompatible";
-}
-
-export async function* streamCaptureTurn(
-  request: ChatStreamRequest,
-  captureEventId: string,
-  options: ChatStreamOptions = {},
-): AsyncGenerator<PublicStreamEvent> {
-  for await (const event of streamChat(request, { ...options, idempotencyKey: captureEventId })) {
-    if (event.type === "turn_completed" || event.type === "turn_suspended") {
-      try {
-        await acknowledgeJobCapture(captureEventId, {
-          apiBaseUrl: (options.apiBaseUrl ?? "/api").replace(/\/$/, ""),
-          signal: options.signal,
-        });
-      } catch {
-        // A pending event retries with the same key and replays the committed turn.
-      }
-    }
-    yield event;
-  }
-}
-
-export type CaptureContinuationResult =
-  | { status: "waiting"; events: [] }
-  | { status: "discarded"; events: [] }
-  | { status: "failed"; events: PublicStreamEvent[] }
-  | { status: "committed"; events: PublicStreamEvent[] };
-
-export async function continuePendingJobCapture(
-  event: JobCapturedEventView,
-  options: ChatStreamOptions = {},
-): Promise<CaptureContinuationResult> {
-  const apiBaseUrl = (options.apiBaseUrl ?? "/api").replace(/\/$/, "");
-  const transcript = await fetchConversationMessages(event.conversation_id, {
-    apiBaseUrl,
-    signal: options.signal,
-  });
-  if (!captureConversationAcceptsInput(transcript)) return { status: "waiting", events: [] };
-
-  const events: PublicStreamEvent[] = [];
-  try {
-    for await (const streamEvent of streamCaptureTurn(
-      {
-        conversation_id: event.conversation_id,
-        message: captureFollowUpMessage(event),
-        input_resources: captureInputResources(event),
-      },
-      event.id,
-      { ...options, apiBaseUrl },
-    )) {
-      events.push(streamEvent);
-    }
-  } catch (error) {
-    if (
-      error instanceof ChatStreamHttpError
-      && (
-        error.code === "JOB_CAPTURE_CONVERSATION_UNAVAILABLE"
-        || error.code === "JOB_CAPTURE_NOT_FOUND"
-      )
-    ) return { status: "discarded", events: [] };
-    throw error;
-  }
-  return events.some(
-    (streamEvent) =>
-      streamEvent.type === "turn_completed" || streamEvent.type === "turn_suspended",
-  )
-    ? { status: "committed", events }
-    : { status: "failed", events };
 }
 
 /** Events not yet taken up, oldest first, skipping ones already in flight. */

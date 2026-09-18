@@ -57,7 +57,7 @@ def test_expired_intent_reads_as_absent(store) -> None:
         _intent(store, ttl=timedelta(0))
 
 
-def test_repeated_save_of_one_posting_records_a_single_event(store) -> None:
+def test_consumed_intent_only_replays_the_exact_snapshot(store) -> None:
     intent = _intent(store)
 
     first = store.record_capture(
@@ -67,8 +67,13 @@ def test_repeated_save_of_one_posting_records_a_single_event(store) -> None:
         title="AI 产品经理",
         company_name="示例科技",
     )
-    # The extension re-saved the same page; the snapshot may even be newer,
-    # but the conversation is told exactly once.
+    duplicate = store.record_capture(
+        intent=intent,
+        job_posting_id="job-1",
+        jd_snapshot_id="snap-1",
+        title="AI 产品经理",
+        company_name="示例科技",
+    )
     second = store.record_capture(
         intent=intent,
         job_posting_id="job-1",
@@ -84,13 +89,16 @@ def test_repeated_save_of_one_posting_records_a_single_event(store) -> None:
         company_name="示例科技",
     )
 
-    assert first.created is True
-    assert second.created is False
-    assert second.event == first.event
-    assert other_job.created is True
+    assert first is not None and first.created is True
+    assert duplicate is not None and duplicate.created is False
+    assert duplicate.event == first.event
+    assert second is None
+    assert other_job is None
+    consumed = store.get_intent(user_id="u1", intent_id=intent.id)
+    assert consumed is not None and consumed.consumed_event_id == first.event.id
+    assert store.get_live_intent(user_id="u1", intent_id=intent.id) is None
     assert [event.job_posting_id for event in store.list_pending_events(user_id="u1")] == [
         "job-1",
-        "job-2",
     ]
 
 

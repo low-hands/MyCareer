@@ -3254,11 +3254,12 @@ class MainAgentToolRegistry:
     def _open_job_search(self, arguments: dict[str, Any]) -> ToolObservation:
         user_id = arguments.get("user_id")
         conversation_id = arguments.get("conversation_id")
+        source_turn_id = arguments.get("source_turn_id")
         model_arguments = OpenJobSearchToolArguments.model_validate(
             {
                 key: value
                 for key, value in arguments.items()
-                if key not in {"user_id", "conversation_id"}
+                if key not in {"user_id", "conversation_id", "source_turn_id"}
             }
         )
         keyword = model_arguments.keyword.strip()
@@ -3288,6 +3289,7 @@ class MainAgentToolRegistry:
             intent = self._job_capture_store.create_intent(
                 user_id=str(user_id),
                 conversation_id=str(conversation_id),
+                source_turn_id=str(source_turn_id) if source_turn_id else None,
                 platform="boss",
                 keyword=keyword,
                 city=city,

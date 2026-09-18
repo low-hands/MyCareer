@@ -34,6 +34,9 @@ EventType = Literal[
     # that is a real limitation depends on how often contention actually
     # happens — which nothing currently measures.
     "turn_rejected",
+    # A BOSS capture's intent resolution and its backend continuation outcome.
+    # Identifiers and closed-set statuses only: never JD text, company or title.
+    "capture_continuation",
     "capability_failed",
     "presentation_degraded",
     "context_compacted",

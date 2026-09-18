@@ -10,7 +10,6 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.main_agent_contracts import CareerProfileContext
 from career_agent.storage.calendar import SQLiteCalendarStore
-from career_agent.storage.action_executions import SQLiteActionExecutionStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.interview_preparations import (
@@ -88,7 +87,7 @@ DECLARED_VERSIONS = {
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 2,
-    "job_captures": 1,
+    "job_captures": 2,
     "job_research": 2,
     "run_events": 2,
     "career_episodes": 8,

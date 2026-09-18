@@ -25,6 +25,9 @@ import type {
   ApplicationView,
   CalendarWorkspace,
   CompanyResearchView,
+  JobCaptureAck,
+  JobCapturedEvents,
+  JobCaptureRetry,
   ConversationTranscript,
   ConversationView,
   DailyBrief,
@@ -90,6 +93,9 @@ examples("TargetRoleView") satisfies TargetRoleView[];
 examples("EmailWorkspaceResponse") satisfies EmailWorkspace[];
 examples("CalendarWorkspaceResponse") satisfies CalendarWorkspace[];
 examples("CompanyResearchView") satisfies CompanyResearchView[];
+examples("JobCapturedEventsResponse") satisfies JobCapturedEvents[];
+examples("JobCapturedEventAckResponse") satisfies JobCaptureAck[];
+examples("JobCaptureRetryResponse") satisfies JobCaptureRetry[];
 
 /* The request the client sends: the check runs the other way. The client's
  * type must be accepted by the server, so the server's example must be
@@ -218,6 +224,9 @@ describe("read response contract", () => {
       "EmailWorkspaceResponse",
       "CalendarWorkspaceResponse",
       "CompanyResearchView",
+      "JobCapturedEventsResponse",
+      "JobCapturedEventAckResponse",
+      "JobCaptureRetryResponse",
     ];
     const described = Object.keys(API_CONTRACT.reads);
     expect(consumed.filter((name) => !described.includes(name))).toEqual([]);

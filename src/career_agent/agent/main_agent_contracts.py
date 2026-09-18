@@ -2175,6 +2175,10 @@ class MainAgentContext(ContractModel):
     )
     """Exact resume versions the current user message is about, already verified."""
 
+    attached_jobs: tuple[SavedJobCandidateContextItem, ...] = Field(
+        default=(), max_length=8,
+    )
+
     user_message: str = Field(min_length=1)
     user_message_source: str | None = Field(default=None, exclude=True)
     """The message as the user sent it, kept only when ``user_message`` was clipped."""
@@ -2214,6 +2218,16 @@ class MainAgentContext(ContractModel):
                 ),
             )
             for item in self.attached_resumes
+        ) + tuple(
+            ConversationResourceReference(
+                kind="saved_job",
+                resource_id=item.jd_snapshot_id,
+                job_posting_id=item.job_posting_id,
+                title=clamp(f"{item.company_name}｜{item.title}", limit=80),
+                description=f"JD 第 {item.jd_version} 版",
+            )
+            for item in self.attached_jobs
+            if item.jd_snapshot_id is not None
         )
 
     @model_validator(mode="before")

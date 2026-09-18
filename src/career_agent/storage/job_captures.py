@@ -1,29 +1,4 @@
-"""Correlation between an agent-opened BOSS search and the job saved from it.
-
-``open_job_search`` hands the browser a URL and the turn ends. What the user
-saves afterwards arrives through the extension as a plain capture with no
-notion of which conversation asked for it, so the agent never learns that the
-search it started has produced a job. This store closes that gap with two
-records:
-
-- a ``capture intent``: created when the agent opens the search, bound to the
-  user, the originating conversation and the search target, and expiring on
-  its own so an old tab cannot wake a conversation weeks later;
-- a ``job_captured`` event: written when a capture arrives carrying a live
-  intent, bound to the exact posting and snapshot that were saved, and kept
-  until the conversation page acknowledges it.
-
-The intent id never travels inside the BOSS URL: the page passes it to the
-extension over the local bridge, and the extension keeps it against the tab
-it opened. A capture without an intent is an ordinary library save and leaves
-no event behind.
-
-Events are the durable half of the protocol. The page that started the search
-may be closed when the save happens; the event waits in this table and the
-next page that opens picks it up. Recording is keyed on ``(intent, posting)``
-so a second click on the same save button, or the endpoint retrying, cannot
-produce a second event — and therefore not a second turn.
-"""
+"""Single-use capture intents and durable continuation deliveries."""
 
 from __future__ import annotations
 
@@ -31,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import sqlite3
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
@@ -61,6 +36,9 @@ class JobCaptureIntent(BaseModel):
     city: str | None
     created_at: datetime
     expires_at: datetime
+    source_turn_id: str | None = None
+    consumed_at: datetime | None = None
+    consumed_event_id: str | None = None
 
 
 class JobCapturedEvent(BaseModel):
@@ -76,6 +54,8 @@ class JobCapturedEvent(BaseModel):
     company_name: str
     created_at: datetime
     acknowledged_at: datetime | None = None
+    continuation_status: Literal["pending", "completed", "discarded", "failed"] = "pending"
+    continuation_turn_id: str | None = None
 
 
 class JobCaptureRecording(BaseModel):
@@ -83,7 +63,7 @@ class JobCaptureRecording(BaseModel):
 
     event: JobCapturedEvent
     created: bool
-    """False when the same posting was already recorded against this intent."""
+    """False when the exact snapshot was already recorded against this intent."""
 
 
 class JobCaptureStore(Protocol):
@@ -95,11 +75,16 @@ class JobCaptureStore(Protocol):
         platform: str,
         keyword: str,
         city: str | None,
+        source_turn_id: str | None = None,
         ttl: timedelta = DEFAULT_INTENT_TTL,
     ) -> JobCaptureIntent: ...
 
     def get_live_intent(
         self, *, user_id: str, intent_id: str, now: datetime | None = None
+    ) -> JobCaptureIntent | None: ...
+
+    def get_intent(
+        self, *, user_id: str, intent_id: str
     ) -> JobCaptureIntent | None: ...
 
     def record_capture(
@@ -110,7 +95,16 @@ class JobCaptureStore(Protocol):
         jd_snapshot_id: str,
         title: str,
         company_name: str,
-    ) -> JobCaptureRecording: ...
+    ) -> JobCaptureRecording | None: ...
+
+    def list_pending_continuations(self) -> tuple[JobCapturedEvent, ...]: ...
+
+    def settle_continuation(
+        self, *, user_id: str, event_id: str,
+        status: Literal["completed", "discarded", "failed"], turn_id: str | None = None,
+    ) -> None: ...
+
+    def retry_continuation(self, *, user_id: str, event_id: str) -> bool: ...
 
     def list_pending_events(
         self,
@@ -136,7 +130,12 @@ class SQLiteJobCaptureStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "job_captures", 1, self._migrate)
+            connection.execute("BEGIN IMMEDIATE")
+            apply_schema(
+                connection, "job_captures", 2, self._migrate,
+                {2: self._upgrade_continuations},
+                finalize=self._finalize,
+            )
         os.chmod(self.path, 0o600)
 
     @staticmethod
@@ -151,13 +150,12 @@ class SQLiteJobCaptureStore:
                 keyword TEXT NOT NULL,
                 city TEXT,
                 created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL
+                expires_at TEXT NOT NULL,
+                source_turn_id TEXT,
+                consumed_at TEXT,
+                consumed_event_id TEXT
             )
             """
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS job_capture_intents_user_idx "
-            "ON job_capture_intents(user_id, expires_at)"
         )
         connection.execute(
             """
@@ -172,14 +170,92 @@ class SQLiteJobCaptureStore:
                 company_name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 acknowledged_at TEXT,
-                UNIQUE(intent_id, job_posting_id),
+                continuation_status TEXT NOT NULL DEFAULT 'pending',
+                continuation_turn_id TEXT,
+                UNIQUE(intent_id, jd_snapshot_id),
+                FOREIGN KEY(intent_id) REFERENCES job_capture_intents(id)
+            )
+            """
+        )
+
+    @staticmethod
+    def _finalize(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS job_capture_intents_user_idx "
+            "ON job_capture_intents(user_id, expires_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS job_captured_events_pending_idx "
+            "ON job_captured_events(user_id, acknowledged_at, created_at)"
+        )
+
+    @staticmethod
+    def _upgrade_continuations(connection: sqlite3.Connection) -> None:
+        """v1 → v2: backend-owned continuation state, once, from a recorded v1.
+
+        Intents gain columns in place. Events are rebuilt because v2 also moves
+        the uniqueness key from ``(intent_id, job_posting_id)`` to
+        ``(intent_id, jd_snapshot_id)``, and SQLite cannot alter a constraint.
+        The copy names every column: nothing depends on the v1 column order.
+        An acknowledged v1 event was continued by the page and counts as
+        completed; an unacknowledged one stays pending for the dispatcher,
+        unless an earlier event already consumed the same intent.
+        """
+        for name in ("source_turn_id", "consumed_at", "consumed_event_id"):
+            connection.execute(f"ALTER TABLE job_capture_intents ADD COLUMN {name} TEXT")
+        connection.execute(
+            """
+            CREATE TABLE job_captured_events_v2 (
+                id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL, intent_id TEXT NOT NULL,
+                job_posting_id TEXT NOT NULL, jd_snapshot_id TEXT NOT NULL,
+                title TEXT NOT NULL, company_name TEXT NOT NULL,
+                created_at TEXT NOT NULL, acknowledged_at TEXT,
+                continuation_status TEXT NOT NULL DEFAULT 'pending',
+                continuation_turn_id TEXT,
+                UNIQUE(intent_id, jd_snapshot_id),
                 FOREIGN KEY(intent_id) REFERENCES job_capture_intents(id)
             )
             """
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS job_captured_events_pending_idx "
-            "ON job_captured_events(user_id, acknowledged_at, created_at)"
+            """
+            INSERT INTO job_captured_events_v2 (
+                id, user_id, conversation_id, intent_id, job_posting_id,
+                jd_snapshot_id, title, company_name, created_at, acknowledged_at,
+                continuation_status, continuation_turn_id
+            )
+            SELECT
+                id, user_id, conversation_id, intent_id, job_posting_id,
+                jd_snapshot_id, title, company_name, created_at, acknowledged_at,
+                CASE WHEN acknowledged_at IS NULL THEN 'pending' ELSE 'completed' END,
+                NULL
+            FROM job_captured_events
+            """
+        )
+        connection.execute("DROP TABLE job_captured_events")
+        connection.execute("ALTER TABLE job_captured_events_v2 RENAME TO job_captured_events")
+        connection.execute(
+            """
+            UPDATE job_capture_intents SET
+                consumed_event_id = (
+                    SELECT id FROM job_captured_events
+                    WHERE intent_id = job_capture_intents.id ORDER BY created_at, id LIMIT 1
+                ),
+                consumed_at = (
+                    SELECT created_at FROM job_captured_events
+                    WHERE intent_id = job_capture_intents.id ORDER BY created_at, id LIMIT 1
+                )
+            """
+        )
+        connection.execute(
+            """
+            UPDATE job_captured_events SET continuation_status = 'discarded'
+            WHERE continuation_status = 'pending' AND id NOT IN (
+                SELECT consumed_event_id FROM job_capture_intents
+                WHERE consumed_event_id IS NOT NULL
+            )
+            """
         )
 
     def create_intent(
@@ -190,6 +266,7 @@ class SQLiteJobCaptureStore:
         platform: str,
         keyword: str,
         city: str | None,
+        source_turn_id: str | None = None,
         ttl: timedelta = DEFAULT_INTENT_TTL,
     ) -> JobCaptureIntent:
         if not user_id or not conversation_id or not keyword:
@@ -206,14 +283,15 @@ class SQLiteJobCaptureStore:
             city=city,
             created_at=now,
             expires_at=now + ttl,
+            source_turn_id=source_turn_id,
         )
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO job_capture_intents(
                     id, user_id, conversation_id, platform, keyword, city,
-                    created_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, expires_at, source_turn_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     intent.id,
@@ -224,6 +302,7 @@ class SQLiteJobCaptureStore:
                     intent.city,
                     intent.created_at.isoformat(),
                     intent.expires_at.isoformat(),
+                    intent.source_turn_id,
                 ),
             )
         return intent
@@ -231,30 +310,28 @@ class SQLiteJobCaptureStore:
     def get_live_intent(
         self, *, user_id: str, intent_id: str, now: datetime | None = None
     ) -> JobCaptureIntent | None:
-        """The intent, only if it belongs to ``user_id`` and has not expired.
+        intent = self.get_intent(user_id=user_id, intent_id=intent_id)
+        moment = now or datetime.now(timezone.utc)
+        if intent is None or intent.expires_at <= moment or intent.consumed_at is not None:
+            return None
+        return intent
 
-        Ownership is checked here rather than by the caller so a foreign id
-        and an unknown id are indistinguishable: both are just "no intent".
-        """
+    def get_intent(
+        self, *, user_id: str, intent_id: str
+    ) -> JobCaptureIntent | None:
         if not user_id or not intent_id:
             return None
-        moment = now or datetime.now(timezone.utc)
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT id, user_id, conversation_id, platform, keyword, city,
-                       created_at, expires_at
+                       created_at, expires_at, source_turn_id, consumed_at, consumed_event_id
                 FROM job_capture_intents
                 WHERE id = ? AND user_id = ?
                 """,
                 (intent_id, user_id),
             ).fetchone()
-        if row is None:
-            return None
-        intent = self._intent_from_row(row)
-        if intent.expires_at <= moment:
-            return None
-        return intent
+        return self._intent_from_row(row) if row is not None else None
 
     def record_capture(
         self,
@@ -264,33 +341,47 @@ class SQLiteJobCaptureStore:
         jd_snapshot_id: str,
         title: str,
         company_name: str,
-    ) -> JobCaptureRecording:
-        """Bind the saved posting to the intent's conversation, once.
-
-        The second save of the same posting under the same intent returns the
-        first event unchanged, even if it has already been acknowledged: the
-        conversation was told, and telling it again is what a duplicate click
-        must not do. Saving a *different* posting from the same search is a
-        new event — the user picked two jobs, and both deserve analysis.
-        """
+    ) -> JobCaptureRecording | None:
+        """Atomically consume a live intent, or replay its exact saved snapshot."""
         if not job_posting_id or not jd_snapshot_id:
             raise ValueError("job_posting_id and jd_snapshot_id are required")
         now = datetime.now(timezone.utc)
-        event = JobCapturedEvent(
-            id=f"jobcap_{uuid4().hex}",
-            user_id=intent.user_id,
-            conversation_id=intent.conversation_id,
-            intent_id=intent.id,
-            job_posting_id=job_posting_id,
-            jd_snapshot_id=jd_snapshot_id,
-            title=title,
-            company_name=company_name,
-            created_at=now,
-        )
         with self._connect() as connection:
-            cursor = connection.execute(
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
                 """
-                INSERT OR IGNORE INTO job_captured_events(
+                SELECT id, user_id, conversation_id, platform, keyword, city,
+                       created_at, expires_at, source_turn_id, consumed_at, consumed_event_id
+                FROM job_capture_intents WHERE id = ? AND user_id = ? AND conversation_id = ?
+                """,
+                (intent.id, intent.user_id, intent.conversation_id),
+            ).fetchone()
+            if row is None:
+                return None
+            intent = self._intent_from_row(row)
+            row = connection.execute(
+                f"SELECT {self._EVENT_COLUMNS} FROM job_captured_events "
+                "WHERE intent_id = ? AND jd_snapshot_id = ? AND job_posting_id = ?",
+                (intent.id, jd_snapshot_id, job_posting_id),
+            ).fetchone()
+            if row is not None:
+                return JobCaptureRecording(event=self._event_from_row(row), created=False)
+            if intent.consumed_at is not None or intent.expires_at <= now:
+                return None
+            event = JobCapturedEvent(
+                id=f"jobcap_{uuid4().hex}",
+                user_id=intent.user_id,
+                conversation_id=intent.conversation_id,
+                intent_id=intent.id,
+                job_posting_id=job_posting_id,
+                jd_snapshot_id=jd_snapshot_id,
+                title=title,
+                company_name=company_name,
+                created_at=now,
+            )
+            connection.execute(
+                """
+                INSERT INTO job_captured_events(
                     id, user_id, conversation_id, intent_id, job_posting_id,
                     jd_snapshot_id, title, company_name, created_at,
                     acknowledged_at
@@ -308,16 +399,46 @@ class SQLiteJobCaptureStore:
                     event.created_at.isoformat(),
                 ),
             )
-            if cursor.rowcount == 1:
-                return JobCaptureRecording(event=event, created=True)
-            row = connection.execute(
-                f"""
-                SELECT {self._EVENT_COLUMNS} FROM job_captured_events
-                WHERE intent_id = ? AND job_posting_id = ?
+            connection.execute(
+                """
+                UPDATE job_capture_intents SET consumed_at = ?, consumed_event_id = ?
+                WHERE id = ?
                 """,
-                (intent.id, job_posting_id),
-            ).fetchone()
-        return JobCaptureRecording(event=self._event_from_row(row), created=False)
+                (now.isoformat(), event.id, intent.id),
+            )
+        return JobCaptureRecording(event=event, created=True)
+
+    def list_pending_continuations(self) -> tuple[JobCapturedEvent, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT {self._EVENT_COLUMNS} FROM job_captured_events "
+                "WHERE continuation_status = 'pending' ORDER BY created_at, id"
+            ).fetchall()
+        return tuple(self._event_from_row(row) for row in rows)
+
+    def settle_continuation(
+        self, *, user_id: str, event_id: str,
+        status: Literal["completed", "discarded", "failed"], turn_id: str | None = None,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE job_captured_events SET continuation_status = ?, continuation_turn_id = ?
+                WHERE user_id = ? AND id = ? AND continuation_status = 'pending'
+                """,
+                (status, turn_id, user_id, event_id),
+            )
+
+    def retry_continuation(self, *, user_id: str, event_id: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE job_captured_events SET continuation_status = 'pending', acknowledged_at = NULL
+                WHERE user_id = ? AND id = ? AND continuation_status = 'failed'
+                """,
+                (user_id, event_id),
+            )
+        return cursor.rowcount == 1
 
     def get_event(
         self, *, user_id: str, event_id: str
@@ -375,7 +496,8 @@ class SQLiteJobCaptureStore:
 
     _EVENT_COLUMNS = (
         "id, user_id, conversation_id, intent_id, job_posting_id, jd_snapshot_id, "
-        "title, company_name, created_at, acknowledged_at"
+        "title, company_name, created_at, acknowledged_at, "
+        "continuation_status, continuation_turn_id"
     )
 
     @staticmethod
@@ -389,6 +511,9 @@ class SQLiteJobCaptureStore:
             city=row[5],
             created_at=datetime.fromisoformat(row[6]),
             expires_at=datetime.fromisoformat(row[7]),
+            source_turn_id=row[8],
+            consumed_at=datetime.fromisoformat(row[9]) if row[9] else None,
+            consumed_event_id=row[10],
         )
 
     @staticmethod
@@ -406,6 +531,8 @@ class SQLiteJobCaptureStore:
             acknowledged_at=(
                 datetime.fromisoformat(row[9]) if row[9] is not None else None
             ),
+            continuation_status=row[10],
+            continuation_turn_id=row[11],
         )
 
     def _connect(self) -> sqlite3.Connection:

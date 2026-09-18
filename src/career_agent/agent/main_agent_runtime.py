@@ -45,7 +45,6 @@ from career_agent.agent.delivery_policy import (
     condenses_message,
     policy_for,
     delivers_body_elsewhere,
-    is_failed,
 )
 from career_agent.agent.tool_profiles import profile_schemas, profile_tools
 from career_agent.agent.tool_effects import (
@@ -110,7 +109,6 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewQuestionView,
     MockInterviewResultView,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.interview_preparation import InterviewPreparationResult
 from career_agent.domain.job_research import (
     JobResearchDraft,
@@ -1097,6 +1095,43 @@ class MainAgentRuntime:
         except Exception:
             return
 
+    def record_capture_continuation(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str | None,
+        capture_event_id: str | None,
+        phase: Literal["intent", "settled"],
+        status: str,
+        turn_id: str | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        """Note how a BOSS capture resolved its intent or ended its continuation.
+
+        Public for the same reason as ``record_rejected_turn``: the intent check
+        and the dispatcher live in the transport, outside any turn. The durable
+        ``continuation_status`` says where an event ended; this says when and
+        why, joined by the capture event id. Best-effort like every trace write.
+        """
+        if self._trace_recorder is None:
+            return
+        details: dict[str, Any] = {"phase": phase, "status": status}
+        if conversation_id is not None:
+            details["conversation_key"] = conversation_trace_key(user_id, conversation_id)
+        if turn_id is not None:
+            details["turn_id"] = turn_id
+        try:
+            self._trace_recorder.record(
+                capture_event_id or uuid4().hex,
+                "capture_continuation",
+                "job_capture",
+                outcome="failed" if status == "failed" else "succeeded",
+                details=details,
+                error_code=error_code,
+            )
+        except Exception:
+            return
+
     def _record_turn_failed(
         self,
         *,
@@ -1350,6 +1385,9 @@ class MainAgentRuntime:
                     result.tool_results
                     or ((result.tool_result,) if result.tool_result else ())
                 ),
+                assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
+                    (), context.user_input_resource_refs(),
+                ),
                 episode_drafts=drafts_from_tool_results(
                     user_id=user_id,
                     conversation_id=conversation_id,
@@ -1457,7 +1495,7 @@ class MainAgentRuntime:
                     composed=bool(result.model_message),
                 ),
                 assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
-                    result.tool_results
+                    result.tool_results, context.user_input_resource_refs(),
                 ),
                 assistant_bodies=MainAgentRuntime._delivered_bodies(
                     result.tool_results
@@ -1529,6 +1567,7 @@ class MainAgentRuntime:
         return context.model_copy(
             update={
                 **({"attached_resumes": attached_resumes} if attached_resumes else {}),
+                **({"attached_jobs": attached_jobs} if attached_jobs else {}),
                 "task": context.task.model_copy(update=task_updates),
             }
         )
@@ -1600,6 +1639,10 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
         )
         if interaction is not None:
+            for reference in self._turn_resource_refs(
+                (), result.context.user_input_resource_refs(),
+            ):
+                self._emit(self._resource_ready_event(reference))
             self._emit(interaction)
             self._emit(
                 TurnSuspendedEvent(
@@ -1627,7 +1670,9 @@ class MainAgentRuntime:
         # inside the read budget, so "show me the research and the match" ends a
         # turn holding two stored reports; emitting only the last one would
         # leave a durable report the reader is never handed.
-        for reference in self._turn_resource_refs(result.tool_results):
+        for reference in self._turn_resource_refs(
+            result.tool_results, result.context.user_input_resource_refs(),
+        ):
             self._emit(MainAgentRuntime._resource_ready_event(reference))
         self._emit(TurnCompletedEvent(turn_id=turn_id))
 
@@ -2191,6 +2236,32 @@ class MainAgentRuntime:
                 for index, item in enumerate(task.email_event_candidates, start=1)
             )
         return ()
+
+    def accepts_background_turn(self, *, user_id: str, conversation_id: str) -> bool:
+        """Whether a turn the user did not type may run in this conversation now.
+
+        False while the conversation is waiting on the user: a mock interview
+        that will consume the next message, a resume analysis awaiting
+        confirmation, or a capability confirmation still open. A background
+        message there would be taken as the user's answer. Session liveness is
+        the caller's check; this reads only the routing state.
+        """
+        task = self._context_manager.get_task(
+            user_id=user_id, conversation_id=conversation_id
+        )
+        if self._owns_next_turn(task):
+            return False
+        if (
+            task.resume_analysis_status == "pending"
+            and task.active_resume_analysis_id is not None
+        ):
+            return False
+        # Unexpired rows under any policy revision: one the owner's current
+        # policy hides still ends at its expiry, so the wait stays bounded.
+        store = self._capability_confirmation_store
+        return store is None or not store.pending_for_conversation(
+            user_id=user_id, conversation_id=conversation_id, policy_revision=None
+        )
 
     @staticmethod
     def _owns_next_turn(task: ConversationTaskState) -> bool:
@@ -3390,7 +3461,6 @@ class MainAgentRuntime:
     def _act(self, state: MainAgentState) -> MainAgentState:
         pending = state["pending"]
         name = pending["name"]
-        arguments = pending["arguments"]
         self._emit_capability_started(name)
         if pending.get("effect") == "WRITE" and self._action_execution_store is not None:
             result = self._run_capability(
@@ -3763,6 +3833,7 @@ class MainAgentRuntime:
                 refresh_updates: dict[str, Any] = {
                     "task": updated.task,
                     "attached_resumes": context.attached_resumes,
+                    "attached_jobs": context.attached_jobs,
                 }
                 updated = refreshed.model_copy(update=refresh_updates)
             effect = pending["effect"]
@@ -3991,6 +4062,7 @@ class MainAgentRuntime:
     @staticmethod
     def _turn_resource_refs(
         results: tuple[MainAgentToolOutput, ...],
+        input_refs: tuple[ConversationResourceReference, ...] = (),
     ) -> tuple[ConversationResourceReference, ...]:
         """Every stored report this turn produced, deduplicated by resource.
 
@@ -4007,6 +4079,10 @@ class MainAgentRuntime:
                 continue
             seen.add(reference.resource_id)
             references.append(reference)
+        for reference in input_refs:
+            if reference.kind == "saved_job" and reference.resource_id not in seen:
+                seen.add(reference.resource_id)
+                references.append(reference)
         return tuple(references)
 
     @staticmethod
@@ -4581,7 +4657,10 @@ class MainAgentRuntime:
                 **changes,
             }
         if name == "open_job_search":
-            return project_open_job_search_arguments(context, arguments)
+            return {
+                **project_open_job_search_arguments(context, arguments),
+                "source_turn_id": MainAgentRuntime._active_turn_id(),
+            }
         if name in {
             "propose_job_intent",
             "confirm_job_intent",

@@ -5,12 +5,12 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import logging
 import math
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
-from career_agent.agent.context_manager import ContextManager
 from career_agent.storage.context import CareerContextStore
 import re
 from urllib.parse import urlsplit, urlunsplit
@@ -45,6 +45,9 @@ from career_agent.harness.streaming import (
     InteractionResponse,
     PublicStreamEvent,
     TurnInputResource,
+    TurnCompletedEvent,
+    TurnFailedEvent,
+    TurnSuspendedEvent,
     astream_turn_events,
 )
 from career_agent.security.authentication import require_scope
@@ -69,7 +72,11 @@ from career_agent.storage.job_captures import (
     JobCapturedEvent,
     SQLiteJobCaptureStore,
 )
-from career_agent.storage.jobs import JobPostingRepository, SQLiteJobPostingRepository
+from career_agent.storage.jobs import (
+    JobPostingRepository,
+    SQLiteJobPostingRepository,
+    StoredJobRecord,
+)
 
 
 class ChatStreamRequest(BaseModel):
@@ -133,6 +140,23 @@ class BrowserJobCaptureRequest(BaseModel):
     """
 
 
+def capture_follow_up_message(event: JobCapturedEvent) -> str:
+    """The user message the backend continuation turn runs with.
+
+    Product decision (092, 方案 4): a capture continuation only records the save
+    in its conversation, so the reply ends with the JD card and later "这个岗位"
+    resolves to this exact snapshot. It does not analyse the JD. Analysis is the
+    standalone task the user starts from the job library ("让 Agent 分析"), so
+    an unattended turn never spends a model analysis the user did not ask for,
+    and a batch of saves does not queue a batch of analyses. The text therefore
+    states that analysis is available rather than requesting it.
+    """
+    return (
+        f"我已经从 BOSS 保存了岗位「{event.title} · {event.company_name}」，先记下来就好。"
+        "暂不需要分析；之后我可以在岗位库点「让 Agent 分析」，再让你仅基于这份 JD 做岗位分析。"
+    )
+
+
 class BrowserJobCaptureResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -145,7 +169,13 @@ class BrowserJobCaptureResponse(BaseModel):
     """The conversation the agent will continue in, when a live intent matched."""
     capture_event_id: str | None = None
     capture_event_created: bool = False
-    """False when this posting was already recorded under the same intent."""
+    continuation_status: Literal[
+        "saved_only", "pending", "completed", "discarded", "failed"
+    ] = "saved_only"
+    continuation_reason: Literal[
+        "no_intent", "invalid_intent", "expired_intent", "consumed_intent",
+        "conversation_unavailable",
+    ] | None = "no_intent"
 
 
 class JobCapturedEventView(BaseModel):
@@ -158,6 +188,8 @@ class JobCapturedEventView(BaseModel):
     title: str
     company_name: str
     created_at: datetime
+    continuation_status: Literal["pending", "completed", "discarded", "failed"]
+    continuation_turn_id: str | None = None
 
     @classmethod
     def from_event(cls, event: JobCapturedEvent) -> "JobCapturedEventView":
@@ -169,6 +201,8 @@ class JobCapturedEventView(BaseModel):
             title=event.title,
             company_name=event.company_name,
             created_at=event.created_at,
+            continuation_status=event.continuation_status,
+            continuation_turn_id=event.continuation_turn_id,
         )
 
 
@@ -184,6 +218,14 @@ class JobCapturedEventAckResponse(BaseModel):
     event_id: str
     acknowledged: bool
     """False when the event was unknown, another user's, or already acknowledged."""
+
+
+class JobCaptureRetryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str
+    retried: bool
+    """False unless the event was this user's and its continuation had failed."""
 
 
 class OwnerSettingsPatchRequest(BaseModel):
@@ -574,6 +616,8 @@ def create_app(
     ):
         raise ValueError("shutdown_drain_seconds must be a finite, non-negative number")
     factory = runtime_factory or build_api_runtime
+    capture_wakeup = asyncio.Event()
+    capture_workers: set[asyncio.Task[None]] = set()
     capture_factory = capture_repository_factory or build_capture_repository
     capture_store_factory = job_capture_store_factory or build_job_capture_store
     # Read endpoints are built eagerly and separately from the agent runtime:
@@ -612,6 +656,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        nonlocal capture_wakeup
+        capture_wakeup = asyncio.Event()
         # ``ConversationRunGate`` below is per process, so the process must be
         # the only one on these databases. Taken before any store is opened
         # and held until shutdown; a second worker fails here, not at commit.
@@ -657,7 +703,12 @@ def create_app(
             app.state.job_capture_store = None
             app.state.owner_settings_store = None
             app.state.action_center = None
-            yield
+            dispatcher = asyncio.create_task(dispatch_captures())
+            try:
+                yield
+            finally:
+                dispatcher.cancel()
+                await asyncio.gather(dispatcher, return_exceptions=True)
         finally:
             # A turn whose client has gone keeps running in a detached producer
             # thread, and the lock promises the next process that nothing here
@@ -714,6 +765,18 @@ def create_app(
                 detail=application.state.startup_error,
             )
 
+        if idempotency_key and idempotency_key.startswith("jobcap_"):
+            # ``jobcap_`` ids are the backend dispatcher's request ids. A client
+            # key in that namespace would share the dispatcher turn's idempotency
+            # record, so it is refused up front: no lookup, no wait, no gate.
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "JOB_CAPTURE_CONTINUATION_BACKEND_OWNED",
+                    "message": "岗位续接由后端执行，请读取采集事件状态。",
+                },
+            )
+
         gate: ConversationRunGate = application.state.run_gate
         try:
             await gate.acquire(principal.user_id, request.conversation_id)
@@ -749,13 +812,7 @@ def create_app(
 
         async def release_gate() -> None:
             await gate.release(principal.user_id, request.conversation_id)
-
-        try:
-            if idempotency_key and idempotency_key.startswith("jobcap_"):
-                validate_capture_turn(principal.user_id, idempotency_key, request)
-        except BaseException:
-            await release_gate()
-            raise
+            capture_wakeup.set()
 
         stream_started = False
 
@@ -795,42 +852,6 @@ def create_app(
     def conversation_accepts_capture(user_id: str, conversation_id: str) -> bool:
         session = settings_store().get_session(user_id, conversation_id)
         return session is not None and session.status == "active"
-
-    def validate_capture_turn(
-        user_id: str, event_id: str, request: ChatStreamRequest
-    ) -> None:
-        store = _job_capture_store()
-        event = store.get_event(user_id=user_id, event_id=event_id)
-        if event is None:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "code": "JOB_CAPTURE_NOT_FOUND",
-                    "message": "没有找到这个岗位捕获事件。",
-                },
-            )
-        if (
-            request.conversation_id != event.conversation_id
-            or request.input_resources
-            != (TurnInputResource(kind="jd_snapshot", id=event.jd_snapshot_id),)
-            or request.interaction_response is not None
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "JOB_CAPTURE_INPUT_MISMATCH",
-                    "message": "岗位捕获必须续接原会话，并使用保存时的 JD 快照。",
-                },
-            )
-        if not conversation_accepts_capture(user_id, event.conversation_id):
-            store.acknowledge_event(user_id=user_id, event_id=event.id)
-            raise HTTPException(
-                status_code=410,
-                detail={
-                    "code": "JOB_CAPTURE_CONVERSATION_UNAVAILABLE",
-                    "message": "岗位已保存；原会话已删除或关闭，未续接会话。",
-                },
-            )
 
     @application.get(
         "/v1/settings",
@@ -1037,19 +1058,35 @@ def create_app(
             title=saved.posting.title,
             company_name=saved.posting.company_name,
         )
-        if request.capture_intent_id is None:
-            return response
-        # Ownership is checked inside the store: an intent another user
-        # created, or one that has expired, reads as no intent at all, and the
-        # save stays an ordinary library save.
-        intent = _job_capture_store().get_live_intent(
-            user_id=principal.user_id,
-            intent_id=request.capture_intent_id,
+        resolved = resolve_capture_intent(
+            principal.user_id, request.capture_intent_id, response, saved
         )
-        if intent is None or not conversation_accepts_capture(
-            principal.user_id, intent.conversation_id
-        ):
+        record_capture(
+            user_id=principal.user_id,
+            conversation_id=resolved.conversation_id,
+            capture_event_id=resolved.capture_event_id,
+            phase="intent",
+            status=resolved.continuation_reason or "matched",
+        )
+        return resolved
+
+    def resolve_capture_intent(
+        user_id: str,
+        intent_id: str | None,
+        response: BrowserJobCaptureResponse,
+        saved: StoredJobRecord,
+    ) -> BrowserJobCaptureResponse:
+        # Ownership is checked inside the store: an intent another user
+        # created reads as no intent at all, and the save stays a library save.
+        if intent_id is None:
             return response
+        intent = _job_capture_store().get_intent(user_id=user_id, intent_id=intent_id)
+        if intent is None:
+            return response.model_copy(update={"continuation_reason": "invalid_intent"})
+        if not conversation_accepts_capture(user_id, intent.conversation_id):
+            return response.model_copy(
+                update={"continuation_reason": "conversation_unavailable"}
+            )
         recording = _job_capture_store().record_capture(
             intent=intent,
             job_posting_id=saved.posting.id,
@@ -1057,11 +1094,20 @@ def create_app(
             title=saved.posting.title,
             company_name=saved.posting.company_name,
         )
+        if recording is None:
+            return response.model_copy(update={
+                "continuation_reason": (
+                    "consumed_intent" if intent.consumed_at else "expired_intent"
+                ),
+            })
+        capture_wakeup.set()
         return response.model_copy(
             update={
                 "conversation_id": recording.event.conversation_id,
                 "capture_event_id": recording.event.id,
                 "capture_event_created": recording.created,
+                "continuation_status": recording.event.continuation_status,
+                "continuation_reason": None,
             }
         )
 
@@ -1072,6 +1118,114 @@ def create_app(
             application.state.job_capture_store = store
         return store
 
+    def record_capture(
+        *,
+        user_id: str,
+        conversation_id: str | None,
+        capture_event_id: str | None,
+        phase: Literal["intent", "settled"],
+        status: str,
+        turn_id: str | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        # Best-effort: the save and the settlement are already durable, and a
+        # trace that cannot be written must not turn either into a 500.
+        runtime: MainAgentRuntime | None = application.state.runtime
+        try:
+            if runtime is not None:
+                runtime.record_capture_continuation(
+                    user_id=user_id, conversation_id=conversation_id,
+                    capture_event_id=capture_event_id, phase=phase, status=status,
+                    turn_id=turn_id, error_code=error_code,
+                )
+        except Exception:
+            return
+
+    def settle_capture(
+        event: JobCapturedEvent,
+        status: Literal["completed", "discarded", "failed"],
+        *,
+        turn_id: str | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        _job_capture_store().settle_continuation(
+            user_id=event.user_id, event_id=event.id, status=status, turn_id=turn_id,
+        )
+        record_capture(
+            user_id=event.user_id, conversation_id=event.conversation_id,
+            capture_event_id=event.id, phase="settled", status=status,
+            turn_id=turn_id, error_code=error_code,
+        )
+
+    async def run_capture(event: JobCapturedEvent) -> None:
+        gate: ConversationRunGate = application.state.run_gate
+        turn_id: str | None = None
+        failure_code: str | None = None
+        try:
+            async for output in astream_turn_events(
+                application.state.runtime,
+                user_id=event.user_id,
+                conversation_id=event.conversation_id,
+                user_message=capture_follow_up_message(event),
+                request_id=event.id,
+                input_resources=(TurnInputResource(kind="jd_snapshot", id=event.jd_snapshot_id),),
+            ):
+                if isinstance(output, (TurnCompletedEvent, TurnSuspendedEvent)):
+                    turn_id = output.turn_id
+                elif isinstance(output, TurnFailedEvent):
+                    failure_code = output.code
+            if turn_id:
+                settle_capture(event, "completed", turn_id=turn_id)
+            else:
+                settle_capture(
+                    event, "failed", error_code=failure_code or "CAPTURE_TURN_NOT_COMMITTED",
+                )
+        except Exception as error:
+            logging.getLogger(__name__).warning(
+                "Capture continuation failed: %s", type(error).__name__
+            )
+            settle_capture(event, "failed", error_code=type(error).__name__)
+        finally:
+            await gate.release(event.user_id, event.conversation_id)
+            capture_wakeup.set()
+
+    async def dispatch_captures() -> None:
+        while True:
+            capture_wakeup.clear()
+            if application.state.runtime is not None:
+                try:
+                    store = _job_capture_store()
+                    gate: ConversationRunGate = application.state.run_gate
+                    for event in store.list_pending_continuations():
+                        try:
+                            await gate.acquire(event.user_id, event.conversation_id)
+                        except (ConversationBusyError, TurnCapacityError):
+                            continue
+                        handed_off = False
+                        try:
+                            if not conversation_accepts_capture(event.user_id, event.conversation_id):
+                                settle_capture(event, "discarded")
+                                continue
+                            if not application.state.runtime.accepts_background_turn(
+                                user_id=event.user_id, conversation_id=event.conversation_id,
+                            ):
+                                continue
+                            worker = asyncio.create_task(run_capture(event))
+                            capture_workers.add(worker)
+                            worker.add_done_callback(capture_workers.discard)
+                            handed_off = True
+                        finally:
+                            if not handed_off:
+                                await gate.release(event.user_id, event.conversation_id)
+                except Exception as error:
+                    logging.getLogger(__name__).warning(
+                        "Capture dispatch failed: %s", type(error).__name__
+                    )
+            try:
+                await asyncio.wait_for(capture_wakeup.wait(), timeout=5)
+            except TimeoutError:
+                pass
+
     @application.get(
         "/v1/job-captures/events",
         response_model=JobCapturedEventsResponse,
@@ -1080,13 +1234,7 @@ def create_app(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         conversation_id: str | None = None,
     ) -> JobCapturedEventsResponse:
-        """Captures the agent has not yet been told about, oldest first.
-
-        Durable on purpose: the page that opened the search may have been
-        closed when the save happened, and the next page to open reads the
-        same list. Nothing is consumed by reading; the page acknowledges an
-        event only once the follow-up turn has actually started.
-        """
+        """Durable capture deliveries awaiting presentation in the web client."""
         events = _job_capture_store().list_pending_events(
             user_id=principal.user_id,
             conversation_id=conversation_id or None,
@@ -1100,6 +1248,21 @@ def create_app(
                     user_id=principal.user_id, event_id=event.id
                 )
         return JobCapturedEventsResponse(events=tuple(pending))
+
+    @application.post(
+        "/v1/job-captures/events/{event_id}/retry",
+        response_model=JobCaptureRetryResponse,
+    )
+    async def retry_job_capture(
+        event_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(CHAT_WRITE)),
+    ) -> JobCaptureRetryResponse:
+        retried = _job_capture_store().retry_continuation(
+            user_id=principal.user_id, event_id=event_id,
+        )
+        if retried:
+            capture_wakeup.set()
+        return JobCaptureRetryResponse(event_id=event_id, retried=retried)
 
     @application.post(
         "/v1/job-captures/events/{event_id}/ack",

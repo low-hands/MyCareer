@@ -759,10 +759,26 @@ export interface JobCapturedEventView {
   title: string;
   company_name: string;
   created_at: string;
+  continuation_status: "pending" | "completed" | "discarded" | "failed";
+  continuation_turn_id: string | null;
+}
+
+export interface JobCapturedEvents {
+  events: JobCapturedEventView[];
+}
+
+export interface JobCaptureAck {
+  event_id: string;
+  acknowledged: boolean;
+}
+
+export interface JobCaptureRetry {
+  event_id: string;
+  retried: boolean;
 }
 
 export function fetchPendingJobCaptures(options: ReadOptions): Promise<JobCapturedEventView[]> {
-  return getJson<{ events: JobCapturedEventView[] }>("/v1/job-captures/events", {}, options).then(
+  return getJson<JobCapturedEvents>("/v1/job-captures/events", {}, options).then(
     (payload) => payload.events,
   );
 }
@@ -776,8 +792,18 @@ export async function acknowledgeJobCapture(
     { method: "POST", headers: { Accept: "application/json" }, signal: options.signal },
   );
   if (!response.ok) throw new ApiError(`确认岗位采集事件失败：${response.status}`, response.status);
-  const payload = (await response.json()) as { acknowledged: boolean };
+  const payload = (await response.json()) as JobCaptureAck;
   return payload.acknowledged;
+}
+
+export async function retryJobCapture(eventId: string, options: ReadOptions): Promise<boolean> {
+  const response = await fetch(
+    `${options.apiBaseUrl}/v1/job-captures/events/${encodeURIComponent(eventId)}/retry`,
+    { method: "POST", headers: { Accept: "application/json" }, signal: options.signal },
+  );
+  if (!response.ok) throw new ApiError(`重试岗位续接失败：${response.status}`, response.status);
+  const payload = (await response.json()) as JobCaptureRetry;
+  return payload.retried;
 }
 
 export function fetchConversationMessages(

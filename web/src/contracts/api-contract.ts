@@ -306,6 +306,8 @@ export const API_CONTRACT = {
           "capture_event_created": false,
           "capture_event_id": null,
           "company_name": "示例科技",
+          "continuation_reason": "no_intent",
+          "continuation_status": "saved_only",
           "conversation_id": null,
           "jd_snapshot_id": "snapshot-1",
           "job_posting_id": "job-1",
@@ -316,6 +318,8 @@ export const API_CONTRACT = {
           "capture_event_created": true,
           "capture_event_id": "jobcap_00000000000000000000000000000000",
           "company_name": "示例科技",
+          "continuation_reason": null,
+          "continuation_status": "pending",
           "conversation_id": "conv-1",
           "jd_snapshot_id": "snapshot-1",
           "job_posting_id": "job-1",
@@ -345,6 +349,37 @@ export const API_CONTRACT = {
           },
           "company_name": {
             "title": "Company Name",
+            "type": "string"
+          },
+          "continuation_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_intent",
+                  "invalid_intent",
+                  "expired_intent",
+                  "consumed_intent",
+                  "conversation_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "no_intent",
+            "title": "Continuation Reason"
+          },
+          "continuation_status": {
+            "default": "saved_only",
+            "enum": [
+              "saved_only",
+              "pending",
+              "completed",
+              "discarded",
+              "failed"
+            ],
+            "title": "Continuation Status",
             "type": "string"
           },
           "conversation_id": {
@@ -2550,6 +2585,33 @@ export const API_CONTRACT = {
         "type": "object"
       }
     },
+    "JobCaptureRetryResponse": {
+      "examples": [
+        {
+          "event_id": "jobcap_00000000000000000000000000000000",
+          "retried": true
+        }
+      ],
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "retried": {
+            "title": "Retried",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "event_id",
+          "retried"
+        ],
+        "title": "JobCaptureRetryResponse",
+        "type": "object"
+      }
+    },
     "JobCapturedEventAckResponse": {
       "examples": [
         {
@@ -2583,12 +2645,25 @@ export const API_CONTRACT = {
           "events": [
             {
               "company_name": "示例科技",
+              "continuation_status": "completed",
+              "continuation_turn_id": "turn-1",
               "conversation_id": "conv-1",
               "created_at": "2026-09-12T12:00:00Z",
               "id": "jobcap_00000000000000000000000000000000",
               "jd_snapshot_id": "snapshot-1",
               "job_posting_id": "job-1",
               "title": "AI 产品经理"
+            },
+            {
+              "company_name": "示例科技",
+              "continuation_status": "pending",
+              "continuation_turn_id": null,
+              "conversation_id": "conv-1",
+              "created_at": "2026-09-12T12:00:00Z",
+              "id": "jobcap_11111111111111111111111111111111",
+              "jd_snapshot_id": "snapshot-2",
+              "job_posting_id": "job-2",
+              "title": "算法工程师"
             }
           ]
         },
@@ -2604,6 +2679,28 @@ export const API_CONTRACT = {
               "company_name": {
                 "title": "Company Name",
                 "type": "string"
+              },
+              "continuation_status": {
+                "enum": [
+                  "pending",
+                  "completed",
+                  "discarded",
+                  "failed"
+                ],
+                "title": "Continuation Status",
+                "type": "string"
+              },
+              "continuation_turn_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Continuation Turn Id"
               },
               "conversation_id": {
                 "title": "Conversation Id",
@@ -2638,7 +2735,8 @@ export const API_CONTRACT = {
               "jd_snapshot_id",
               "title",
               "company_name",
-              "created_at"
+              "created_at",
+              "continuation_status"
             ],
             "title": "JobCapturedEventView",
             "type": "object"

@@ -1,11 +1,10 @@
-"""The capture-intent chain: BOSS opened by the agent → job saved by the
-extension → a durable ``job_captured`` event the page turns into a new turn."""
+"""Backend-owned capture continuation, receipt replay and owner-only delivery."""
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Event
+from time import monotonic, sleep
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,14 +24,6 @@ from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 
 CAPTURE_HEADERS = {"X-Career-Agent-Capture": "v1"}
-
-
-class Runtime:
-    """Never reached: the capture chain ends at the durable event; the page
-    starts the follow-up turn through ``/v1/chat/stream`` on its own."""
-
-    def run_turn(self, **arguments):
-        raise AssertionError("a capture must not run a turn by itself")
 
 
 class ConversationReader:
@@ -101,6 +92,18 @@ def _continuation(saved):
     }
 
 
+def _wait_for_capture(app, captures, event_id):
+    deadline = monotonic() + 15
+    while monotonic() < deadline:
+        event = captures.get_event(user_id="u1", event_id=event_id)
+        assert event is not None
+        assert event.continuation_status not in {"failed", "discarded"}
+        if event.continuation_status == "completed" and app.state.run_gate.active_count == 0:
+            return event
+        sleep(0.01)
+    pytest.fail("backend continuation did not complete and release its gate")
+
+
 def _job(source_job_id: str = "boss-123", **overrides) -> dict:
     return {
         "source_url": f"https://www.zhipin.com/job_detail/{source_job_id}.html",
@@ -127,11 +130,16 @@ def context_store(tmp_path):
 
 
 @pytest.fixture
-def app(api_keys, stores, context_store):
+def decisions():
+    return DecisionMaker()
+
+
+@pytest.fixture
+def app(api_keys, stores, context_store, decisions):
     repository, capture_store = stores
     return create_app(
         api_key_store_factory=lambda: api_keys,
-        runtime_factory=Runtime,
+        runtime_factory=lambda: _runtime(context_store, stores, decisions),
         capture_repository_factory=lambda: repository,
         job_capture_store_factory=lambda: capture_store,
         owner_settings_store_factory=lambda: context_store,
@@ -140,7 +148,7 @@ def app(api_keys, stores, context_store):
 
 
 def test_save_with_live_intent_records_one_event_for_the_original_conversation(
-    app, stores, auth
+    app, stores, auth, decisions, context_store
 ) -> None:
     repository, capture_store = stores
     intent = capture_store.create_intent(
@@ -159,6 +167,7 @@ def test_save_with_live_intent_records_one_event_for_the_original_conversation(
             headers={**auth, **CAPTURE_HEADERS},
             json=_job(capture_intent_id=intent.id),
         )
+        completed = _wait_for_capture(app, capture_store, first.json()["capture_event_id"])
         pending = client.get("/v1/job-captures/events", headers=auth)
         for_conversation = client.get(
             "/v1/job-captures/events", headers=auth, params={"conversation_id": "c1"}
@@ -184,11 +193,15 @@ def test_save_with_live_intent_records_one_event_for_the_original_conversation(
     assert events[0]["jd_snapshot_id"] == body["jd_snapshot_id"]
     assert for_conversation.json() == pending.json()
     assert other_conversation.json() == {"events": []}
+    assert events[0]["continuation_status"] == "completed"
+    assert events[0]["continuation_turn_id"] == completed.continuation_turn_id
+    assert decisions.calls == 1
+    assert len(context_store.list_messages("u1", "c1", limit=10)) == 2
     # The saved job is the one the event points at.
     assert repository.get_job(user_id="u1", job_posting_id=events[0]["job_posting_id"]) is not None
 
 
-def test_save_without_intent_only_enters_the_library(app, stores, auth) -> None:
+def test_save_without_intent_only_enters_the_library(app, stores, auth, decisions) -> None:
     repository, _ = stores
 
     with TestClient(app) as client:
@@ -204,10 +217,11 @@ def test_save_without_intent_only_enters_the_library(app, stores, auth) -> None:
     assert response.json()["capture_event_id"] is None
     assert pending.json() == {"events": []}
     assert len(repository.list_jobs(user_id="u1", include_dismissed=True)) == 1
+    assert decisions.calls == 0
 
 
 def test_expired_or_foreign_intent_still_saves_but_starts_no_conversation(
-    app, stores, auth, issue_key
+    app, stores, auth, issue_key, decisions
 ) -> None:
     repository, capture_store = stores
     expired = capture_store.create_intent(
@@ -252,9 +266,12 @@ def test_expired_or_foreign_intent_still_saves_but_starts_no_conversation(
     assert u2_pending.json() == {"events": []}
     assert len(repository.list_jobs(user_id="u1", include_dismissed=True)) == 2
     assert repository.list_jobs(user_id="u2", include_dismissed=True) == ()
+    assert decisions.calls == 0
 
 
-def test_two_conversations_searching_at_once_do_not_cross(app, stores, auth) -> None:
+def test_two_conversations_searching_at_once_do_not_cross(
+    app, stores, auth, decisions, context_store
+) -> None:
     _, capture_store = stores
     first = capture_store.create_intent(
         user_id="u1", conversation_id="c1", platform="boss", keyword="AI", city=None
@@ -264,26 +281,34 @@ def test_two_conversations_searching_at_once_do_not_cross(app, stores, auth) -> 
     )
 
     with TestClient(app) as client:
-        client.post(
+        first_saved = client.post(
             "/v1/browser-captures/jobs",
             headers={**auth, **CAPTURE_HEADERS},
             json=_job("boss-1", capture_intent_id=first.id),
         )
-        client.post(
+        second_saved = client.post(
             "/v1/browser-captures/jobs",
             headers={**auth, **CAPTURE_HEADERS},
             json=_job("boss-2", title="数据分析师", capture_intent_id=second.id),
         )
+        for saved in (first_saved, second_saved):
+            _wait_for_capture(app, capture_store, saved.json()["capture_event_id"])
         events = client.get("/v1/job-captures/events", headers=auth).json()["events"]
 
     assert [(event["conversation_id"], event["title"]) for event in events] == [
         ("c1", "AI 产品经理"),
         ("c2", "数据分析师"),
     ]
+    assert decisions.calls == 2
+    for saved in (first_saved, second_saved):
+        body = saved.json()
+        messages = context_store.list_messages("u1", body["conversation_id"], limit=10)
+        assert len(messages) == 2
+        assert all(message.resource_refs[0].resource_id == body["jd_snapshot_id"] for message in messages)
 
 
-def test_event_waits_for_the_page_and_is_acknowledged_by_its_owner_only(
-    api_keys, stores, auth, issue_key, context_store
+def test_completed_event_waits_for_owner_ack_after_the_page_reopens(
+    api_keys, stores, auth, issue_key, context_store, decisions
 ) -> None:
     repository, capture_store = stores
     intent = capture_store.create_intent(
@@ -295,7 +320,7 @@ def test_event_waits_for_the_page_and_is_acknowledged_by_its_owner_only(
     with TestClient(
         create_app(
             api_key_store_factory=lambda: api_keys,
-            runtime_factory=Runtime,
+            runtime_factory=lambda: _runtime(context_store, stores, decisions),
             capture_repository_factory=lambda: repository,
             job_capture_store_factory=lambda: capture_store,
             owner_settings_store_factory=lambda: context_store,
@@ -306,12 +331,13 @@ def test_event_waits_for_the_page_and_is_acknowledged_by_its_owner_only(
             headers={**auth, **CAPTURE_HEADERS},
             json=_job(capture_intent_id=intent.id),
         ).json()
+        _wait_for_capture(client.app, capture_store, saved["capture_event_id"])
 
     # Page reopened later, against a fresh process on the same stores.
     with TestClient(
         create_app(
             api_key_store_factory=lambda: api_keys,
-            runtime_factory=Runtime,
+            runtime_factory=lambda: _runtime(context_store, stores, decisions),
             capture_repository_factory=lambda: repository,
             job_capture_store_factory=lambda: capture_store,
             owner_settings_store_factory=lambda: context_store,
@@ -332,6 +358,8 @@ def test_event_waits_for_the_page_and_is_acknowledged_by_its_owner_only(
         drained = client.get("/v1/job-captures/events", headers=auth).json()["events"]
 
     assert [event["id"] for event in pending] == [saved["capture_event_id"]]
+    assert pending[0]["continuation_status"] == "completed"
+    assert decisions.calls == 1
     assert foreign_ack.json() == {
         "event_id": saved["capture_event_id"],
         "acknowledged": False,
@@ -370,7 +398,7 @@ def test_capture_event_routes_need_the_page_scopes_not_the_extension_scope(
 
 @pytest.mark.parametrize("state", ["deleted", "closed", "missing"])
 def test_unavailable_conversation_only_saves_to_library(
-    app, stores, auth, context_store, issue_key, state
+    app, stores, auth, context_store, issue_key, state, decisions
 ) -> None:
     repository, captures = stores
     conversation_id = "missing" if state == "missing" else "c1"
@@ -398,6 +426,7 @@ def test_unavailable_conversation_only_saves_to_library(
             "/v1/job-captures/events", headers=auth
         ).json() == {"events": []}
     assert len(repository.list_jobs(user_id="u1", include_dismissed=True)) == 1
+    assert decisions.calls == 0
 
 
 @pytest.mark.parametrize("poll_before_retry", [True, False])
@@ -406,6 +435,7 @@ def test_deleted_conversation_cannot_be_recreated_by_a_cached_capture(
 ) -> None:
     with TestClient(app) as client:
         saved = _capture(client, stores, auth)
+        _wait_for_capture(app, stores[1], saved["capture_event_id"])
         assert client.delete(
             "/v1/conversations/c1", headers=issue_key("u1", WORKSPACE_WRITE)
         ).status_code == 200
@@ -418,8 +448,8 @@ def test_deleted_conversation_cannot_be_recreated_by_a_cached_capture(
             headers={**auth, "Idempotency-Key": saved["capture_event_id"]},
             json=_continuation(saved),
         )
-        assert refused.status_code == 410
-        assert refused.json()["detail"]["code"] == "JOB_CAPTURE_CONVERSATION_UNAVAILABLE"
+        assert refused.status_code == 409
+        assert refused.json()["detail"]["code"] == "JOB_CAPTURE_CONTINUATION_BACKEND_OWNED"
         assert app.state.run_gate.active_count == 0
         assert client.get(
             "/v1/job-captures/events", headers=auth
@@ -434,6 +464,8 @@ def test_pruning_deleted_capture_keeps_other_conversations_pending(
     with TestClient(app) as client:
         first = _capture(client, stores, auth)
         second = _capture(client, stores, auth, conversation_id="c2")
+        for saved in (first, second):
+            _wait_for_capture(app, stores[1], saved["capture_event_id"])
         assert client.delete(
             "/v1/conversations/c1", headers=issue_key("u1", WORKSPACE_WRITE)
         ).status_code == 200
@@ -445,66 +477,46 @@ def test_pruning_deleted_capture_keeps_other_conversations_pending(
     ).acknowledged_at is not None
 
 
-@pytest.mark.parametrize("change", ["conversation", "snapshot", "owner", "unknown"])
-def test_capture_continuation_rejects_mismatched_or_foreign_events(
-    app, stores, auth, issue_key, change
+@pytest.mark.parametrize("key", ["own", "foreign", "unknown"])
+def test_chat_refuses_capture_keys_immediately_while_the_backend_turn_runs(
+    app, stores, auth, issue_key, key, context_store
 ) -> None:
-    with TestClient(app) as client:
-        saved = _capture(client, stores, auth)
-        request = _continuation(saved)
-        headers = {**auth, "Idempotency-Key": saved["capture_event_id"]}
-        if change == "conversation":
-            request["conversation_id"] = "c2"
-        elif change == "snapshot":
-            request["input_resources"] = [{"kind": "jd_snapshot", "id": "other-snapshot"}]
-        elif change == "owner":
-            headers = {**issue_key("u2"), "Idempotency-Key": saved["capture_event_id"]}
-        else:
-            headers["Idempotency-Key"] = "jobcap_" + "0" * 32
-        refused = client.post("/v1/chat/stream", headers=headers, json=request)
-        assert refused.status_code == (404 if change in {"owner", "unknown"} else 409)
-        assert app.state.run_gate.active_count == 0
-        assert len(client.get(
-            "/v1/job-captures/events", headers=auth
-        ).json()["events"]) == 1
-
-
-def test_capture_replays_the_committed_turn_even_after_ack(
-    app, stores, auth, context_store
-) -> None:
-    decisions = DecisionMaker()
+    decisions = BlockingDecisionMaker()
     with TestClient(app) as client:
         app.state.runtime = _runtime(context_store, stores, decisions)
         saved = _capture(client, stores, auth)
         headers = {**auth, "Idempotency-Key": saved["capture_event_id"]}
-        request = _continuation(saved)
-        first = client.post("/v1/chat/stream", headers=headers, json=request)
-        assert "event: turn_completed" in first.text
-        client.post(
-            f"/v1/job-captures/events/{saved['capture_event_id']}/ack", headers=auth
-        )
-        replay = client.post("/v1/chat/stream", headers=headers, json=request)
-        assert "event: turn_completed" in replay.text
+        if key == "foreign":
+            headers = {**issue_key("u2"), "Idempotency-Key": saved["capture_event_id"]}
+        elif key == "unknown":
+            headers["Idempotency-Key"] = "jobcap_" + "0" * 32
+        try:
+            assert decisions.started.wait(10)
+            started = monotonic()
+            refused = client.post(
+                "/v1/chat/stream", headers=headers, json=_continuation(saved)
+            )
+            assert monotonic() - started < 1
+            assert refused.status_code == 409
+            assert refused.json()["detail"]["code"] == "JOB_CAPTURE_CONTINUATION_BACKEND_OWNED"
+            assert app.state.run_gate.active_count == 1
+        finally:
+            decisions.finish.set()
+        _wait_for_capture(app, stores[1], saved["capture_event_id"])
         assert app.state.run_gate.active_count == 0
     assert decisions.calls == 1
     assert len(context_store.list_messages("u1", "c1", limit=10)) == 2
-    task = context_store.get_task("u1", "c1")
-    assert task.active_jd_snapshot_id == saved["jd_snapshot_id"]
+    assert context_store.get_session("u2", "c1") is None
 
 
 def test_deletion_waits_for_a_running_capture_turn(
     app, stores, auth, context_store, issue_key
 ) -> None:
     decisions = BlockingDecisionMaker()
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=1) as executor:
+    with TestClient(app) as client:
         app.state.runtime = _runtime(context_store, stores, decisions)
         saved = _capture(client, stores, auth)
         write_headers = issue_key("u1", WORKSPACE_WRITE)
-        future = executor.submit(
-            client.post, "/v1/chat/stream",
-            headers={**auth, "Idempotency-Key": saved["capture_event_id"]},
-            json=_continuation(saved),
-        )
         try:
             assert decisions.started.wait(10)
             refused = client.delete("/v1/conversations/c1", headers=write_headers)
@@ -513,7 +525,7 @@ def test_deletion_waits_for_a_running_capture_turn(
             assert context_store.get_session("u1", "c1") is not None
         finally:
             decisions.finish.set()
-        assert "event: turn_completed" in future.result(timeout=10).text
+        _wait_for_capture(app, stores[1], saved["capture_event_id"])
         assert client.delete(
             "/v1/conversations/c1", headers=write_headers
         ).status_code == 200
