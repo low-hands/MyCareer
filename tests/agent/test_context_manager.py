@@ -1182,13 +1182,15 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
     assert len(worker.calls) == 2
 
 
-def test_default_short_chat_compacts_when_unsummarized_rows_leave_projection(
+def test_legacy_short_chat_compacts_when_unsummarized_rows_leave_projection(
     tmp_path,
 ) -> None:
     worker = RecordingSummaryWorker()
     context_manager = ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
         summary_worker=worker,
+        recent_message_limit=8,
+        summary_batch_size=4,
     )
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-1"))

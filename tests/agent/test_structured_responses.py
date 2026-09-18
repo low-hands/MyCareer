@@ -237,8 +237,12 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
     agent = Path(__file__).resolve().parents[2] / "src" / "career_agent" / "agent"
     wired: dict[str, str] = {}
     direct_callers = []
+    # The shared helpers: Responses (``structured_responses``) and, since 093,
+    # Chat Completions JSON Schema plus the explicit Responses text adapter
+    # (``structured_chat_completions``). Only they may call the provider.
+    helpers = {"structured_responses", "structured_chat_completions"}
     for source in agent.glob("*.py"):
-        if source.stem == "structured_responses":
+        if source.stem in helpers:
             continue
         tree = ast.parse(source.read_text())
         for node in ast.walk(tree):
@@ -247,7 +251,12 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
             called = ast.unparse(node.func)
             if called.endswith("responses.create"):
                 direct_callers.append(source.stem)
-            if called == "structured_response":
+            # A worker may call a helper directly or through a protocol-selected
+            # partial; either way its literal ``code_prefix`` is its wiring.
+            if called == "structured_response" or any(
+                keyword.arg == "code_prefix" and isinstance(keyword.value, ast.Constant)
+                for keyword in node.keywords
+            ):
                 prefixes = [
                     ast.literal_eval(keyword.value)
                     for keyword in node.keywords
@@ -257,7 +266,9 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
                     wired[source.stem] = prefixes[0]
 
     assert wired == _MIGRATED_WORKERS
-    assert direct_callers == []
+    # The operator smoke probes provider capabilities stage by stage and must
+    # see the raw response; it is a diagnostic entry point, not a worker.
+    assert direct_callers == ["job_research_provider_smoke"]
 
 
 @pytest.mark.parametrize("prefix", sorted(set(_MIGRATED_WORKERS.values())))

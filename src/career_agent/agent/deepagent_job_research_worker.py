@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable, Protocol
+
+import httpx
 
 from deepagents import (
     FilesystemPermission,
@@ -12,9 +14,13 @@ from deepagents import (
     register_harness_profile,
 )
 from deepagents.backends import FilesystemBackend
+from langchain.agents.structured_output import ProviderStrategy, StructuredOutputError
+from langchain_core.exceptions import OutputParserException
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.errors import GraphRecursionError
-from openai import APIConnectionError, APIStatusError, RateLimitError
+from openai import APIConnectionError, APIStatusError
+from pydantic import ValidationError
 
 from career_agent.agent.job_research_contracts import (
     JobResearchWorker,
@@ -23,6 +29,12 @@ from career_agent.agent.job_research_contracts import (
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
+    provider_worker_error,
+)
+from career_agent.agent.job_research_provider_diagnostics import (
+    ProviderRequestObserver,
+    ProviderRequestStructure,
+    trace_research_request,
 )
 from career_agent.domain.job_research import JobResearchDraft
 from career_agent.harness.observability import (
@@ -32,12 +44,19 @@ from career_agent.harness.observability import (
 )
 
 
-DeepAgentFactory = Callable[..., Any]
+class ResearchAgent(Protocol):
+    def invoke(self, payload: object, *, config: dict[str, object]) -> object: ...
+
+
+class ResearchCheckpointer(Protocol):
+    def delete_thread(self, thread_id: str) -> None: ...
+
+
+DeepAgentFactory = Callable[..., ResearchAgent]
 
 
 def _base_url(endpoint: str) -> str:
-    suffix = "/chat/completions"
-    return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
+    return endpoint.rstrip("/").removesuffix("/chat/completions").removesuffix("/responses")
 
 
 class DeepAgentJobResearchWorker(JobResearchWorker):
@@ -48,16 +67,27 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
         config: OpenAICompatibleAgentConfig,
         *,
         skills_root: Path,
-        checkpointer: Any,
-        agent: Any | None = None,
+        checkpointer: ResearchCheckpointer,
+        agent: ResearchAgent | None = None,
         agent_factory: DeepAgentFactory = create_deep_agent,
+        diagnostics_sink: Callable[[ProviderRequestStructure], None] = trace_research_request,
+        recursion_limit: int = 32,
     ) -> None:
+        if not 2 <= recursion_limit <= 128:
+            raise ValueError("research recursion_limit must be between 2 and 128")
+        self._recursion_limit = recursion_limit
+        self._http_client: httpx.Client | None = None
         self._config = config
         self._skills_root = skills_root.expanduser().resolve()
         self._checkpointer = checkpointer
+        self._diagnostics_sink = diagnostics_sink
         self._validate_skill_source(self._skills_root)
         self._agent_emits_model_trace = agent is None
-        self._agent = agent or self._build_agent(agent_factory)
+        try:
+            self._agent = agent if agent is not None else self._build_agent(agent_factory)
+        except Exception:
+            self.close()
+            raise
 
     @traced_model_call(
         "job_research",
@@ -73,6 +103,7 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
         config = {
             "configurable": {"thread_id": run_id},
             "callbacks": [CapabilityToolStepCallback(stage="job_research")],
+            "recursion_limit": self._recursion_limit,
         }
         payload = None if resume else {
             "messages": [
@@ -84,22 +115,15 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
         }
         try:
             state = self._agent.invoke(payload, config=config)
-        except RateLimitError as error:
+        except (APIConnectionError, APIStatusError) as error:
+            raise provider_worker_error("JOB_RESEARCH", error) from error
+        except (StructuredOutputError, OutputParserException) as error:
+            # Framework parse exceptions embed model output. Never let the
+            # service persist str(error) as a research-run failure detail.
             raise AgentWorkerError(
-                "JOB_RESEARCH_RATE_LIMITED",
-                "Job research model is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "JOB_RESEARCH_TRANSPORT_ERROR",
-                "Job research model transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"JOB_RESEARCH_REJECTED_{error.status_code}",
-                "Job research model rejected the request.",
+                "JOB_RESEARCH_INVALID_RESPONSE",
+                "Job research agent returned invalid structured output.",
+                detail=type(error).__name__,
             ) from error
         except GraphRecursionError as error:
             raise AgentWorkerError(
@@ -108,28 +132,67 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
             ) from error
         structured = state.get("structured_response") if isinstance(state, dict) else None
         try:
-            return JobResearchDraft.model_validate(structured)
+            draft = JobResearchDraft.model_validate(structured)
         except ValueError as error:
             raise AgentWorkerError(
                 "JOB_RESEARCH_INVALID_RESPONSE",
                 "Job research agent returned invalid structured output.",
                 detail=self._validation_detail(error),
             ) from error
+        known_sources = {source.source_key for source in draft.sources}
+        cited_sources = {key for finding in draft.findings for key in finding.source_keys}
+        if known_sources != cited_sources:
+            raise AgentWorkerError(
+                "JOB_RESEARCH_INVALID_RESPONSE",
+                "Job research citations do not match its returned sources.",
+            )
+        if self._agent_emits_model_trace and not self._search_completed(state):
+            raise AgentWorkerError(
+                "JOB_RESEARCH_SEARCH_UNVERIFIED",
+                "The configured provider did not return completed web-search evidence.",
+            )
+        return draft
+
+    @staticmethod
+    def _search_completed(state: object) -> bool:
+        if not isinstance(state, dict):
+            return False
+        messages = state.get("messages")
+        if not isinstance(messages, (list, tuple)):
+            return False
+        return any(
+            block.get("type") == "web_search_call" and block.get("status") == "completed"
+            for message in messages if isinstance(message, AIMessage)
+            for block in message.content if isinstance(block, dict)
+        )
 
     def forget(self, run_id: str) -> None:
-        delete_thread = getattr(self._checkpointer, "delete_thread", None)
-        if delete_thread is not None:
-            delete_thread(run_id)
+        self._checkpointer.delete_thread(run_id)
 
-    def _build_agent(self, agent_factory: DeepAgentFactory) -> Any:
+    def close(self) -> None:
+        """Release this worker's transport when the application shuts down."""
+        if self._http_client is not None:
+            self._http_client.close()
+
+    def _build_agent(self, agent_factory: DeepAgentFactory) -> ResearchAgent:
+        self._http_client = httpx.Client(event_hooks={
+            "request": [ProviderRequestObserver(self._diagnostics_sink)]
+        })
         model = ChatOpenAI(
             model=self._config.model,
             api_key=self._config.api_key,
             base_url=_base_url(self._config.endpoint),
             timeout=self._config.timeout_seconds,
-            max_retries=3,
+            max_retries=0,
             use_responses_api=True,
+            # Pin native tool blocks in content regardless of LC_OUTPUT_VERSION;
+            # evidence verification must not depend on deployment-wide defaults.
+            output_version="responses/v1",
+            # Explicit native structured output; never select a strategy from
+            # a hostname or a LangChain model-name capability heuristic.
+            profile={"structured_output": True, "tool_calling": True},
             store=False,
+            http_client=self._http_client,
             callbacks=[
                 CapabilityModelTraceCallback(
                     stage="job_research",
@@ -175,7 +238,7 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
                 )
             ],
             subagents=[],
-            response_format=JobResearchDraft,
+            response_format=ProviderStrategy(JobResearchDraft, strict=True),
             checkpointer=self._checkpointer,
             name="job-research-agent",
         )
@@ -219,15 +282,22 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
 
     @staticmethod
     def _validation_detail(error: ValueError) -> str:
-        errors = getattr(error, "errors", lambda: ())()
-        if not isinstance(errors, list):
+        if not isinstance(error, ValidationError):
             return type(error).__name__
+        errors = error.errors(include_input=False, include_context=False, include_url=False)
         return json.dumps(
             [
                 {
                     "type": item.get("type"),
-                    "loc": item.get("loc"),
-                    "msg": item.get("msg"),
+                    "loc": [
+                        part if isinstance(part, int) or part in {
+                            "summary", "sources", "findings", "open_questions", "limitations",
+                            "source_key", "url", "title", "publisher", "published_at",
+                            "relevant_excerpt", "topic", "statement", "evidence_type",
+                            "source_keys", "confidence",
+                        } else "*"
+                        for part in item["loc"]
+                    ],
                 }
                 for item in errors
                 if isinstance(item, dict)

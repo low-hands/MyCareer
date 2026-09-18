@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 
 import pytest
@@ -78,55 +77,6 @@ def _valid_output() -> dict[str, object]:
     }
 
 
-def test_worker_analyzes_utf8_text_resume() -> None:
-    client = FakeClient(_valid_output())
-    worker = _worker(client=client)
-
-    result = worker.analyze(
-        StoredResumeDocument(
-            resume_version_id="resume_version_1",
-            document_format="text",
-            raw_bytes="示例公司 产品经理".encode(),
-        )
-    )
-
-    assert result.records[0].organization == "示例公司"
-    kwargs = client.responses.kwargs
-    assert kwargs is not None
-    assert kwargs["model"] == "multimodal-model"
-    content = kwargs["input"][0]["content"]  # type: ignore[index]
-    assert content[0]["type"] == "input_text"
-    assert "示例公司 产品经理" in content[0]["text"]
-    assert "untrusted document data" in content[0]["text"]
-    assert "source quote" in kwargs["instructions"]
-
-
-def test_worker_sends_pdf_as_file_data_without_decoding_it() -> None:
-    raw_pdf = b"%PDF-1.7\x00\xffbinary"
-    client = FakeClient(_valid_output())
-    worker = _worker(client=client)
-
-    worker.analyze(
-        StoredResumeDocument(
-            resume_version_id="resume_version_pdf",
-            document_format="pdf",
-            raw_bytes=raw_pdf,
-        )
-    )
-
-    kwargs = client.responses.kwargs
-    assert kwargs is not None
-    content = kwargs["input"][0]["content"]  # type: ignore[index]
-    file_part = content[0]
-    assert kwargs["model"] == "multimodal-model"
-    assert file_part["type"] == "input_file"
-    assert file_part["filename"] == "resume_version_pdf.pdf"
-    assert file_part["file_data"] == (
-        "data:application/pdf;base64," + base64.b64encode(raw_pdf).decode("ascii")
-    )
-    assert raw_pdf.decode("latin-1") not in json.dumps(kwargs)
-
-
 def test_worker_rejects_non_utf8_text_without_calling_model() -> None:
     client = FakeClient(_valid_output())
     worker = _worker(client=client)
@@ -162,40 +112,6 @@ def test_worker_rejects_empty_document_without_calling_model(
 
     assert error.value.code == "RESUME_ANALYSIS_EMPTY_DOCUMENT"
     assert client.responses.kwargs is None
-
-
-def test_worker_reports_invalid_structured_output() -> None:
-    worker = _worker(
-        client=FakeClient({"records": [{"record_type": "work"}]}),
-    )
-
-    with pytest.raises(AgentWorkerError) as error:
-        worker.analyze(
-            StoredResumeDocument(
-                resume_version_id="resume_version_1",
-                document_format="text",
-                raw_bytes=b"resume",
-            )
-        )
-
-    assert error.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
-    assert "title" in (error.value.detail or "")
-    assert "source_locator" in (error.value.detail or "")
-
-
-def test_worker_reports_empty_model_output() -> None:
-    worker = _worker(client=FakeClient(""))
-
-    with pytest.raises(AgentWorkerError) as error:
-        worker.analyze(
-            StoredResumeDocument(
-                resume_version_id="resume_version_1",
-                document_format="text",
-                raw_bytes=b"resume",
-            )
-        )
-
-    assert error.value.code == "RESUME_ANALYSIS_EMPTY_RESPONSE"
 
 
 def test_worker_uses_dedicated_environment_prefix() -> None:

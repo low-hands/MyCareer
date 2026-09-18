@@ -18,6 +18,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from career_agent.agent.context_deployment_config import (
+    DEFAULT_RECENT_MESSAGE_LIMIT,
+    DEFAULT_SUMMARY_BATCH_SIZE,
+)
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
@@ -116,7 +120,10 @@ def test_default_budget_compacts_before_a_short_report_turn_leaves_projection(
     )
 
     assert context.through_sequence >= 2
-    assert len(context.recent_messages) <= 11
+    # Raw window bound: recent + batch - 1 (23 with the 093 defaults 16/8).
+    assert len(context.recent_messages) <= (
+        DEFAULT_RECENT_MESSAGE_LIMIT + DEFAULT_SUMMARY_BATCH_SIZE - 1
+    )
     assert all(
         ref.resource_id != "report-1"
         for message in context.recent_messages

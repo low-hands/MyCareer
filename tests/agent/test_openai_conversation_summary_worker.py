@@ -26,7 +26,7 @@ class Completions:
     def create(self, **kwargs):
         self.kwargs = kwargs
         message = type("Message", (), {"content": self.content})()
-        choice = type("Choice", (), {"message": message})()
+        choice = type("Choice", (), {"message": message, "finish_reason": "stop"})()
         return type("Response", (), {"choices": [choice]})()
 
 
@@ -93,6 +93,8 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     assert "previous summary" in system
     assert "resume text" in system
     assert "tools" not in client.completions.kwargs
+    assert client.completions.kwargs["response_format"]["type"] == "json_schema"
+    assert client.completions.kwargs["response_format"]["json_schema"]["strict"] is True
 
 
 def test_summary_worker_rejects_unstructured_response() -> None:

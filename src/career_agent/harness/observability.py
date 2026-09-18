@@ -12,6 +12,10 @@ from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.harness.capability_steps import notify_capability_step
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    provider_error_metadata,
+)
 from career_agent.security.redaction import redact, redact_text
 
 
@@ -28,6 +32,7 @@ EventType = Literal[
     "model_succeeded",
     "model_failed",
     "turn_completed",
+    "provider_request",
     "turn_failed",
     # A turn that never started: the conversation already had one running.
     # Recorded because the gate that rejects it is process-local, and whether
@@ -215,15 +220,24 @@ def traced_model_call(
             try:
                 result = function(*args, **kwargs)
             except Exception as error:
-                retryable = getattr(error, "retryable", None)
+                metadata = provider_error_metadata(error)
+                retryable = error.retryable if isinstance(error, AgentWorkerError) else (
+                    metadata.retryable if metadata else None
+                )
+                if metadata:
+                    details = {**details, "provider": metadata.as_dict()}
                 record_active_trace(
                     "model_failed",
                     safe_stage,
                     outcome="failed",
                     duration_ms=int((perf_counter() - started) * 1000),
-                    error_code=getattr(error, "code", type(error).__name__),
+                    error_code=(
+                        error.code if isinstance(error, AgentWorkerError)
+                        else type(error).__name__
+                    ),
                     # Worker details can contain provider validation fragments
                     # derived from a resume, JD, email, or interview answer.
+                    # Safe provider identifiers above are independently sanitized.
                     # The stable code is enough for aggregation; keep the
                     # detail structural instead of trusting every producer to
                     # redact its exception payload correctly.
@@ -314,19 +328,29 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
             started = self._started.pop(run_id, None)
         if started is None:
             return
-        notify_capability_step(self._stage, kind="retry")
+        metadata = provider_error_metadata(error)
+        retryable = error.retryable if isinstance(error, AgentWorkerError) else (
+            metadata.retryable if metadata else None
+        )
+        if retryable is True:
+            notify_capability_step(self._stage, kind="retry")
         if ACTIVE_TRACE_CONTEXT.get() is None:
             return
-        retryable = getattr(error, "retryable", None)
         record_active_trace(
             "model_failed",
             self._stage,
             outcome="failed",
             duration_ms=int((perf_counter() - started) * 1000),
-            error_code=getattr(error, "code", type(error).__name__),
+            error_code=(
+                error.code if isinstance(error, AgentWorkerError)
+                else type(error).__name__
+            ),
             error_detail=type(error).__name__,
             recoverable=retryable if isinstance(retryable, bool) else None,
-            details={"worker": self._worker},
+            details={
+                "worker": self._worker,
+                **({"provider": metadata.as_dict()} if metadata else {}),
+            },
             model_call_category="capability_agent",
         )
 

@@ -86,9 +86,35 @@ RESUME_ANALYSIS_AGENT_API_KEY=你的密钥
 RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 ```
 
-`BASE_URL` 可以填写 `/v1` 基地址，也可以直接填写完整的 `/chat/completions` 地址。`.env` 已被 Git 忽略，不要提交任何真实密钥。
+`BASE_URL` 可以填写 `/v1` 基地址，也可以直接填写完整的 `/chat/completions` 地址。
+
+两个可选的 specialist 配置：
+- `RESUME_ANALYSIS_AGENT_API_PROTOCOL`：简历分析的请求协议，可选 `chat_completions`（默认，Chat Completions JSON Schema）或 `responses`（显式的 Responses 文本适配器）。必须显式设置，不会按模型名推断。
+- `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）：公司研究的独立端点。整组都不设置时，复用 `RESUME_ANALYSIS_AGENT_*`；设置了任意一项，就必须三项齐全，否则启动失败，不会混用两组凭据。该端点必须支持 Responses 原生 `web_search` 工具，使用前先运行 `python -m career_agent.agent.job_research_provider_smoke --work-root <目录> --report <新文件>`。`.env` 已被 Git 忽略，不要提交任何真实密钥。
 
 `MAIN_AGENT_TIMEOUT_SECONDS=120` 是当前推荐值。Main Agent 对连接错误以及 `429/502/503/504` 最多做 3 次有限指数退避；持续不可用时会明确失败，不会无限重试或把不完整回答交给用户。
+
+#### 上下文压缩与独立摘要模型
+
+生产默认使用 `CONTEXT_RECENT_MESSAGE_LIMIT=16`、`CONTEXT_SUMMARY_BATCH_SIZE=8`、`CONTEXT_COMPACT_OCCUPANCY_THRESHOLD=0.75`。部署范围分别为 **2–64**、**2–32**、**0.7–0.9**（含端点）；空值、非数字或越界值会使启动失败。75% 衡量的是包含系统提示、工具 schema 和动态上下文的**完整输入请求**，不是只计算聊天正文。单条长消息仍可提前触发 occupancy；待摘要历史不足一个 batch 时不会压缩当前未提交消息。
+
+`projection_overflow` 仍保留：未摘要原始窗口最多为 `recent + batch - 1`（默认 23）条，摘要按顺序推进 watermark，不能先隐藏旧消息再遗漏摘要范围。原始历史持久保存，可按明确范围 page-in；增大 recent 条数**不增加**其 token 总预算，也不挤占当前轮 observation 和输出预留。低于 occupancy、没有 workflow seam 的 30-message 合成回归最多压缩两次；它不等价于私有真实会话的精确重放。
+
+`MAIN_AGENT_CONTEXT_WINDOW_TOKENS` 默认 `65536`，必须按实际模型窗口配置（范围 2048–2000000）。启动会检查 `MAIN_AGENT_MAX_INPUT_TOKENS + MAIN_AGENT_MAX_OUTPUT_TOKENS` 不超过该值；当前默认 `32000 + 16384`。这是部署声明，不按模型名称或 hostname 猜测 provider 能力。token 估算使用项目现有 cl100k_base，不是所有供应商 tokenizer 的精确上界；切换模型时仍需核对模型限制并做 smoke。不要仅为通过检查虚增窗口。
+
+Conversation Summary Worker 使用 **Chat Completions JSON Schema**，可独立选用更快、更便宜的结构化模型：
+
+```dotenv
+CONVERSATION_SUMMARY_AGENT_BASE_URL=https://你的摘要服务/v1
+CONVERSATION_SUMMARY_AGENT_API_KEY=你的摘要密钥
+CONVERSATION_SUMMARY_AGENT_MODEL=你的摘要模型
+CONVERSATION_SUMMARY_AGENT_TIMEOUT_SECONDS=30
+CONVERSATION_SUMMARY_AGENT_MAX_INPUT_TOKENS=32000
+CONVERSATION_SUMMARY_AGENT_MAX_OUTPUT_TOKENS=1200
+CONVERSATION_SUMMARY_AGENT_CONTEXT_WINDOW_TOKENS=65536
+```
+
+只有整个 `CONVERSATION_SUMMARY_AGENT_*` 命名空间**完全未设置**时，才显式兼容回退到 Main 的 endpoint/key/model/input capacity/context window，摘要自身仍使用独立 **30 秒 timeout / 1200 output token** 默认值，而非 Main 的 120 秒。设置任何一个摘要变量后，三项连接配置必须齐全且非空；未知变量、部分配置、无效配置或 provider 拒绝都不会静默切回 Main。摘要 timeout 范围 1–120 秒、输入 1024–2000000、输出 256–16384、窗口 2048–2000000，输入加输出必须小于等于实际窗口。请求在本地做包含 schema 的输入预算检查，超预算、截断或无效结构化结果 fail closed，不推进 watermark；已有失败退避与历史恢复机制保留。摘要客户端不自动重试，避免重复延长同一 turn 的等待。此配置独立于 `RESUME_ANALYSIS_AGENT_*`，不改变其他 specialist 的选择。
 
 ### 4. 创建本地 API key
 

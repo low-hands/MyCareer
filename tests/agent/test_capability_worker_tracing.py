@@ -226,10 +226,17 @@ def test_capability_steps_reach_the_installed_observer_without_a_trace() -> None
     with observing_capability_steps(steps.append):
         assert Worker().run() == "PRIVATE RESULT"
         model_callback.on_chat_model_start({}, [["PRIVATE JD"]], run_id="r1")
-        model_callback.on_llm_error(RuntimeError("boom"), run_id="r1")
+        model_callback.on_llm_error(
+            AgentWorkerError("JOB_RESEARCH_TIMEOUT", "timed out", retryable=True),
+            run_id="r1",
+        )
         model_callback.on_chat_model_start({}, [["PRIVATE JD"]], run_id="r2")
         tool_callback.on_tool_start({"name": "read_file"}, "PRIVATE PATH")
         model_callback.on_llm_end("PRIVATE RESULT", run_id="r2")
+        # An error of unknown retryability is not announced as a retry (093):
+        # the user would be told "retrying" before a failure that will not be.
+        model_callback.on_chat_model_start({}, [["PRIVATE JD"]], run_id="r3")
+        model_callback.on_llm_error(RuntimeError("boom"), run_id="r3")
     Worker().run()
 
     assert steps == [
@@ -238,5 +245,6 @@ def test_capability_steps_reach_the_installed_observer_without_a_trace() -> None
         CapabilityStep(stage="job_research", kind="retry"),
         CapabilityStep(stage="job_research", kind="model", index=2),
         CapabilityStep(stage="job_research.read_file", kind="tool"),
+        CapabilityStep(stage="job_research", kind="model", index=3),
     ]
     assert "PRIVATE" not in repr(steps)

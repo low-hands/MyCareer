@@ -10,6 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
+from career_agent.agent.context_deployment_config import (
+    ContextDeploymentConfig,
+    ConversationSummaryAgentConfig,
+    validate_model_window,
+)
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.semantic_career_retrieval import optional_semantic_retriever
@@ -32,7 +37,11 @@ from career_agent.agent.mock_interview_graph import (
 )
 from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
 from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
-from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.job_research_config import job_research_config_from_env
+from career_agent.agent.openai_compatible_main_agent import (
+    OpenAICompatibleMainAgentDecisionMaker,
+    max_output_tokens_from_env,
+)
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_job_analysis_worker import OpenAIJobAnalysisWorker
@@ -139,6 +148,18 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     """
 
     main_config = replace(OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"), timeout_seconds=args.main_agent_timeout_seconds)
+    context_config = ContextDeploymentConfig.from_env()
+    main_output_tokens = max_output_tokens_from_env()
+    validate_model_window(
+        input_tokens=main_config.max_input_tokens,
+        output_tokens=main_output_tokens,
+        context_window_tokens=context_config.main_context_window_tokens,
+        prefix="MAIN_AGENT",
+    )
+    summary_config = ConversationSummaryAgentConfig.from_env(
+        main_config=main_config,
+        main_context_window_tokens=context_config.main_context_window_tokens,
+    )
     context_store = CareerContextStore(Path(args.context_store).expanduser())
     turn_receipt_store = SQLiteTurnReceiptStore(Path(args.context_store).expanduser())
     turn_receipt_store.fail_orphaned_running()
@@ -151,7 +172,13 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     )
     context_manager = ContextManager(
         context_store,
-        summary_worker=OpenAIConversationSummaryWorker(main_config),
+        summary_worker=OpenAIConversationSummaryWorker(
+            summary_config.provider,
+            max_output_tokens=summary_config.max_output_tokens,
+        ),
+        recent_message_limit=context_config.recent_message_limit,
+        summary_batch_size=context_config.summary_batch_size,
+        compact_occupancy_threshold=context_config.compact_occupancy_threshold,
         target_role_source=resume_store,
         episode_store=episode_store,
         working_notes_store=working_notes_store,
@@ -236,7 +263,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         jobs=job_repository,
         store=job_research_store,
         worker=DeepAgentJobResearchWorker(
-            resume_analysis_config,
+            # JOB_RESEARCH_AGENT_* when any is set (all-or-nothing), otherwise
+            # the shared specialist endpoint as before.
+            job_research_config_from_env(fallback=resume_analysis_config),
             skills_root=Path(args.job_research_skills_dir),
             checkpointer=job_research_checkpoint_owner.saver,
         ),
@@ -273,7 +302,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             mock_interviews=mock_interview_store,
             job_research=job_research_store,
         ),
-        decision_maker=OpenAICompatibleMainAgentDecisionMaker(main_config),
+        decision_maker=OpenAICompatibleMainAgentDecisionMaker(
+            main_config, max_output_tokens=main_output_tokens,
+        ),
         career_context_projector=CareerContextProjector(
             career_history_store,
             semantic_retriever=semantic_retriever,
@@ -312,7 +343,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             mock_interview_store=mock_interview_store,
             resume_analysis_service=ResumeAnalysisService(
                 resume_store,
-                OpenAIResumeAnalysisWorker(resume_analysis_config),
+                OpenAIResumeAnalysisWorker.from_env(
+                    timeout_seconds=args.agent_timeout_seconds,
+                ),
                 SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
                 career_history_store,
             ),

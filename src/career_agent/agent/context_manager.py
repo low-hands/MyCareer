@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal, Protocol
 
+from career_agent.agent.context_deployment_config import (
+    DEFAULT_COMPACT_OCCUPANCY_THRESHOLD,
+    DEFAULT_RECENT_MESSAGE_LIMIT,
+    DEFAULT_SUMMARY_BATCH_SIZE,
+)
 from career_agent.agent.conversation_memory_contracts import (
     ACTIVE_CONSTRAINT_MAX_ITEMS as _ACTIVE_CONSTRAINT_MAX_ITEMS,
     SUMMARY_TEXT_MAX_CHARS as _SUMMARY_TEXT_BUDGET,
@@ -125,7 +130,7 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = 8, summary_batch_size: int = 4, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, max_user_message_tokens: int | None = None, max_recent_context_tokens: int | None = None, max_recent_message_tokens: int | None = None, compact_occupancy_threshold: float = 0.75, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = DEFAULT_RECENT_MESSAGE_LIMIT, summary_batch_size: int = DEFAULT_SUMMARY_BATCH_SIZE, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, max_user_message_tokens: int | None = None, max_recent_context_tokens: int | None = None, max_recent_message_tokens: int | None = None, compact_occupancy_threshold: float = DEFAULT_COMPACT_OCCUPANCY_THRESHOLD, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -1417,7 +1422,20 @@ class ContextManager:
             after_sequence=previous_through,
             limit=self._summary_batch_size,
         )
-        if len(messages) < self._summary_batch_size:
+        # The row policy batches low-pressure history, but a complete request
+        # at the occupancy threshold cannot wait for eight rows to accumulate.
+        # Even one oversized exchange can justify compacting a shorter prefix.
+        # Keep legacy character pressure and explicit seams on their existing
+        # batch policy, and never summarize the uncommitted current message.
+        early_occupancy = (
+            require_occupancy
+            and pressure.source in {"estimated", "carried"}
+            and pressure.occupancy is not None
+            and pressure.occupancy >= self._compact_occupancy_threshold
+        )
+        if not messages or (
+            len(messages) < self._summary_batch_size and not early_occupancy
+        ):
             return pressure
         to_summarize = messages[: self._summary_batch_size]
         if self._compaction_suspended(
@@ -1672,14 +1690,17 @@ class ContextManager:
             "context_compaction_failed",
             "conversation_summary",
             outcome="failed",
-            error_code=getattr(error, "code", type(error).__name__),
-            recoverable=getattr(error, "retryable", None),
+            error_code=error.code,
+            recoverable=error.retryable,
             details={
                 "conversation_key": conversation_trace_key(
                     user_id, conversation_id
                 ),
                 "consecutive_failures": failures,
                 "compaction_suspended": suspended,
+                # Only the shared allowlisted protocol metadata crosses the
+                # trace boundary; no exception text or provider response body.
+                **({"provider": error.provider.as_dict()} if error.provider else {}),
             },
         )
 

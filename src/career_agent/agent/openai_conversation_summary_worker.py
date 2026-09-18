@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import math
+from typing import Protocol, cast
 
-from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
+from openai import APIConnectionError, APIStatusError, OpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+from openai.types.shared_params import ResponseFormatJSONSchema
+
+from career_agent.agent.context_deployment_config import (
+    DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+)
+from career_agent.agent.token_budget import count_tokens
 
 from career_agent.agent.conversation_memory_contracts import (
     HARNESS_SUMMARY_COUNTER_FIELDS,
@@ -14,6 +22,7 @@ from career_agent.agent.conversation_memory_contracts import (
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
+    provider_worker_error,
 )
 
 
@@ -22,14 +31,75 @@ def _base_url(endpoint: str) -> str:
     return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
 
 
+class SummaryCompletions(Protocol):
+    def create(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[ChatCompletionMessageParam],
+        response_format: ResponseFormatJSONSchema,
+        timeout: float,
+    ) -> ChatCompletion: ...
+
+
+class SummaryChat(Protocol):
+    @property
+    def completions(self) -> SummaryCompletions: ...
+
+
+class SummaryClient(Protocol):
+    @property
+    def chat(self) -> SummaryChat: ...
+
+
+def _strict_schema(value: object) -> object:
+    """Require all schema properties, including nullable optional candidates."""
+    if isinstance(value, list):
+        return [_strict_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {
+        key: _strict_schema(item) for key, item in value.items() if key != "default"
+    }
+    properties = result.get("properties")
+    if isinstance(properties, dict):
+        result["required"] = list(properties)
+        result["additionalProperties"] = False
+    return result
+
+
+def summary_response_format() -> ResponseFormatJSONSchema:
+    schema = ConversationSummaryContent.model_json_schema()
+    for field in HARNESS_SUMMARY_COUNTER_FIELDS:
+        schema["properties"].pop(field, None)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "conversation_summary",
+            "strict": True,
+            "schema": cast(dict[str, object], _strict_schema(schema)),
+        },
+    }
+
+
 class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
     def __init__(
         self,
         config: OpenAICompatibleAgentConfig,
         *,
-        client: Any | None = None,
+        client: OpenAI | SummaryClient | None = None,
+        max_output_tokens: int = DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
     ) -> None:
+        if type(max_output_tokens) is not int or not 256 <= max_output_tokens <= 16384:
+            raise ValueError("summary output budget must be between 256 and 16384")
+        if (
+            not math.isfinite(config.timeout_seconds)
+            or not 1 <= config.timeout_seconds <= 120
+        ):
+            raise ValueError("summary timeout must be between 1 and 120 seconds")
         self._config = config
+        self._max_output_tokens = max_output_tokens
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
@@ -58,51 +128,73 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             ),
             "new_messages": [message.model_dump(mode="json") for message in messages],
         }
+        messages_for_model: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": self._system_prompt()},
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            },
+        ]
+        response_format = summary_response_format()
+        request_tokens = count_tokens(
+            json.dumps(
+                {
+                    "model": self._config.model,
+                    "max_tokens": self._max_output_tokens,
+                    "messages": messages_for_model,
+                    "response_format": response_format,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        if request_tokens > self._config.max_input_tokens:
+            # Do not truncate historical source or advance a partial watermark.
+            raise AgentWorkerError(
+                "CONVERSATION_SUMMARY_INPUT_BUDGET_EXCEEDED",
+                "Conversation summary request exceeds its configured input budget.",
+            )
         try:
             response = self._client.chat.completions.create(
                 model=self._config.model,
-                max_tokens=1200,
-                messages=[
-                    {"role": "system", "content": self._system_prompt()},
-                    {
-                        "role": "user",
-                        "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
-                    },
-                ],
+                max_tokens=self._max_output_tokens,
+                messages=messages_for_model,
+                response_format=response_format,
                 timeout=self._config.timeout_seconds,
             )
-        except RateLimitError as error:
+        except (APIConnectionError, APIStatusError) as error:
+            # Preserve only safe status/code/param/type, never a provider body
+            # in an exception chain. The manager owns retry/backoff; there is
+            # no alternate endpoint, model, or unstructured-output fallback.
+            raise provider_worker_error("CONVERSATION_SUMMARY", error) from None
+        choice = response.choices[0] if response.choices else None
+        if choice is not None and choice.finish_reason != "stop":
             raise AgentWorkerError(
-                "CONVERSATION_SUMMARY_RATE_LIMITED",
-                "Conversation summary model is rate limited.",
-                retryable=True,
-            ) from error
-        except APIConnectionError as error:
-            raise AgentWorkerError(
-                "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
-                "Conversation summary model transport failed.",
-                retryable=True,
-            ) from error
-        except APIStatusError as error:
-            raise AgentWorkerError(
-                f"CONVERSATION_SUMMARY_REJECTED_{error.status_code}",
-                "Conversation summary model rejected the request.",
-            ) from error
-        message = response.choices[0].message if response.choices else None
-        content = getattr(message, "content", None) if message else None
+                "CONVERSATION_SUMMARY_INCOMPLETE_RESPONSE",
+                "Conversation summary model did not complete a structured response.",
+            )
+        content = choice.message.content if choice is not None else None
         if not content:
             raise AgentWorkerError(
                 "CONVERSATION_SUMMARY_EMPTY_RESPONSE",
                 "Conversation summary model returned no content.",
             )
         try:
-            return ConversationSummaryContent.model_validate_json(content)
-        except ValueError as error:
+            decoded = json.loads(content)
+            required = (
+                set(ConversationSummaryContent.model_fields)
+                - HARNESS_SUMMARY_COUNTER_FIELDS
+            )
+            if not isinstance(decoded, dict) or set(decoded) != required:
+                raise ValueError("summary fields do not match the response schema")
+            return ConversationSummaryContent.model_validate(decoded)
+        except ValueError:
+            # Validation errors may embed provider output; never put them in
+            # trace detail or an exception chain that a caller may log.
             raise AgentWorkerError(
                 "CONVERSATION_SUMMARY_INVALID_RESPONSE",
                 "Conversation summary model returned invalid structured content.",
-                detail=str(error)[:2000],
-            ) from error
+            ) from None
 
     @staticmethod
     def _system_prompt() -> str:

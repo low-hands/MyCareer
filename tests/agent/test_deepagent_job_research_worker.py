@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from langchain.agents.structured_output import ProviderStrategy
+
 from career_agent.agent.deepagent_job_research_worker import (
     DeepAgentJobResearchWorker,
 )
 from career_agent.agent.job_research_contracts import JobResearchWorkerRequest
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.domain.job_research import JobResearchScope
+from career_agent.domain.job_research import JobResearchDraft, JobResearchScope
 
 
 DRAFT = {
@@ -115,7 +117,11 @@ def test_worker_builds_read_only_deepagent_with_web_search_and_checkpoint() -> N
     assert captured["tools"] == [{"type": "web_search"}]
     assert captured["checkpointer"] is checkpointer
     assert captured["subagents"] == []
-    assert captured["response_format"].__name__ == "JobResearchDraft"
+    # Provider-native strict JSON Schema, not a tool-call strategy (093).
+    strategy = captured["response_format"]
+    assert isinstance(strategy, ProviderStrategy)
+    assert strategy.schema is JobResearchDraft
+    assert strategy.schema_spec.strict is True
     assert "does not prove a role belongs" in captured["system_prompt"]
     assert "infer private team projects" in captured["system_prompt"]
 
