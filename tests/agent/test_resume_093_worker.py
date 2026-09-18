@@ -18,6 +18,9 @@ from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysi
 from career_agent.agent.resume_analysis_contracts import (
     ExtractedCareerEvidence,
     ExtractedCareerRecord,
+    NumberedCareerEvidence,
+    NumberedCareerRecord,
+    NumberedResumeAnalysisResult,
     ResumeAnalysisResult,
 )
 from career_agent.agent.structured_chat_completions import strict_json_schema
@@ -69,15 +72,40 @@ def result() -> ResumeAnalysisResult:
     )
 
 
+def numbered_result() -> NumberedResumeAnalysisResult:
+    return NumberedResumeAnalysisResult(
+        records=(
+            NumberedCareerRecord(
+                record_type="work",
+                organization="示例公司",
+                title="后端工程师",
+                start_year=2022,
+                start_month=3,
+                end_year=2024,
+                end_month=5,
+                source_locator=1,
+                evidence=(
+                    NumberedCareerEvidence(
+                        claim="负责检索系统",
+                        source_locator=2,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
 class ChatHarness:
     """Exercise SDK serialization/error handling without a real network request."""
 
     def __init__(self) -> None:
         self.requests: list[dict[str, object]] = []
         self.paths: list[str] = []
-        self.output: str | None = result().model_dump_json()
+        self.output: str | None = numbered_result().model_dump_json()
         self.finish_reason = "stop"
         self.refusal: str | None = None
+        self.completion_tokens: int | None = None
+        self.reasoning_tokens: int | None = None
         self.status = 200
         self.error_body: dict[str, object] = {
             "error": {
@@ -102,33 +130,48 @@ class ChatHarness:
             raise self.transport_error
         if self.status != 200:
             return httpx.Response(self.status, json=self.error_body)
+        payload: dict[str, object] = {
+            "id": "synthetic-completion",
+            "created": 0,
+            "object": "chat.completion",
+            "model": CONFIG.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": self.finish_reason,
+                    "message": {
+                        "role": "assistant",
+                        "content": self.output,
+                        "refusal": self.refusal,
+                    },
+                }
+            ],
+        }
+        if self.completion_tokens is not None:
+            payload["usage"] = {
+                "prompt_tokens": 100,
+                "completion_tokens": self.completion_tokens,
+                "total_tokens": 100 + self.completion_tokens,
+                "completion_tokens_details": {
+                    "reasoning_tokens": self.reasoning_tokens or 0
+                },
+            }
         return httpx.Response(
             200,
-            content=json.dumps(
-                {
-                    "id": "synthetic-completion",
-                    "created": 0,
-                    "object": "chat.completion",
-                    "model": CONFIG.model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "finish_reason": self.finish_reason,
-                            "message": {
-                                "role": "assistant",
-                                "content": self.output,
-                                "refusal": self.refusal,
-                            },
-                        }
-                    ],
-                }
-            ).encode(),
+            content=json.dumps(payload).encode(),
             headers={"content-type": "application/json"},
         )
 
-    def worker(self, *, max_input_tokens: int = 32_000) -> OpenAIResumeAnalysisWorker:
+    def worker(
+        self,
+        *,
+        max_input_tokens: int = 32_000,
+        disable_thinking: bool = False,
+    ) -> OpenAIResumeAnalysisWorker:
         return OpenAIResumeAnalysisWorker(
-            replace(CONFIG, max_input_tokens=max_input_tokens), client=self.client
+            replace(CONFIG, max_input_tokens=max_input_tokens),
+            client=self.client,
+            disable_thinking=disable_thinking,
         )
 
 
@@ -162,8 +205,8 @@ def test_real_sdk_chat_json_schema_request_has_only_located_text(
     assert "explicit user confirmation" in messages[0]["content"]
     assert json.loads(messages[1]["content"]) == {
         "source_paragraphs": [
-            {"source_locator": "page 1, paragraph 1", "text": SOURCE.splitlines()[0]},
-            {"source_locator": "page 1, paragraph 2", "text": SOURCE.splitlines()[1]},
+            {"paragraph_number": 1, "source_text": SOURCE.splitlines()[0]},
+            {"paragraph_number": 2, "source_text": SOURCE.splitlines()[1]},
         ]
     }
     assert request["response_format"] == {
@@ -171,13 +214,23 @@ def test_real_sdk_chat_json_schema_request_has_only_located_text(
         "json_schema": {
             "name": "resume_analysis_result",
             "strict": True,
-            "schema": strict_json_schema(ResumeAnalysisResult),
+            "schema": strict_json_schema(
+                NumberedResumeAnalysisResult,
+                field_enums={"source_locator": (1, 2)},
+            ),
         },
     }
     wire = json.dumps(request)
     assert "input_file" not in wire
     assert "base64" not in wire
     assert "file_data" not in wire
+
+
+def test_explicit_disable_thinking_is_sent_without_model_name_guessing(
+    chat: ChatHarness,
+) -> None:
+    chat.worker(disable_thinking=True).analyze(document(SOURCE.encode(), "text"))
+    assert chat.requests[0]["enable_thinking"] is False
 
 
 def test_strict_schema_requires_all_fields_without_mutating_persisted_defaults() -> (
@@ -195,27 +248,54 @@ def test_strict_schema_requires_all_fields_without_mutating_persisted_defaults()
             for item in node:
                 verify(item)
 
-    verify(strict_json_schema(ResumeAnalysisResult))
+    schema = strict_json_schema(
+        NumberedResumeAnalysisResult,
+        field_enums={"source_locator": (1, 2)},
+    )
+    verify(schema)
+    assert schema["$defs"]["NumberedCareerRecord"]["properties"][
+        "source_locator"
+    ]["enum"] == [1, 2]
+    assert schema["$defs"]["NumberedCareerEvidence"]["properties"][
+        "source_locator"
+    ]["enum"] == [1, 2]
     assert ResumeAnalysisResult().records == ()
     assert result().records[0].is_current is False
+
+
+def test_large_locator_set_omits_enum_but_local_lookup_still_rejects_unissued_number(
+    chat: ChatHarness,
+) -> None:
+    source = "\n".join(f"paragraph {number}" for number in range(1, 301))
+    record = numbered_result().records[0].model_dump(mode="json")
+    record["source_locator"] = 301
+    chat.output = json.dumps(
+        {"records": [record], "clarification_questions": [], "warnings": []}
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        chat.worker().analyze(document(source.encode(), "text"))
+    assert raised.value.code == "RESUME_ANALYSIS_INVALID_EVIDENCE"
+
+    schema = chat.requests[0]["response_format"]["json_schema"]["schema"]
+    assert "enum" not in schema["$defs"]["NumberedCareerRecord"]["properties"][
+        "source_locator"
+    ]
+    assert "enum" not in schema["$defs"]["NumberedCareerEvidence"]["properties"][
+        "source_locator"
+    ]
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("source_locator", "page 99, paragraph 1"),
-        ("source_locator", "page 1, paragraph 2"),
-        ("source_locator", " page 1, paragraph 1 "),
-        ("source_quote", "invented achievement"),
-        ("source_quote", " " + SOURCE.splitlines()[0]),
-        ("source_quote", "示例公司  后端工程师"),
-        ("source_quote", "后端工程师 负责检索系统"),
+        ("source_locator", 99),
     ],
 )
-def test_unissued_locator_or_nonverbatim_quote_is_rejected(
-    chat: ChatHarness, field: str, value: str
+def test_unissued_locator_is_rejected(
+    chat: ChatHarness, field: str, value: object
 ) -> None:
-    record = result().records[0].model_dump(mode="json")
+    record = numbered_result().records[0].model_dump(mode="json")
     record[field] = value
     chat.output = json.dumps(
         {"records": [record], "clarification_questions": [], "warnings": []}
@@ -224,16 +304,15 @@ def test_unissued_locator_or_nonverbatim_quote_is_rejected(
         chat.worker().analyze(document(SOURCE.encode(), "text"))
     assert caught.value.code == "RESUME_ANALYSIS_INVALID_EVIDENCE"
     assert caught.value.detail == "source_quote_or_locator_mismatch"
-    assert value not in str(caught.value)
+    assert str(value) not in str(caught.value)
 
 
 def test_nested_evidence_is_also_validated(chat: ChatHarness) -> None:
-    record = result().records[0].model_dump(mode="json")
+    record = numbered_result().records[0].model_dump(mode="json")
     record["evidence"] = [
         {
             "claim": "fabrication",
-            "source_locator": "page 1, paragraph 2",
-            "source_quote": "fabrication",
+            "source_locator": 99,
         }
     ]
     chat.output = json.dumps(
@@ -242,6 +321,20 @@ def test_nested_evidence_is_also_validated(chat: ChatHarness) -> None:
     with pytest.raises(AgentWorkerError, match="evidence") as caught:
         chat.worker().analyze(document(SOURCE.encode(), "text"))
     assert caught.value.code == "RESUME_ANALYSIS_INVALID_EVIDENCE"
+
+
+def test_persisted_contract_still_rejects_nonverbatim_quotes() -> None:
+    original = result()
+    record = original.records[0].model_copy(
+        update={"source_quote": "invented achievement"}
+    )
+    with pytest.raises(ValueError, match="mismatch"):
+        original.model_copy(update={"records": (record,)}).validate_source_quotes(
+            {
+                "page 1, paragraph 1": SOURCE.splitlines()[0],
+                "page 1, paragraph 2": SOURCE.splitlines()[1],
+            }
+        )
 
 
 @pytest.mark.parametrize(
@@ -274,6 +367,7 @@ def test_invalid_wire_output_fails_closed_with_safe_detail(
     [
         ("start_year", "2022"),
         ("is_current", 0),
+        ("source_quote", "model-authored quote is forbidden"),
         ("user_id", "malicious-user"),
         ("evidence", None),
     ],
@@ -281,7 +375,7 @@ def test_invalid_wire_output_fails_closed_with_safe_detail(
 def test_output_types_and_system_owned_fields_are_strict(
     chat: ChatHarness, field: str, value: object
 ) -> None:
-    record = result().records[0].model_dump(mode="json")
+    record = numbered_result().records[0].model_dump(mode="json")
     record[field] = value
     chat.output = json.dumps(
         {"records": [record], "clarification_questions": [], "warnings": []}
@@ -293,7 +387,7 @@ def test_output_types_and_system_owned_fields_are_strict(
 
 
 def test_nullable_default_fields_are_still_required_on_wire(chat: ChatHarness) -> None:
-    record = result().records[0].model_dump(mode="json")
+    record = numbered_result().records[0].model_dump(mode="json")
     del record["end_month"]
     chat.output = json.dumps(
         {"records": [record], "clarification_questions": [], "warnings": []}
@@ -320,6 +414,18 @@ def test_empty_completion_is_not_a_draft(chat: ChatHarness, output: str | None) 
     with pytest.raises(AgentWorkerError) as caught:
         chat.worker().analyze(document(SOURCE.encode(), "text"))
     assert caught.value.code == "RESUME_ANALYSIS_EMPTY_RESPONSE"
+
+
+def test_reasoning_tokens_exhausting_output_budget_is_incomplete(
+    chat: ChatHarness,
+) -> None:
+    chat.output = None
+    chat.finish_reason = "stop"
+    chat.completion_tokens = 8192
+    chat.reasoning_tokens = 8010
+    with pytest.raises(AgentWorkerError) as caught:
+        chat.worker().analyze(document(SOURCE.encode(), "text"))
+    assert caught.value.code == "RESUME_ANALYSIS_INCOMPLETE_RESPONSE"
 
 
 def test_refusal_does_not_expose_model_text(chat: ChatHarness) -> None:
@@ -440,6 +546,8 @@ def test_formal_analysis_persists_draft_then_requires_owned_one_time_confirmatio
         item.source_resume_version_id == version.id for item in imported.evidence
     )
     assert all(item.origin == "resume_extraction" for item in imported.evidence)
+    assert draft.result.records[0].source_quote == SOURCE.splitlines()[0]
+    assert draft.result.records[0].evidence[0].source_quote == SOURCE.splitlines()[1]
     assert history.list_records(user_id="owner") == imported.records
     assert history.list_records(user_id="other") == ()
     with pytest.raises(ResumeAnalysisNotPendingError):

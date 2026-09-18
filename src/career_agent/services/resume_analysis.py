@@ -105,6 +105,7 @@ class ResumeAnalysisService:
                 str(error),
                 retryable=error.retryable,
                 detail=error.detail,
+                provider=error.provider,
             ) from error
         return self._draft_store.create(
             user_id=user_id,

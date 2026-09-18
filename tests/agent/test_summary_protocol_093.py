@@ -75,7 +75,10 @@ def test_wire_request_is_chat_json_schema_with_independent_output_and_no_tools()
         http_client=httpx.Client(transport=httpx.MockTransport(respond)),
     ) as client:
         result = OpenAIConversationSummaryWorker(
-            config(), client=client, max_output_tokens=2048
+            config(),
+            client=client,
+            max_output_tokens=2048,
+            disable_thinking=True,
         ).summarize(
             previous=None,
             messages=(SummaryMessage(sequence=1, role="user", content="Use SQLite."),),
@@ -84,6 +87,7 @@ def test_wire_request_is_chat_json_schema_with_independent_output_and_no_tools()
     assert len(requests) == 1
     assert requests[0]["model"] == "synthetic-summary"
     assert requests[0]["max_tokens"] == 2048
+    assert requests[0]["enable_thinking"] is False
     assert requests[0]["response_format"] == summary_response_format()
     assert "tools" not in requests[0]
     assert "input" not in requests[0]
@@ -167,6 +171,49 @@ def test_invalid_partial_or_truncated_summary_fails_closed_without_content_in_er
     assert raised.value.detail is None
     assert "synthetic-private-provider-output" not in str(raised.value)
     assert raised.value.__cause__ is None
+
+
+def test_reasoning_usage_exhausting_budget_cannot_be_empty_success() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "synthetic",
+                "created": 1,
+                "object": "chat.completion",
+                "model": "synthetic-summary",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": None},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 1200,
+                    "total_tokens": 1300,
+                    "completion_tokens_details": {"reasoning_tokens": 1180},
+                },
+            },
+        )
+
+    with (
+        OpenAI(
+            api_key="synthetic-key",
+            base_url="https://synthetic.test/v1",
+            max_retries=0,
+            http_client=httpx.Client(transport=httpx.MockTransport(respond)),
+        ) as client,
+        pytest.raises(AgentWorkerError) as raised,
+    ):
+        OpenAIConversationSummaryWorker(config(), client=client).summarize(
+            previous=None,
+            messages=(
+                SummaryMessage(sequence=1, role="user", content="Synthetic input."),
+            ),
+        )
+    assert raised.value.code == "CONVERSATION_SUMMARY_INCOMPLETE_RESPONSE"
 
 
 def test_oversized_summary_input_including_schema_is_rejected_before_provider_call() -> (

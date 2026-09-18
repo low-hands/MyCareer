@@ -132,7 +132,10 @@ from career_agent.storage.context import CareerContextStore, OwnerSettingsConfli
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.domain.career_history import career_evidence_lineage_ref
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    user_facing_worker_failure,
+)
 from career_agent.agent.tool_effects import effect_for
 from career_agent.harness.observability import (
     conversation_trace_key,
@@ -3494,7 +3497,7 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name=tool_name,
             state="job_research_failed",
-            message="岗位研究暂未完成，可以从已保存的断点重试。",
+            message=user_facing_worker_failure("岗位研究", error),
             payload={
                 "run_id": error.run_id,
                 "job_posting_id": job_posting_id,
@@ -3799,7 +3802,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="analyze_resume",
                 state="failed",
-                message="简历分析暂时失败，请稍后重试。" if error.retryable else "简历分析失败。",
+                message=user_facing_worker_failure("简历分析", error),
                 payload={
                     "resume_version_id": model_arguments.resume_version_id,
                     "error_code": error.code,

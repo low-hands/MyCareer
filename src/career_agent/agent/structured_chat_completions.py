@@ -7,7 +7,7 @@ JSON-object downgrade, file upload, tools or automatic retry is permitted.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Protocol, TypeVar
 
 from openai import (
@@ -42,6 +42,7 @@ class ChatCompletions(Protocol):
         response_format: ResponseFormatJSONSchema,
         max_tokens: int,
         timeout: float,
+        extra_body: Mapping[str, object] | None = None,
     ) -> ChatCompletion: ...
 
 
@@ -66,6 +67,7 @@ class TextResponses(Protocol):
         max_output_tokens: int,
         timeout: float,
         store: bool,
+        extra_body: Mapping[str, object] | None = None,
     ) -> Response: ...
 
 
@@ -74,7 +76,11 @@ class StructuredResponsesClient(Protocol):
     def responses(self) -> TextResponses: ...
 
 
-def strict_json_schema(output_type: type[BaseModel]) -> dict[str, object]:
+def strict_json_schema(
+    output_type: type[BaseModel],
+    *,
+    field_enums: Mapping[str, tuple[int, ...]] | None = None,
+) -> dict[str, object]:
     """Require every field (nullable where appropriate), including nested ones.
 
     Defaults remain useful to persisted domain contracts but are not a part of
@@ -89,6 +95,10 @@ def strict_json_schema(output_type: type[BaseModel]) -> dict[str, object]:
             if isinstance(properties, dict):
                 node["additionalProperties"] = False
                 node["required"] = list(properties)
+                for field, values in (field_enums or {}).items():
+                    candidate = properties.get(field)
+                    if isinstance(candidate, dict):
+                        candidate["enum"] = list(values)
             for value in node.values():
                 strict(value)
         elif isinstance(node, list):
@@ -170,8 +180,10 @@ def structured_chat_completion(
     max_input_tokens: int,
     code_prefix: str,
     subject: str,
+    field_enums: Mapping[str, tuple[int, ...]] | None = None,
+    extra_body: Mapping[str, object] | None = None,
 ) -> T:
-    schema = strict_json_schema(output_type)
+    schema = strict_json_schema(output_type, field_enums=field_enums)
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": instructions},
         {"role": "user", "content": content},
@@ -180,8 +192,14 @@ def structured_chat_completion(
         "type": "json_schema",
         "json_schema": {"name": schema_name, "strict": True, "schema": schema},
     }
+    budget_payload: dict[str, object] = {
+        "messages": messages,
+        "response_format": response_format,
+    }
+    if extra_body is not None:
+        budget_payload["extra_body"] = dict(extra_body)
     _check_request_budget(
-        {"messages": messages, "response_format": response_format},
+        budget_payload,
         max_output_tokens=max_output_tokens,
         max_input_tokens=max_input_tokens,
         code_prefix=code_prefix,
@@ -194,6 +212,7 @@ def structured_chat_completion(
             response_format=response_format,
             max_tokens=max_output_tokens,
             timeout=timeout_seconds,
+            **({"extra_body": extra_body} if extra_body is not None else {}),
         )
     except (APIConnectionError, APIStatusError) as error:
         raise provider_worker_error(code_prefix, error) from None
@@ -208,12 +227,16 @@ def structured_chat_completion(
         raise AgentWorkerError(
             f"{code_prefix}_REFUSED", f"{subject} model declined the analysis."
         )
-    if choice.finish_reason != "stop" or choice.message.tool_calls:
+    text = choice.message.content
+    if (
+        choice.finish_reason != "stop"
+        or choice.message.tool_calls
+        or (_chat_output_budget_exhausted(response, max_output_tokens) and not text)
+    ):
         raise AgentWorkerError(
             f"{code_prefix}_INCOMPLETE_RESPONSE",
             f"{subject} model did not complete structured output.",
         )
-    text = choice.message.content
     return _validate_output(
         text,
         output_type=output_type,
@@ -254,9 +277,11 @@ def structured_text_response(
     max_input_tokens: int,
     code_prefix: str,
     subject: str,
+    field_enums: Mapping[str, tuple[int, ...]] | None = None,
+    extra_body: Mapping[str, object] | None = None,
 ) -> T:
     """Strict Responses adapter for a smoke-verified, explicitly configured endpoint."""
-    schema = strict_json_schema(output_type)
+    schema = strict_json_schema(output_type, field_enums=field_enums)
     inputs: list[ResponseInputItemParam] = [
         {"role": "user", "content": [{"type": "input_text", "text": content}]}
     ]
@@ -268,8 +293,15 @@ def structured_text_response(
             "schema": schema,
         }
     }
+    budget_payload: dict[str, object] = {
+        "instructions": instructions,
+        "input": inputs,
+        "text": text_config,
+    }
+    if extra_body is not None:
+        budget_payload["extra_body"] = dict(extra_body)
     _check_request_budget(
-        {"instructions": instructions, "input": inputs, "text": text_config},
+        budget_payload,
         max_output_tokens=max_output_tokens,
         max_input_tokens=max_input_tokens,
         code_prefix=code_prefix,
@@ -284,6 +316,7 @@ def structured_text_response(
             max_output_tokens=max_output_tokens,
             timeout=timeout_seconds,
             store=False,
+            **({"extra_body": extra_body} if extra_body is not None else {}),
         )
     except (APIConnectionError, APIStatusError) as error:
         raise provider_worker_error(code_prefix, error) from None
@@ -313,6 +346,11 @@ def structured_text_response(
             )
         messages.append(item)
     if len(messages) != 1:
+        if _responses_output_budget_exhausted(response, max_output_tokens):
+            raise AgentWorkerError(
+                f"{code_prefix}_INCOMPLETE_RESPONSE",
+                f"{subject} model did not complete structured output.",
+            )
         raise AgentWorkerError(
             f"{code_prefix}_EMPTY_RESPONSE",
             f"{subject} model returned no single structured output.",
@@ -333,6 +371,30 @@ def structured_text_response(
         schema=schema,
         code_prefix=code_prefix,
         subject=subject,
+    )
+
+
+def _chat_output_budget_exhausted(
+    response: ChatCompletion, max_output_tokens: int
+) -> bool:
+    """Use total completion tokens, which already include reasoning tokens."""
+    usage = response.usage
+    return bool(
+        usage is not None
+        and type(usage.completion_tokens) is int
+        and usage.completion_tokens >= max_output_tokens
+    )
+
+
+def _responses_output_budget_exhausted(
+    response: Response, max_output_tokens: int
+) -> bool:
+    """Responses output_tokens is the total reasoning-plus-visible budget."""
+    usage = response.usage
+    return bool(
+        usage is not None
+        and type(usage.output_tokens) is int
+        and usage.output_tokens >= max_output_tokens
     )
 
 

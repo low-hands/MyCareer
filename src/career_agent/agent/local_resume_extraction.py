@@ -67,14 +67,32 @@ class ExtractedResumeSource:
     def quotes_by_locator(self) -> dict[str, str]:
         return {item.locator: item.text for item in self.paragraphs}
 
-    def as_prompt_data(self) -> str:
+    @property
+    def locator_by_number(self) -> dict[int, str]:
+        """One-based request-local identifiers for the model-facing payload."""
+        return {
+            number: item.locator
+            for number, item in enumerate(self.paragraphs, start=1)
+        }
+
+    @property
+    def paragraph_by_number(self) -> dict[int, str]:
+        return {
+            number: item.text
+            for number, item in enumerate(self.paragraphs, start=1)
+        }
+
+    def as_numbered_prompt_data(self) -> str:
         # JSON framing prevents text that resembles a locator/delimiter from
         # being confused with a locally issued locator. It grants no authority.
         return json.dumps(
             {
                 "source_paragraphs": [
-                    {"source_locator": item.locator, "text": item.text}
-                    for item in self.paragraphs
+                    {
+                        "paragraph_number": number,
+                        "source_text": item.text,
+                    }
+                    for number, item in enumerate(self.paragraphs, start=1)
                 ]
             },
             ensure_ascii=False,

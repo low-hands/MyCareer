@@ -242,6 +242,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "turn_completed":
       return { ...state, phase: "completed", progress: null };
     case "turn_failed":
-      return { ...state, phase: "failed", progress: null, error: event.message };
+      return {
+        ...state,
+        phase: "failed",
+        progress: null,
+        error: `${event.message}（错误码：${event.code}）`,
+      };
   }
 }

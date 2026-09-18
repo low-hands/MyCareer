@@ -12,9 +12,11 @@ from career_agent.agent.job_research_provider_diagnostics import (
 )
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
+    ProviderErrorCategory,
     ProviderErrorMetadata,
     provider_error_metadata,
     provider_worker_error,
+    user_facing_worker_failure,
 )
 from career_agent.harness.capability_steps import CapabilityStep, observing_capability_steps
 from career_agent.harness.observability import (
@@ -118,6 +120,34 @@ def test_provider_status_is_preserved_without_message(status: int, category: str
     assert translated.retryable is retryable
     assert PRIVATE not in str(translated)
     assert PRIVATE not in json.dumps(metadata.as_dict())
+
+
+@pytest.mark.parametrize(
+    ("category", "retryable", "expected"),
+    [
+        ("configuration", False, "当前模型配置不支持该能力"),
+        ("rate_limit", True, "模型服务正在限流"),
+        ("upstream", True, "上游模型服务暂时不可用"),
+        ("upstream", False, "上游模型服务拒绝了请求"),
+        ("transport", True, "当前无法连接模型服务"),
+        ("timeout", True, "模型服务响应超时"),
+    ],
+)
+def test_user_failure_reason_follows_provider_category(
+    category: ProviderErrorCategory, retryable: bool, expected: str
+) -> None:
+    error = AgentWorkerError(
+        "JOB_RESEARCH_REJECTED_400",
+        PRIVATE,
+        retryable=retryable,
+        provider=ProviderErrorMetadata(
+            category=category, retryable=retryable
+        ),
+    )
+    message = user_facing_worker_failure("岗位研究", error)
+    assert expected in message
+    assert "JOB_RESEARCH_REJECTED_400" in message
+    assert PRIVATE not in message
 
 
 @pytest.mark.parametrize("value", [PRIVATE, "sk-secret123", "https://private.test", "text.PrivateCompanyJDSecret123", "tools[secret].type"])

@@ -313,7 +313,10 @@ def probe_summary_provider(config: ConversationSummaryAgentConfig) -> dict[str, 
             try:
                 if probe == "summary_json_schema":
                     OpenAIConversationSummaryWorker(
-                        provider, client=client, max_output_tokens=config.max_output_tokens
+                        provider,
+                        client=client,
+                        max_output_tokens=config.max_output_tokens,
+                        disable_thinking=config.disable_thinking,
                     ).summarize(
                         previous=None,
                         messages=(
@@ -329,6 +332,11 @@ def probe_summary_provider(config: ConversationSummaryAgentConfig) -> dict[str, 
                         messages=messages,
                         max_tokens=256,
                         timeout=provider.timeout_seconds,
+                        **(
+                            {"extra_body": {"enable_thinking": False}}
+                            if config.disable_thinking
+                            else {}
+                        ),
                         **({"response_format": minimal} if probe == "minimal_json_schema" else {}),
                     )
                     choice = response.choices[0] if response.choices else None
@@ -416,6 +424,7 @@ def main() -> int:
             worker = OpenAIConversationSummaryWorker(
                 summary_config.provider,
                 max_output_tokens=summary_config.max_output_tokens,
+                disable_thinking=summary_config.disable_thinking,
             )
         directory = args.work_dir / f"compaction-093-synthetic-{uuid4().hex}"
         directory.mkdir()

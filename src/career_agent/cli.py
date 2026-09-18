@@ -175,6 +175,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         summary_worker=OpenAIConversationSummaryWorker(
             summary_config.provider,
             max_output_tokens=summary_config.max_output_tokens,
+            disable_thinking=summary_config.disable_thinking,
         ),
         recent_message_limit=context_config.recent_message_limit,
         summary_batch_size=context_config.summary_batch_size,

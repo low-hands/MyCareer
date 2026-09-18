@@ -3074,6 +3074,67 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
     assert silent["assistant_message"] == result.message
 
 
+def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_error() -> None:
+    result = ToolResult(
+        tool_name="analyze_resume",
+        state="failed",
+        message=(
+            "简历分析未完成：当前模型配置不支持该能力，请检查端点、模型和协议配置。"
+            "（错误码：RESUME_ANALYSIS_REJECTED_400）"
+        ),
+        payload={
+            "error_code": "RESUME_ANALYSIS_REJECTED_400",
+            "retryable": False,
+        },
+    )
+    update = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(
+                action="final",
+                message="无法读取你上传的文件，网络服务暂时不可用。",
+            ),
+            "tool_results": (result,),
+        }
+    )
+    assert update == {
+        "assistant_message": result.message,
+        "model_message": "",
+    }
+
+
+def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -> None:
+    matched = ToolResult(
+        tool_name="match_resume_to_job",
+        state="resume_job_match_ready",
+        message="岗位匹配已完成。",
+        payload={},
+    )
+    failed = ToolResult(
+        tool_name="analyze_resume",
+        state="failed",
+        message=(
+            "简历分析未完成：当前模型配置不支持该能力，请检查端点、模型和协议配置。"
+            "（错误码：RESUME_ANALYSIS_REJECTED_400）"
+        ),
+        payload={
+            "error_code": "RESUME_ANALYSIS_REJECTED_400",
+            "retryable": False,
+        },
+    )
+    guidance = "匹配结果显示应优先突出分布式系统经验。"
+
+    update = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message=guidance),
+            "tool_results": (matched, failed),
+        }
+    )
+
+    assert update["assistant_message"].startswith(failed.message)
+    assert update["assistant_message"].endswith(guidance)
+    assert update["model_message"] == f"{failed.message}\n\n{guidance}"
+
+
 def test_a_blank_reply_is_no_reply_at_all() -> None:
     """``model_message`` is non-empty exactly when the model wrote the answer.
 

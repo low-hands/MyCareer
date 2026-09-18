@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping
 from typing import Protocol, cast
 
 from openai import APIConnectionError, APIStatusError, OpenAI
@@ -40,6 +41,7 @@ class SummaryCompletions(Protocol):
         messages: list[ChatCompletionMessageParam],
         response_format: ResponseFormatJSONSchema,
         timeout: float,
+        extra_body: Mapping[str, object] | None = None,
     ) -> ChatCompletion: ...
 
 
@@ -90,6 +92,7 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
         *,
         client: OpenAI | SummaryClient | None = None,
         max_output_tokens: int = DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+        disable_thinking: bool = False,
     ) -> None:
         if type(max_output_tokens) is not int or not 256 <= max_output_tokens <= 16384:
             raise ValueError("summary output budget must be between 256 and 16384")
@@ -98,8 +101,11 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             or not 1 <= config.timeout_seconds <= 120
         ):
             raise ValueError("summary timeout must be between 1 and 120 seconds")
+        if type(disable_thinking) is not bool:
+            raise ValueError("summary disable_thinking must be a boolean")
         self._config = config
         self._max_output_tokens = max_output_tokens
+        self._disable_thinking = disable_thinking
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
@@ -136,6 +142,11 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             },
         ]
         response_format = summary_response_format()
+        extra_body = (
+            {"enable_thinking": False}
+            if self._disable_thinking
+            else None
+        )
         request_tokens = count_tokens(
             json.dumps(
                 {
@@ -143,6 +154,11 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
                     "max_tokens": self._max_output_tokens,
                     "messages": messages_for_model,
                     "response_format": response_format,
+                    **(
+                        {"extra_body": extra_body}
+                        if extra_body is not None
+                        else {}
+                    ),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -161,6 +177,11 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
                 messages=messages_for_model,
                 response_format=response_format,
                 timeout=self._config.timeout_seconds,
+                **(
+                    {"extra_body": extra_body}
+                    if extra_body is not None
+                    else {}
+                ),
             )
         except (APIConnectionError, APIStatusError) as error:
             # Preserve only safe status/code/param/type, never a provider body
@@ -168,12 +189,22 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             # no alternate endpoint, model, or unstructured-output fallback.
             raise provider_worker_error("CONVERSATION_SUMMARY", error) from None
         choice = response.choices[0] if response.choices else None
-        if choice is not None and choice.finish_reason != "stop":
+        content = choice.message.content if choice is not None else None
+        usage = getattr(response, "usage", None)
+        output_budget_exhausted = bool(
+            usage is not None
+            and type(usage.completion_tokens) is int
+            # completion_tokens is total output usage, including reasoning.
+            and usage.completion_tokens >= self._max_output_tokens
+        )
+        if choice is not None and (
+            choice.finish_reason != "stop"
+            or (output_budget_exhausted and not content)
+        ):
             raise AgentWorkerError(
                 "CONVERSATION_SUMMARY_INCOMPLETE_RESPONSE",
                 "Conversation summary model did not complete a structured response.",
             )
-        content = choice.message.content if choice is not None else None
         if not content:
             raise AgentWorkerError(
                 "CONVERSATION_SUMMARY_EMPTY_RESPONSE",

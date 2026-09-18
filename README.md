@@ -90,6 +90,7 @@ RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 
 两个可选的 specialist 配置：
 - `RESUME_ANALYSIS_AGENT_API_PROTOCOL`：简历分析的请求协议，可选 `chat_completions`（默认，Chat Completions JSON Schema）或 `responses`（显式的 Responses 文本适配器）。必须显式设置，不会按模型名推断。
+- `RESUME_ANALYSIS_AGENT_DISABLE_THINKING=true`：显式发送百炼参数 `extra_body={"enable_thinking": false}`。项目不会按模型名或 hostname 自动开启；不识别该参数的端点会返回 400 并 fail closed，不会删除参数后重试。
 - `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）：公司研究的独立端点。整组都不设置时，复用 `RESUME_ANALYSIS_AGENT_*`；设置了任意一项，就必须三项齐全，否则启动失败，不会混用两组凭据。该端点必须支持 Responses 原生 `web_search` 工具，使用前先运行 `python -m career_agent.agent.job_research_provider_smoke --work-root <目录> --report <新文件>`。`.env` 已被 Git 忽略，不要提交任何真实密钥。
 
 `MAIN_AGENT_TIMEOUT_SECONDS=120` 是当前推荐值。Main Agent 对连接错误以及 `429/502/503/504` 最多做 3 次有限指数退避；持续不可用时会明确失败，不会无限重试或把不完整回答交给用户。
@@ -112,9 +113,10 @@ CONVERSATION_SUMMARY_AGENT_TIMEOUT_SECONDS=30
 CONVERSATION_SUMMARY_AGENT_MAX_INPUT_TOKENS=32000
 CONVERSATION_SUMMARY_AGENT_MAX_OUTPUT_TOKENS=1200
 CONVERSATION_SUMMARY_AGENT_CONTEXT_WINDOW_TOKENS=65536
+CONVERSATION_SUMMARY_AGENT_DISABLE_THINKING=true
 ```
 
-只有整个 `CONVERSATION_SUMMARY_AGENT_*` 命名空间**完全未设置**时，才显式兼容回退到 Main 的 endpoint/key/model/input capacity/context window，摘要自身仍使用独立 **30 秒 timeout / 1200 output token** 默认值，而非 Main 的 120 秒。设置任何一个摘要变量后，三项连接配置必须齐全且非空；未知变量、部分配置、无效配置或 provider 拒绝都不会静默切回 Main。摘要 timeout 范围 1–120 秒、输入 1024–2000000、输出 256–16384、窗口 2048–2000000，输入加输出必须小于等于实际窗口。请求在本地做包含 schema 的输入预算检查，超预算、截断或无效结构化结果 fail closed，不推进 watermark；已有失败退避与历史恢复机制保留。摘要客户端不自动重试，避免重复延长同一 turn 的等待。此配置独立于 `RESUME_ANALYSIS_AGENT_*`，不改变其他 specialist 的选择。
+整个 `CONVERSATION_SUMMARY_AGENT_*` 命名空间未设置时，会显式兼容回退到 Main 的 endpoint/key/model/input capacity/context window，摘要自身仍使用独立 **30 秒 timeout / 1200 output token** 默认值，而非 Main 的 120 秒。`CONVERSATION_SUMMARY_AGENT_DISABLE_THINKING` 是唯一可单独设置的非连接选项：单独出现时仍复用 Main 连接，只覆盖 thinking 请求参数。设置其他任一摘要变量后，三项连接配置必须齐全且非空；未知变量、部分配置、无效配置或 provider 拒绝都不会静默切回 Main。`DISABLE_THINKING` 与简历分析开关相同，是显式的百炼请求参数；端点不支持时 400 fail closed。摘要 timeout 范围 1–120 秒、输入 1024–2000000、输出 256–16384、窗口 2048–2000000，输入加输出必须小于等于实际窗口。`max_tokens` 是包含 reasoning token 的完整输出预算；本地截断判断使用供应商返回的总 `completion_tokens`，推理耗尽预算且正文为空不会被当作成功。请求在本地做包含 schema 的输入预算检查，超预算、截断、空正文或无效结构化结果 fail closed，不推进 watermark；已有失败退避与历史恢复机制保留。摘要客户端不自动重试，避免重复延长同一 turn 的等待。此配置独立于 `RESUME_ANALYSIS_AGENT_*`，不改变其他 specialist 的选择。
 
 ### 4. 创建本地 API key
 

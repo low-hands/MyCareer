@@ -14,6 +14,7 @@ ProviderErrorCategory = Literal[
     "configuration", "rate_limit", "upstream", "transport", "timeout"
 ]
 _SAFE_PROVIDER_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.\[\]-]{0,127}\Z")
+_SAFE_PUBLIC_ERROR_CODE = re.compile(r"[A-Z][A-Z0-9_]{1,199}\Z")
 _RETRYABLE_PROVIDER_STATUS = frozenset({429, 502, 503, 504})
 # Provider-controlled strings can contain user data even when they look like
 # identifiers. Only known protocol vocabulary may cross the diagnostic boundary.
@@ -131,6 +132,47 @@ def provider_worker_error(prefix: str, error: BaseException) -> AgentWorkerError
         retryable=metadata.retryable,
         provider=metadata,
     )
+
+
+def user_facing_worker_failure(capability: str, error: object) -> str:
+    """Deterministic, provider-body-free explanation for capability failures."""
+
+    raw_code = getattr(error, "code", None)
+    code = (
+        raw_code
+        if isinstance(raw_code, str)
+        and _SAFE_PUBLIC_ERROR_CODE.fullmatch(raw_code)
+        else "CAPABILITY_FAILED"
+    )
+    provider = getattr(error, "provider", None)
+    category = (
+        provider.category
+        if isinstance(provider, ProviderErrorMetadata)
+        else None
+    )
+    if category == "configuration":
+        reason = "当前模型配置不支持该能力，请检查端点、模型和协议配置。"
+    elif category == "rate_limit":
+        reason = "模型服务正在限流，请稍后重试。"
+    elif category == "upstream" and bool(getattr(error, "retryable", False)):
+        reason = "上游模型服务暂时不可用，请稍后重试。"
+    elif category == "upstream":
+        reason = "上游模型服务拒绝了请求，请检查服务状态和配置。"
+    elif category == "transport":
+        reason = "当前无法连接模型服务，请检查网络后重试。"
+    elif category == "timeout":
+        reason = "模型服务响应超时，请稍后重试。"
+    elif code.startswith("RESUME_ANALYSIS_PDF_") or code.startswith(
+        "RESUME_ANALYSIS_OCR_"
+    ):
+        reason = "本地简历解析未完成，请按错误码检查文件格式或文本层。"
+    elif code.startswith("RESUME_ANALYSIS_"):
+        reason = "模型结果未通过本地完整性校验，没有保存分析草稿。"
+    elif code.startswith("JOB_RESEARCH_"):
+        reason = "研究结果未通过能力或来源校验，没有生成研究报告。"
+    else:
+        reason = "该能力未完成，未保存结果。"
+    return f"{capability}未完成：{reason}（错误码：{code}）"
 
 
 class AgentConfigurationError(AgentWorkerError):

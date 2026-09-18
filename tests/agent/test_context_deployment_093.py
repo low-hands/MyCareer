@@ -78,12 +78,28 @@ def test_absent_summary_namespace_deliberately_reuses_main_connection_not_timeou
     assert summary.max_output_tokens == 1200
 
 
+def test_summary_disable_thinking_alone_overrides_main_connection_fallback() -> None:
+    main = main_config()
+    summary = ConversationSummaryAgentConfig.from_env(
+        main_config=main,
+        main_context_window_tokens=48_000,
+        environ={f"{PREFIX}_DISABLE_THINKING": "true"},
+    )
+    assert summary.provider.endpoint == main.endpoint
+    assert summary.provider.api_key == main.api_key
+    assert summary.provider.model == main.model
+    assert summary.provider.timeout_seconds == 30
+    assert summary.context_window_tokens == 48_000
+    assert summary.disable_thinking is True
+
+
 def test_summary_connection_timeout_and_budgets_are_independent() -> None:
     env = independent_env() | {
         f"{PREFIX}_TIMEOUT_SECONDS": "12.5",
         f"{PREFIX}_MAX_INPUT_TOKENS": "8192",
         f"{PREFIX}_MAX_OUTPUT_TOKENS": "2048",
         f"{PREFIX}_CONTEXT_WINDOW_TOKENS": "10240",
+        f"{PREFIX}_DISABLE_THINKING": "true",
         "RESUME_ANALYSIS_AGENT_MODEL": "unrelated-specialist",
     }
     result = ConversationSummaryAgentConfig.from_env(main_config=main_config(), environ=env)
@@ -94,6 +110,7 @@ def test_summary_connection_timeout_and_budgets_are_independent() -> None:
     assert result.provider.max_input_tokens == 8192
     assert result.max_output_tokens == 2048
     assert result.context_window_tokens == 10240
+    assert result.disable_thinking is True
 
 
 @pytest.mark.parametrize("env", [
@@ -120,6 +137,8 @@ def test_partial_blank_unknown_or_insecure_summary_configuration_never_falls_bac
     ("MAX_OUTPUT_TOKENS", value) for value in ("", "255", "16385", "1.5")
 ] + [
     ("CONTEXT_WINDOW_TOKENS", value) for value in ("", "2047", "2000001")
+] + [
+    ("DISABLE_THINKING", value) for value in ("", "1", "yes", "bad")
 ])
 def test_invalid_independent_summary_budgets_fail_startup(suffix: str, value: str) -> None:
     with pytest.raises(AgentConfigurationError):
@@ -150,6 +169,7 @@ def test_production_factory_passes_independent_summary_and_context_settings(tmp_
         assert worker._config.model == "synthetic-summary"
         assert worker._config.timeout_seconds == 11
         assert worker._max_output_tokens == 2048
+        assert worker._disable_thinking is True
         assert kwargs["recent_message_limit"] == 20
         assert kwargs["summary_batch_size"] == 10
         assert kwargs["compact_occupancy_threshold"] == 0.8
@@ -161,6 +181,7 @@ def test_production_factory_passes_independent_summary_and_context_settings(tmp_
         "CONTEXT_RECENT_MESSAGE_LIMIT": "20", "CONTEXT_SUMMARY_BATCH_SIZE": "10",
         "CONTEXT_COMPACT_OCCUPANCY_THRESHOLD": "0.8",
         f"{PREFIX}_TIMEOUT_SECONDS": "11", f"{PREFIX}_MAX_OUTPUT_TOKENS": "2048",
+        f"{PREFIX}_DISABLE_THINKING": "true",
     }
     args = argparse.Namespace(
         main_agent_timeout_seconds=120,

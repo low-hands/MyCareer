@@ -62,6 +62,18 @@ def _number(
     return value
 
 
+def _boolean(
+    environ: Mapping[str, str], key: str, default: bool = False
+) -> bool:
+    value = environ.get(key, str(default)).strip().lower()
+    if value not in {"true", "false"}:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            f"{key} must be true or false.",
+        )
+    return value == "true"
+
+
 def validate_model_window(
     *, input_tokens: int, output_tokens: int, context_window_tokens: int, prefix: str
 ) -> None:
@@ -140,8 +152,11 @@ class ConversationSummaryAgentConfig:
     provider: OpenAICompatibleAgentConfig
     max_output_tokens: int = DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS
     context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
+    disable_thinking: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.disable_thinking) is not bool:
+            raise ValueError("summary disable_thinking must be a boolean")
         if (
             type(self.max_output_tokens) is not int
             or not 256 <= self.max_output_tokens <= 16384
@@ -179,13 +194,6 @@ class ConversationSummaryAgentConfig:
         env = _environment(environ)
         prefix = "CONVERSATION_SUMMARY_AGENT"
         configured = {key for key in env if key.startswith(f"{prefix}_")}
-        # Absence is deliberate backward compatibility, not fallback on an
-        # invalid endpoint, an empty secret, a typo, or a provider failure.
-        if not configured:
-            return cls(
-                provider=replace(main_config, timeout_seconds=30.0),
-                context_window_tokens=main_context_window_tokens,
-            )
         supported = {
             f"{prefix}_{suffix}"
             for suffix in (
@@ -197,12 +205,26 @@ class ConversationSummaryAgentConfig:
                 "MAX_OUTPUT_TOKENS",
                 "CONTEXT_WINDOW_TOKENS",
                 "PROMPT_CACHE",
+                "DISABLE_THINKING",
             )
         }
         if configured - supported:
             raise AgentConfigurationError(
                 "AGENT_CONFIGURATION_INVALID",
                 "Unknown CONVERSATION_SUMMARY_AGENT configuration field.",
+            )
+        # Absence is deliberate backward compatibility, not fallback on an
+        # invalid endpoint, an empty secret, a typo, or a provider failure.
+        # DISABLE_THINKING is a request option rather than a connection field,
+        # so it may independently override the Main-connection fallback.
+        fallback_options = {f"{prefix}_DISABLE_THINKING"}
+        if configured <= fallback_options:
+            return cls(
+                provider=replace(main_config, timeout_seconds=30.0),
+                context_window_tokens=main_context_window_tokens,
+                disable_thinking=_boolean(
+                    env, f"{prefix}_DISABLE_THINKING"
+                ),
             )
         # Parse numeric values here first: errors must not chain the raw env
         # value from the shared provider parser into startup logs.
@@ -230,5 +252,8 @@ class ConversationSummaryAgentConfig:
                 DEFAULT_CONTEXT_WINDOW_TOKENS,
                 2048,
                 2_000_000,
+            ),
+            disable_thinking=_boolean(
+                env, f"{prefix}_DISABLE_THINKING"
             ),
         )

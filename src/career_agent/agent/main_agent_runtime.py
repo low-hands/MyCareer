@@ -4022,6 +4022,46 @@ class MainAgentRuntime:
         # branch and then clamp to "", leaving ``model_message`` empty while the
         # branch claims the model wrote the reply — and prefixing the body with a
         # blank line. The invariant below has to be true, not nearly true.
+        if (
+            decision.action == "final"
+            and result is not None
+            and result.disposition == "failed"
+        ):
+            results = state.get("tool_results", ())
+            authoritative = MainAgentRuntime._screen_message(result)
+            # When every attempted capability failed, model prose can only
+            # restate the failure and must not replace the runtime category.
+            # In a composed turn, however, earlier successful work still needs
+            # its model-authored guidance. Keep that prose after the
+            # authoritative failure paragraph, under the ordinary reply limit.
+            if all(item.disposition == "failed" for item in results):
+                return {
+                    "assistant_message": authoritative,
+                    "model_message": "",
+                }
+            message = (decision.message or "").strip()
+            if not message:
+                return {"assistant_message": authoritative}
+            only_cards = MainAgentRuntime._turn_is_card_backed(results)
+            # The runtime prefix spends part of the ordinary reply budget so the
+            # durable reply stays within the same limit as a plain final.
+            separator = "\n\n"
+            limit = DELIVERY_SUMMARY_LIMIT if only_cards else MODEL_REPLY_LIMIT
+            prose_limit = limit - len(authoritative) - len(separator)
+            if prose_limit < 1:
+                return {"assistant_message": authoritative}
+            reply = clamp(message, limit=prose_limit)
+            durable_reply = f"{authoritative}{separator}{reply}"
+            body = MainAgentRuntime._undelivered_bodies(results)
+            return {
+                "assistant_message": (
+                    f"{durable_reply}\n\n{body}" if body else durable_reply
+                ),
+                # This is the bounded durable reply without presenter bodies.
+                # It is non-empty because the model authored its second part;
+                # the runtime-owned prefix preserves the classified failure.
+                "model_message": durable_reply,
+            }
         if decision.action == "final" and (decision.message or "").strip():
             results = state.get("tool_results", ())
             body = MainAgentRuntime._undelivered_bodies(results)

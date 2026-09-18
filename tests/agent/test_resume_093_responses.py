@@ -13,7 +13,9 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
 )
 from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
-from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
+from career_agent.agent.resume_analysis_contracts import (
+    NumberedResumeAnalysisResult,
+)
 from career_agent.agent.structured_chat_completions import strict_json_schema
 
 import test_resume_093_worker as contracts
@@ -70,11 +72,17 @@ class ResponsesHarness(contracts.ChatHarness):
             headers={"content-type": "application/json"},
         )
 
-    def worker(self, *, max_input_tokens: int = 32_000) -> OpenAIResumeAnalysisWorker:
+    def worker(
+        self,
+        *,
+        max_input_tokens: int = 32_000,
+        disable_thinking: bool = False,
+    ) -> OpenAIResumeAnalysisWorker:
         return OpenAIResumeAnalysisWorker(
             replace(contracts.CONFIG, max_input_tokens=max_input_tokens),
             client=self.client,
             protocol="responses",
+            disable_thinking=disable_thinking,
         )
 
 
@@ -111,7 +119,10 @@ def test_explicit_responses_adapter_uses_strict_schema_and_only_text(
             "type": "json_schema",
             "name": "resume_analysis_result",
             "strict": True,
-            "schema": strict_json_schema(ResumeAnalysisResult),
+            "schema": strict_json_schema(
+                NumberedResumeAnalysisResult,
+                field_enums={"source_locator": (1, 2)},
+            ),
         }
     }
     inputs = request["input"]
@@ -121,7 +132,7 @@ def test_explicit_responses_adapter_uses_strict_schema_and_only_text(
     assert inputs[0]["content"][0]["type"] == "input_text"
     assert json.loads(inputs[0]["content"][0]["text"]) == {
         "source_paragraphs": [
-            {"source_locator": f"page 1, paragraph {index}", "text": line}
+            {"paragraph_number": index, "source_text": line}
             for index, line in enumerate(contracts.SOURCE.splitlines(), start=1)
         ]
     }
@@ -129,6 +140,15 @@ def test_explicit_responses_adapter_uses_strict_schema_and_only_text(
     assert not any(
         term in wire for term in ("input_file", "file_data", "base64", "file_url")
     )
+
+
+def test_responses_disable_thinking_is_explicit_provider_option(
+    responses: ResponsesHarness,
+) -> None:
+    responses.worker(disable_thinking=True).analyze(
+        document(contracts.SOURCE.encode(), "text")
+    )
+    assert responses.requests[0]["enable_thinking"] is False
 
 
 @pytest.mark.parametrize(
@@ -225,15 +245,13 @@ def test_responses_retains_same_strict_json_validation(
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("source_locator", "page 9, paragraph 1"),
-        ("source_locator", " page 1, paragraph 1 "),
-        ("source_quote", "invented achievement"),
+        ("source_locator", 9),
     ],
 )
 def test_responses_retains_exact_evidence_validation(
-    responses: ResponsesHarness, field: str, value: str
+    responses: ResponsesHarness, field: str, value: object
 ) -> None:
-    contracts.test_unissued_locator_or_nonverbatim_quote_is_rejected(
+    contracts.test_unissued_locator_is_rejected(
         responses, field, value
     )
 
@@ -292,12 +310,14 @@ def test_env_protocol_selection_is_explicit(protocol: str, path: str) -> None:
                 "CUSTOM_API_KEY": "synthetic-not-a-credential",
                 "CUSTOM_MODEL": "not-a-capability-heuristic",
                 "CUSTOM_API_PROTOCOL": protocol,
+                "CUSTOM_DISABLE_THINKING": "true",
             },
             prefix="CUSTOM",
             client=harness.client,
         )
         worker.analyze(document(contracts.SOURCE.encode(), "text"))
         assert harness.paths == [path]
+        assert harness.requests[0]["enable_thinking"] is False
     finally:
         harness.client.close()
 
@@ -313,6 +333,21 @@ def test_invalid_protocol_is_configuration_error_not_a_fallback(protocol: str) -
                 "RESUME_ANALYSIS_AGENT_API_KEY": "synthetic-not-a-credential",
                 "RESUME_ANALYSIS_AGENT_MODEL": "model",
                 "RESUME_ANALYSIS_AGENT_API_PROTOCOL": protocol,
+            }
+        )
+    assert caught.value.code == "AGENT_CONFIGURATION_INVALID"
+    assert "private-invalid-value" not in str(caught.value)
+
+
+@pytest.mark.parametrize("value", ["", "1", "yes", "private-invalid-value"])
+def test_invalid_disable_thinking_is_configuration_error(value: str) -> None:
+    with pytest.raises(AgentConfigurationError) as caught:
+        OpenAIResumeAnalysisWorker.from_env(
+            environ={
+                "RESUME_ANALYSIS_AGENT_BASE_URL": "https://provider.invalid/v1",
+                "RESUME_ANALYSIS_AGENT_API_KEY": "synthetic-not-a-credential",
+                "RESUME_ANALYSIS_AGENT_MODEL": "model",
+                "RESUME_ANALYSIS_AGENT_DISABLE_THINKING": value,
             }
         )
     assert caught.value.code == "AGENT_CONFIGURATION_INVALID"

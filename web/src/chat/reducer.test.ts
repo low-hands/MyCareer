@@ -258,4 +258,20 @@ describe("chatReducer", () => {
     expect(state.phase).toBe("completed");
     expect(state.messages.at(-1)?.content).toBe("核心要求是……");
   });
+
+  it("shows the safe application error code for a failed turn", () => {
+    const state = chatReducer(initialChatState, {
+      type: "stream_event",
+      event: {
+        type: "turn_failed",
+        turn_id: "turn-1",
+        code: "MAIN_AGENT_REJECTED_400",
+        message: "当前模型配置不支持该请求。",
+      },
+    });
+    expect(state.phase).toBe("failed");
+    expect(state.error).toBe(
+      "当前模型配置不支持该请求。（错误码：MAIN_AGENT_REJECTED_400）",
+    );
+  });
 });

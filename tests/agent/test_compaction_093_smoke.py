@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +13,15 @@ from openai import OpenAI
 from compaction_smoke_093 import main, probe_summary_provider
 from career_agent.agent.context_deployment_config import ConversationSummaryAgentConfig
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
+
+
+@pytest.fixture(autouse=True)
+def restore_process_logging_level() -> Iterator[None]:
+    previous = logging.root.manager.disable
+    try:
+        yield
+    finally:
+        logging.disable(previous)
 
 
 def synthetic_config() -> ConversationSummaryAgentConfig:

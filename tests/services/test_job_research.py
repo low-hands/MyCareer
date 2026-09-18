@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 import pytest
 
 from career_agent.agent.job_research_contracts import JobResearchWorkerRequest
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    ProviderErrorMetadata,
+)
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.domain.job_research import (
     JobResearchDraft,
@@ -84,6 +87,9 @@ class Worker:
                 "JOB_RESEARCH_TRANSPORT_ERROR",
                 "temporary failure",
                 retryable=True,
+                provider=ProviderErrorMetadata(
+                    category="transport", retryable=True
+                ),
             )
         return self.draft
 
@@ -162,8 +168,10 @@ def test_failed_run_keeps_checkpoint_identity_and_can_retry(tmp_path) -> None:
     worker.fail_once = True
     service, store, saved = _service(tmp_path, worker)
 
-    with pytest.raises(JobResearchExecutionError):
+    with pytest.raises(JobResearchExecutionError) as raised:
         service.research(user_id="u1", job_posting_id=saved.posting.id)
+    assert raised.value.provider is not None
+    assert raised.value.provider.category == "transport"
 
     failed_run_id = worker.calls[0][0]
     failed = store.get_run(user_id="u1", run_id=failed_run_id)

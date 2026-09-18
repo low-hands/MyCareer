@@ -11,6 +11,7 @@ from career_agent.agent.job_research_contracts import (
     JobResearchWorker,
     JobResearchWorkerRequest,
 )
+from career_agent.agent.openai_compatible_client import ProviderErrorMetadata
 from career_agent.domain.job_research import (
     company_key,
     JobResearchDraft,
@@ -45,11 +46,13 @@ class JobResearchExecutionError(RuntimeError):
         code: str,
         retryable: bool,
         detail: str,
+        provider: ProviderErrorMetadata | None = None,
     ) -> None:
         super().__init__(detail)
         self.run_id = run_id
         self.code = code
         self.retryable = retryable
+        self.provider = provider
 
 
 @dataclass(frozen=True)
@@ -255,6 +258,14 @@ class JobResearchService:
                 code=str(code)[:200],
                 retryable=bool(getattr(error, "retryable", False)),
                 detail=redact_text(detail)[:2000],
+                provider=(
+                    error.provider
+                    if isinstance(
+                        getattr(error, "provider", None),
+                        ProviderErrorMetadata,
+                    )
+                    else None
+                ),
             ) from error
         try:
             self._worker.forget(run.id)
