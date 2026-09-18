@@ -24,6 +24,16 @@ doing then, not to a conversation they have long since left.
 
 MAX_PENDING_EVENTS = 50
 
+CONTINUATION_TTL = timedelta(hours=24)
+"""How long a saved job may wait to be continued into its conversation.
+
+A conversation that stays in a mock interview or an open confirmation keeps
+the event pending. After a day the save is no longer "just now", so the event
+expires and the page says so instead of continuing it later out of context.
+"""
+
+ContinuationStatus = Literal["pending", "completed", "discarded", "failed", "expired"]
+
 
 class JobCaptureIntent(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -54,7 +64,7 @@ class JobCapturedEvent(BaseModel):
     company_name: str
     created_at: datetime
     acknowledged_at: datetime | None = None
-    continuation_status: Literal["pending", "completed", "discarded", "failed"] = "pending"
+    continuation_status: ContinuationStatus = "pending"
     continuation_turn_id: str | None = None
 
 
@@ -97,14 +107,23 @@ class JobCaptureStore(Protocol):
         company_name: str,
     ) -> JobCaptureRecording | None: ...
 
-    def list_pending_continuations(self) -> tuple[JobCapturedEvent, ...]: ...
+    def list_pending_continuations(
+        self, *, limit: int = MAX_PENDING_EVENTS
+    ) -> tuple[JobCapturedEvent, ...]: ...
+
+    def expire_continuations(
+        self, *, now: datetime | None = None
+    ) -> tuple[JobCapturedEvent, ...]: ...
 
     def settle_continuation(
         self, *, user_id: str, event_id: str,
-        status: Literal["completed", "discarded", "failed"], turn_id: str | None = None,
+        status: Literal["completed", "discarded", "failed", "expired"],
+        turn_id: str | None = None,
     ) -> None: ...
 
-    def retry_continuation(self, *, user_id: str, event_id: str) -> bool: ...
+    def retry_continuation(
+        self, *, user_id: str, event_id: str, now: datetime | None = None
+    ) -> bool: ...
 
     def list_pending_events(
         self,
@@ -408,17 +427,47 @@ class SQLiteJobCaptureStore:
             )
         return JobCaptureRecording(event=event, created=True)
 
-    def list_pending_continuations(self) -> tuple[JobCapturedEvent, ...]:
+    def list_pending_continuations(
+        self, *, limit: int = MAX_PENDING_EVENTS
+    ) -> tuple[JobCapturedEvent, ...]:
+        """Oldest pending continuations first, bounded per dispatcher pass."""
+        if not 1 <= limit <= MAX_PENDING_EVENTS:
+            raise ValueError(f"limit must be between 1 and {MAX_PENDING_EVENTS}")
         with self._connect() as connection:
             rows = connection.execute(
                 f"SELECT {self._EVENT_COLUMNS} FROM job_captured_events "
-                "WHERE continuation_status = 'pending' ORDER BY created_at, id"
+                "WHERE continuation_status = 'pending' ORDER BY created_at, id LIMIT ?",
+                (limit,),
             ).fetchall()
         return tuple(self._event_from_row(row) for row in rows)
 
+    def expire_continuations(
+        self, *, now: datetime | None = None
+    ) -> tuple[JobCapturedEvent, ...]:
+        """Settle pending continuations older than ``CONTINUATION_TTL`` as expired."""
+        cutoff = ((now or datetime.now(timezone.utc)) - CONTINUATION_TTL).isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                f"SELECT {self._EVENT_COLUMNS} FROM job_captured_events "
+                "WHERE continuation_status = 'pending' AND created_at < ? "
+                "ORDER BY created_at, id",
+                (cutoff,),
+            ).fetchall()
+            connection.execute(
+                "UPDATE job_captured_events SET continuation_status = 'expired' "
+                "WHERE continuation_status = 'pending' AND created_at < ?",
+                (cutoff,),
+            )
+        return tuple(
+            self._event_from_row(row).model_copy(update={"continuation_status": "expired"})
+            for row in rows
+        )
+
     def settle_continuation(
         self, *, user_id: str, event_id: str,
-        status: Literal["completed", "discarded", "failed"], turn_id: str | None = None,
+        status: Literal["completed", "discarded", "failed", "expired"],
+        turn_id: str | None = None,
     ) -> None:
         with self._connect() as connection:
             connection.execute(
@@ -429,14 +478,23 @@ class SQLiteJobCaptureStore:
                 (status, turn_id, user_id, event_id),
             )
 
-    def retry_continuation(self, *, user_id: str, event_id: str) -> bool:
+    def retry_continuation(
+        self, *, user_id: str, event_id: str, now: datetime | None = None
+    ) -> bool:
+        """Re-queue this user's failed continuation, unless it is past its TTL.
+
+        Retrying an event that would expire on the next dispatcher pass would
+        only turn "failed" into "expired" behind the user's click.
+        """
+        cutoff = ((now or datetime.now(timezone.utc)) - CONTINUATION_TTL).isoformat()
         with self._connect() as connection:
             cursor = connection.execute(
                 """
                 UPDATE job_captured_events SET continuation_status = 'pending', acknowledged_at = NULL
                 WHERE user_id = ? AND id = ? AND continuation_status = 'failed'
+                  AND created_at >= ?
                 """,
-                (user_id, event_id),
+                (user_id, event_id, cutoff),
             )
         return cursor.rowcount == 1
 

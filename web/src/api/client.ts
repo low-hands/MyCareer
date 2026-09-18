@@ -759,7 +759,7 @@ export interface JobCapturedEventView {
   title: string;
   company_name: string;
   created_at: string;
-  continuation_status: "pending" | "completed" | "discarded" | "failed";
+  continuation_status: "pending" | "completed" | "discarded" | "failed" | "expired";
   continuation_turn_id: string | null;
 }
 

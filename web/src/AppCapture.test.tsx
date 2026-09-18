@@ -106,3 +106,16 @@ it("retries failed captures through the backend endpoint", async () => {
   expect(streamChat).not.toHaveBeenCalled();
   expect(acknowledgeJobCapture).not.toHaveBeenCalled();
 });
+
+it("explains an expired capture and acknowledges it only when dismissed", async () => {
+  vi.mocked(fetchPendingJobCaptures).mockResolvedValue([{ ...capture, continuation_status: "expired" }]);
+  await mount();
+  expect(container.textContent).toContain("未自动续接");
+  expect(acknowledgeJobCapture).not.toHaveBeenCalled();
+  const dismiss = [...container.querySelectorAll("button")].find((button) => button.textContent === "知道了");
+  expect(dismiss).toBeDefined();
+  await act(async () => dismiss?.click());
+  expect(acknowledgeJobCapture).toHaveBeenCalledWith(capture.id, expect.any(Object));
+  expect(container.textContent).not.toContain("未自动续接");
+  expect(streamChat).not.toHaveBeenCalled();
+});

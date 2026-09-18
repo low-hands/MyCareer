@@ -982,6 +982,20 @@ export default function App() {
                 }}>重试续接</button>
               </div>
             ))}
+            {captureEvents.filter((event) =>
+              event.conversation_id === conversationId && event.continuation_status === "expired"
+            ).map((event) => (
+              <div key={event.id} role="status">
+                岗位「{event.title}」已保存到岗位库；本会话超过 24 小时一直在等待你的回复，未自动续接。
+                <button type="button" onClick={() => {
+                  void acknowledgeJobCapture(event.id, { apiBaseUrl: API_BASE_URL })
+                    .then(() => setCaptureEvents((current) => current.filter((item) => item.id !== event.id)))
+                    .catch((cause: unknown) => setConversationListError(
+                      cause instanceof Error ? cause.message : "确认岗位采集事件失败。",
+                    ));
+                }}>知道了</button>
+              </div>
+            ))}
             {importerOpen ? (
               <div className="composer-importer" role="dialog" aria-label="导入简历并附到消息">
                 <div className="composer-importer-header">

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from threading import Event
+from threading import Event, Thread
 from time import monotonic, sleep
 
 import pytest
@@ -530,3 +530,25 @@ def test_deletion_waits_for_a_running_capture_turn(
             "/v1/conversations/c1", headers=write_headers
         ).status_code == 200
     assert context_store.get_session("u1", "c1") is None
+
+
+def test_shutdown_waits_for_a_running_capture_turn_to_settle(
+    app, stores, auth, context_store
+) -> None:
+    decisions = BlockingDecisionMaker()
+    client = TestClient(app)
+    client.__enter__()
+    app.state.runtime = _runtime(context_store, stores, decisions)
+    saved = _capture(client, stores, auth)
+    assert decisions.started.wait(10)
+    closing = Thread(target=client.__exit__, args=(None, None, None))
+    closing.start()
+    sleep(0.3)
+    # Shutdown is draining the gate the capture worker still holds.
+    assert closing.is_alive()
+    decisions.finish.set()
+    closing.join(15)
+    assert not closing.is_alive()
+    assert app.state.shutdown_drained is True
+    event = stores[1].get_event(user_id="u1", event_id=saved["capture_event_id"])
+    assert event is not None and event.continuation_status == "completed"

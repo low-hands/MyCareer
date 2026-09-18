@@ -377,7 +377,8 @@ export const API_CONTRACT = {
               "pending",
               "completed",
               "discarded",
-              "failed"
+              "failed",
+              "expired"
             ],
             "title": "Continuation Status",
             "type": "string"
@@ -2685,7 +2686,8 @@ export const API_CONTRACT = {
                   "pending",
                   "completed",
                   "discarded",
-                  "failed"
+                  "failed",
+                  "expired"
                 ],
                 "title": "Continuation Status",
                 "type": "string"

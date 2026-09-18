@@ -152,9 +152,29 @@ def capture_follow_up_message(event: JobCapturedEvent) -> str:
     states that analysis is available rather than requesting it.
     """
     return (
-        f"我已经从 BOSS 保存了岗位「{event.title} · {event.company_name}」，先记下来就好。"
+        f"我已经从 BOSS 保存了岗位「{_page_label(event.title)} · "
+        f"{_page_label(event.company_name)}」，先记下来就好。"
         "暂不需要分析；之后我可以在岗位库点「让 Agent 分析」，再让你仅基于这份 JD 做岗位分析。"
     )
+
+
+_PAGE_LABEL_LIMIT = 40
+# Quotes and brackets that could close the 「…」 span and let page text read as
+# the user's own words, plus every control and line-separator character.
+_PAGE_LABEL_STRIP = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029「」『』\"'`“”‘’<>\[\]{}]")
+
+
+def _page_label(text: str) -> str:
+    """A BOSS page title or company name, made safe to quote in a user message.
+
+    Both come from the page DOM (up to 500 chars each), so they are untrusted.
+    The follow-up turn speaks as the user; a crafted title must stay a short,
+    single-line name inside its brackets, never an instruction.
+    """
+    flat = " ".join(_PAGE_LABEL_STRIP.sub(" ", text).split())
+    if len(flat) > _PAGE_LABEL_LIMIT:
+        flat = flat[: _PAGE_LABEL_LIMIT - 1].rstrip() + "…"
+    return flat or "未命名"
 
 
 class BrowserJobCaptureResponse(BaseModel):
@@ -170,7 +190,7 @@ class BrowserJobCaptureResponse(BaseModel):
     capture_event_id: str | None = None
     capture_event_created: bool = False
     continuation_status: Literal[
-        "saved_only", "pending", "completed", "discarded", "failed"
+        "saved_only", "pending", "completed", "discarded", "failed", "expired"
     ] = "saved_only"
     continuation_reason: Literal[
         "no_intent", "invalid_intent", "expired_intent", "consumed_intent",
@@ -188,7 +208,8 @@ class JobCapturedEventView(BaseModel):
     title: str
     company_name: str
     created_at: datetime
-    continuation_status: Literal["pending", "completed", "discarded", "failed"]
+    continuation_status: Literal["pending", "completed", "discarded", "failed", "expired"]
+    """``expired``: saved, but not continued within 24 hours; the page says so."""
     continuation_turn_id: str | None = None
 
     @classmethod
@@ -707,6 +728,9 @@ def create_app(
             try:
                 yield
             finally:
+                # Only the loop that starts new continuations stops here. A
+                # running one holds its conversation's gate until it settles,
+                # so the gate drain below waits for it like any other turn.
                 dispatcher.cancel()
                 await asyncio.gather(dispatcher, return_exceptions=True)
         finally:
@@ -1143,7 +1167,7 @@ def create_app(
 
     def settle_capture(
         event: JobCapturedEvent,
-        status: Literal["completed", "discarded", "failed"],
+        status: Literal["completed", "discarded", "failed", "expired"],
         *,
         turn_id: str | None = None,
         error_code: str | None = None,
@@ -1189,34 +1213,57 @@ def create_app(
             await gate.release(event.user_id, event.conversation_id)
             capture_wakeup.set()
 
+    def capture_ready(event: JobCapturedEvent) -> bool | None:
+        """``None``: the conversation is gone. ``False``: it is waiting on the user."""
+        if not conversation_accepts_capture(event.user_id, event.conversation_id):
+            return None
+        return application.state.runtime.accepts_background_turn(
+            user_id=event.user_id, conversation_id=event.conversation_id,
+        )
+
+    async def dispatch_pending_captures() -> None:
+        store = _job_capture_store()
+        gate: ConversationRunGate = application.state.run_gate
+        for event in store.expire_continuations():
+            record_capture(
+                user_id=event.user_id, conversation_id=event.conversation_id,
+                capture_event_id=event.id, phase="settled", status="expired",
+            )
+        for event in store.list_pending_continuations():
+            # Checked before taking the gate, so a conversation that stays
+            # busy or waiting on the user is not briefly locked every pass,
+            # which would refuse the user's own message with a 409.
+            ready = capture_ready(event)
+            if ready is None:
+                settle_capture(event, "discarded")
+                continue
+            if not ready or gate.is_active(event.user_id, event.conversation_id):
+                continue
+            try:
+                await gate.acquire(event.user_id, event.conversation_id)
+            except (ConversationBusyError, TurnCapacityError):
+                continue
+            handed_off = False
+            try:
+                # Re-checked under the gate: the state may have changed between.
+                ready = capture_ready(event)
+                if ready is None:
+                    settle_capture(event, "discarded")
+                elif ready:
+                    worker = asyncio.create_task(run_capture(event))
+                    capture_workers.add(worker)
+                    worker.add_done_callback(capture_workers.discard)
+                    handed_off = True
+            finally:
+                if not handed_off:
+                    await gate.release(event.user_id, event.conversation_id)
+
     async def dispatch_captures() -> None:
         while True:
             capture_wakeup.clear()
             if application.state.runtime is not None:
                 try:
-                    store = _job_capture_store()
-                    gate: ConversationRunGate = application.state.run_gate
-                    for event in store.list_pending_continuations():
-                        try:
-                            await gate.acquire(event.user_id, event.conversation_id)
-                        except (ConversationBusyError, TurnCapacityError):
-                            continue
-                        handed_off = False
-                        try:
-                            if not conversation_accepts_capture(event.user_id, event.conversation_id):
-                                settle_capture(event, "discarded")
-                                continue
-                            if not application.state.runtime.accepts_background_turn(
-                                user_id=event.user_id, conversation_id=event.conversation_id,
-                            ):
-                                continue
-                            worker = asyncio.create_task(run_capture(event))
-                            capture_workers.add(worker)
-                            worker.add_done_callback(capture_workers.discard)
-                            handed_off = True
-                        finally:
-                            if not handed_off:
-                                await gate.release(event.user_id, event.conversation_id)
+                    await dispatch_pending_captures()
                 except Exception as error:
                     logging.getLogger(__name__).warning(
                         "Capture dispatch failed: %s", type(error).__name__

@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
+import pytest
+
 from career_agent.storage.job_captures import JobCaptureIntent, SQLiteJobCaptureStore
 
 
@@ -182,3 +184,34 @@ def test_v1_database_upgrades_its_rows_to_v2(tmp_path: Path):
             pass
         else:
             raise AssertionError("duplicate (intent, snapshot) was accepted")
+
+
+def test_stale_pending_continuations_expire_and_cannot_be_retried(tmp_path: Path):
+    store = SQLiteJobCaptureStore(tmp_path / "jobs.sqlite3")
+    fresh = record(store, intent_for(store), "s1")
+    failed = record(store, intent_for(store), "s2")
+    assert fresh is not None and failed is not None
+    store.settle_continuation(user_id="u1", event_id=failed.event.id, status="failed")
+    now = datetime.now(timezone.utc)
+
+    assert store.expire_continuations(now=now) == ()
+    later = now + timedelta(hours=25)
+    expired = store.expire_continuations(now=later)
+    assert [event.id for event in expired] == [fresh.event.id]
+    assert expired[0].continuation_status == "expired"
+    stored = store.get_event(user_id="u1", event_id=fresh.event.id)
+    assert stored is not None and stored.continuation_status == "expired"
+    assert store.list_pending_continuations() == ()
+    # Still listed for the page, which explains the expiry and acknowledges it.
+    assert fresh.event.id in {event.id for event in store.list_pending_events(user_id="u1")}
+    assert not store.retry_continuation(user_id="u1", event_id=failed.event.id, now=later)
+    assert store.retry_continuation(user_id="u1", event_id=failed.event.id, now=now)
+
+
+def test_pending_continuations_are_read_in_bounded_batches(tmp_path: Path):
+    store = SQLiteJobCaptureStore(tmp_path / "jobs.sqlite3")
+    for index in range(3):
+        assert record(store, intent_for(store), f"s{index}") is not None
+    assert len(store.list_pending_continuations(limit=2)) == 2
+    with pytest.raises(ValueError):
+        store.list_pending_continuations(limit=0)
