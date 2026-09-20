@@ -124,6 +124,11 @@ def test_worker_builds_read_only_deepagent_with_web_search_and_checkpoint() -> N
     assert strategy.schema_spec.strict is True
     assert "does not prove a role belongs" in captured["system_prompt"]
     assert "infer private team projects" in captured["system_prompt"]
+    # Streamed transport (093): a non-streaming research step that searches and
+    # reasons past the gateway's idle budget is cut before it answers. The
+    # deployed endpoint returned 524 at ~128s non-streaming and ran 391s
+    # streamed; a real-JD run then completed end to end.
+    assert captured["model"].streaming is True
 
 
 def test_worker_request_does_not_treat_generic_jd_as_business_evidence() -> None:

@@ -185,6 +185,13 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
             timeout=self._config.timeout_seconds,
             max_retries=0,
             use_responses_api=True,
+            # Streamed so a long research step keeps the connection producing
+            # bytes. A non-streaming call that searches and reasons for more
+            # than the gateway's idle budget is cut before it can answer: the
+            # deployed endpoint returned 524 at ~128s, while the same endpoint
+            # streamed for 391s without being cut. The agent still consumes one
+            # aggregated message per step; only the transport changes.
+            streaming=True,
             # Pin native tool blocks in content regardless of LC_OUTPUT_VERSION;
             # evidence verification must not depend on deployment-wide defaults.
             output_version="responses/v1",
