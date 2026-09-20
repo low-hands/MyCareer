@@ -135,6 +135,14 @@ _EXTERNAL_WRITE_CAPABILITIES = frozenset(
 )
 """Writes whose effect lands outside this deployment's own stores.
 
+A new external capability must be declared in **two** places: its effect in
+``TOOL_EFFECTS`` and its name here. The module-level assertion below only
+catches "external but not declared WRITE"; nothing catches "actually external
+but never listed here", and such a capability would silently draw on the
+internal write budget and get the softer confirmation wording. Collapsing the
+two declarations into one ``WRITE_EXTERNAL`` effect is deliberately deferred
+until a second external capability exists (see 088).
+
 The axis is where the effect lives, not how risky it feels. A calendar event
 exists on Google's servers and is visible to anyone the calendar is shared with;
 nothing here can roll it back, only issue a second write. An application row,
