@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from pathlib import Path
 
 import pytest
@@ -202,6 +204,66 @@ def test_deep_agent_callback_counts_each_inner_model_request_without_content() -
     assert "PRIVATE JD" not in serialized
     assert "PRIVATE FOLLOW-UP" not in serialized
     assert "PRIVATE RESULT" not in serialized
+
+
+def test_a_provider_run_search_is_announced_once_by_id_and_carries_no_query() -> None:
+    """The one step the request-level callbacks cannot produce.
+
+    A provider-hosted search happens inside a single model request, so without
+    this the user watches "正在调研岗位背景" for the whole minute. Streaming
+    surfaces the search as a ``web_search_call`` block, which repeats across
+    chunks as the block accumulates: the same search must announce itself once,
+    and a second search must be distinguishable from a repeat of the first.
+
+    The block also carries the query the model chose. Search terms derive from
+    the JD and the conversation, so the assertion is not only "a step appeared"
+    but "the step contains nothing from the block except its ordinal".
+    """
+    from career_agent.harness.capability_steps import (
+        CapabilityStep,
+        observing_capability_steps,
+    )
+
+    callback = CapabilityModelTraceCallback(
+        stage="job_research", worker="DeepAgentJobResearchWorker"
+    )
+
+    def chunk(*blocks: dict) -> object:
+        return SimpleNamespace(message=SimpleNamespace(content=list(blocks)))
+
+    secret = "量霸科技 Agent 开发实习 招聘"
+    first = {"type": "web_search_call", "id": "ws_1", "query": secret}
+    steps: list[CapabilityStep] = []
+    with observing_capability_steps(steps.append):
+        callback.on_llm_new_token("", chunk={"not": "a message"})
+        callback.on_llm_new_token("", chunk=chunk({"type": "text", "text": secret}))
+        callback.on_llm_new_token("", chunk=chunk(first))
+        callback.on_llm_new_token("", chunk=chunk(first))  # same block, later chunk
+        callback.on_llm_new_token(
+            "", chunk=chunk({"type": "web_search_call", "id": "ws_2", "query": secret})
+        )
+        callback.on_llm_new_token("", chunk=chunk({"type": "web_search_call"}))
+
+    assert steps == [
+        CapabilityStep(stage="job_research.web_search", kind="io", index=1),
+        CapabilityStep(stage="job_research.web_search", kind="io", index=2),
+    ]
+    assert secret not in repr(steps)
+
+
+def test_the_search_step_reads_as_progress_not_as_an_internal_name() -> None:
+    """An unlabelled stage stays silent, so the label is part of the feature."""
+    from career_agent.harness.capability_steps import CapabilityStep
+
+    step = CapabilityStep(stage="job_research.web_search", kind="io", index=2)
+    label = MainAgentRuntime._capability_step_label(step)
+    assert label == "正在检索公开资料"
+    # An io step counts searches, so it must not borrow the model-call wording.
+    assert MainAgentRuntime._capability_step_message(label, step) == (
+        "正在检索公开资料（第 2 次）……"
+    )
+    first = CapabilityStep(stage="job_research.web_search", kind="io", index=1)
+    assert MainAgentRuntime._capability_step_message(label, first) == "正在检索公开资料……"
 
 
 def test_capability_steps_reach_the_installed_observer_without_a_trace() -> None:

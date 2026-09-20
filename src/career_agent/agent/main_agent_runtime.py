@@ -2831,6 +2831,7 @@ class MainAgentRuntime:
         "resume_finalization": "正在定稿简历",
         "resume_final_review": "正在审校定稿简历",
         "job_research": "正在调研岗位背景",
+        "job_research.web_search": "正在检索公开资料",
         "interview_preparation": "正在准备面试资料",
         "mock_interview_plan": "正在规划模拟面试",
         "mock_interview_input_route": "正在理解你的回答",
@@ -2866,6 +2867,10 @@ class MainAgentRuntime:
             return f"{label}时请求失败，正在重试……"
         if step.index is not None and step.total is not None:
             return f"{label}（第 {step.index}/{step.total} 项）……"
+        if step.kind == "io" and step.index is not None and step.index > 1:
+            # An io step counts external reads, not model requests: calling a
+            # second search "第 2 次调用模型" would describe the wrong thing.
+            return f"{label}（第 {step.index} 次）……"
         if step.index is not None and step.index > 1:
             return f"{label}（第 {step.index} 次调用模型）……"
         return f"{label}……"

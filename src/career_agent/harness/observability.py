@@ -277,7 +277,39 @@ class CapabilityModelTraceCallback(BaseCallbackHandler):
         self._worker = worker
         self._started: dict[object, float] = {}
         self._requests = 0
+        self._searches: set[str] = set()
         self._lock = Lock()
+
+    def on_llm_new_token(self, token: str, *, chunk: Any = None, **kwargs: Any) -> None:
+        """Announce a provider-run web search, once per search, by id only.
+
+        The provider performs the search inside one model request, so the
+        request-level steps above cannot show it: the user sees "正在调研岗位
+        背景" for the whole minute. Streaming (enabled to survive the gateway's
+        idle budget) also carries the search phases, which LangChain surfaces
+        as a ``web_search_call`` content block.
+
+        Only the block's identity crosses this boundary. The block also carries
+        the query the model chose, and search terms derive from the JD and the
+        conversation, so nothing but the id is read here; the step itself says
+        only that a search is running.
+        """
+        del token
+        blocks = getattr(getattr(chunk, "message", None), "content", None)
+        if not isinstance(blocks, list):
+            return
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("type") != "web_search_call":
+                continue
+            identity = block.get("id")
+            if not isinstance(identity, str):
+                continue
+            with self._lock:
+                if identity in self._searches:
+                    continue
+                self._searches.add(identity)
+                index = len(self._searches)
+            notify_capability_step(f"{self._stage}.web_search", kind="io", index=index)
 
     def on_chat_model_start(
         self,
