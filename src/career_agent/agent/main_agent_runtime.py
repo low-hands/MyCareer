@@ -13,6 +13,7 @@ from typing import Any, ClassVar, Literal, TypedDict
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
+from pydantic_core import to_jsonable_python
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
@@ -26,6 +27,10 @@ from career_agent.harness.capability_steps import (
     observing_capability_steps,
 )
 from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import (
+    CONFIRMATION_SPECS,
+    confirmation_arguments_snapshot,
+)
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
@@ -1549,7 +1554,72 @@ class MainAgentRuntime:
                 memory_scope_keys=result.career_memory_scope_keys,
                 turn_id=self._active_turn_id(),
             )
+        self._attach_destructive_confirmation(result)
         return result
+
+    def _attach_destructive_confirmation(self, result: MainAgentTurnResult) -> None:
+        """Seal the two destructive proposals after their task state is durable."""
+        store = self._capability_confirmation_store
+        if store is None:
+            return
+        proposal_by_state = {
+            spec.proposed_state: name
+            for name, spec in CONFIRMATION_SPECS.items()
+            if spec.requires_seal
+        }
+        observation = next(
+            (
+                item for item in reversed(result.tool_results)
+                if item.state in proposal_by_state
+            ),
+            None,
+        )
+        if observation is None and result.tool_result is not None:
+            observation = result.tool_result
+        confirm_tool = (
+            proposal_by_state.get(observation.state)
+            if observation is not None else None
+        )
+        if confirm_tool is None:
+            return
+        spec = CONFIRMATION_SPECS[confirm_tool]
+        proposal = getattr(result.context.task, spec.slot)
+        if proposal is None:
+            return
+        context = result.context
+        display_summary = (
+            proposal.constraint
+            if confirm_tool == "confirm_constraint_retirement"
+            else observation.message[:500]
+        )
+        sealed = store.seal(
+            user_id=context.profile.user_id,
+            conversation_id=context.conversation_id,
+            capability=confirm_tool,
+            display_summary=display_summary,
+            arguments=confirmation_arguments_snapshot(
+                context.task,
+                confirm_tool,
+                user_id=context.profile.user_id,
+                conversation_id=context.conversation_id,
+            ),
+            policy_revision=context.preferences.behavior_policy.revision,
+        )
+        if sealed.status != "PENDING":
+            return
+        marked = observation.model_copy(
+            update={
+                "payload": {
+                    **observation.payload,
+                    "confirmation_id": sealed.confirmation_id,
+                    "confirmation_summary": sealed.display_summary,
+                }
+            }
+        )
+        result.tool_result = marked
+        result.tool_results = tuple(
+            marked if item is observation else item for item in result.tool_results
+        )
 
     def _continue_questionnaire(
         self,
@@ -1932,6 +2002,18 @@ class MainAgentRuntime:
                     conversation_id=conversation_id,
                     confirmation_id=tool_result.payload["confirmation_id"],
                     prompt=prompt,
+                )
+            if tool_result.payload.get("confirmation_id") and any(
+                spec.requires_seal and spec.proposed_state == tool_result.state
+                for spec in CONFIRMATION_SPECS.values()
+            ):
+                return capability_confirmation_event(
+                    conversation_id=conversation_id,
+                    confirmation_id=tool_result.payload["confirmation_id"],
+                    prompt=(
+                        f"{tool_result.payload['confirmation_summary']}\n"
+                        "这是删除或停用操作，请亲自确认是否执行。"
+                    ),
                 )
             if (
                 tool_result.state == "resume_analysis_ready"
@@ -3223,6 +3305,14 @@ class MainAgentRuntime:
             if runtime_owned or owner_confirmed
             else state["context"].preferences.capability_verdict(name)
         )
+        confirmation_spec = CONFIRMATION_SPECS.get(name)
+        if (
+            confirmation_spec is not None
+            and confirmation_spec.requires_seal
+            and verdict == "permit"
+            and not owner_confirmed
+        ):
+            verdict = "review"
         if verdict == "deny":
             return self._authorization_refusal(
                 state,
@@ -3477,12 +3567,27 @@ class MainAgentRuntime:
                 context=context, name=name, arguments=arguments
             )
         )
+        sealed_arguments = (
+            confirmation_arguments_snapshot(
+                context.task,
+                name,
+                user_id=context.profile.user_id,
+                conversation_id=context.conversation_id,
+            )
+            if name in CONFIRMATION_SPECS
+            else to_jsonable_python(arguments)
+        )
+        if name == "confirm_free_text_preference":
+            sealed_arguments.update({
+                key: value for key, value in arguments.items()
+                if key in {"scope_choice", "scope_domain", "job_posting_id"}
+            })
         confirmation = self._capability_confirmation_store.seal(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             capability=name,
             display_summary=display_summary,
-            arguments=arguments,
+            arguments=sealed_arguments,
             policy_revision=context.preferences.behavior_policy.revision,
         )
         if confirmation.status == "APPLYING":
@@ -3575,6 +3680,19 @@ class MainAgentRuntime:
                 listed = "、".join(arguments["confirm_before"]) or "（清空）"
                 changes.append(f"执行前需逐项确认的操作 → {listed}")
             return "准备更新持久设置：" + "；".join(changes) + "。"
+        if name == "confirm_memory_tombstone":
+            proposal = arguments.get("proposal", {})
+            if hasattr(proposal, "model_dump"):
+                proposal = proposal.model_dump(mode="json")
+            return (
+                "准备永久删除刚才提案的职业声明。"
+                f"原因：{str(proposal.get('reason', '用户要求删除'))[:200]}"
+            )
+        if name == "confirm_constraint_retirement":
+            proposal = arguments.get("proposal", {})
+            if hasattr(proposal, "model_dump"):
+                proposal = proposal.model_dump(mode="json")
+            return f"准备停用对话约束：「{proposal.get('constraint', '当前提案')}」。"
         return f"准备执行 {name}。"
 
     def _external_write_summary(self, *, name: str, arguments: dict[str, Any]) -> str:

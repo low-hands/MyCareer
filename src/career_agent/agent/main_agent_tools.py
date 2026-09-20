@@ -66,6 +66,7 @@ from career_agent.agent.main_agent_contracts import (
     MemoryAmendmentProposal,
     CareerFactProposal,
     PENDING_PROPOSAL_TTL,
+    CONFIRMATION_SPECS,
     ProposeCareerFactToolArguments,
     ConfirmCareerFactToolArguments,
     PrepareInterviewToolArguments,
@@ -256,6 +257,28 @@ _EXPIRED_PROPOSAL_MESSAGE = (
     f"这项提案已超过 {PENDING_PROPOSAL_TTL.days} 天未确认，已经失效；"
     "请重新展示提案并等待明确确认。"
 )
+
+
+def _proposal_observation(
+    *,
+    tool_name: str,
+    state: str,
+    message: str,
+    proposal: Any,
+    payload_key: str = "proposal",
+    execution_outcome: Literal["committed", "not_committed", "unknown"] | None = None,
+    exclude_none: bool = False,
+) -> ToolObservation:
+    """Expose the exact proposal that the reducer will bind to confirmation."""
+    return ToolObservation(
+        tool_name=tool_name,
+        state=state,
+        message=message,
+        payload={
+            payload_key: proposal.model_dump(mode="json", exclude_none=exclude_none)
+        },
+        execution_outcome=execution_outcome,
+    )
 
 
 class MainAgentToolRegistry:
@@ -3973,11 +3996,13 @@ class MainAgentToolRegistry:
                     payload={},
                 )
             scope = role.title
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_job_intent",
             state="job_intent_proposed",
             message=self._job_intent_readback(update, scope=scope),
-            payload={"update": update.model_dump(mode="json", exclude_none=True)},
+            proposal=update,
+            payload_key="update",
+            exclude_none=True,
         )
 
     def _confirm_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:
@@ -4236,7 +4261,7 @@ class MainAgentToolRegistry:
             if proposal.needs_scope_clarification
             else "是否确认启用？"
         )
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_free_text_preference_confirmation",
             state="free_text_preference_confirmation_proposed",
             message=(
@@ -4245,7 +4270,7 @@ class MainAgentToolRegistry:
                 "目前它仍在隔离区，不会影响岗位推荐。"
                 f"{question}"
             ),
-            payload={"proposal": proposal.model_dump(mode="json")},
+            proposal=proposal,
         )
 
     def _admit_job_intent_scopes(
@@ -5070,6 +5095,40 @@ class MainAgentToolRegistry:
     def _career_claim_status(evidence: Any) -> str:
         return "current" if evidence.is_current else "superseded"
 
+    def _stored_proposal_failure(
+        self,
+        *,
+        arguments: dict[str, Any],
+        tool_name: str,
+        proposal: Any,
+        missing_state: str,
+        missing_message: str,
+    ) -> ToolObservation | None:
+        """Recheck the exact persisted proposal before any confirm effect."""
+        slot = CONFIRMATION_SPECS[tool_name].slot
+        task = (
+            self._conversation_store.get_task(
+                str(arguments["user_id"]), str(arguments["conversation_id"])
+            )
+            if self._conversation_store is not None
+            else None
+        )
+        if task is None or getattr(task, slot) != proposal:
+            return ToolObservation(
+                tool_name=tool_name,
+                state=missing_state,
+                message=missing_message,
+                execution_outcome="not_committed",
+            )
+        if not task.pending_proposal_is_live(slot, datetime.now(timezone.utc)):
+            return ToolObservation(
+                tool_name=tool_name,
+                state=missing_state,
+                message=_EXPIRED_PROPOSAL_MESSAGE,
+                execution_outcome="not_committed",
+            )
+        return None
+
     def _propose_career_fact(
         self, arguments: dict[str, Any]
     ) -> ToolObservation:
@@ -5120,7 +5179,7 @@ class MainAgentToolRegistry:
             claim=claim,
             reason=reason,
         )
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_career_fact",
             state="career_fact_proposed",
             message=clamp(
@@ -5134,7 +5193,7 @@ class MainAgentToolRegistry:
                 + "目前仅处于隔离态；确认后才会成为长期事实。",
                 limit=DECISION_OBSERVATION_BODY_LIMIT,
             ),
-            payload={"proposal": proposal.model_dump(mode="json")},
+            proposal=proposal,
             execution_outcome="committed",
         )
 
@@ -5144,31 +5203,16 @@ class MainAgentToolRegistry:
         if self._career_history_store is None:
             raise ValueError("Career history store is not configured")
         user_id = str(arguments["user_id"])
-        conversation_id = str(arguments["conversation_id"])
         proposal = CareerFactProposal.model_validate(arguments["proposal"])
-        stored_task = (
-            self._conversation_store.get_task(user_id, conversation_id)
-            if self._conversation_store is not None
-            else None
+        refusal = self._stored_proposal_failure(
+            arguments=arguments,
+            tool_name="confirm_career_fact",
+            proposal=proposal,
+            missing_state="career_fact_confirmation_missing",
+            missing_message="这条事实尚未在前一轮展示并持久化，不能直接确认。",
         )
-        if stored_task is None or stored_task.pending_career_fact != proposal:
-            return ToolObservation(
-                tool_name="confirm_career_fact",
-                state="career_fact_confirmation_missing",
-                message=(
-                    "这条事实尚未在前一轮展示并持久化，不能直接确认。"
-                ),
-                execution_outcome="not_committed",
-            )
-        if not stored_task.pending_proposal_is_live(
-            "pending_career_fact", datetime.now(timezone.utc)
-        ):
-            return ToolObservation(
-                tool_name="confirm_career_fact",
-                state="career_fact_confirmation_missing",
-                message=_EXPIRED_PROPOSAL_MESSAGE,
-                execution_outcome="not_committed",
-            )
+        if refusal is not None:
+            return refusal
         evidence = self._career_history_store.get_evidence(
             user_id=user_id,
             career_evidence_id=proposal.career_evidence_id,
@@ -5228,11 +5272,11 @@ class MainAgentToolRegistry:
             f"原因：{proposal.reason}\n"
             "确认后才会写入新 revision，旧版本只保留在历史审计中。"
         )
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_memory_amendment",
             state="memory_amendment_proposed",
             message=clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT),
-            payload={"proposal": proposal.model_dump(mode="json")},
+            proposal=proposal,
             execution_outcome="not_committed",
         )
 
@@ -5300,33 +5344,15 @@ class MainAgentToolRegistry:
             raise ValueError("Career history store is not configured")
         user_id = str(arguments["user_id"])
         proposal = MemoryAmendmentProposal.model_validate(arguments["proposal"])
-        conversation_id = str(arguments["conversation_id"])
-        stored_task = (
-            self._conversation_store.get_task(user_id, conversation_id)
-            if self._conversation_store is not None
-            else None
+        refusal = self._stored_proposal_failure(
+            arguments=arguments,
+            tool_name="confirm_memory_amendment",
+            proposal=proposal,
+            missing_state="memory_amendment_confirmation_missing",
+            missing_message="这项更正尚未在前一轮展示并持久化，不能在提案同一轮写入。",
         )
-        if (
-            stored_task is None
-            or stored_task.pending_memory_amendment != proposal
-        ):
-            return ToolObservation(
-                tool_name="confirm_memory_amendment",
-                state="memory_amendment_confirmation_missing",
-                message=(
-                    "这项更正尚未在前一轮展示并持久化，不能在提案同一轮写入。"
-                ),
-                execution_outcome="not_committed",
-            )
-        if not stored_task.pending_proposal_is_live(
-            "pending_memory_amendment", datetime.now(timezone.utc)
-        ):
-            return ToolObservation(
-                tool_name="confirm_memory_amendment",
-                state="memory_amendment_confirmation_missing",
-                message=_EXPIRED_PROPOSAL_MESSAGE,
-                execution_outcome="not_committed",
-            )
+        if refusal is not None:
+            return refusal
         evidence = self._career_history_store.get_evidence_by_detail_ref(
             user_id=user_id,
             detail_ref=proposal.detail_ref,
@@ -5380,7 +5406,7 @@ class MainAgentToolRegistry:
         proposal = proposal.model_copy(
             update={"expected_content_sha256": evidence.content_digest}
         )
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_memory_tombstone",
             state="memory_tombstone_proposed",
             message=(
@@ -5388,7 +5414,7 @@ class MainAgentToolRegistry:
                 f"{evidence.revision}）。删除后正文、来源引文和历史版本均不可恢复；"
                 "如确认，请明确同意执行。"
             ),
-            payload={"proposal": proposal.model_dump(mode="json")},
+            proposal=proposal,
             execution_outcome="not_committed",
         )
 
@@ -5400,32 +5426,15 @@ class MainAgentToolRegistry:
         user_id = str(arguments["user_id"])
         proposal = MemoryTombstoneProposal.model_validate(arguments["proposal"])
         conversation_id = str(arguments["conversation_id"])
-        stored_task = (
-            self._conversation_store.get_task(user_id, conversation_id)
-            if self._conversation_store is not None
-            else None
+        refusal = self._stored_proposal_failure(
+            arguments=arguments,
+            tool_name="confirm_memory_tombstone",
+            proposal=proposal,
+            missing_state="memory_tombstone_confirmation_missing",
+            missing_message="这项永久删除尚未在前一轮展示并持久化，不能在提案同一轮执行。",
         )
-        if (
-            stored_task is None
-            or stored_task.pending_memory_tombstone != proposal
-        ):
-            return ToolObservation(
-                tool_name="confirm_memory_tombstone",
-                state="memory_tombstone_confirmation_missing",
-                message=(
-                    "这项永久删除尚未在前一轮展示并持久化，不能在提案同一轮执行。"
-                ),
-                execution_outcome="not_committed",
-            )
-        if not stored_task.pending_proposal_is_live(
-            "pending_memory_tombstone", datetime.now(timezone.utc)
-        ):
-            return ToolObservation(
-                tool_name="confirm_memory_tombstone",
-                state="memory_tombstone_confirmation_missing",
-                message=_EXPIRED_PROPOSAL_MESSAGE,
-                execution_outcome="not_committed",
-            )
+        if refusal is not None:
+            return refusal
         if proposal.target_kind == "intent_preference":
             tombstone_preference = getattr(
                 self._conversation_store,
@@ -6212,7 +6221,7 @@ class MainAgentToolRegistry:
                 ),
                 execution_outcome="not_committed",
             )
-        return ToolObservation(
+        return _proposal_observation(
             tool_name="propose_constraint_retirement",
             state="constraint_retirement_proposed",
             message=(
@@ -6220,7 +6229,7 @@ class MainAgentToolRegistry:
                 "确认后它不再进入后续回答，之后的摘要重写也不会把它带回来；"
                 "原始对话消息仍然保留。如确认，请明确同意执行。"
             ),
-            payload={"proposal": proposal.model_dump(mode="json")},
+            proposal=proposal,
             execution_outcome="not_committed",
         )
 
@@ -6234,30 +6243,15 @@ class MainAgentToolRegistry:
         proposal = ConstraintRetirementProposal.model_validate(
             arguments["proposal"]
         )
-        stored_task = self._conversation_store.get_task(
-            user_id, conversation_id
+        refusal = self._stored_proposal_failure(
+            arguments=arguments,
+            tool_name="confirm_constraint_retirement",
+            proposal=proposal,
+            missing_state="constraint_retirement_confirmation_missing",
+            missing_message="这项约束退休尚未在前一轮展示并持久化，不能在提案同一轮执行。",
         )
-        if (
-            stored_task is None
-            or stored_task.pending_constraint_retirement != proposal
-        ):
-            return ToolObservation(
-                tool_name="confirm_constraint_retirement",
-                state="constraint_retirement_confirmation_missing",
-                message=(
-                    "这项约束退休尚未在前一轮展示并持久化，不能在提案同一轮执行。"
-                ),
-                execution_outcome="not_committed",
-            )
-        if not stored_task.pending_proposal_is_live(
-            "pending_constraint_retirement", datetime.now(timezone.utc)
-        ):
-            return ToolObservation(
-                tool_name="confirm_constraint_retirement",
-                state="constraint_retirement_confirmation_missing",
-                message=_EXPIRED_PROPOSAL_MESSAGE,
-                execution_outcome="not_committed",
-            )
+        if refusal is not None:
+            return refusal
         retired = self._conversation_store.retire_conversation_constraint(
             user_id=user_id,
             conversation_id=conversation_id,

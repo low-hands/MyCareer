@@ -720,6 +720,47 @@ PendingProposalSlot = Literal[
 PENDING_PROPOSAL_SLOTS: tuple[PendingProposalSlot, ...] = get_args(
     PendingProposalSlot
 )
+class ConfirmationSpec(NamedTuple):
+    slot: PendingProposalSlot
+    missing_message: str
+    proposed_state: str
+    requires_seal: bool = False
+
+
+CONFIRMATION_SPECS: dict[str, ConfirmationSpec] = {
+    "confirm_job_intent": ConfirmationSpec(
+        "pending_job_intent_update",
+        "confirm_job_intent requires a proposed update the user has seen",
+        "job_intent_proposed",
+    ),
+    "confirm_free_text_preference": ConfirmationSpec(
+        "pending_free_text_preference",
+        "confirm_free_text_preference requires a proposal the user has seen",
+        "free_text_preference_confirmation_proposed",
+    ),
+    "confirm_memory_amendment": ConfirmationSpec(
+        "pending_memory_amendment",
+        "confirm_memory_amendment requires a proposed correction the user has seen",
+        "memory_amendment_proposed",
+    ),
+    "confirm_memory_tombstone": ConfirmationSpec(
+        "pending_memory_tombstone",
+        "confirm_memory_tombstone requires a proposed deletion the user has seen",
+        "memory_tombstone_proposed",
+        True,
+    ),
+    "confirm_career_fact": ConfirmationSpec(
+        "pending_career_fact",
+        "confirm_career_fact requires a proposed fact the user has seen",
+        "career_fact_proposed",
+    ),
+    "confirm_constraint_retirement": ConfirmationSpec(
+        "pending_constraint_retirement",
+        "confirm_constraint_retirement requires a proposed retirement the user has seen",
+        "constraint_retirement_proposed",
+        True,
+    ),
+}
 # A confirmation authorizes what the user was shown. After a week "confirm that
 # one" can no longer be assumed to mean a readback the user still remembers.
 PENDING_PROPOSAL_TTL = timedelta(days=7)
@@ -736,6 +777,37 @@ def expired_proposal_message(tool_name: str) -> str:
         f"{PENDING_PROPOSAL_TTL.days} days ago and has expired; show the "
         "proposal again and wait for explicit agreement"
     )
+
+
+def pending_confirmation_proposal(
+    task: "ConversationTaskState", tool_name: str
+) -> Any:
+    """Resolve the single shown, live proposal authorized for a confirm tool."""
+    spec = CONFIRMATION_SPECS[tool_name]
+    slot = spec.slot
+    proposal = getattr(task, slot)
+    if proposal is None:
+        raise ValueError(spec.missing_message)
+    if not task.pending_proposal_is_live(slot, datetime.now(timezone.utc)):
+        raise ValueError(expired_proposal_message(tool_name))
+    return proposal
+
+
+def confirmation_arguments_snapshot(
+    task: "ConversationTaskState",
+    tool_name: str,
+    *,
+    user_id: str,
+    conversation_id: str,
+) -> dict[str, Any]:
+    """Capture the selected proposal as JSON before any confirmation route."""
+    proposal = pending_confirmation_proposal(task, tool_name)
+    payload_key = "update" if tool_name == "confirm_job_intent" else "proposal"
+    return {
+        "user_id": user_id,
+        "conversation_id": conversation_id,
+        payload_key: proposal.model_dump(mode="json"),
+    }
 
 
 ToolProfile = Literal["core", "job", "resume", "application", "interview", "memory"]
@@ -3665,16 +3737,7 @@ def project_job_intent_arguments(
             "current": context.profile,
         }
     ConfirmJobIntentToolArguments.model_validate(arguments)
-    pending = context.task.pending_job_intent_update
-    if pending is None:
-        # Confirmation has to point at something the user was actually shown.
-        raise ValueError(
-            "confirm_job_intent requires a proposed update the user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_job_intent_update", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_job_intent"))
+    pending = pending_confirmation_proposal(context.task, name)
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3718,15 +3781,7 @@ def project_free_text_preference_arguments(
     confirmation = ConfirmFreeTextPreferenceToolArguments.model_validate(
         arguments
     )
-    pending = context.task.pending_free_text_preference
-    if pending is None:
-        raise ValueError(
-            "confirm_free_text_preference requires a proposal the user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_free_text_preference", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_free_text_preference"))
+    pending = pending_confirmation_proposal(context.task, name)
     if (
         pending.needs_scope_clarification
         and confirmation.scope_choice is None
@@ -3764,19 +3819,11 @@ def project_memory_tombstone_arguments(
             ),
         }
     ConfirmMemoryTombstoneToolArguments.model_validate(arguments)
-    pending = context.task.pending_memory_tombstone
-    if pending is None:
-        raise ValueError(
-            "confirm_memory_tombstone requires a proposed deletion the user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_memory_tombstone", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_memory_tombstone"))
+    pending = pending_confirmation_proposal(context.task, name)
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
-        "proposal": pending,
+        "proposal": pending.model_dump(mode="json"),
     }
 
 
@@ -3800,15 +3847,7 @@ def project_memory_amendment_arguments(
             ),
         }
     ConfirmMemoryAmendmentToolArguments.model_validate(arguments)
-    pending = context.task.pending_memory_amendment
-    if pending is None:
-        raise ValueError(
-            "confirm_memory_amendment requires a proposed correction the user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_memory_amendment", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_memory_amendment"))
+    pending = pending_confirmation_proposal(context.task, name)
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3885,15 +3924,7 @@ def project_career_fact_arguments(
             "source_user_interaction_id": source_interaction_id,
         }
     ConfirmCareerFactToolArguments.model_validate(arguments)
-    pending = context.task.pending_career_fact
-    if pending is None:
-        raise ValueError(
-            "confirm_career_fact requires a proposed fact the user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_career_fact", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_career_fact"))
+    pending = pending_confirmation_proposal(context.task, name)
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
@@ -3927,20 +3958,11 @@ def project_constraint_retirement_arguments(
             ),
         }
     ConfirmConstraintRetirementToolArguments.model_validate(arguments)
-    pending = context.task.pending_constraint_retirement
-    if pending is None:
-        raise ValueError(
-            "confirm_constraint_retirement requires a proposed retirement the "
-            "user has seen"
-        )
-    if not context.task.pending_proposal_is_live(
-        "pending_constraint_retirement", datetime.now(timezone.utc)
-    ):
-        raise ValueError(expired_proposal_message("confirm_constraint_retirement"))
+    pending = pending_confirmation_proposal(context.task, name)
     return {
         "user_id": context.profile.user_id,
         "conversation_id": context.conversation_id,
-        "proposal": pending,
+        "proposal": pending.model_dump(mode="json"),
     }
 
 

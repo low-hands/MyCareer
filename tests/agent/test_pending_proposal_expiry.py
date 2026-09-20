@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
+import json
 
 import pytest
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
+    CONFIRMATION_SPECS,
     PENDING_PROPOSAL_SLOTS,
     PENDING_PROPOSAL_TTL,
     CareerFactProposal,
@@ -16,6 +18,8 @@ from career_agent.agent.main_agent_contracts import (
     MemoryAmendmentProposal,
     MemoryTombstoneProposal,
     ToolResult,
+    confirmation_arguments_snapshot,
+    pending_confirmation_proposal,
     project_job_intent_arguments,
 )
 from career_agent.agent.main_agent_reducers import (
@@ -149,6 +153,56 @@ def _all_slots_task(stamp: datetime) -> ConversationTaskState:
         pending_constraint_retirement=_RETIREMENT,
         pending_proposed_at={slot: stamp for slot in PENDING_PROPOSAL_SLOTS},
     )
+
+
+_CONFIRMATION_TOOLS = (
+    "confirm_job_intent",
+    "confirm_free_text_preference",
+    "confirm_memory_amendment",
+    "confirm_memory_tombstone",
+    "confirm_career_fact",
+    "confirm_constraint_retirement",
+)
+
+
+def test_all_six_confirmation_slots_have_one_policy() -> None:
+    assert set(CONFIRMATION_SPECS) == set(_CONFIRMATION_TOOLS)
+    assert {spec.slot for spec in CONFIRMATION_SPECS.values()} == set(
+        PENDING_PROPOSAL_SLOTS
+    )
+    assert {
+        name for name, spec in CONFIRMATION_SPECS.items() if spec.requires_seal
+    } == {"confirm_memory_tombstone", "confirm_constraint_retirement"}
+
+
+@pytest.mark.parametrize("tool_name", _CONFIRMATION_TOOLS)
+def test_shared_confirmation_gate_requires_a_live_shown_proposal(tool_name: str) -> None:
+    slot = "pending_job_intent_update" if tool_name == "confirm_job_intent" else {
+        "confirm_free_text_preference": "pending_free_text_preference",
+        "confirm_memory_amendment": "pending_memory_amendment",
+        "confirm_memory_tombstone": "pending_memory_tombstone",
+        "confirm_career_fact": "pending_career_fact",
+        "confirm_constraint_retirement": "pending_constraint_retirement",
+    }[tool_name]
+    with pytest.raises(ValueError, match="requires a proposed|requires a proposal"):
+        pending_confirmation_proposal(ConversationTaskState(), tool_name)
+
+    fresh = _all_slots_task(datetime.now(timezone.utc))
+    assert pending_confirmation_proposal(fresh, tool_name) == getattr(fresh, slot)
+    snapshot = confirmation_arguments_snapshot(
+        fresh, tool_name, user_id="u1", conversation_id="c1"
+    )
+    assert snapshot["user_id"] == "u1"
+    assert snapshot["conversation_id"] == "c1"
+    assert json.loads(json.dumps(snapshot)) == snapshot
+    payload_key = "update" if tool_name == "confirm_job_intent" else "proposal"
+    assert snapshot[payload_key] == getattr(fresh, slot).model_dump(mode="json")
+
+    expired = _all_slots_task(
+        datetime.now(timezone.utc) - PENDING_PROPOSAL_TTL - timedelta(seconds=1)
+    )
+    with pytest.raises(ValueError, match="expired"):
+        pending_confirmation_proposal(expired, tool_name)
 
 
 def _stamp_bytes(task: ConversationTaskState) -> dict[str, str]:

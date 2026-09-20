@@ -121,6 +121,7 @@ from career_agent.agent.resume_tailoring_presenter import (
     render_resume_tailoring,
 )
 from career_agent.agent.main_agent_contracts import (
+    CONFIRMATION_SPECS,
     ConversationResourceReference,
     OwnerSettingsContext,
 )
@@ -1098,7 +1099,14 @@ class WorkspaceReader:
                     confirmation_id=pending_confirmation.confirmation_id,
                     prompt=(
                         f"{pending_confirmation.display_summary}\n"
-                        "你设置了此操作需要确认。是否执行？"
+                        + (
+                            "这是删除或停用操作，请亲自确认是否执行。"
+                            if pending_confirmation.capability in CONFIRMATION_SPECS
+                            and CONFIRMATION_SPECS[
+                                pending_confirmation.capability
+                            ].requires_seal
+                            else "你设置了此操作需要确认。是否执行？"
+                        )
                     ),
                 )
                 if pending_confirmation is not None

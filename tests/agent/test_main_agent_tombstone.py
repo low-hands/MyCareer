@@ -7,7 +7,12 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.harness.streaming import InteractionResponse
 from career_agent.services.memory_review import MemoryReviewService
+from career_agent.storage.capability_confirmations import (
+    SQLiteCapabilityConfirmationStore,
+    arguments_hash,
+)
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
@@ -57,6 +62,9 @@ def _runtime(
             ),
             career_context_projector=(
                 CareerContextProjector(history) if project_career_memory else None
+            ),
+            capability_confirmation_store=SQLiteCapabilityConfirmationStore(
+                tmp_path / "confirmations.sqlite3"
             ),
         ),
         context,
@@ -165,17 +173,32 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
         user_id="u1", career_evidence_id=evidence.id
     ) is not None
     assert proposed.context.task.pending_memory_tombstone is not None
+    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
+    sealed = SQLiteCapabilityConfirmationStore(
+        tmp_path / "confirmations.sqlite3"
+    ).pending_for_conversation(
+        user_id="u1", conversation_id="c1", policy_revision=0
+    )
+    assert len(sealed) == 1
+    assert sealed[0].arguments_hash == arguments_hash(sealed[0].arguments)
+    assert sealed[0].arguments["proposal"] == (
+        proposed.context.task.pending_memory_tombstone.model_dump(mode="json")
+    )
 
     runtime, _, history = _runtime(
         tmp_path,
-        _tool("confirm_memory_tombstone"),
-        _final(),
         profile="memory",
     )
     completed = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
-        user_message="I confirm the permanent deletion.",
+        user_message="确认永久删除",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
     )
 
     assert history.get_evidence(
@@ -347,16 +370,16 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         _final(),
         profile="memory",
     )
-    runtime.run_turn(
+    proposed = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="Delete this claim.",
     )
+    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
 
     runtime, context, _ = _runtime(
         tmp_path,
-        _tool("confirm_memory_tombstone"),
-        _final(),
         profile="memory",
     )
 
@@ -367,14 +390,19 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
     result = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
-        user_message="I confirm.",
+        user_message="确认删除",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
     )
 
     assert result.tool_results[0].state == "memory_tombstone_cleanup_incomplete"
     assert result.context.task.pending_memory_tombstone is not None
     assert context.get_task("u1", "c1").pending_memory_tombstone is not None
     assert result.context.recent_messages
-    assert result.context.user_message == "I confirm."
+    assert result.context.user_message == "确认删除"
 
     retry_runtime, retry_context, _ = _runtime(
         tmp_path,
@@ -382,10 +410,24 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         _final(),
         profile="memory",
     )
-    retried = retry_runtime.run_turn(
+    retry_gate_turn = retry_runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="Retry the cleanup.",
+    )
+    retry_gate = MainAgentRuntime._interaction_event(
+        result=retry_gate_turn, conversation_id="c1"
+    )
+    assert retry_gate is not None and retry_gate.scope == "capability_confirmation"
+    retried = _runtime(tmp_path, profile="memory")[0].run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="确认继续清理",
+        interaction_response=InteractionResponse(
+            interaction_id=retry_gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
     )
 
     assert retried.tool_results[0].state == "memory_tombstoned"
@@ -421,11 +463,13 @@ def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
         _final(),
         profile="memory",
     )
-    runtime.run_turn(
+    proposed = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="Delete the private prototype.",
     )
+    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
 
     def fail_clear(self, *, user_id):
         raise OSError(f"cannot unlink notes for {user_id}")
@@ -433,14 +477,17 @@ def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
     monkeypatch.setattr(WorkingNotesStore, "clear", fail_clear)
     runtime, context, _ = _runtime(
         tmp_path,
-        _tool("confirm_memory_tombstone"),
-        _final(),
         profile="memory",
     )
     result = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
-        user_message="I confirm.",
+        user_message="确认删除",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
     )
 
     mutation = result.tool_results[0]

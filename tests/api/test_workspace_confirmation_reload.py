@@ -87,3 +87,31 @@ def test_reload_restores_the_same_pending_questionnaire(tmp_path):
     assert WorkspaceReader(args).conversation_messages(
         user_id="u1", conversation_id="c2"
     ).pending_interaction is None
+
+
+def test_reload_restores_a_destructive_confirmation_with_its_warning(tmp_path):
+    args = _args(tmp_path)
+    context_store = CareerContextStore(tmp_path / "context.sqlite3")
+    ContextManager(context_store).load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="删除这条记忆"
+    )
+    sealed = SQLiteCapabilityConfirmationStore(tmp_path / "context.sqlite3").seal(
+        user_id="u1",
+        conversation_id="c1",
+        capability="confirm_memory_tombstone",
+        display_summary="拟永久删除这条职业声明。",
+        arguments={"proposal": {"detail_ref": "detail_" + "a" * 24}},
+        policy_revision=0,
+    )
+
+    first = WorkspaceReader(args).conversation_messages(
+        user_id="u1", conversation_id="c1"
+    ).pending_interaction
+    second = WorkspaceReader(args).conversation_messages(
+        user_id="u1", conversation_id="c1"
+    ).pending_interaction
+    assert first == second
+    assert first is not None
+    assert first.scope == "capability_confirmation"
+    assert "请亲自确认" in first.prompt
+    assert sealed.confirmation_id not in first.interaction_id

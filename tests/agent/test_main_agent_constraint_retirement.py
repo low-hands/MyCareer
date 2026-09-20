@@ -9,6 +9,8 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.harness.streaming import InteractionResponse
+from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.context import CareerContextStore
 from conftest import enter_tool_profile
 
@@ -39,6 +41,9 @@ def _runtime(context: CareerContextStore, *decisions, profile=None):
         context_manager=ContextManager(context),
         decision_maker=SequenceDecisionMaker(*decisions),
         tools=MainAgentToolRegistry(conversation_store=context),
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(
+            context.path.parent / "confirmations.sqlite3"
+        ),
     )
 
 
@@ -106,24 +111,30 @@ def test_a_confirmed_retirement_stops_the_constraint_applying(tmp_path) -> None:
             "propose_constraint_retirement",
             {"constraint": "不接受 996", "reason": "换了岗位。"},
         ),
-        _tool("confirm_constraint_retirement"),
         _final(),
         profile="memory",
     )
 
-    runtime.run_turn(
+    proposed = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
         user_message="这条约束不用管了。",
     )
+    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    assert gate is not None and gate.scope == "capability_confirmation"
     assert (
         context.get_task("u1", "c1").pending_constraint_retirement is not None
     )
 
-    second = runtime.run_turn(
+    second = _runtime(context, profile="memory").run_turn(
         user_id="u1",
         conversation_id="c1",
-        user_message="对，退掉。",
+        user_message="确认退役",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
     )
 
     assert [item.state for item in second.tool_results] == ["constraint_retired"]
@@ -137,6 +148,161 @@ def test_a_confirmed_retirement_stops_the_constraint_applying(tmp_path) -> None:
     )
     assert summary is not None
     assert summary.content.active_constraints == ()
+    repeated = _runtime(context, profile="memory").run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="再次确认",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id,
+            scope="capability_confirmation",
+            action="confirm",
+        ),
+    )
+    assert repeated.tool_result.state == "capability_confirmation_expired"
+
+
+def test_a_second_click_on_the_same_seal_does_not_retire_twice(tmp_path) -> None:
+    """A second click on a settled seal is answered, not executed again.
+
+    This pins the runtime-visible half of exactly-once: after the first
+    confirmation retires the constraint, the same interaction id comes back
+    (resent request, second tab, impatient double click) and must produce the
+    settled answer with no second write.
+
+    What stops it here is the cleared proposal slot, not the store: by the time
+    the second click arrives the seal is no longer PENDING, so the lookup finds
+    nothing to claim. The store's conditional PENDING -> APPLYING transition is
+    the guard for the racing case, and it is pinned separately by
+    ``tests/storage/test_capability_confirmations.py``. Do not read this test
+    as covering that race; a sequential double click cannot reach it.
+    """
+
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed(context, "不接受 996")
+    proposed = _runtime(
+        context,
+        _tool(
+            "propose_constraint_retirement",
+            {"constraint": "不接受 996", "reason": "换了岗位。"},
+        ),
+        _final(),
+        profile="memory",
+    ).run_turn(
+        user_id="u1", conversation_id="c1", user_message="这条约束不用管了。",
+    )
+    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    assert gate is not None
+
+    def click():
+        return _runtime(context, profile="memory").run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="确认退役",
+            interaction_response=InteractionResponse(
+                interaction_id=gate.interaction_id,
+                scope="capability_confirmation",
+                action="confirm",
+            ),
+        )
+
+    first = click()
+    assert [item.state for item in first.tool_results] == ["constraint_retired"]
+
+    second = click()
+    assert [item.state for item in second.tool_results] == [
+        "capability_confirmation_expired"
+    ]
+    # Sequential clicks are stopped by the cleared proposal slot, before the
+    # store is consulted. The concurrent case below is what pins the store's
+    # conditional transition; keep both, they fail for different reasons.
+
+    # The durable effect happened once: one retired row, and the proposal slot
+    # stays cleared rather than being re-armed by the second click.
+    retired = context.list_conversation_constraints(
+        user_id="u1", conversation_id="c1", statuses=("retired",)
+    )
+    assert tuple(row.text for row in retired) == ("不接受 996",)
+    assert context.get_task("u1", "c1").pending_constraint_retirement is None
+
+
+def test_text_confirmation_only_reoffers_the_sealed_retirement(tmp_path) -> None:
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed(context, "不接受 996")
+    proposed = _runtime(
+        context,
+        _tool(
+            "propose_constraint_retirement",
+            {"constraint": "不接受 996", "reason": "用户改变要求。"},
+        ),
+        _final(),
+        profile="memory",
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="退掉这条约束")
+    original_gate = MainAgentRuntime._interaction_event(
+        result=proposed, conversation_id="c1"
+    )
+    assert original_gate is not None
+
+    text_turn = _runtime(
+        context, _tool("confirm_constraint_retirement"), _final(), profile="memory"
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="确认")
+    assert text_turn.tool_result.state == "capability_confirmation_required"
+    assert tuple(
+        row.text for row in context.list_conversation_constraints(
+            user_id="u1", conversation_id="c1", statuses=("active",)
+        )
+    ) == ("不接受 996",)
+    repeated_gate = MainAgentRuntime._interaction_event(
+        result=text_turn, conversation_id="c1"
+    )
+    assert repeated_gate is not None
+    assert repeated_gate.interaction_id == original_gate.interaction_id
+
+    cancelled = _runtime(context, profile="memory").run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="取消",
+        interaction_response=InteractionResponse(
+            interaction_id=original_gate.interaction_id,
+            scope="capability_confirmation",
+            action="cancel",
+        ),
+    )
+    assert cancelled.tool_result.state == "capability_confirmation_cancelled"
+    assert tuple(
+        row.text for row in context.list_conversation_constraints(
+            user_id="u1", conversation_id="c1", statuses=("active",)
+        )
+    ) == ("不接受 996",)
+
+
+def test_missing_seal_store_refuses_retirement_even_after_text_consent(tmp_path) -> None:
+    context = CareerContextStore(tmp_path / "context.sqlite3")
+    _seed(context, "不接受 996")
+    _runtime(
+        context,
+        _tool(
+            "propose_constraint_retirement",
+            {"constraint": "不接受 996", "reason": "用户改变要求。"},
+        ),
+        _final(),
+        profile="memory",
+    ).run_turn(user_id="u1", conversation_id="c1", user_message="退掉约束")
+    runtime = MainAgentRuntime(
+        context_manager=ContextManager(context),
+        decision_maker=SequenceDecisionMaker(
+            _tool("confirm_constraint_retirement"), _final()
+        ),
+        tools=MainAgentToolRegistry(conversation_store=context),
+    )
+    refused = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认"
+    )
+    assert all(item.state != "constraint_retired" for item in refused.tool_results)
+    assert tuple(
+        row.text for row in context.list_conversation_constraints(
+            user_id="u1", conversation_id="c1", statuses=("active",)
+        )
+    ) == ("不接受 996",)
 
 
 def test_a_constraint_the_conversation_never_recorded_cannot_be_retired(
