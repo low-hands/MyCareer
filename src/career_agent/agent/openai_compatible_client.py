@@ -11,11 +11,12 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError
 
 
 ProviderErrorCategory = Literal[
-    "configuration", "rate_limit", "upstream", "transport", "timeout"
+    "configuration", "rate_limit", "upstream", "transport", "timeout", "time_budget"
 ]
 _SAFE_PROVIDER_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.\[\]-]{0,127}\Z")
 _SAFE_PUBLIC_ERROR_CODE = re.compile(r"[A-Z][A-Z0-9_]{1,199}\Z")
 _RETRYABLE_PROVIDER_STATUS = frozenset({429, 502, 503, 504})
+_GATEWAY_TIME_BUDGET_STATUS = frozenset({524, 598})
 # Provider-controlled strings can contain user data even when they look like
 # identifiers. Only known protocol vocabulary may cross the diagnostic boundary.
 _PROVIDER_CODES = frozenset({
@@ -104,7 +105,9 @@ def provider_error_metadata(error: BaseException) -> ProviderErrorMetadata | Non
     fields = body if isinstance(body, dict) else {}
     status = error.status_code
     category: ProviderErrorCategory = (
-        "rate_limit" if status == 429 else "upstream" if status >= 500 else "configuration"
+        "rate_limit" if status == 429 else
+        "time_budget" if status in _GATEWAY_TIME_BUDGET_STATUS else
+        "upstream" if status >= 500 else "configuration"
     )
     return ProviderErrorMetadata(
         status=status,
@@ -157,11 +160,13 @@ def user_facing_worker_failure(capability: str, error: object) -> str:
     elif category == "upstream" and bool(getattr(error, "retryable", False)):
         reason = "上游模型服务暂时不可用，请稍后重试。"
     elif category == "upstream":
-        reason = "上游模型服务拒绝了请求，请检查服务状态和配置。"
+        reason = "上游模型服务未能完成请求，请检查服务状态。"
     elif category == "transport":
         reason = "当前无法连接模型服务，请检查网络后重试。"
     elif category == "timeout":
         reason = "模型服务响应超时，请稍后重试。"
+    elif category == "time_budget":
+        reason = "本次请求超过服务端时间预算，请缩小任务范围或检查端点限制。"
     elif code.startswith("RESUME_ANALYSIS_PDF_") or code.startswith(
         "RESUME_ANALYSIS_OCR_"
     ):

@@ -104,6 +104,8 @@ def test_observer_is_best_effort_and_unknown_tool_values_are_not_echoed() -> Non
     (400, "configuration", False), (401, "configuration", False),
     (403, "configuration", False), (429, "rate_limit", True),
     (500, "upstream", False), (502, "upstream", True), (503, "upstream", True),
+    (520, "upstream", False), (522, "upstream", False), (523, "upstream", False),
+    (524, "time_budget", False), (598, "time_budget", False),
 ])
 def test_provider_status_is_preserved_without_message(status: int, category: str, retryable: bool) -> None:
     error = _status_error(status, {
@@ -128,9 +130,10 @@ def test_provider_status_is_preserved_without_message(status: int, category: str
         ("configuration", False, "当前模型配置不支持该能力"),
         ("rate_limit", True, "模型服务正在限流"),
         ("upstream", True, "上游模型服务暂时不可用"),
-        ("upstream", False, "上游模型服务拒绝了请求"),
+        ("upstream", False, "上游模型服务未能完成请求"),
         ("transport", True, "当前无法连接模型服务"),
         ("timeout", True, "模型服务响应超时"),
+        ("time_budget", False, "本次请求超过服务端时间预算"),
     ],
 )
 def test_user_failure_reason_follows_provider_category(
@@ -164,6 +167,16 @@ def test_connection_and_timeout_categories_are_distinct() -> None:
     transport = provider_worker_error("JOB_RESEARCH", APIConnectionError(request=request))
     assert timeout.code == "JOB_RESEARCH_TIMEOUT" and timeout.retryable
     assert transport.code == "JOB_RESEARCH_TRANSPORT_ERROR" and transport.retryable
+
+
+def test_gateway_time_budget_preserves_status_without_suggesting_retry() -> None:
+    error = provider_worker_error("JOB_RESEARCH", _status_error(524, {}))
+    assert error.code == "JOB_RESEARCH_REJECTED_524"
+    assert error.provider is not None and error.provider.category == "time_budget"
+    assert error.retryable is False
+    message = user_facing_worker_failure("岗位研究", error)
+    assert "超过服务端时间预算" in message
+    assert "稍后重试" not in message and "配置不支持" not in message
 
 
 def test_raw_sdk_code_never_bypasses_safe_metadata_in_model_trace() -> None:
