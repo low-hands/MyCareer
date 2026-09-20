@@ -98,7 +98,12 @@ def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
     ]
 
 
-def test_trajectory_cli_reports_quality_as_an_independent_axis() -> None:
+def test_trajectory_cli_reports_quality_as_an_independent_axis(monkeypatch) -> None:
+    # Pinned to the repository's evaluation baseline, not the deployment's
+    # MAIN_AGENT_MODEL: this test replays committed cassettes, so it must give
+    # the same verdict in a clean clone, in CI and in a worktree without .env.
+    # The CLI's own deployment-model check has its own test below.
+    monkeypatch.setenv("MAIN_AGENT_MODEL", trajectory.EVALUATION_BASELINE_MODEL)
     output = StringIO()
 
     code = main(
