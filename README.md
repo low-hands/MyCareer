@@ -105,6 +105,8 @@ RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 
 `MAIN_AGENT_CONTEXT_WINDOW_TOKENS` 默认 `65536`，必须按实际模型窗口配置（范围 2048–2000000）。启动会检查 `MAIN_AGENT_MAX_INPUT_TOKENS + MAIN_AGENT_MAX_OUTPUT_TOKENS` 不超过该值；当前默认 `32000 + 16384`。这是部署声明，不按模型名称或 hostname 猜测 provider 能力。token 估算使用项目现有 cl100k_base，不是所有供应商 tokenizer 的精确上界；切换模型时仍需核对模型限制并做 smoke。不要仅为通过检查虚增窗口。
 
+可用 `python -m career_agent.agent.context_window_provider_smoke --report output/context-window-<新名称>.json` 对已配置的 Main Agent 端点发送一次合成的近窗口探测。报告仅包含本地估算、供应商 usage、三个位置的标记校验和脱敏错误类别；此调用可能消耗数万输入 token。若要缩短输出预留，可显式设置 `--target-input-tokens` 与 `--output-budget`，两者之和不得超过声明窗口。
+
 Conversation Summary Worker 使用 **Chat Completions JSON Schema**，可独立选用更快、更便宜的结构化模型：
 
 ```dotenv
