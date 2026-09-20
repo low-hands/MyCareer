@@ -411,6 +411,10 @@ export default function App() {
       };
       for await (const event of streamChat(body, options)) {
         turnStarted = true;
+        if ((event.type === "turn_completed" || event.type === "turn_suspended")
+          && interactionResponse?.scope === "questionnaire") {
+          try { sessionStorage.removeItem(`career-questionnaire:${interactionResponse.interaction_id}`); } catch { /* Storage may be unavailable. */ }
+        }
         if (
           event.type === "client_action" &&
           event.action === "open_url" &&

@@ -19,6 +19,8 @@ from career_agent.agent.conversation_span_presenter import render_conversation_s
 from career_agent.agent.main_agent_contracts import (
     ApplicationCandidateContextItem,
     BehaviorPolicyContext,
+    CareerMemoryContext,
+    CareerMemoryRecord,
     CareerProfileContext,
     ConversationMessageContext,
     ConversationResourceReference,
@@ -326,7 +328,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         steps=(
             TrajectoryStep(
-                expect_action="ask_user",
+                expect_user_input=True,
                 forbid_tools=frozenset({"open_job_search"}),
             ),
         ),
@@ -445,7 +447,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         decisive_facts=("working_notes", "task.candidates", "user_message"),
         steps=(
             TrajectoryStep(
-                expect_action="ask_user",
+                expect_user_input=True,
                 forbid_tools=frozenset(
                     {
                         "compare_saved_jobs",
@@ -456,6 +458,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=3,
+        known_gap=(
+            "2026-09-20 gpt-5.6-sol current-prompt recording called "
+            "compare_saved_jobs from unconfirmed working_notes in 1/3 samples; "
+            "the other 2/3 requested user input. Keep this visible until a "
+            "fresh recording resolves the policy defect."
+        ),
     ),
     TrajectoryScenario(
         name="a_note_derived_filter_is_confirmed_with_the_user",
@@ -487,10 +495,9 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         decisive_facts=("working_notes", "tool_observations.0.state"),
         steps=(
             TrajectoryStep(
-                # ask_user is asserted, not just "no retry": the runtime routes
-                # ask_user to interrupt and final to present, so a confirmation
-                # question labelled final never becomes a bound interaction.
-                expect_action="ask_user",
+                # Either bound interaction is valid; a confirmation question
+                # labelled final never becomes an interaction.
+                expect_user_input=True,
                 forbid_tools=frozenset({"find_saved_jobs"}),
             ),
         ),
@@ -1021,6 +1028,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         #
         # No current job candidate identifies the requested company. Its handle
         # is the only direct selector; a fresh job lookup can recover another.
+        # This is intermittent model behaviour, not a retired rule: earlier
+        # 2026-09-20 cuts invented an unseen report handle in 1/5 sol samples
+        # and 4/5 qwen samples. The current sol cut passed 5/5, so known_gap
+        # cannot be declared without making its fresh-evidence guard lie.
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
@@ -1954,5 +1965,73 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 expect_tool="analyze_job",
             ),
         ),
+    ),
+    TrajectoryScenario(
+        name="five_missing_resume_facts_use_one_questionnaire",
+        policy=(
+            "For two to eight independent missing facts needed for the current task, "
+            "use JSON action='questionnaire' rather than a Markdown question list."
+        ),
+        context=_context(
+            user_message=(
+                "请先收集五项独立的简历定制信息，暂时不要调用工具或写优化稿："
+                "1 前端经验；2 使用过的向量数据库；3 Dify 经验；"
+                "4 AI 编程工具；5 开源项目或博客。每项都需要我分别回答，"
+                "允许跳过或明确回答没有。请一次性生成结构化五题问卷。"
+            ),
+            task=ConversationTaskState(tool_profile="resume"),
+        ),
+        decisive_facts=("user_message", "task.tool_profile"),
+        steps=(TrajectoryStep(expect_action="questionnaire", expect_question_count=5),),
+    ),
+    TrajectoryScenario(
+        name="a_questionnaire_answer_is_proposed_with_user_input_provenance",
+        policy=(
+            "When proposing a career fact from a user's questionnaire answer, "
+            "supply an exact user_quote so the stored origin is user_input."
+        ),
+        context=_context(
+            user_message=(
+                "把刚才问卷里我说的 AI 编程工具使用情况，作为我在示例科技的"
+                "工作经历事实提案；先让我确认，不要直接写入。"
+            ),
+            task=ConversationTaskState(tool_profile="memory"),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="user",
+                    content=(
+                        "已提交当前任务问卷：\n"
+                        "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
+                    ),
+                    created_at=_NOW,
+                    user_interaction_id="interaction_" + "a" * 20,
+                ),
+            ),
+        ).model_copy(
+            update={
+                "career_memory": CareerMemoryContext(
+                    records=(
+                        CareerMemoryRecord(
+                            record_type="work",
+                            organization="示例科技",
+                            title="软件工程师",
+                        ),
+                    ),
+                ),
+            }
+        ),
+        decisive_facts=(
+            "user_message",
+            "recent_messages.0.content",
+            "career_memory.records.0",
+        ),
+        steps=(
+            TrajectoryStep(
+                expect_tool="propose_career_fact",
+                expect_nonempty_string_arguments=frozenset({"user_quote"}),
+                expect_argument_contains={"user_quote": "Claude Code 和 Cursor"},
+            ),
+        ),
+        recording_samples=3,
     ),
 )

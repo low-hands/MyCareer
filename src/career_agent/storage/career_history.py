@@ -67,6 +67,8 @@ _EVIDENCE_FIELD_NAMES = (
     "tombstone_reason",
     "created_at",
     "updated_at",
+    "source_user_quote",
+    "source_user_interaction_id",
 )
 _EVIDENCE_COLUMNS = ", ".join(_EVIDENCE_FIELD_NAMES)
 
@@ -225,6 +227,8 @@ class CareerHistoryStore:
         source_resume_version_id: str | None = None,
         source_locator: str | None = None,
         source_quote: str | None = None,
+        source_user_quote: str | None = None,
+        source_user_interaction_id: str | None = None,
     ) -> CareerEvidence:
         now = datetime.now(timezone.utc)
         evidence_id = f"career_evidence_{uuid4().hex}"
@@ -238,6 +242,8 @@ class CareerHistoryStore:
             source_resume_version_id=source_resume_version_id,
             source_locator=source_locator,
             source_quote=source_quote,
+            source_user_quote=source_user_quote,
+            source_user_interaction_id=source_user_interaction_id,
             source_ref=career_evidence_source_ref(
                 user_id=user_id,
                 evidence_id=evidence_id,
@@ -288,8 +294,8 @@ class CareerHistoryStore:
                     id, user_id, career_record_id, claim, short_terms, origin,
                     verification_status, source_resume_version_id,
                     source_locator, source_quote, source_ref, detail_ref,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, source_user_quote, source_user_interaction_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     evidence.id,
@@ -306,6 +312,8 @@ class CareerHistoryStore:
                     evidence.detail_ref,
                     evidence.created_at.isoformat(),
                     evidence.updated_at.isoformat(),
+                    evidence.source_user_quote,
+                    evidence.source_user_interaction_id,
                 ),
             )
             self._insert_event(connection, event)
@@ -922,6 +930,8 @@ class CareerHistoryStore:
                             WHEN source_resume_version_id IS NULL THEN NULL
                             ELSE ''
                         END,
+                        source_user_quote = NULL,
+                        source_user_interaction_id = NULL,
                         tombstoned_at = ?, tombstoned_by = ?,
                         tombstone_reason = ?,
                         updated_at = ?
@@ -1417,16 +1427,9 @@ class CareerHistoryStore:
                 if new_status == "confirmed"
                 else {}
             )
-            confirmed_origin = (
-                "user_input"
-                if new_status == "confirmed"
-                and current.origin == "agent_inference"
-                else current.origin
-            )
             updated = current.model_copy(
                 update={
                     "verification_status": new_status,
-                    "origin": confirmed_origin,
                     "updated_at": now,
                     **version_update,
                 }
@@ -1445,13 +1448,12 @@ class CareerHistoryStore:
             connection.execute(
                 """
                 UPDATE career_evidence
-                SET verification_status = ?, origin = ?, scope_key = ?, update_id = ?,
+                SET verification_status = ?, scope_key = ?, update_id = ?,
                     content_digest = ?, revision = ?, valid_from = ?, updated_at = ?
                 WHERE id = ? AND user_id = ? AND verification_status = 'pending'
                 """,
                 (
                     updated.verification_status,
-                    updated.origin,
                     updated.scope_key,
                     updated.update_id,
                     updated.content_digest,
@@ -1502,8 +1504,9 @@ class CareerHistoryStore:
                 verification_status, source_resume_version_id,
                 source_locator, source_quote, source_ref, detail_ref,
                 scope_key, update_id, content_digest, revision, valid_from, supersedes_id,
-                superseded_at, superseded_by, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                superseded_at, superseded_by, created_at, updated_at,
+                source_user_quote, source_user_interaction_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 evidence.id,
@@ -1528,6 +1531,8 @@ class CareerHistoryStore:
                 evidence.superseded_by,
                 evidence.created_at.isoformat(),
                 evidence.updated_at.isoformat(),
+                evidence.source_user_quote,
+                evidence.source_user_interaction_id,
             ),
         )
 
@@ -1600,6 +1605,8 @@ class CareerHistoryStore:
                 source_resume_version_id TEXT,
                 source_locator TEXT,
                 source_quote TEXT,
+                source_user_quote TEXT,
+                source_user_interaction_id TEXT,
                 source_ref TEXT,
                 detail_ref TEXT,
                 scope_key TEXT,
@@ -1708,6 +1715,10 @@ class CareerHistoryStore:
         }
         if "source_quote" not in evidence_columns:
             connection.execute("ALTER TABLE career_evidence ADD COLUMN source_quote TEXT")
+        if "source_user_quote" not in evidence_columns:
+            connection.execute("ALTER TABLE career_evidence ADD COLUMN source_user_quote TEXT")
+        if "source_user_interaction_id" not in evidence_columns:
+            connection.execute("ALTER TABLE career_evidence ADD COLUMN source_user_interaction_id TEXT")
         connection.execute(
             """
             UPDATE career_evidence
@@ -2260,6 +2271,8 @@ class CareerHistoryStore:
             tombstone_reason=row[21],
             created_at=row[22],
             updated_at=row[23],
+            source_user_quote=row[24],
+            source_user_interaction_id=row[25],
         )
 
     @staticmethod

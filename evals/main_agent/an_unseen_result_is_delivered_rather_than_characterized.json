@@ -2,9 +2,9 @@
   "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
   "policy": "An observation without body exposes only a bounded receipt and selected flat decision facts, not the internal payload. Use values explicitly present there, but never expand them into omitted details; when the user asks only for the brief, the runtime presenter remains the authoritative delivery.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "4561a06c4ca8513063680606df423f567d41047b9c8a98a08daadf57e78998f8",
+  "prompt_fingerprint": "1dc32ae1b746edb5e2c64f0583a6b9401278e2078563f214e110f92bb6b33ff8",
   "context_shape_fingerprint": "5843e52e487483f2e8cc0204d8d55891fa3b0b09d032a0d37babeeafb9cd35d8",
-  "recorded_at": "2026-09-17T07:13:49.992619+00:00",
+  "recorded_at": "2026-09-20T08:24:02.271134+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,13 +15,13 @@
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成：\\n\\n- 今日到期：2 项\\n- 已逾期：1 项\\n- 等待中：0 项\\n\\n共涉及 3 个待办事项。未打开行动清单。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"今日职业简报：共 3 个待办事项，其中 2 个今天到期、1 个已逾期，暂无等待中的事项。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:48.079787+00:00",
+      "recorded_at": "2026-09-20T08:24:00.932585+00:00",
       "steps": [
         {
           "tool_call": {
@@ -32,12 +32,12 @@
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成：\\n\\n- 今日到期：2 项\\n- 已逾期：1 项\\n- 等待中：0 项\\n\\n共涉及 3 个待办事项。未打开行动清单。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：共 3 个待办事项，其中 2 个今天到期、1 个已逾期，暂无等待中的事项。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:47.047588+00:00",
+      "recorded_at": "2026-09-20T08:23:59.573319+00:00",
       "steps": [
         {
           "tool_call": {
@@ -48,12 +48,12 @@
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：共 3 个待办事项，其中 2 个今天到期、1 个已逾期、0 个等待中。未打开行动清单。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：共 3 个待办事项，其中今天到期 2 个、已逾期 1 个、等待中 0 个。未打开行动清单。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:49.992619+00:00",
+      "recorded_at": "2026-09-20T08:24:02.271134+00:00",
       "steps": [
         {
           "tool_call": {
@@ -64,7 +64,7 @@
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：\\n\\n- **今日到期：2 项**\\n- **已逾期：1 项**\\n- **等待中：0 项**\\n- **合计：3 项待办**\\n\\n未打开行动清单。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报：共 3 个待办事项，其中 2 个今天到期、1 个已逾期、0 个处于等待状态。未打开行动清单。\",\"questions\":[]}"
         }
       ]
     }

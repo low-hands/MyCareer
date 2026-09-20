@@ -23,6 +23,7 @@ from career_agent.agent.conversation_memory_contracts import (
 )
 from career_agent.agent.token_budget import serialized_token_count
 from career_agent.agent.tool_effects import is_external_write, owner_rule_capabilities
+from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.email_tracking import EmailEventStatus
@@ -773,6 +774,7 @@ class ConversationTaskState(ContractModel):
     """
 
     active_workflow: Literal["job_discovery", "mock_interview", "none"] = "none"
+    pending_questionnaire: PendingQuestionnaire | None = None
     tool_profile: ToolProfile = "core"
     run_id: str | None = None
     phase: str | None = None
@@ -1180,6 +1182,9 @@ class ConversationMessageContext(ContractModel):
     sentence as the complete message.
     """
     created_at: datetime
+    user_interaction_id: str | None = Field(
+        default=None, pattern=r"^interaction_[a-f0-9]{20}$"
+    )
     resource_refs: tuple[ConversationResourceReference, ...] = ()
     """Every stored report this turn produced, in the order it produced them.
 
@@ -2180,6 +2185,9 @@ class MainAgentContext(ContractModel):
     )
 
     user_message: str = Field(min_length=1)
+    user_interaction_id: str | None = Field(
+        default=None, pattern=r"^interaction_[a-f0-9]{20}$", exclude=True
+    )
     user_message_source: str | None = Field(default=None, exclude=True)
     """The message as the user sent it, kept only when ``user_message`` was clipped."""
 
@@ -3008,6 +3016,13 @@ class ProposeCareerFactToolArguments(ContractModel):
     record_selection_index: SelectionIndex
     claim: str = Field(min_length=1, max_length=2000)
     reason: str = Field(min_length=1, max_length=2000)
+    user_quote: str | None = Field(
+        default=None, min_length=4, max_length=500,
+        description=(
+            "Exact verbatim excerpt from the user's own message or questionnaire "
+            "answer supporting this claim. Omit when the claim is an inference."
+        ),
+    )
 
 
 class ConfirmCareerFactToolArguments(ContractModel):
@@ -3540,9 +3555,23 @@ class ToolCall(ContractModel):
 
 
 class AgentDecision(ContractModel):
-    action: Literal["ask_user", "tool_call", "final"]
+    action: Literal["ask_user", "questionnaire", "tool_call", "final"]
     message: str | None = None
     tool_call: ToolCall | None = None
+    questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
+
+    @model_validator(mode="after")
+    def _questionnaire_shape(self) -> "AgentDecision":
+        if self.action == "questionnaire":
+            if not 2 <= len(self.questions) <= 8:
+                raise ValueError("questionnaire needs 2-8 questions")
+            if tuple(item.question_id for item in self.questions) != tuple(
+                f"q{index}" for index in range(1, len(self.questions) + 1)
+            ):
+                raise ValueError("questionnaire ids must be ordered q1..qN")
+        elif self.questions:
+            raise ValueError("questions require questionnaire action")
+        return self
 
 
 class DecisionMaker(Protocol):
@@ -3820,12 +3849,40 @@ def project_career_fact_arguments(
         ]
         if record.record_id is None:
             raise ValueError("career record selection has no durable identity")
+        source_interaction_id = None
+        if proposed.user_quote is not None:
+            # A model-supplied reason is not provenance. Match the exact quote
+            # against stored user speech, preferring a questionnaire answer
+            # over a later message that merely repeats part of that answer.
+            recent_user = tuple(
+                message for message in reversed(context.recent_messages)
+                if message.role == "user"
+            )
+            current = (context.stored_user_message(), context.user_interaction_id)
+            sources = (
+                ((current,) if context.user_interaction_id else ())
+                + tuple((item.content, item.user_interaction_id) for item in recent_user
+                        if item.user_interaction_id)
+                + (() if context.user_interaction_id else (current,))
+                + tuple((item.content, None) for item in recent_user
+                        if not item.user_interaction_id)
+            )
+            matched_source = next(
+                ((content, interaction_id) for content, interaction_id in sources
+                 if proposed.user_quote in content), None,
+            )
+            if matched_source is None:
+                raise ValueError("user_quote is absent from user messages")
+            source_interaction_id = matched_source[1]
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
             "career_record_id": record.record_id,
             "claim": proposed.claim,
             "reason": proposed.reason,
+            "origin": "user_input" if proposed.user_quote is not None else "agent_inference",
+            "source_user_quote": proposed.user_quote,
+            "source_user_interaction_id": source_interaction_id,
         }
     ConfirmCareerFactToolArguments.model_validate(arguments)
     pending = context.task.pending_career_fact

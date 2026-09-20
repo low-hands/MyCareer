@@ -49,6 +49,7 @@ export const INTERACTION_KINDS = [
   "free_text",
   "approval",
   "file_upload",
+  "questionnaire",
 ] as const;
 export type InteractionKind = (typeof INTERACTION_KINDS)[number];
 
@@ -61,6 +62,7 @@ export type InteractionKind = (typeof INTERACTION_KINDS)[number];
 export const INTERACTION_SCOPES = [
   "resume_analysis_confirmation",
   "capability_confirmation",
+  "questionnaire",
 ] as const;
 export type InteractionScope = (typeof INTERACTION_SCOPES)[number];
 
@@ -69,6 +71,15 @@ export interface InteractionOption {
   description?: string | null;
   selection_index?: number | null;
   value?: string | null;
+}
+
+export interface UserQuestion {
+  question_id: string;
+  prompt: string;
+  kind: "single" | "multiple" | "free_text";
+  options: { value: string; label: string; meaning: "choice" | "none" | "other" }[];
+  allow_free_text: boolean;
+  allow_skip: boolean;
 }
 
 export type PublicStreamEvent =
@@ -91,6 +102,7 @@ export type PublicStreamEvent =
       kind: InteractionKind;
       prompt: string;
       options: InteractionOption[];
+      questions?: UserQuestion[];
       allow_free_text: boolean;
       scope?: InteractionScope | null;
     }
@@ -211,6 +223,20 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
         !INTERACTION_KIND_SET.has(value.kind) ||
         typeof value.prompt !== "string" ||
         !Array.isArray(value.options) ||
+        (value.kind === "questionnaire" &&
+          (value.scope !== "questionnaire" || !Array.isArray(value.questions)
+            || value.questions.length < 2 || value.questions.length > 8
+            || !value.questions.every((question: unknown, index: number) =>
+              isRecord(question)
+              && question.question_id === `q${index + 1}`
+              && typeof question.prompt === "string"
+              && ["single", "multiple", "free_text"].includes(String(question.kind))
+              && Array.isArray(question.options)
+              && question.options.every((option: unknown) => isRecord(option)
+                && typeof option.value === "string" && typeof option.label === "string"
+                && ["choice", "none", "other"].includes(String(option.meaning)))
+              && typeof question.allow_free_text === "boolean"
+              && typeof question.allow_skip === "boolean"))) ||
         typeof value.allow_free_text !== "boolean" ||
         (value.scope != null &&
           (typeof value.scope !== "string" || !INTERACTION_SCOPE_SET.has(value.scope)))

@@ -2,37 +2,37 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
   "context_shape_fingerprint": "6716ac01783fa2e66e8a3aad5806d0c2cbddd2121e208dde5f4aa73cdb82f3c3",
-  "recorded_at": "2026-09-17T07:13:55.420188+00:00",
+  "recorded_at": "2026-09-20T08:24:08.211550+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"暂时无法查询岗位库，因此没能找到你保存过的 RAG 岗位。当前不建议重复执行相同查询；你可以稍后再试。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”已保存岗位的查询，而且本次失败不可直接重试。请稍后再试；如果你记得公司名或岗位名，也可以提供给我，以便下次缩小查询范围。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:52.413474+00:00",
+      "recorded_at": "2026-09-20T08:24:08.882406+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法查询岗位库，因此没能找到你保存过的 RAG 岗位。当前不建议重复执行相同查询；你可以稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”已保存岗位的查询，而且本次失败不可直接重试。请稍后再试；如果你记得公司名或岗位名，也可以提供给我，以便下次缩小查询范围。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:53.069242+00:00",
+      "recorded_at": "2026-09-20T08:24:07.803269+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法查询岗位库，因此没能找到你保存过的 RAG 岗位。此次查询不可直接重试，你可以稍后再让我查。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 RAG 岗位的查询，因此暂时无法列出结果。这次查询不可直接重试；你可以稍后再试。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:55.420188+00:00",
+      "recorded_at": "2026-09-20T08:24:08.211550+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时无法从岗位库查询你保存过的 RAG 岗位；本次查询失败且当前不可重试。你可以稍后再试。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 RAG 岗位的查询，而且此次失败不可直接重试。你可以稍后再试。\",\"questions\":[]}"
         }
       ]
     }

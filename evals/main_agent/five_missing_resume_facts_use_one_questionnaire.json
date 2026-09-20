@@ -1,0 +1,24 @@
+{
+  "scenario": "five_missing_resume_facts_use_one_questionnaire",
+  "policy": "For two to eight independent missing facts needed for the current task, use JSON action='questionnaire' rather than a Markdown question list.",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
+  "context_shape_fingerprint": "8d171f63f6ef3191b5dfa2fae412c43488322cc90d2b788d104b42add0849ac4",
+  "recorded_at": "2026-09-20T08:23:22.353733+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息；每题均可填写具体情况、明确选择“没有”，或跳过。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验有哪些？可填写年限、项目类型、技术栈（如 React、Vue、TypeScript）及代表性成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有前端经验\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写具体经验\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？可填写产品名称（如 Milvus、Pinecone、Weaviate、Chroma、FAISS）、使用场景及熟练程度。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过向量数据库\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写使用经历\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你是否有 Dify 使用或开发经验？可填写使用方式、搭建的应用或工作流、插件开发、部署运维及成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有 Dify 经验\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写 Dify 经验\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？可填写工具名称（如 Cursor、GitHub Copilot、Claude Code、通义灵码）、使用频率、应用场景及效率提升。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过 AI 编程工具\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写工具及使用情况\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有哪些开源项目、技术博客或其他公开技术产出？可填写名称、链接、技术栈、个人贡献、Star 数或阅读量等。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有开源项目或博客\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写项目或博客信息\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true}]}"
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-20T08:23:22.353733+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息；每题均可填写具体情况、明确选择“没有”，或跳过。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验有哪些？可填写年限、项目类型、技术栈（如 React、Vue、TypeScript）及代表性成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有前端经验\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写具体经验\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？可填写产品名称（如 Milvus、Pinecone、Weaviate、Chroma、FAISS）、使用场景及熟练程度。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过向量数据库\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写使用经历\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你是否有 Dify 使用或开发经验？可填写使用方式、搭建的应用或工作流、插件开发、部署运维及成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有 Dify 经验\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写 Dify 经验\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？可填写工具名称（如 Cursor、GitHub Copilot、Claude Code、通义灵码）、使用频率、应用场景及效率提升。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过 AI 编程工具\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写工具及使用情况\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有哪些开源项目、技术博客或其他公开技术产出？可填写名称、链接、技术栈、个人贡献、Star 数或阅读量等。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有开源项目或博客\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"填写项目或博客信息\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true}]}"
+        }
+      ]
+    }
+  ]
+}

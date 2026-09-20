@@ -8,6 +8,8 @@ from typing import Annotated, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, QuestionAnswer, UserQuestion
+
 
 class StreamContract(BaseModel):
     model_config = ConfigDict(
@@ -82,8 +84,18 @@ class InteractionResponse(StreamContract):
     """A UI response whose authority is bound to one durable interaction."""
 
     interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
-    scope: Literal["resume_analysis_confirmation", "capability_confirmation"]
-    action: Literal["confirm", "cancel"]
+    scope: Literal["resume_analysis_confirmation", "capability_confirmation", "questionnaire"]
+    action: Literal["confirm", "cancel", "submit"]
+    answers: tuple[QuestionAnswer, ...] = Field(default=(), max_length=8)
+
+    @model_validator(mode="after")
+    def _response_shape(self) -> "InteractionResponse":
+        if self.scope == "questionnaire":
+            if self.action != "submit" or len(self.answers) < 2:
+                raise ValueError("questionnaire requires submitted answers")
+        elif self.action == "submit" or self.answers:
+            raise ValueError("confirmation cannot contain questionnaire answers")
+        return self
 
 
 class TurnInputResource(StreamContract):
@@ -114,11 +126,13 @@ class InteractionRequiredEvent(StreamContract):
         "free_text",
         "approval",
         "file_upload",
+        "questionnaire",
     ]
     prompt: str = Field(min_length=1, max_length=5000)
     options: tuple[InteractionOption, ...] = Field(default=(), max_length=50)
+    questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
     allow_free_text: bool = False
-    scope: Literal["resume_analysis_confirmation", "capability_confirmation"] | None = None
+    scope: Literal["resume_analysis_confirmation", "capability_confirmation", "questionnaire"] | None = None
 
     @model_validator(mode="after")
     def _validate_options(self) -> "InteractionRequiredEvent":
@@ -132,6 +146,11 @@ class InteractionRequiredEvent(StreamContract):
             raise ValueError(f"{self.kind} requires options")
         if self.kind in {"free_text", "file_upload"} and self.options:
             raise ValueError(f"{self.kind} cannot carry options")
+        if self.kind == "questionnaire":
+            if self.scope != "questionnaire" or len(self.questions) < 2 or self.options:
+                raise ValueError("questionnaire requires bound questions")
+        elif self.questions:
+            raise ValueError("only questionnaire carries questions")
         return self
 
 
@@ -281,8 +300,18 @@ def interaction_id(*durable_parts: object) -> str:
 
 
 InteractionScope: TypeAlias = Literal[
-    "resume_analysis_confirmation", "capability_confirmation"
+    "resume_analysis_confirmation", "capability_confirmation", "questionnaire"
 ]
+
+
+def questionnaire_event(pending: PendingQuestionnaire) -> InteractionRequiredEvent:
+    return InteractionRequiredEvent(
+        interaction_id=pending.interaction_id,
+        kind="questionnaire",
+        scope="questionnaire",
+        prompt=pending.prompt,
+        questions=pending.questions,
+    )
 
 _CAPABILITY_CONFIRMATION_OPTIONS = (
     InteractionOption(value="confirm", label="确认执行"),

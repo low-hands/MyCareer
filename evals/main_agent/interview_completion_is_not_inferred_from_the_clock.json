@@ -2,31 +2,21 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "0cbd13b6b01923eef910353088d685c646ee0ce0f2229e98c734d0e8d625b193",
+  "prompt_fingerprint": "345376bca4359c29d25d5947943af18e7a7cecba3b047e1a93059afc72031bad",
   "context_shape_fingerprint": "407dde9dea52a2a72ffafddf72dd32f6eecee32e2adb67586b9c360d617740bc",
-  "recorded_at": "2026-09-17T07:13:32.870114+00:00",
+  "recorded_at": "2026-09-20T08:23:50.613371+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "get_interview",
-        "arguments": {
-          "selection_index": 1
-        }
-      }
+      "content": "{\"action\":\"final\",\"message\":\"你目前记录的那场面试状态是「已安排」，时间为 2026 年 8 月 20 日 00:00（UTC）。系统里暂未记录公司名称，也没有已完成或面试复盘信息。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:32.870114+00:00",
+      "recorded_at": "2026-09-20T08:23:50.613371+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "get_interview",
-            "arguments": {
-              "selection_index": 1
-            }
-          }
+          "content": "{\"action\":\"final\",\"message\":\"你目前记录的那场面试状态是「已安排」，时间为 2026 年 8 月 20 日 00:00（UTC）。系统里暂未记录公司名称，也没有已完成或面试复盘信息。\",\"questions\":[]}"
         }
       ]
     }

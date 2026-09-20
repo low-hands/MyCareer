@@ -135,6 +135,10 @@ class CareerEvidence(CareerHistoryContract):
     source_resume_version_id: str | None = Field(default=None, min_length=1)
     source_locator: str | None = None
     source_quote: str | None = None
+    source_user_quote: str | None = Field(default=None, min_length=4, max_length=500)
+    source_user_interaction_id: str | None = Field(
+        default=None, pattern=r"^interaction_[a-f0-9]{20}$"
+    )
     source_ref: str | None = Field(
         default=None,
         pattern=r"^evidence_[a-f0-9]{24}$",
@@ -192,7 +196,7 @@ class CareerEvidence(CareerHistoryContract):
         if any(item is not None for item in tombstone_fields) != tombstoned:
             raise ValueError("tombstone metadata must be set together")
         if tombstoned:
-            if self.claim or self.source_locator or self.source_quote:
+            if self.claim or self.source_locator or self.source_quote or self.source_user_quote:
                 raise ValueError("tombstoned evidence cannot retain source text")
         elif not self.claim:
             raise ValueError("active evidence requires a claim")
@@ -211,6 +215,11 @@ class CareerEvidence(CareerHistoryContract):
 
         if self.source_quote is not None and self.source_resume_version_id is None:
             raise ValueError("source_quote requires source_resume_version_id")
+
+        if self.source_user_quote is not None and self.origin != "user_input":
+            raise ValueError("source_user_quote requires user_input origin")
+        if self.source_user_interaction_id is not None and self.source_user_quote is None:
+            raise ValueError("source_user_interaction_id requires source_user_quote")
 
         if self.source_ref is not None and self.source_resume_version_id is None:
             raise ValueError("source_ref requires source_resume_version_id")

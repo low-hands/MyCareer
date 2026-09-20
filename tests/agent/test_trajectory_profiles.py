@@ -87,7 +87,8 @@ def test_every_request_uses_the_advanced_profile(mode, monkeypatch, tmp_path):
         trajectory.record(scenario, tool_specs=schemas, config=config, root=tmp_path)
         cassette = trajectory.load_cassette(scenario.name, root=tmp_path)
         assert trajectory.cassette_staleness(
-            cassette, scenario=scenario, tool_specs=schemas
+            cassette, scenario=scenario, tool_specs=schemas,
+            expected_model="offline",
         ) is None
     elif mode == "replay":
         assert trajectory.replay(scenario, tool_specs=schemas, responses=responses) == ()

@@ -2,37 +2,37 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "9f0c41393a57858451314030bfeacac1079d7f0c274a43fe8a92783830b3659d",
+  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
   "context_shape_fingerprint": "b0314d3980bbe49545d32898f42d09269aa28b72b9ff4d5c422fefab5745f663",
-  "recorded_at": "2026-09-17T07:14:12.372867+00:00",
+  "recorded_at": "2026-09-20T08:23:14.349128+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我现在看不到你一开始指定的目标公司全名；现有上下文只表明“美团”是对照项，不是原目标。请把公司简称或那份 JD 再发我一下，我再帮你确认全名。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"我目前可见的记录里没有你一开始指定的目标公司全名，只能确认美团当时是对照项，不能据此猜测。你把公司简称或那段原话发我，我再帮你核对全名。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:14:09.274525+00:00",
+      "recorded_at": "2026-09-20T08:23:11.464771+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我现在看不到你一开始指定的目标公司全名；现有上下文只表明“美团”是对照项，不是原目标。请把公司简称或那份 JD 再发我一下，我再帮你确认全名。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前可见的记录里没有你一开始指定的目标公司全名，只能确认美团当时是对照项，不能据此猜测。你把公司简称或那段原话发我，我再帮你核对全名。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:10.087205+00:00",
+      "recorded_at": "2026-09-20T08:23:12.748885+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前可见的上下文里没有你一开始指定的目标公司全名，只能确认美团是对照项，不能据此猜测。请把公司名或相关原话再发一次。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前可见的记录里没有你一开始指定的目标公司全名，只能确认美团是后来用于对照的岗位，因此不能可靠还原。你可以给我简称、行业或名称中的一两个字，我帮你确认。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:12.372867+00:00",
+      "recorded_at": "2026-09-20T08:23:14.349128+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名；现有上下文只提到美团是对照岗位，没有保留原目标公司的名称。请把公司简称、JD 标题或当时那句话发我，我再帮你确认全名。\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前可见的记录里没有你最初指定的目标公司全名，只能确认美团是后来用于对照的公司，因此不能可靠地推断。请把最初那份 JD、公司简称或名称片段再发我一下，我可以帮你确认全名。\",\"questions\":[]}"
         }
       ]
     }

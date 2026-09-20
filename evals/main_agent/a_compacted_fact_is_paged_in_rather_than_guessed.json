@@ -2,9 +2,9 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "9f0c41393a57858451314030bfeacac1079d7f0c274a43fe8a92783830b3659d",
+  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
   "context_shape_fingerprint": "cafc048170631379d47831aab3d1959e1d655c780e3610694f6dc033a618c504",
-  "recorded_at": "2026-09-17T07:14:05.941635+00:00",
+  "recorded_at": "2026-09-20T08:24:18.756663+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 8,
-          "query": "目标公司 公司全名 一开始指定 美团 JD"
+          "query": "目标公司 全名 一开始 指定 美团 JD"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:14:04.346098+00:00",
+      "recorded_at": "2026-09-20T08:24:17.920093+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,14 +28,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司全名 一开始指定 美团 JD"
+              "query": "目标公司 全名 一开始 指定 美团 JD"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:04.337520+00:00",
+      "recorded_at": "2026-09-20T08:24:17.946610+00:00",
       "steps": [
         {
           "tool_call": {
@@ -43,14 +43,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "一开始 指定 目标公司 公司全名"
+              "query": "目标公司 公司全名 美团 一开始 指定"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:05.941635+00:00",
+      "recorded_at": "2026-09-20T08:24:18.756663+00:00",
       "steps": [
         {
           "tool_call": {
@@ -58,7 +58,7 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "一开始 指定 目标公司 全名 公司名称"
+              "query": "目标公司 公司全名 美团 一开始指定"
             }
           }
         }

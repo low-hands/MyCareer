@@ -274,6 +274,28 @@ def test_resume_extraction_requires_owned_resume_version(tmp_path) -> None:
         )
 
 
+def test_existing_history_adds_user_interaction_provenance_columns(tmp_path) -> None:
+    store, _, path = build_stores(tmp_path)
+    record = create_record(store)
+    evidence = store.create_evidence(
+        user_id="u1", career_record_id=record.id,
+        claim="Built an internal tool.", origin="agent_inference",
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("ALTER TABLE career_evidence DROP COLUMN source_user_quote")
+        connection.execute("ALTER TABLE career_evidence DROP COLUMN source_user_interaction_id")
+
+    migrated = CareerHistoryStore(path)
+    reread = migrated.get_evidence(user_id="u1", career_evidence_id=evidence.id)
+    assert reread is not None
+    assert reread.claim == evidence.claim
+    assert reread.source_user_quote is None
+    assert reread.source_user_interaction_id is None
+    with sqlite3.connect(path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(career_evidence)")}
+    assert {"source_user_quote", "source_user_interaction_id"} <= columns
+
+
 def test_v3_migration_backfills_stable_source_refs(tmp_path) -> None:
     store, resumes, path = build_stores(tmp_path)
     record = create_record(store)

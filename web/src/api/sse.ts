@@ -20,7 +20,13 @@ export interface TurnInputResource {
 export interface InteractionResponse {
   interaction_id: string;
   scope: InteractionScope;
-  action: "confirm" | "cancel";
+  action: "confirm" | "cancel" | "submit";
+  answers?: {
+    question_id: string;
+    selected_values: string[];
+    free_text: string | null;
+    skipped: boolean;
+  }[];
 }
 
 export interface SseFrame {

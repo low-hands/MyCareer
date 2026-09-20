@@ -1926,6 +1926,10 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 jobs=args.jobs,
                 force=args.force,
             )
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        expected_model = config.model if config is not None else os.environ.get("MAIN_AGENT_MODEL", "").strip()
 
         results = []
         for scenario in selected:
@@ -1936,6 +1940,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                     cassette,
                     scenario=scenario,
                     tool_specs=schemas,
+                    expected_model=expected_model,
                 )
                 if cassette is not None
                 else None

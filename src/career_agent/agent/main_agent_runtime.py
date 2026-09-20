@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import json
 import hashlib
@@ -88,6 +88,7 @@ from career_agent.agent.mock_interview_presenter import (
     render_mock_interview_turn,
 )
 from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
+from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, QuestionAnswer
 from career_agent.agent.resume_analysis_presenter import render_resume_analysis
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
@@ -141,6 +142,7 @@ from career_agent.harness.streaming import (
     iter_content_deltas,
     capability_confirmation_event,
     resume_analysis_confirmation_event,
+    questionnaire_event,
 )
 from career_agent.storage.action_executions import (
     ActionExecutionAlreadyFailedError,
@@ -205,6 +207,28 @@ class TurnInProgressError(RuntimeError):
     def __init__(self, request_id: str) -> None:
         super().__init__(f"request {request_id} is still running")
         self.request_id = request_id
+
+
+_QUESTIONNAIRE_FAILURE_MESSAGES = {
+    "questionnaire_not_pending": "这份问卷已提交或不再有效，请刷新会话后重新发起当前任务。",
+    "questionnaire_expired": "这份问卷已过期，请重新发起当前任务。",
+    "questionnaire_invalid_answers": "问卷答案与当前题目不一致，请刷新后重新填写。",
+    "questionnaire_resource_binding_changed": "当前任务绑定的简历或岗位已变化，请重新发起当前任务。",
+    "questionnaire_resume_unavailable": "问卷绑定的简历版本已不可用，请重新选择简历后发起任务。",
+    "questionnaire_job_unavailable": "问卷绑定的岗位已不可用，请重新选择岗位后发起任务。",
+    "questionnaire_jd_unavailable": "问卷绑定的岗位描述版本已不可用，请重新选择岗位后发起任务。",
+}
+
+
+class QuestionnaireContinuationError(ValueError):
+    """A safe, deterministic failure before questionnaire continuation begins."""
+
+    def __init__(self, reason: str) -> None:
+        if reason not in _QUESTIONNAIRE_FAILURE_MESSAGES:
+            raise ValueError("unknown questionnaire failure reason")
+        super().__init__(reason)
+        self.code = reason.upper()
+        self.user_message = _QUESTIONNAIRE_FAILURE_MESSAGES[reason]
 
 
 @dataclass(frozen=True)
@@ -873,6 +897,14 @@ class MainAgentRuntime:
                         message="当前模拟面试进行中，此时不会读取附带的简历。请完成或退出当前流程后再发送。",
                     )
                 )
+            elif isinstance(error, QuestionnaireContinuationError):
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code=error.code,
+                        message=error.user_message,
+                    )
+                )
             else:
                 self._emit(
                     TurnFailedEvent(
@@ -1351,6 +1383,14 @@ class MainAgentRuntime:
                 conversation_id=conversation_id,
                 task=routing_task,
             )
+        if interaction_response is not None and interaction_response.scope == "questionnaire":
+            return self._continue_questionnaire(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                response=interaction_response,
+                task=routing_task,
+                before_commit=before_commit,
+            )
         if interaction_response is not None:
             context = self._refresh_saved_job_focus(
                 self._attach_input_resources(
@@ -1509,6 +1549,107 @@ class MainAgentRuntime:
                 memory_scope_keys=result.career_memory_scope_keys,
                 turn_id=self._active_turn_id(),
             )
+        return result
+
+    def _continue_questionnaire(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        response: InteractionResponse,
+        task: ConversationTaskState,
+        before_commit: Callable[[MainAgentTurnResult], None] | None,
+    ) -> MainAgentTurnResult:
+        pending = task.pending_questionnaire
+        if pending is None or pending.interaction_id != response.interaction_id:
+            raise QuestionnaireContinuationError("questionnaire_not_pending")
+        if datetime.now(timezone.utc) >= pending.expires_at:
+            raise QuestionnaireContinuationError("questionnaire_expired")
+        try:
+            pending.validate_answers(response.answers)
+        except ValueError as error:
+            raise QuestionnaireContinuationError("questionnaire_invalid_answers") from error
+        if (
+            task.active_workflow != pending.active_workflow
+            or task.active_resume_version_id != pending.resume_version_id
+            or task.active_job_posting_id != pending.job_posting_id
+            or task.active_jd_snapshot_id != pending.jd_snapshot_id
+        ):
+            raise QuestionnaireContinuationError("questionnaire_resource_binding_changed")
+        if pending.resume_version_id is not None:
+            store = self._tools.resume_store
+            if store is None or store.read_version_document(
+                user_id=user_id, resume_version_id=pending.resume_version_id,
+            ) is None:
+                raise QuestionnaireContinuationError("questionnaire_resume_unavailable")
+        if pending.job_posting_id is not None:
+            jobs = self._tools.job_repository
+            if jobs is None or jobs.get_job(
+                user_id=user_id, job_posting_id=pending.job_posting_id,
+            ) is None:
+                raise QuestionnaireContinuationError("questionnaire_job_unavailable")
+        if pending.jd_snapshot_id is not None:
+            jobs = self._tools.job_repository
+            if jobs is None or jobs.get_snapshot(
+                user_id=user_id, jd_snapshot_id=pending.jd_snapshot_id,
+            ) is None:
+                raise QuestionnaireContinuationError("questionnaire_jd_unavailable")
+        answers = []
+        visible_answers = []
+        for question, answer in zip(pending.questions, response.answers):
+            selected = {option.value: option for option in question.options}
+            labels = [selected[value].label for value in answer.selected_values]
+            answers.append({
+                "question": question.prompt,
+                "answer": (
+                    "跳过" if answer.skipped else {
+                        "selected": labels,
+                        "free_text": answer.free_text,
+                    }
+                ),
+            })
+            visible_answer = "跳过" if answer.skipped else "、".join(labels)
+            if answer.free_text:
+                visible_answer = f"{visible_answer}；{answer.free_text}" if visible_answer else answer.free_text
+            visible_answers.append(f"{question.prompt}：{visible_answer}")
+        message = (
+            "以下是用户一次提交的当前任务问卷答案。仅用于当前绑定任务；跳过或选择“无”"
+            "不构成永久职业事实；泛泛的技能回答不能扩写成项目、年限或成果。"
+            "请继续原任务。\n"
+            + json.dumps(answers, ensure_ascii=False)
+        )
+        context = self._context_manager.load_for_turn(
+            user_id=user_id, conversation_id=conversation_id, user_message=message,
+        )
+        context = context.model_copy(update={
+            "task": context.task.model_copy(update={"pending_questionnaire": None}),
+            "user_message_source": "已提交当前任务问卷：\n" + "\n".join(visible_answers),
+            "user_interaction_id": pending.interaction_id,
+        })
+        try:
+            result = self._run_loaded_context(context)
+        except Exception as error:
+            self._commit_interrupted_turn(context=context, error=error)
+            raise
+        self._before_commit(result, before_commit)
+        self._context_manager.commit_turn(
+            context=context,
+            task=result.context.task,
+            assistant_message=self._conversation_content(
+                result.tool_result,
+                screen=self._durable_screen(result),
+                composed=bool(result.model_message),
+            ),
+            assistant_resource_refs=MainAgentRuntime._turn_resource_refs(result.tool_results),
+            assistant_bodies=MainAgentRuntime._delivered_bodies(result.tool_results),
+            episode_drafts=drafts_from_tool_results(
+                user_id=user_id, conversation_id=conversation_id,
+                tool_results=result.tool_results
+                or ((result.tool_result,) if result.tool_result else ()),
+            ),
+            memory_scope_keys=result.career_memory_scope_keys,
+            turn_id=self._active_turn_id(),
+        )
         return result
 
     @staticmethod
@@ -1769,6 +1910,19 @@ class MainAgentRuntime:
             tool_result.state if tool_result is not None else result.origin.label,
         )
 
+        decision = result.model_decision
+        questionnaire = task.pending_questionnaire
+        if (
+            decision is not None and decision.action == "questionnaire"
+            and questionnaire is not None
+            and not any(item.disposition == "failed" for item in result.tool_results)
+            and (tool_result is None or tool_result.state not in {
+                "capability_confirmation_required", "resume_analysis_ready",
+                "calendar_approval_required", "email_events_pending",
+            })
+        ):
+            return questionnaire_event(questionnaire)
+
         if tool_result is not None:
             if tool_result.state == "capability_confirmation_required":
                 # Built from the sealed row's id, not from anything about this
@@ -1828,8 +1982,11 @@ class MainAgentRuntime:
                     prompt=prompt,
                     allow_free_text=True,
                 )
-        decision = result.model_decision
-        if decision is not None and decision.action == "ask_user":
+        if (
+            decision is not None
+            and decision.action == "ask_user"
+            and not any(item.disposition == "failed" for item in result.tool_results)
+        ):
             # Options are grounded only in the tool result that loaded them.
             # Prompt wording is model output, not a trustworthy data-source
             # discriminator and must never change the model's decision.
@@ -2968,7 +3125,11 @@ class MainAgentRuntime:
             if decision.tool_call is None:
                 raise ValueError("tool_call action requires tool_call arguments")
             return "authorize"
-        if decision.action == "ask_user":
+        if decision.action in {"ask_user", "questionnaire"}:
+            # A failed capability cannot become a request for more user facts.
+            # The classified receipt is the authoritative result of this turn.
+            if any(item.disposition == "failed" for item in state.get("tool_results", ())):
+                return "present"
             return "interrupt"
         return "present"
 
@@ -4018,6 +4179,15 @@ class MainAgentRuntime:
                 )
             }
         result = MainAgentRuntime._last_result(state)
+        if decision.action in {"ask_user", "questionnaire"}:
+            failures = tuple(
+                item for item in state.get("tool_results", ())
+                if item.disposition == "failed"
+            )
+            if failures:
+                return {"assistant_message": "\n\n".join(dict.fromkeys(
+                    MainAgentRuntime._screen_message(item) for item in failures
+                )), "model_message": ""}
         # ``strip()``, not truthiness: a whitespace-only message would enter this
         # branch and then clamp to "", leaving ``model_message`` empty while the
         # branch claims the model wrote the reply — and prefixing the body with a
@@ -4227,6 +4397,30 @@ class MainAgentRuntime:
         decision = state["decision"]
         if decision.action == "ask_user":
             return {"assistant_message": decision.message or "请补充下一步所需的信息。"}
+        if decision.action == "questionnaire":
+            context = state["context"]
+            task = context.task
+            now = datetime.now(timezone.utc)
+            questionnaire = PendingQuestionnaire(
+                interaction_id=interaction_id(
+                    context.conversation_id, "questionnaire",
+                    MainAgentRuntime._active_turn_id() or uuid4().hex,
+                ),
+                prompt=decision.message or "请补充以下信息。",
+                questions=decision.questions,
+                created_at=now,
+                expires_at=now + timedelta(days=7),
+                active_workflow=task.active_workflow,
+                resume_version_id=task.active_resume_version_id,
+                job_posting_id=task.active_job_posting_id,
+                jd_snapshot_id=task.active_jd_snapshot_id,
+            )
+            return {
+                "assistant_message": decision.message or "请补充以下信息。",
+                "context": context.model_copy(update={
+                    "task": task.model_copy(update={"pending_questionnaire": questionnaire})
+                }),
+            }
         result = MainAgentRuntime._last_result(state)
         if result is None:
             raise ValueError("capability interaction requires an observed result")

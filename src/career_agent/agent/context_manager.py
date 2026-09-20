@@ -1146,7 +1146,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
-            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now, resource_refs=user_resource_refs),
+            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now, resource_refs=user_resource_refs, user_interaction_id=context.user_interaction_id),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
             assistant_bodies=assistant_bodies,
             episode_drafts=episode_drafts,

@@ -2,32 +2,26 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ce019c4c2e7233a00c0a7963e59341896c0aa8ed0a7da76a35783dc0d83cebda",
+  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
   "context_shape_fingerprint": "85729c4491dd06aea38c51ea7d5cf230a44a113288ca914f2c065c2b341b9139",
-  "recorded_at": "2026-09-17T07:13:48.857218+00:00",
+  "recorded_at": "2026-09-20T08:24:02.750438+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "match_resume_to_job",
-        "arguments": {
-          "resume_version_selection_index": null,
-          "job_selection_index": null
-        }
+        "arguments": {}
       }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:48.857218+00:00",
+      "recorded_at": "2026-09-20T08:24:02.750438+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "match_resume_to_job",
-            "arguments": {
-              "resume_version_selection_index": null,
-              "job_selection_index": null
-            }
+            "arguments": {}
           }
         }
       ]

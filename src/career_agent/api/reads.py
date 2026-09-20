@@ -114,6 +114,7 @@ from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     capability_confirmation_event,
     resume_analysis_confirmation_event,
+    questionnaire_event,
 )
 from career_agent.agent.resume_tailoring_presenter import (
     TailoringChangeReviewView,
@@ -1107,6 +1108,10 @@ class WorkspaceReader:
                 )
                 if pending_analysis is not None
                 and pending_analysis.status == "pending"
+                else questionnaire_event(task.pending_questionnaire)
+                if task is not None
+                and task.pending_questionnaire is not None
+                and task.pending_questionnaire.expires_at > datetime.now(timezone.utc)
                 else None
             ),
             pending_interaction_body=(

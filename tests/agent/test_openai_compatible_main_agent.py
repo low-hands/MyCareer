@@ -1197,7 +1197,7 @@ def test_main_agent_treats_plain_prose_without_tool_call_as_final() -> None:
     assert decision.message == "Hi! What would you like help with today?"
 
 
-@pytest.mark.parametrize("action", ("ask_user", "final"))
+@pytest.mark.parametrize("action", ("ask_user", "questionnaire", "final"))
 @pytest.mark.parametrize("alias", ("content", "text"))
 def test_main_agent_accepts_content_as_the_prose_field_for_non_tool_decisions(
     action,
@@ -1209,7 +1209,14 @@ def test_main_agent_accepts_content_as_the_prose_field_for_non_tool_decisions(
         (),
         {
             "content": json.dumps(
-                {"action": action, alias: "本轮读取额度已用完。"}
+                {
+                    "action": action,
+                    alias: "本轮读取额度已用完。",
+                    **({"questions": [
+                        {"question_id": "q1", "prompt": "城市？", "kind": "free_text"},
+                        {"question_id": "q2", "prompt": "岗位？", "kind": "free_text"},
+                    ]} if action == "questionnaire" else {}),
+                }
             ),
             "tool_calls": [],
         },

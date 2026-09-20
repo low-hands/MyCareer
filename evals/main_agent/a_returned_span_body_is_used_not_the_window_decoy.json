@@ -2,37 +2,37 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "9f0c41393a57858451314030bfeacac1079d7f0c274a43fe8a92783830b3659d",
+  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
   "context_shape_fingerprint": "c699b81bf6461a961d4f4eed9832797d563af70910d1ea3dc9ddc4dee9c30bbd",
-  "recorded_at": "2026-09-17T07:14:07.174224+00:00",
+  "recorded_at": "2026-09-20T08:24:20.583638+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:14:05.046638+00:00",
+      "recorded_at": "2026-09-20T08:24:20.055636+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:06.905062+00:00",
+      "recorded_at": "2026-09-20T08:24:19.728846+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:07.174224+00:00",
+      "recorded_at": "2026-09-20T08:24:20.583638+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
         }
       ]
     }

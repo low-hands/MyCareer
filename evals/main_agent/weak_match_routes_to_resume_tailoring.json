@@ -2,30 +2,26 @@
   "scenario": "weak_match_routes_to_resume_tailoring",
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ce019c4c2e7233a00c0a7963e59341896c0aa8ed0a7da76a35783dc0d83cebda",
+  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
   "context_shape_fingerprint": "9fe51a39972447a50dc2cf330dc4439de39c4129e40311f949826b48d060333c",
-  "recorded_at": "2026-09-17T07:13:48.640594+00:00",
+  "recorded_at": "2026-09-20T08:24:01.879420+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "draft_resume_tailoring",
-        "arguments": {
-          "tailoring_goal": "基于当前简历与目标岗位的 weak 匹配结果，生成一版针对性优化草稿；仅使用已有事实，不虚构经历、技能或成果。"
-        }
+        "arguments": {}
       }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:48.640594+00:00",
+      "recorded_at": "2026-09-20T08:24:01.879420+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "draft_resume_tailoring",
-            "arguments": {
-              "tailoring_goal": "基于当前简历与目标岗位的 weak 匹配结果，生成一版针对性优化草稿；仅使用已有事实，不虚构经历、技能或成果。"
-            }
+            "arguments": {}
           }
         }
       ]

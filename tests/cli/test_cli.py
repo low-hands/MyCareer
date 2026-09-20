@@ -444,6 +444,7 @@ def test_trajectory_cli_maps_sample_failures_to_exit_status(
         return cassette
 
     monkeypatch.setattr(trajectory, "load_cassette", load_cassette)
+    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
     output = StringIO()
 
     code = main(
@@ -466,6 +467,31 @@ def test_trajectory_cli_maps_sample_failures_to_exit_status(
     assert result["behaviour"] == ("failed" if expected_code else "passed")
     assert result["samples_passed"] == passed_samples
     assert result["sample_count"] == 3
+
+
+def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> None:
+    scenario = SCENARIOS[0]
+    cassette = trajectory.TrajectoryCassette(
+        steps=({"content": '{"action":"ask_user","message":"请补充城市。"}'},),
+        prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
+            scenario, _trajectory_tool_specs()
+        ),
+        context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
+        model="recording-model",
+    )
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name: cassette)
+    monkeypatch.setenv("MAIN_AGENT_MODEL", "deployment-model")
+    output = StringIO()
+    code = main(
+        ["eval", "trajectories", "--scenario", scenario.name],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    result = json.loads(output.getvalue())["results"][0]
+    assert code == 2
+    assert result["behaviour"] == "stale"
+    assert "recording-model" in result["failures"][0]
+    assert "deployment-model" in result["failures"][0]
 
 
 @pytest.mark.parametrize(

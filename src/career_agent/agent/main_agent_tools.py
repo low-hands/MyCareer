@@ -933,7 +933,10 @@ class MainAgentToolRegistry:
                                 "Create a quarantined career-fact candidate for "
                                 "one projected career record and read the exact "
                                 "claim back to the user. Use only for an explicit "
-                                "user statement; it is not active until confirmed."
+                                "user statement; it is not active until confirmed. "
+                                "Supply user_quote as an exact excerpt from the "
+                                "user's message or questionnaire answer to mark "
+                                "user_input provenance; omit it for inference."
                             ),
                             "parameters": (
                                 ProposeCareerFactToolArguments.model_json_schema()
@@ -5076,6 +5079,17 @@ class MainAgentToolRegistry:
         record_id = str(arguments["career_record_id"])
         claim = str(arguments["claim"]).strip()
         reason = str(arguments["reason"]).strip()
+        origin = arguments.get("origin", "agent_inference")
+        source_user_quote = arguments.get("source_user_quote")
+        source_user_interaction_id = arguments.get("source_user_interaction_id")
+        if origin not in {"user_input", "agent_inference"}:
+            raise ValueError("career fact origin is invalid")
+        if origin == "user_input" and not source_user_quote:
+            raise ValueError("user_input career fact requires a verified user quote")
+        if origin == "agent_inference" and (
+            source_user_quote is not None or source_user_interaction_id is not None
+        ):
+            raise ValueError("inferred career fact cannot carry user provenance")
         pending = next(
             (
                 item
@@ -5085,7 +5099,9 @@ class MainAgentToolRegistry:
                     verification_status="pending",
                 )
                 if item.claim.strip() == claim
-                and item.origin == "agent_inference"
+                and item.origin == origin
+                and item.source_user_quote == source_user_quote
+                and item.source_user_interaction_id == source_user_interaction_id
             ),
             None,
         )
@@ -5094,7 +5110,9 @@ class MainAgentToolRegistry:
                 user_id=user_id,
                 career_record_id=record_id,
                 claim=claim,
-                origin="agent_inference",
+                origin=origin,
+                source_user_quote=source_user_quote,
+                source_user_interaction_id=source_user_interaction_id,
             )
         proposal = CareerFactProposal(
             career_evidence_id=pending.id,
@@ -5109,7 +5127,11 @@ class MainAgentToolRegistry:
                 "拟将下面这条事实记入所选职业经历：\n"
                 f"{claim}\n"
                 f"原因：{reason}\n"
-                "目前仅处于隔离态；确认后才会成为长期事实。",
+                + (
+                    f"来源：用户原话“{source_user_quote}”。\n"
+                    if source_user_quote else "来源：Agent 推断。\n"
+                )
+                + "目前仅处于隔离态；确认后才会成为长期事实。",
                 limit=DECISION_OBSERVATION_BODY_LIMIT,
             ),
             payload={"proposal": proposal.model_dump(mode="json")},

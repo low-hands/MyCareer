@@ -2,37 +2,37 @@
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "9f0c41393a57858451314030bfeacac1079d7f0c274a43fe8a92783830b3659d",
+  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
   "context_shape_fingerprint": "66aab76d76f64e9e1978d3c114efd747ca438095df267d59f185be7fd2f41cfd",
-  "recorded_at": "2026-09-17T07:14:13.421858+00:00",
+  "recorded_at": "2026-09-20T08:24:24.330675+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 不在当前会话中，因此没有读到任何消息。当前可读取的历史只到序号 8。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回了 0 条。当前这段会话的历史只记录到序号 8。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:14:11.976865+00:00",
+      "recorded_at": "2026-09-20T08:24:23.077993+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 不在当前会话中，因此没有读到任何消息。当前可读取的历史只到序号 8。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回了 0 条。当前这段会话的历史只记录到序号 8。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:13.128584+00:00",
+      "recorded_at": "2026-09-20T08:24:23.421239+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 不在当前会话范围内，因此没有读到任何内容。当前可读取的历史最远只到序号 8。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 返回 0 条记录。这段当前对话目前只记录到序号 8，因此没有 100–110 可读取。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:14:13.421858+00:00",
+      "recorded_at": "2026-09-20T08:24:24.330675+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 不在当前会话记录中，读取结果为 0 条。当前可读的历史范围只到序号 8。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有读到内容，返回 0 条。当前这段会话实际只记录到序号 8，因此该范围尚不存在。\",\"questions\":[]}"
         }
       ]
     }

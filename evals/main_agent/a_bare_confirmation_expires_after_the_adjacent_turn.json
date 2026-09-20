@@ -2,37 +2,37 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "9738fb0cc53a844360be941bfe14da9839eabe75990132ae86eb0e03fe6fd8ec",
+  "prompt_fingerprint": "e67f50f884caf57cd6211fda98b21581b723bb74bb354befb38b5b37b3cdc8f3",
   "context_shape_fingerprint": "8712fd4e65457e19e6bd24987230299414fccf3e5142ab87c83dd5015b59107e",
-  "recorded_at": "2026-09-17T07:13:29.429098+00:00",
+  "recorded_at": "2026-09-20T09:26:32.903726+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找的岗位关键词和城市，例如：`上海，后端开发`。\"}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请补充两个条件，我就帮你打开新岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想看哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或方向？例如 Java 后端、产品经理、数据分析。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:27.757086+00:00",
+      "recorded_at": "2026-09-20T09:26:33.116424+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我想找的岗位关键词和城市，例如：`上海，后端开发`。\"}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请补充两个条件，我就帮你打开新岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想看哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或方向？例如 Java 后端、产品经理、数据分析。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:28.483715+00:00",
+      "recorded_at": "2026-09-20T09:26:33.399774+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我两个信息：① 想找的岗位关键词（如产品经理、Java 开发）；② 城市（如上海、深圳）。\"}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我搜索条件，我就帮你打开新岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想看哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或方向？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-17T07:13:29.429098+00:00",
+      "recorded_at": "2026-09-20T09:26:32.903726+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我两个信息：1）目标岗位关键词（如产品经理、Java 开发）；2）求职城市（如上海、深圳）。我会据此帮你打开新岗位搜索。\"}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我岗位方向和城市，我就帮你打开新岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

@@ -2,21 +2,31 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "b079fdbe744bb63e647a176944b6f5890a8798c5f26ef02715c1243eaa2a26e0",
+  "prompt_fingerprint": "7a59c39e24bcbbaba1b5e593c49801775d642845bad6f2d69c8ebcf1423f6157",
   "context_shape_fingerprint": "a92e232e255c020abeb53b1def478d75f8fe783149cecc630a8bd19609bdda63",
-  "recorded_at": "2026-09-17T07:13:33.685903+00:00",
+  "recorded_at": "2026-09-20T08:23:41.603306+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"好的，当前岗位是「示例科技｜算法工程师（上海，30–50K）」。你还没明确表示已实际投递，因此我暂不创建投递记录。要我先帮你选择并针对该岗位优化简历，还是你投递完成后再告诉我登记？\"}"
+      "tool_call": {
+        "name": "route_to_capability",
+        "arguments": {
+          "domain": "resume"
+        }
+      }
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:33.685903+00:00",
+      "recorded_at": "2026-09-20T08:23:41.603306+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"好的，当前岗位是「示例科技｜算法工程师（上海，30–50K）」。你还没明确表示已实际投递，因此我暂不创建投递记录。要我先帮你选择并针对该岗位优化简历，还是你投递完成后再告诉我登记？\"}"
+          "tool_call": {
+            "name": "route_to_capability",
+            "arguments": {
+              "domain": "resume"
+            }
+          }
         }
       ]
     }

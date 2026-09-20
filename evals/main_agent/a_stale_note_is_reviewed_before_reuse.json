@@ -2,21 +2,21 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
   "context_shape_fingerprint": "1acbaef4e734a0330adcd09f01bd8576eba9c27281dae3d99853fbd4c44200e9",
-  "recorded_at": "2026-09-17T07:13:28.805351+00:00",
+  "recorded_at": "2026-09-20T08:23:06.674943+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找的岗位关键词（如 Rust 开发、后端工程师）\\n2. 目标城市（如北京、上海、深圳）\\n\\n收到后我会为你打开 BOSS 直聘搜索页。\"}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我目标岗位和工作城市，我就为你打开对应的 BOSS 直聘搜索页。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:28.805351+00:00",
+      "recorded_at": "2026-09-20T08:23:06.674943+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找的岗位关键词（如 Rust 开发、后端工程师）\\n2. 目标城市（如北京、上海、深圳）\\n\\n收到后我会为你打开 BOSS 直聘搜索页。\"}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我目标岗位和工作城市，我就为你打开对应的 BOSS 直聘搜索页。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

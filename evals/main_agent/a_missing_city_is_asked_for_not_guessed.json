@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
   "context_shape_fingerprint": "92ecff9427a365574b78ce537e3f3a18c0447d6cb8d9969113bc54d34d38ff04",
-  "recorded_at": "2026-09-17T07:13:23.972317+00:00",
+  "recorded_at": "2026-09-20T08:23:08.696161+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找什么岗位（如 Java 后端、产品经理）\\n2. 目标城市（如上海、深圳；若只考虑远程，也请说明）\"}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"可以。先确定两个搜索条件，我就能帮你打开合适的 BOSS 直聘岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位？可以填写多个关键词，例如“Java 后端”“产品经理”“数据分析”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:23.972317+00:00",
+      "recorded_at": "2026-09-20T08:23:08.696161+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"可以。请告诉我两个信息：\\n1. 想找什么岗位（如 Java 后端、产品经理）\\n2. 目标城市（如上海、深圳；若只考虑远程，也请说明）\"}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"可以。先确定两个搜索条件，我就能帮你打开合适的 BOSS 直聘岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位？可以填写多个关键词，例如“Java 后端”“产品经理”“数据分析”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

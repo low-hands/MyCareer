@@ -51,6 +51,10 @@ from career_agent.agent.openai_compatible_main_agent import (
 from career_agent.agent.tool_profiles import profile_schemas
 
 CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
+# Offline replay is judged against the checked-in recording baseline. A
+# deployment can use another model; the CLI compares its configured model
+# separately and reports those cassettes as stale until that model is recorded.
+EVALUATION_BASELINE_MODEL = "gpt-5.6-sol"
 _MAX_RECORD_JOBS = 32
 _RECORD_MAKERS = threading.local()
 
@@ -66,6 +70,9 @@ class TrajectoryStep:
     """
 
     expect_action: str | None = None
+    expect_user_input: bool = False
+    """Accept either bound way to ask the user: ask_user or questionnaire."""
+    expect_question_count: int | None = None
     expect_tool: str | None = None
     expect_tools: frozenset[str] = frozenset()
     expect_message: str | None = None
@@ -432,8 +439,9 @@ def cassette_staleness(
     *,
     scenario: TrajectoryScenario,
     tool_specs: tuple[dict[str, Any], ...],
+    expected_model: str | None,
 ) -> str | None:
-    """Explain why a recording cannot represent the current prompt."""
+    """Explain why a recording cannot represent the current model and prompt."""
     current = trajectory_prompt_fingerprint(scenario, tool_specs)
     if cassette.prompt_fingerprint is None:
         return "cassette has no prompt_fingerprint; re-record it"
@@ -449,6 +457,15 @@ def cassette_staleness(
         return (
             "cassette context_shape_fingerprint does not match the current "
             "model_context projection; re-record it"
+        )
+    if not expected_model:
+        return "current MAIN_AGENT_MODEL is unavailable; configure it before replay"
+    if cassette.model is None:
+        return "cassette has no model; re-record it"
+    if cassette.model != expected_model:
+        return (
+            f"cassette model {cassette.model!r} does not match current model "
+            f"{expected_model!r}; re-record it"
         )
     if scenario.has_quality_assertions and (
         cassette.sample_count != scenario.recording_samples
@@ -484,6 +501,11 @@ def check_contract(
             )
     context = scenario.context
     for index, step in enumerate(scenario.steps):
+        if step.expect_user_input and step.expect_action is not None:
+            failures.append(
+                f"{scenario.name}[{index}]: expect_user_input and expect_action "
+                "cannot both be set"
+            )
         context = _advance(context, step)
         offered = {
             spec["function"]["name"]
@@ -595,6 +617,15 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
         failures.append(
             f"{label}: expected action '{step.expect_action}', got "
             f"'{decision.action}'" + (f" calling '{called}'" if called else "")
+        )
+    if step.expect_user_input and decision.action not in {"ask_user", "questionnaire"}:
+        failures.append(
+            f"{label}: expected user input action, got '{decision.action}'"
+            + (f" calling '{called}'" if called else "")
+        )
+    if step.expect_question_count is not None and len(decision.questions) != step.expect_question_count:
+        failures.append(
+            f"{label}: expected {step.expect_question_count} questions, got {len(decision.questions)}"
         )
     if step.expect_tool is not None and called != step.expect_tool:
         failures.append(
@@ -785,6 +816,7 @@ def replay_budget_cassette_pair(
     candidate_scenario: TrajectoryScenario,
     candidate_cassette: TrajectoryCassette,
     tool_specs: tuple[dict[str, Any], ...],
+    expected_model: str | None,
 ) -> PairedBudgetCassetteReplay:
     """Validate a budget change from matched cassette samples, never telemetry.
 
@@ -818,6 +850,7 @@ def replay_budget_cassette_pair(
             cassette,
             scenario=scenario,
             tool_specs=tool_specs,
+            expected_model=expected_model,
         )
         if stale is not None:
             raise ValueError(f"{label} budget cassette is stale: {stale}")
@@ -1110,6 +1143,7 @@ def scenarios_to_record(
     scenarios: Sequence[TrajectoryScenario],
     *,
     tool_specs: tuple[dict[str, Any], ...],
+    expected_model: str,
     root: Path | None = None,
     force: bool = False,
 ) -> tuple[TrajectoryScenario, ...]:
@@ -1124,7 +1158,8 @@ def scenarios_to_record(
             selected.append(scenario)
             continue
         if cassette_staleness(
-            cassette, scenario=scenario, tool_specs=tool_specs
+            cassette, scenario=scenario, tool_specs=tool_specs,
+            expected_model=expected_model,
         ) is not None:
             selected.append(scenario)
     return tuple(selected)
@@ -1223,7 +1258,8 @@ def record_catalogue(
         raise ValueError("trajectory retry delay cannot be negative")
 
     to_record = scenarios_to_record(
-        scenarios, tool_specs=tool_specs, root=root, force=force
+        scenarios, tool_specs=tool_specs, expected_model=config.model,
+        root=root, force=force
     )
     if not to_record:
         return ()

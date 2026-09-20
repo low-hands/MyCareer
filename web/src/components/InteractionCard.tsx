@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import type { InteractionRequiredEvent } from "../chat/types";
 import type { InteractionResponse } from "../api/sse";
 import { ResumeImporter } from "./ResumeImporter";
+import { QuestionnaireCard } from "./QuestionnaireCard";
 
 export interface InteractionReply {
   message: string;
@@ -25,6 +26,10 @@ export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const isMultiple = interaction.kind === "multiple_selection";
   const selectedMessage = useMemo(() => [...selected].join(", "), [selected]);
+
+  if (interaction.kind === "questionnaire") {
+    return <QuestionnaireCard key={interaction.interaction_id} interaction={interaction} disabled={disabled} onReply={onReply} />;
+  }
 
   if (interaction.kind === "free_text") {
     return (

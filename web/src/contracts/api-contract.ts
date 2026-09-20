@@ -964,6 +964,7 @@ export const API_CONTRACT = {
               }
             ],
             "prompt": "示例科技 · AI 产品经理，简历 v2\n你设置了此操作需要确认。是否执行？",
+            "questions": [],
             "scope": "capability_confirmation",
             "type": "interaction_required"
           },
@@ -1185,7 +1186,8 @@ export const API_CONTRACT = {
                   "confirmation",
                   "free_text",
                   "approval",
-                  "file_upload"
+                  "file_upload",
+                  "questionnaire"
                 ],
                 "title": "Kind",
                 "type": "string"
@@ -1205,12 +1207,22 @@ export const API_CONTRACT = {
                 "title": "Prompt",
                 "type": "string"
               },
+              "questions": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/UserQuestion"
+                },
+                "maxItems": 8,
+                "title": "Questions",
+                "type": "array"
+              },
               "scope": {
                 "anyOf": [
                   {
                     "enum": [
                       "resume_analysis_confirmation",
-                      "capability_confirmation"
+                      "capability_confirmation",
+                      "questionnaire"
                     ],
                     "type": "string"
                   },
@@ -1234,6 +1246,89 @@ export const API_CONTRACT = {
               "prompt"
             ],
             "title": "InteractionRequiredEvent",
+            "type": "object"
+          },
+          "QuestionOption": {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "meaning": {
+                "default": "choice",
+                "enum": [
+                  "choice",
+                  "none",
+                  "other"
+                ],
+                "title": "Meaning",
+                "type": "string"
+              },
+              "value": {
+                "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                "title": "Value",
+                "type": "string"
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "title": "QuestionOption",
+            "type": "object"
+          },
+          "UserQuestion": {
+            "additionalProperties": false,
+            "properties": {
+              "allow_free_text": {
+                "default": false,
+                "title": "Allow Free Text",
+                "type": "boolean"
+              },
+              "allow_skip": {
+                "default": true,
+                "title": "Allow Skip",
+                "type": "boolean"
+              },
+              "kind": {
+                "enum": [
+                  "single",
+                  "multiple",
+                  "free_text"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "options": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuestionOption"
+                },
+                "maxItems": 12,
+                "title": "Options",
+                "type": "array"
+              },
+              "prompt": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Prompt",
+                "type": "string"
+              },
+              "question_id": {
+                "pattern": "^q[1-8]$",
+                "title": "Question Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "question_id",
+              "prompt",
+              "kind"
+            ],
+            "title": "UserQuestion",
             "type": "object"
           }
         },
@@ -4598,6 +4693,7 @@ export const API_CONTRACT = {
           "input_resources": [],
           "interaction_response": {
             "action": "confirm",
+            "answers": [],
             "interaction_id": "interaction_0123456789abcdef0123",
             "scope": "capability_confirmation"
           },
@@ -4613,10 +4709,37 @@ export const API_CONTRACT = {
           ],
           "interaction_response": {
             "action": "confirm",
+            "answers": [],
             "interaction_id": "interaction_0123456789abcdef0123",
             "scope": "capability_confirmation"
           },
           "message": "我刚在 BOSS 保存了一个岗位，请继续分析。"
+        },
+        {
+          "conversation_id": "conv-1",
+          "input_resources": [],
+          "interaction_response": {
+            "action": "submit",
+            "answers": [
+              {
+                "free_text": null,
+                "question_id": "q1",
+                "selected_values": [
+                  "sqlite"
+                ],
+                "skipped": false
+              },
+              {
+                "free_text": "内部项目",
+                "question_id": "q2",
+                "selected_values": [],
+                "skipped": false
+              }
+            ],
+            "interaction_id": "interaction_0123456789abcdef0123",
+            "scope": "questionnaire"
+          },
+          "message": "已提交当前任务问卷回答。"
         }
       ],
       "schema": {
@@ -4628,10 +4751,20 @@ export const API_CONTRACT = {
               "action": {
                 "enum": [
                   "confirm",
-                  "cancel"
+                  "cancel",
+                  "submit"
                 ],
                 "title": "Action",
                 "type": "string"
+              },
+              "answers": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/QuestionAnswer"
+                },
+                "maxItems": 8,
+                "title": "Answers",
+                "type": "array"
               },
               "interaction_id": {
                 "pattern": "^interaction_[a-f0-9]{20}$",
@@ -4641,7 +4774,8 @@ export const API_CONTRACT = {
               "scope": {
                 "enum": [
                   "resume_analysis_confirmation",
-                  "capability_confirmation"
+                  "capability_confirmation",
+                  "questionnaire"
                 ],
                 "title": "Scope",
                 "type": "string"
@@ -4653,6 +4787,48 @@ export const API_CONTRACT = {
               "action"
             ],
             "title": "InteractionResponse",
+            "type": "object"
+          },
+          "QuestionAnswer": {
+            "additionalProperties": false,
+            "properties": {
+              "free_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Free Text"
+              },
+              "question_id": {
+                "pattern": "^q[1-8]$",
+                "title": "Question Id",
+                "type": "string"
+              },
+              "selected_values": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 12,
+                "title": "Selected Values",
+                "type": "array"
+              },
+              "skipped": {
+                "default": false,
+                "title": "Skipped",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "question_id"
+            ],
+            "title": "QuestionAnswer",
             "type": "object"
           },
           "TurnInputResource": {
@@ -4865,6 +5041,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "请选择一个岗位。",
+        "questions": [],
         "scope": null,
         "type": "interaction_required"
       },
@@ -4887,6 +5064,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "选择要对比的岗位。",
+        "questions": [],
         "scope": null,
         "type": "interaction_required"
       },
@@ -4909,6 +5087,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "有新的邮件事件待确认。",
+        "questions": [],
         "scope": null,
         "type": "interaction_required"
       },
@@ -4918,6 +5097,7 @@ export const API_CONTRACT = {
         "kind": "free_text",
         "options": [],
         "prompt": "请补充目标城市。",
+        "questions": [],
         "scope": null,
         "type": "interaction_required"
       },
@@ -4940,6 +5120,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "是否把这场面试写入 Google 日历？",
+        "questions": [],
         "scope": null,
         "type": "interaction_required"
       },
@@ -4949,7 +5130,41 @@ export const API_CONTRACT = {
         "kind": "file_upload",
         "options": [],
         "prompt": "请上传简历。",
+        "questions": [],
         "scope": null,
+        "type": "interaction_required"
+      },
+      {
+        "allow_free_text": false,
+        "interaction_id": "interaction_0123456789abcdef0123",
+        "kind": "questionnaire",
+        "options": [],
+        "prompt": "请一次回答两项信息。",
+        "questions": [
+          {
+            "allow_free_text": false,
+            "allow_skip": true,
+            "kind": "single",
+            "options": [
+              {
+                "label": "SQLite",
+                "meaning": "choice",
+                "value": "sqlite"
+              }
+            ],
+            "prompt": "使用哪种数据库？",
+            "question_id": "q1"
+          },
+          {
+            "allow_free_text": false,
+            "allow_skip": true,
+            "kind": "free_text",
+            "options": [],
+            "prompt": "补充项目背景",
+            "question_id": "q2"
+          }
+        ],
+        "scope": "questionnaire",
         "type": "interaction_required"
       },
       {
@@ -4971,6 +5186,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "请核对上面的候选事实。确认后才会写入职业事实库。",
+        "questions": [],
         "scope": "resume_analysis_confirmation",
         "type": "interaction_required"
       },
@@ -4993,6 +5209,7 @@ export const API_CONTRACT = {
           }
         ],
         "prompt": "示例科技 · AI 产品经理，简历 v2\n你设置了此操作需要确认。是否执行？",
+        "questions": [],
         "scope": "capability_confirmation",
         "type": "interaction_required"
       },
@@ -5400,7 +5617,8 @@ export const API_CONTRACT = {
                 "confirmation",
                 "free_text",
                 "approval",
-                "file_upload"
+                "file_upload",
+                "questionnaire"
               ],
               "title": "Kind",
               "type": "string"
@@ -5420,12 +5638,22 @@ export const API_CONTRACT = {
               "title": "Prompt",
               "type": "string"
             },
+            "questions": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/UserQuestion"
+              },
+              "maxItems": 8,
+              "title": "Questions",
+              "type": "array"
+            },
             "scope": {
               "anyOf": [
                 {
                   "enum": [
                     "resume_analysis_confirmation",
-                    "capability_confirmation"
+                    "capability_confirmation",
+                    "questionnaire"
                   ],
                   "type": "string"
                 },
@@ -5547,6 +5775,38 @@ export const API_CONTRACT = {
             "message"
           ],
           "title": "ProgressEvent",
+          "type": "object"
+        },
+        "QuestionOption": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Label",
+              "type": "string"
+            },
+            "meaning": {
+              "default": "choice",
+              "enum": [
+                "choice",
+                "none",
+                "other"
+              ],
+              "title": "Meaning",
+              "type": "string"
+            },
+            "value": {
+              "pattern": "^[a-z][a-z0-9_]{0,39}$",
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value",
+            "label"
+          ],
+          "title": "QuestionOption",
           "type": "object"
         },
         "ReportReadyEvent": {
@@ -5723,6 +5983,57 @@ export const API_CONTRACT = {
             "interaction_id"
           ],
           "title": "TurnSuspendedEvent",
+          "type": "object"
+        },
+        "UserQuestion": {
+          "additionalProperties": false,
+          "properties": {
+            "allow_free_text": {
+              "default": false,
+              "title": "Allow Free Text",
+              "type": "boolean"
+            },
+            "allow_skip": {
+              "default": true,
+              "title": "Allow Skip",
+              "type": "boolean"
+            },
+            "kind": {
+              "enum": [
+                "single",
+                "multiple",
+                "free_text"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/QuestionOption"
+              },
+              "maxItems": 12,
+              "title": "Options",
+              "type": "array"
+            },
+            "prompt": {
+              "maxLength": 500,
+              "minLength": 1,
+              "title": "Prompt",
+              "type": "string"
+            },
+            "question_id": {
+              "pattern": "^q[1-8]$",
+              "title": "Question Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "question_id",
+            "prompt",
+            "kind"
+          ],
+          "title": "UserQuestion",
           "type": "object"
         }
       },

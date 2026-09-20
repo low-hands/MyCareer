@@ -2,39 +2,39 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "bbcf34da4f273c58a32ad7b618d923a2e9ce726ab5cde2a427f230a52b7021f6",
+  "prompt_fingerprint": "a5f3677fb2db059f0f913517adeb2abce127f9d5825e4512e2b3f7e361b8fcae",
   "context_shape_fingerprint": "9c2883c7baa6790a17f5a20f9ca8bb915cc05eb0a06147b8df3cd9946fc50e8f",
-  "recorded_at": "2026-09-17T07:13:55.439665+00:00",
+  "recorded_at": "2026-09-20T08:24:10.761437+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "全部",
-          "limit": 20
+          "limit": 20,
+          "query": "全部"
         }
       }
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\\n\\n你可以让我进一步查看完整 JD、分析岗位要求，或结合简历评估匹配度。\"}"
+      "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. 示例科技｜算法工程师｜上海｜30–50K\\n\\n你可以让我查看完整 JD、分析岗位要求，或结合简历评估匹配度。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:55.439665+00:00",
+      "recorded_at": "2026-09-20T08:24:10.761437+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
             "arguments": {
-              "query": "全部",
-              "limit": 20
+              "limit": 20,
+              "query": "全部"
             }
           }
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\\n\\n你可以让我进一步查看完整 JD、分析岗位要求，或结合简历评估匹配度。\"}"
+          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. 示例科技｜算法工程师｜上海｜30–50K\\n\\n你可以让我查看完整 JD、分析岗位要求，或结合简历评估匹配度。\",\"questions\":[]}"
         }
       ]
     }

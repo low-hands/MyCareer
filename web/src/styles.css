@@ -221,6 +221,13 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .option-button { display: grid; gap: 4px; padding: 12px 14px; text-align: left; color: #27312b; background: #f8f6f0; border: 1px solid transparent; border-radius: 11px; }
 .option-button:hover, .option-button.is-selected { border-color: #396b57; background: #edf3ef; }
 .option-button small { color: #747b76; }
+.questionnaire-card h3 { margin: 12px 0 4px; font-size: 16px; outline-offset: 4px; }
+.questionnaire-progress { color: #667085; font-size: 12px; }
+.questionnaire-card textarea { width: 100%; min-height: 78px; margin-top: 10px; padding: 10px; border: 1px solid #c7d1df; border-radius: 9px; resize: vertical; }
+.questionnaire-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.questionnaire-actions button { padding: 8px 12px; border: 1px solid #c7d1df; border-radius: 8px; background: #fff; }
+.questionnaire-actions button:disabled { opacity: .5; }
+.questionnaire-summary { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-left: 18px; margin: 12px 0 0; color: #667085; font-size: 12px; }
 .confirm-button { margin-top: 14px; padding: 10px 16px; color: #fff; background: #214d3c; border: 0; border-radius: 10px; }
 .interaction-hint { color: #777e79; }
 .artifact-card { display: flex; align-items: center; gap: 13px; padding: 15px; border: 1px solid #ddd8cc; border-radius: 14px; background: #fff; }

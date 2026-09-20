@@ -753,7 +753,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 payload = json.loads(normalized_content)
             except json.JSONDecodeError:
                 payload = None
-            if isinstance(payload, dict) and payload.get("action") in {"ask_user", "final"}:
+            if isinstance(payload, dict) and payload.get("action") in {
+                "ask_user", "questionnaire", "final"
+            }:
                 normalized_payload = dict(payload)
                 if "message" not in normalized_payload:
                     for alias in ("content", "text"):
@@ -920,7 +922,26 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "When required evidence is missing, retrieve it only through a "
             "tool that can supply it with the available inputs and authority. "
             "If it cannot be retrieved, explain what is missing and ask the "
-            "user to supply it. Prefer JSON action='final' with ordinary "
+            "user to supply it. For two to eight independent missing facts "
+            "needed for the current task, return a top-level JSON decision "
+            "with action='questionnaire', message, and questions as an ARRAY "
+            "of 2-8 objects. Each question has question_id='q1'..'qN' in order, "
+            "prompt, kind='single'|'multiple'|'free_text', options as an ARRAY, "
+            "allow_free_text and allow_skip. For free_text use options=[]. "
+            "For selection questions each option has value, label, and "
+            "meaning='choice'|'none'|'other'. Example shape: "
+            "{\"action\":\"questionnaire\",\"message\":\"请逐题回答\","
+            "\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的经验？\","
+            "\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,"
+            "\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过吗？\","
+            "\"kind\":\"single\",\"options\":[{\"value\":\"yes\","
+            "\"label\":\"使用过\",\"meaning\":\"choice\"},{\"value\":\"none\","
+            "\"label\":\"没有\",\"meaning\":\"none\"}],\"allow_free_text\":false,"
+            "\"allow_skip\":true}]}. Never put questionnaire JSON or a question "
+            "list inside final.message or a Markdown code fence. A failed "
+            "capability is a failure, not missing user "
+            "information: report its classified failure before asking anything. "
+            "Prefer JSON action='final' with ordinary "
             "assistant prose when no tool is needed; use action='ask_user' "
             "before an action that depends on missing information or "
             "unconfirmed authority. Never wrap decision "

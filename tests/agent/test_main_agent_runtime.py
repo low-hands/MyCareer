@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 import hashlib
 import json
@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.questionnaire_contracts import QuestionAnswer, QuestionOption, UserQuestion
 from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
@@ -30,7 +31,7 @@ from career_agent.storage.action_executions import (
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
-from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent
+from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
 from conftest import enter_tool_profile
 
 
@@ -3100,6 +3101,216 @@ def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_e
         "assistant_message": result.message,
         "model_message": "",
     }
+
+
+def test_failed_capability_cannot_turn_into_a_user_question(tmp_path) -> None:
+    class FailingRegistry(CountingRegistry):
+        def capability_kind(self, name):
+            return "atomic_tool"
+
+        def invoke_atomic_tool(self, name, arguments):
+            self.calls.append((name, dict(arguments)))
+            return ToolObservation(
+                tool_name=name,
+                state="failed",
+                message="岗位研究未完成：本次请求超过服务端时间预算。",
+                payload={"error_code": "JOB_RESEARCH_REJECTED_524", "retryable": False},
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(action="tool_call", tool_call=ToolCall(
+            name="find_saved_jobs", arguments={"query": "AI Engineer"},
+        )),
+        AgentDecision(action="ask_user", message="请先补充五项信息，我才能继续。"),
+    )
+    tools = FailingRegistry()
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+    events = []
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="研究一下", event_sink=events.append,
+    )
+
+    assert result.model_decision.action == "ask_user"
+    assert result.assistant_message == "岗位研究未完成：本次请求超过服务端时间预算。"
+    assert "补充五项" not in result.assistant_message
+    assert not any(event.type == "interaction_required" for event in events)
+    assert isinstance(events[-1], TurnCompletedEvent)
+
+
+def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="questionnaire", message="请补充五项信息。",
+            questions=(
+                UserQuestion(
+                    question_id="q1", prompt="用过哪种数据库？", kind="single",
+                    options=(QuestionOption(value="sqlite", label="SQLite"),
+                             QuestionOption(value="none", label="没有使用", meaning="none")),
+                ),
+                UserQuestion(question_id="q2", prompt="补充项目背景", kind="free_text"),
+                UserQuestion(question_id="q3", prompt="补充个人职责", kind="free_text"),
+                UserQuestion(question_id="q4", prompt="补充技术栈", kind="free_text"),
+                UserQuestion(question_id="q5", prompt="补充成果", kind="free_text"),
+            ),
+        ),
+        AgentDecision(action="final", message="收到这五项补充，继续当前任务。"),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions,
+                               tools=MainAgentToolRegistry())
+    first_events = []
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="优化简历",
+                     event_sink=first_events.append)
+    interaction = next(event for event in first_events if event.type == "interaction_required")
+    assert interaction.kind == "questionnaire" and len(interaction.questions) == 5
+    assert first_events[-1].type == "turn_suspended"
+    assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is not None
+
+    response = InteractionResponse(
+        interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
+        answers=(QuestionAnswer(question_id="q1", selected_values=("sqlite",)),
+                 QuestionAnswer(question_id="q2", free_text="内部检索平台"),
+                 QuestionAnswer(question_id="q3", free_text="负责前端"),
+                 QuestionAnswer(question_id="q4", free_text="React"),
+                 QuestionAnswer(question_id="q5", skipped=True)),
+    )
+    second_events = []
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="已提交问卷",
+                              interaction_response=response, event_sink=second_events.append)
+    assert result.assistant_message == "收到这五项补充，继续当前任务。"
+    assert second_events[-1].type == "turn_completed"
+    assert len(decisions.contexts) == 2
+    assert "内部检索平台" in decisions.contexts[1].user_message
+    assert "泛泛的技能回答不能扩写成项目" in decisions.contexts[1].user_message
+    stored = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="查看记录")
+    assert "已提交当前任务问卷" in stored.recent_messages[-2].content
+    assert "question_id" not in stored.recent_messages[-2].content
+    assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is None
+    replay_events = []
+    with pytest.raises(ValueError, match="questionnaire_not_pending"):
+        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="已提交问卷",
+                         interaction_response=response, event_sink=replay_events.append)
+    assert isinstance(replay_events[-1], TurnFailedEvent)
+    assert replay_events[-1].code == "QUESTIONNAIRE_NOT_PENDING"
+    assert "已提交" in replay_events[-1].message
+
+
+def test_question_after_earlier_failure_still_reports_the_failure() -> None:
+    failed = ToolResult(tool_name="analyze_resume", state="failed",
+                        message="简历分析未完成：当前端点拒绝请求。")
+    succeeded = ToolResult(tool_name="find_saved_jobs", state="saved_jobs_ready",
+                           message="已找到岗位。")
+    state = {
+        "decision": AgentDecision(action="questionnaire", message="请再回答五题。",
+            questions=tuple(UserQuestion(question_id=f"q{index}", prompt=f"问题 {index}",
+                                         kind="free_text") for index in range(1, 6))),
+        "tool_results": (failed, succeeded),
+    }
+    assert MainAgentRuntime._route_decision(state) == "present"
+    assert MainAgentRuntime._present(state)["assistant_message"] == failed.message
+
+
+@pytest.mark.parametrize("resource,expected", [
+    ("active_resume_version_id", "questionnaire_resume_unavailable"),
+    ("active_job_posting_id", "questionnaire_job_unavailable"),
+    ("active_jd_snapshot_id", "questionnaire_jd_unavailable"),
+])
+def test_questionnaire_resource_removed_before_submit_fails_closed(tmp_path, resource, expected) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(AgentDecision(
+        action="questionnaire", questions=(
+            UserQuestion(question_id="q1", prompt="一", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="二", kind="free_text"),
+        ),
+    ))
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions,
+                               tools=MainAgentToolRegistry())
+    events = []
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="优化简历",
+                     event_sink=events.append)
+    interaction = next(event for event in events if event.type == "interaction_required")
+    task = manager.get_task(user_id="u1", conversation_id="c1")
+    pending = task.pending_questionnaire
+    assert pending is not None
+    bound_field = {
+        "active_resume_version_id": "resume_version_id",
+        "active_job_posting_id": "job_posting_id",
+        "active_jd_snapshot_id": "jd_snapshot_id",
+    }[resource]
+    store.upsert_task(user_id="u1", conversation_id="c1", task=task.model_copy(update={
+        resource: "deleted-resource",
+        "pending_questionnaire": pending.model_copy(update={bound_field: "deleted-resource"}),
+    }))
+    response = InteractionResponse(
+        interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
+        answers=(QuestionAnswer(question_id="q1", free_text="答一"),
+                 QuestionAnswer(question_id="q2", free_text="答二")),
+    )
+    failure_events = []
+    with pytest.raises(ValueError, match=expected):
+        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="已提交问卷",
+                         interaction_response=response, event_sink=failure_events.append)
+    assert isinstance(failure_events[-1], TurnFailedEvent)
+    assert failure_events[-1].code == expected.upper()
+    assert {
+        "questionnaire_resume_unavailable": "简历版本",
+        "questionnaire_job_unavailable": "岗位",
+        "questionnaire_jd_unavailable": "岗位描述版本",
+    }[expected] in failure_events[-1].message
+    assert len(decisions.contexts) == 1
+
+
+@pytest.mark.parametrize("failure", ("expired", "binding_changed"))
+def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_path, failure) -> None:
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(AgentDecision(
+        action="questionnaire", questions=(
+            UserQuestion(question_id="q1", prompt="城市？", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="岗位？", kind="free_text"),
+        ),
+    ))
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions,
+                               tools=MainAgentToolRegistry())
+    first_events = []
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="找工作",
+                     event_sink=first_events.append)
+    interaction = next(event for event in first_events if event.type == "interaction_required")
+    task = manager.get_task(user_id="u1", conversation_id="c1")
+    pending = task.pending_questionnaire
+    assert pending is not None
+    if failure == "expired":
+        now = datetime.now(timezone.utc)
+        task = task.model_copy(update={"pending_questionnaire": pending.model_copy(update={
+            "created_at": now - timedelta(days=2),
+            "expires_at": now - timedelta(days=1),
+        })})
+        expected = "QUESTIONNAIRE_EXPIRED"
+        message_part = "已过期"
+    else:
+        task = task.model_copy(update={"active_resume_version_id": "other-resume"})
+        expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
+        message_part = "已变化"
+    store.upsert_task(user_id="u1", conversation_id="c1", task=task)
+    response = InteractionResponse(
+        interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
+        answers=(QuestionAnswer(question_id="q1", free_text="上海"),
+                 QuestionAnswer(question_id="q2", free_text="工程师")),
+    )
+    events = []
+    with pytest.raises(ValueError, match=expected.lower()):
+        runtime.run_turn(user_id="u1", conversation_id="c1", user_message="已提交问卷",
+                         interaction_response=response, event_sink=events.append)
+    assert isinstance(events[-1], TurnFailedEvent)
+    assert events[-1].code == expected
+    assert message_part in events[-1].message
+    assert len(decisions.contexts) == 1
 
 
 def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -> None:

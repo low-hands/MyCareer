@@ -2,18 +2,15 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "17e2ca918cd5111f5c98b902bdb7a1f13d051fed3c3fcda3c1c222356e8aa536",
+  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
   "context_shape_fingerprint": "ac200745ceffadf5bf430418b78ce507cf01822a55020cf81dc67f8d6abb9635",
-  "recorded_at": "2026-09-17T07:13:52.082268+00:00",
+  "recorded_at": "2026-09-20T08:24:06.305329+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "selection_index": null,
-          "focus": "以竞争对手为新重点：识别主要直接与间接竞争对手，比较核心产品/业务定位、目标客户、差异化优势、市场格局及对该岗位可能产生的影响。请优先采用最新、可靠的公开来源。",
-          "user_provided_context": null,
-          "max_sources": 8
+          "focus": "重点研究该公司及该岗位相关业务的竞争对手：识别主要直接与间接竞争者，比较产品定位、目标客户、核心能力、商业模式、市场差异化与潜在竞争压力，并说明这些竞争格局对该岗位可能意味着什么。"
         }
       }
     }
@@ -21,16 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-17T07:13:52.082268+00:00",
+      "recorded_at": "2026-09-20T08:24:06.305329+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "selection_index": null,
-              "focus": "以竞争对手为新重点：识别主要直接与间接竞争对手，比较核心产品/业务定位、目标客户、差异化优势、市场格局及对该岗位可能产生的影响。请优先采用最新、可靠的公开来源。",
-              "user_provided_context": null,
-              "max_sources": 8
+              "focus": "重点研究该公司及该岗位相关业务的竞争对手：识别主要直接与间接竞争者，比较产品定位、目标客户、核心能力、商业模式、市场差异化与潜在竞争压力，并说明这些竞争格局对该岗位可能意味着什么。"
             }
           }
         }

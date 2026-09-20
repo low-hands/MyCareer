@@ -39,6 +39,7 @@ from career_agent.agent.main_agent_contracts import (
     CareerProfileBudgets,
     ConversationMessageContext,
 )
+from career_agent.agent.questionnaire_contracts import UserQuestion
 from career_agent.agent.openai_compatible_client import (
     AgentConfigurationError,
     AgentWorkerError,
@@ -53,6 +54,7 @@ from career_agent.agent.delivery_policy import (
 )
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.trajectory import (
+    EVALUATION_BASELINE_MODEL,
     TrajectoryCassette,
     TrajectoryStep,
     cassette_staleness,
@@ -154,6 +156,7 @@ def test_budget_change_validation_is_paired_by_cassette_sample(
         candidate_scenario=candidate,
         candidate_cassette=cassette,
         tool_specs=tool_specs,
+        expected_model="test",
     )
 
     assert result.baseline_budgets == (5_040, 800, 600)
@@ -184,6 +187,7 @@ def test_the_recorded_decision_follows_the_policy(scenario, offered) -> None:
         cassette,
         scenario=scenario,
         tool_specs=schemas,
+        expected_model=EVALUATION_BASELINE_MODEL,
     )
     assert stale is None, f"{scenario.name}: {stale}"
     sample_failures = replay_cassette(
@@ -227,6 +231,7 @@ def test_the_recorded_quality_stays_above_its_rate_floor(scenario, offered) -> N
         cassette,
         scenario=scenario,
         tool_specs=schemas,
+        expected_model=EVALUATION_BASELINE_MODEL,
     )
     assert stale is None, f"{scenario.name}: {stale}"
     graded = replay_quality(scenario, tool_specs=schemas, cassette=cassette)
@@ -339,6 +344,26 @@ def test_every_scenario_names_the_policy_sentence_it_holds() -> None:
         assert scenario.steps, scenario.name
 
 
+def test_user_input_policy_accepts_questionnaire_but_rejects_final() -> None:
+    step = TrajectoryStep(expect_user_input=True)
+    questionnaire = AgentDecision(
+        action="questionnaire",
+        questions=(
+            UserQuestion(question_id="q1", prompt="城市？", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="岗位？", kind="free_text"),
+        ),
+    )
+    assert check_step(step, questionnaire, scenario="clarify", index=0) == ()
+    assert check_step(
+        step, AgentDecision(action="ask_user", message="城市？"),
+        scenario="clarify", index=0,
+    ) == ()
+    assert "expected user input action" in check_step(
+        step, AgentDecision(action="final", message="城市？"),
+        scenario="clarify", index=0,
+    )[0]
+
+
 def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> None:
     _, schemas = offered
     scenario = SCENARIOS[0]
@@ -354,6 +379,7 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         ),
         scenario=scenario,
         tool_specs=schemas,
+        expected_model="test",
     ) == "cassette has no prompt_fingerprint; re-record it"
     assert cassette_staleness(
         TrajectoryCassette(
@@ -364,6 +390,7 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         ),
         scenario=scenario,
         tool_specs=schemas,
+        expected_model="test",
     ) == (
         "cassette prompt_fingerprint does not match the current stable "
         "prompt/tool universe; re-record it"
@@ -377,6 +404,7 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         ),
         scenario=scenario,
         tool_specs=schemas,
+        expected_model="test",
     ) == "cassette has no context_shape_fingerprint; re-record it"
     assert cassette_staleness(
         TrajectoryCassette(
@@ -387,7 +415,30 @@ def test_a_cassette_without_the_current_prompt_fingerprint_is_stale(offered) -> 
         ),
         scenario=scenario,
         tool_specs=schemas,
+        expected_model="test",
     ) is None
+    assert "does not match current model" in cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint=current,
+            context_shape_fingerprint=current_shape,
+            model="other-model",
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+        expected_model="test",
+    )
+    assert cassette_staleness(
+        TrajectoryCassette(
+            steps=(),
+            prompt_fingerprint=current,
+            context_shape_fingerprint=current_shape,
+            model=None,
+        ),
+        scenario=scenario,
+        tool_specs=schemas,
+        expected_model="test",
+    ) == "cassette has no model; re-record it"
 
 
 def test_a_legacy_cassette_is_one_recording(tmp_path: Path) -> None:
@@ -420,7 +471,7 @@ def test_a_policy_critical_scenario_rejects_too_few_samples(offered) -> None:
     )
 
     assert cassette_staleness(
-        cassette, scenario=scenario, tool_specs=schemas
+        cassette, scenario=scenario, tool_specs=schemas, expected_model="test"
     ) == "cassette has 1 sample(s), but the scenario requires 3; re-record it"
 
 
@@ -984,7 +1035,7 @@ def test_quality_contract_requires_a_rate_and_pins_its_denominator(
         samples=(({},),) * 4,
     )
     assert "requires exactly 5" in cassette_staleness(
-        cassette, scenario=scenario, tool_specs=schemas
+        cassette, scenario=scenario, tool_specs=schemas, expected_model="test"
     )
     three_sample_scenario = replace(scenario, recording_samples=3)
     config = OpenAICompatibleAgentConfig(
@@ -1070,6 +1121,7 @@ def test_daily_brief_fact_pair_is_causal_and_has_fresh_model_evidence(
             cassette,
             scenario=scenario,
             tool_specs=schemas,
+            expected_model=EVALUATION_BASELINE_MODEL,
         ) is None
         assert replay(
             scenario,
@@ -1112,6 +1164,7 @@ def test_saved_jd_body_pair_is_causal_and_has_fresh_model_evidence(
             cassette,
             scenario=scenario,
             tool_specs=schemas,
+            expected_model=EVALUATION_BASELINE_MODEL,
         ) is None
         assert replay(
             scenario,
@@ -1206,7 +1259,8 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         cassette = load_cassette(scenario.name)
         assert cassette is not None, f"{scenario.name} needs a live recording"
         assert cassette_staleness(
-            cassette, scenario=scenario, tool_specs=schemas
+            cassette, scenario=scenario, tool_specs=schemas,
+            expected_model=EVALUATION_BASELINE_MODEL,
         ) is None
     # With handles kept out of system control, a fresh positive sample that
     # calls the tool binds the matching tool-result reference rather than an

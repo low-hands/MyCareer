@@ -36,6 +36,7 @@ from career_agent.agent.main_agent_contracts import (
     OwnerSettingsContext,
     UserPreferencesContext,
 )
+from career_agent.agent.questionnaire_contracts import QuestionAnswer, QuestionOption, UserQuestion
 from career_agent.api.app import (
     BrowserJobCaptureResponse,
     ChatStreamRequest,
@@ -217,6 +218,17 @@ def _stream_event_examples() -> tuple[PublicStreamEvent, ...]:
                 interaction_id=_INTERACTION_ID,
                 kind="file_upload",
                 prompt="请上传简历。",
+            ),
+            InteractionRequiredEvent(
+                interaction_id=_INTERACTION_ID,
+                kind="questionnaire",
+                scope="questionnaire",
+                prompt="请一次回答两项信息。",
+                questions=(
+                    UserQuestion(question_id="q1", prompt="使用哪种数据库？", kind="single",
+                                 options=(QuestionOption(value="sqlite", label="SQLite"),)),
+                    UserQuestion(question_id="q2", prompt="补充项目背景", kind="free_text"),
+                ),
             ),
             resume_analysis_confirmation_event(
                 conversation_id="conv-1", analysis_id="analysis-1"
@@ -783,6 +795,19 @@ def _request_examples() -> dict[str, list[BaseModel]]:
                 ),
                 input_resources=(
                     TurnInputResource(kind="jd_snapshot", id="jd-1"),
+                ),
+            ),
+            ChatStreamRequest(
+                conversation_id="conv-1",
+                message="已提交当前任务问卷回答。",
+                interaction_response=InteractionResponse(
+                    interaction_id=_INTERACTION_ID,
+                    scope="questionnaire",
+                    action="submit",
+                    answers=(
+                        QuestionAnswer(question_id="q1", selected_values=("sqlite",)),
+                        QuestionAnswer(question_id="q2", free_text="内部项目"),
+                    ),
                 ),
             ),
         ],

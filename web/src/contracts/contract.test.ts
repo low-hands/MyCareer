@@ -155,7 +155,7 @@ describe("stream event contract", () => {
     );
   });
 
-  it("accepts both interaction scopes and binds a response to either", () => {
+  it("accepts every bound interaction scope", () => {
     /*
      * The capability-confirmation gate (owner rule → approval card) was added
      * server-side after the parser was written, and the parser rejected the
@@ -167,6 +167,7 @@ describe("stream event contract", () => {
     );
     expect(scoped.map((event) => event.scope).sort()).toEqual([
       "capability_confirmation",
+      "questionnaire",
       "resume_analysis_confirmation",
     ]);
     for (const event of scoped) {
