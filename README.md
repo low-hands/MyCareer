@@ -95,6 +95,8 @@ RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 
 简历分析的真实模型回归可先创建 `output` 目录，再运行 `python -m career_agent.agent.resume_analysis_provider_smoke --pdf tests/fixtures/resume_analysis_smoke.pdf --work-root output --report output/resume-smoke-<新名称>.json`。它用仓库内合成英文 PDF 和合成中文文本分别完成导入、分析、待确认草稿回读与来源逐段校验；报告只写计数和脱敏错误类别。每次使用新的报告文件名。
 
+specialist 的超时配置（`--agent-timeout-seconds`，默认 300）是**客户端上限，不等于实际可用时长**：真正的天花板往往是端点网关。当前部署实测，非流式请求在约 100 秒被网关切断（返回 524，归类为 `time_budget`，不会自动重试）。公司研究因此改用流式传输——流式一旦开始输出就不再受空闲计时器限制（实测同端点流式可跑 391 秒）。其余 specialist 仍是非流式，目前实测耗时远低于该限制（简历分析约 29 秒、会话摘要约 2 秒）；如果将来有能力稳定接近 100 秒，应当为它也启用流式，而不是调大超时值。
+
 `MAIN_AGENT_TIMEOUT_SECONDS=120` 是当前推荐值。Main Agent 对连接错误以及 `429/502/503/504` 最多做 3 次有限指数退避；持续不可用时会明确失败，不会无限重试或把不完整回答交给用户。
 
 #### 上下文压缩与独立摘要模型
