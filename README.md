@@ -93,6 +93,8 @@ RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 - `RESUME_ANALYSIS_AGENT_DISABLE_THINKING=true`：显式发送百炼参数 `extra_body={"enable_thinking": false}`。项目不会按模型名或 hostname 自动开启；不识别该参数的端点会返回 400 并 fail closed，不会删除参数后重试。
 - `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）：公司研究的独立端点。整组都不设置时，复用 `RESUME_ANALYSIS_AGENT_*`；设置了任意一项，就必须三项齐全，否则启动失败，不会混用两组凭据。该端点必须支持 Responses 原生 `web_search` 工具，使用前先运行 `python -m career_agent.agent.job_research_provider_smoke --work-root <目录> --report <新文件>`。公司研究的模型调用使用流式传输：一次深度调研可能持续数分钟，非流式请求会被带空闲超时的网关（例如 Cloudflare 的 100 秒 524）在返回前切断。`.env` 已被 Git 忽略，不要提交任何真实密钥。
 
+简历分析的真实模型回归可先创建 `output` 目录，再运行 `python -m career_agent.agent.resume_analysis_provider_smoke --pdf tests/fixtures/resume_analysis_smoke.pdf --work-root output --report output/resume-smoke-<新名称>.json`。它用仓库内合成英文 PDF 和合成中文文本分别完成导入、分析、待确认草稿回读与来源逐段校验；报告只写计数和脱敏错误类别。每次使用新的报告文件名。
+
 `MAIN_AGENT_TIMEOUT_SECONDS=120` 是当前推荐值。Main Agent 对连接错误以及 `429/502/503/504` 最多做 3 次有限指数退避；持续不可用时会明确失败，不会无限重试或把不完整回答交给用户。
 
 #### 上下文压缩与独立摘要模型

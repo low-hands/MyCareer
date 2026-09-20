@@ -34,3 +34,6 @@ src/career_agent/agent/_static/tiktoken_cache/*
 
 # Claude Code per-machine permissions
 .claude/settings.local.json
+
+# Live smoke artifacts (README points --work-root here); reports contain no content
+/output/
