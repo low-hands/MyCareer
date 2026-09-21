@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from career_agent.agent.job_analysis_contracts import (
+    RequirementKind,
+    RequirementTier,
+)
+
 if TYPE_CHECKING:
+    from career_agent.agent.job_analysis_contracts import TieredRequirement
     from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -62,8 +68,14 @@ class ResumeMatchEvidence(ResumeJobMatchContract):
 
 
 class RequirementAssessment(ResumeJobMatchContract):
+    requirement_id: str | None = Field(
+        default=None,
+        pattern=r"^job_requirement_[a-f0-9]{20}$",
+    )
     requirement: str = Field(min_length=1, max_length=1000)
     jd_quote: str = Field(min_length=1, max_length=500)
+    tier: RequirementTier | None = None
+    kind: RequirementKind | None = None
     status: Literal["matched", "partial", "missing", "unclear"]
     rationale: str = Field(min_length=1, max_length=2000)
     resume_evidence: tuple[ResumeMatchEvidence, ...] = Field(default=(), max_length=3)
@@ -77,9 +89,19 @@ class RequirementAssessment(ResumeJobMatchContract):
         return self
 
 
+class IntentAlignment(ResumeJobMatchContract):
+    """A separate, non-evidence judgment about current preferences."""
+
+    status: Literal["aligned", "mixed", "misaligned", "unknown"]
+    rationale: str = Field(min_length=1, max_length=2000)
+    relevant_constraints: tuple[str, ...] = Field(default=(), max_length=10)
+
+
 class ResumeJobMatchResult(ResumeJobMatchContract):
     overall_fit: Literal["strong", "moderate", "weak", "insufficient_evidence"]
     summary: str = Field(min_length=1, max_length=3000)
+    # Optional on read for pre-096 rows; new workers are instructed to fill it.
+    intent_alignment: IntentAlignment | None = None
     requirements: tuple[RequirementAssessment, ...] = Field(default=(), max_length=40)
     recommendations: tuple[str, ...] = Field(default=(), max_length=10)
     clarification_questions: tuple[str, ...] = Field(default=(), max_length=10)
@@ -112,4 +134,5 @@ class ResumeJobMatchWorker(Protocol):
         jd_text: str,
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
         intent_states: tuple[IntentStateAnchor, ...] = (),
+        tiered_requirements: tuple[TieredRequirement, ...] = (),
     ) -> ResumeJobMatchResult: ...

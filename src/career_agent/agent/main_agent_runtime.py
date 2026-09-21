@@ -79,6 +79,11 @@ from career_agent.agent.input_resources import (
     resolve_job_input_resources,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
+from career_agent.agent.openai_compatible_client import (
+    AgentWorkerError,
+    public_error_code,
+    worker_failure_reason,
+)
 from career_agent.agent.interview_preparation_presenter import render_interview_preparation
 from career_agent.agent.interview_retro_presenter import (
     InterviewRetroView,
@@ -932,6 +937,15 @@ class MainAgentRuntime:
                         message=error.user_message,
                     )
                 )
+            elif isinstance(error, AgentWorkerError):
+                code = public_error_code(error)
+                self._emit(
+                    TurnFailedEvent(
+                        turn_id=turn_id,
+                        code=code,
+                        message=f"本轮任务未完成：{worker_failure_reason(error)}",
+                    )
+                )
             else:
                 self._emit(
                     TurnFailedEvent(
@@ -1707,7 +1721,10 @@ class MainAgentRuntime:
         message = (
             "以下是用户一次提交的当前任务问卷答案。仅用于当前绑定任务；跳过或选择“无”"
             "不构成永久职业事实；泛泛的技能回答不能扩写成项目、年限或成果。"
-            "请继续原任务。\n"
+            "请先完成原任务。完成后，若某条非跳过答案是跨岗位稳定事实，且能明确归入"
+            "现有职业记录，可以调用 propose_career_fact 展示一条 origin=user_input 的"
+            "隔离态提案；当前岗位的强调偏好不得持久化，归属不明确时先询问归属，"
+            "不得猜测或直接写入。提案不得替代或打断原任务。\n"
             + json.dumps(answers, ensure_ascii=False)
         )
         context = self._context_manager.load_for_turn(
@@ -4450,7 +4467,13 @@ class MainAgentRuntime:
         """
         if result.state == "saved_job_ready" and result.resource_ref is not None:
             return result.message
-        return MainAgentRuntime._assistant_message(result)
+        screen = MainAgentRuntime._assistant_message(result)
+        if result.disposition != "failed":
+            return screen
+        code = public_error_code(result.payload.get("error_code"))
+        if code == "CAPABILITY_FAILED" or code in screen:
+            return screen
+        return f"{screen}（错误码：{code}）"
 
     @staticmethod
     def _turn_resource_refs(

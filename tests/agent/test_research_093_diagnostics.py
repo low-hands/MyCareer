@@ -16,6 +16,7 @@ from career_agent.agent.openai_compatible_client import (
     ProviderErrorMetadata,
     provider_error_metadata,
     provider_worker_error,
+    public_error_code,
     user_facing_worker_failure,
     worker_failure_reason,
 )
@@ -29,6 +30,19 @@ from career_agent.harness.observability import (
 
 
 PRIVATE = "PrivateCompanyJDSecret123"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("RESUME_ANALYSIS_REJECTED_400", "RESUME_ANALYSIS_REJECTED_400"),
+        ("bad code with spaces", "CAPABILITY_FAILED"),
+        ("<script>alert(1)</script>", "CAPABILITY_FAILED"),
+        (None, "CAPABILITY_FAILED"),
+    ],
+)
+def test_public_error_code_accepts_only_stable_identifiers(raw, expected) -> None:
+    assert public_error_code(raw) == expected
 
 
 def _status_error(status: int, fields: dict[str, object]) -> APIStatusError:

@@ -6,10 +6,12 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
+from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.api.app import create_app
 from career_agent.api.reads import WorkspaceReader
 from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.services.job_analysis import JobAnalysisService
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
@@ -24,14 +26,19 @@ class MatchWorker:
 
     def match(self, **kwargs: object) -> ResumeJobMatchResult:
         self.calls += 1
+        requirements = kwargs["tiered_requirements"]
         return ResumeJobMatchResult(
             overall_fit="moderate", summary="Python fits; Go needs evidence.",
             requirements=[{
-                "requirement": "Go experience", "jd_quote": "Go required",
+                "requirement_id": requirements[0].requirement_id,
+                "requirement": requirements[0].text,
+                "jd_quote": requirements[0].jd_quote,
                 "status": "missing", "rationale": "No Go evidence in the resume.",
                 "resume_evidence": [],
             }, {
-                "requirement": "Python", "jd_quote": "Python required",
+                "requirement_id": requirements[1].requirement_id,
+                "requirement": requirements[1].text,
+                "jd_quote": requirements[1].jd_quote,
                 "status": "matched", "rationale": "Python project evidence.",
                 "resume_evidence": [{"source_locator": "Experience", "source_quote": "Built Python services"}],
             }],
@@ -39,6 +46,40 @@ class MatchWorker:
             clarification_questions=["Any Go experience?"],
             limitations=["Only the supplied documents were reviewed."],
         )
+
+
+class AnalysisWorker:
+    def analyze(self, *, jd_text: str) -> JobAnalysisResult:
+        return JobAnalysisResult(
+            core_objective="Hire an engineer.",
+            seniority="mid",
+            requirements=(
+                TieredRequirement(
+                    text="Go experience",
+                    tier="A",
+                    kind="fact",
+                    jd_quote="Go required",
+                ),
+                TieredRequirement(
+                    text="Python",
+                    tier="A",
+                    kind="fact",
+                    jd_quote="Python required",
+                ),
+            ),
+            summary="Python and Go engineering role.",
+        )
+
+
+def analyze(paths: Namespace, saved) -> None:
+    JobAnalysisService(
+        SQLiteJobPostingRepository(Path(paths.job_store)),
+        AnalysisWorker(),
+    ).analyze(
+        user_id="u1",
+        job_posting_id=saved.posting.id,
+        jd_snapshot_id=saved.snapshot.id,
+    )
 
 
 class Runtime:
@@ -109,9 +150,11 @@ def test_history_reads_exact_versions_and_all_report_sections_without_matching(
 ):
     resume, v1, v2, service, worker = inputs(paths)
     jd1 = capture(paths, "Python required\nGo required")
+    analyze(paths, jd1)
     first = service.match(user_id="u1", resume_version_id=v1.id, job_posting_id=jd1.posting.id)
     second = service.match(user_id="u1", resume_version_id=v2.id, job_posting_id=jd1.posting.id)
     jd2 = capture(paths, "Python required\nGo required\nKubernetes required")
+    analyze(paths, jd2)
     third = service.match(user_id="u1", resume_version_id=v1.id, job_posting_id=jd2.posting.id)
     cached = service.match(
         user_id="u1", resume_version_id=v1.id, job_posting_id=jd2.posting.id,
@@ -145,7 +188,7 @@ def test_history_reads_exact_versions_and_all_report_sections_without_matching(
                 assert text in report["body"]
         [job] = client.get("/v1/jobs", headers=auth).json()
         assert job["resume_match_count"] == 3
-        assert job["jd_analysis_status"] == "none"
+        assert job["jd_analysis_status"] == "ready"
     assert worker.calls == 3
 
 
@@ -153,6 +196,7 @@ def test_owned_report_keeps_identity_after_original_inputs_disappear(paths, api_
     resume, v1, _, service, _ = inputs(paths)
     old = capture(paths, "Python required\nGo required")
     current = capture(paths, "Python required\nGo required\nLeadership")
+    analyze(paths, old)
     report = service.match(
         user_id="u1", resume_version_id=v1.id, job_posting_id=current.posting.id,
         jd_snapshot_id=old.snapshot.id,

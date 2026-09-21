@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 
+from career_agent.agent.job_analysis_contracts import TieredRequirement
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
     IntentStateAnchor,
@@ -10,7 +11,11 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchAuditProposal,
     ResumeJobMatchResult,
     ResumeJobMatchWorker,
+    IntentAlignment,
 )
+from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.resume_job_fit import derive_overall_fit
+from career_agent.services.job_analysis import JOB_ANALYZER_VERSION
 from career_agent.storage.context import CareerProfileStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import JobPostingRepository
@@ -35,6 +40,15 @@ class ResumeJobMatchInputNotFoundError(ValueError):
         super().__init__(f"{input_kind} not found or does not belong to the current user")
 
 
+class ResumeJobMatchAnalysisRequiredError(ValueError):
+    """The exact JD snapshot has no compatible authoritative requirement set."""
+
+    def __init__(self, *, job_posting_id: str, jd_snapshot_id: str) -> None:
+        self.job_posting_id = job_posting_id
+        self.jd_snapshot_id = jd_snapshot_id
+        super().__init__("a compatible analysis of the exact JD snapshot is required")
+
+
 class ResumeJobMatchService:
     """Keeps complete resume/JD documents behind a narrow matching boundary."""
 
@@ -46,8 +60,9 @@ class ResumeJobMatchService:
         worker: ResumeJobMatchWorker,
         match_store: SQLiteResumeJobMatchStore,
         *,
-        matcher_version: str = "resume-job-match-v2",
+        matcher_version: str = "resume-job-match-v3",
         career_profile_store: CareerProfileStore | None = None,
+        job_analyzer_version: str = JOB_ANALYZER_VERSION,
     ) -> None:
         self._resume_store = resume_store
         self._job_repository = job_repository
@@ -56,6 +71,7 @@ class ResumeJobMatchService:
         self._match_store = match_store
         self._matcher_version = matcher_version
         self._career_profile_store = career_profile_store
+        self._job_analyzer_version = job_analyzer_version
 
     def match(
         self,
@@ -97,6 +113,29 @@ class ResumeJobMatchService:
                 raise ResumeJobMatchInputNotFoundError("jd_snapshot")
             job = job.model_copy(update={"snapshot": pinned, "analysis": None})
 
+        stored_analysis = self._job_repository.get_analysis_for_snapshot(
+            user_id=user_id,
+            jd_snapshot_id=job.snapshot.id,
+            analyzer_version=self._job_analyzer_version,
+        )
+        analysis = (
+            stored_analysis.analysis.to_result()
+            if stored_analysis is not None
+            else None
+        )
+        if (
+            stored_analysis is None
+            or analysis is None
+            or not analysis.requirements
+            or any(item.requirement_id is None for item in analysis.requirements)
+            or len({item.requirement_id for item in analysis.requirements})
+            != len(analysis.requirements)
+        ):
+            raise ResumeJobMatchAnalysisRequiredError(
+                job_posting_id=job_posting_id,
+                jd_snapshot_id=job.snapshot.id,
+            )
+
         intent_states, transitions = self._intent_state(
             user_id=user_id,
             resume_version_id=resume_version_id,
@@ -120,6 +159,7 @@ class ResumeJobMatchService:
             confirmed_facts,
             intent_states,
             transitions,
+            job_analysis_id=stored_analysis.id,
         )
         cached = self._match_store.find(
             user_id=user_id,
@@ -135,11 +175,20 @@ class ResumeJobMatchService:
             jd_text=job.snapshot.content,
             confirmed_facts=confirmed_facts,
             intent_states=intent_states,
+            tiered_requirements=analysis.requirements,
+        )
+        result = self._bind_and_grade_requirements(
+            result=result,
+            requirements=analysis.requirements,
         )
         result = self._repair_stale_state(
             result=result,
             jd_text=job.snapshot.content,
             transitions=transitions,
+        )
+        result = self._bind_and_grade_requirements(
+            result=result,
+            requirements=analysis.requirements,
         )
         return self._match_store.save(
             user_id=user_id,
@@ -174,6 +223,8 @@ class ResumeJobMatchService:
         facts: tuple[ConfirmedResumeFact, ...],
         intent_states: tuple[IntentStateAnchor, ...] = (),
         transitions: tuple[IntentStateTransition, ...] = (),
+        *,
+        job_analysis_id: str = "",
     ) -> str:
         # Every component is event-driven, so a cached match is invalidated by
         # a corroboration or a revision and never by the passage of time.
@@ -186,12 +237,75 @@ class ResumeJobMatchService:
                 "transitions": [
                     item.model_dump(mode="json") for item in transitions
                 ],
+                "job_analysis_id": job_analysis_id,
             },
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _bind_and_grade_requirements(
+        *,
+        result: ResumeJobMatchResult,
+        requirements: tuple[TieredRequirement, ...],
+    ) -> ResumeJobMatchResult:
+        authoritative = {
+            item.requirement_id: item
+            for item in requirements
+            if item.requirement_id is not None
+        }
+        seen: set[str] = set()
+        projected = []
+        for assessment in result.requirements:
+            requirement_id = assessment.requirement_id
+            source = authoritative.get(requirement_id)
+            if source is None or requirement_id in seen:
+                raise AgentWorkerError(
+                    "RESUME_JOB_MATCH_REQUIREMENT_BINDING_INVALID",
+                    "Requirement assessment did not bind to the supplied analysis.",
+                    retryable=True,
+                )
+            if (
+                assessment.requirement != source.text
+                or assessment.jd_quote != source.jd_quote
+            ):
+                raise AgentWorkerError(
+                    "RESUME_JOB_MATCH_REQUIREMENT_BINDING_INVALID",
+                    "Requirement assessment altered authoritative requirement text.",
+                    retryable=True,
+                )
+            seen.add(requirement_id)
+            projected.append(
+                assessment.model_copy(
+                    update={
+                        "requirement": source.text,
+                        "jd_quote": source.jd_quote,
+                        "tier": source.tier,
+                        "kind": source.kind,
+                    }
+                )
+            )
+        if seen != set(authoritative):
+            raise AgentWorkerError(
+                "RESUME_JOB_MATCH_REQUIREMENT_BINDING_INVALID",
+                "Requirement assessment omitted an authoritative requirement.",
+                retryable=True,
+            )
+        projected_requirements = tuple(projected)
+        fit = derive_overall_fit(tuple(requirements), projected_requirements)
+        return result.model_copy(
+            update={
+                "overall_fit": fit,
+                "requirements": projected_requirements,
+                "intent_alignment": result.intent_alignment
+                or IntentAlignment(
+                    status="unknown",
+                    rationale="当前结果未提供足够的意向约束来单独判断岗位匹配度。",
+                ),
+            }
+        )
 
     def _intent_state(
         self,

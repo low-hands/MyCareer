@@ -16,9 +16,14 @@ ActionType = Literal[
     # One item for the whole library, never one per job — see
     # ``ActionCenterService._stale_job_candidate``.
     "saved_job_review",
+    "resume_gap_resolution",
 ]
 ActionSourceType = Literal[
-    "application", "email_event", "interview_round", "saved_job_library"
+    "application",
+    "email_event",
+    "interview_round",
+    "saved_job_library",
+    "resume_tailoring_draft",
 ]
 # "completed" means the user did the thing; "obsolete" means the condition that
 # generated the item went away on its own. Collapsing the two would let the
@@ -107,4 +112,3 @@ class DailyBrief(ActionCenterContract):
     due_today: tuple[ActionItem, ...] = ()
     upcoming: tuple[ActionItem, ...] = ()
     no_due_date: tuple[ActionItem, ...] = ()
-

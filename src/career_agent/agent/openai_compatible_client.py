@@ -152,18 +152,24 @@ def worker_failure_reason(error: object) -> str:
     explain — is carried by ``retryable`` and ``next_action`` instead.
     """
 
-    return _failure_reason(error, _failure_code(error))
+    return _failure_reason(error, public_error_code(error))
 
 
 def user_facing_worker_failure(capability: str, error: object) -> str:
     """Deterministic, provider-body-free explanation for capability failures."""
 
-    code = _failure_code(error)
+    code = public_error_code(error)
     return f"{capability}未完成：{_failure_reason(error, code)}（错误码：{code}）"
 
 
-def _failure_code(error: object) -> str:
-    raw_code = getattr(error, "code", None)
+def public_error_code(error_or_code: object) -> str:
+    """Return one safe stable code from an exception or result payload value."""
+
+    raw_code = (
+        error_or_code
+        if isinstance(error_or_code, str)
+        else getattr(error_or_code, "code", None)
+    )
     return (
         raw_code
         if isinstance(raw_code, str)

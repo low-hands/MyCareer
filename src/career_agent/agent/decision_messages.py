@@ -44,6 +44,7 @@ _TASK_CONTROL_KEYS = frozenset(
         "has_active_resume_analysis",
         "has_active_resume_job_match",
         "has_active_job_analysis",
+        "has_active_job_analysis_jd_snapshot",
         "has_active_resume_tailoring_draft",
         "has_active_resume_version",
         "has_active_resume_artifact",

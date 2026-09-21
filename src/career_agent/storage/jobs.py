@@ -228,6 +228,14 @@ class JobPostingRepository(Protocol):
         analyzer_version: str | None = None,
     ) -> StoredJDAnalysis | None: ...
 
+    def get_analysis_for_snapshot(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+    ) -> StoredJDAnalysis | None: ...
+
     def get_analysis(self, *, user_id: str, analysis_id: str) -> StoredJDAnalysis | None: ...
 
     def get_latest_analysis_any_snapshot(
@@ -838,6 +846,25 @@ class SQLiteJobPostingRepository:
         with self._connect() as connection:
             row = connection.execute(sql, params).fetchone()
         return self._analysis_from_row(job_posting_id, row) if row else None
+
+    def get_analysis_for_snapshot(
+        self,
+        *,
+        user_id: str,
+        jd_snapshot_id: str,
+        analyzer_version: str,
+    ) -> StoredJDAnalysis | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                f"SELECT {self._ANALYSIS_COLUMNS}, s.job_posting_id "
+                "FROM jd_analyses a JOIN jd_snapshots s ON s.id = a.jd_snapshot_id "
+                "JOIN job_postings p ON p.id = s.job_posting_id "
+                "WHERE p.user_id = ? AND a.jd_snapshot_id = ? "
+                "AND a.analyzer_version = ? "
+                "ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1",
+                (user_id, jd_snapshot_id, analyzer_version),
+            ).fetchone()
+        return self._analysis_from_row(row[6], row) if row else None
 
     def get_analysis(
         self, *, user_id: str, analysis_id: str

@@ -232,6 +232,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         email_tracking_service,
         interview_service,
         job_repository=job_repository,
+        resume_tailoring_drafts=SQLiteResumeTailoringDraftStore(
+            Path(args.resume_store).expanduser()
+        ),
     )
     calendar_service = CalendarService(
         SQLiteCalendarStore(Path(args.calendar_store).expanduser()),
@@ -777,6 +780,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=10_000,
         help="Bound the newest memory observations read from telemetry.",
     )
+    eval_match = eval_subparsers.add_parser(
+        "resume-job-match",
+        help="Run repeated live-model samples for the 096 match rubric (no cassette).",
+    )
+    eval_match.add_argument(
+        "--samples", type=int, default=6,
+        help="Independent samples (1-20; default: 6).",
+    )
+    eval_match.add_argument("--timeout-seconds", type=float, default=60.0)
 
     memory = subparsers.add_parser(
         "memory",
@@ -2084,6 +2096,42 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         return EXIT_ARGUMENT_ERROR
 
 
+def _run_resume_job_match_evaluation(args, stdout) -> int:
+    """Run the 096 boundary fixture against the configured live model."""
+    try:
+        from career_agent.evaluation.resume_job_match import run_samples
+
+        config = replace(
+            OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
+            timeout_seconds=args.timeout_seconds,
+        )
+        samples = run_samples(config, sample_count=args.samples)
+        payload = {
+            "state": "completed",
+            "sample_count": len(samples),
+            "samples_passed": sum(item.result is not None for item in samples),
+            "overall_fit_values": [
+                item.result.overall_fit for item in samples if item.result is not None
+            ],
+            "errors": [
+                {"sample": item.index, "error": item.error}
+                for item in samples
+                if item.error is not None
+            ],
+        }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK if payload["samples_passed"] == payload["sample_count"] else EXIT_WORKFLOW_ERROR
+    except AgentConfigurationError as error:
+        json.dump({"state": "failed", "error_code": error.code}, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_CONFIGURATION_ERROR
+    except (OSError, ValueError) as error:
+        json.dump({"state": "failed", "error_code": "EVAL_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_ARGUMENT_ERROR
+
+
 def build_workspace_lock(args: argparse.Namespace) -> SingleWorkerLock:
     """The one lock the API, ``backup`` and every write command contend for.
 
@@ -2409,6 +2457,8 @@ def _dispatch(
             return _run_rederivation_evaluation(args, stdout)
         if args.eval_command == "memory-exposure":
             return _run_memory_exposure_evaluation(args, stdout)
+        if args.eval_command == "resume-job-match":
+            return _run_resume_job_match_evaluation(args, stdout)
         return _run_trajectory_evaluation(args, stdout)
     if args.command == "memory":
         if args.memory_command == "report":

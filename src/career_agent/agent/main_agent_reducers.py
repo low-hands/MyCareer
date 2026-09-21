@@ -469,11 +469,25 @@ def _resume_job_match_ready(
 def _job_analysis_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
+    snapshot_id = result.payload.get("jd_snapshot_id")
+    job_posting_id = result.payload.get("job_posting_id")
+    focus = task.active_saved_job
+    if (
+        focus is not None
+        and (
+            focus.job_posting_id != job_posting_id
+            or focus.jd_snapshot_id != snapshot_id
+        )
+    ):
+        focus = None
     return task.model_copy(
         update={
             "active_job_analysis_id": result.payload.get("analysis_id"),
+            "active_job_analysis_jd_snapshot_id": snapshot_id,
             "job_analysis_status": "ready",
-            "active_job_posting_id": result.payload.get("job_posting_id"),
+            "active_job_posting_id": job_posting_id,
+            "active_jd_snapshot_id": snapshot_id,
+            "active_saved_job": focus,
         }
     )
 

@@ -187,6 +187,10 @@ def test_availability_is_derived_from_profile_and_preconditions() -> None:
             tool_profile="resume",
             active_resume_version_id="rv-1",
             active_job_posting_id="job-1",
+            active_jd_snapshot_id="jd-1",
+            active_job_analysis_id="analysis-1",
+            active_job_analysis_jd_snapshot_id="jd-1",
+            job_analysis_status="ready",
         )
     )
     assert {"analyze_resume", "match_resume_to_job"} <= set(ready["available_now"])
@@ -257,20 +261,33 @@ def test_shared_read_runs_in_every_profile_without_routing(tmp_path, profile) ->
 
 @pytest.mark.parametrize("has_resume", [False, True])
 @pytest.mark.parametrize("has_job", [False, True])
+@pytest.mark.parametrize("has_current_analysis", [False, True])
 @pytest.mark.parametrize("has_match", [False, True])
 def test_input_and_artifact_preconditions_remain_independent(
-    has_resume, has_job, has_match
+    has_resume, has_job, has_current_analysis, has_match
 ) -> None:
     task = ConversationTaskState(
         tool_profile="resume",
         active_resume_version_id="rv-1" if has_resume else None,
         active_job_posting_id="job-1" if has_job else None,
+        active_jd_snapshot_id="jd-1" if has_job else None,
+        active_job_analysis_id=(
+            "analysis-1" if has_job and has_current_analysis else None
+        ),
+        active_job_analysis_jd_snapshot_id=(
+            "jd-1" if has_job and has_current_analysis else None
+        ),
+        job_analysis_status=(
+            "ready" if has_job and has_current_analysis else None
+        ),
         active_resume_job_match_id="match-1" if has_match else None,
     )
     available = project_tool_availability(task)["available_now"]
 
     assert ("analyze_resume" in available) is has_resume
-    assert ("match_resume_to_job" in available) is (has_resume and has_job)
+    assert ("match_resume_to_job" in available) is (
+        has_resume and has_job and has_current_analysis
+    )
     assert ("draft_resume_tailoring" in available) is has_match
 
 

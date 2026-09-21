@@ -58,6 +58,15 @@ def _reachable_via_action_item(task: ConversationTaskState) -> bool:
     return bool(task.active_action_item_id or task.action_candidates)
 
 
+def _has_current_job_analysis(task: ConversationTaskState) -> bool:
+    return bool(
+        task.active_job_analysis_id
+        and task.job_analysis_status == "ready"
+        and task.active_job_analysis_jd_snapshot_id
+        and task.active_job_analysis_jd_snapshot_id == task.active_jd_snapshot_id
+    )
+
+
 PRECONDITIONS: dict[str, Precondition] = {
     # Saved jobs and their derived runs.
     "get_saved_job": _reachable_via_job,
@@ -86,7 +95,9 @@ PRECONDITIONS: dict[str, Precondition] = {
     ),
     # Matching and applying need a job *and* a resume version.
     "match_resume_to_job": lambda t: (
-        _reachable_via_job(t) and _reachable_via_resume_version(t)
+        _reachable_via_job(t)
+        and _reachable_via_resume_version(t)
+        and _has_current_job_analysis(t)
     ),
     "create_application": lambda t: (
         _reachable_via_job(t) and _reachable_via_resume_version(t)
@@ -165,7 +176,7 @@ REQUIREMENTS: dict[str, str] = {
     "review_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "revise_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "finalize_resume_tailoring": _NEEDS_TAILORING_DRAFT,
-    "match_resume_to_job": "需要同时选定一个岗位和一个简历版本",
+    "match_resume_to_job": "先分析当前 JD，并同时选定一个岗位和一个简历版本",
     "create_application": "需要同时选定一个岗位和一个简历版本",
     "get_application": _NEEDS_APPLICATION,
     "update_application_status": _NEEDS_APPLICATION,

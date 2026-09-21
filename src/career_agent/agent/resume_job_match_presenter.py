@@ -17,6 +17,13 @@ _STATUS_LABELS = {
     "unclear": "不明确",
 }
 
+_INTENT_LABELS = {
+    "aligned": "意向一致",
+    "mixed": "意向部分冲突",
+    "misaligned": "意向不一致",
+    "unknown": "意向未判断",
+}
+
 
 def render_resume_job_match(result: ResumeJobMatchResult) -> str:
     """Render the grounded requirement-by-requirement comparison."""
@@ -25,6 +32,15 @@ def render_resume_job_match(result: ResumeJobMatchResult) -> str:
         f"整体判断：{_FIT_LABELS.get(result.overall_fit, result.overall_fit)}",
         result.summary,
     ]
+    if result.intent_alignment is not None:
+        blocks.append(
+            "意向匹配："
+            + _INTENT_LABELS.get(
+                result.intent_alignment.status, result.intent_alignment.status
+            )
+            + "。"
+            + result.intent_alignment.rationale
+        )
     if result.requirements:
         rows = []
         for index, item in enumerate(result.requirements, start=1):

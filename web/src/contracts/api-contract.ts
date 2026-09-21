@@ -1738,6 +1738,7 @@ export const API_CONTRACT = {
                   {
                     "jd_quote": "3 年以上互联网产品经验",
                     "kind": "fact",
+                    "requirement_id": null,
                     "text": "3 年以上产品经验",
                     "tier": "S"
                   }
@@ -2384,6 +2385,19 @@ export const API_CONTRACT = {
                 ],
                 "title": "Kind",
                 "type": "string"
+              },
+              "requirement_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^job_requirement_[a-f0-9]{20}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Requirement Id"
               },
               "text": {
                 "maxLength": 1000,
@@ -4360,6 +4374,19 @@ export const API_CONTRACT = {
                 ],
                 "title": "Kind",
                 "type": "string"
+              },
+              "requirement_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^job_requirement_[a-f0-9]{20}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Requirement Id"
               },
               "text": {
                 "maxLength": 1000,

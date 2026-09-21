@@ -73,7 +73,7 @@ export function DailyBriefPanel({
           <div>
             <p className="eyebrow">DAILY BRIEF</p>
             <h1>今天该推进什么</h1>
-            <p>聚合投递、面试和邮件事件生成的行动项</p>
+            <p>聚合投递、面试、邮件事件和简历证据缺口生成的行动项</p>
           </div>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading}>
@@ -89,8 +89,8 @@ export function DailyBriefPanel({
           <span className="empty-icon"><AppIcon name="check" size={28} /></span>
           <strong>今天没有待办</strong>
           <p>
-            投递、面试和邮件事件会自动生成这里的条目。还没有内容，通常是因为
-            还没有记录过任何投递。
+            投递、面试、邮件事件和简历证据缺口会自动生成这里的条目。
+            还没有内容，说明当前没有需要推进的记录。
           </p>
         </div>
       ) : null}
@@ -126,7 +126,7 @@ export function DailyBriefPanel({
         : null}
 
       <p className="brief-footnote">
-        这些条目由投递、面试和邮件事件推导而来，改动仍然通过对话完成。
+        这些条目由投递、面试、邮件事件和简历证据缺口推导而来，改动仍然通过对话完成。
       </p>
     </section>
   );

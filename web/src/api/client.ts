@@ -189,6 +189,11 @@ export interface ResumeJobMatchView {
   created_at: string;
   overall_fit: string;
   summary: string;
+  intent_alignment?: {
+    status: "aligned" | "mixed" | "misaligned" | "unknown";
+    rationale: string;
+    relevant_constraints: string[];
+  } | null;
 }
 
 export interface JobMatchHistory {

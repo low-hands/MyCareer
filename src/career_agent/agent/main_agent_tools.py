@@ -203,6 +203,7 @@ from career_agent.services.job_analysis import (
     JobAnalysisService,
 )
 from career_agent.services.resume_job_match import (
+    ResumeJobMatchAnalysisRequiredError,
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
 )
@@ -1611,7 +1612,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "get_daily_brief",
-                            "description": "Generate the current user's source-grounded daily career brief from applications, recruiting email events, and real interviews. The report is computed on demand and is not stored as stale narrative memory.",
+                            "description": "Generate the current user's source-grounded daily career brief from applications, recruiting email events, real interviews, and unresolved resume-tailoring gaps. The report is computed on demand and is not stored as stale narrative memory.",
                             "parameters": GetDailyBriefToolArguments.model_json_schema(),
                         },
                     },
@@ -4455,7 +4456,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="analyze_job",
                 state="failed",
-                message="岗位 JD 分析暂时失败，请稍后重试。" if error.retryable else "岗位 JD 分析失败。",
+                message=worker_failure_reason(error),
                 payload={
                     "job_posting_id": model_arguments.job_posting_id,
                     "error_code": error.code,
@@ -4520,6 +4521,19 @@ class MainAgentToolRegistry:
                     else {}
                 ),
             )
+        except ResumeJobMatchAnalysisRequiredError as error:
+            return ToolObservation(
+                tool_name="match_resume_to_job",
+                state="job_analysis_required",
+                message="匹配前需要先完成当前 JD 版本的岗位分析。",
+                next_action="先调用 analyze_job 分析当前 JD，成功后再匹配简历。",
+                payload={
+                    "job_posting_id": error.job_posting_id,
+                    "jd_snapshot_id": error.jd_snapshot_id,
+                    "retryable": False,
+                },
+                execution_outcome="not_committed",
+            )
         except ResumeJobMatchInputNotFoundError as error:
             return ToolObservation(
                 tool_name="match_resume_to_job",
@@ -4542,7 +4556,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="match_resume_to_job",
                 state="failed",
-                message="简历与岗位匹配暂时失败，请稍后重试。" if error.retryable else "简历与岗位匹配失败。",
+                message=worker_failure_reason(error),
                 payload={
                     "resume_version_id": model_arguments.resume_version_id,
                     "job_posting_id": model_arguments.job_posting_id,
@@ -4652,7 +4666,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="draft_resume_tailoring",
                 state="failed",
-                message="简历定制暂时失败，请稍后重试。" if error.retryable else "简历定制失败。",
+                message=worker_failure_reason(error),
                 payload={"error_code": error.code, "retryable": error.retryable},
                 execution_outcome="not_committed",
             )
@@ -4796,7 +4810,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="revise_resume_tailoring",
                 state="failed",
-                message="重新生成简历草稿暂时失败，请稍后重试。" if error.retryable else "重新生成简历草稿失败。",
+                message=worker_failure_reason(error),
                 payload={"error_code": error.code, "retryable": error.retryable},
                 execution_outcome="not_committed",
             )
@@ -4860,7 +4874,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="finalize_resume_tailoring",
                 state="failed",
-                message="生成新简历版本暂时失败，请稍后重试。" if error.retryable else "生成新简历版本失败。",
+                message=worker_failure_reason(error),
                 payload={"error_code": error.code, "retryable": error.retryable},
                 execution_outcome="not_committed",
             )

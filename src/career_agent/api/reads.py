@@ -100,6 +100,7 @@ from career_agent.agent.job_analysis_contracts import (
     SENIORITY_LABELS,
     JobAnalysisResult,
 )
+from career_agent.agent.resume_job_match_contracts import IntentAlignment
 from career_agent.agent.job_analysis_presenter import render_job_analysis
 from career_agent.agent.job_research_presenter import render_job_research
 from career_agent.agent.mock_interview_presenter import (
@@ -294,6 +295,7 @@ class ResumeJobMatchView(BaseModel):
     created_at: datetime
     overall_fit: str
     summary: str
+    intent_alignment: IntentAlignment | None = None
 
 
 class JobMatchHistoryResponse(BaseModel):
@@ -992,6 +994,7 @@ class WorkspaceReader:
             matcher_version=stored.matcher_version,
             created_at=stored.created_at,
             overall_fit=stored.result.overall_fit,
+            intent_alignment=stored.result.intent_alignment,
             summary=stored.result.summary,
         )
 
@@ -1843,8 +1846,8 @@ def build_workspace_reader(args: argparse.Namespace) -> WorkspaceReader:
 def build_action_center_service(args: argparse.Namespace) -> ActionCenterService:
     """Assemble the action centre without requiring any model configuration.
 
-    Generated actions are derived from applications, interviews, and recorded
-    email events, none of which needs a worker to read. EmailTrackingService
+    Generated actions are derived from applications, interviews, recorded
+    email events, and stored resume-tailoring gaps; none needs a worker to read. EmailTrackingService
     falls back to its deterministic worker, so a dashboard keeps working on a
     machine where no API key is set.
     """
@@ -1873,6 +1876,9 @@ def build_action_center_service(args: argparse.Namespace) -> ActionCenterService
         email_tracking_service,
         interview_service,
         job_repository=job_repository,
+        resume_tailoring_drafts=SQLiteResumeTailoringDraftStore(
+            Path(args.resume_store).expanduser()
+        ),
     )
 
 

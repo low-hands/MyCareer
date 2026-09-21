@@ -16,6 +16,7 @@ from career_agent.services.applications import ApplicationService
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.storage.action_center import SQLiteActionItemStore
+from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
 
 class ActionItemNotFoundError(ValueError):
@@ -50,6 +51,7 @@ class ActionCenterService:
         "material_submission",
         "interview_reminder",
         "interview_retro",
+        "resume_gap_resolution",
     )
 
     def __init__(
@@ -62,6 +64,7 @@ class ActionCenterService:
         follow_up_cadence: Mapping[str, tuple[int, int]] | None = None,
         interview_window_days: int = 7,
         job_repository: Any | None = None,
+        resume_tailoring_drafts: SQLiteResumeTailoringDraftStore | None = None,
         stale_job_days: int = 30,
     ) -> None:
         self._store = store
@@ -71,6 +74,7 @@ class ActionCenterService:
         # Optional: a deployment without a job library simply produces no
         # library reminders, rather than failing to produce a brief at all.
         self._job_repository = job_repository
+        self._resume_tailoring_drafts = resume_tailoring_drafts
         self._stale_job_days = stale_job_days
         self._follow_up_cadence = dict(
             self._FOLLOW_UP_CADENCE if follow_up_cadence is None else follow_up_cadence
@@ -302,6 +306,25 @@ class ActionCenterService:
         local_zone: ZoneInfo,
     ) -> tuple[ActionCandidate, ...]:
         candidates: list[ActionCandidate] = []
+        if self._resume_tailoring_drafts is not None:
+            for draft in self._resume_tailoring_drafts.list_with_unresolved_gaps(
+                user_id=user_id,
+                now=now,
+            ):
+                gaps = draft.result.unresolved_gaps
+                preview = "；".join(gaps[:3])
+                if len(gaps) > 3:
+                    preview += f"；另有 {len(gaps) - 3} 项"
+                candidates.append(
+                    ActionCandidate(
+                        stable_key=f"resume_gap_resolution:{draft.id}",
+                        action_type="resume_gap_resolution",
+                        source_type="resume_tailoring_draft",
+                        source_id=draft.id,
+                        title=f"补齐定制简历的 {len(gaps)} 项证据缺口",
+                        summary=preview[:2000],
+                    )
+                )
         stale_jobs = self._stale_job_candidate(user_id=user_id, now=now)
         if stale_jobs is not None:
             candidates.append(stale_jobs)

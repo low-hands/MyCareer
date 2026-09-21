@@ -115,6 +115,30 @@ def test_a_selected_candidate_makes_the_detail_tool_reachable() -> None:
     assert reachable("research_job", task)
 
 
+def test_match_requires_analysis_of_the_exact_active_jd_snapshot() -> None:
+    common = {
+        "active_resume_version_id": "rv-1",
+        "active_job_posting_id": "job-1",
+        "active_jd_snapshot_id": "jd-2",
+        "active_job_analysis_id": "analysis-1",
+        "job_analysis_status": "ready",
+    }
+    assert not reachable(
+        "match_resume_to_job",
+        ConversationTaskState(
+            **common,
+            active_job_analysis_jd_snapshot_id="jd-1",
+        ),
+    )
+    assert reachable(
+        "match_resume_to_job",
+        ConversationTaskState(
+            **common,
+            active_job_analysis_jd_snapshot_id="jd-2",
+        ),
+    )
+
+
 def test_schema_prefix_is_repeatable_without_task_state_input() -> None:
     registry = _registry()
     assert registry.schemas() == registry.schemas()

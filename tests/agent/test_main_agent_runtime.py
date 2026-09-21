@@ -991,6 +991,48 @@ def test_a_failure_before_any_reply_stays_a_plain_turn_failure(tmp_path) -> None
     assert events[-1].code == "TURN_EXECUTION_FAILED"
 
 
+def test_a_worker_failure_before_any_reply_keeps_its_public_code(tmp_path) -> None:
+    from career_agent.agent.openai_compatible_client import (
+        AgentWorkerError,
+        ProviderErrorMetadata,
+    )
+
+    class Exploding:
+        def decide(self, context, tool_names):
+            raise AgentWorkerError(
+                "MAIN_AGENT_TIME_BUDGET_524",
+                "private provider detail",
+                retryable=False,
+                provider=ProviderErrorMetadata(
+                        category="time_budget",
+                    status=524,
+                    retryable=False,
+                ),
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    agent = MainAgentRuntime(
+        context_manager=manager, decision_maker=Exploding(), tools=CountingRegistry()
+    )
+    events = []
+
+    with pytest.raises(AgentWorkerError):
+        agent.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="请直接回答",
+            event_sink=events.append,
+        )
+
+    failed = events[-1]
+    assert failed.type == "turn_failed"
+    assert failed.code == "MAIN_AGENT_TIME_BUDGET_524"
+    assert "超过服务端时间预算" in failed.message
+    assert "MAIN_AGENT_TIME_BUDGET_524" not in failed.message
+    assert "private provider detail" not in failed.message
+
+
 def test_a_decision_retry_and_a_long_wait_are_announced_as_progress(
     tmp_path,
 ) -> None:
@@ -3117,6 +3159,33 @@ def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_e
     }
 
 
+def test_runtime_adds_safe_error_code_only_to_the_user_receipt() -> None:
+    result = ToolResult(
+        tool_name="analyze_resume",
+        state="failed",
+        message="简历分析未完成：当前端点拒绝了请求。",
+        payload={
+            "error_code": "RESUME_ANALYSIS_REJECTED_400",
+            "retryable": False,
+        },
+    )
+
+    update = MainAgentRuntime._present(
+        {
+            "decision": AgentDecision(action="final", message="请检查上传文件。"),
+            "tool_results": (result,),
+        }
+    )
+
+    assert update == {
+        "assistant_message": (
+            "简历分析未完成：当前端点拒绝了请求。"
+            "（错误码：RESUME_ANALYSIS_REJECTED_400）"
+        ),
+        "model_message": "",
+    }
+
+
 def test_failed_capability_cannot_turn_into_a_user_question(tmp_path) -> None:
     class FailingRegistry(CountingRegistry):
         def capability_kind(self, name):
@@ -3147,7 +3216,10 @@ def test_failed_capability_cannot_turn_into_a_user_question(tmp_path) -> None:
     )
 
     assert result.model_decision.action == "ask_user"
-    assert result.assistant_message == "岗位研究未完成：本次请求超过服务端时间预算。"
+    assert result.assistant_message == (
+        "岗位研究未完成：本次请求超过服务端时间预算。"
+        "（错误码：JOB_RESEARCH_REJECTED_524）"
+    )
     assert "补充五项" not in result.assistant_message
     assert not any(event.type == "interaction_required" for event in events)
     assert isinstance(events[-1], TurnCompletedEvent)
@@ -3199,6 +3271,8 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert len(decisions.contexts) == 2
     assert "内部检索平台" in decisions.contexts[1].user_message
     assert "泛泛的技能回答不能扩写成项目" in decisions.contexts[1].user_message
+    assert "propose_career_fact" in decisions.contexts[1].user_message
+    assert "提案不得替代或打断原任务" in decisions.contexts[1].user_message
     stored = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="查看记录")
     assert "已提交当前任务问卷" in stored.recent_messages[-2].content
     assert "question_id" not in stored.recent_messages[-2].content

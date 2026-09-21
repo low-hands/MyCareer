@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from career_agent.agent.job_analysis_contracts import JobAnalysisWorker
+import hashlib
+import json
+
+from career_agent.agent.job_analysis_contracts import JobAnalysisResult, JobAnalysisWorker
 from career_agent.domain.job_discovery import content_fingerprint
 from career_agent.storage.jobs import (
     JDAnalysisPayload,
@@ -8,7 +11,7 @@ from career_agent.storage.jobs import (
     StoredJDAnalysis,
 )
 
-JOB_ANALYZER_VERSION = "job-analysis-v1"
+JOB_ANALYZER_VERSION = "job-analysis-v2"
 
 
 class JobAnalysisInputNotFoundError(ValueError):
@@ -66,7 +69,10 @@ class JobAnalysisService:
         )
         if cached is not None:
             return cached
-        result = self._worker.analyze(jd_text=snapshot.content)
+        result = self._with_requirement_ids(
+            self._worker.analyze(jd_text=snapshot.content),
+            jd_snapshot_id=snapshot.id,
+        )
         return self._job_repository.save_analysis(
             user_id=user_id,
             jd_snapshot_id=snapshot.id,
@@ -74,3 +80,33 @@ class JobAnalysisService:
             analysis=JDAnalysisPayload.from_result(result),
             content_fingerprint=fingerprint,
         )
+
+    def _with_requirement_ids(
+        self,
+        result: JobAnalysisResult,
+        *,
+        jd_snapshot_id: str,
+    ) -> JobAnalysisResult:
+        requirements = []
+        for index, requirement in enumerate(result.requirements, start=1):
+            canonical = json.dumps(
+                {
+                    "snapshot": jd_snapshot_id,
+                    "analyzer": self._analyzer_version,
+                    "index": index,
+                    "text": requirement.text,
+                    "tier": requirement.tier,
+                    "kind": requirement.kind,
+                    "quote": requirement.jd_quote,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            requirement_id = "job_requirement_" + hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()[:20]
+            requirements.append(
+                requirement.model_copy(update={"requirement_id": requirement_id})
+            )
+        return result.model_copy(update={"requirements": tuple(requirements)})

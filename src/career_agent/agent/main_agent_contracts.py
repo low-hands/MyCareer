@@ -878,6 +878,7 @@ class ConversationTaskState(ContractModel):
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
     active_job_analysis_id: str | None = None
+    active_job_analysis_jd_snapshot_id: str | None = None
     job_analysis_status: Literal["ready"] | None = None
     active_resume_tailoring_draft_id: str | None = None
     resume_tailoring_status: Literal[
@@ -936,6 +937,10 @@ class ConversationTaskState(ContractModel):
     def focus_saved_job(
         self, focus: ActiveSavedJobContextItem | None
     ) -> "ConversationTaskState":
+        analysis_matches = bool(
+            focus is not None
+            and self.active_job_analysis_jd_snapshot_id == focus.jd_snapshot_id
+        )
         return self.model_copy(
             update={
                 "active_job_posting_id": (
@@ -947,6 +952,17 @@ class ConversationTaskState(ContractModel):
                     focus.jd_snapshot_id if focus is not None else None
                 ),
                 "active_saved_job": focus,
+                "active_job_analysis_id": (
+                    self.active_job_analysis_id if analysis_matches else None
+                ),
+                "active_job_analysis_jd_snapshot_id": (
+                    self.active_job_analysis_jd_snapshot_id
+                    if analysis_matches
+                    else None
+                ),
+                "job_analysis_status": (
+                    self.job_analysis_status if analysis_matches else None
+                ),
             }
         )
 

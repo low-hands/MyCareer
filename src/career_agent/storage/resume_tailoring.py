@@ -298,6 +298,52 @@ class SQLiteResumeTailoringDraftStore:
             )
         return self._record(row, review_rows) if row else None
 
+    def list_with_unresolved_gaps(
+        self,
+        *,
+        user_id: str,
+        now: datetime | None = None,
+        limit: int = 20,
+    ) -> tuple[StoredResumeTailoringDraft, ...]:
+        """Return live, non-superseded drafts whose result still has gaps."""
+        if limit < 1:
+            return ()
+        effective_now = now or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, user_id, match_id, parent_draft_id, revision_number,
+                       revision_feedback, tailoring_goal, review_status,
+                       worker_version, result_json, automated_review_json,
+                       created_at, expires_at
+                FROM resume_tailoring_drafts
+                WHERE user_id = ? AND expires_at > ?
+                  AND review_status != 'superseded'
+                ORDER BY created_at DESC
+                """,
+                (user_id, effective_now.isoformat()),
+            ).fetchall()
+            drafts = []
+            for row in rows:
+                if not ResumeTailoringResult.model_validate_json(
+                    row[9]
+                ).unresolved_gaps:
+                    continue
+                review_rows = connection.execute(
+                    """
+                    SELECT change_index, decision, feedback, reviewed_at
+                    FROM resume_tailoring_change_reviews
+                    WHERE draft_id = ? AND user_id = ?
+                    ORDER BY change_index
+                    """,
+                    (row[0], user_id),
+                ).fetchall()
+                draft = self._record(row, review_rows)
+                drafts.append(draft)
+                if len(drafts) >= limit:
+                    break
+        return tuple(drafts)
+
     def review_changes(
         self,
         *,

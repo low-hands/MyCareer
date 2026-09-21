@@ -39,7 +39,13 @@ class FakeWorker:
             core_objective="建设可靠的 RAG 与 Agent 系统。",
             seniority="mid",
             requirements=(
-                TieredRequirement(text="Python", tier="S", kind="fact", jd_quote="3+ years Python"),
+                TieredRequirement(
+                    requirement_id="job_requirement_ffffffffffffffffffff",
+                    text="Python",
+                    tier="S",
+                    kind="fact",
+                    jd_quote="3+ years Python",
+                ),
                 TieredRequirement(text="RAG 系统经验", tier="A", kind="inference", jd_quote="reliable RAG"),
             ),
             core_competencies=("Python", "RAG"),
@@ -66,6 +72,11 @@ def test_analyze_uses_the_snapshot_text_only_and_caches_per_snapshot(tmp_path) -
     assert result is not None
     assert result.seniority == "mid"
     assert [item.tier for item in result.requirements] == ["S", "A"]
+    requirement_ids = [item.requirement_id for item in result.requirements]
+    assert all(item is not None for item in requirement_ids)
+    assert len(set(requirement_ids)) == 2
+    assert requirement_ids[0] != "job_requirement_ffffffffffffffffffff"
+    assert [item.requirement_id for item in again.analysis.to_result().requirements] == requirement_ids
     current = repository.get_job(user_id="u1", job_posting_id=saved.posting.id)
     assert current is not None and current.analysis is not None and current.analysis.id == first.id
 

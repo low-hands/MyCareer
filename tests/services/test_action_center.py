@@ -5,11 +5,13 @@ import pytest
 
 from career_agent.domain.email_tracking import EmailEvent
 from career_agent.domain.interviews import InterviewRound
+from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
 from career_agent.services.action_center import (
     ActionCenterService,
     InvalidActionTransitionError,
 )
 from career_agent.storage.action_center import SQLiteActionItemStore
+from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
 
 NOW = datetime(2026, 8, 26, 0, 0, tzinfo=timezone.utc)
@@ -128,6 +130,39 @@ def test_daily_brief_groups_due_items_without_persisting_report_text(tmp_path) -
     }
     assert {item.action_type for item in brief.upcoming} == {"interview_reminder"}
     assert {item.action_type for item in brief.no_due_date} == {"material_submission"}
+
+
+def test_unresolved_tailoring_gaps_become_actionable_and_idempotent(tmp_path) -> None:
+    draft_store = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3")
+    draft = draft_store.create(
+        user_id="u1",
+        match_id="match-1",
+        tailoring_goal=None,
+        worker_version="test",
+        result=ResumeTailoringResult(
+            strategy_summary="突出直接证据。",
+            unresolved_gaps=("缺少 Python 熟练度证据", "缺少可到岗时间"),
+        ),
+    )
+    service = ActionCenterService(
+        SQLiteActionItemStore(tmp_path / "actions.sqlite3"),
+        Applications(),
+        Emails(),
+        Interviews(),
+        resume_tailoring_drafts=draft_store,
+    )
+
+    first = service.refresh(user_id="u1", now=NOW)
+    repeated = service.refresh(user_id="u1", now=NOW + timedelta(minutes=1))
+
+    gap = next(item for item in first if item.action_type == "resume_gap_resolution")
+    assert gap.source_type == "resume_tailoring_draft"
+    assert gap.source_id == draft.id
+    assert "Python 熟练度" in gap.summary
+    assert "可到岗时间" in gap.summary
+    assert next(
+        item for item in repeated if item.action_type == "resume_gap_resolution"
+    ).id == gap.id
 
 
 def test_complete_and_snooze_survive_refresh_and_expired_snooze_reopens(tmp_path) -> None:

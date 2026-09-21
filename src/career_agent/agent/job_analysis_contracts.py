@@ -54,6 +54,10 @@ class TieredRequirement(JobAnalysisContract):
     either way ``jd_quote`` is the sentence it rests on.
     """
 
+    requirement_id: str | None = Field(
+        default=None,
+        pattern=r"^job_requirement_[a-f0-9]{20}$",
+    )
     text: str = Field(min_length=1, max_length=1000)
     tier: RequirementTier
     kind: RequirementKind

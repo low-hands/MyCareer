@@ -25,6 +25,7 @@ from career_agent.agent.openai_compatible_client import (
 from career_agent.agent.openai_resume_job_match_worker import (
     OpenAIResumeJobMatchWorker,
 )
+from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
 from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
 from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchAuditProposal,
@@ -33,9 +34,11 @@ from career_agent.agent.resume_job_match_contracts import (
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.harness.streaming import TurnInputResource
 from career_agent.services.resume_job_match import (
+    ResumeJobMatchAnalysisRequiredError,
     ResumeJobMatchInputNotFoundError,
     ResumeJobMatchService,
 )
+from career_agent.services.job_analysis import JobAnalysisService
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
@@ -103,6 +106,13 @@ def worker(client: FakeClient) -> OpenAIResumeJobMatchWorker:
 
 def test_text_match_sends_complete_resume_and_jd_as_untrusted_data() -> None:
     client = FakeClient()
+    authoritative = TieredRequirement(
+        requirement_id="job_requirement_00000000000000000001",
+        text="Production RAG experience",
+        tier="A",
+        kind="fact",
+        jd_quote="Build production RAG systems",
+    )
 
     result = worker(client).match(
         document=StoredResumeDocument(
@@ -111,6 +121,7 @@ def test_text_match_sends_complete_resume_and_jd_as_untrusted_data() -> None:
             raw_bytes=b"Built production RAG systems",
         ),
         jd_text="Build production RAG systems. Strong Go experience.",
+        tiered_requirements=(authoritative,),
     )
 
     assert result.overall_fit == "moderate"
@@ -121,6 +132,8 @@ def test_text_match_sends_complete_resume_and_jd_as_untrusted_data() -> None:
     assert "Built production RAG systems" in text
     assert "<job_description>" in text
     assert "Strong Go experience" in text
+    assert "<authoritative_tiered_requirements>" in text
+    assert authoritative.requirement_id in text
     assert "numeric fit scores" in kwargs["instructions"]
 
 
@@ -178,7 +191,27 @@ class RecordingMatchWorker:
 
     def match(self, **kwargs) -> ResumeJobMatchResult:
         self.calls.append(kwargs)
-        return ResumeJobMatchResult.model_validate(VALID_MATCH)
+        return _bound_valid_match(kwargs)
+
+
+def _bound_valid_match(kwargs, **updates) -> ResumeJobMatchResult:
+    requirements = kwargs.get("tiered_requirements", ())
+    payload = {
+        **VALID_MATCH,
+        **updates,
+        "requirements": [
+            {
+                **assessment,
+                "requirement_id": requirement.requirement_id,
+                "requirement": requirement.text,
+                "jd_quote": requirement.jd_quote,
+            }
+            for assessment, requirement in zip(
+                VALID_MATCH["requirements"], requirements
+            )
+        ],
+    }
+    return ResumeJobMatchResult.model_validate(payload)
 
 
 class PreferenceSensitiveMatchWorker(RecordingMatchWorker):
@@ -189,16 +222,14 @@ class PreferenceSensitiveMatchWorker(RecordingMatchWorker):
             for item in kwargs["intent_states"]
             if item.pref_scope.startswith("freeform")
         )
-        return ResumeJobMatchResult.model_validate(
-            {
-                **VALID_MATCH,
-                "overall_fit": "weak" if free_text else "moderate",
-                "summary": (
-                    "The confirmed employer preference downranks this role."
-                    if free_text
-                    else "The quarantined employer preference has no authority."
-                ),
-            }
+        return _bound_valid_match(
+            kwargs,
+            overall_fit="weak" if free_text else "moderate",
+            summary=(
+                "The confirmed employer preference is recorded separately."
+                if free_text
+                else "The quarantined employer preference has no authority."
+            ),
         )
 
 
@@ -212,18 +243,16 @@ class CascadingPreferenceMatchWorker(RecordingMatchWorker):
         )
         exception_applies = any("例外" in value for value in values)
         default_applies = any("不去大厂" in value for value in values)
-        return ResumeJobMatchResult.model_validate(
-            {
-                **VALID_MATCH,
-                "overall_fit": (
-                    "moderate"
-                    if exception_applies
-                    else "weak"
-                    if default_applies
-                    else "moderate"
-                ),
-                "summary": "Resolved from the effective preference view.",
-            }
+        return _bound_valid_match(
+            kwargs,
+            overall_fit=(
+                "moderate"
+                if exception_applies
+                else "weak"
+                if default_applies
+                else "moderate"
+            ),
+            summary="Resolved from the effective preference view.",
         )
 
 
@@ -234,22 +263,20 @@ class StateAuditingMatchWorker(RecordingMatchWorker):
 
     def match(self, **kwargs) -> ResumeJobMatchResult:
         self.calls.append(kwargs)
-        stale = {
-            **VALID_MATCH,
-            "summary": "The Hangzhou preference makes this role a weak location fit.",
-        }
-        return ResumeJobMatchResult.model_validate(stale)
+        return _bound_valid_match(
+            kwargs,
+            summary="The Hangzhou preference is recorded separately.",
+        )
 
     def audit_state(self, **kwargs) -> ResumeJobMatchAuditProposal:
         self.audits.append(kwargs)
         transition = kwargs["transitions"][0]
-        repaired = {
-            **VALID_MATCH,
-            "summary": (
+        repaired = kwargs["draft"].model_copy(
+            update={"summary": (
                 f"The current {transition.new_value} preference makes "
                 "the location acceptable."
-            ),
-        }
+            )}
+        )
         return ResumeJobMatchAuditProposal(
             findings=(
                 ResumeJobMatchStateFinding(
@@ -262,14 +289,16 @@ class StateAuditingMatchWorker(RecordingMatchWorker):
                     rationale="The draft planned around the superseded city.",
                 ),
             ),
-            repaired_result=ResumeJobMatchResult.model_validate(repaired),
+            repaired_result=repaired,
         )
 
 
 class ConflictFreeAuditingWorker(RecordingMatchWorker):
     def audit_state(self, **kwargs) -> ResumeJobMatchAuditProposal:
         transition = kwargs["transitions"][0]
-        changed = {**VALID_MATCH, "summary": "An unnecessary rewrite."}
+        changed = kwargs["draft"].model_copy(
+            update={"summary": "An unnecessary rewrite."}
+        )
         return ResumeJobMatchAuditProposal(
             findings=(
                 ResumeJobMatchStateFinding(
@@ -282,11 +311,34 @@ class ConflictFreeAuditingWorker(RecordingMatchWorker):
                     rationale="The draft does not rely on the old state.",
                 ),
             ),
-            repaired_result=ResumeJobMatchResult.model_validate(changed),
+            repaired_result=changed,
         )
 
 
-def seed_inputs(tmp_path):
+class AnalysisWorker:
+    def analyze(self, *, jd_text):
+        return JobAnalysisResult(
+            core_objective="Build production RAG systems.",
+            seniority="mid",
+            requirements=(
+                TieredRequirement(
+                    text="Production RAG experience",
+                    tier="A",
+                    kind="fact",
+                    jd_quote="Build production RAG systems",
+                ),
+                TieredRequirement(
+                    text="Go experience",
+                    tier="A",
+                    kind="fact",
+                    jd_quote="Strong Go experience",
+                ),
+            ),
+            summary="RAG engineering role.",
+        )
+
+
+def seed_inputs(tmp_path, *, analyze: bool = True):
     resume_path = tmp_path / "resumes.sqlite3"
     resume_store = ResumeStore(resume_path)
     role = resume_store.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -332,7 +384,146 @@ def seed_inputs(tmp_path):
         source_quote="Built production RAG systems",
     )
     history.confirm_evidence(user_id="u1", career_evidence_id=evidence.id)
+    if analyze:
+        JobAnalysisService(jobs, AnalysisWorker()).analyze(
+            user_id="u1", job_posting_id=saved.posting.id
+        )
     return resume_store, jobs, history, version, saved
+
+
+class InvalidBindingMatchWorker(RecordingMatchWorker):
+    def __init__(self, mode: str) -> None:
+        super().__init__()
+        self.mode = mode
+
+    def match(self, **kwargs) -> ResumeJobMatchResult:
+        self.calls.append(kwargs)
+        result = _bound_valid_match(kwargs)
+        assessments = list(result.requirements)
+        if self.mode == "unknown":
+            assessments[0] = assessments[0].model_copy(
+                update={"requirement_id": "job_requirement_ffffffffffffffffffff"}
+            )
+        elif self.mode == "duplicate":
+            assessments[1] = assessments[1].model_copy(
+                update={"requirement_id": assessments[0].requirement_id}
+            )
+        elif self.mode == "tampered":
+            assessments[0] = assessments[0].model_copy(
+                update={"requirement": "model-created replacement"}
+            )
+        elif self.mode == "omitted":
+            assessments.pop()
+        else:
+            raise AssertionError(f"unsupported fixture mode: {self.mode}")
+        return result.model_copy(update={"requirements": tuple(assessments)})
+
+
+def test_match_requires_a_current_analysis_before_calling_the_worker(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path, analyze=False)
+    worker_stub = RecordingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+    )
+
+    with pytest.raises(ResumeJobMatchAnalysisRequiredError) as error:
+        service.match(
+            user_id="u1",
+            resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+
+    assert error.value.jd_snapshot_id == saved.snapshot.id
+    assert worker_stub.calls == []
+
+
+def test_an_incompatible_analysis_version_does_not_unlock_matching(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path, analyze=False)
+    JobAnalysisService(
+        jobs,
+        AnalysisWorker(),
+        analyzer_version="job-analysis-legacy",
+    ).analyze(user_id="u1", job_posting_id=saved.posting.id)
+    worker_stub = RecordingMatchWorker()
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+    )
+
+    with pytest.raises(ResumeJobMatchAnalysisRequiredError):
+        service.match(
+            user_id="u1",
+            resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+
+    assert worker_stub.calls == []
+
+
+def test_match_tool_exposes_the_analysis_precondition_as_a_stable_state(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path, analyze=False)
+    worker_stub = RecordingMatchWorker()
+    registry = MainAgentToolRegistry(
+        resume_job_match_service=ResumeJobMatchService(
+            resumes,
+            jobs,
+            history,
+            worker_stub,
+            SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+        )
+    )
+
+    observation = registry.invoke_atomic_tool(
+        "match_resume_to_job",
+        {
+            "user_id": "u1",
+            "resume_version_id": version.id,
+            "job_posting_id": saved.posting.id,
+        },
+    )
+
+    assert observation.state == "job_analysis_required"
+    assert observation.next_action == "先调用 analyze_job 分析当前 JD，成功后再匹配简历。"
+    assert observation.payload == {
+        "job_posting_id": saved.posting.id,
+        "jd_snapshot_id": saved.snapshot.id,
+        "retryable": False,
+    }
+    assert worker_stub.calls == []
+
+
+@pytest.mark.parametrize("mode", ["unknown", "duplicate", "tampered", "omitted"])
+def test_invalid_requirement_bindings_are_rejected_before_storage(
+    tmp_path, mode
+) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    worker_stub = InvalidBindingMatchWorker(mode)
+    match_store = SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3")
+    service = ResumeJobMatchService(
+        resumes,
+        jobs,
+        history,
+        worker_stub,
+        match_store,
+    )
+
+    with pytest.raises(AgentWorkerError) as error:
+        service.match(
+            user_id="u1",
+            resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+
+    assert error.value.code == "RESUME_JOB_MATCH_REQUIREMENT_BINDING_INVALID"
+    assert error.value.retryable is True
+    assert match_store.list_for_job(user_id="u1", job_posting_id=saved.posting.id) == ()
 
 
 def test_service_loads_owned_complete_inputs_and_only_exact_version_facts(tmp_path) -> None:
@@ -384,7 +575,7 @@ def test_service_loads_owned_complete_inputs_and_only_exact_version_facts(tmp_pa
     assert len(worker_stub.calls) == 2
 
 
-def test_only_active_free_text_preferences_can_change_a_match_result(tmp_path) -> None:
+def test_only_active_free_text_preferences_reach_worker_but_do_not_change_fit(tmp_path) -> None:
     resumes, jobs, history, version, saved = seed_inputs(tmp_path)
     context = CareerContextStore(tmp_path / "context.sqlite3")
     candidate = context.capture_free_text_preference_from_message(
@@ -421,7 +612,7 @@ def test_only_active_free_text_preferences_can_change_a_match_result(tmp_path) -
         resume_version_id=version.id,
         job_posting_id=saved.posting.id,
     )
-    assert after_confirmation.result.overall_fit == "weak"
+    assert after_confirmation.result.overall_fit == "moderate"
     assert [
         item.value
         for item in worker_stub.calls[1]["intent_states"]
@@ -505,6 +696,9 @@ def test_situational_exception_overrides_default_for_only_one_job(
             ),
         ),
     )
+    JobAnalysisService(jobs, AnalysisWorker()).analyze(
+        user_id="u1", job_posting_id=other.posting.id
+    )
     worker_stub = CascadingPreferenceMatchWorker()
     service = ResumeJobMatchService(
         resumes,
@@ -527,7 +721,7 @@ def test_situational_exception_overrides_default_for_only_one_job(
     )
 
     assert matching.result.overall_fit == "moderate"
-    assert unrelated.result.overall_fit == "weak"
+    assert unrelated.result.overall_fit == "moderate"
     assert [
         item.value
         for item in worker_stub.calls[0]["intent_states"]
@@ -556,7 +750,7 @@ def test_situational_exception_overrides_default_for_only_one_job(
         resume_version_id=version.id,
         job_posting_id=saved.posting.id,
     )
-    assert after_expiry.result.overall_fit == "weak"
+    assert after_expiry.result.overall_fit == "moderate"
     assert [
         item.value
         for item in worker_stub.calls[2]["intent_states"]
@@ -677,7 +871,12 @@ def test_repair_only_keeps_conflict_free_draft_byte_stable(tmp_path) -> None:
         job_posting_id=saved.posting.id,
     )
 
-    assert result.result == ResumeJobMatchResult.model_validate(VALID_MATCH)
+    assert result.result.summary == VALID_MATCH["summary"]
+    assert [item.status for item in result.result.requirements] == [
+        "matched",
+        "missing",
+    ]
+    assert all(item.requirement_id for item in result.result.requirements)
 
 
 def test_service_hides_foreign_inputs_before_calling_worker(tmp_path) -> None:
@@ -918,6 +1117,15 @@ def test_service_matches_the_pinned_jd_version_not_the_latest_recapture(tmp_path
     assert worker_stub.calls[-1]["jd_text"].startswith("PRIVATE JD: Build production RAG")
     assert pinned.jd_snapshot_id == saved.snapshot.id
 
+    with pytest.raises(ResumeJobMatchAnalysisRequiredError):
+        service.match(
+            user_id="u1",
+            resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+    JobAnalysisService(jobs, AnalysisWorker()).analyze(
+        user_id="u1", job_posting_id=saved.posting.id
+    )
     latest = service.match(
         user_id="u1",
         resume_version_id=version.id,
