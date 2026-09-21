@@ -1985,6 +1985,55 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(TrajectoryStep(expect_action="questionnaire", expect_question_count=5),),
     ),
     TrajectoryScenario(
+        name="submitted_resume_questionnaire_continues_tailoring",
+        policy=(
+            "After a user submits answers to a questionnaire for the current resume "
+            "tailoring task, continue that task with the bound resume and match. "
+            "Skipped and absent answers are not career facts or permission to invent experience."
+        ),
+        context=_context(
+            user_message=(
+                "以下是用户一次提交的当前任务问卷答案。仅用于当前绑定任务；跳过或选择“无”"
+                "不构成永久职业事实；泛泛的技能回答不能扩写成项目、年限或成果。"
+                "请继续原任务。\n"
+                '[{"question":"前端经验","answer":{"selected":[],"free_text":"使用 React 开发过内部管理页面"}},'
+                '{"question":"使用过的向量数据库","answer":{"selected":["没有使用过"],"free_text":null}},'
+                '{"question":"Dify 经验","answer":{"selected":[],"free_text":"了解基础工作流配置"}},'
+                '{"question":"AI 编程工具","answer":{"selected":[],"free_text":"日常使用 Claude Code 和 Cursor"}},'
+                '{"question":"开源项目或博客","answer":"跳过"}]'
+            ),
+            task=ConversationTaskState(
+                tool_profile="resume",
+                active_job_posting_id="job-1",
+                active_resume_version_id="resume-version-1",
+                active_resume_job_match_id="match-1",
+                resume_job_match_status="ready",
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="user",
+                    content="请根据当前岗位匹配结果定制简历；先问我五项缺失信息，再继续生成草稿。",
+                    created_at=_NOW,
+                ),
+                ConversationMessageContext(
+                    role="assistant",
+                    content="请补充前端经验、向量数据库、Dify、AI 编程工具和开源项目或博客。",
+                    created_at=_NOW,
+                ),
+            ),
+        ),
+        decisive_facts=(
+            "user_message", "task.has_active_resume_job_match", "recent_messages.0.content",
+        ),
+        recording_samples=3,
+        steps=(
+            TrajectoryStep(
+                expect_tool="draft_resume_tailoring",
+                forbid_tools=frozenset({"create_application"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="a_questionnaire_answer_is_proposed_with_user_input_provenance",
         policy=(
             "When proposing a career fact from a user's questionnaire answer, "
