@@ -151,7 +151,6 @@ describe("resume-library conversation isolation", () => {
     expect(element<HTMLTextAreaElement>("#message").value).toBe("尚未发送的旧草稿");
     expect(element(".composer-attachments").textContent).toContain("Queued v2");
     expect(container.textContent).toContain("旧岗位上下文与面试问题");
-    expect(container.textContent).toContain("等待你的回复");
     expect(streamChat).toHaveBeenCalledTimes(1);
   });
 

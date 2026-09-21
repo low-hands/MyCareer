@@ -1,4 +1,4 @@
-import { CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useReducer, useRef, useState } from "react";
 
 import {
   type ConversationTranscript,
@@ -170,7 +170,7 @@ export default function App() {
   const [transcriptReloads, setTranscriptReloads] = useState(0);
   const [conversationPanelWidth, setConversationPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
-    return Number.isFinite(saved) && saved >= 230 && saved <= 460 ? saved : 310;
+    return Number.isFinite(saved) && saved >= 220 && saved <= 380 ? Math.min(saved, 300) : 270;
   });
   // A file dropped or picked in chat, waiting for the import form to name it.
   const [pendingUpload, setPendingUpload] = useState<File | null>(null);
@@ -310,14 +310,6 @@ export default function App() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [standaloneTask, conversationId, hydratedConversationId, busy, historyLoading]);
-
-  const statusLabel = useMemo(() => {
-    if (state.phase === "running") return "处理中";
-    if (state.phase === "recovering") return "正在恢复";
-    if (state.phase === "awaiting_input") return "等待你的回复";
-    if (state.phase === "failed") return "本轮失败";
-    return "可以开始";
-  }, [state.phase]);
 
   async function sendMessage(
     rawMessage: string,
@@ -630,7 +622,7 @@ export default function App() {
     let latestWidth = startWidth;
     document.body.classList.add("is-resizing-panel");
     const move = (nextEvent: PointerEvent) => {
-      latestWidth = Math.min(460, Math.max(230, startWidth + nextEvent.clientX - startX));
+      latestWidth = Math.min(380, Math.max(220, startWidth + nextEvent.clientX - startX));
       setConversationPanelWidth(latestWidth);
     };
     const stop = () => {
@@ -645,7 +637,7 @@ export default function App() {
 
   function resizeConversationPanelBy(delta: number): void {
     setConversationPanelWidth((current) => {
-      const next = Math.min(460, Math.max(230, current + delta));
+      const next = Math.min(380, Math.max(220, current + delta));
       window.localStorage.setItem("career-agent:conversation-panel-width", String(next));
       return next;
     });
@@ -665,10 +657,7 @@ export default function App() {
       <aside className="app-sidebar">
         <div className="brand">
           <span className="brand-mark"><AppIcon name="sparkles" size={23} /></span>
-          <div>
-            <strong>Career Agent</strong>
-            <span>你的职业行动工作台</span>
-          </div>
+          <strong>Career Agent</strong>
         </div>
         <nav className="view-nav" aria-label="视图">
           {VIEW_GROUPS.map((group) => (
@@ -683,10 +672,7 @@ export default function App() {
                   onClick={() => setView(entry.id)}
                 >
                   <span className="view-icon"><AppIcon name={entry.icon} size={20} /></span>
-                  <span>
-                    <strong>{entry.label}</strong>
-                    <small>{entry.description}</small>
-                  </span>
+                  <strong>{entry.label}</strong>
                 </button>
               ))}
             </div>
@@ -723,15 +709,10 @@ export default function App() {
           </div>
         </nav>
         <div className="sidebar-footer">
-          <div className="system-state">
-            <span className={`status-dot ${busy ? "is-active" : ""}`} />
-            <span><strong>{statusLabel}</strong><small>Agent 状态</small></span>
-          </div>
           <button className="new-chat" type="button" onClick={newConversation} disabled={busy}>
             <AppIcon name="plus" size={18} />
             新对话
           </button>
-          <small>所有实际改动仍会在对话中确认</small>
         </div>
       </aside>
 
@@ -794,11 +775,7 @@ export default function App() {
         >
           <aside className="context-panel conversation-panel" aria-label="历史对话">
             <header className="conversation-panel-header">
-              <div>
-                <p className="eyebrow">CONVERSATIONS</p>
-                <h1>历史对话</h1>
-                <p>选择一段对话继续推进</p>
-              </div>
+              <h1>对话</h1>
               <button type="button" onClick={newConversation} disabled={busy} aria-label="新建对话">
                 <AppIcon name="plus" size={18} />
               </button>
@@ -807,7 +784,7 @@ export default function App() {
               {!conversations.some((item) => item.id === conversationId) ? (
                 <button type="button" className="conversation-panel-item is-current" disabled>
                   <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
-                  <span><strong>新对话</strong><small>尚未发送第一条消息</small></span>
+                  <span><strong>新对话</strong></span>
                   <span className="conversation-current-mark" />
                 </button>
               ) : null}
@@ -840,10 +817,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div className="conversation-panel-status">
-              <span className={`status-dot ${busy ? "is-active" : ""}`} />
-              <span><strong>{statusLabel}</strong><small>Agent 状态</small></span>
-            </div>
             <button
               type="button"
               className="conversation-resize-handle"
@@ -860,18 +833,8 @@ export default function App() {
           <div className="transcript" ref={transcript} aria-live="polite">
             {state.messages.length === 0 && !historyLoading ? (
               <div className="welcome">
-                <div className="welcome-visual">
-                  <span className="orbit orbit-one" />
-                  <span className="orbit orbit-two" />
-                  <span className="welcome-core"><AppIcon name="sparkles" size={34} /></span>
-                </div>
-                <h2>今天想推进哪件事？</h2>
-                <p>描述你的目标，我会拆解任务、执行工具，并在需要你决定时停下来。</p>
-                <div className="capability-chips">
-                  <span><AppIcon name="document" size={14} /> 简历</span>
-                  <span><AppIcon name="search" size={14} /> 岗位</span>
-                  <span><AppIcon name="calendar" size={14} /> 面试</span>
-                </div>
+                <h2>有什么要一起完成的？</h2>
+                <p>直接描述任务，或拖入一份简历。</p>
               </div>
             ) : null}
 
@@ -897,7 +860,6 @@ export default function App() {
               )
             ).map((message) => (
               <article className={`message message-${message.role}`} key={message.id}>
-                {message.role === "assistant" ? <span className="message-role">Career Agent</span> : null}
                 <div className="message-content">
                   {message.content ? (
                     message.role === "assistant" ? (
@@ -1125,7 +1087,7 @@ export default function App() {
                 <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
               </div>
               <small id={submitNotice ? "composer-submit-notice" : undefined} role={submitNotice ? "status" : undefined}>
-                {submitNotice ?? "Enter 发送 · Shift + Enter 换行 · 拖入简历可直接导入并附到消息"}
+                {submitNotice ?? "Enter 发送 · Shift + Enter 换行"}
               </small>
             </form>
           </div>
