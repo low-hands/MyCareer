@@ -1214,3 +1214,42 @@ def test_a_weak_match_may_list_more_unresolved_gaps_than_short_list_fields() -> 
         ResumeTailoringResult.model_validate(
             dict(VALID_DRAFT, unresolved_gaps=[f"gap {n}" for n in range(31)])
         )
+
+
+def test_a_revision_revises_the_draft_the_feedback_is_about() -> None:
+    """The writer must see the draft its feedback describes.
+
+    It is told to change only the stated issues and keep every unchallenged
+    change. Handed the caller's starting point instead — None on a fresh
+    tailoring request — it is asked to preserve something it was never shown
+    and to locate changes by an index that refers to a draft it does not
+    have, so it rewrites blind.
+    """
+
+    valid = ResumeTailoringResult.model_validate(VALID_DRAFT)
+    ungrounded = valid.model_dump(mode="json")
+    ungrounded["changes"][0]["support_evidence"][0]["source_quote"] = "Invented fact"
+    first = ResumeTailoringResult.model_validate(ungrounded)
+
+    class SequenceWorker:
+        def __init__(self) -> None:
+            self.outputs = [first, valid]
+            self.calls = []
+
+        def tailor(self, **kwargs):
+            self.calls.append(kwargs)
+            return self.outputs.pop(0)
+
+    worker = SequenceWorker()
+    ResumeTailoringReviewGraph(worker, RecordingReviewer()).run(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        jd_text="Build production RAG systems",
+        match_result=VALID_MATCH,
+    )
+
+    assert worker.calls[0]["previous_draft"] is None
+    assert worker.calls[1]["previous_draft"] == first

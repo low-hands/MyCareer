@@ -124,6 +124,12 @@ class ResumeTailoringReviewGraph:
         )
 
     def _write(self, state: ResumeTailoringReviewState) -> ResumeTailoringReviewState:
+        # On a revision the draft under review is the one the feedback is about,
+        # so it — not the caller's starting point — is what the writer revises.
+        # The writer is told to change only the stated issues and keep every
+        # unchallenged change; handing it the caller's draft (None on a fresh
+        # request) asks it to preserve something it was never shown, so it
+        # rewrites blind and the feedback's change indices point at nothing.
         draft = self._worker.tailor(
             document=state["document"],
             jd_text=state["jd_text"],
@@ -132,7 +138,7 @@ class ResumeTailoringReviewGraph:
             tailoring_goal=state.get("tailoring_goal"),
             user_feedback=state.get("user_feedback"),
             review_feedback=state.get("review_feedback", ()),
-            previous_draft=state.get("previous_draft"),
+            previous_draft=state.get("draft") or state.get("previous_draft"),
         )
         return {"draft": draft}
 
