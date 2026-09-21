@@ -124,10 +124,15 @@ def provider_worker_error(prefix: str, error: BaseException) -> AgentWorkerError
     metadata = provider_error_metadata(error)
     if metadata is None:
         raise TypeError("Expected an OpenAI provider error")
+    # A gateway time budget keeps its status but not the word "rejected": the
+    # provider accepted the request and the gateway cut the idle connection
+    # before it answered. Reading that as a rejection sends an operator to
+    # check an endpoint and a configuration that are both fine.
     suffix = {
         "timeout": "TIMEOUT",
         "transport": "TRANSPORT_ERROR",
         "rate_limit": "RATE_LIMITED",
+        "time_budget": f"TIME_BUDGET_{metadata.status}",
     }.get(metadata.category, f"REJECTED_{metadata.status}")
     return AgentWorkerError(
         f"{prefix}_{suffix}",
@@ -137,16 +142,37 @@ def provider_worker_error(prefix: str, error: BaseException) -> AgentWorkerError
     )
 
 
+def worker_failure_reason(error: object) -> str:
+    """Why a capability failed, in one sentence, with no identifier to copy.
+
+    This is the wording an orchestrating model reads. It deliberately omits the
+    error code: a code means nothing to the model but reliably ends up quoted
+    back to the user, who then sees `JOB_RESEARCH_TIME_BUDGET_524` in the
+    middle of a sentence. What the model has to decide — retry, or stop and
+    explain — is carried by ``retryable`` and ``next_action`` instead.
+    """
+
+    return _failure_reason(error, _failure_code(error))
+
+
 def user_facing_worker_failure(capability: str, error: object) -> str:
     """Deterministic, provider-body-free explanation for capability failures."""
 
+    code = _failure_code(error)
+    return f"{capability}未完成：{_failure_reason(error, code)}（错误码：{code}）"
+
+
+def _failure_code(error: object) -> str:
     raw_code = getattr(error, "code", None)
-    code = (
+    return (
         raw_code
         if isinstance(raw_code, str)
         and _SAFE_PUBLIC_ERROR_CODE.fullmatch(raw_code)
         else "CAPABILITY_FAILED"
     )
+
+
+def _failure_reason(error: object, code: str) -> str:
     provider = getattr(error, "provider", None)
     category = (
         provider.category
@@ -177,7 +203,7 @@ def user_facing_worker_failure(capability: str, error: object) -> str:
         reason = "研究结果未通过能力或来源校验，没有生成研究报告。"
     else:
         reason = "该能力未完成，未保存结果。"
-    return f"{capability}未完成：{reason}（错误码：{code}）"
+    return reason
 
 
 class AgentConfigurationError(AgentWorkerError):

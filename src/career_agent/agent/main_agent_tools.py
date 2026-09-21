@@ -135,7 +135,7 @@ from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 from career_agent.domain.career_history import career_evidence_lineage_ref
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
-    user_facing_worker_failure,
+    worker_failure_reason,
 )
 from career_agent.agent.tool_effects import effect_for
 from career_agent.harness.observability import (
@@ -3523,7 +3523,7 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name=tool_name,
             state="job_research_failed",
-            message=user_facing_worker_failure("岗位研究", error),
+            message=worker_failure_reason(error),
             payload={
                 "run_id": error.run_id,
                 "job_posting_id": job_posting_id,
@@ -3828,7 +3828,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="analyze_resume",
                 state="failed",
-                message=user_facing_worker_failure("简历分析", error),
+                message=worker_failure_reason(error),
                 payload={
                     "resume_version_id": model_arguments.resume_version_id,
                     "error_code": error.code,

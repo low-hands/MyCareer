@@ -17,6 +17,7 @@ from career_agent.agent.openai_compatible_client import (
     provider_error_metadata,
     provider_worker_error,
     user_facing_worker_failure,
+    worker_failure_reason,
 )
 from career_agent.harness.capability_steps import CapabilityStep, observing_capability_steps
 from career_agent.harness.observability import (
@@ -171,7 +172,11 @@ def test_connection_and_timeout_categories_are_distinct() -> None:
 
 def test_gateway_time_budget_preserves_status_without_suggesting_retry() -> None:
     error = provider_worker_error("JOB_RESEARCH", _status_error(524, {}))
-    assert error.code == "JOB_RESEARCH_REJECTED_524"
+    # The status survives, the word "rejected" must not: the provider took the
+    # request and the gateway cut the idle connection before it answered, so a
+    # code reading REJECTED sends an operator to check a healthy endpoint.
+    assert error.code == "JOB_RESEARCH_TIME_BUDGET_524"
+    assert "REJECTED" not in error.code
     assert error.provider is not None and error.provider.category == "time_budget"
     assert error.retryable is False
     message = user_facing_worker_failure("岗位研究", error)
@@ -236,3 +241,57 @@ def test_decorated_worker_keeps_stable_code_and_discards_exception_payload() -> 
     assert trace.events[-1].error_code == "JOB_RESEARCH_REJECTED_400"
     assert trace.events[-1].recoverable is False
     assert PRIVATE not in trace.model_dump_json()
+
+
+def test_the_model_reads_the_reason_and_the_user_reads_the_code() -> None:
+    """The code is for the person who has to report it, not for the model.
+
+    An identifier tells the model nothing it can act on — retry or stop is
+    carried by ``retryable`` — but it is reliably copied into the sentence the
+    model writes, so the user ends up reading an error code mid-answer instead
+    of the operator reading it in a place that stays put. Both readers get the
+    same explanation; only one of them gets the identifier.
+    """
+
+    for status in (400, 429, 503, 524):
+        error = provider_worker_error("JOB_RESEARCH", _status_error(status, {}))
+        reason = worker_failure_reason(error)
+        shown = user_facing_worker_failure("岗位研究", error)
+
+        assert error.code not in reason
+        assert "错误码" not in reason
+        assert error.code in shown
+        assert reason in shown
+
+
+def test_the_failure_observation_handed_to_the_model_carries_no_error_code() -> None:
+    """Asserting the two functions differ does not pin which one is wired in.
+
+    The observation is what the model reads and then paraphrases, so this
+    reaches through the registry's own factory rather than re-deriving the
+    string: swapping the call site back to the user-facing wording has to turn
+    this red, and the code must still reach the caller through the payload.
+    """
+
+    from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+    from career_agent.services.job_research import JobResearchExecutionError
+
+    error = JobResearchExecutionError(
+        run_id="run-1",
+        code="JOB_RESEARCH_TIME_BUDGET_524",
+        retryable=False,
+        detail=PRIVATE,
+        provider=ProviderErrorMetadata(
+            status=524, category="time_budget", retryable=False
+        ),
+    )
+
+    observation = MainAgentToolRegistry._job_research_failure(
+        tool_name="research_job", error=error, job_posting_id="job-1"
+    )
+
+    assert "JOB_RESEARCH_TIME_BUDGET_524" not in observation.message
+    assert "错误码" not in observation.message
+    assert "本次请求超过服务端时间预算" in observation.message
+    assert observation.payload["error_code"] == "JOB_RESEARCH_TIME_BUDGET_524"
+    assert PRIVATE not in observation.model_dump_json()
