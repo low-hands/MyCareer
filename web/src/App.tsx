@@ -709,9 +709,9 @@ export default function App() {
           </div>
         </nav>
         <div className="sidebar-footer">
-          <button className="new-chat" type="button" onClick={newConversation} disabled={busy}>
+          <button className="new-chat" type="button" onClick={newConversation} disabled={busy} aria-label="新对话">
             <AppIcon name="plus" size={18} />
-            新对话
+            <span className="new-chat-label">新对话</span>
           </button>
         </div>
       </aside>
