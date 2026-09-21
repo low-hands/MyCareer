@@ -42,6 +42,11 @@ EventType = Literal[
     # A BOSS capture's intent resolution and its backend continuation outcome.
     # Identifiers and closed-set statuses only: never JD text, company or title.
     "capture_continuation",
+    # A model-selected action the authorization gate refused, by closed-set
+    # reason. Recorded because the gates trade one wasted model call for a
+    # narrower surface, and whether that trade is worth its cost depends on how
+    # often each gate actually fires — which nothing currently measures.
+    "authorization_refused",
     "capability_failed",
     "presentation_degraded",
     "context_compacted",

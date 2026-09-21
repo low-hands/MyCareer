@@ -380,6 +380,28 @@ class PendingAction(TypedDict, total=False):
     policy_prelude: bool
 
 
+AuthorizationRefusalKind = Literal[
+    # The model named a tool its active profile does not offer.
+    "out_of_profile",
+    # An owner preference denies this capability outright.
+    "preference_deny",
+    # The turn's delegation budget for this effect class is spent.
+    "budget_exhausted",
+    # The identical call already ran this turn and was not retryable.
+    "duplicate_call",
+    # The identical failing call reached this turn's retry limit.
+    "retry_limit",
+    # The action needs an owner seal this deployment cannot store.
+    "seal_unavailable",
+]
+"""Why the authorization gate refused a model-selected action.
+
+A closed set, because the refusal message itself is prose written for the
+model and cannot be counted. Each value names one gate, so the cost of that
+gate is separable from the others when reading a trace.
+"""
+
+
 class LoopControl(TypedDict, total=False):
     read_calls: int
     # Profile switches. Outside the read/write budgets: they change what the
@@ -3234,14 +3256,31 @@ class MainAgentRuntime:
         state: MainAgentState,
         *,
         name: str,
+        kind: AuthorizationRefusalKind,
         reason: str,
         next_action: str,
     ) -> MainAgentState:
         control = self._control(state)
-        if (
+        capped = (
             control.get("authorization_refusals", 0)
             >= self._max_authorization_refusals
-        ):
+        )
+        # Recorded before the cap so the count is every refusal the gates
+        # reached, not only the ones the model was told about: a turn that
+        # gives up here is the most expensive outcome, not an absent one.
+        self._record_trace_event(
+            "authorization_refused",
+            "authorize",
+            outcome="failed",
+            details={
+                "tool_name": name,
+                "refusal_kind": kind,
+                "tool_profile": state["context"].task.tool_profile,
+                "capped": capped,
+            },
+            recoverable=not capped,
+        )
+        if capped:
             return {"authorization_route": "present"}
         result = ToolObservation(
             tool_name=name,
@@ -3295,6 +3334,7 @@ class MainAgentRuntime:
             return self._authorization_refusal(
                 state,
                 name=name,
+                kind="out_of_profile",
                 reason=f"{name} 不在当前 {tool_profile} 工具档内。",
                 next_action=(
                     "先用 route_to_capability 切到该工具所属的领域，"
@@ -3322,6 +3362,7 @@ class MainAgentRuntime:
             return self._authorization_refusal(
                 state,
                 name=name,
+                kind="preference_deny",
                 reason="你设置的偏好不允许这个操作。",
                 next_action="向用户说明这条设置，不要重试这次调用。",
             )
@@ -3334,6 +3375,7 @@ class MainAgentRuntime:
             return self._authorization_refusal(
                 state,
                 name=name,
+                kind="budget_exhausted",
                 reason=(
                     f"本轮 {bucket} 委派预算已经用完；请基于已有结果作答，"
                     "或说明需要下一轮继续。"
@@ -3354,6 +3396,7 @@ class MainAgentRuntime:
                 return self._authorization_refusal(
                     state,
                     name=name,
+                    kind="duplicate_call",
                     reason="相同调用已经执行过，且上次结果没有声明为可重试。",
                     next_action=(
                         "这次调用和本轮之前那次完全一样，再调一次也不会有新结果。"
@@ -3364,6 +3407,7 @@ class MainAgentRuntime:
                 return self._authorization_refusal(
                     state,
                     name=name,
+                    kind="retry_limit",
                     reason="相同失败调用已经达到本轮重试上限。",
                     next_action=(
                         "同一个失败调用已经重试到本轮上限。别再重试；"
@@ -3561,6 +3605,7 @@ class MainAgentRuntime:
             return self._authorization_refusal(
                 state,
                 name=name,
+                kind="seal_unavailable",
                 reason=f"{rule}，但本次部署无法保存待确认动作。",
                 next_action="告诉用户这个操作需要确认，但当前无法记录确认请求。",
             )

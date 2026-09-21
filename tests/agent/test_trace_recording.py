@@ -213,3 +213,150 @@ def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:
     assert events[0].stage == "PresenterContract"
     assert events[0].outcome == "failed"
     assert events[0].error_detail == "validation_error"
+
+
+def _refusal_runtime(tmp_path: Path, recorder, *decisions, **kwargs) -> MainAgentRuntime:
+    """A runtime left in ``core`` so a domain tool is refused out of profile."""
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    return MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(*decisions),
+        tools=MainAgentToolRegistry(email_tracking_service=FailingEmailService()),
+        trace_recorder=recorder,
+        **kwargs,
+    )
+
+
+def test_a_refused_action_is_counted_by_gate_without_recording_its_prose(
+    tmp_path: Path,
+) -> None:
+    """The refusal message is written for the model; only the gate is countable.
+
+    Each gate trades a wasted model call for a narrower surface, so the trace
+    has to say *which* gate fired. The Chinese message must not be copied in:
+    it is prose that cannot be aggregated, and it interpolates a tool name that
+    already has its own field.
+    """
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    runtime = _refusal_runtime(
+        tmp_path,
+        recorder,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="sync_application_emails", arguments={}),
+        ),
+        AgentDecision(action="final", message="先不查邮箱。"),
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="查邮箱"
+    )
+
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    refused = [
+        event
+        for event in _all_events(recorder)
+        if event.event_type == "authorization_refused"
+    ]
+    assert len(refused) == 1
+    event = refused[0]
+    assert event.stage == "authorize"
+    assert event.outcome == "failed"
+    assert event.details == {
+        "tool_name": "sync_application_emails",
+        "refusal_kind": "out_of_profile",
+        "tool_profile": "core",
+        "capped": False,
+    }
+    assert event.recoverable is True
+    assert event.error_detail is None
+
+
+def test_a_refusal_past_the_cap_is_still_counted_and_marked_capped(
+    tmp_path: Path,
+) -> None:
+    """The turn that gives up is the expensive one, so it must not go missing.
+
+    Past the cap the runtime stops telling the model and goes straight to
+    ``present``. Counting only the refusals the model saw would make the
+    costliest outcome — a turn that burned its calls and answered nothing —
+    read as the cheapest.
+    """
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    runtime = _refusal_runtime(
+        tmp_path,
+        recorder,
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="sync_application_emails", arguments={}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="list_email_events", arguments={}),
+        ),
+        max_authorization_refusals=1,
+    )
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="查邮箱")
+
+    refused = [
+        event
+        for event in _all_events(recorder)
+        if event.event_type == "authorization_refused"
+    ]
+    assert [event.details["capped"] for event in refused] == [False, True]
+    assert [event.details["tool_name"] for event in refused] == [
+        "sync_application_emails",
+        "list_email_events",
+    ]
+    assert [event.recoverable for event in refused] == [True, False]
+
+
+def test_a_second_gate_reports_its_own_kind_not_the_first(tmp_path: Path) -> None:
+    """One value per gate, or the field cannot separate their costs.
+
+    A repeated call is refused by the duplicate gate, which is a different
+    trade from the profile gate: one says the surface was too narrow, the
+    other says the model looped. A trace that labelled both the same way
+    would answer neither question.
+    """
+
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    enter_tool_profile(manager, "application")
+
+    class _Events:
+        def list_events(self, **kwargs):
+            return ()
+
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=Decisions(
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="list_email_events", arguments={}),
+            ),
+            AgentDecision(
+                action="tool_call",
+                tool_call=ToolCall(name="list_email_events", arguments={}),
+            ),
+            AgentDecision(action="final", message="没有新邮件。"),
+        ),
+        tools=MainAgentToolRegistry(email_tracking_service=_Events()),
+        trace_recorder=recorder,
+    )
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="有新邮件吗")
+
+    refused = [
+        event
+        for event in _all_events(recorder)
+        if event.event_type == "authorization_refused"
+    ]
+    assert [event.details["refusal_kind"] for event in refused] == ["duplicate_call"]
+    assert refused[0].details["tool_profile"] == "application"
