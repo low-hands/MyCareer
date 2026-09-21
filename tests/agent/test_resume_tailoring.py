@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,14 +28,19 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.resume_job_match_contracts import (
+    RequirementAssessment,
+    ResumeJobMatchResult,
+)
 from career_agent.agent.resume_tailoring_contracts import (
     AcceptedTailoringChange,
     FinalizedResumeDocument,
     ResumeReviewIssue,
     ResumeReviewResult,
     ResumeTailoringResult,
+    gap_mitigation_errors,
 )
+from career_agent.agent.resume_tailoring_presenter import render_resume_tailoring
 from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_export import ResumeExportService
@@ -43,6 +49,7 @@ from career_agent.services.resume_tailoring import (
     ResumeTailoringAlreadyFinalizedError,
     ResumeTailoringDraftNotFoundError,
     ResumeTailoringNotReadyError,
+    ResumeTailoringReviewBlockedError,
     ResumeTailoringService,
     ResumeTailoringSupersededError,
 )
@@ -93,9 +100,78 @@ VALID_DRAFT = {
     ],
     "preserved_strengths": ["RAG experience"],
     "unresolved_gaps": ["Go is not stated"],
+    "gap_mitigations": [
+        {
+            "gap": "Go is not stated",
+            "requirement_id": None,
+            "gap_type": "strengthenable",
+            "priority": "P1",
+            "rationale": "The resume does not establish Go proficiency.",
+            "adjacent_experience": [
+                {
+                    "source_locator": "Experience, bullet 1",
+                    "source_quote": "Built RAG systems",
+                    "relevance": "Shows production software delivery, not Go proficiency.",
+                }
+            ],
+            "alternative_evidence": [
+                "A small reviewed Go service with tests and a deployment README"
+            ],
+            "next_action": "Build one small Go API and document the trade-offs.",
+            "learning_plan": {
+                "objective": "Implement and explain a small idiomatic Go service.",
+                "resource_directions": [
+                    "Official Go tutorial and effective Go guidance",
+                    "A testing and HTTP-service lab",
+                ],
+                "minimum_acceptable_level": (
+                    "Can implement, test, and explain one concurrent HTTP service."
+                ),
+                "estimated_effort": "1-2 weeks",
+            },
+            "interview_talking_point": {
+                "acknowledge_gap": "My current resume does not show production Go work.",
+                "bridge_to_evidence": (
+                    "I have delivered production RAG systems and can discuss the "
+                    "engineering practices that transfer."
+                ),
+                "close_with_action": (
+                    "I am building a tested Go service so I can demonstrate the "
+                    "language-specific fundamentals directly."
+                ),
+            },
+        }
+    ],
     "clarification_questions": [],
     "warnings": [],
 }
+
+
+REQUIREMENT_ID = "job_requirement_00000000000000000001"
+
+
+def _mitigation(**updates):
+    mitigation = copy.deepcopy(VALID_DRAFT["gap_mitigations"][0])
+    mitigation.update(updates)
+    return mitigation
+
+
+def _match_requirement(
+    *,
+    requirement_id: str = REQUIREMENT_ID,
+    tier: str = "S",
+    kind: str = "fact",
+    status: str = "missing",
+) -> RequirementAssessment:
+    return RequirementAssessment(
+        requirement_id=requirement_id,
+        requirement="Production Go experience",
+        jd_quote="Strong production Go experience is required.",
+        tier=tier,
+        kind=kind,
+        status=status,
+        rationale="The resume does not establish this requirement.",
+    )
 
 
 class FakeDeepAgent:
@@ -219,6 +295,149 @@ def test_tailoring_contract_rejects_change_without_resume_evidence(tmp_path) -> 
         )
 
     assert error.value.code == "RESUME_TAILORING_INVALID_RESPONSE"
+
+
+def test_legacy_tailoring_result_without_gap_mitigations_remains_readable() -> None:
+    legacy = copy.deepcopy(VALID_DRAFT)
+    legacy.pop("gap_mitigations")
+
+    result = ResumeTailoringResult.model_validate(legacy)
+
+    assert result.unresolved_gaps == ("Go is not stated",)
+    assert result.gap_mitigations == ()
+
+
+def test_nonempty_gap_mitigations_must_cover_every_gap_exactly_once() -> None:
+    incomplete = copy.deepcopy(VALID_DRAFT)
+    incomplete["unresolved_gaps"].append("Kubernetes is not stated")
+
+    with pytest.raises(ValidationError, match="cover every unresolved gap"):
+        ResumeTailoringResult.model_validate(incomplete)
+
+
+def test_s_fact_missing_requirement_is_a_p0_hard_blocker() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"] = [
+        _mitigation(
+            requirement_id=REQUIREMENT_ID,
+            gap_type="hard_blocker",
+            priority="P0",
+        )
+    ]
+    result = ResumeTailoringResult.model_validate(draft)
+    match = ResumeJobMatchResult(
+        overall_fit="weak",
+        summary="A stated hard requirement is missing.",
+        requirements=(_match_requirement(),),
+    )
+
+    assert gap_mitigation_errors(result, match) == ()
+
+
+@pytest.mark.parametrize(
+    ("tier", "kind", "status"),
+    (("S", "inference", "missing"), ("S", "fact", "unclear"), ("B", "fact", "missing")),
+)
+def test_only_s_fact_missing_may_be_a_hard_blocker(tier, kind, status) -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"] = [
+        _mitigation(
+            requirement_id=REQUIREMENT_ID,
+            gap_type="hard_blocker",
+            priority="P0",
+        )
+    ]
+    result = ResumeTailoringResult.model_validate(draft)
+    match = ResumeJobMatchResult(
+        overall_fit="weak",
+        summary="One requirement remains unresolved.",
+        requirements=(
+            _match_requirement(tier=tier, kind=kind, status=status),
+        ),
+    )
+
+    assert any(
+        "only S/fact/missing can be a hard blocker" in error
+        for error in gap_mitigation_errors(result, match)
+    )
+
+
+def test_s_fact_missing_cannot_be_downgraded_or_deprioritized() -> None:
+    match = ResumeJobMatchResult(
+        overall_fit="weak",
+        summary="A stated hard requirement is missing.",
+        requirements=(_match_requirement(),),
+    )
+    strengthenable = copy.deepcopy(VALID_DRAFT)
+    strengthenable["gap_mitigations"] = [
+        _mitigation(requirement_id=REQUIREMENT_ID, gap_type="strengthenable")
+    ]
+    non_p0 = copy.deepcopy(VALID_DRAFT)
+    non_p0["gap_mitigations"] = [
+        _mitigation(
+            requirement_id=REQUIREMENT_ID,
+            gap_type="hard_blocker",
+            priority="P1",
+        )
+    ]
+
+    assert any(
+        "must be a hard blocker" in error
+        for error in gap_mitigation_errors(
+            ResumeTailoringResult.model_validate(strengthenable), match
+        )
+    )
+    assert any(
+        "must have P0 priority" in error
+        for error in gap_mitigation_errors(
+            ResumeTailoringResult.model_validate(non_p0), match
+        )
+    )
+
+
+def test_unknown_and_duplicate_requirement_ids_are_rejected() -> None:
+    unknown = copy.deepcopy(VALID_DRAFT)
+    unknown["gap_mitigations"] = [
+        _mitigation(requirement_id=REQUIREMENT_ID)
+    ]
+    unknown_errors = gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(unknown), VALID_MATCH
+    )
+    assert unknown_errors == (f"unknown requirement ID: {REQUIREMENT_ID}",)
+
+    duplicate = copy.deepcopy(VALID_DRAFT)
+    duplicate["unresolved_gaps"] = ["Go is not stated", "Go delivery is not stated"]
+    duplicate["gap_mitigations"] = [
+        _mitigation(requirement_id=REQUIREMENT_ID),
+        _mitigation(
+            gap="Go delivery is not stated",
+            requirement_id=REQUIREMENT_ID,
+        ),
+    ]
+    duplicate_errors = gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(duplicate),
+        ResumeJobMatchResult(
+            overall_fit="weak",
+            summary="Go remains unresolved.",
+            requirements=(_match_requirement(tier="A"),),
+        ),
+    )
+    assert "a requirement can have only one gap mitigation" in duplicate_errors
+
+
+def test_presenter_renders_actionable_gap_plan() -> None:
+    rendered = render_resume_tailoring(
+        ResumeTailoringResult.model_validate(VALID_DRAFT),
+        status="pending",
+        revision_number=1,
+    )
+
+    assert "## 缺口缓解与学习路线" in rendered
+    assert "[P1] Go is not stated" in rendered
+    assert "分类：可补强项" in rendered
+    assert "Built RAG systems" in rendered
+    assert "最低可接受水平" in rendered
+    assert "面试诚实表达" in rendered
 
 
 def test_tailoring_worker_requires_local_skill_source(tmp_path) -> None:
@@ -551,6 +770,30 @@ def test_pdf_grounding_blocks_a_quote_absent_from_extracted_text() -> None:
     assert issues[0].source_quote == "Led a team of 50"
 
 
+def test_grounding_blocks_unverified_adjacent_gap_evidence() -> None:
+    invalid = copy.deepcopy(VALID_DRAFT)
+    invalid["gap_mitigations"][0]["adjacent_experience"][0][
+        "source_quote"
+    ] = "Led a production Go platform"
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(invalid),
+    )
+
+    adjacent_issue = next(
+        issue for issue in issues if issue.source_quote == "Led a production Go platform"
+    )
+    assert adjacent_issue.severity == "blocking"
+    assert adjacent_issue.category == "unsupported_fact"
+
+
 def test_scanned_pdf_warns_instead_of_skipping_grounding() -> None:
     invalid = ResumeTailoringResult.model_validate(VALID_DRAFT).model_dump(mode="json")
     invalid["changes"][0]["support_evidence"][0]["source_quote"] = "Led a team of 50"
@@ -757,6 +1000,21 @@ def test_tailoring_service_reads_private_inputs_and_persists_reviewable_draft(tm
             draft_id=draft.id,
             accepted_change_indices=(1,),
         )
+
+
+def test_service_rejects_new_gap_without_mitigation_before_persisting(tmp_path) -> None:
+    service, worker, _, stored_match = seed_service(tmp_path)
+    legacy_shape = copy.deepcopy(VALID_DRAFT)
+    legacy_shape.pop("gap_mitigations")
+    worker.tailor = lambda **kwargs: ResumeTailoringResult.model_validate(legacy_shape)
+
+    with pytest.raises(
+        ResumeTailoringReviewBlockedError,
+        match="every unresolved gap requires a mitigation",
+    ):
+        service.create_draft(user_id="u1", match_id=stored_match.id)
+
+    assert service._draft_store.list_with_unresolved_gaps(user_id="u1") == ()
 
 
 def test_tailoring_finalization_requires_complete_review_and_an_accepted_change(
@@ -1054,6 +1312,14 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     observation = result.tool_result
     assert observation.state == "resume_tailoring_draft_ready"
     assert [change["change_index"] for change in observation.payload["changes"]] == [1, 2]
+    assert observation.payload["gap_mitigations"][0]["priority"] == "P1"
+    rebuilt_result = MainAgentRuntime._resume_tailoring_result(observation)
+    assert rebuilt_result is not None
+    assert rebuilt_result.gap_mitigations[0].learning_plan is not None
+    assert (
+        rebuilt_result.gap_mitigations[0].learning_plan.minimum_acceptable_level
+        == "Can implement, test, and explain one concurrent HTTP service."
+    )
     assert result.context.task.active_resume_tailoring_draft_id == observation.payload["draft_id"]
     assert result.context.task.resume_tailoring_status == "pending"
     serialized = observation.model_dump_json()
@@ -1062,6 +1328,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     rendered = MainAgentRuntime._assistant_message(result.tool_result)
     assert rendered.startswith("# 简历定制草稿 · 修订 1")
     assert "Built production RAG systems for knowledge retrieval." in rendered
+    assert "面试诚实表达" in rendered
     assert observation.resource_ref is not None
     assert observation.resource_ref.kind == "resume_tailoring_draft"
     assert observation.resource_ref.title == "简历改写稿 v1"
@@ -1205,14 +1472,22 @@ def test_a_weak_match_may_list_more_unresolved_gaps_than_short_list_fields() -> 
     the cap on the work, not a cap on admitting ignorance.
     """
 
-    draft = dict(VALID_DRAFT, unresolved_gaps=[f"gap {n}" for n in range(1, 12)])
+    draft = dict(
+        VALID_DRAFT,
+        unresolved_gaps=[f"gap {n}" for n in range(1, 12)],
+        gap_mitigations=[],
+    )
 
     result = ResumeTailoringResult.model_validate(draft)
 
     assert len(result.unresolved_gaps) == 11
     with pytest.raises(ValidationError):
         ResumeTailoringResult.model_validate(
-            dict(VALID_DRAFT, unresolved_gaps=[f"gap {n}" for n in range(31)])
+            dict(
+                VALID_DRAFT,
+                unresolved_gaps=[f"gap {n}" for n in range(31)],
+                gap_mitigations=[],
+            )
         )
 
 

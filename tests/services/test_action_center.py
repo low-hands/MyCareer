@@ -165,6 +165,59 @@ def test_unresolved_tailoring_gaps_become_actionable_and_idempotent(tmp_path) ->
     ).id == gap.id
 
 
+def test_structured_gap_actions_lead_with_p0_and_the_next_action(tmp_path) -> None:
+    draft_store = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3")
+    mitigations = []
+    for gap, priority, next_action in (
+        ("缺少加分项", "P2", "整理一个补充案例"),
+        ("缺少硬门槛", "P0", "先完成可演示的最低闭环"),
+    ):
+        mitigations.append(
+            {
+                "gap": gap,
+                "requirement_id": None,
+                "gap_type": "strengthenable",
+                "priority": priority,
+                "rationale": "当前简历没有直接证据。",
+                "adjacent_experience": [],
+                "alternative_evidence": [],
+                "next_action": next_action,
+                "learning_plan": None,
+                "interview_talking_point": {
+                    "acknowledge_gap": "当前没有直接项目证据。",
+                    "bridge_to_evidence": None,
+                    "close_with_action": "正在完成可演示的补强项目。",
+                },
+            }
+        )
+    draft_store.create(
+        user_id="u1",
+        match_id="match-1",
+        tailoring_goal=None,
+        worker_version="test",
+        result=ResumeTailoringResult.model_validate(
+            {
+                "strategy_summary": "优先处理最高风险缺口。",
+                "unresolved_gaps": ["缺少加分项", "缺少硬门槛"],
+                "gap_mitigations": mitigations,
+            }
+        ),
+    )
+    service = ActionCenterService(
+        SQLiteActionItemStore(tmp_path / "actions.sqlite3"),
+        Applications(),
+        Emails(),
+        Interviews(),
+        resume_tailoring_drafts=draft_store,
+    )
+
+    items = service.refresh(user_id="u1", now=NOW)
+
+    gap = next(item for item in items if item.action_type == "resume_gap_resolution")
+    assert "P0 缺少硬门槛：先完成可演示的最低闭环" in gap.summary
+    assert gap.summary.index("P0") < gap.summary.index("P2")
+
+
 def test_complete_and_snooze_survive_refresh_and_expired_snooze_reopens(tmp_path) -> None:
     service, store, _ = build_service(tmp_path)
     items = service.refresh(user_id="u1", now=NOW)

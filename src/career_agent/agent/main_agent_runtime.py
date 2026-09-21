@@ -4958,6 +4958,7 @@ class MainAgentRuntime:
                 "changes": changes,
                 "preserved_strengths": result.payload.get("preserved_strengths", ()),
                 "unresolved_gaps": result.payload.get("unresolved_gaps", ()),
+                "gap_mitigations": result.payload.get("gap_mitigations", ()),
                 "clarification_questions": result.payload.get(
                     "clarification_questions", ()
                 ),

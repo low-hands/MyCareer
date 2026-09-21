@@ -44,6 +44,44 @@ class ResumeTailoringChange(ResumeTailoringContract):
         return self
 
 
+class GapAdjacentEvidence(ResumeTailoringContract):
+    source_locator: str = Field(min_length=1, max_length=300)
+    source_quote: str = Field(min_length=1, max_length=500)
+    relevance: str = Field(min_length=1, max_length=1000)
+
+
+class GapLearningPlan(ResumeTailoringContract):
+    objective: str = Field(min_length=1, max_length=1000)
+    resource_directions: tuple[str, ...] = Field(min_length=1, max_length=5)
+    minimum_acceptable_level: str = Field(min_length=1, max_length=1000)
+    estimated_effort: str | None = Field(default=None, min_length=1, max_length=300)
+
+
+class GapInterviewTalkingPoint(ResumeTailoringContract):
+    acknowledge_gap: str = Field(min_length=1, max_length=1000)
+    bridge_to_evidence: str | None = Field(default=None, min_length=1, max_length=1000)
+    close_with_action: str = Field(min_length=1, max_length=1000)
+
+
+class GapMitigation(ResumeTailoringContract):
+    gap: str = Field(min_length=1, max_length=1000)
+    requirement_id: str | None = Field(
+        default=None,
+        pattern=r"^job_requirement_[a-f0-9]{20}$",
+    )
+    gap_type: Literal["hard_blocker", "strengthenable"]
+    priority: Literal["P0", "P1", "P2"]
+    rationale: str = Field(min_length=1, max_length=1500)
+    adjacent_experience: tuple[GapAdjacentEvidence, ...] = Field(
+        default=(),
+        max_length=5,
+    )
+    alternative_evidence: tuple[str, ...] = Field(default=(), max_length=5)
+    next_action: str = Field(min_length=1, max_length=1000)
+    learning_plan: GapLearningPlan | None = None
+    interview_talking_point: GapInterviewTalkingPoint
+
+
 class ResumeTailoringResult(ResumeTailoringContract):
     strategy_summary: str = Field(min_length=1, max_length=3000)
     changes: tuple[ResumeTailoringChange, ...] = Field(default=(), max_length=30)
@@ -54,8 +92,94 @@ class ResumeTailoringResult(ResumeTailoringContract):
     # weak-match draft that listed 11, throwing away the whole tailoring run —
     # the cap punished exactly the honesty the skill asks for.
     unresolved_gaps: tuple[str, ...] = Field(default=(), max_length=30)
+    # Optional on read so pre-096 drafts remain loadable. Newly generated drafts
+    # are required by the service boundary to cover every unresolved gap.
+    gap_mitigations: tuple[GapMitigation, ...] = Field(default=(), max_length=30)
     clarification_questions: tuple[str, ...] = Field(default=(), max_length=10)
     warnings: tuple[str, ...] = Field(default=(), max_length=10)
+
+    @model_validator(mode="after")
+    def bind_mitigations_to_gaps(self) -> ResumeTailoringResult:
+        if not self.gap_mitigations:
+            return self
+        gaps = tuple(item.gap for item in self.gap_mitigations)
+        if len(set(gaps)) != len(gaps):
+            raise ValueError("gap mitigations must reference unique unresolved gaps")
+        if set(gaps) != set(self.unresolved_gaps):
+            raise ValueError("gap mitigations must cover every unresolved gap exactly once")
+        return self
+
+
+def gap_mitigation_errors(
+    result: ResumeTailoringResult,
+    match_result: ResumeJobMatchResult,
+) -> tuple[str, ...]:
+    """Validate new drafts without making legacy stored drafts unreadable."""
+    errors: list[str] = []
+    if result.unresolved_gaps and not result.gap_mitigations:
+        errors.append("every unresolved gap requires a mitigation")
+
+    assessments = {
+        item.requirement_id: item
+        for item in match_result.requirements
+        if item.requirement_id is not None
+    }
+    linked_ids = {
+        item.requirement_id
+        for item in result.gap_mitigations
+        if item.requirement_id is not None
+    }
+    if len(linked_ids) != sum(
+        item.requirement_id is not None for item in result.gap_mitigations
+    ):
+        errors.append("a requirement can have only one gap mitigation")
+
+    expected_ids = {
+        item.requirement_id
+        for item in match_result.requirements
+        if item.requirement_id is not None
+        and item.status in {"missing", "unclear"}
+    }
+    omitted = expected_ids - linked_ids
+    if omitted:
+        errors.append(
+            "missing mitigations for requirement IDs: " + ", ".join(sorted(omitted))
+        )
+
+    for mitigation in result.gap_mitigations:
+        if mitigation.requirement_id is None:
+            if mitigation.gap_type == "hard_blocker":
+                errors.append(
+                    f"unbound gap cannot be a hard blocker: {mitigation.gap}"
+                )
+            continue
+        assessment = assessments.get(mitigation.requirement_id)
+        if assessment is None:
+            errors.append(f"unknown requirement ID: {mitigation.requirement_id}")
+            continue
+        if assessment.status not in {"missing", "unclear"}:
+            errors.append(
+                f"supported requirement cannot be an unresolved gap: {mitigation.requirement_id}"
+            )
+            continue
+        is_hard_blocker = (
+            assessment.tier == "S"
+            and assessment.kind == "fact"
+            and assessment.status == "missing"
+        )
+        if is_hard_blocker and mitigation.gap_type != "hard_blocker":
+            errors.append(
+                f"S/fact/missing requirement must be a hard blocker: {mitigation.requirement_id}"
+            )
+        if not is_hard_blocker and mitigation.gap_type == "hard_blocker":
+            errors.append(
+                f"only S/fact/missing can be a hard blocker: {mitigation.requirement_id}"
+            )
+        if mitigation.gap_type == "hard_blocker" and mitigation.priority != "P0":
+            errors.append(
+                f"hard blocker must have P0 priority: {mitigation.requirement_id}"
+            )
+    return tuple(errors)
 
 
 class AcceptedTailoringChange(ResumeTailoringContract):

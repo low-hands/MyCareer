@@ -4,7 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.resume_tailoring_contracts import (
+    GapMitigation,
+    ResumeTailoringResult,
+)
 
 
 TailoringDisplayStatus = Literal[
@@ -28,6 +31,50 @@ class TailoringChangeReviewView(BaseModel):
 
     change_index: int
     decision: Literal["accepted", "rejected"]
+
+
+def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
+    type_label = {
+        "hard_blocker": "硬性 blocker",
+        "strengthenable": "可补强项",
+    }[item.gap_type]
+    lines = [
+        f"### {index}. [{item.priority}] {item.gap}",
+        "",
+        f"分类：{type_label}",
+        "",
+        f"判断：{item.rationale}",
+        "",
+        f"下一步：{item.next_action}",
+    ]
+    if item.adjacent_experience:
+        lines.extend(("", "相邻经验："))
+        lines.extend(
+            f"- {evidence.source_locator}：{evidence.source_quote}（{evidence.relevance}）"
+            for evidence in item.adjacent_experience
+        )
+    if item.alternative_evidence:
+        lines.extend(("", "可替代证据："))
+        lines.extend(f"- {evidence}" for evidence in item.alternative_evidence)
+    if item.learning_plan is not None:
+        plan = item.learning_plan
+        lines.extend(
+            (
+                "",
+                "学习路线：",
+                f"- 目标：{plan.objective}",
+                "- 资源方向：" + "；".join(plan.resource_directions),
+                f"- 最低可接受水平：{plan.minimum_acceptable_level}",
+            )
+        )
+        if plan.estimated_effort is not None:
+            lines.append(f"- 预计投入：{plan.estimated_effort}")
+    talking_point = item.interview_talking_point
+    lines.extend(("", "面试诚实表达：", f"- 承认缺口：{talking_point.acknowledge_gap}"))
+    if talking_point.bridge_to_evidence is not None:
+        lines.append(f"- 连接经验：{talking_point.bridge_to_evidence}")
+    lines.append(f"- 补强动作：{talking_point.close_with_action}")
+    return "\n".join(lines)
 
 
 def render_resume_tailoring(
@@ -74,9 +121,24 @@ def render_resume_tailoring(
             )
             changes.append("\n".join(lines))
         blocks.append("## 修改建议\n\n" + "\n\n".join(changes))
+    if result.gap_mitigations:
+        ordered = sorted(
+            result.gap_mitigations,
+            key=lambda item: ({"P0": 0, "P1": 1, "P2": 2}[item.priority], item.gap),
+        )
+        blocks.append(
+            "## 缺口缓解与学习路线\n\n"
+            + "\n\n".join(
+                _render_gap_mitigation(item, index)
+                for index, item in enumerate(ordered, start=1)
+            )
+        )
     for title, items in (
         ("保留的优势", result.preserved_strengths),
-        ("仍未解决的差距", result.unresolved_gaps),
+        (
+            "仍未解决的差距",
+            result.unresolved_gaps if not result.gap_mitigations else (),
+        ),
         ("需要你补充", result.clarification_questions),
         ("注意事项", result.warnings),
     ):

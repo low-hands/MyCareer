@@ -6473,6 +6473,10 @@ class MainAgentToolRegistry:
                 ],
                 "preserved_strengths": draft.result.preserved_strengths,
                 "unresolved_gaps": draft.result.unresolved_gaps,
+                "gap_mitigations": [
+                    item.model_dump(mode="json")
+                    for item in draft.result.gap_mitigations
+                ],
                 "clarification_questions": draft.result.clarification_questions,
                 "warnings": draft.result.warnings,
             },

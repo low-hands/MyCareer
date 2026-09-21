@@ -9,6 +9,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringResult,
     ResumeTailoringReviewer,
     ResumeTailoringWorker,
+    gap_mitigation_errors,
 )
 from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
 from career_agent.domain.resume import Resume, ResumeVersion
@@ -207,6 +208,11 @@ class ResumeTailoringService:
                 )
             result = outcome.draft
             automated_review = outcome.trace
+        mitigation_errors = gap_mitigation_errors(result, stored_match.result)
+        if mitigation_errors:
+            raise ResumeTailoringReviewBlockedError(
+                "Gap mitigation validation failed: " + "; ".join(mitigation_errors)
+            )
         return self._draft_store.create(
             user_id=user_id,
             match_id=match_id,

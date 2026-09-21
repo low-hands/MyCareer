@@ -312,7 +312,20 @@ class ActionCenterService:
                 now=now,
             ):
                 gaps = draft.result.unresolved_gaps
-                preview = "；".join(gaps[:3])
+                mitigations = sorted(
+                    draft.result.gap_mitigations,
+                    key=lambda item: (
+                        {"P0": 0, "P1": 1, "P2": 2}[item.priority],
+                        item.gap,
+                    ),
+                )
+                if mitigations:
+                    preview = "；".join(
+                        f"{item.priority} {item.gap}：{item.next_action}"
+                        for item in mitigations[:3]
+                    )
+                else:
+                    preview = "；".join(gaps[:3])
                 if len(gaps) > 3:
                     preview += f"；另有 {len(gaps) - 3} 项"
                 candidates.append(

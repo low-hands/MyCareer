@@ -20,6 +20,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringResult,
     ResumeTailoringReviewer,
     ResumeTailoringWorker,
+    gap_mitigation_errors,
 )
 from career_agent.storage.resumes import StoredResumeDocument
 
@@ -282,6 +283,18 @@ class ResumeTailoringReviewGraph:
         unverifiable = resume_text is None and readable
 
         issues: list[ResumeReviewIssue] = []
+        for explanation in gap_mitigation_errors(draft, match_result):
+            issues.append(
+                ResumeReviewIssue(
+                    category="jd_misalignment",
+                    severity="blocking",
+                    explanation=explanation,
+                    revision_instruction=(
+                        "Rebuild gap mitigations from the authoritative requirement IDs, "
+                        "tiers, kinds, and statuses."
+                    ),
+                )
+            )
         locators: dict[str, int] = {}
         for index, change in enumerate(draft.changes, start=1):
             locator = cls._normalize(change.target_locator)
@@ -325,6 +338,42 @@ class ResumeTailoringReviewGraph:
                             source_quote=evidence.source_quote,
                             explanation="The cited support quote is absent from the exact resume version.",
                             revision_instruction="Use an exact quote from the resume or remove the change.",
+                        )
+                    )
+        for mitigation in draft.gap_mitigations:
+            for evidence in mitigation.adjacent_experience:
+                quote = cls._normalize(evidence.source_quote)
+                if quote in known_quotes:
+                    continue
+                if unverifiable:
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="warning",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                f"Adjacent evidence for gap '{mitigation.gap}' could not "
+                                "be verified because the resume has no extractable text."
+                            ),
+                            revision_instruction=(
+                                "Confirm the quote against the original resume before "
+                                "using it in an interview."
+                            ),
+                        )
+                    )
+                elif resume_text is None or quote not in resume_text:
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                f"Adjacent evidence for gap '{mitigation.gap}' is absent "
+                                "from the exact resume version."
+                            ),
+                            revision_instruction=(
+                                "Use an exact resume quote or remove the adjacent evidence."
+                            ),
                         )
                     )
         return tuple(issues)
