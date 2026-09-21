@@ -29,6 +29,7 @@ EventType = Literal[
     "node_failed",
     "node_interrupted",
     "model_attempt",
+    "model_retry",
     "model_succeeded",
     "model_failed",
     "turn_completed",
@@ -141,6 +142,7 @@ def record_active_trace(
     stage: str,
     *,
     outcome: Literal["started", "succeeded", "failed", "interrupted"],
+    attempt: int | None = None,
     duration_ms: int | None = None,
     error_code: str | None = None,
     error_detail: str | None = None,
@@ -159,6 +161,7 @@ def record_active_trace(
             run_id,
             event_type,
             stage,
+            attempt=attempt,
             outcome=outcome,
             duration_ms=duration_ms,
             error_code=error_code,
@@ -438,6 +441,7 @@ def validate_model_call_category(
 
     is_model_event = event_type in {
         "model_attempt",
+        "model_retry",
         "model_succeeded",
         "model_failed",
     }

@@ -102,6 +102,7 @@ class ChatHarness:
         self.requests: list[dict[str, object]] = []
         self.paths: list[str] = []
         self.output: str | None = numbered_result().model_dump_json()
+        self.outputs: list[str | None] | None = None
         self.finish_reason = "stop"
         self.refusal: str | None = None
         self.completion_tokens: int | None = None
@@ -130,6 +131,7 @@ class ChatHarness:
             raise self.transport_error
         if self.status != 200:
             return httpx.Response(self.status, json=self.error_body)
+        output = self.outputs.pop(0) if self.outputs is not None else self.output
         payload: dict[str, object] = {
             "id": "synthetic-completion",
             "created": 0,
@@ -141,7 +143,7 @@ class ChatHarness:
                     "finish_reason": self.finish_reason,
                     "message": {
                         "role": "assistant",
-                        "content": self.output,
+                        "content": output,
                         "refusal": self.refusal,
                     },
                 }
@@ -360,6 +362,28 @@ def test_invalid_wire_output_fails_closed_with_safe_detail(
         chat.worker().analyze(document(SOURCE.encode(), "text"))
     assert caught.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
     assert "private-extra-key" not in str(caught.value.detail)
+
+
+def test_invalid_wire_sample_is_retried_once_without_restarting_the_worker(
+    chat: ChatHarness,
+) -> None:
+    chat.outputs = ["not-json", numbered_result().model_dump_json()]
+
+    assert chat.worker().analyze(document(SOURCE.encode(), "text")) == result()
+    assert len(chat.requests) == 2
+
+
+def test_invalid_wire_retry_exhaustion_is_terminal_for_the_outer_runtime(
+    chat: ChatHarness,
+) -> None:
+    chat.outputs = ["not-json", "still-not-json"]
+
+    with pytest.raises(AgentWorkerError) as caught:
+        chat.worker().analyze(document(SOURCE.encode(), "text"))
+
+    assert caught.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
+    assert caught.value.retryable is False
+    assert len(chat.requests) == 2
 
 
 @pytest.mark.parametrize(

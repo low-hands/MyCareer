@@ -22,7 +22,15 @@ from openai import APIConnectionError, APIStatusError, RateLimitError
 from pydantic import BaseModel
 
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.structured_response_retry import (
+    INVALID_RESPONSE_RETRIES,
+    retry_invalid_response,
+)
 from career_agent.agent.structured_responses import structured_response
+from career_agent.harness.observability import (
+    ACTIVE_TRACE_CONTEXT,
+    InMemoryTraceRecorder,
+)
 
 
 class Answer(BaseModel):
@@ -56,6 +64,19 @@ class _Client:
         if self._error is not None:
             raise self._error
         return type("Response", (), {"output_text": self._output_text})()
+
+
+class _SequenceClient:
+    """A responses client whose samples change between bounded attempts."""
+
+    def __init__(self, *output_texts: str):
+        self._output_texts = list(output_texts)
+        self.calls: list[dict] = []
+        self.responses = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return type("Response", (), {"output_text": self._output_texts.pop(0)})()
 
 
 def _call(client, **overrides):
@@ -184,9 +205,59 @@ def test_an_unparseable_answer_reports_why_without_quoting_the_payload() -> None
         _call(client)
 
     assert raised.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
+    assert raised.value.retryable is False
+    assert len(client.calls) == 2
     assert raised.value.detail is not None
     assert secret not in raised.value.detail
     assert "score" in raised.value.detail
+
+
+def test_an_invalid_sample_is_retried_once_and_the_next_valid_sample_wins() -> None:
+    private_output = "PRIVATE INVALID MODEL OUTPUT"
+    client = _SequenceClient(
+        f'{{"verdict": "ok", "score": "{private_output}"}}',
+        '{"verdict": "strong", "score": 8}',
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-retry-success"))
+    try:
+        answer = _call(client)
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert answer == Answer(verdict="strong", score=8)
+    assert len(client.calls) == 2
+    retries = recorder.snapshot("turn-retry-success").events
+    assert len(retries) == 1
+    retry = retries[0]
+    assert retry.event_type == "model_retry"
+    assert retry.attempt == 2
+    assert retry.error_code == "RESUME_ANALYSIS_INVALID_RESPONSE"
+    assert retry.recoverable is True
+    assert retry.details == {"code_prefix": "RESUME_ANALYSIS"}
+    assert private_output not in retry.model_dump_json()
+
+
+def test_two_invalid_samples_stop_after_one_retry_and_trace_it_once() -> None:
+    client = _SequenceClient(
+        '{"verdict": "ok", "score": "first"}',
+        '{"verdict": "ok", "score": "second"}',
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-retry-exhausted"))
+    try:
+        with pytest.raises(AgentWorkerError) as raised:
+            _call(client)
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert raised.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
+    assert raised.value.retryable is False
+    assert len(client.calls) == 2
+    retries = recorder.snapshot("turn-retry-exhausted").events
+    assert len(retries) == 1
+    assert retries[0].event_type == "model_retry"
+    assert retries[0].attempt == 2
 
 
 def test_each_capability_keeps_its_own_error_vocabulary() -> None:
@@ -310,3 +381,57 @@ def test_every_capability_reaches_all_five_codes_under_its_own_prefix(
         _call(clients[failure], code_prefix=prefix, subject="Capability")
 
     assert raised.value.code == f"{prefix}_{suffix}"
+
+
+def test_an_exhausted_invalid_response_cannot_be_retried_by_the_caller() -> None:
+    """The bounded inner budget must be the only one spent on a bad sample.
+
+    A retryable exhausted failure would let the Main Agent re-run the whole
+    capability, so an expensive workflow would repeat every completed step to
+    reach the same last call: today's tailoring draft costs 88-165s before the
+    review it dies in. The inner raise happens not to mark the error retryable,
+    which is why forcing it has to be asserted against one that does — the
+    previous revision of this retry did exactly that.
+    """
+
+    attempts: list[int] = []
+
+    def always_invalid() -> None:
+        attempts.append(1)
+        raise AgentWorkerError(
+            "CAPABILITY_INVALID_RESPONSE",
+            "Capability model returned invalid structured output.",
+            retryable=True,
+        )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        retry_invalid_response(always_invalid, code_prefix="CAPABILITY")
+
+    assert raised.value.retryable is False
+    assert len(attempts) == INVALID_RESPONSE_RETRIES + 1
+
+
+def test_a_failure_that_is_not_an_invalid_sample_keeps_its_own_retryability() -> None:
+    """Only the invalid-sample class is bounded here.
+
+    Rate limiting and transport loss are retryable for reasons this retry knows
+    nothing about, and they must pass through untouched and uncounted rather
+    than being re-sampled against a provider that just asked us to slow down.
+    """
+
+    attempts: list[int] = []
+
+    def rate_limited() -> None:
+        attempts.append(1)
+        raise AgentWorkerError(
+            "CAPABILITY_RATE_LIMITED",
+            "Capability model is rate limited.",
+            retryable=True,
+        )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        retry_invalid_response(rate_limited, code_prefix="CAPABILITY")
+
+    assert raised.value.code == "CAPABILITY_RATE_LIMITED"
+    assert raised.value.retryable is True
+    assert len(attempts) == 1

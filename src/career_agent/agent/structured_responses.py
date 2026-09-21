@@ -35,6 +35,7 @@ from openai import APIConnectionError, APIStatusError, RateLimitError
 from pydantic import BaseModel
 
 from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.structured_response_retry import retry_invalid_response
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -115,51 +116,54 @@ def structured_response(
     classified — including which are retryable, a judgement that was previously
     made six times.
     """
-    try:
-        response = client.responses.create(
-            model=model,
-            instructions=instructions,
-            input=[{"role": "user", "content": content}],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": schema_name,
-                    "schema": output_type.model_json_schema(),
-                    "strict": False,
-                }
-            },
-            max_output_tokens=max_output_tokens,
-            timeout=timeout_seconds,
-        )
-    except RateLimitError as error:
-        raise AgentWorkerError(
-            f"{code_prefix}_RATE_LIMITED",
-            f"{subject} model is rate limited.",
-            retryable=True,
-        ) from error
-    except APIConnectionError as error:
-        raise AgentWorkerError(
-            f"{code_prefix}_TRANSPORT_ERROR",
-            f"{subject} model transport failed.",
-            retryable=True,
-        ) from error
-    except APIStatusError as error:
-        raise AgentWorkerError(
-            f"{code_prefix}_REJECTED_{error.status_code}{provider_code(error)}",
-            f"{subject} model rejected the request.",
-        ) from error
+    def request_once() -> T:
+        try:
+            response = client.responses.create(
+                model=model,
+                instructions=instructions,
+                input=[{"role": "user", "content": content}],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": schema_name,
+                        "schema": output_type.model_json_schema(),
+                        "strict": False,
+                    }
+                },
+                max_output_tokens=max_output_tokens,
+                timeout=timeout_seconds,
+            )
+        except RateLimitError as error:
+            raise AgentWorkerError(
+                f"{code_prefix}_RATE_LIMITED",
+                f"{subject} model is rate limited.",
+                retryable=True,
+            ) from error
+        except APIConnectionError as error:
+            raise AgentWorkerError(
+                f"{code_prefix}_TRANSPORT_ERROR",
+                f"{subject} model transport failed.",
+                retryable=True,
+            ) from error
+        except APIStatusError as error:
+            raise AgentWorkerError(
+                f"{code_prefix}_REJECTED_{error.status_code}{provider_code(error)}",
+                f"{subject} model rejected the request.",
+            ) from error
 
-    output_text = getattr(response, "output_text", None)
-    if not isinstance(output_text, str) or not output_text.strip():
-        raise AgentWorkerError(
-            f"{code_prefix}_EMPTY_RESPONSE",
-            f"{subject} model returned no structured output.",
-        )
-    try:
-        return output_type.model_validate_json(output_text)
-    except ValueError as error:
-        raise AgentWorkerError(
-            f"{code_prefix}_INVALID_RESPONSE",
-            f"{subject} model returned invalid structured output.",
-            detail=validation_detail(error),
-        ) from error
+        output_text = getattr(response, "output_text", None)
+        if not isinstance(output_text, str) or not output_text.strip():
+            raise AgentWorkerError(
+                f"{code_prefix}_EMPTY_RESPONSE",
+                f"{subject} model returned no structured output.",
+            )
+        try:
+            return output_type.model_validate_json(output_text)
+        except ValueError as error:
+            raise AgentWorkerError(
+                f"{code_prefix}_INVALID_RESPONSE",
+                f"{subject} model returned invalid structured output.",
+                detail=validation_detail(error),
+            ) from error
+
+    return retry_invalid_response(request_once, code_prefix=code_prefix)

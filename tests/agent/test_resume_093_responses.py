@@ -39,12 +39,13 @@ class ResponsesHarness(contracts.ChatHarness):
             raise self.transport_error
         if self.status != 200:
             return httpx.Response(self.status, json=self.error_body)
+        output = self.outputs.pop(0) if self.outputs is not None else self.output
         parts = self.parts
         if parts is None:
             parts = (
                 [{"type": "refusal", "refusal": self.refusal}]
                 if self.refusal
-                else [{"type": "output_text", "text": self.output, "annotations": []}]
+                else [{"type": "output_text", "text": output, "annotations": []}]
             )
         payload = {
             "id": "synthetic-response",
@@ -240,6 +241,30 @@ def test_responses_retains_same_strict_json_validation(
     responses: ResponsesHarness, output: str
 ) -> None:
     contracts.test_invalid_wire_output_fails_closed_with_safe_detail(responses, output)
+
+
+def test_responses_invalid_sample_is_retried_once(
+    responses: ResponsesHarness,
+) -> None:
+    responses.outputs = ["not-json", contracts.numbered_result().model_dump_json()]
+
+    assert responses.worker().analyze(
+        document(contracts.SOURCE.encode(), "text")
+    ) == contracts.result()
+    assert responses.paths == ["/v1/responses", "/v1/responses"]
+
+
+def test_responses_invalid_retry_exhaustion_is_terminal(
+    responses: ResponsesHarness,
+) -> None:
+    responses.outputs = ["not-json", "still-not-json"]
+
+    with pytest.raises(AgentWorkerError) as caught:
+        responses.worker().analyze(document(contracts.SOURCE.encode(), "text"))
+
+    assert caught.value.code == "RESUME_ANALYSIS_INVALID_RESPONSE"
+    assert caught.value.retryable is False
+    assert responses.paths == ["/v1/responses", "/v1/responses"]
 
 
 @pytest.mark.parametrize(

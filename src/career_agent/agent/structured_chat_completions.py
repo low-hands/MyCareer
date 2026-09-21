@@ -1,7 +1,8 @@
 """Bounded strict-schema Chat or explicitly selected Responses text calls.
 
 Both protocols share the same local strict validation. No protocol fallback,
-JSON-object downgrade, file upload, tools or automatic retry is permitted.
+JSON-object downgrade, file upload or tools are permitted. A schema-invalid
+sample receives one bounded retry before the failure becomes terminal.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     provider_worker_error,
 )
+from career_agent.agent.structured_response_retry import retry_invalid_response
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -205,6 +207,38 @@ def structured_chat_completion(
         code_prefix=code_prefix,
         subject=subject,
     )
+    return retry_invalid_response(
+        lambda: _structured_chat_completion_once(
+            client,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            messages=messages,
+            response_format=response_format,
+            output_type=output_type,
+            schema=schema,
+            max_output_tokens=max_output_tokens,
+            code_prefix=code_prefix,
+            subject=subject,
+            extra_body=extra_body,
+        ),
+        code_prefix=code_prefix,
+    )
+
+
+def _structured_chat_completion_once(
+    client: OpenAI | StructuredChatClient,
+    *,
+    model: str,
+    timeout_seconds: float,
+    messages: list[ChatCompletionMessageParam],
+    response_format: ResponseFormatJSONSchema,
+    output_type: type[T],
+    schema: dict[str, object],
+    max_output_tokens: int,
+    code_prefix: str,
+    subject: str,
+    extra_body: Mapping[str, object] | None,
+) -> T:
     try:
         response = client.chat.completions.create(
             model=model,
@@ -307,6 +341,40 @@ def structured_text_response(
         code_prefix=code_prefix,
         subject=subject,
     )
+    return retry_invalid_response(
+        lambda: _structured_text_response_once(
+            client,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            instructions=instructions,
+            inputs=inputs,
+            text_config=text_config,
+            output_type=output_type,
+            schema=schema,
+            max_output_tokens=max_output_tokens,
+            code_prefix=code_prefix,
+            subject=subject,
+            extra_body=extra_body,
+        ),
+        code_prefix=code_prefix,
+    )
+
+
+def _structured_text_response_once(
+    client: OpenAI | StructuredResponsesClient,
+    *,
+    model: str,
+    timeout_seconds: float,
+    instructions: str,
+    inputs: list[ResponseInputItemParam],
+    text_config: ResponseTextConfigParam,
+    output_type: type[T],
+    schema: dict[str, object],
+    max_output_tokens: int,
+    code_prefix: str,
+    subject: str,
+    extra_body: Mapping[str, object] | None,
+) -> T:
     try:
         response = client.responses.create(
             model=model,
