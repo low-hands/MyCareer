@@ -2940,6 +2940,7 @@ export const API_CONTRACT = {
               "company_name": "示例科技",
               "created_at": "2026-09-12T12:00:00Z",
               "current_jd": false,
+              "intent_alignment": null,
               "jd_available": true,
               "jd_captured_at": "2026-09-12T12:00:00Z",
               "jd_snapshot_id": "jds-1",
@@ -2971,6 +2972,43 @@ export const API_CONTRACT = {
       ],
       "schema": {
         "$defs": {
+          "IntentAlignment": {
+            "additionalProperties": false,
+            "description": "A separate, non-evidence judgment about current preferences.",
+            "properties": {
+              "rationale": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "relevant_constraints": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Relevant Constraints",
+                "type": "array"
+              },
+              "status": {
+                "enum": [
+                  "aligned",
+                  "mixed",
+                  "misaligned",
+                  "unknown"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "rationale"
+            ],
+            "title": "IntentAlignment",
+            "type": "object"
+          },
           "ResumeJobMatchView": {
             "additionalProperties": false,
             "properties": {
@@ -3002,6 +3040,17 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Current Jd"
+              },
+              "intent_alignment": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/IntentAlignment"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "jd_available": {
                 "title": "Jd Available",
@@ -3545,6 +3594,7 @@ export const API_CONTRACT = {
             "company_name": null,
             "created_at": "2026-09-12T12:00:00Z",
             "current_jd": null,
+            "intent_alignment": null,
             "jd_available": false,
             "jd_captured_at": null,
             "jd_snapshot_id": "deleted-snapshot",
@@ -3568,6 +3618,43 @@ export const API_CONTRACT = {
       ],
       "schema": {
         "$defs": {
+          "IntentAlignment": {
+            "additionalProperties": false,
+            "description": "A separate, non-evidence judgment about current preferences.",
+            "properties": {
+              "rationale": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "relevant_constraints": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Relevant Constraints",
+                "type": "array"
+              },
+              "status": {
+                "enum": [
+                  "aligned",
+                  "mixed",
+                  "misaligned",
+                  "unknown"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "rationale"
+            ],
+            "title": "IntentAlignment",
+            "type": "object"
+          },
           "ResumeJobMatchView": {
             "additionalProperties": false,
             "properties": {
@@ -3599,6 +3686,17 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Current Jd"
+              },
+              "intent_alignment": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/IntentAlignment"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "jd_available": {
                 "title": "Jd Available",

@@ -788,6 +788,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--samples", type=int, default=6,
         help="Independent samples (1-20; default: 6).",
     )
+    eval_match.add_argument(
+        "--suite", choices=("smoke", "boundaries"), default="boundaries",
+        help="Use the full 096 boundary fixture suite (default) or one smoke fixture.",
+    )
+    eval_match.add_argument(
+        "--case",
+        action="append",
+        default=None,
+        help="Run only this named boundary case. Repeatable; valid only for boundaries.",
+    )
     eval_match.add_argument("--timeout-seconds", type=float, default=60.0)
 
     memory = subparsers.add_parser(
@@ -2099,29 +2109,91 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 def _run_resume_job_match_evaluation(args, stdout) -> int:
     """Run the 096 boundary fixture against the configured live model."""
     try:
-        from career_agent.evaluation.resume_job_match import run_samples
+        from career_agent.evaluation.resume_job_match import run_boundary_suite, run_samples
 
         config = replace(
             OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
             timeout_seconds=args.timeout_seconds,
         )
-        samples = run_samples(config, sample_count=args.samples)
-        payload = {
-            "state": "completed",
-            "sample_count": len(samples),
-            "samples_passed": sum(item.result is not None for item in samples),
-            "overall_fit_values": [
-                item.result.overall_fit for item in samples if item.result is not None
-            ],
-            "errors": [
-                {"sample": item.index, "error": item.error}
-                for item in samples
-                if item.error is not None
-            ],
-        }
+        if args.suite == "boundaries":
+            from career_agent.evaluation.resume_job_match import BOUNDARY_CASES
+
+            suite = run_boundary_suite(
+                config,
+                sample_count=args.samples,
+                case_names=tuple(args.case) if args.case else None,
+            )
+            cases_by_name = {case.name: case for case in BOUNDARY_CASES}
+            payload = {
+                "state": "completed",
+                "suite": "096_boundaries",
+                "case_count": len(suite),
+                "sample_count": args.samples,
+                "cases_passed": sum(
+                    all(item.error is None for item in samples)
+                    for samples in suite.values()
+                ),
+                "cases": {
+                    name: {
+                        "expected_overall_fit": cases_by_name[name].expected_fit,
+                        "expected_statuses": [
+                            list(status) if isinstance(status, tuple) else status
+                            for status in cases_by_name[name].expected_statuses
+                        ],
+                        "samples_passed": sum(item.error is None for item in samples),
+                        "samples": [
+                            {
+                                "sample": item.index,
+                                "passed": item.error is None,
+                                "overall_fit": (
+                                    item.result.overall_fit
+                                    if item.result is not None else None
+                                ),
+                                "requirement_statuses": (
+                                    [
+                                        assessment.status
+                                        for assessment in item.result.requirements
+                                    ]
+                                    if item.result is not None else []
+                                ),
+                                "summary": (
+                                    item.result.summary
+                                    if item.result is not None else None
+                                ),
+                                "error": item.error,
+                            }
+                            for item in samples
+                        ],
+                        "overall_fit_values": [
+                            item.result.overall_fit
+                            for item in samples if item.result is not None
+                        ],
+                    }
+                    for name, samples in suite.items()
+                },
+            }
+            success = payload["cases_passed"] == payload["case_count"]
+        else:
+            if args.case:
+                raise ValueError("--case is only valid with --suite boundaries")
+            samples = run_samples(config, sample_count=args.samples)
+            payload = {
+                "state": "completed",
+                "suite": "smoke",
+                "sample_count": len(samples),
+                "samples_passed": sum(item.result is not None for item in samples),
+                "overall_fit_values": [
+                    item.result.overall_fit for item in samples if item.result is not None
+                ],
+                "errors": [
+                    {"sample": item.index, "error": item.error}
+                    for item in samples if item.error is not None
+                ],
+            }
+            success = payload["samples_passed"] == payload["sample_count"]
         json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
         stdout.write("\n")
-        return EXIT_OK if payload["samples_passed"] == payload["sample_count"] else EXIT_WORKFLOW_ERROR
+        return EXIT_OK if success else EXIT_WORKFLOW_ERROR
     except AgentConfigurationError as error:
         json.dump({"state": "failed", "error_code": error.code}, stdout, ensure_ascii=False, separators=(",", ":"))
         stdout.write("\n")
