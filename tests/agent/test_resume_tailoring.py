@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
@@ -1191,3 +1192,25 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
         export_observation.payload["artifact_id"]
     )
     assert exported_result.artifacts[0].content.startswith(b"# Candidate")
+
+
+def test_a_weak_match_may_list_more_unresolved_gaps_than_short_list_fields() -> None:
+    """Gaps scale with how weak the match is, so they are bounded like changes.
+
+    The skill requires every missing or unclear requirement to stay an
+    unresolved gap. A weak match with coarse questionnaire answers therefore
+    produces more gaps than a strong one, and a real run was rejected for
+    listing eleven — discarding a completed tailoring run because the model
+    was thorough about what it could not support. The cap still exists; it is
+    the cap on the work, not a cap on admitting ignorance.
+    """
+
+    draft = dict(VALID_DRAFT, unresolved_gaps=[f"gap {n}" for n in range(1, 12)])
+
+    result = ResumeTailoringResult.model_validate(draft)
+
+    assert len(result.unresolved_gaps) == 11
+    with pytest.raises(ValidationError):
+        ResumeTailoringResult.model_validate(
+            dict(VALID_DRAFT, unresolved_gaps=[f"gap {n}" for n in range(31)])
+        )

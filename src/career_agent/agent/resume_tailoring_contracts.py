@@ -48,7 +48,12 @@ class ResumeTailoringResult(ResumeTailoringContract):
     strategy_summary: str = Field(min_length=1, max_length=3000)
     changes: tuple[ResumeTailoringChange, ...] = Field(default=(), max_length=30)
     preserved_strengths: tuple[str, ...] = Field(default=(), max_length=10)
-    unresolved_gaps: tuple[str, ...] = Field(default=(), max_length=10)
+    # Bounded like ``changes`` rather than like the other short lists: the skill
+    # requires every missing or unclear requirement to stay an unresolved gap,
+    # so gaps grow with how weak the match is. A cap of 10 rejected a real
+    # weak-match draft that listed 11, throwing away the whole tailoring run —
+    # the cap punished exactly the honesty the skill asks for.
+    unresolved_gaps: tuple[str, ...] = Field(default=(), max_length=30)
     clarification_questions: tuple[str, ...] = Field(default=(), max_length=10)
     warnings: tuple[str, ...] = Field(default=(), max_length=10)
 
