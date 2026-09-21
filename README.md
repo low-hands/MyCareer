@@ -1,12 +1,14 @@
 <div align="center">
 
-# Career Agent
+# MyCareer
 
 **把整个求职流程装进一个你自己掌控的工作区**
 
 岗位、简历、投递、面试、邮件和长期记忆放在一起，由一个会用工具的 Agent 驱动——
 所有对外的动作，都要你点头才会发生。
 
+[![Stars](https://img.shields.io/github/stars/low-hands/MyCareer?style=flat&logo=github&color=f5c518)](https://github.com/low-hands/MyCareer/stargazers)
+[![License](https://img.shields.io/badge/License-MIT-4f7cff.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/Node-20.19+%20%7C%2022.12+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-ReAct%20runtime-1C3C3C)](https://langchain-ai.github.io/langgraph/)
@@ -19,7 +21,11 @@
 
 求职的难处很少是"不会写简历"，而是信息散落各处：JD 在浏览器里、简历在文件夹里、投递进度在脑子里、面试安排在邮箱里。等到要判断"这个岗位值不值得投"的时候，没有一个地方能同时回答。
 
-Career Agent 把这些放进同一个本地工作区，并交给一个能调用工具的 Agent 去串起来。它跑在你自己的机器上，数据落在你自己的 SQLite 里，没有中心服务器。
+MyCareer 把这些放进同一个本地工作区，并交给一个能调用工具的 Agent 去串起来。它跑在你自己的机器上，数据落在你自己的 SQLite 里，没有中心服务器。
+
+![对话中的公司调研](.github/assets/chat-research.png)
+
+<sub>Agent 针对岗位库里的一个岗位完成公司调研，并在给出结论的同时标出"公开资料无法确认"的部分。</sub>
 
 ## 它和"再来一个简历生成器"的区别
 
@@ -67,47 +73,26 @@ Career Agent 把这些放进同一个本地工作区，并交给一个能调用�
 
 ## 一次完整的闭环
 
-```mermaid
-flowchart LR
-    A["🔍 存下 JD<br/>Chrome 扩展"] --> B["📄 导入简历<br/>不可变版本"]
-    B --> C["🧩 分析并确认<br/>履历事实"]
-    C --> D["⚖️ 匹配<br/>版本 × 岗位"]
-    D --> E["✍️ 定制<br/>逐项审阅"]
-    E --> F["📮 记录投递"]
-    F --> G["🎤 面试准备<br/>模拟面试"]
-    G --> H["📬 邮件与日历<br/>确认后写入"]
+**存下 JD** → **导入简历** → **分析并确认履历事实** → **匹配（版本 × 岗位）** → **定制并逐项审阅** → **记录投递** → **面试准备与模拟** → **邮件与日历（确认后写入）**
 
-    style A fill:#eef3ff,stroke:#4f7cff
-    style E fill:#eef3ff,stroke:#4f7cff
-    style H fill:#fff4e6,stroke:#e08a24
-```
+<table>
+<tr>
+<td width="50%"><img src=".github/assets/dashboard.png" alt="求职工作台"></td>
+<td width="50%"><img src=".github/assets/jobs.png" alt="岗位库"></td>
+</tr>
+<tr>
+<td><b>工作台</b><br><sub>投递进度、最近保存的 JD 和下一步行动在同一个视图里。</sub></td>
+<td><b>岗位库</b><br><sub>完整 JD 快照、结构化分析状态、简历匹配状态和投递状态。</sub></td>
+</tr>
+<tr>
+<td colspan="2"><img src=".github/assets/resumes.png" alt="简历管理"></td>
+</tr>
+<tr>
+<td colspan="2"><b>简历管理</b><br><sub>按目标岗位组织简历家族；每个版本不可变，可查看原文件，并能在对话中被精确绑定。</sub></td>
+</tr>
+</table>
 
 ## 架构
-
-```mermaid
-flowchart TD
-    U(["你"]) -->|请求| MA
-
-    subgraph MAIN ["Main Agent · LangGraph ReAct 循环"]
-        MA["hydrate → decide → authorize<br/>→ act → observe → present"]
-    end
-
-    MA -->|"按 tool_profile 分档<br/>core 16 / 全集 71"| TOOLS["工具层"]
-    MA -.->|越档调用被拒| MA
-
-    TOOLS --> RT{{"确定性 Runtime<br/>校验 · 归属 · 预算 · 幂等 · 副作用"}}
-
-    RT --> W1["岗位调研<br/>Deep Agents"]
-    RT --> W2["简历定制<br/>writer ⇄ reviewer"]
-    RT --> W3["模拟面试<br/>可暂停子图"]
-    RT --> DB[("本地 SQLite<br/>岗位 · 简历 · 记忆 · trace")]
-
-    RT ==>|"外部写入"| GATE{{"提案 → 你确认 → 执行"}}
-    GATE ==> EXT["Gmail · Calendar"]
-
-    style GATE fill:#fff4e6,stroke:#e08a24,stroke-width:2px
-    style RT fill:#eef3ff,stroke:#4f7cff,stroke-width:2px
-```
 
 - **Main Agent：** 基于 LangGraph 实现 `hydrate → decide → authorize → act → observe → present/interrupt` 的 ReAct 控制循环，负责理解当前请求并决定下一步；每次只执行一个工具，工具结果以结构化 observation 回灌模型。
 - **专家工作流：** 岗位调研和简历定制使用 Deep Agents 执行受约束的领域任务；模拟面试使用带 SQLite checkpoint 的 LangGraph 子图，支持暂停、恢复和复盘。

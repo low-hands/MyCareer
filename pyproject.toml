@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "career-agent"
 version = "0.1.0"
 description = "Local Career Agent domain foundation"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
