@@ -274,4 +274,60 @@ describe("chatReducer", () => {
       "当前模型配置不支持该请求。（错误码：MAIN_AGENT_REJECTED_400）",
     );
   });
+
+  it("keeps structured capability stages and counts writer-review revisions", () => {
+    let state = chatReducer(initialChatState, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在比对简历与岗位要求……",
+        step_key: "resume_job_match", step_label: "正在比对简历与岗位要求",
+      },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在比对简历与岗位要求（已等待 30 秒）……",
+        step_key: "resume_job_match", step_label: "正在比对简历与岗位要求",
+      },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在起草定制简历……",
+        step_key: "resume_tailoring", step_label: "正在起草定制简历",
+      },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在审校简历草稿……",
+        step_key: "resume_draft_review", step_label: "正在审校简历草稿",
+      },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在起草定制简历……",
+        step_key: "resume_tailoring", step_label: "正在起草定制简历",
+      },
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "progress", stage: "running_capability", message: "正在审校简历草稿……",
+        step_key: "resume_draft_review", step_label: "正在审校简历草稿",
+      },
+    });
+
+    expect(state.progressSteps).toEqual([
+      { key: "resume_job_match", label: "正在比对简历与岗位要求", occurrence: 1, completed: true },
+      { key: "resume_tailoring", label: "正在起草定制简历", occurrence: 1, completed: true },
+      { key: "resume_draft_review", label: "正在审校简历草稿", occurrence: 1, completed: true },
+      { key: "resume_tailoring", label: "正在起草定制简历", occurrence: 2, completed: true },
+      { key: "resume_draft_review", label: "正在审校简历草稿", occurrence: 2, completed: false },
+    ]);
+    expect(new Set(state.progressSteps.map(
+      (step) => `${step.key}-${step.occurrence}`,
+    )).size).toBe(state.progressSteps.length);
+  });
 });

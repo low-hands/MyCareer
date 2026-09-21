@@ -2811,6 +2811,7 @@ class MainAgentRuntime:
         *,
         stage: str,
         describe: Callable[[int], str],
+        step_fields: Callable[[], dict[str, str]] | None = None,
     ) -> Event:
         """Keep a blocking wait visible on the stream.
 
@@ -2829,7 +2830,11 @@ class MainAgentRuntime:
             while not stop.wait(interval):
                 waited = int(perf_counter() - started)
                 try:
-                    sink(ProgressEvent(stage=stage, message=describe(waited)))
+                    sink(ProgressEvent(
+                        stage=stage,
+                        message=describe(waited),
+                        **(step_fields() if step_fields is not None else {}),
+                    ))
                 except Exception:
                     return
 
@@ -2904,25 +2909,35 @@ class MainAgentRuntime:
     ) -> MainAgentToolOutput:
         """Execute one tool call while relaying its internal steps."""
         capability = self._public_capability(pending["name"])
-        latest = self._CAPABILITY_LABELS[capability].rstrip("…")
+        latest: tuple[str | None, str] = (
+            None,
+            self._CAPABILITY_LABELS[capability].rstrip("…"),
+        )
 
         def on_step(step: CapabilityStep) -> None:
             nonlocal latest
             label = self._capability_step_label(step)
             if label is None:
                 return
-            latest = label
+            latest = (step.stage, label)
             self._emit(
                 ProgressEvent(
                     stage="running_capability",
                     message=self._capability_step_message(label, step),
+                    step_key=step.stage,
+                    step_label=label,
                 )
             )
+
+        def current_step_fields() -> dict[str, str]:
+            key, label = latest
+            return {"step_key": key, "step_label": label} if key is not None else {}
 
         heartbeat = self._heartbeat(
             _STREAM_SINK.get(),
             stage="running_capability",
-            describe=lambda waited: f"{latest}（已等待 {waited} 秒）……",
+            describe=lambda waited: f"{latest[1]}（已等待 {waited} 秒）……",
+            step_fields=current_step_fields,
         )
         try:
             with observing_capability_steps(on_step):

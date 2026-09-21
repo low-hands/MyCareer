@@ -34,6 +34,18 @@ class ProgressEvent(StreamContract):
         "saving",
     ]
     message: str = Field(min_length=1, max_length=240)
+    step_key: str | None = Field(
+        default=None, pattern=r"^[a-z0-9_.-]+$", max_length=120
+    )
+    step_label: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def validate_structured_step(self) -> "ProgressEvent":
+        if (self.step_key is None) != (self.step_label is None):
+            raise ValueError("step_key and step_label must be supplied together")
+        if self.step_key is not None and self.stage != "running_capability":
+            raise ValueError("structured steps belong to running_capability")
+        return self
 
 
 class CapabilityStartedEvent(StreamContract):

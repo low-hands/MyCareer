@@ -149,7 +149,14 @@ def _stream_event_examples() -> tuple[PublicStreamEvent, ...]:
 
     events: list[PublicStreamEvent] = [TurnStartedEvent(turn_id="turn-1")]
     for stage in _literals(ProgressEvent, "stage"):
-        events.append(ProgressEvent(stage=stage, message=f"阶段：{stage}"))
+        events.append(ProgressEvent(
+            stage=stage,
+            message=f"阶段：{stage}",
+            **(
+                {"step_key": "resume_tailoring", "step_label": "正在起草定制简历"}
+                if stage == "running_capability" else {}
+            ),
+        ))
     for capability in _literals(CapabilityStartedEvent, "capability"):
         events.append(
             CapabilityStartedEvent(capability=capability, message=f"开始 {capability}")

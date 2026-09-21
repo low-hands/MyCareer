@@ -299,4 +299,50 @@ describe("resume-library conversation isolation", () => {
     expect(element<HTMLTextAreaElement>("#message").value).toBe("新对话草稿");
     expect(streamChat).not.toHaveBeenCalled();
   });
+
+  it("explains why Enter cannot send while conversation history is loading", async () => {
+    const history = deferred<ConversationTranscript>();
+    vi.mocked(fetchConversationMessages).mockReturnValue(history.promise);
+    await mount();
+    await typeDraft("不要重复这条消息");
+
+    await act(async () => {
+      element<HTMLTextAreaElement>("#message").dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+    });
+
+    expect(container.textContent).toContain("正在恢复这段对话，恢复完成后即可发送。");
+    expect(element<HTMLTextAreaElement>("#message").value).toBe("不要重复这条消息");
+    expect(streamChat).not.toHaveBeenCalled();
+    await act(async () => history.resolve(transcript(true)));
+  });
+
+  it("shows repeated tailoring stages as a second review round", async () => {
+    const completion = deferred<void>();
+    vi.mocked(streamChat).mockImplementation(async function* (): AsyncGenerator<PublicStreamEvent> {
+      yield { type: "turn_started", turn_id: "turn-progress" };
+      for (const [step_key, step_label] of [
+        ["resume_job_match", "正在比对简历与岗位要求"],
+        ["resume_tailoring", "正在起草定制简历"],
+        ["resume_draft_review", "正在审校简历草稿"],
+        ["resume_tailoring", "正在起草定制简历"],
+        ["resume_draft_review", "正在审校简历草稿"],
+      ]) {
+        yield {
+          type: "progress", stage: "running_capability",
+          message: `${step_label}……`, step_key, step_label,
+        };
+      }
+      await completion.promise;
+      yield { type: "turn_completed", turn_id: "turn-progress" };
+    });
+    await mount();
+    await typeDraft("定制简历");
+    await click('[aria-label="发送消息"]');
+
+    expect(container.textContent).toContain("正在起草定制简历（第 2 轮）");
+    expect(container.textContent).toContain("正在审校简历草稿（第 2 轮）");
+    await act(async () => completion.resolve());
+  });
 });

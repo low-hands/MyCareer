@@ -54,6 +54,13 @@ export interface ChatMessage {
   resources?: MessageResource[];
 }
 
+export interface ProgressStep {
+  key: string;
+  label: string;
+  occurrence: number;
+  completed: boolean;
+}
+
 /** Appends `resource`, or replaces the entry with the same identity so a
  * re-delivered report updates its card instead of adding a second one. */
 function withResource(
@@ -72,6 +79,7 @@ export interface ChatState {
   messages: ChatMessage[];
   activeAssistantMessageId: string | null;
   progress: string | null;
+  progressSteps: ProgressStep[];
   interaction: InteractionRequiredEvent | null;
   artifacts: ArtifactReadyEvent[];
   clientActions: ClientActionEvent[];
@@ -83,6 +91,7 @@ export const initialChatState: ChatState = {
   messages: [],
   activeAssistantMessageId: null,
   progress: null,
+  progressSteps: [],
   interaction: null,
   artifacts: [],
   clientActions: [],
@@ -148,6 +157,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       ],
       activeAssistantMessageId: action.assistantMessageId,
       progress: "正在连接 Career Agent……",
+      progressSteps: [],
       interaction: null,
       artifacts: [],
       clientActions: [],
@@ -164,6 +174,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         message.id === state.activeAssistantMessageId ? { ...message, content: "" } : message,
       ),
       progress: "正在重新连接 Career Agent……",
+      progressSteps: [],
       interaction: null,
       artifacts: [],
       clientActions: [],
@@ -175,6 +186,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       ...state,
       phase: "failed",
       progress: null,
+      progressSteps: [],
       error: action.message,
     };
   }
@@ -191,10 +203,52 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (event.type) {
     case "turn_started":
       return { ...state, phase: "running" };
-    case "progress":
+    case "progress": {
+      if (!event.step_key || !event.step_label) {
+        return { ...state, progress: event.message };
+      }
+      const stepKey = event.step_key;
+      const stepLabel = event.step_label;
+      const previous = state.progressSteps.at(-1);
+      if (previous?.key === stepKey) {
+        return {
+          ...state,
+          progress: event.message,
+          progressSteps: state.progressSteps.map((step, index) =>
+            index === state.progressSteps.length - 1
+              ? { ...step, label: stepLabel }
+              : step,
+          ),
+        };
+      }
+      const occurrence = state.progressSteps.reduce(
+        (highest, step) => step.key === stepKey
+          ? Math.max(highest, step.occurrence)
+          : highest,
+        0,
+      ) + 1;
+      return {
+        ...state,
+        progress: event.message,
+        progressSteps: [
+          ...state.progressSteps.map((step) => ({ ...step, completed: true })),
+          {
+            key: stepKey,
+            label: stepLabel,
+            occurrence,
+            completed: false,
+          },
+        ].slice(-6),
+      };
+    }
     case "capability_started":
-    case "capability_completed":
       return { ...state, progress: event.message };
+    case "capability_completed":
+      return {
+        ...state,
+        progress: event.message,
+        progressSteps: state.progressSteps.map((step) => ({ ...step, completed: true })),
+      };
     case "content_delta":
       return { ...state, messages: updateActiveMessage(state, event.delta) };
     case "interaction_required":

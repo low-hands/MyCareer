@@ -3,6 +3,22 @@ import { describe, expect, it } from "vitest";
 import { parsePublicStreamEvent } from "./events";
 
 describe("parsePublicStreamEvent", () => {
+  it("accepts a complete structured progress step and rejects a partial one", () => {
+    expect(parsePublicStreamEvent({
+      type: "progress",
+      stage: "running_capability",
+      message: "正在起草定制简历……",
+      step_key: "resume_tailoring",
+      step_label: "正在起草定制简历",
+    })).toMatchObject({ step_key: "resume_tailoring" });
+    expect(() => parsePublicStreamEvent({
+      type: "progress",
+      stage: "running_capability",
+      message: "正在起草定制简历……",
+      step_key: "resume_tailoring",
+    })).toThrow("SSE_EVENT_INVALID");
+  });
+
   it("accepts a report reference the card can resolve", () => {
     expect(
       parsePublicStreamEvent({

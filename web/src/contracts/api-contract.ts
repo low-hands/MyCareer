@@ -4912,26 +4912,36 @@ export const API_CONTRACT = {
       {
         "message": "阶段：loading_context",
         "stage": "loading_context",
+        "step_key": null,
+        "step_label": null,
         "type": "progress"
       },
       {
         "message": "阶段：deciding",
         "stage": "deciding",
+        "step_key": null,
+        "step_label": null,
         "type": "progress"
       },
       {
         "message": "阶段：running_capability",
         "stage": "running_capability",
+        "step_key": "resume_tailoring",
+        "step_label": "正在起草定制简历",
         "type": "progress"
       },
       {
         "message": "阶段：presenting",
         "stage": "presenting",
+        "step_key": null,
+        "step_label": null,
         "type": "progress"
       },
       {
         "message": "阶段：saving",
         "stage": "saving",
+        "step_key": null,
+        "step_label": null,
         "type": "progress"
       },
       {
@@ -5762,6 +5772,34 @@ export const API_CONTRACT = {
               ],
               "title": "Stage",
               "type": "string"
+            },
+            "step_key": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "pattern": "^[a-z0-9_.-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step Key"
+            },
+            "step_label": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step Label"
             },
             "type": {
               "const": "progress",

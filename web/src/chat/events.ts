@@ -84,7 +84,13 @@ export interface UserQuestion {
 
 export type PublicStreamEvent =
   | { type: "turn_started"; turn_id: string }
-  | { type: "progress"; stage: ProgressStage; message: string }
+  | {
+      type: "progress";
+      stage: ProgressStage;
+      message: string;
+      step_key?: string | null;
+      step_label?: string | null;
+    }
   | {
       type: "capability_started";
       capability: Capability;
@@ -202,6 +208,14 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
       // an unknown value is not worth failing the turn over: it is accepted
       // here and the contract test reports the set mismatch by name.
       if (typeof value.stage !== "string" || typeof value.message !== "string") {
+        throw new Error("SSE_EVENT_INVALID");
+      }
+      if ((value.step_key == null) !== (value.step_label == null)) {
+        throw new Error("SSE_EVENT_INVALID");
+      }
+      if (value.step_key != null && (
+        typeof value.step_key !== "string" || typeof value.step_label !== "string"
+      )) {
         throw new Error("SSE_EVENT_INVALID");
       }
       break;

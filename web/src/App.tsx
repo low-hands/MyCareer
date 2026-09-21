@@ -37,7 +37,7 @@ import {
   standaloneAgentTaskStep,
   type StandaloneAgentTask,
 } from "./chat/agentTask";
-import { chatReducer, initialChatState } from "./chat/reducer";
+import { chatReducer, initialChatState, type ProgressStep } from "./chat/reducer";
 import { useConversationComposer } from "./chat/composer";
 import {
   RECOVERY_ATTEMPTS,
@@ -100,6 +100,13 @@ const VIEW_GROUPS: {
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+const ROUND_BASED_PROGRESS = new Set(["resume_tailoring", "resume_draft_review"]);
+
+function progressStepText(step: ProgressStep): string {
+  if (step.occurrence === 1) return step.label;
+  const unit = ROUND_BASED_PROGRESS.has(step.key) ? "轮" : "次";
+  return `${step.label}（第 ${step.occurrence} ${unit}）`;
+}
 
 interface PendingRequest {
   conversationId: string;
@@ -148,6 +155,7 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationView[]>([]);
   const [conversationListError, setConversationListError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   // Which conversation's transcript the chat is showing. A task queued for a
   // new conversation sends only once this catches up with conversationId.
   const [hydratedConversationId, setHydratedConversationId] = useState<string | null>(null);
@@ -233,6 +241,9 @@ export default function App() {
       });
     return () => request.abort();
   }, [conversationId, transcriptReloads]);
+  useEffect(() => {
+    if (!historyLoading) setSubmitNotice(null);
+  }, [historyLoading]);
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
@@ -494,6 +505,10 @@ export default function App() {
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (historyLoading) {
+      setSubmitNotice("正在恢复这段对话，恢复完成后即可发送。");
+      return;
+    }
     void sendMessage(draft);
   }
 
@@ -808,7 +823,6 @@ export default function App() {
                     <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
                     <span>
                       <strong>{item.title}</strong>
-                      <small>{item.last_message_preview}</small>
                       <time>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</time>
                     </span>
                     {item.id === conversationId ? <span className="conversation-current-mark" /> : null}
@@ -883,7 +897,7 @@ export default function App() {
               )
             ).map((message) => (
               <article className={`message message-${message.role}`} key={message.id}>
-                <span className="message-role">{message.role === "user" ? "你" : "Career Agent"}</span>
+                {message.role === "assistant" ? <span className="message-role">Career Agent</span> : null}
                 <div className="message-content">
                   {message.content ? (
                     message.role === "assistant" ? (
@@ -906,9 +920,24 @@ export default function App() {
             ))}
 
             {state.progress ? (
-              <div className="progress-row" role="status">
-                <span className="spinner" aria-hidden="true" />
-                {state.progress}
+              <div className="progress-card" role="status">
+                <div className="progress-row">
+                  <span className="spinner" aria-hidden="true" />
+                  {state.progress}
+                </div>
+                {state.progressSteps.length > 1 ? (
+                  <ol className="progress-steps" aria-label="任务进度">
+                    {state.progressSteps.map((step) => (
+                      <li
+                        className={step.completed ? "is-complete" : "is-current"}
+                        key={`${step.key}-${step.occurrence}`}
+                      >
+                        <span aria-hidden="true">{step.completed ? "✓" : ""}</span>
+                        {progressStepText(step)}
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
               </div>
             ) : null}
 
@@ -1077,17 +1106,27 @@ export default function App() {
                         ? `不填则发送“${DEFAULT_ATTACHMENT_PROMPT}”`
                         : "描述你现在想完成的事情，或拖入一份简历…"
                   }
-                  onChange={(event) => setDraft(event.target.value)}
+                  aria-describedby={submitNotice ? "composer-submit-notice" : undefined}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    setSubmitNotice(null);
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey && canSubmit) {
+                    if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
+                      if (historyLoading) {
+                        setSubmitNotice("正在恢复这段对话，恢复完成后即可发送。");
+                      } else if (canSubmit) {
+                        event.currentTarget.form?.requestSubmit();
+                      }
                     }
                   }}
                 />
                 <button type="submit" disabled={!canSubmit} aria-label="发送消息"><AppIcon name="arrow-up" size={19} /></button>
               </div>
-              <small>Enter 发送 · Shift + Enter 换行 · 拖入简历可直接导入并附到消息</small>
+              <small id={submitNotice ? "composer-submit-notice" : undefined} role={submitNotice ? "status" : undefined}>
+                {submitNotice ?? "Enter 发送 · Shift + Enter 换行 · 拖入简历可直接导入并附到消息"}
+              </small>
             </form>
           </div>
           </section>

@@ -1107,12 +1107,26 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
         "正在阅读工作指南……",
         "正在扫描邮件（第 3/12 项）……",
     ]
+    structured = [
+        (event.step_key, event.step_label)
+        for event in events
+        if event.type == "progress" and event.step_key is not None
+    ]
+    assert structured[:5] == [
+        ("resume_analysis", "正在分析简历内容"),
+        ("resume_analysis", "正在分析简历内容"),
+        ("job_research", "正在调研岗位背景"),
+        ("job_research.read_file", "正在阅读工作指南"),
+        ("email_sync.scan", "正在扫描邮件"),
+    ]
     assert not any("internal_label" in message for message in running)
     heartbeat = next(
         event
         for event in events
         if event.type == "progress" and event.message.startswith("正在扫描邮件（已等待")
     )
+    assert heartbeat.step_key == "email_sync.scan"
+    assert heartbeat.step_label == "正在扫描邮件"
     completed = next(event for event in events if event.type == "capability_completed")
     assert events.index(heartbeat) < events.index(completed)
 
