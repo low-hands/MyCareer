@@ -4,6 +4,8 @@ import base64
 import json
 from typing import Any, Mapping
 
+from career_agent.agent.resume_document_prompt import pdf_text_prompt
+
 from openai import OpenAI
 
 from career_agent.agent.main_agent_contracts import confirmation_recency_label
@@ -43,7 +45,7 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            max_retries=0,
         )
 
     @classmethod
@@ -89,7 +91,7 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             content=content,
             output_type=ResumeJobMatchResult,
             schema_name="resume_job_match_result",
-            max_output_tokens=8192,
+            max_output_tokens=6144,
             code_prefix="RESUME_JOB_MATCH",
             subject="Resume-job matching",
         )
@@ -115,6 +117,9 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             tiered_requirements,
         )
         if document.document_format == "pdf":
+            extracted = pdf_text_prompt(document)
+            if extracted is not None:
+                return [{"type": "input_text", "text": extracted + "\n" + comparison_text}]
             encoded = base64.b64encode(document.raw_bytes).decode("ascii")
             return [
                 {
@@ -260,6 +265,7 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             "tier_rationale, and tier_evidence exactly; never add, merge, split, or re-tier "
             "requirements. Mark a requirement matched or partial only when the "
             "current resume supports it with a precise locator and short verbatim quote. "
+            "For PDF evidence, give the source page when identifiable; never invent a page. "
             "Confirmed extractions are verification aids from this exact version, but never "
             "replace evidence in the current document. Do not infer skills from titles, "
             "employers, or adjacent experience. Use missing when the resume does not state the "

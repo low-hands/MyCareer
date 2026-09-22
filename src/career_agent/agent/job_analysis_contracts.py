@@ -154,5 +154,21 @@ class JobAnalysisResult(JobAnalysisContract):
         return tuple(item for item in self.requirements if item.tier == tier)
 
 
+class GeneratedTieredRequirement(TieredRequirement):
+    """Accept a model's provisional ID; the service replaces it before storage."""
+
+    requirement_id: str | None = None
+
+
+class JobAnalysisGenerationResult(JobAnalysisResult):
+    requirements: tuple[GeneratedTieredRequirement, ...] = Field(default=(), max_length=40)
+
+    def without_model_ids(self) -> JobAnalysisResult:
+        payload = self.model_dump(mode="python")
+        for requirement in payload["requirements"]:
+            requirement["requirement_id"] = None
+        return JobAnalysisResult.model_validate(payload)
+
+
 class JobAnalysisWorker(Protocol):
     def analyze(self, *, jd_text: str) -> JobAnalysisResult: ...

@@ -12,6 +12,7 @@ from career_agent.agent.job_analysis_contracts import (
 from career_agent.domain.job_discovery import content_fingerprint
 from career_agent.storage.jobs import (
     JDAnalysisPayload,
+    JobAnalysisStaleRevisionError,
     JobPostingRepository,
     StoredJDAnalysis,
 )
@@ -180,6 +181,7 @@ class JobAnalysisService:
             analyzer_version=stored.analyzer_version,
             analysis=JDAnalysisPayload.from_result(revised),
             content_fingerprint=revision_fingerprint,
+            expected_latest_analysis_id=stored.id,
         )
 
     def _with_requirement_ids(

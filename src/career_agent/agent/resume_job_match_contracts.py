@@ -73,6 +73,7 @@ class IntentStateTransition(ResumeJobMatchContract):
 class ResumeMatchEvidence(ResumeJobMatchContract):
     source_locator: str = Field(min_length=1, max_length=300)
     source_quote: str = Field(min_length=1, max_length=500)
+    page: int | None = Field(default=None, ge=1)
 
 
 class RequirementAssessment(ResumeJobMatchContract):

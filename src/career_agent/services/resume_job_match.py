@@ -15,11 +15,12 @@ from career_agent.agent.resume_job_match_contracts import (
 )
 from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.agent.resume_job_fit import derive_overall_fit
+from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
 from career_agent.services.job_analysis import JOB_ANALYZER_VERSION
 from career_agent.storage.context import CareerProfileStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.jobs import JobPostingRepository
-from career_agent.storage.resumes import ResumeStore
+from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 from career_agent.storage.resume_job_matches import (
     ResumeJobMatchInputs,
     SQLiteResumeJobMatchStore,
@@ -60,7 +61,7 @@ class ResumeJobMatchService:
         worker: ResumeJobMatchWorker,
         match_store: SQLiteResumeJobMatchStore,
         *,
-        matcher_version: str = "resume-job-match-v3",
+        matcher_version: str = "resume-job-match-v4",
         career_profile_store: CareerProfileStore | None = None,
         job_analyzer_version: str = JOB_ANALYZER_VERSION,
     ) -> None:
@@ -181,6 +182,7 @@ class ResumeJobMatchService:
             result=result,
             requirements=analysis.requirements,
         )
+        self._verify_resume_evidence(document=document, result=result)
         result = self._repair_stale_state(
             result=result,
             jd_text=job.snapshot.content,
@@ -190,6 +192,7 @@ class ResumeJobMatchService:
             result=result,
             requirements=analysis.requirements,
         )
+        self._verify_resume_evidence(document=document, result=result)
         return self._match_store.save(
             user_id=user_id,
             resume_version_id=resume_version_id,
@@ -310,6 +313,26 @@ class ResumeJobMatchService:
                 ),
             }
         )
+
+    @staticmethod
+    def _verify_resume_evidence(
+        *, document: StoredResumeDocument, result: ResumeJobMatchResult
+    ) -> None:
+        """Positive matches must cite the exact resume version, including PDF pages."""
+        for assessment in result.requirements:
+            for evidence in assessment.resume_evidence:
+                check = ResumeTailoringReviewGraph._check_evidence(
+                    document=document,
+                    quote=ResumeTailoringReviewGraph._normalize(evidence.source_quote),
+                    declared_quality="exact",
+                    page=evidence.page,
+                )
+                if not check.matched:
+                    raise AgentWorkerError(
+                        "RESUME_JOB_MATCH_EVIDENCE_UNVERIFIED",
+                        "A positive requirement assessment cited an unverified resume quote.",
+                        retryable=True,
+                    )
 
     def _intent_state(
         self,

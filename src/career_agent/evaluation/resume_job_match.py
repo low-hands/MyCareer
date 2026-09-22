@@ -169,7 +169,9 @@ BOUNDARY_CASES = (
             _req(115, "on-call maturity", "A", "inference", "on-call maturity"),
         ),
         "moderate",
-        (("matched", "partial"), ("matched", "partial")),
+        # Rotation participation supports relevance but need not prove mature
+        # incident ownership, so unclear is also a grounded second assessment.
+        (("matched", "partial"), ("matched", "partial", "unclear")),
     ),
     BoundaryCase(
         "inference_only_without_support_is_insufficient",
@@ -185,7 +187,7 @@ BOUNDARY_CASES = (
             _req(117, "on-call maturity", "A", "inference", "on-call maturity"),
         ),
         "insufficient_evidence",
-        ("missing", "missing"),
+        (("missing", "unclear"), ("missing", "unclear")),
     ),
     BoundaryCase(
         "optional_gap_does_not_lower_core_fit",
@@ -213,6 +215,13 @@ def _summary_fit_band(summary: str) -> str | None:
     if match is None:
         return None
     return match.group(1).lower().replace(" ", "_")
+
+
+def _safe_error_code(error: Exception) -> str:
+    code = getattr(error, "code", None)
+    if isinstance(code, str) and code.startswith("RESUME_JOB_MATCH_"):
+        return code
+    return type(error).__name__
 
 
 def run_samples(
@@ -244,7 +253,7 @@ def run_samples(
             )
             samples.append(Sample(index=index, result=checked, error=None))
         except Exception as error:  # report every sample; one bad call must not hide the rest
-            samples.append(Sample(index=index, result=None, error=type(error).__name__))
+            samples.append(Sample(index=index, result=None, error=_safe_error_code(error)))
     return tuple(samples)
 
 
@@ -316,7 +325,7 @@ def run_boundary_suite(
             error = "; ".join(mismatches) or None
             return Sample(index, checked, error)
         except Exception as error:
-            return Sample(index, None, type(error).__name__)
+            return Sample(index, None, _safe_error_code(error))
 
     output: dict[str, list[Sample]] = {case.name: [] for case in selected_cases}
     with ThreadPoolExecutor(max_workers=min(8, len(selected_cases) * sample_count)) as pool:

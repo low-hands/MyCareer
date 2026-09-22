@@ -34,6 +34,10 @@ from career_agent.storage.schema import apply_schema
 AvailabilityStatus = Literal["active", "closed", "unknown"]
 """Whether the posting is still live **on the platform**."""
 
+
+class JobAnalysisStaleRevisionError(ValueError):
+    """A correction was based on an analysis that is no longer current."""
+
 PursuitStatus = Literal["open", "dismissed"]
 """Whether the user is still considering this posting.
 
@@ -209,6 +213,7 @@ class JobPostingRepository(Protocol):
         analyzer_version: str,
         analysis: JDAnalysisPayload,
         content_fingerprint: str = "",
+        expected_latest_analysis_id: str | None = None,
     ) -> StoredJDAnalysis: ...
 
     def find_analysis(
@@ -771,6 +776,7 @@ class SQLiteJobPostingRepository:
         analyzer_version: str,
         analysis: JDAnalysisPayload,
         content_fingerprint: str = "",
+        expected_latest_analysis_id: str | None = None,
     ) -> StoredJDAnalysis:
         if not user_id or not jd_snapshot_id or not analyzer_version.strip():
             raise ValueError("user_id, jd_snapshot_id, and analyzer_version are required")
@@ -784,6 +790,17 @@ class SQLiteJobPostingRepository:
             ).fetchone()
             if owner is None:
                 raise ValueError("JD snapshot not found for this user")
+            if expected_latest_analysis_id is not None:
+                latest = connection.execute(
+                    "SELECT id FROM jd_analyses WHERE jd_snapshot_id = ? "
+                    "AND analyzer_version = ? "
+                    "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                    (jd_snapshot_id, analyzer_version),
+                ).fetchone()
+                if latest is None or latest[0] != expected_latest_analysis_id:
+                    raise JobAnalysisStaleRevisionError(
+                        "job analysis changed; reload the latest revision before correcting it"
+                    )
             existing = connection.execute(
                 f"SELECT {self._ANALYSIS_COLUMNS} FROM jd_analyses a "
                 "WHERE a.jd_snapshot_id = ? AND a.analyzer_version = ? AND a.content_fingerprint = ?",

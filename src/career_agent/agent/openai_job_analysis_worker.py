@@ -5,6 +5,7 @@ from typing import Any, Mapping
 from openai import OpenAI
 
 from career_agent.agent.job_analysis_contracts import (
+    JobAnalysisGenerationResult,
     JobAnalysisResult,
     JobAnalysisWorker,
 )
@@ -34,7 +35,9 @@ class OpenAIJobAnalysisWorker(JobAnalysisWorker):
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            # The service layer owns retry policy and user-visible progress;
+            # SDK retries here can silently multiply interactive wait time.
+            max_retries=0,
         )
 
     @classmethod
@@ -69,18 +72,22 @@ class OpenAIJobAnalysisWorker(JobAnalysisWorker):
                 ),
             }
         ]
-        return structured_response(
+        generated = structured_response(
             self._client,
             model=self._config.model,
             timeout_seconds=self._config.timeout_seconds,
             instructions=self._system_prompt(),
             content=content,
-            output_type=JobAnalysisResult,
+            output_type=JobAnalysisGenerationResult,
             schema_name="job_analysis_result",
-            max_output_tokens=8192,
+            # JD analysis is shown interactively and its schema is compact;
+            # keep the provider from spending the full generic budget on
+            # verbose reasoning or repeated prose.
+            max_output_tokens=6144,
             code_prefix="JOB_ANALYSIS",
             subject="Job description analysis",
         )
+        return generated.without_model_ids()
 
     @staticmethod
     def _system_prompt() -> str:
@@ -96,7 +103,8 @@ class OpenAIJobAnalysisWorker(JobAnalysisWorker):
             "does not say, and mention the deciding signal in summary. "
             "requirements ranks the material requirements: S = hard gate the role cannot "
             "waive, A = core to daily work, B = clearly valued, C = nice to have. Each item "
-            "carries a short verbatim jd_quote and kind = fact when the JD states it, "
+            "must leave requirement_id null; the server assigns stable IDs after validation. "
+            "Each item carries a short verbatim jd_quote and kind = fact when the JD states it, "
             "inference when you derived it. For every requirement, tier_rationale explains "
             "why its tier applies, tier_evidence repeats the decisive verbatim JD wording, "
             "and tier_confidence is high only when that wording explicitly establishes the "
