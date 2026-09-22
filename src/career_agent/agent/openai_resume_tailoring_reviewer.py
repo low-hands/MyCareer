@@ -4,6 +4,8 @@ import base64
 import json
 from typing import Any
 
+from career_agent.agent.resume_document_prompt import pdf_text_prompt
+
 from openai import OpenAI
 
 from career_agent.agent.openai_compatible_client import (
@@ -22,6 +24,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeReviewResult,
     ResumeTailoringResult,
     ResumeTailoringReviewer,
+    mitigation_policy,
 )
 from career_agent.storage.resumes import StoredResumeDocument
 
@@ -41,7 +44,7 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            max_retries=0,
         )
 
     def review_draft(
@@ -60,6 +63,9 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
             "<grounded_match_result>\n"
             f"{match_result.model_dump_json()}\n"
             "</grounded_match_result>\n"
+            "<server_mitigation_policy>\n"
+            f"{json.dumps(mitigation_policy(match_result), ensure_ascii=False)}\n"
+            "</server_mitigation_policy>\n"
             "<confirmed_facts>\n"
             f"{json.dumps([fact.model_dump(mode='json') for fact in confirmed_facts], ensure_ascii=False)}\n"
             "</confirmed_facts>\n"
@@ -77,10 +83,24 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
                 "omissions, JD relevance, keyword stuffing, and clarity. Review every gap "
                 "mitigation too: adjacent experience must be grounded, blocker classification "
                 "must follow the supplied tier/kind/status, unclear requirements must ask for "
+                "clarification. The server_mitigation_policy supplies authoritative gap_type, "
+                "allowed priorities and modes for each ID; do not override these classifications. "
+                "A/B/C factual missing requirements are strengthenable, never hard_blocker or P0. "
+                "Only eligible S/fact/missing requirements are hard blockers. Adjacent evidence "
+                "can mitigate a gap without satisfying it; do not require it to establish the "
+                "missing skill. Partial requirements may optionally use provide_evidence or "
+                "clarify for their remaining uncertainty. Unclear requirements must ask for "
                 "clarification rather than prescribe learning, existing alternative evidence "
                 "must be grounded with evidence quality and page when available while planned "
-                "artifacts must remain future-tense, learning "
-                "goals must have a demonstrable minimum level, and interview language must "
+                "artifacts must remain future-tense. For every learn mitigation, compare the "
+                "plan with its authoritative requirement semantically, including Chinese "
+                "paraphrases; do not require shared words. Require resource directions to "
+                "identify concrete topics or materials, a positive demonstrable outcome with "
+                "acceptance criteria rather than a negated or keyword-only claim, and an "
+                "estimated effort that is plausible for the stated objective and outcome. "
+                "Treat generic resources such as '学习相关知识', negated outcomes such as "
+                "'No project or test required', and implausible effort as fixable blocking "
+                "issues. Interview language must "
                 "acknowledge the gap without inflating adjacent evidence. Use blocking severity "
                 "only when a change must be fixed before user review. Choose revise for fixable "
                 "blocking issues, block only when safe automatic repair is not possible, and pass "
@@ -144,15 +164,21 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
             self._client,
             model=self._config.model,
             timeout_seconds=self._config.timeout_seconds,
-            instructions=instructions,
+            instructions=(
+                instructions + " Issue change_index is one-based and refers only to an "
+                "actual proposed change. For mitigation, learning-plan, artifact, or "
+                "whole-document issues, set change_index to null; never use 0 or a "
+                "mitigation index. Use only the issue categories in the response schema."
+            ),
             content=content,
             output_type=ResumeReviewResult,
             # Named per stage, which is why the schema name is a parameter
             # rather than a constant like the other workers'.
             schema_name=f"resume_{stage}_review",
-            max_output_tokens=8192,
+            max_output_tokens=6144,
             code_prefix="RESUME_REVIEW",
             subject="Resume review",
+            include_validation_feedback=True,
         )
 
 
@@ -165,6 +191,9 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
                 "RESUME_REVIEW_EMPTY_DOCUMENT", "Resume document is empty."
             )
         if document.document_format == "pdf":
+            extracted = pdf_text_prompt(document)
+            if extracted is not None:
+                return [{"type": "input_text", "text": extracted + "\n" + context}]
             encoded = base64.b64encode(document.raw_bytes).decode("ascii")
             return [
                 {

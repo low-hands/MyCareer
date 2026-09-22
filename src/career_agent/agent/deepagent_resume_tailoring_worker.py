@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from career_agent.agent.resume_document_prompt import pdf_text_prompt
+
 from deepagents import (
     FilesystemPermission,
     GeneralPurposeSubagentProfile,
@@ -30,6 +32,8 @@ from career_agent.agent.resume_tailoring_contracts import (
     FinalizedResumeDocument,
     ResumeFinalizationWorker,
     ResumeTailoringResult,
+    ResumeTailoringGenerationResult,
+    mitigation_policy,
     ResumeTailoringWorker,
 )
 from career_agent.storage.resumes import StoredResumeDocument
@@ -129,7 +133,8 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
 
         structured = state.get("structured_response") if isinstance(state, dict) else None
         try:
-            return ResumeTailoringResult.model_validate(structured)
+            generated = ResumeTailoringGenerationResult.model_validate(structured)
+            return ResumeTailoringResult.model_validate(generated.model_dump(mode="python"))
         except ValueError as error:
             raise AgentWorkerError(
                 "RESUME_TAILORING_INVALID_RESPONSE",
@@ -143,7 +148,7 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             api_key=self._config.api_key,
             base_url=_base_url(self._config.endpoint),
             timeout=self._config.timeout_seconds,
-            max_retries=3,
+            max_retries=0,
             use_responses_api=True,
             store=False,
             callbacks=[
@@ -171,12 +176,13 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             model=model,
             tools=[],
             system_prompt=(
-                "You are the isolated resume-tailoring specialist. Before drafting, read and "
-                "follow the resume-tailoring skill exposed by the Skills system. Return only "
+                "You are the isolated resume-tailoring specialist. Follow the complete "
+                "resume-tailoring skill supplied below; no tool call is needed to read it. Return only "
                 "the configured structured response. Do not write files, delegate work, or "
-                "claim that proposed changes have been applied."
+                "claim that proposed changes have been applied.\n\n"
+                + (self._skills_root / "resume-tailoring" / "SKILL.md").read_text(encoding="utf-8")
             ),
-            skills=["/"],
+            skills=[],
             backend=FilesystemBackend(root_dir=self._skills_root, virtual_mode=True),
             permissions=[
                 FilesystemPermission(
@@ -186,7 +192,7 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
                 )
             ],
             subagents=[],
-            response_format=ResumeTailoringResult,
+            response_format=ResumeTailoringGenerationResult,
             name="resume-tailoring-agent",
         )
 
@@ -218,6 +224,9 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             previous_draft=previous_draft,
         )
         if document.document_format == "pdf":
+            extracted = pdf_text_prompt(document)
+            if extracted is not None:
+                return [{"type": "text", "text": extracted + "\n" + context_text}]
             return [
                 {
                     "type": "file",
@@ -271,6 +280,9 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             "<grounded_match_result>\n"
             f"{match_result.model_dump_json()}\n"
             "</grounded_match_result>\n"
+            "<server_mitigation_policy>\n"
+            f"{json.dumps(mitigation_policy(match_result), ensure_ascii=False)}\n"
+            "</server_mitigation_policy>\n"
             "<confirmed_exact_version_extractions>\n"
             f"{json.dumps([fact.model_dump(mode='json') for fact in confirmed_facts], ensure_ascii=False)}\n"
             "</confirmed_exact_version_extractions>\n"
@@ -286,6 +298,22 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             "<previous_user_visible_draft>\n"
             f"{previous_draft.model_dump_json() if previous_draft is not None else 'None'}\n"
             "</previous_user_visible_draft>\n"
+            "For each new gap_mitigation, use exactly one resolution_mode and only its "
+            "mode-specific fields: clarify requires clarification_question; provide_evidence "
+            "requires adjacent_experience or existing alternative_evidence; build_artifact "
+            "requires planned alternative_evidence; learn requires learning_plan. Do not "
+            "emit unrelated mode fields, and emit interview_talking_point only when useful. "
+            "Follow server_mitigation_policy exactly for requirement IDs, gap_type, allowed "
+            "priorities and modes. A/B/C gaps are strengthenable, never hard_blocker. "
+            "Every missing/unclear requirement needs a mitigation. A partial requirement "
+            "may have an optional provide_evidence or clarify mitigation for its remaining "
+            "uncertainty; do not turn partial support into a missing skill. Do not emit "
+            "unbound unresolved_gaps: it is a server-derived projection of mitigations. "
+            "For a learning plan, name concrete materials or topics, a positive outcome "
+            "that can be checked, and a plausible positive duration; make the plan address "
+            "the requirement by meaning, including when the wording differs. Use numeric "
+            "estimated_effort, e.g. '20-30 hours' or '30 focused hours over 4 weeks, "
+            "approximately 7-8 hours per week'. Put task details in the objective.\n"
             "When review feedback is present, revise only the stated issues while preserving "
             "grounded, useful changes that were not challenged."
         )
@@ -398,7 +426,7 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
             api_key=self._config.api_key,
             base_url=_base_url(self._config.endpoint),
             timeout=self._config.timeout_seconds,
-            max_retries=3,
+            max_retries=0,
             use_responses_api=True,
             store=False,
             callbacks=[
@@ -426,13 +454,15 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
             model=model,
             tools=[],
             system_prompt=(
-                "You are the isolated resume finalization specialist. Read and follow the "
-                "resume-tailoring skill. Reproduce the complete source resume as Markdown, "
+                "You are the isolated resume finalization specialist. Follow the complete "
+                "resume-tailoring skill supplied below; no tool call is needed to read it. "
+                "Reproduce the complete source resume as Markdown, "
                 "applying only the explicitly accepted changes. Preserve all other factual "
                 "content. Return only the configured structured response. Do not write files "
-                "or delegate work."
+                "or delegate work.\n\n"
+                + (self._skills_root / "resume-tailoring" / "SKILL.md").read_text(encoding="utf-8")
             ),
-            skills=["/"],
+            skills=[],
             backend=FilesystemBackend(root_dir=self._skills_root, virtual_mode=True),
             permissions=[
                 FilesystemPermission(
@@ -469,6 +499,9 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
             "</confirmed_exact_version_extractions>"
         )
         if document.document_format == "pdf":
+            extracted = pdf_text_prompt(document)
+            if extracted is not None:
+                return [{"type": "text", "text": extracted + "\n" + context_text}]
             return [
                 {
                     "type": "file",

@@ -34,6 +34,16 @@ requirement ID. Do not repeat or paraphrase the requirement as `gap`; the
 service copies the authoritative requirement text after generation. Do not
 create unbound mitigations.
 
+For `partial` requirements, optionally add `provide_evidence` or `clarify` to
+address the unproven portion without calling the whole skill missing. Do not
+prescribe learning or a new artifact for a partial assessment. Fully `matched`
+requirements need no mitigation. `unresolved_gaps` is a server-derived projection;
+do not supply separate, unbound gap text.
+
+Follow the supplied server mitigation policy for gap type, priority, and allowed
+modes, including during revisions. A reviewer suggestion cannot turn an A/B/C
+requirement into an S hard gate.
+
 Keep the mitigation compact. Always return only the core decision fields:
 requirement ID, resolution mode, gap type, priority, and one executable next
 action. Add conditional fields only for the selected mode:
@@ -69,8 +79,10 @@ not fabricate a generic talking point for every gap.
 - Use `learn` and add a learning plan only when learning can materially mitigate
   a `missing` requirement. Name
   the learning objective, resource directions (official documentation, topic,
-  lab, or course category rather than invented links), estimated effort when it
-  can be stated honestly, and a demonstrable minimum acceptable level.
+  lab, or course category rather than invented links), a bounded numeric effort
+  estimate, and a demonstrable minimum acceptable level. Use hours, days, weeks,
+  or months, for example `20-30 hours` or `30 hours over 4 weeks, 7-8 hours per week`.
+  Put the work description in the objective, not in the duration field.
 - Write interview language in three honest parts: acknowledge what is not yet
   proven, bridge only to cited adjacent evidence when one exists, and close
   with the concrete mitigation underway. Never turn exposure into proficiency,

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
+import threading
 import sqlite3
 from typing import Any, Literal
 from urllib.parse import urlencode
@@ -202,6 +204,7 @@ from career_agent.agent.job_analysis_contracts import SENIORITY_LABELS
 from career_agent.services.job_analysis import (
     JobAnalysisInputNotFoundError,
     JobAnalysisRequirementNotFoundError,
+    JobAnalysisStaleRevisionError,
     JobAnalysisService,
 )
 from career_agent.services.resume_job_match import (
@@ -260,6 +263,12 @@ _EXPIRED_PROPOSAL_MESSAGE = (
     f"这项提案已超过 {PENDING_PROPOSAL_TTL.days} 天未确认，已经失效；"
     "请重新展示提案并等待明确确认。"
 )
+
+_TAILORING_REVIEW_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="resume-tailoring-review"
+)
+_TAILORING_REVIEW_LOCK = threading.Lock()
+_TAILORING_REVIEW_PENDING: set[tuple[str, str]] = set()
 
 
 def _proposal_observation(
@@ -4540,6 +4549,13 @@ class MainAgentToolRegistry:
                 payload={"analysis_id": model_arguments.analysis_id, "error": str(error)},
                 execution_outcome="not_committed",
             )
+        except JobAnalysisStaleRevisionError:
+            return ToolObservation(
+                tool_name="correct_job_requirement_tier",
+                state="job_analysis_stale_revision",
+                message="这份岗位分析已有更新，请先读取最新版本再修正要求分级。",
+                execution_outcome="not_committed",
+            )
         return ToolObservation(
             tool_name="correct_job_requirement_tier",
             state="job_analysis_revision_ready",
@@ -4703,6 +4719,7 @@ class MainAgentToolRegistry:
                 user_id=user_id,
                 match_id=model_arguments.match_id,
                 tailoring_goal=model_arguments.tailoring_goal,
+                run_automated_review=False,
             )
         except ResumeJobMatchInputNotFoundError:
             return ToolObservation(
@@ -4728,11 +4745,39 @@ class MainAgentToolRegistry:
                 payload={"error_code": error.code, "retryable": error.retryable},
                 execution_outcome="not_committed",
             )
+        review_key = (user_id, draft.id)
+        with _TAILORING_REVIEW_LOCK:
+            should_submit = review_key not in _TAILORING_REVIEW_PENDING
+            if should_submit:
+                _TAILORING_REVIEW_PENDING.add(review_key)
+        if should_submit:
+            def run_review() -> None:
+                try:
+                    self._resume_tailoring_service.review_draft_automatically(
+                        user_id=user_id, draft_id=draft.id
+                    )
+                except Exception as error:  # background failures must not lose the draft
+                    logging.getLogger(__name__).exception(
+                        "background resume tailoring review failed"
+                    )
+                    try:
+                        self._resume_tailoring_service.mark_automatic_review_failed(
+                            user_id=user_id, draft_id=draft.id, reason=str(error)
+                        )
+                    except Exception:
+                        logging.getLogger(__name__).exception(
+                            "could not persist background review failure"
+                        )
+                finally:
+                    with _TAILORING_REVIEW_LOCK:
+                        _TAILORING_REVIEW_PENDING.discard(review_key)
+
+            _TAILORING_REVIEW_EXECUTOR.submit(run_review)
         return self._tailoring_observation(
             user_id=user_id,
             tool_name="draft_resume_tailoring",
             draft=draft,
-            message=f"已生成 {len(draft.result.changes)} 条待审阅的简历修改建议。",
+            message=f"已生成 {len(draft.result.changes)} 条待审阅的简历修改建议，自动审核将在后台完成。",
             execution_outcome="committed",
         )
 
@@ -4914,6 +4959,18 @@ class MainAgentToolRegistry:
                     "draft_id": model_arguments.draft_id,
                     "reason": str(error),
                     "retryable": False,
+                },
+                execution_outcome="not_committed",
+            )
+        except ResumeTailoringReviewBlockedError as error:
+            return ToolObservation(
+                tool_name="finalize_resume_tailoring",
+                state="resume_tailoring_review_blocked",
+                message="自动审核尚未通过，暂时不能定稿；请稍后查看审核结果或修改草稿。",
+                payload={
+                    "draft_id": model_arguments.draft_id,
+                    "reason": str(error),
+                    "retryable": True,
                 },
                 execution_outcome="not_committed",
             )
@@ -6517,6 +6574,12 @@ class MainAgentToolRegistry:
                     if draft.automated_review is not None
                     else None
                 ),
+                "automated_review_status": (
+                    draft.automated_review.status
+                    if draft.automated_review is not None
+                    else "pending"
+                ),
+                "review_pending": draft.automated_review is None,
                 "change_reviews": [
                     review.model_dump(mode="json") for review in draft.change_reviews
                 ],

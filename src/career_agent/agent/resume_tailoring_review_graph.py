@@ -74,7 +74,10 @@ class ResumeTailoringReviewGraph:
         worker: ResumeTailoringWorker,
         reviewer: ResumeTailoringReviewer,
         *,
-        max_revisions: int = 2,
+        # Keep the default interactive loop to one repair. The second repair
+        # usually adds a full model round trip for a low-probability edge case;
+        # offline callers can still request two explicitly.
+        max_revisions: int = 1,
     ) -> None:
         if not 0 <= max_revisions <= 2:
             raise ValueError("max_revisions must be between zero and two")
@@ -227,7 +230,10 @@ class ResumeTailoringReviewGraph:
             reason = "revision_limit"
         else:
             feedback = tuple(
-                issue.revision_instruction or issue.explanation
+                issue.explanation + (
+                    f" Required correction: {issue.revision_instruction}"
+                    if issue.revision_instruction else ""
+                )
                 for issue in review.issues
                 if issue.severity == "blocking"
             )
@@ -302,7 +308,7 @@ class ResumeTailoringReviewGraph:
         mitigations = []
         for mitigation in draft.gap_mitigations:
             adjacent = []
-            for evidence in mitigation.adjacent_experience:
+            for evidence in getattr(mitigation, "adjacent_experience", ()):
                 check = cls._check_evidence(
                     document=document,
                     quote=cls._normalize(evidence.source_quote),
@@ -314,7 +320,7 @@ class ResumeTailoringReviewGraph:
                     update = {"evidence_quality": check.quality, "page": check.page}
                 adjacent.append(evidence.model_copy(update=update))
             alternatives = []
-            for evidence in mitigation.alternative_evidence:
+            for evidence in getattr(mitigation, "alternative_evidence", ()):
                 if isinstance(evidence, str) or evidence.status != "existing":
                     alternatives.append(evidence)
                     continue
@@ -348,15 +354,8 @@ class ResumeTailoringReviewGraph:
         match_result: ResumeJobMatchResult,
         confirmed_facts: tuple[ConfirmedResumeFact, ...],
         draft: ResumeTailoringResult,
+        include_gap_mitigations: bool = True,
     ) -> tuple[ResumeReviewIssue, ...]:
-        known_quotes = {
-            cls._normalize(fact.source_quote) for fact in confirmed_facts
-        }
-        known_quotes.update(
-            cls._normalize(evidence.source_quote)
-            for requirement in match_result.requirements
-            for evidence in requirement.resume_evidence
-        )
         resume_text, readable = cls._resume_text(document)
         # A readable document that yields no text is a genuine scan: grounding is
         # unverifiable, so warn. An unreadable document proves nothing and must
@@ -364,7 +363,10 @@ class ResumeTailoringReviewGraph:
         unverifiable = resume_text is None and readable
 
         issues: list[ResumeReviewIssue] = []
-        for explanation in gap_mitigation_errors(draft, match_result):
+        for explanation in (
+            gap_mitigation_errors(draft, match_result)
+            if include_gap_mitigations else ()
+        ):
             issues.append(
                 ResumeReviewIssue(
                     category="jd_misalignment",
@@ -401,6 +403,21 @@ class ResumeTailoringReviewGraph:
                     declared_quality=evidence.evidence_quality,
                     page=evidence.page,
                 )
+                if evidence.page is not None and not check.matched:
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            change_index=index,
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                "The support quote could not be verified on the cited page "
+                                f"({check.reason})."
+                            ),
+                            revision_instruction="Cite the page containing the exact quote or remove the change.",
+                        )
+                    )
+                    continue
                 if evidence.evidence_quality == "ocr_unverified":
                     issues.append(
                         ResumeReviewIssue(
@@ -412,8 +429,6 @@ class ResumeTailoringReviewGraph:
                             revision_instruction="Confirm the quote in the source document or remove the change.",
                         )
                     )
-                    continue
-                if quote in known_quotes:
                     continue
                 if check.matched:
                     continue
@@ -430,7 +445,7 @@ class ResumeTailoringReviewGraph:
                             revision_instruction="Confirm the quote against the original resume before accepting the change.",
                         )
                     )
-                elif resume_text is None or quote not in resume_text:
+                else:
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
@@ -441,8 +456,8 @@ class ResumeTailoringReviewGraph:
                             revision_instruction="Use an exact quote from the resume or remove the change.",
                         )
                     )
-        for mitigation in draft.gap_mitigations:
-            for evidence in mitigation.adjacent_experience:
+        for mitigation in (draft.gap_mitigations if include_gap_mitigations else ()):
+            for evidence in getattr(mitigation, "adjacent_experience", ()):
                 quote = cls._normalize(evidence.source_quote)
                 check = cls._check_evidence(
                     document=document,
@@ -450,7 +465,28 @@ class ResumeTailoringReviewGraph:
                     declared_quality=evidence.evidence_quality,
                     page=evidence.page,
                 )
-                if evidence.evidence_quality == "ocr_unverified":
+                if (
+                    evidence.page is not None
+                    and not check.matched
+                    and check.reason != "no_reliable_text_layer"
+                ):
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                "Adjacent evidence could not be verified on the cited page "
+                                f"({check.reason})."
+                            ),
+                            revision_instruction="Cite the page containing the quote or remove this evidence.",
+                        )
+                    )
+                    continue
+                if (
+                    check.reason == "no_reliable_text_layer"
+                    or evidence.evidence_quality == "ocr_unverified"
+                ):
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
@@ -460,8 +496,6 @@ class ResumeTailoringReviewGraph:
                             revision_instruction="Confirm the quote before using it in interview language.",
                         )
                     )
-                    continue
-                if quote in known_quotes:
                     continue
                 if check.matched:
                     continue
@@ -481,7 +515,7 @@ class ResumeTailoringReviewGraph:
                             ),
                         )
                     )
-                elif resume_text is None or quote not in resume_text:
+                else:
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
@@ -496,7 +530,7 @@ class ResumeTailoringReviewGraph:
                             ),
                         )
                     )
-            for evidence in mitigation.alternative_evidence:
+            for evidence in getattr(mitigation, "alternative_evidence", ()):
                 if isinstance(evidence, str) or evidence.status != "existing":
                     continue
                 quote = cls._normalize(evidence.source_quote or "")
@@ -506,7 +540,28 @@ class ResumeTailoringReviewGraph:
                     declared_quality=evidence.evidence_quality,
                     page=evidence.page,
                 )
-                if evidence.evidence_quality == "ocr_unverified":
+                if (
+                    evidence.page is not None
+                    and not check.matched
+                    and check.reason != "no_reliable_text_layer"
+                ):
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                "Existing alternative evidence could not be verified on "
+                                f"the cited page ({check.reason})."
+                            ),
+                            revision_instruction="Cite the page containing the quote or mark the material as planned.",
+                        )
+                    )
+                    continue
+                if (
+                    check.reason == "no_reliable_text_layer"
+                    or evidence.evidence_quality == "ocr_unverified"
+                ):
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
@@ -516,8 +571,6 @@ class ResumeTailoringReviewGraph:
                             revision_instruction="Confirm the material or mark it as planned.",
                         )
                     )
-                    continue
-                if quote in known_quotes:
                     continue
                 if check.matched:
                     continue
@@ -640,6 +693,8 @@ class ResumeTailoringReviewGraph:
                     page,
                     "page_out_of_range",
                 )
+            if not pages[page - 1]:
+                return EvidenceCheck(False, "ocr_unverified", page, "no_reliable_text_layer")
             candidates = ((page, pages[page - 1]),)
         else:
             candidates = tuple(enumerate(pages, start=1))

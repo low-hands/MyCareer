@@ -40,6 +40,10 @@ class TailoringChangeReviewView(BaseModel):
 
 
 def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
+    adjacent_experience = getattr(item, "adjacent_experience", ())
+    alternative_evidence = getattr(item, "alternative_evidence", ())
+    learning_plan = getattr(item, "learning_plan", None)
+    clarification_question = getattr(item, "clarification_question", None)
     type_label = {
         "hard_blocker": "硬性 blocker",
         "strengthenable": "可补强项",
@@ -62,18 +66,18 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
         "",
         f"下一步：{item.next_action}",
     ]
-    if item.adjacent_experience:
+    if adjacent_experience:
         lines.extend(("", "相邻经验："))
         lines.extend(
             f"- {evidence.source_locator}：{evidence.source_quote}（{evidence.relevance}；"
             f"{_EVIDENCE_QUALITY_LABELS[evidence.evidence_quality]}"
             + (f"；第 {evidence.page} 页" if evidence.page is not None else "")
             + ")"
-            for evidence in item.adjacent_experience
+            for evidence in adjacent_experience
         )
-    if item.alternative_evidence:
+    if alternative_evidence:
         lines.extend(("", "可替代证据："))
-        for evidence in item.alternative_evidence:
+        for evidence in alternative_evidence:
             if isinstance(evidence, str):
                 lines.append(f"- 旧版未分类：{evidence}")
             elif evidence.status == "existing":
@@ -89,8 +93,8 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
                     f"- 计划产物：{evidence.description}"
                     f"（验收标准：{evidence.acceptance_criteria}）"
                 )
-    if item.learning_plan is not None:
-        plan = item.learning_plan
+    if learning_plan is not None:
+        plan = learning_plan
         lines.extend(
             (
                 "",
@@ -108,8 +112,8 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
         if talking_point.bridge_to_evidence is not None:
             lines.append(f"- 连接经验：{talking_point.bridge_to_evidence}")
         lines.append(f"- 补强动作：{talking_point.close_with_action}")
-    if item.clarification_question is not None:
-        lines.extend(("", f"澄清问题：{item.clarification_question}"))
+    if clarification_question is not None:
+        lines.extend(("", f"澄清问题：{clarification_question}"))
     return "\n".join(lines)
 
 

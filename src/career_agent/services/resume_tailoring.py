@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from career_agent.agent.resume_job_match_contracts import ConfirmedResumeFact
 from career_agent.agent.resume_tailoring_contracts import (
     AcceptedTailoringChange,
+    GapMitigation,
     ResumeFinalizationWorker,
     ResumeTailoringResult,
     ResumeTailoringReviewer,
     ResumeTailoringWorker,
+    ResumeReviewTrace,
+    ResumeReviewAttempt,
+    ResumeReviewIssue,
+    ResumeReviewResult,
     canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
@@ -72,7 +77,10 @@ class ResumeTailoringService:
         finalization_worker: ResumeFinalizationWorker,
         *,
         reviewer: ResumeTailoringReviewer | None = None,
-        max_review_revisions: int = 2,
+        # One automatic repair keeps the interactive path bounded to at most
+        # two writer/reviewer passes. A caller that runs offline evaluation can
+        # still opt into the existing two-revision budget explicitly.
+        max_review_revisions: int = 1,
         worker_version: str = "resume-tailoring-v1",
     ) -> None:
         self._resume_store = resume_store
@@ -100,6 +108,7 @@ class ResumeTailoringService:
         user_id: str,
         match_id: str,
         tailoring_goal: str | None = None,
+        run_automated_review: bool = True,
     ) -> StoredResumeTailoringDraft:
         if not user_id.strip() or not match_id.strip():
             raise ValueError("user_id and match_id are required")
@@ -107,6 +116,108 @@ class ResumeTailoringService:
             user_id=user_id,
             match_id=match_id,
             tailoring_goal=tailoring_goal,
+            run_automated_review=run_automated_review,
+        )
+
+    def review_draft_automatically(
+        self, *, user_id: str, draft_id: str
+    ) -> StoredResumeTailoringDraft:
+        """Run the expensive reviewer after an interactive draft is visible."""
+        if self._review_graph is None:
+            draft = self.get_draft(user_id=user_id, draft_id=draft_id)
+            return draft
+        draft = self.get_draft(user_id=user_id, draft_id=draft_id)
+        stored_match = self._match_store.get(user_id=user_id, match_id=draft.match_id)
+        if stored_match is None:
+            raise ResumeJobMatchInputNotFoundError("match")
+        document = self._resume_store.read_version_document(
+            user_id=user_id, resume_version_id=stored_match.resume_version_id
+        )
+        if document is None:
+            raise ResumeJobMatchInputNotFoundError("resume_version")
+        job = self._job_repository.get_job(
+            user_id=user_id, job_posting_id=stored_match.job_posting_id
+        )
+        if job is None or job.snapshot.id != stored_match.jd_snapshot_id:
+            raise ResumeJobMatchInputNotFoundError("job_posting")
+        confirmed_facts = tuple(
+            ConfirmedResumeFact(
+                claim=evidence.claim,
+                source_locator=evidence.source_locator,
+                source_quote=evidence.source_quote,
+            )
+            for evidence in self._career_history_store.list_evidence(
+                user_id=user_id,
+                verification_status="confirmed",
+                source_resume_version_id=stored_match.resume_version_id,
+            )
+            if evidence.source_locator is not None and evidence.source_quote is not None
+        )
+        reviewed = self._reviewer.review_draft(
+            document=document,
+            jd_text=job.snapshot.content,
+            match_result=stored_match.result,
+            draft=draft.result,
+            confirmed_facts=confirmed_facts,
+        )
+        deterministic = ResumeTailoringReviewGraph._validate_grounding(
+            document=document,
+            match_result=stored_match.result,
+            confirmed_facts=confirmed_facts,
+            draft=draft.result,
+        )
+        if deterministic:
+            reviewed = reviewed.model_copy(
+                update={"issues": (*deterministic, *reviewed.issues)}
+            )
+        fingerprint = ResumeTailoringReviewGraph._fingerprint(draft.result)
+        trace = ResumeReviewTrace(
+            status="passed" if reviewed.verdict == "pass" else "blocked",
+            attempts=(
+                ResumeReviewAttempt(
+                    attempt_number=1,
+                    draft_fingerprint=fingerprint,
+                    result=reviewed,
+                ),
+            ),
+            stop_reason="passed" if reviewed.verdict == "pass" else "reviewer_blocked",
+        )
+        updated = self._draft_store.set_automated_review(
+            user_id=user_id,
+            draft_id=draft_id,
+            automated_review=trace,
+        )
+        if updated is None:
+            raise ResumeTailoringDraftNotFoundError("draft is no longer mutable")
+        return updated
+
+    def mark_automatic_review_failed(
+        self, *, user_id: str, draft_id: str, reason: str
+    ) -> StoredResumeTailoringDraft | None:
+        review = ResumeReviewResult(
+            verdict="block",
+            summary="自动审核后台执行失败",
+            issues=(
+                ResumeReviewIssue(
+                    category="change_set_mismatch",
+                    severity="blocking",
+                    explanation=reason[:1500] or "后台审核失败",
+                ),
+            ),
+        )
+        trace = ResumeReviewTrace(
+            status="blocked",
+            attempts=(
+                ResumeReviewAttempt(
+                    attempt_number=1,
+                    draft_fingerprint="0" * 64,
+                    result=review,
+                ),
+            ),
+            stop_reason="reviewer_blocked",
+        )
+        return self._draft_store.set_automated_review(
+            user_id=user_id, draft_id=draft_id, automated_review=trace
         )
 
     def revise_draft(
@@ -152,6 +263,7 @@ class ResumeTailoringService:
         revision_number: int = 1,
         revision_feedback: str | None = None,
         previous_draft: ResumeTailoringResult | None = None,
+        run_automated_review: bool = True,
     ) -> StoredResumeTailoringDraft:
         stored_match = self._match_store.get(user_id=user_id, match_id=match_id)
         if stored_match is None:
@@ -182,7 +294,7 @@ class ResumeTailoringService:
             if evidence.source_locator is not None and evidence.source_quote is not None
         )
         automated_review = None
-        if self._review_graph is None:
+        if self._review_graph is None or not run_automated_review:
             result = self._worker.tailor(
                 document=document,
                 jd_text=job.snapshot.content,
@@ -215,10 +327,30 @@ class ResumeTailoringService:
         # preserve a false ``exact`` declaration.
         result = ResumeTailoringReviewGraph._canonicalize_evidence(result, document)
         result = canonicalize_gap_mitigations(result, stored_match.result)
+        legacy_mode_items = tuple(
+            item.requirement_id
+            for item in result.gap_mitigations
+            if isinstance(item, GapMitigation) and item.resolution_mode is not None
+        )
+        if legacy_mode_items:
+            raise ResumeTailoringReviewBlockedError(
+                "New gap mitigations must use the compact mode union: "
+                + ", ".join(item_id or "unknown" for item_id in legacy_mode_items)
+            )
         mitigation_errors = gap_mitigation_errors(result, stored_match.result)
         if mitigation_errors:
             raise ResumeTailoringReviewBlockedError(
                 "Gap mitigation validation failed: " + "; ".join(mitigation_errors)
+            )
+        grounding_issues = ResumeTailoringReviewGraph._validate_grounding(
+            document=document,
+            match_result=stored_match.result,
+            confirmed_facts=confirmed_facts,
+            draft=result,
+        )
+        if any(issue.severity == "blocking" for issue in grounding_issues):
+            raise ResumeTailoringReviewBlockedError(
+                "Deterministic resume grounding checks blocked the draft"
             )
         return self._draft_store.create(
             user_id=user_id,
@@ -289,6 +421,15 @@ class ResumeTailoringService:
             raise ResumeTailoringNotReadyError(
                 "A newer tailoring draft revision must be reviewed instead"
             )
+        if self._review_graph is not None:
+            if draft.automated_review is None:
+                raise ResumeTailoringNotReadyError(
+                    "自动审核仍在后台进行，请稍后再定稿"
+                )
+            if draft.automated_review.status != "passed":
+                raise ResumeTailoringReviewBlockedError(
+                    "自动审核未通过，不能定稿；请先修改或重新生成草稿"
+                )
         if draft.status not in {"reviewed", "finalized"}:
             raise ResumeTailoringNotReadyError(
                 "Every tailoring change must be explicitly accepted or rejected"
@@ -329,6 +470,20 @@ class ResumeTailoringService:
         )
         if document is None:
             raise ResumeJobMatchInputNotFoundError("resume_version")
+        accepted_result = draft.result.model_copy(
+            update={"changes": tuple(item.change for item in accepted)}
+        )
+        grounding_issues = ResumeTailoringReviewGraph._validate_grounding(
+            document=document,
+            match_result=stored_match.result,
+            confirmed_facts=(),
+            draft=accepted_result,
+            include_gap_mitigations=False,
+        )
+        if any(issue.severity == "blocking" for issue in grounding_issues):
+            raise ResumeFinalReviewBlockedError(
+                "Deterministic resume grounding checks blocked finalization"
+            )
         confirmed_facts = tuple(
             ConfirmedResumeFact(
                 claim=evidence.claim,

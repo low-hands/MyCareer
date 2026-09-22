@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Protocol
+import re
+from dataclasses import asdict, dataclass
+from typing import Annotated, TYPE_CHECKING, Literal, Protocol, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
+    RequirementAssessment,
     ResumeJobMatchResult,
     is_confirmed_hard_gate_assessment,
 )
@@ -63,6 +66,38 @@ class GapLearningPlan(ResumeTailoringContract):
     resource_directions: tuple[str, ...] = Field(min_length=1, max_length=5)
     minimum_acceptable_level: str = Field(min_length=1, max_length=1000)
     estimated_effort: str | None = Field(default=None, min_length=1, max_length=300)
+
+
+_EFFORT_PATTERN = re.compile(
+    r"(?P<start>\d+(?:\.\d+)?)\s*"
+    r"(?:(?:-|–|—|~|～|至|到|to)\s*(?P<end>\d+(?:\.\d+)?)\s*)?"
+    r"(?:focused\s+|total\s+)?"
+    r"(?:小时|天|周|个月|hours?|days?|weeks?|months?)\s*",
+    flags=re.IGNORECASE,
+)
+
+
+def _bounded_effort_error(value: str | None) -> str | None:
+    """Validate only objective numeric bounds on a newly generated plan."""
+    if value is None:
+        return "learning plan requires an estimated effort"
+    matches = tuple(_EFFORT_PATTERN.finditer(value))
+    # Accept total effort, elapsed duration and cadence together, but never
+    # ignore a malformed/negative quantity or unbounded prose around them.
+    remainder = _EFFORT_PATTERN.sub(" ", value)
+    remainder = re.sub(
+        r"\b(?:about|approximately|estimated|focused|total|spread|over|across|for|at|per|"
+        r"week|day|month|weekly|daily)\b|大约|预计|约|每周|每天|每月|持续|投入|共|分|完成",
+        "", remainder, flags=re.IGNORECASE,
+    )
+    if not matches or remainder.strip(" \t\n,，.。;；()（）:/"):
+        return "estimated effort must specify a bounded duration with a unit"
+    for match in matches:
+        start = float(match.group("start"))
+        end = float(match.group("end")) if match.group("end") else start
+        if start <= 0 or end <= 0 or end < start:
+            return "estimated effort must use positive, ascending bounds"
+    return None
 
 
 class GapInterviewTalkingPoint(ResumeTailoringContract):
@@ -141,8 +176,6 @@ class GapMitigation(ResumeTailoringContract):
             return self
         if self.rationale is None:
             raise ValueError("new mitigation requires a rationale")
-        if self.interview_talking_point is None:
-            raise ValueError("new mitigation requires interview talking points")
         if self.resolution_mode == "clarify":
             if self.clarification_question is None:
                 raise ValueError("clarify mitigation requires a clarification question")
@@ -172,6 +205,65 @@ class GapMitigation(ResumeTailoringContract):
         return self
 
 
+# New writes use a discriminated, mode-specific payload. ``GapMitigation`` is
+# retained above as the legacy read model so old stored JSON remains readable.
+class _GapMitigationMode(ResumeTailoringContract):
+    gap: str | None = Field(default=None, min_length=1, max_length=1000)
+    requirement_id: str = Field(pattern=r"^job_requirement_[a-f0-9]{20}$")
+    gap_type: Literal["hard_blocker", "strengthenable"]
+    priority: Literal["P0", "P1", "P2"]
+    next_action: str = Field(min_length=1, max_length=1000)
+    rationale: str = Field(min_length=1, max_length=1500)
+    interview_talking_point: GapInterviewTalkingPoint | None = None
+
+
+class ClarifyMitigation(_GapMitigationMode):
+    resolution_mode: Literal["clarify"]
+    clarification_question: str = Field(min_length=1, max_length=1000)
+
+
+class ProvideEvidenceMitigation(_GapMitigationMode):
+    resolution_mode: Literal["provide_evidence"]
+    adjacent_experience: tuple[GapAdjacentEvidence, ...] = Field(default=(), max_length=5)
+    alternative_evidence: tuple[GapAlternativeEvidence, ...] = Field(default=(), max_length=5)
+
+    @model_validator(mode="after")
+    def requires_evidence(self) -> ProvideEvidenceMitigation:
+        if not (self.adjacent_experience or self.alternative_evidence):
+            raise ValueError("provide_evidence mitigation requires evidence")
+        if any(item.status == "planned" for item in self.alternative_evidence):
+            raise ValueError("provide_evidence mitigation cannot contain planned artifacts")
+        return self
+
+
+class BuildArtifactMitigation(_GapMitigationMode):
+    resolution_mode: Literal["build_artifact"]
+    alternative_evidence: tuple[GapAlternativeEvidence, ...] = Field(default=(), max_length=5)
+
+    @model_validator(mode="after")
+    def requires_planned_artifact(self) -> BuildArtifactMitigation:
+        if not any(item.status == "planned" for item in self.alternative_evidence):
+            raise ValueError("build_artifact mitigation requires a planned artifact")
+        return self
+
+
+class LearnMitigation(_GapMitigationMode):
+    resolution_mode: Literal["learn"]
+    learning_plan: GapLearningPlan
+
+    @model_validator(mode="after")
+    def requires_bounded_effort(self) -> LearnMitigation:
+        if self.learning_plan.estimated_effort is None:
+            raise ValueError("learn mitigation requires a bounded estimated effort")
+        return self
+
+
+GapMitigationPayload = Annotated[
+    Union[ClarifyMitigation, ProvideEvidenceMitigation, BuildArtifactMitigation, LearnMitigation],
+    Field(discriminator="resolution_mode"),
+]
+
+
 class ResumeTailoringResult(ResumeTailoringContract):
     strategy_summary: str = Field(min_length=1, max_length=3000)
     changes: tuple[ResumeTailoringChange, ...] = Field(default=(), max_length=30)
@@ -185,9 +277,17 @@ class ResumeTailoringResult(ResumeTailoringContract):
     # Optional on read so pre-096 drafts remain loadable. For new drafts this is
     # a compatibility projection rebuilt from stable-ID mitigations; it is not
     # the source of truth for coverage.
-    gap_mitigations: tuple[GapMitigation, ...] = Field(default=(), max_length=30)
+    gap_mitigations: tuple[GapMitigationPayload | GapMitigation, ...] = Field(default=(), max_length=30)
     clarification_questions: tuple[str, ...] = Field(default=(), max_length=10)
     warnings: tuple[str, ...] = Field(default=(), max_length=10)
+
+
+class ResumeTailoringGenerationResult(ResumeTailoringResult):
+    """Worker output schema; historical superset mitigations are read-only."""
+
+    gap_mitigations: tuple[GapMitigationPayload, ...] = Field(
+        default=(), max_length=30
+    )
 
 
 
@@ -202,14 +302,20 @@ def canonicalize_gap_mitigations(
         if item.requirement_id is not None
     }
     mitigations = tuple(
-        item.model_copy(
-            update={"gap": assessments[item.requirement_id].requirement}
+        _canonicalize_mode_payload(
+            item.model_copy(
+                update={"gap": assessments[item.requirement_id].requirement}
+            )
         )
         if item.requirement_id in assessments
         else item
         for item in result.gap_mitigations
     )
-    if not mitigations:
+    if not mitigations and any(
+        item.requirement_id is None for item in match_result.requirements
+    ):
+        # An unbound historical match cannot authorize rebuilding its gap
+        # projection. Preserve it so the new-write checks can reject it.
         return result
     gaps = tuple(item.gap for item in mitigations if item.gap is not None)
     return result.model_copy(
@@ -220,6 +326,86 @@ def canonicalize_gap_mitigations(
             "unresolved_gaps": gaps,
         }
     )
+
+
+def _canonicalize_mode_payload(item: GapMitigation):
+    """Use the compact mode model for every new payload.
+
+    Legacy rows have no resolution mode and remain untouched. A model-generated
+    result with a mode is always rebuilt through the discriminated union, even
+    when it carries the legacy superset of fields.
+    """
+    if item.resolution_mode is None:
+        return item
+    raw = item.model_dump()
+    common = {
+        key: raw[key]
+        for key in (
+            "gap", "requirement_id", "gap_type", "priority", "next_action",
+            "rationale", "interview_talking_point",
+        )
+        if raw.get(key) is not None
+    }
+    mode_fields = {
+        "clarify": ("clarification_question",),
+        "provide_evidence": ("adjacent_experience", "alternative_evidence"),
+        "build_artifact": ("alternative_evidence",),
+        "learn": ("learning_plan",),
+    }[item.resolution_mode]
+    payload = {
+        **common,
+        "resolution_mode": item.resolution_mode,
+        **{key: raw[key] for key in mode_fields if raw.get(key) is not None},
+    }
+    try:
+        return TypeAdapter(GapMitigationPayload).validate_python(payload)
+    except ValueError:
+        return item
+
+
+@dataclass(frozen=True)
+class MitigationRule:
+    requirement_id: str | None
+    required: bool
+    gap_type: str
+    priorities: tuple[str, ...]
+    modes: tuple[str, ...]
+
+
+def _mitigation_rule(assessment: RequirementAssessment) -> MitigationRule:
+    # Preserve historical rows with no classification metadata, while newly
+    # analyzed requirements must satisfy the confirmed-hard-gate predicate.
+    legacy = all(value is None for value in (
+        assessment.tier_confidence, assessment.tier_rationale,
+        assessment.tier_evidence, assessment.classification_status,
+    ))
+    hard = (
+        assessment.tier == "S" and assessment.kind == "fact"
+        and assessment.status == "missing"
+        and (legacy or is_confirmed_hard_gate_assessment(assessment))
+    )
+    preapplication = (
+        assessment.tier == "S" and assessment.kind == "fact"
+        and assessment.status == "unclear"
+    )
+    modes = {
+        "matched": (),
+        "partial": ("provide_evidence", "clarify"),
+        "unclear": ("clarify",),
+        "missing": ("clarify", "provide_evidence", "build_artifact", "learn"),
+    }[assessment.status]
+    return MitigationRule(
+        requirement_id=assessment.requirement_id,
+        required=assessment.status in {"missing", "unclear"},
+        gap_type="hard_blocker" if hard else "strengthenable",
+        priorities=("P0",) if hard else (("P0", "P1", "P2") if preapplication else ("P1", "P2")),
+        modes=modes,
+    )
+
+
+def mitigation_policy(match_result: ResumeJobMatchResult) -> tuple[dict, ...]:
+    """The same deterministic classification rules for writer and reviewer."""
+    return tuple(asdict(_mitigation_rule(item)) for item in match_result.requirements)
 
 
 def gap_mitigation_errors(
@@ -260,6 +446,8 @@ def gap_mitigation_errors(
         )
 
     for mitigation in result.gap_mitigations:
+        alternative_evidence = getattr(mitigation, "alternative_evidence", ())
+        learning_plan = getattr(mitigation, "learning_plan", None)
         if mitigation.requirement_id is None:
             errors.append("new gap mitigations require an authoritative requirement ID")
             continue
@@ -267,7 +455,7 @@ def gap_mitigation_errors(
         if assessment is None:
             errors.append(f"unknown requirement ID: {mitigation.requirement_id}")
             continue
-        if assessment.status not in {"missing", "unclear"}:
+        if assessment.status == "matched":
             errors.append(
                 f"supported requirement cannot be an unresolved gap: {mitigation.requirement_id}"
             )
@@ -278,36 +466,13 @@ def gap_mitigation_errors(
             )
         if mitigation.rationale is None:
             errors.append(f"new mitigation requires a rationale: {mitigation.requirement_id}")
-        if mitigation.interview_talking_point is None:
-            errors.append(
-                "new mitigation requires interview talking points: "
-                f"{mitigation.requirement_id}"
-            )
-        if any(isinstance(item, str) for item in mitigation.alternative_evidence):
+        if any(isinstance(item, str) for item in alternative_evidence):
             errors.append(
                 "new alternative evidence must declare existing or planned status: "
                 f"{mitigation.requirement_id}"
             )
-        # Pre-096 persisted matches have no classification metadata. Preserve
-        # their historical validation semantics while requiring an explicit
-        # confirmed gate for all newly-produced results.
-        legacy_classification = (
-            assessment.tier_confidence is None
-            and assessment.tier_rationale is None
-            and assessment.tier_evidence is None
-            and assessment.classification_status is None
-        )
-        is_hard_blocker = (
-            assessment.tier == "S"
-            and assessment.kind == "fact"
-            and assessment.status == "missing"
-            and (
-                legacy_classification
-                or (
-                    is_confirmed_hard_gate_assessment(assessment)
-                )
-            )
-        )
+        rule = _mitigation_rule(assessment)
+        is_hard_blocker = rule.gap_type == "hard_blocker"
         if is_hard_blocker and mitigation.gap_type != "hard_blocker":
             errors.append(
                 f"S/fact/missing requirement must be a hard blocker: {mitigation.requirement_id}"
@@ -316,37 +481,41 @@ def gap_mitigation_errors(
             errors.append(
                 f"only S/fact/missing can be a hard blocker: {mitigation.requirement_id}"
             )
-        is_preapplication_clarification = (
-            assessment.tier == "S"
-            and assessment.kind == "fact"
-            and assessment.status == "unclear"
-            and mitigation.resolution_mode == "clarify"
-        )
         if mitigation.gap_type == "hard_blocker" and mitigation.priority != "P0":
             errors.append(
                 f"hard blocker must have P0 priority: {mitigation.requirement_id}"
             )
-        if mitigation.priority == "P0" and not (
-            is_hard_blocker or is_preapplication_clarification
+        if mitigation.priority == "P0" and (
+            "P0" not in rule.priorities
+            or (not is_hard_blocker and mitigation.resolution_mode != "clarify")
         ):
             errors.append(
                 "P0 is reserved for hard blockers or S/fact/unclear clarification: "
                 f"{mitigation.requirement_id}"
+            )
+        if assessment.status == "partial" and mitigation.resolution_mode not in rule.modes:
+            errors.append(
+                "partial requirement must use provide_evidence or clarify, not learning "
+                f"or a new artifact: {mitigation.requirement_id}"
             )
         if assessment.status == "unclear":
             if mitigation.resolution_mode != "clarify":
                 errors.append(
                     f"unclear requirement must use clarify mode: {mitigation.requirement_id}"
                 )
-            if mitigation.learning_plan is not None:
+            if learning_plan is not None:
                 errors.append(
                     f"unclear requirement cannot prescribe learning: {mitigation.requirement_id}"
                 )
-        if mitigation.resolution_mode == "learn" and mitigation.learning_plan is None:
+        if mitigation.resolution_mode == "learn" and learning_plan is None:
             errors.append(
                 f"learn mode requires a learning plan: {mitigation.requirement_id}"
             )
-        if mitigation.resolution_mode != "learn" and mitigation.learning_plan is not None:
+        if mitigation.resolution_mode == "learn" and learning_plan is not None:
+            effort_error = _bounded_effort_error(learning_plan.estimated_effort)
+            if effort_error is not None:
+                errors.append(f"{effort_error}: {mitigation.requirement_id}")
+        if mitigation.resolution_mode != "learn" and learning_plan is not None:
             errors.append(
                 "learning plan is allowed only in learn mode: "
                 f"{mitigation.requirement_id}"

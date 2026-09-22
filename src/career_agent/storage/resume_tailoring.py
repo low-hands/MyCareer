@@ -427,6 +427,41 @@ class SQLiteResumeTailoringDraftStore:
             )
         return self.get(user_id=user_id, draft_id=draft_id)
 
+    def set_automated_review(
+        self,
+        *,
+        user_id: str,
+        draft_id: str,
+        automated_review: ResumeReviewTrace,
+        result: ResumeTailoringResult | None = None,
+    ) -> StoredResumeTailoringDraft | None:
+        """Persist background QA without changing the user's decisions."""
+        with self._connect() as connection:
+            if result is None:
+                updated = connection.execute(
+                    """
+                    UPDATE resume_tailoring_drafts
+                    SET automated_review_json = ?
+                    WHERE id = ? AND user_id = ? AND review_status NOT IN ('finalized', 'superseded')
+                    """,
+                    (automated_review.model_dump_json(), draft_id, user_id),
+                ).rowcount
+            else:
+                updated = connection.execute(
+                    """
+                    UPDATE resume_tailoring_drafts
+                    SET result_json = ?, automated_review_json = ?
+                    WHERE id = ? AND user_id = ? AND review_status NOT IN ('finalized', 'superseded')
+                    """,
+                    (
+                        result.model_dump_json(),
+                        automated_review.model_dump_json(),
+                        draft_id,
+                        user_id,
+                    ),
+                ).rowcount
+        return self.get(user_id=user_id, draft_id=draft_id) if updated else None
+
     def mark_finalized(
         self, *, user_id: str, draft_id: str
     ) -> StoredResumeTailoringDraft | None:
