@@ -209,6 +209,11 @@ class ResumeTailoringService:
                 )
             result = outcome.draft
             automated_review = outcome.trace
+        # Evidence quality is a server observation, not a model assertion.
+        # Apply the same PDF/page/OCR canonicalization even when no automated
+        # review graph is configured, so the lightweight production path cannot
+        # preserve a false ``exact`` declaration.
+        result = ResumeTailoringReviewGraph._canonicalize_evidence(result, document)
         result = canonicalize_gap_mitigations(result, stored_match.result)
         mitigation_errors = gap_mitigation_errors(result, stored_match.result)
         if mitigation_errors:

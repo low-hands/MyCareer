@@ -745,6 +745,56 @@ def test_server_canonicalizes_declared_exact_to_normalized() -> None:
     assert evidence.page == 1
 
 
+def test_server_promotes_ocr_declaration_when_text_layer_verifies_quote() -> None:
+    check = ResumeTailoringReviewGraph._check_evidence(
+        document=StoredResumeDocument(
+            resume_version_id="text-layer",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("Built reliable RAG systems"),
+        ),
+        quote="built reliable rag systems",
+        declared_quality="ocr_unverified",
+        page=1,
+    )
+
+    assert check == EvidenceCheck(
+        matched=True,
+        quality="exact",
+        page=1,
+        reason="exact_text_match",
+    )
+
+
+def test_scanned_pdf_downgrades_declared_exact_to_ocr_unverified() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    canonical = ResumeTailoringReviewGraph._canonicalize_evidence(
+        ResumeTailoringResult.model_validate(draft),
+        StoredResumeDocument(
+            resume_version_id="scan",
+            document_format="pdf",
+            raw_bytes=_scanned_pdf(),
+        ),
+    )
+
+    assert canonical.changes[0].support_evidence[0].evidence_quality == "ocr_unverified"
+
+
+def test_ocr_evidence_still_validates_declared_page_number() -> None:
+    check = ResumeTailoringReviewGraph._check_evidence(
+        document=StoredResumeDocument(
+            resume_version_id="scan",
+            document_format="pdf",
+            raw_bytes=_scanned_pdf(),
+        ),
+        quote="anything",
+        declared_quality="ocr_unverified",
+        page=2,
+    )
+
+    assert check.matched is False
+    assert check.reason == "page_out_of_range"
+
+
 def test_ocr_unverified_evidence_is_not_accepted_for_a_resume_change() -> None:
     invalid = copy.deepcopy(VALID_DRAFT)
     invalid["changes"][0]["support_evidence"][0]["evidence_quality"] = "ocr_unverified"
@@ -972,7 +1022,7 @@ class RecordingReviewer:
         )
 
 
-def seed_service(tmp_path, *, reviewer=None):
+def seed_service(tmp_path, *, reviewer=None, document_format="text", content=b"PRIVATE RESUME: Built RAG systems"):
     resume_path = tmp_path / "resumes.sqlite3"
     resumes = ResumeStore(resume_path)
     role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -980,8 +1030,8 @@ def seed_service(tmp_path, *, reviewer=None):
         user_id="u1",
         target_role_id=role.id,
         name="AI Resume",
-        content=b"PRIVATE RESUME: Built RAG systems",
-        document_format="text",
+        content=content,
+        document_format=document_format,
     )
     jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     captured_at = datetime(2026, 8, 25, tzinfo=timezone.utc)
@@ -1031,6 +1081,18 @@ def seed_service(tmp_path, *, reviewer=None):
         reviewer=reviewer,
     )
     return service, tailoring_worker, finalization_worker, stored_match
+
+
+def test_service_without_review_graph_canonicalizes_scanned_pdf_evidence(tmp_path) -> None:
+    service, _, _, stored_match = seed_service(
+        tmp_path,
+        document_format="pdf",
+        content=_scanned_pdf(),
+    )
+
+    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+
+    assert draft.result.changes[0].support_evidence[0].evidence_quality == "ocr_unverified"
 
 
 def _scanned_pdf() -> bytes:

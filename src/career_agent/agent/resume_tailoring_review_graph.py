@@ -291,7 +291,7 @@ class ResumeTailoringReviewGraph:
                     page=evidence.page,
                 )
                 update = {}
-                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                if check.matched or check.quality == "ocr_unverified":
                     update = {
                         "evidence_quality": check.quality,
                         "page": check.page,
@@ -310,7 +310,7 @@ class ResumeTailoringReviewGraph:
                     page=evidence.page,
                 )
                 update = {}
-                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                if check.matched or check.quality == "ocr_unverified":
                     update = {"evidence_quality": check.quality, "page": check.page}
                 adjacent.append(evidence.model_copy(update=update))
             alternatives = []
@@ -325,7 +325,7 @@ class ResumeTailoringReviewGraph:
                     page=evidence.page,
                 )
                 update = {}
-                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                if check.matched or check.quality == "ocr_unverified":
                     update = {"evidence_quality": check.quality, "page": check.page}
                 alternatives.append(evidence.model_copy(update=update))
             mitigations.append(
@@ -624,8 +624,6 @@ class ResumeTailoringReviewGraph:
         declared_quality: EvidenceQuality,
         page: int | None,
     ) -> EvidenceCheck:
-        if declared_quality == "ocr_unverified":
-            return EvidenceCheck(False, "ocr_unverified", page, "ocr_unverified")
         pages, readable = cls._resume_pages(document)
         if pages is None:
             return EvidenceCheck(
@@ -636,10 +634,22 @@ class ResumeTailoringReviewGraph:
             )
         if page is not None:
             if page < 1 or page > len(pages):
-                return EvidenceCheck(False, declared_quality, page, "page_out_of_range")
+                return EvidenceCheck(
+                    False,
+                    "ocr_unverified" if not any(pages) else declared_quality,
+                    page,
+                    "page_out_of_range",
+                )
             candidates = ((page, pages[page - 1]),)
         else:
             candidates = tuple(enumerate(pages, start=1))
+        if not any(pages):
+            return EvidenceCheck(
+                False,
+                "ocr_unverified",
+                page,
+                "no_reliable_text_layer",
+            )
         for matched_page, page_text in candidates:
             if quote in page_text:
                 return EvidenceCheck(True, "exact", matched_page, "exact_text_match")
@@ -656,4 +666,9 @@ class ResumeTailoringReviewGraph:
                         matched_page,
                         "hyphenation_normalized",
                     )
-        return EvidenceCheck(False, declared_quality, page, "quote_not_found")
+        return EvidenceCheck(
+            False,
+            "ocr_unverified" if declared_quality == "ocr_unverified" else declared_quality,
+            page,
+            "ocr_unverified" if declared_quality == "ocr_unverified" else "quote_not_found",
+        )
