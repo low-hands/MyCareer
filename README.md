@@ -12,7 +12,6 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/Node-20.19+%20%7C%2022.12+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-ReAct%20runtime-1C3C3C)](https://langchain-ai.github.io/langgraph/)
-[![Tests](https://img.shields.io/badge/tests-2231%20passed-2ea44f)](#开发验证)
 [![Local first](https://img.shields.io/badge/data-local%20SQLite-4f7cff)](#数据与隐私)
 
 </div>
@@ -164,8 +163,6 @@ MyCareer 把这些放进同一个本地工作区，并交给一个能调用工�
 ## 当前状态
 
 **已经可以作为本地个人版使用。** 当前代码已覆盖从岗位采集、简历分析到投递和面试准备的主要流程，数据会持久化到本机 SQLite；刷新页面、重启服务或切换对话后，可以重新读取已经保存的业务状态和报告。
-
-最近一次完整自动化验证：后端 **2231 passed，1 xfailed**，前端 **106 passed**（21 个文件）。
 
 唯一的 xfail 记录的是模型第一步偶尔选错工具的行为评测：`working_notes_never_choose_or_rank_a_job` 在 3 个录制样本中有 1 个从未确认的 working notes 直接比较岗位，另外 2 个正确地要求用户确认。它被保留为可见的红线，而不是重录到绿。涉及未确认偏好、公司报告绑定的实际执行路径已有 Runtime 兜底，明确历史范围场景最坏会多问一次，不会用附近无关内容冒充答案。
 
