@@ -9,6 +9,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringResult,
     ResumeTailoringReviewer,
     ResumeTailoringWorker,
+    canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
 from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
@@ -208,6 +209,7 @@ class ResumeTailoringService:
                 )
             result = outcome.draft
             automated_review = outcome.trace
+        result = canonicalize_gap_mitigations(result, stored_match.result)
         mitigation_errors = gap_mitigation_errors(result, stored_match.result)
         if mitigation_errors:
             raise ResumeTailoringReviewBlockedError(

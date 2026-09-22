@@ -316,12 +316,12 @@ class ActionCenterService:
                     draft.result.gap_mitigations,
                     key=lambda item: (
                         {"P0": 0, "P1": 1, "P2": 2}[item.priority],
-                        item.gap,
+                        item.gap or "",
                     ),
                 )
                 if mitigations:
                     preview = "；".join(
-                        f"{item.priority} {item.gap}：{item.next_action}"
+                        f"{item.priority} {item.gap or '未命名缺口'}：{item.next_action}"
                         for item in mitigations[:3]
                     )
                 else:

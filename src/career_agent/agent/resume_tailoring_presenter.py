@@ -23,6 +23,12 @@ _STATUS_NOTICES = {
     "expired": "> 这份草稿已经过期；内容仍可回看，但不能再审核或定稿。",
 }
 
+_EVIDENCE_QUALITY_LABELS = {
+    "exact": "已核对原文",
+    "normalized": "已归一化核对",
+    "ocr_unverified": "待用户确认（OCR 未验证）",
+}
+
 
 class TailoringChangeReviewView(BaseModel):
     """Only the historical decision fields the read-only presenter needs."""
@@ -38,10 +44,19 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
         "hard_blocker": "硬性 blocker",
         "strengthenable": "可补强项",
     }[item.gap_type]
+    mode_label = {
+        "clarify": "澄清招聘方 / 补充信息",
+        "provide_evidence": "补充已有证据",
+        "build_artifact": "制作计划产物",
+        "learn": "学习并达到可演示水平",
+        None: "旧版未分类",
+    }[item.resolution_mode]
     lines = [
-        f"### {index}. [{item.priority}] {item.gap}",
+        f"### {index}. [{item.priority}] {item.gap or '未命名缺口'}",
         "",
         f"分类：{type_label}",
+        "",
+        f"处理方式：{mode_label}",
         "",
         f"判断：{item.rationale}",
         "",
@@ -50,12 +65,30 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
     if item.adjacent_experience:
         lines.extend(("", "相邻经验："))
         lines.extend(
-            f"- {evidence.source_locator}：{evidence.source_quote}（{evidence.relevance}）"
+            f"- {evidence.source_locator}：{evidence.source_quote}（{evidence.relevance}；"
+            f"{_EVIDENCE_QUALITY_LABELS[evidence.evidence_quality]}"
+            + (f"；第 {evidence.page} 页" if evidence.page is not None else "")
+            + ")"
             for evidence in item.adjacent_experience
         )
     if item.alternative_evidence:
         lines.extend(("", "可替代证据："))
-        lines.extend(f"- {evidence}" for evidence in item.alternative_evidence)
+        for evidence in item.alternative_evidence:
+            if isinstance(evidence, str):
+                lines.append(f"- 旧版未分类：{evidence}")
+            elif evidence.status == "existing":
+                lines.append(
+                    f"- 已有材料：{evidence.description}"
+                    f"（{evidence.source_locator}：{evidence.source_quote}；"
+                    f"{_EVIDENCE_QUALITY_LABELS[evidence.evidence_quality]}"
+                    + (f"；第 {evidence.page} 页" if evidence.page is not None else "")
+                    + ")"
+                )
+            else:
+                lines.append(
+                    f"- 计划产物：{evidence.description}"
+                    f"（验收标准：{evidence.acceptance_criteria}）"
+                )
     if item.learning_plan is not None:
         plan = item.learning_plan
         lines.extend(
@@ -70,10 +103,13 @@ def _render_gap_mitigation(item: GapMitigation, index: int) -> str:
         if plan.estimated_effort is not None:
             lines.append(f"- 预计投入：{plan.estimated_effort}")
     talking_point = item.interview_talking_point
-    lines.extend(("", "面试诚实表达：", f"- 承认缺口：{talking_point.acknowledge_gap}"))
-    if talking_point.bridge_to_evidence is not None:
-        lines.append(f"- 连接经验：{talking_point.bridge_to_evidence}")
-    lines.append(f"- 补强动作：{talking_point.close_with_action}")
+    if talking_point is not None:
+        lines.extend(("", "面试诚实表达：", f"- 承认缺口：{talking_point.acknowledge_gap}"))
+        if talking_point.bridge_to_evidence is not None:
+            lines.append(f"- 连接经验：{talking_point.bridge_to_evidence}")
+        lines.append(f"- 补强动作：{talking_point.close_with_action}")
+    if item.clarification_question is not None:
+        lines.extend(("", f"澄清问题：{item.clarification_question}"))
     return "\n".join(lines)
 
 
@@ -117,6 +153,9 @@ def render_resume_tailoring(
             lines.extend(("", "事实依据："))
             lines.extend(
                 f"- {item.source_locator}：{item.source_quote}"
+                f"（{_EVIDENCE_QUALITY_LABELS[item.evidence_quality]}"
+                + (f"；第 {item.page} 页" if item.page is not None else "")
+                + ")"
                 for item in change.support_evidence
             )
             changes.append("\n".join(lines))
@@ -124,7 +163,10 @@ def render_resume_tailoring(
     if result.gap_mitigations:
         ordered = sorted(
             result.gap_mitigations,
-            key=lambda item: ({"P0": 0, "P1": 1, "P2": 2}[item.priority], item.gap),
+            key=lambda item: (
+                {"P0": 0, "P1": 1, "P2": 2}[item.priority],
+                item.gap or "",
+            ),
         )
         blocks.append(
             "## 缺口缓解与学习路线\n\n"

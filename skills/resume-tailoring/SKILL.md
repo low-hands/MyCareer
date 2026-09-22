@@ -28,24 +28,46 @@ Return only the configured structured response. This is a draft: never claim tha
 
 ## Gap mitigation
 
-For every `unresolved_gap`, return exactly one structured mitigation. Copy the
-authoritative requirement ID when the gap comes from a matched requirement; do
-not invent an ID for a non-requirement gap.
+Return exactly one structured mitigation for every matched requirement whose
+status is `missing` or `unclear`. Bind coverage only with the authoritative
+requirement ID. Do not repeat or paraphrase the requirement as `gap`; the
+service copies the authoritative requirement text after generation. Do not
+create unbound mitigations.
+
+Keep the mitigation compact. Always return only the core decision fields:
+requirement ID, resolution mode, gap type, priority, and one executable next
+action. Add conditional fields only for the selected mode:
+
+- `clarify`: one `clarification_question`; no learning or evidence plan.
+- `provide_evidence`: adjacent experience and/or alternative evidence.
+- `build_artifact`: planned alternative evidence with acceptance criteria.
+- `learn`: a learning plan with a demonstrable minimum level.
+
+Interview language is optional and may be added when it materially helps; do
+not fabricate a generic talking point for every gap.
 
 - Use `hard_blocker` only for an explicit S-tier factual requirement that is
   `missing`. An inferred, unclear, A/B/C, or merely desirable item is
   `strengthenable`, never a blocker.
-- Use P0 for a true blocker or an ambiguity that must be resolved before
-  applying, P1 for core evidence that materially improves candidacy, and P2 for
-  optional differentiation. Do not turn every gap into P0.
+- Use `clarify` for every `unclear` assessment. Ask for the missing information
+  or a recruiter clarification; never attach a learning plan to uncertainty.
+- Use P0 only for a true blocker, or for an S-tier factual `unclear` requirement
+  that must be clarified before applying. Use P1 for core evidence that
+  materially improves candidacy and P2 for optional differentiation.
 - Cite adjacent experience only with a verbatim quote and precise locator from
-  the exact resume. Explain the transfer without claiming it proves the missing
-  skill. If there is no adjacent evidence, return an empty list.
-- Make alternative evidence concrete: for example a work sample, portfolio
-  artifact, code exercise, case study, reference, or measurable demonstration.
-  Do not say an artifact already exists unless the resume proves it.
+  the exact resume, plus `evidence_quality` (`exact`, `normalized`, or
+  `ocr_unverified`) and a page when available. Explain the transfer without
+  claiming it proves the missing skill. If there is no adjacent evidence, omit
+  it.
+- Classify every alternative evidence item as `existing` or `planned`.
+  `existing` requires a source quote, locator, evidence quality, and page when
+  available. `planned` requires a concrete acceptance criterion and must not claim a
+  resume source. Suitable
+  artifacts include a work sample, portfolio item, code exercise, case study,
+  reference, or measurable demonstration.
 - Give one immediately executable `next_action`.
-- Add a learning plan only when learning can materially mitigate the gap. Name
+- Use `learn` and add a learning plan only when learning can materially mitigate
+  a `missing` requirement. Name
   the learning objective, resource directions (official documentation, topic,
   lab, or course category rather than invented links), estimated effort when it
   can be stated honestly, and a demonstrable minimum acceptable level.

@@ -178,9 +178,16 @@ def test_structured_gap_actions_lead_with_p0_and_the_next_action(tmp_path) -> No
                 "requirement_id": None,
                 "gap_type": "strengthenable",
                 "priority": priority,
+                "resolution_mode": "build_artifact",
                 "rationale": "当前简历没有直接证据。",
                 "adjacent_experience": [],
-                "alternative_evidence": [],
+                "alternative_evidence": [
+                    {
+                        "description": "一个可审阅的补强项目",
+                        "status": "planned",
+                        "acceptance_criteria": "有 README，且测试通过。",
+                    }
+                ],
                 "next_action": next_action,
                 "learning_plan": None,
                 "interview_talking_point": {

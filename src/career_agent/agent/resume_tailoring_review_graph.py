@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 from io import BytesIO
 from typing import Literal, TypedDict
@@ -13,6 +14,7 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchResult,
 )
 from career_agent.agent.resume_tailoring_contracts import (
+    EvidenceQuality,
     ResumeReviewAttempt,
     ResumeReviewIssue,
     ResumeReviewResult,
@@ -20,9 +22,18 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeTailoringResult,
     ResumeTailoringReviewer,
     ResumeTailoringWorker,
+    canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
 from career_agent.storage.resumes import StoredResumeDocument
+
+
+@dataclass(frozen=True)
+class EvidenceCheck:
+    matched: bool
+    quality: EvidenceQuality
+    page: int | None
+    reason: str
 
 
 class ResumeTailoringReviewState(TypedDict, total=False):
@@ -141,7 +152,10 @@ class ResumeTailoringReviewGraph:
             review_feedback=state.get("review_feedback", ()),
             previous_draft=state.get("draft") or state.get("previous_draft"),
         )
-        return {"draft": draft}
+        draft = self._canonicalize_evidence(draft, state["document"])
+        return {
+            "draft": canonicalize_gap_mitigations(draft, state["match_result"])
+        }
 
     def _evaluate(self, state: ResumeTailoringReviewState) -> ResumeTailoringReviewState:
         fingerprint = self._fingerprint(state["draft"])
@@ -260,6 +274,73 @@ class ResumeTailoringReviewGraph:
         )
 
     @classmethod
+    def _canonicalize_evidence(
+        cls,
+        draft: ResumeTailoringResult,
+        document: StoredResumeDocument,
+    ) -> ResumeTailoringResult:
+        """Write back the quality/page actually observed by the server."""
+        changes = []
+        for change in draft.changes:
+            evidence_items = []
+            for evidence in change.support_evidence:
+                check = cls._check_evidence(
+                    document=document,
+                    quote=cls._normalize(evidence.source_quote),
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                update = {}
+                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                    update = {
+                        "evidence_quality": check.quality,
+                        "page": check.page,
+                    }
+                evidence_items.append(evidence.model_copy(update=update))
+            changes.append(change.model_copy(update={"support_evidence": tuple(evidence_items)}))
+
+        mitigations = []
+        for mitigation in draft.gap_mitigations:
+            adjacent = []
+            for evidence in mitigation.adjacent_experience:
+                check = cls._check_evidence(
+                    document=document,
+                    quote=cls._normalize(evidence.source_quote),
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                update = {}
+                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                    update = {"evidence_quality": check.quality, "page": check.page}
+                adjacent.append(evidence.model_copy(update=update))
+            alternatives = []
+            for evidence in mitigation.alternative_evidence:
+                if isinstance(evidence, str) or evidence.status != "existing":
+                    alternatives.append(evidence)
+                    continue
+                check = cls._check_evidence(
+                    document=document,
+                    quote=cls._normalize(evidence.source_quote or ""),
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                update = {}
+                if evidence.evidence_quality != "ocr_unverified" and check.matched:
+                    update = {"evidence_quality": check.quality, "page": check.page}
+                alternatives.append(evidence.model_copy(update=update))
+            mitigations.append(
+                mitigation.model_copy(
+                    update={
+                        "adjacent_experience": tuple(adjacent),
+                        "alternative_evidence": tuple(alternatives),
+                    }
+                )
+            )
+        return draft.model_copy(
+            update={"changes": tuple(changes), "gap_mitigations": tuple(mitigations)}
+        )
+
+    @classmethod
     def _validate_grounding(
         cls,
         *,
@@ -314,18 +395,38 @@ class ResumeTailoringReviewGraph:
                 locators[locator] = index
             for evidence in change.support_evidence:
                 quote = cls._normalize(evidence.source_quote)
-                if quote in known_quotes:
-                    continue
-                if unverifiable:
-                    # Grounding is unverifiable rather than disproven, so surface
-                    # it for the reviewer and the user instead of passing it.
+                check = cls._check_evidence(
+                    document=document,
+                    quote=quote,
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                if evidence.evidence_quality == "ocr_unverified":
                     issues.append(
                         ResumeReviewIssue(
                             category="unsupported_fact",
-                            severity="warning",
+                            severity="blocking",
                             change_index=index,
                             source_quote=evidence.source_quote,
-                            explanation="The exact resume version has no extractable text, so this support quote could not be verified.",
+                            explanation="OCR-unverified evidence cannot be used to write an automatic resume change.",
+                            revision_instruction="Confirm the quote in the source document or remove the change.",
+                        )
+                    )
+                    continue
+                if quote in known_quotes:
+                    continue
+                if check.matched:
+                    continue
+                if unverifiable:
+                    # A scan may be genuine, but without a text layer it cannot
+                    # authorize an automatic resume write.
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            change_index=index,
+                            source_quote=evidence.source_quote,
+                            explanation="The exact resume version has no extractable text, so this support quote is OCR-unverified and cannot authorize an automatic resume write.",
                             revision_instruction="Confirm the quote against the original resume before accepting the change.",
                         )
                     )
@@ -343,7 +444,26 @@ class ResumeTailoringReviewGraph:
         for mitigation in draft.gap_mitigations:
             for evidence in mitigation.adjacent_experience:
                 quote = cls._normalize(evidence.source_quote)
+                check = cls._check_evidence(
+                    document=document,
+                    quote=quote,
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                if evidence.evidence_quality == "ocr_unverified":
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="warning",
+                            source_quote=evidence.source_quote,
+                            explanation="OCR-unverified adjacent evidence is a candidate only and needs user confirmation.",
+                            revision_instruction="Confirm the quote before using it in interview language.",
+                        )
+                    )
+                    continue
                 if quote in known_quotes:
+                    continue
+                if check.matched:
                     continue
                 if unverifiable:
                     issues.append(
@@ -376,10 +496,67 @@ class ResumeTailoringReviewGraph:
                             ),
                         )
                     )
+            for evidence in mitigation.alternative_evidence:
+                if isinstance(evidence, str) or evidence.status != "existing":
+                    continue
+                quote = cls._normalize(evidence.source_quote or "")
+                check = cls._check_evidence(
+                    document=document,
+                    quote=quote,
+                    declared_quality=evidence.evidence_quality,
+                    page=evidence.page,
+                )
+                if evidence.evidence_quality == "ocr_unverified":
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="warning",
+                            source_quote=evidence.source_quote,
+                            explanation="OCR-unverified existing material is a candidate only and needs user confirmation.",
+                            revision_instruction="Confirm the material or mark it as planned.",
+                        )
+                    )
+                    continue
+                if quote in known_quotes:
+                    continue
+                if check.matched:
+                    continue
+                if unverifiable:
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="warning",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                f"Existing alternative evidence for gap '{mitigation.gap}' "
+                                "could not be verified because the resume has no "
+                                "extractable text."
+                            ),
+                            revision_instruction=(
+                                "Confirm the material against the original resume or mark "
+                                "it as planned."
+                            ),
+                        )
+                    )
+                else:
+                    issues.append(
+                        ResumeReviewIssue(
+                            category="unsupported_fact",
+                            severity="blocking",
+                            source_quote=evidence.source_quote,
+                            explanation=(
+                                f"Existing alternative evidence for gap '{mitigation.gap}' "
+                                "is absent from the exact resume version."
+                            ),
+                            revision_instruction=(
+                                "Use an exact resume quote or mark the material as planned."
+                            ),
+                        )
+                    )
         return tuple(issues)
 
     @classmethod
-    def _resume_text(cls, document: StoredResumeDocument) -> tuple[str | None, bool]:
+    def _resume_pages(cls, document: StoredResumeDocument) -> tuple[tuple[str, ...] | None, bool]:
         """Return (normalized text or None, whether the document was readable).
 
         The two are independent: a readable scan has no text, while an unreadable
@@ -389,16 +566,94 @@ class ResumeTailoringReviewGraph:
         if document.document_format == "pdf":
             try:
                 reader = PdfReader(BytesIO(document.raw_bytes), strict=False)
-                extracted = " ".join(page.extract_text() or "" for page in reader.pages)
+                extracted = tuple(
+                    cls._normalize(page.extract_text() or "") for page in reader.pages
+                )
             except Exception:
                 return None, False
-            return cls._normalize(extracted) or None, True
+            return extracted, True
         try:
             decoded = document.raw_bytes.decode("utf-8-sig")
         except UnicodeDecodeError:
             return None, False
-        return cls._normalize(decoded) or None, True
+        return (cls._normalize(decoded),), True
+
+    @classmethod
+    def _resume_text(cls, document: StoredResumeDocument) -> tuple[str | None, bool]:
+        pages, readable = cls._resume_pages(document)
+        if pages is None:
+            return None, readable
+        return " ".join(pages) or None, readable
 
     @staticmethod
     def _normalize(value: str) -> str:
         return " ".join(value.casefold().split())
+
+    @classmethod
+    def _quote_in_text(
+        cls,
+        quote: str,
+        resume_text: str,
+        *,
+        allow_pdf_layout_match: bool,
+    ) -> bool:
+        if quote in resume_text:
+            return True
+        if not allow_pdf_layout_match:
+            return False
+        # PDF extraction frequently inserts line-break whitespace or soft/
+        # visible hyphens inside one source phrase. This deliberately narrow
+        # relaxed layer handles only those layout artifacts; it is not fuzzy
+        # semantic matching and therefore cannot turn a paraphrase into proof.
+        def layout_key(value: str) -> str:
+            return "".join(
+                character
+                for character in value
+                if not character.isspace() and character not in {"-", "\u00ad"}
+            )
+
+        relaxed_quote = layout_key(quote)
+        return len(relaxed_quote) >= 8 and relaxed_quote in layout_key(resume_text)
+
+    @classmethod
+    def _check_evidence(
+        cls,
+        *,
+        document: StoredResumeDocument,
+        quote: str,
+        declared_quality: EvidenceQuality,
+        page: int | None,
+    ) -> EvidenceCheck:
+        if declared_quality == "ocr_unverified":
+            return EvidenceCheck(False, "ocr_unverified", page, "ocr_unverified")
+        pages, readable = cls._resume_pages(document)
+        if pages is None:
+            return EvidenceCheck(
+                False,
+                "ocr_unverified" if readable else declared_quality,
+                page,
+                "no_reliable_text_layer" if readable else "document_unreadable",
+            )
+        if page is not None:
+            if page < 1 or page > len(pages):
+                return EvidenceCheck(False, declared_quality, page, "page_out_of_range")
+            candidates = ((page, pages[page - 1]),)
+        else:
+            candidates = tuple(enumerate(pages, start=1))
+        for matched_page, page_text in candidates:
+            if quote in page_text:
+                return EvidenceCheck(True, "exact", matched_page, "exact_text_match")
+        if document.document_format == "pdf":
+            for matched_page, page_text in candidates:
+                if cls._quote_in_text(
+                    quote,
+                    page_text,
+                    allow_pdf_layout_match=True,
+                ):
+                    return EvidenceCheck(
+                        True,
+                        "normalized",
+                        matched_page,
+                        "hyphenation_normalized",
+                    )
+        return EvidenceCheck(False, declared_quality, page, "quote_not_found")

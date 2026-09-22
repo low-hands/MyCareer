@@ -38,10 +38,12 @@ from career_agent.agent.resume_tailoring_contracts import (
     ResumeReviewIssue,
     ResumeReviewResult,
     ResumeTailoringResult,
+    canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
 from career_agent.agent.resume_tailoring_presenter import render_resume_tailoring
 from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
+from career_agent.agent.resume_tailoring_review_graph import EvidenceCheck
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_tailoring import (
@@ -62,10 +64,23 @@ from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
 
+REQUIREMENT_ID = "job_requirement_00000000000000000001"
+
+
 VALID_MATCH = ResumeJobMatchResult(
     overall_fit="moderate",
     summary="Relevant RAG experience with some gaps.",
-    requirements=(),
+    requirements=(
+        RequirementAssessment(
+            requirement_id=REQUIREMENT_ID,
+            requirement="Production Go experience",
+            jd_quote="Strong production Go experience is required.",
+            tier="A",
+            kind="fact",
+            status="missing",
+            rationale="The resume does not establish this requirement.",
+        ),
+    ),
 )
 
 VALID_DRAFT = {
@@ -103,9 +118,10 @@ VALID_DRAFT = {
     "gap_mitigations": [
         {
             "gap": "Go is not stated",
-            "requirement_id": None,
+            "requirement_id": REQUIREMENT_ID,
             "gap_type": "strengthenable",
             "priority": "P1",
+            "resolution_mode": "learn",
             "rationale": "The resume does not establish Go proficiency.",
             "adjacent_experience": [
                 {
@@ -115,7 +131,16 @@ VALID_DRAFT = {
                 }
             ],
             "alternative_evidence": [
-                "A small reviewed Go service with tests and a deployment README"
+                {
+                    "description": (
+                        "A small reviewed Go service with tests and a deployment README"
+                    ),
+                    "status": "planned",
+                    "acceptance_criteria": (
+                        "The repository builds, tests pass, and the README explains one "
+                        "concurrency trade-off."
+                    ),
+                }
             ],
             "next_action": "Build one small Go API and document the trade-offs.",
             "learning_plan": {
@@ -145,9 +170,6 @@ VALID_DRAFT = {
     "clarification_questions": [],
     "warnings": [],
 }
-
-
-REQUIREMENT_ID = "job_requirement_00000000000000000001"
 
 
 def _mitigation(**updates):
@@ -307,12 +329,19 @@ def test_legacy_tailoring_result_without_gap_mitigations_remains_readable() -> N
     assert result.gap_mitigations == ()
 
 
-def test_nonempty_gap_mitigations_must_cover_every_gap_exactly_once() -> None:
-    incomplete = copy.deepcopy(VALID_DRAFT)
-    incomplete["unresolved_gaps"].append("Kubernetes is not stated")
+def test_gap_coverage_uses_requirement_ids_not_model_gap_text() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["unresolved_gaps"] = ["unrelated model wording"]
+    draft["gap_mitigations"][0].pop("gap")
 
-    with pytest.raises(ValidationError, match="cover every unresolved gap"):
-        ResumeTailoringResult.model_validate(incomplete)
+    canonical = canonicalize_gap_mitigations(
+        ResumeTailoringResult.model_validate(draft),
+        VALID_MATCH,
+    )
+
+    assert gap_mitigation_errors(canonical, VALID_MATCH) == ()
+    assert canonical.gap_mitigations[0].gap == "Production Go experience"
+    assert canonical.unresolved_gaps == ("Production Go experience",)
 
 
 def test_s_fact_missing_requirement_is_a_p0_hard_blocker() -> None:
@@ -395,13 +424,130 @@ def test_s_fact_missing_cannot_be_downgraded_or_deprioritized() -> None:
     )
 
 
+def test_unclear_requirement_must_clarify_without_a_learning_plan() -> None:
+    match = ResumeJobMatchResult(
+        overall_fit="insufficient_evidence",
+        summary="One stated requirement needs clarification.",
+        requirements=(_match_requirement(status="unclear"),),
+    )
+    valid = copy.deepcopy(VALID_DRAFT)
+    valid["gap_mitigations"] = [
+        _mitigation(
+            resolution_mode="clarify",
+            priority="P0",
+            learning_plan=None,
+            clarification_question="What production scale is expected?",
+            adjacent_experience=[],
+            alternative_evidence=[],
+            next_action="Ask the recruiter what production scale is expected.",
+        )
+    ]
+    invalid = copy.deepcopy(VALID_DRAFT)
+
+    assert gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(valid), match
+    ) == ()
+    errors = gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(invalid), match
+    )
+    assert any("must use clarify mode" in error for error in errors)
+    assert any("cannot prescribe learning" in error for error in errors)
+
+
+def test_p0_is_rejected_for_non_blocking_non_clarification_gap() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"] = [_mitigation(priority="P0")]
+
+    errors = gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(draft), VALID_MATCH
+    )
+
+    assert any("P0 is reserved" in error for error in errors)
+
+
+def test_alternative_evidence_distinguishes_existing_from_planned() -> None:
+    existing = _mitigation(
+        resolution_mode="provide_evidence",
+        learning_plan=None,
+        alternative_evidence=[
+            {
+                "description": "Existing architecture sample",
+                "status": "existing",
+                "source_locator": "Experience, bullet 1",
+                "source_quote": "Built RAG systems",
+            }
+        ],
+    )
+    planned = _mitigation(
+        resolution_mode="build_artifact",
+        learning_plan=None,
+        alternative_evidence=[
+            {
+                "description": "Small Go service",
+                "status": "planned",
+                "acceptance_criteria": "Builds cleanly and passes its tests.",
+            }
+        ],
+    )
+
+    for mitigation in (existing, planned):
+        draft = copy.deepcopy(VALID_DRAFT)
+        draft["gap_mitigations"] = [mitigation]
+        assert gap_mitigation_errors(
+            ResumeTailoringResult.model_validate(draft), VALID_MATCH
+        ) == ()
+
+
+@pytest.mark.parametrize(
+    "alternative",
+    (
+        {"description": "Unproven existing item", "status": "existing"},
+        {"description": "Unspecified future item", "status": "planned"},
+    ),
+)
+def test_alternative_evidence_requires_proof_or_acceptance_criteria(
+    alternative,
+) -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["alternative_evidence"] = [alternative]
+
+    with pytest.raises(ValidationError):
+        ResumeTailoringResult.model_validate(draft)
+
+
+def test_new_mitigation_cannot_use_unbound_gap_text() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["requirement_id"] = None
+
+    errors = gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(draft), VALID_MATCH
+    )
+
+    assert "new gap mitigations require an authoritative requirement ID" in errors
+
+
+def test_legacy_free_text_alternative_evidence_is_readable_but_not_new_valid() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["alternative_evidence"] = ["Legacy portfolio text"]
+    result = ResumeTailoringResult.model_validate(draft)
+
+    assert result.gap_mitigations[0].alternative_evidence == (
+        "Legacy portfolio text",
+    )
+    assert any(
+        "must declare existing or planned status" in error
+        for error in gap_mitigation_errors(result, VALID_MATCH)
+    )
+
+
 def test_unknown_and_duplicate_requirement_ids_are_rejected() -> None:
     unknown = copy.deepcopy(VALID_DRAFT)
     unknown["gap_mitigations"] = [
         _mitigation(requirement_id=REQUIREMENT_ID)
     ]
     unknown_errors = gap_mitigation_errors(
-        ResumeTailoringResult.model_validate(unknown), VALID_MATCH
+        ResumeTailoringResult.model_validate(unknown),
+        ResumeJobMatchResult(overall_fit="moderate", summary="No requirements."),
     )
     assert unknown_errors == (f"unknown requirement ID: {REQUIREMENT_ID}",)
 
@@ -435,9 +581,190 @@ def test_presenter_renders_actionable_gap_plan() -> None:
     assert "## 缺口缓解与学习路线" in rendered
     assert "[P1] Go is not stated" in rendered
     assert "分类：可补强项" in rendered
+    assert "处理方式：学习并达到可演示水平" in rendered
     assert "Built RAG systems" in rendered
+    assert "计划产物" in rendered
     assert "最低可接受水平" in rendered
     assert "面试诚实表达" in rendered
+
+
+def test_presenter_marks_ocr_evidence_as_waiting_for_confirmation() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["adjacent_experience"][0][
+        "evidence_quality"
+    ] = "ocr_unverified"
+
+    rendered = render_resume_tailoring(
+        ResumeTailoringResult.model_validate(draft),
+        status="pending",
+        revision_number=1,
+    )
+
+    assert "待用户确认（OCR 未验证）" in rendered
+
+
+@pytest.mark.parametrize(
+    ("mode", "updates"),
+    (
+        (
+            "clarify",
+            {
+                "clarification_question": "What production scale is expected?",
+                "learning_plan": None,
+                "adjacent_experience": [],
+                "alternative_evidence": [],
+            },
+        ),
+        (
+            "provide_evidence",
+            {
+                "learning_plan": None,
+                "alternative_evidence": [
+                    {
+                        "description": "Existing RAG delivery evidence",
+                        "status": "existing",
+                        "source_locator": "Experience, bullet 1",
+                        "source_quote": "Built RAG systems",
+                    }
+                ],
+            },
+        ),
+        (
+            "build_artifact",
+            {
+                "learning_plan": None,
+                "adjacent_experience": [],
+                "alternative_evidence": [
+                    {
+                        "description": "A tested Go service",
+                        "status": "planned",
+                        "acceptance_criteria": "Builds and tests pass.",
+                    }
+                ],
+            },
+        ),
+        (
+            "learn",
+            {
+                "alternative_evidence": [],
+            },
+        ),
+    ),
+)
+def test_each_resolution_mode_has_a_minimal_legal_shape(mode, updates) -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"] = [_mitigation(resolution_mode=mode, **updates)]
+
+    result = ResumeTailoringResult.model_validate(draft)
+    assert result.gap_mitigations[0].resolution_mode == mode
+
+
+def test_conditional_fields_are_rejected_when_mode_does_not_need_them() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"] = [
+        _mitigation(
+            resolution_mode="clarify",
+            clarification_question="What scale is expected?",
+            learning_plan=VALID_DRAFT["gap_mitigations"][0]["learning_plan"],
+            adjacent_experience=[],
+            alternative_evidence=[],
+        )
+    ]
+
+    with pytest.raises(ValidationError, match="cannot include a learning plan"):
+        ResumeTailoringResult.model_validate(draft)
+
+
+def test_evidence_check_reports_normalized_quality_and_page() -> None:
+    check = ResumeTailoringReviewGraph._check_evidence(
+        document=StoredResumeDocument(
+            resume_version_id="pdf-layout",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("micro- service"),
+        ),
+        quote="micro-service",
+        declared_quality="exact",
+        page=1,
+    )
+
+    assert check == EvidenceCheck(
+        matched=True,
+        quality="normalized",
+        page=1,
+        reason="hyphenation_normalized",
+    )
+
+
+def test_declared_page_must_contain_the_quote() -> None:
+    check = ResumeTailoringReviewGraph._check_evidence(
+        document=StoredResumeDocument(
+            resume_version_id="pdf-layout",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("machine-learning platform"),
+        ),
+        quote="machine-learning platform",
+        declared_quality="exact",
+        page=2,
+    )
+
+    assert check.matched is False
+    assert check.reason == "page_out_of_range"
+
+
+def test_server_canonicalizes_declared_exact_to_normalized() -> None:
+    draft = ResumeTailoringResult(
+        strategy_summary="Surface the exact supported phrase.",
+        changes=(
+            {
+                "target_locator": "Experience",
+                "original_quote": "machine-learning platform",
+                "proposed_text": "Machine-learning platform",
+                "rationale": "Normalize capitalization.",
+                "support_evidence": (
+                    {
+                        "source_locator": "Experience",
+                        "source_quote": "machine-learning platform",
+                        "evidence_quality": "exact",
+                    },
+                ),
+            },
+        ),
+    )
+
+    canonical = ResumeTailoringReviewGraph._canonicalize_evidence(
+        draft,
+        StoredResumeDocument(
+            resume_version_id="pdf-layout",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("machine- learning platform"),
+        ),
+    )
+
+    evidence = canonical.changes[0].support_evidence[0]
+    assert evidence.evidence_quality == "normalized"
+    assert evidence.page == 1
+
+
+def test_ocr_unverified_evidence_is_not_accepted_for_a_resume_change() -> None:
+    invalid = copy.deepcopy(VALID_DRAFT)
+    invalid["changes"][0]["support_evidence"][0]["evidence_quality"] = "ocr_unverified"
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="scan",
+            document_format="pdf",
+            raw_bytes=_scanned_pdf(),
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(invalid),
+    )
+
+    assert any(
+        issue.severity == "blocking"
+        and "cannot be used to write" in issue.explanation
+        for issue in issues
+    )
 
 
 def test_tailoring_worker_requires_local_skill_source(tmp_path) -> None:
@@ -794,7 +1121,75 @@ def test_grounding_blocks_unverified_adjacent_gap_evidence() -> None:
     assert adjacent_issue.category == "unsupported_fact"
 
 
-def test_scanned_pdf_warns_instead_of_skipping_grounding() -> None:
+def test_grounding_blocks_unverified_existing_alternative_evidence() -> None:
+    invalid = copy.deepcopy(VALID_DRAFT)
+    invalid["gap_mitigations"][0]["resolution_mode"] = "provide_evidence"
+    invalid["gap_mitigations"][0]["learning_plan"] = None
+    invalid["gap_mitigations"][0]["alternative_evidence"] = [
+        {
+            "description": "Claimed existing Go service",
+            "status": "existing",
+            "source_locator": "Projects",
+            "source_quote": "Built a production Go platform",
+        }
+    ]
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(invalid),
+    )
+
+    issue = next(
+        item for item in issues if item.source_quote == "Built a production Go platform"
+    )
+    assert issue.severity == "blocking"
+    assert "mark the material as planned" in (issue.revision_instruction or "")
+
+
+def test_pdf_grounding_tolerates_layout_hyphen_and_whitespace_artifacts() -> None:
+    draft = ResumeTailoringResult(
+        strategy_summary="Surface the exact supported phrase.",
+        changes=(
+            {
+                "target_locator": "Experience",
+                "original_quote": "machine-learning platform",
+                "proposed_text": "Machine-learning platform",
+                "rationale": "Normalize capitalization.",
+                "support_evidence": (
+                    {
+                        "source_locator": "Experience",
+                        "source_quote": "machine-learning platform",
+                    },
+                ),
+            },
+        ),
+    )
+    empty_match = ResumeJobMatchResult(
+        overall_fit="moderate",
+        summary="No unresolved requirements.",
+    )
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="pdf-layout",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("machine- learning platform"),
+        ),
+        match_result=empty_match,
+        confirmed_facts=(),
+        draft=draft,
+    )
+
+    assert issues == ()
+
+
+def test_scanned_pdf_keeps_adjacent_candidates_visible_but_blocks_resume_writes() -> None:
     invalid = ResumeTailoringResult.model_validate(VALID_DRAFT).model_dump(mode="json")
     invalid["changes"][0]["support_evidence"][0]["source_quote"] = "Led a team of 50"
 
@@ -809,11 +1204,11 @@ def test_scanned_pdf_warns_instead_of_skipping_grounding() -> None:
         draft=ResumeTailoringResult.model_validate(invalid),
     )
 
-    # The page is readable but carries no text, so every quote outside the
-    # confirmed set is flagged without blocking: unverifiable is not disproven.
+    # The page is readable but carries no text. Adjacent evidence remains a
+    # warning candidate, while support evidence cannot authorize a write.
     assert issues
-    assert {issue.severity for issue in issues} == {"warning"}
     assert {issue.category for issue in issues} == {"unsupported_fact"}
+    assert "blocking" in {issue.severity for issue in issues}
     assert "Led a team of 50" in {issue.source_quote for issue in issues}
 
 
@@ -1010,7 +1405,7 @@ def test_service_rejects_new_gap_without_mitigation_before_persisting(tmp_path) 
 
     with pytest.raises(
         ResumeTailoringReviewBlockedError,
-        match="every unresolved gap requires a mitigation",
+        match="missing mitigations for requirement IDs",
     ):
         service.create_draft(user_id="u1", match_id=stored_match.id)
 
@@ -1527,4 +1922,11 @@ def test_a_revision_revises_the_draft_the_feedback_is_about() -> None:
     )
 
     assert worker.calls[0]["previous_draft"] is None
-    assert worker.calls[1]["previous_draft"] == first
+    assert worker.calls[1]["previous_draft"] == ResumeTailoringReviewGraph._canonicalize_evidence(
+        canonicalize_gap_mitigations(first, VALID_MATCH),
+        StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+    )
