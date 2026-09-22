@@ -2,16 +2,39 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
+from career_agent.agent.job_analysis_contracts import (
+    JobAnalysisGenerationResult,
+    JobAnalysisResult,
+    TieredRequirement,
+)
+from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.job_analysis import (
     JobAnalysisInputNotFoundError,
+    JobAnalysisStaleRevisionError,
     JobAnalysisService,
 )
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 
 
 NOW = datetime(2026, 8, 23, 8, 0, tzinfo=timezone.utc)
+
+
+def test_generated_requirement_ids_are_discarded_before_service_binding() -> None:
+    generated = JobAnalysisGenerationResult.model_validate({
+        "core_objective": "Build backend services",
+        "seniority": "mid",
+        "requirements": [{
+            "requirement_id": "model-invented-id",
+            "text": "Python",
+            "tier": "A",
+            "kind": "fact",
+            "jd_quote": "Python",
+        }],
+        "summary": "Backend role",
+    })
+
+    assert generated.without_model_ids().requirements[0].requirement_id is None
 
 
 def detail(*, description: str = "Build reliable RAG and agent systems. 3+ years Python.") -> JobDetail:
@@ -150,3 +173,64 @@ def test_requirement_tier_correction_can_revert_to_model_tier(tmp_path) -> None:
     assert reverted_requirement.tier_source == "model"
     assert reverted_requirement.classification_status == "user_confirmed"
     assert reverted_requirement.tier_correction_reason is None
+
+
+def test_correction_from_stale_analysis_cannot_erase_an_earlier_correction(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = repository.save_captured_detail(user_id="u1", detail=detail())
+    service = JobAnalysisService(repository, FakeWorker())
+    original = service.analyze(user_id="u1", job_posting_id=saved.posting.id)
+    original_requirements = original.analysis.to_result().requirements
+
+    first = service.correct_requirement_tier(
+        user_id="u1", analysis_id=original.id,
+        requirement_id=original_requirements[0].requirement_id,
+        tier="A", reason="Not a hard gate.",
+    )
+    with pytest.raises(JobAnalysisStaleRevisionError):
+        service.correct_requirement_tier(
+            user_id="u1", analysis_id=original.id,
+            requirement_id=original_requirements[1].requirement_id,
+            tier="B", reason="Only a differentiator.",
+        )
+
+    latest = repository.get_analysis_for_snapshot(
+        user_id="u1", jd_snapshot_id=saved.snapshot.id,
+        analyzer_version=service.analyzer_version,
+    )
+    assert latest is not None and latest.id == first.id
+    assert [item.tier for item in latest.analysis.to_result().requirements] == ["A", "A"]
+
+    second = service.correct_requirement_tier(
+        user_id="u1", analysis_id=latest.id,
+        requirement_id=original_requirements[1].requirement_id,
+        tier="B", reason="Only a differentiator.",
+    )
+    assert [item.tier for item in second.analysis.to_result().requirements] == ["A", "B"]
+
+
+def test_stale_correction_tool_reports_the_latest_revision_requirement(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = repository.save_captured_detail(user_id="u1", detail=detail())
+    service = JobAnalysisService(repository, FakeWorker())
+    original = service.analyze(user_id="u1", job_posting_id=saved.posting.id)
+    requirements = original.analysis.to_result().requirements
+    service.correct_requirement_tier(
+        user_id="u1", analysis_id=original.id,
+        requirement_id=requirements[0].requirement_id,
+        tier="A", reason="Not a hard gate.",
+    )
+
+    observation = MainAgentToolRegistry(
+        job_analysis_service=service,
+    ).invoke_atomic_tool("correct_job_requirement_tier", {
+        "user_id": "u1",
+        "analysis_id": original.id,
+        "requirement_id": requirements[1].requirement_id,
+        "tier": "B",
+        "reason": "Only a differentiator.",
+    })
+
+    assert observation.state == "job_analysis_stale_revision"
+    assert observation.execution_outcome == "not_committed"
+    assert "最新版本" in observation.message

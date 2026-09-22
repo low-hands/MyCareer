@@ -18,6 +18,20 @@ def test_096_boundary_suite_covers_every_documented_shape() -> None:
         "inference_only_without_support_is_insufficient",
         "optional_gap_does_not_lower_core_fit",
     ]
+    inferred_gap = next(
+        case for case in BOUNDARY_CASES
+        if case.name == "inference_only_without_support_is_insufficient"
+    )
+    assert inferred_gap.expected_statuses == (
+        ("missing", "unclear"), ("missing", "unclear")
+    )
+    inferred_support = next(
+        case for case in BOUNDARY_CASES
+        if case.name == "inference_support_is_moderate"
+    )
+    assert inferred_support.expected_statuses[1] == (
+        "matched", "partial", "unclear"
+    )
 
 
 def test_summary_fit_band_finds_a_conflicting_model_claim() -> None:

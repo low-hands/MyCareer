@@ -27,6 +27,7 @@ class MatchWorker:
     def match(self, **kwargs: object) -> ResumeJobMatchResult:
         self.calls += 1
         requirements = kwargs["tiered_requirements"]
+        resume_quote = kwargs["document"].raw_bytes.decode("utf-8")
         return ResumeJobMatchResult(
             overall_fit="moderate", summary="Python fits; Go needs evidence.",
             requirements=[{
@@ -40,7 +41,7 @@ class MatchWorker:
                 "requirement": requirements[1].text,
                 "jd_quote": requirements[1].jd_quote,
                 "status": "matched", "rationale": "Python project evidence.",
-                "resume_evidence": [{"source_locator": "Experience", "source_quote": "Built Python services"}],
+                "resume_evidence": [{"source_locator": "Experience", "source_quote": resume_quote}],
             }],
             recommendations=["Describe a Go project."],
             clarification_questions=["Any Go experience?"],

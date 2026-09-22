@@ -109,6 +109,7 @@ def test_a_valid_answer_is_parsed_into_the_declared_type() -> None:
     assert request["timeout"] == 30.0
 
 
+
 @pytest.mark.parametrize(
     ("error", "code", "retryable"),
     (

@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
@@ -29,15 +30,19 @@ from career_agent.agent.deepagent_resume_tailoring_worker import (
     DeepAgentResumeTailoringWorker,
 )
 from career_agent.agent.resume_job_match_contracts import (
+    ConfirmedResumeFact,
     RequirementAssessment,
     ResumeJobMatchResult,
 )
 from career_agent.agent.resume_tailoring_contracts import (
     AcceptedTailoringChange,
+    GapMitigationPayload,
+    GapLearningPlan,
     FinalizedResumeDocument,
     ResumeReviewIssue,
     ResumeReviewResult,
     ResumeTailoringResult,
+    ResumeTailoringGenerationResult,
     canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
@@ -171,6 +176,10 @@ VALID_DRAFT = {
     "warnings": [],
 }
 
+COMPACT_DRAFT = copy.deepcopy(VALID_DRAFT)
+COMPACT_DRAFT["gap_mitigations"][0].pop("adjacent_experience")
+COMPACT_DRAFT["gap_mitigations"][0].pop("alternative_evidence")
+
 
 def _mitigation(**updates):
     mitigation = copy.deepcopy(VALID_DRAFT["gap_mitigations"][0])
@@ -197,7 +206,7 @@ def _match_requirement(
 
 
 class FakeDeepAgent:
-    def __init__(self, output=VALID_DRAFT) -> None:
+    def __init__(self, output=COMPACT_DRAFT) -> None:
         self.output = output
         self.state = None
 
@@ -711,6 +720,56 @@ def test_declared_page_must_contain_the_quote() -> None:
     assert check.reason == "page_out_of_range"
 
 
+def test_known_quote_cannot_override_an_invalid_pdf_page() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["changes"][0]["support_evidence"][0]["page"] = 99
+    draft["gap_mitigations"][0]["adjacent_experience"][0]["page"] = 99
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="one-page-pdf",
+            document_format="pdf",
+            raw_bytes=_single_page_pdf("Built RAG systems"),
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(
+            ConfirmedResumeFact(
+                claim="Built RAG systems",
+                source_locator="Experience",
+                source_quote="Built RAG systems",
+            ),
+        ),
+        draft=ResumeTailoringResult.model_validate(draft),
+    )
+
+    assert len([issue for issue in issues if "page_out_of_range" in issue.explanation]) == 2
+    assert all(
+        issue.severity == "blocking"
+        for issue in issues if "page_out_of_range" in issue.explanation
+    )
+
+
+def test_historical_known_quote_cannot_override_the_exact_resume_document() -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    invented = "Invented leadership credential"
+    draft["changes"][0]["support_evidence"][0]["source_quote"] = invented
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="v1", document_format="text",
+            raw_bytes=b"Built RAG systems",
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(ConfirmedResumeFact(
+            claim=invented, source_locator="Experience", source_quote=invented,
+        ),),
+        draft=ResumeTailoringResult.model_validate(draft),
+    )
+
+    assert any(
+        issue.severity == "blocking" and issue.source_quote == invented
+        for issue in issues
+    )
+
+
 def test_server_canonicalizes_declared_exact_to_normalized() -> None:
     draft = ResumeTailoringResult(
         strategy_summary="Surface the exact supported phrase.",
@@ -849,8 +908,12 @@ def test_tailoring_worker_configures_isolated_deep_agent_with_skill(tmp_path) ->
     )
 
     assert isinstance(worker._agent, FakeDeepAgent)
-    assert captured["skills"] == ["/"]
-    assert captured["response_format"] is ResumeTailoringResult
+    assert captured["skills"] == []
+    assert "Use only grounded resume evidence." in captured["system_prompt"]
+    assert captured["response_format"] is ResumeTailoringGenerationResult
+    generation_schema = captured["response_format"].model_json_schema()
+    assert "GapMitigation" not in generation_schema["$defs"]
+    assert "LearnMitigation" in generation_schema["$defs"]
     assert captured["subagents"] == []
     assert captured["backend"].cwd == root.resolve()
     assert captured["backend"].virtual_mode is True
@@ -1083,16 +1146,268 @@ def seed_service(tmp_path, *, reviewer=None, document_format="text", content=b"P
     return service, tailoring_worker, finalization_worker, stored_match
 
 
-def test_service_without_review_graph_canonicalizes_scanned_pdf_evidence(tmp_path) -> None:
+def test_service_without_reviewer_blocks_scanned_pdf_support_evidence(tmp_path) -> None:
     service, _, _, stored_match = seed_service(
         tmp_path,
         document_format="pdf",
         content=_scanned_pdf(),
     )
 
-    draft = service.create_draft(user_id="u1", match_id=stored_match.id)
+    with pytest.raises(ResumeTailoringReviewBlockedError, match="grounding"):
+        service.create_draft(user_id="u1", match_id=stored_match.id)
 
-    assert draft.result.changes[0].support_evidence[0].evidence_quality == "ocr_unverified"
+    with sqlite3.connect(tmp_path / "resumes.sqlite3") as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM resume_tailoring_drafts WHERE match_id = ?",
+            (stored_match.id,),
+        ).fetchone()[0] == 0
+
+
+def test_finalization_blocks_a_legacy_scanned_pdf_draft_without_reviewer(tmp_path) -> None:
+    service, _, finalization_worker, stored_match = seed_service(
+        tmp_path,
+        document_format="pdf",
+        content=_scanned_pdf(),
+    )
+    legacy_draft = service._draft_store.create(
+        user_id="u1",
+        match_id=stored_match.id,
+        parent_draft_id=None,
+        revision_number=1,
+        revision_feedback=None,
+        tailoring_goal=None,
+        worker_version="legacy",
+        result=ResumeTailoringResult.model_validate(VALID_DRAFT),
+        automated_review=None,
+    )
+    service.review_draft(
+        user_id="u1", draft_id=legacy_draft.id,
+        accepted_change_indices=(1,), rejected_change_indices=(2,),
+    )
+
+    with pytest.raises(ResumeFinalReviewBlockedError, match="grounding"):
+        service.finalize_draft(user_id="u1", draft_id=legacy_draft.id)
+
+    assert finalization_worker.calls == []
+
+
+def test_finalization_ignores_rejected_ungrounded_change(tmp_path) -> None:
+    service, _, finalization_worker, stored_match = seed_service(tmp_path)
+    legacy_result = copy.deepcopy(VALID_DRAFT)
+    legacy_result["changes"][1]["support_evidence"][0]["source_quote"] = (
+        "Invented credential absent from the resume"
+    )
+    legacy_draft = service._draft_store.create(
+        user_id="u1",
+        match_id=stored_match.id,
+        tailoring_goal=None,
+        worker_version="legacy",
+        result=ResumeTailoringResult.model_validate(legacy_result),
+    )
+    service.review_draft(
+        user_id="u1", draft_id=legacy_draft.id,
+        accepted_change_indices=(1,), rejected_change_indices=(2,),
+    )
+
+    finalized = service.finalize_draft(user_id="u1", draft_id=legacy_draft.id)
+
+    assert finalized.created is True
+    assert finalized.applied_change_indices == (1,)
+    assert tuple(item.change_index for item in finalization_worker.calls[0]["accepted_changes"]) == (1,)
+
+
+def test_compact_gap_mitigation_union_rejects_unrelated_fields() -> None:
+    payload = {
+        "requirement_id": REQUIREMENT_ID,
+        "gap_type": "strengthenable",
+        "priority": "P1",
+        "next_action": "Ask the hiring team.",
+        "rationale": "The threshold is not stated.",
+        "resolution_mode": "clarify",
+        "clarification_question": "What level is expected?",
+        "learning_plan": VALID_DRAFT["gap_mitigations"][0]["learning_plan"],
+    }
+    with pytest.raises(ValidationError):
+        TypeAdapter(GapMitigationPayload).validate_python(payload)
+
+
+def test_generation_schema_rejects_legacy_superset_while_read_schema_accepts_it() -> None:
+    assert ResumeTailoringResult.model_validate(VALID_DRAFT).gap_mitigations
+    with pytest.raises(ValidationError):
+        ResumeTailoringGenerationResult.model_validate(VALID_DRAFT)
+    assert ResumeTailoringGenerationResult.model_validate(COMPACT_DRAFT).gap_mitigations
+
+
+def test_compact_gap_mitigation_union_accepts_each_mode_minimum() -> None:
+    common = {
+        "requirement_id": REQUIREMENT_ID,
+        "gap_type": "strengthenable",
+        "priority": "P1",
+        "next_action": "Take the next concrete step.",
+        "rationale": "The current evidence is incomplete.",
+    }
+    values = (
+        {**common, "resolution_mode": "clarify", "clarification_question": "What is required?"},
+        {
+            **common,
+            "resolution_mode": "provide_evidence",
+            "adjacent_experience": [
+                {"source_locator": "Experience", "source_quote": "Built RAG systems", "relevance": "adjacent"}
+            ],
+        },
+        {
+            **common,
+            "resolution_mode": "build_artifact",
+            "alternative_evidence": [
+                {"description": "Tested service", "status": "planned", "acceptance_criteria": "Passes tests."}
+            ],
+        },
+        {**common, "resolution_mode": "learn", "learning_plan": VALID_DRAFT["gap_mitigations"][0]["learning_plan"]},
+    )
+    parsed = tuple(TypeAdapter(GapMitigationPayload).validate_python(value) for value in values)
+    assert [item.resolution_mode for item in parsed] == ["clarify", "provide_evidence", "build_artifact", "learn"]
+
+
+def test_legacy_learning_plan_quality_is_not_revalidated_on_read(tmp_path) -> None:
+    legacy = copy.deepcopy(VALID_DRAFT)
+    legacy["gap_mitigations"][0]["learning_plan"] = {
+        "objective": "理解相关概念",
+        "resource_directions": ["学习相关知识。"],
+        "minimum_acceptable_level": "理解相关概念",
+        "estimated_effort": "时间待定",
+    }
+    result = ResumeTailoringResult.model_validate(legacy)
+    store = SQLiteResumeTailoringDraftStore(tmp_path / "drafts.sqlite3")
+    stored = store.create(
+        user_id="u1", match_id="match-1", tailoring_goal=None,
+        worker_version="historical", result=result,
+    )
+
+    reloaded = store.get(user_id="u1", draft_id=stored.id)
+    assert reloaded is not None
+    assert reloaded.result.gap_mitigations[0].learning_plan.estimated_effort == "时间待定"
+
+
+@pytest.mark.parametrize("effort", ["0 hours", "2-1 weeks", "0-2 weeks", "2-0 weeks", "as needed", "2 weeks or 0 hours"])
+def test_new_learning_plan_rejects_invalid_effort_at_generation_boundary(effort) -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["learning_plan"]["estimated_effort"] = effort
+    result = ResumeTailoringResult.model_validate(draft)
+
+    assert any("estimated effort" in error for error in gap_mitigation_errors(result, VALID_MATCH))
+
+
+def test_learning_plan_accepts_positive_ascending_effort() -> None:
+    valid = GapLearningPlan(
+        objective="Implement a Go HTTP service",
+        resource_directions=("Official Go HTTP and testing tutorials",),
+        minimum_acceptable_level="A tested, deployable project that can be demoed",
+        estimated_effort="1-2 weeks",
+    )
+    assert valid.estimated_effort == "1-2 weeks"
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["learning_plan"]["estimated_effort"] = "1-2 weeks"
+    assert gap_mitigation_errors(ResumeTailoringResult.model_validate(draft), VALID_MATCH) == ()
+
+
+def test_semantically_related_chinese_plan_is_not_rejected_by_token_overlap() -> None:
+    match = VALID_MATCH.model_copy(update={
+        "requirements": (
+            VALID_MATCH.requirements[0].model_copy(
+                update={"requirement": "掌握数据库优化能力"}
+            ),
+        ),
+    })
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft["gap_mitigations"][0]["learning_plan"]["objective"] = "学习索引与事务"
+    draft["gap_mitigations"][0]["learning_plan"]["resource_directions"] = [
+        "数据库索引和事务的官方文档"
+    ]
+    draft["gap_mitigations"][0]["learning_plan"]["minimum_acceptable_level"] = (
+        "完成索引优化项目并用查询计划验证改进"
+    )
+    result = ResumeTailoringResult.model_validate(draft)
+    assert gap_mitigation_errors(result, match) == ()
+
+
+def test_reviewer_is_instructed_to_check_semantic_relevance_and_plan_quality() -> None:
+    client = FakeResponsesClient(
+        {"verdict": "pass", "summary": "Grounded and relevant.", "issues": []}
+    )
+    reviewer = OpenAIResumeTailoringReviewer(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="secret",
+            model="multimodal-model",
+        ),
+        client=client,
+    )
+    reviewer.review_draft(
+        document=StoredResumeDocument(
+            resume_version_id="v1", document_format="text", raw_bytes=b"Built RAG systems"
+        ),
+        jd_text="Production Go experience",
+        match_result=VALID_MATCH,
+        draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+
+    instructions = client.calls[0]["instructions"]
+    assert "semantically" in instructions
+    assert "negated outcomes" in instructions
+    assert "plausible" in instructions
+
+
+def test_keyword_only_or_negated_learning_outcome_is_revised_by_reviewer() -> None:
+    invalid_data = copy.deepcopy(VALID_DRAFT)
+    invalid_data["gap_mitigations"][0]["learning_plan"].update({
+        "resource_directions": ["学习相关知识。"],
+        "minimum_acceptable_level": "No project or test required",
+        "estimated_effort": "2 weeks",
+    })
+    invalid = ResumeTailoringResult.model_validate(invalid_data)
+    valid = ResumeTailoringResult.model_validate(VALID_DRAFT)
+    assert gap_mitigation_errors(invalid, VALID_MATCH) == ()
+
+    class SequenceWorker:
+        def __init__(self) -> None:
+            self.outputs = [invalid, valid]
+
+        def tailor(self, **kwargs):
+            return self.outputs.pop(0)
+
+    class PlanReviewer(RecordingReviewer):
+        def review_draft(self, **kwargs) -> ResumeReviewResult:
+            self.draft_calls.append(kwargs)
+            plan = kwargs["draft"].gap_mitigations[0].learning_plan
+            if plan.minimum_acceptable_level == "No project or test required":
+                return ResumeReviewResult(
+                    verdict="revise",
+                    summary="The learning plan has no verifiable outcome.",
+                    issues=(ResumeReviewIssue(
+                        category="jd_misalignment",
+                        severity="blocking",
+                        explanation="Generic resources and a negated outcome cannot demonstrate progress.",
+                        revision_instruction="Name specific material and an outcome that can be checked.",
+                    ),),
+                )
+            return ResumeReviewResult(verdict="pass", summary="Plan is actionable.")
+
+    reviewer = PlanReviewer()
+    outcome = ResumeTailoringReviewGraph(SequenceWorker(), reviewer).run(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems and Python",
+        ),
+        jd_text="Production Go experience",
+        match_result=VALID_MATCH,
+    )
+
+    assert outcome.trace.status == "passed"
+    assert [attempt.result.verdict for attempt in outcome.trace.attempts] == [
+        "revise", "pass",
+    ]
+    assert len(reviewer.draft_calls) == 2
 
 
 def _scanned_pdf() -> bytes:
@@ -1272,6 +1587,45 @@ def test_scanned_pdf_keeps_adjacent_candidates_visible_but_blocks_resume_writes(
     assert {issue.category for issue in issues} == {"unsupported_fact"}
     assert "blocking" in {issue.severity for issue in issues}
     assert "Led a team of 50" in {issue.source_quote for issue in issues}
+
+
+@pytest.mark.parametrize("evidence_kind", ["adjacent", "alternative"])
+@pytest.mark.parametrize("page, expected_severity", [(1, "warning"), (99, "blocking")])
+def test_scanned_pdf_cited_page_preserves_candidate_downgrade(
+    evidence_kind: str, page: int, expected_severity: str
+) -> None:
+    draft = copy.deepcopy(VALID_DRAFT)
+    quote = "Built RAG systems"
+    if evidence_kind == "adjacent":
+        draft["gap_mitigations"][0]["adjacent_experience"][0]["page"] = page
+    else:
+        mitigation = draft["gap_mitigations"][0]
+        mitigation["resolution_mode"] = "provide_evidence"
+        mitigation["learning_plan"] = None
+        mitigation["adjacent_experience"] = []
+        mitigation["alternative_evidence"] = [{
+            "description": "Existing RAG project",
+            "status": "existing",
+            "source_locator": "Experience",
+            "source_quote": quote,
+            "page": page,
+        }]
+
+    issues = ResumeTailoringReviewGraph._validate_grounding(
+        document=StoredResumeDocument(
+            resume_version_id="scan",
+            document_format="pdf",
+            raw_bytes=_scanned_pdf(),
+        ),
+        match_result=VALID_MATCH,
+        confirmed_facts=(),
+        draft=ResumeTailoringResult.model_validate(draft),
+    )
+
+    candidate_issues = [issue for issue in issues if issue.source_quote == quote and issue.change_index is None]
+    assert len(candidate_issues) == 1
+    assert candidate_issues[0].severity == expected_severity
+    assert any(issue.change_index is not None and issue.severity == "blocking" for issue in issues)
 
 
 def test_unparseable_pdf_blocks_instead_of_warning() -> None:
@@ -1547,6 +1901,33 @@ def test_service_persists_automated_review_and_runs_final_qa(tmp_path) -> None:
     assert finalized.created is True
     assert len(reviewer.draft_calls) == 1
     assert len(reviewer.final_calls) == 1
+
+
+def test_staged_draft_can_be_seen_before_background_review_but_not_finalized(tmp_path) -> None:
+    reviewer = RecordingReviewer()
+    service, _, _, stored_match = seed_service(tmp_path, reviewer=reviewer)
+
+    draft = service.create_draft(
+        user_id="u1", match_id=stored_match.id, run_automated_review=False
+    )
+
+    assert draft.automated_review is None
+    with pytest.raises(ResumeTailoringNotReadyError, match="后台"):
+        service.finalize_draft(user_id="u1", draft_id=draft.id)
+
+    reviewed = service.review_draft_automatically(user_id="u1", draft_id=draft.id)
+    assert reviewed.automated_review is not None
+    assert reviewed.automated_review.status == "passed"
+    assert len(reviewer.draft_calls) == 1
+
+    service.review_draft(
+        user_id="u1",
+        draft_id=draft.id,
+        accepted_change_indices=(1,),
+        rejected_change_indices=(2,),
+    )
+    finalized = service.finalize_draft(user_id="u1", draft_id=draft.id)
+    assert finalized.created is True
 
 
 def test_user_feedback_creates_reviewed_child_draft_without_old_decisions(tmp_path) -> None:
@@ -1992,3 +2373,153 @@ def test_a_revision_revises_the_draft_the_feedback_is_about() -> None:
             raw_bytes=b"Built RAG systems and Python",
         ),
     )
+
+
+@pytest.mark.parametrize('effort', [
+    '30 focused hours over 4 weeks, approximately 7–8 hours per week.',
+    '20-30 hours (5 hours per week)',
+    '共30小时，分4周完成，每周投入7-8小时',
+])
+def test_compound_learning_effort_keeps_all_quantities_bounded(effort):
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft['gap_mitigations'][0]['learning_plan']['estimated_effort'] = effort
+    assert gap_mitigation_errors(ResumeTailoringResult.model_validate(draft), VALID_MATCH) == ()
+
+
+@pytest.mark.parametrize('effort', [
+    '-2 hours', '30 hours over 0 weeks', '30 hours over 4-2 weeks',
+    '30 hours over unlimited weeks', '30 hours and then as long as needed',
+])
+def test_compound_effort_cannot_hide_invalid_or_unbounded_duration(effort):
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft['gap_mitigations'][0]['learning_plan']['estimated_effort'] = effort
+    assert any('estimated effort' in e for e in gap_mitigation_errors(
+        ResumeTailoringResult.model_validate(draft), VALID_MATCH,
+    ))
+
+
+def test_partial_coverage_uses_optional_evidence_without_becoming_a_missing_skill():
+    from career_agent.agent.resume_job_match_contracts import ResumeMatchEvidence
+    match = VALID_MATCH.model_copy(update={'requirements': (
+        VALID_MATCH.requirements[0].model_copy(update={
+            'status': 'partial',
+            'resume_evidence': (ResumeMatchEvidence(source_locator='Experience', source_quote='Built RAG systems'),),
+        }),
+    )})
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft['gap_mitigations'] = []
+    canonical = canonicalize_gap_mitigations(ResumeTailoringResult.model_validate(draft), match)
+    assert canonical.unresolved_gaps == ()
+    assert gap_mitigation_errors(canonical, match) == ()
+    draft['gap_mitigations'] = [_mitigation(
+        resolution_mode='provide_evidence', learning_plan=None, alternative_evidence=[],
+    )]
+    assert gap_mitigation_errors(ResumeTailoringResult.model_validate(draft), match) == ()
+    errors = gap_mitigation_errors(ResumeTailoringResult.model_validate(VALID_DRAFT), match)
+    assert any('partial requirement' in e for e in errors)
+
+
+def test_effort_repair_feedback_includes_actual_failure_not_only_generic_instruction():
+    class RepairWorker:
+        def __init__(self):
+            self.calls = []
+
+        def tailor(self, **kwargs):
+            self.calls.append(kwargs)
+            data = copy.deepcopy(VALID_DRAFT)
+            if len(self.calls) == 1:
+                data['gap_mitigations'][0]['learning_plan']['estimated_effort'] = '0 hours'
+            else:
+                feedback = ' '.join(kwargs['review_feedback'])
+                assert 'estimated effort must use positive, ascending bounds' in feedback
+                assert REQUIREMENT_ID in feedback
+            return ResumeTailoringResult.model_validate(data)
+
+    worker = RepairWorker()
+    outcome = ResumeTailoringReviewGraph(worker, RecordingReviewer()).run(
+        document=StoredResumeDocument(resume_version_id='v1', document_format='text', raw_bytes=b'Built RAG systems and Python'),
+        jd_text='Production Go experience', match_result=VALID_MATCH,
+    )
+    assert outcome.trace.status == 'passed'
+    assert len(worker.calls) == 2
+
+
+@pytest.mark.parametrize('tier,status,expected_type,expected_priorities', [
+    ('A', 'missing', 'strengthenable', ('P1', 'P2')),
+    ('B', 'missing', 'strengthenable', ('P1', 'P2')),
+    ('C', 'missing', 'strengthenable', ('P1', 'P2')),
+    ('S', 'missing', 'hard_blocker', ('P0',)),
+    ('S', 'unclear', 'strengthenable', ('P0', 'P1', 'P2')),
+])
+def test_writer_and_reviewer_receive_the_same_authoritative_mitigation_rules(
+    tier, status, expected_type, expected_priorities,
+):
+    from career_agent.agent.resume_tailoring_contracts import mitigation_policy
+    match = VALID_MATCH.model_copy(update={'requirements': (
+        VALID_MATCH.requirements[0].model_copy(update={'tier': tier, 'status': status}),
+    )})
+    policy = mitigation_policy(match)
+    assert policy[0]['gap_type'] == expected_type
+    assert policy[0]['priorities'] == expected_priorities
+    encoded = json.dumps(policy, ensure_ascii=False)
+    context = DeepAgentResumeTailoringWorker._context_text(
+        jd_text='Go', match_result=match, confirmed_facts=(), tailoring_goal=None,
+        user_feedback=None, review_feedback=(), previous_draft=None,
+    )
+    assert encoded in context
+    client = FakeResponsesClient({'verdict': 'pass', 'summary': 'Grounded.', 'issues': []})
+    reviewer = OpenAIResumeTailoringReviewer(OpenAICompatibleAgentConfig(
+        endpoint='https://example.test/v1/chat/completions', api_key='secret', model='test',
+    ), client=client)
+    reviewer.review_draft(
+        document=StoredResumeDocument(resume_version_id='v1', document_format='text', raw_bytes=b'Built RAG systems'),
+        jd_text='Go', match_result=match, draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+    assert any(encoded in item.get('text', '') for item in client.calls[0]['input'][0]['content'])
+
+
+def test_reviewer_repairs_zero_change_index_with_structural_feedback():
+    from types import SimpleNamespace
+    invalid = {
+        'verdict': 'revise', 'summary': 'Artifact needs acceptance criteria.',
+        'issues': [{'category': 'jd_misalignment', 'severity': 'blocking',
+                    'change_index': 0, 'explanation': 'The artifact has no checkable outcome.'}],
+    }
+    valid = copy.deepcopy(invalid)
+    valid['issues'][0]['change_index'] = None
+
+    class Client:
+        def __init__(self):
+            self.responses = self
+            self.calls = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 2:
+                assert 'change_index' in kwargs['instructions']
+                assert 'greater_than_equal' in kwargs['instructions']
+                assert 'The artifact has no checkable outcome.' not in kwargs['instructions']
+            return SimpleNamespace(output_text=json.dumps(invalid if len(self.calls) == 1 else valid))
+
+    client = Client()
+    reviewer = OpenAIResumeTailoringReviewer(OpenAICompatibleAgentConfig(
+        endpoint='https://example.test/v1/chat/completions', api_key='secret', model='test',
+    ), client=client)
+    result = reviewer.review_draft(
+        document=StoredResumeDocument(resume_version_id='v1', document_format='text', raw_bytes=b'Built RAG systems'),
+        jd_text='Go', match_result=VALID_MATCH, draft=ResumeTailoringResult.model_validate(VALID_DRAFT),
+    )
+    assert result.verdict == 'revise'
+    assert result.issues[0].change_index is None
+    assert len(client.calls) == 2
+
+
+def test_empty_projection_does_not_erase_unbound_historical_gaps():
+    match = VALID_MATCH.model_copy(update={'requirements': (
+        VALID_MATCH.requirements[0].model_copy(update={'requirement_id': None}),
+    )})
+    draft = copy.deepcopy(VALID_DRAFT)
+    draft['gap_mitigations'] = []
+    canonical = canonicalize_gap_mitigations(ResumeTailoringResult.model_validate(draft), match)
+    assert canonical.unresolved_gaps == ('Go is not stated',)
+    assert gap_mitigation_errors(canonical, match)

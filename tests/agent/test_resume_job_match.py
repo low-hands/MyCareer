@@ -338,7 +338,13 @@ class AnalysisWorker:
         )
 
 
-def seed_inputs(tmp_path, *, analyze: bool = True):
+def seed_inputs(
+    tmp_path,
+    *,
+    analyze: bool = True,
+    resume_content: bytes = b"PRIVATE RESUME: Built production RAG systems",
+    document_format: str = "text",
+):
     resume_path = tmp_path / "resumes.sqlite3"
     resume_store = ResumeStore(resume_path)
     role = resume_store.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -346,8 +352,8 @@ def seed_inputs(tmp_path, *, analyze: bool = True):
         user_id="u1",
         target_role_id=role.id,
         name="AI Resume",
-        content=b"PRIVATE RESUME: Built production RAG systems",
-        document_format="text",
+        content=resume_content,
+        document_format=document_format,
     )
     jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     captured_at = datetime(2026, 8, 25, tzinfo=timezone.utc)
@@ -417,6 +423,130 @@ class InvalidBindingMatchWorker(RecordingMatchWorker):
         else:
             raise AssertionError(f"unsupported fixture mode: {self.mode}")
         return result.model_copy(update={"requirements": tuple(assessments)})
+
+
+class InventedEvidenceMatchWorker(RecordingMatchWorker):
+    def match(self, **kwargs) -> ResumeJobMatchResult:
+        self.calls.append(kwargs)
+        result = _bound_valid_match(kwargs)
+        first = result.requirements[0]
+        invented = first.resume_evidence[0].model_copy(
+            update={"source_quote": "A credential that is absent from this resume"}
+        )
+        return result.model_copy(update={
+            "requirements": (
+                first.model_copy(update={"resume_evidence": (invented,)}),
+                *result.requirements[1:],
+            ),
+        })
+
+
+def _one_page_pdf(text: str) -> bytes:
+    objects = [
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
+        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj",
+        b"3 0 obj<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>"
+        b"/MediaBox[0 0 612 792]/Contents 5 0 R>>endobj",
+        b"4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj",
+    ]
+    stream = b"BT /F1 12 Tf 72 720 Td (" + text.encode("ascii") + b") Tj ET"
+    objects.append(
+        b"5 0 obj<</Length " + str(len(stream)).encode("ascii")
+        + b">>stream\n" + stream + b"\nendstream endobj"
+    )
+    output = b"%PDF-1.4\n"
+    offsets = []
+    for item in objects:
+        offsets.append(len(output))
+        output += item + b"\n"
+    xref_at = len(output)
+    output += b"xref\n0 6\n0000000000 65535 f \n"
+    for offset in offsets:
+        output += ("%010d 00000 n \n" % offset).encode("ascii")
+    output += (
+        b"trailer<</Size 6/Root 1 0 R>>\nstartxref\n"
+        + str(xref_at).encode("ascii") + b"\n%%EOF\n"
+    )
+    return output
+
+
+def test_invented_resume_quote_cannot_make_a_requirement_matched(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(tmp_path)
+    worker_stub = InventedEvidenceMatchWorker()
+    match_store = SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3")
+    service = ResumeJobMatchService(
+        resumes, jobs, history, worker_stub, match_store
+    )
+
+    with pytest.raises(AgentWorkerError) as error:
+        service.match(
+            user_id="u1", resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+
+    assert error.value.code == "RESUME_JOB_MATCH_EVIDENCE_UNVERIFIED"
+    assert match_store.list_for_job(user_id="u1", job_posting_id=saved.posting.id) == ()
+
+
+def test_match_rejects_a_real_pdf_quote_with_an_impossible_page(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(
+        tmp_path,
+        resume_content=_one_page_pdf("Built production RAG systems"),
+        document_format="pdf",
+    )
+
+    class WrongPageWorker(RecordingMatchWorker):
+        def match(self, **kwargs) -> ResumeJobMatchResult:
+            result = super().match(**kwargs)
+            first = result.requirements[0]
+            evidence = first.resume_evidence[0].model_copy(update={"page": 99})
+            return result.model_copy(update={
+                "requirements": (
+                    first.model_copy(update={"resume_evidence": (evidence,)}),
+                    *result.requirements[1:],
+                ),
+            })
+
+    service = ResumeJobMatchService(
+        resumes, jobs, history, WrongPageWorker(),
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+    )
+    with pytest.raises(AgentWorkerError) as error:
+        service.match(
+            user_id="u1", resume_version_id=version.id,
+            job_posting_id=saved.posting.id,
+        )
+    assert error.value.code == "RESUME_JOB_MATCH_EVIDENCE_UNVERIFIED"
+
+
+def test_match_accepts_a_real_pdf_quote_on_its_page(tmp_path) -> None:
+    resumes, jobs, history, version, saved = seed_inputs(
+        tmp_path,
+        resume_content=_one_page_pdf("Built production RAG systems"),
+        document_format="pdf",
+    )
+
+    class CorrectPageWorker(RecordingMatchWorker):
+        def match(self, **kwargs) -> ResumeJobMatchResult:
+            result = super().match(**kwargs)
+            first = result.requirements[0]
+            evidence = first.resume_evidence[0].model_copy(update={"page": 1})
+            return result.model_copy(update={
+                "requirements": (
+                    first.model_copy(update={"resume_evidence": (evidence,)}),
+                    *result.requirements[1:],
+                ),
+            })
+
+    service = ResumeJobMatchService(
+        resumes, jobs, history, CorrectPageWorker(),
+        SQLiteResumeJobMatchStore(tmp_path / "resumes.sqlite3"),
+    )
+    result = service.match(
+        user_id="u1", resume_version_id=version.id,
+        job_posting_id=saved.posting.id,
+    )
+    assert result.result.requirements[0].resume_evidence[0].page == 1
 
 
 def test_match_requires_a_current_analysis_before_calling_the_worker(tmp_path) -> None:
