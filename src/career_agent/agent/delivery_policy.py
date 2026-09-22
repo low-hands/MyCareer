@@ -257,6 +257,8 @@ _POLICIES.update(
             "job_research_not_retryable",
             "job_search_page_ready",
             "job_analysis_required",
+            "job_analysis_not_found",
+            "job_analysis_revision_ready",
             "match_input_not_found",
             "mock_interview_cancelled",
             "mock_interview_input_retry_required",

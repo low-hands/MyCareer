@@ -88,6 +88,7 @@ from career_agent.agent.main_agent_contracts import (
     GetResumeTailoringDraftToolArguments,
     GetSavedJobToolArguments,
     AnalyzeJobToolArguments,
+    CorrectJobRequirementTierToolArguments,
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
@@ -200,6 +201,7 @@ from career_agent.services.job_research import (
 from career_agent.agent.job_analysis_contracts import SENIORITY_LABELS
 from career_agent.services.job_analysis import (
     JobAnalysisInputNotFoundError,
+    JobAnalysisRequirementNotFoundError,
     JobAnalysisService,
 )
 from career_agent.services.resume_job_match import (
@@ -445,7 +447,12 @@ class MainAgentToolRegistry:
         if job_comparison_service is not None:
             self._atomic_handlers["compare_saved_jobs"] = self._compare_saved_jobs
         if job_analysis_service is not None:
-            self._atomic_handlers["analyze_job"] = self._analyze_job
+            self._atomic_handlers.update(
+                {
+                    "analyze_job": self._analyze_job,
+                    "correct_job_requirement_tier": self._correct_job_requirement_tier,
+                }
+            )
         if job_research_service is not None:
             self._workflow_handlers.update(
                 {
@@ -1299,6 +1306,16 @@ class MainAgentToolRegistry:
                         "name": "analyze_job",
                         "description": "Analyze one saved job's complete JD on its own: core objective, inferred seniority, S/A/B/C tiered requirements with JD quotes, core competencies, implicit requirements, ATS keywords, HR / hiring-manager focus, likely interview topics, red flags, and information gaps. Pass selection_index after find_saved_jobs, or omit it to use the active job. Reads only the JD text: no resume, no preferences, no online research. Use match_resume_to_job instead when the user wants a comparison against a resume.",
                         "parameters": AnalyzeJobToolArguments.model_json_schema(),
+                    },
+                }
+            )
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "correct_job_requirement_tier",
+                        "description": "After the user explicitly confirms or corrects one requirement's classification, create a new immutable job-analysis revision. Never infer user confirmation.",
+                        "parameters": CorrectJobRequirementTierToolArguments.model_json_schema(),
                     },
                 }
             )
@@ -4495,6 +4512,47 @@ class MainAgentToolRegistry:
                 title=title,
                 description=description,
             ),
+            execution_outcome="committed",
+        )
+
+    def _correct_job_requirement_tier(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._job_analysis_service is None:
+            raise ValueError("Job analysis service is not configured")
+        user_id = str(arguments["user_id"])
+        model_arguments = CorrectJobRequirementTierToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "user_id"}
+        )
+        status = "user_confirmed" if model_arguments.confirmation == "confirm" else "user_corrected"
+        try:
+            stored = self._job_analysis_service.correct_requirement_tier(
+                user_id=user_id,
+                analysis_id=model_arguments.analysis_id,
+                requirement_id=model_arguments.requirement_id,
+                tier=model_arguments.tier,
+                reason=model_arguments.reason,
+                classification_status=status,
+            )
+        except (JobAnalysisInputNotFoundError, JobAnalysisRequirementNotFoundError) as error:
+            return ToolObservation(
+                tool_name="correct_job_requirement_tier",
+                state="job_analysis_not_found",
+                message="没有找到这份岗位分析或对应的分级要求。",
+                payload={"analysis_id": model_arguments.analysis_id, "error": str(error)},
+                execution_outcome="not_committed",
+            )
+        return ToolObservation(
+            tool_name="correct_job_requirement_tier",
+            state="job_analysis_revision_ready",
+            message="已保存岗位要求分级修正；旧分析和旧匹配报告保持不变。",
+            payload={
+                "analysis_id": stored.id,
+                "supersedes_analysis_id": model_arguments.analysis_id,
+                "job_posting_id": stored.job_posting_id,
+                "jd_snapshot_id": stored.jd_snapshot_id,
+                "analysis": stored.analysis.to_result().model_dump(mode="json")
+                if stored.analysis.to_result() is not None
+                else None,
+            },
             execution_outcome="committed",
         )
 

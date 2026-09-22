@@ -284,6 +284,10 @@ class ResumeJobMatchService:
                         "jd_quote": source.jd_quote,
                         "tier": source.tier,
                         "kind": source.kind,
+                        "tier_confidence": source.tier_confidence,
+                        "classification_status": source.classification_status,
+                        "tier_rationale": source.tier_rationale,
+                        "tier_evidence": source.tier_evidence,
                     }
                 )
             )

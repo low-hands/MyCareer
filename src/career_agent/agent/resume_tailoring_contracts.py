@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
     ResumeJobMatchResult,
+    is_confirmed_hard_gate_assessment,
 )
 
 
@@ -287,10 +288,25 @@ def gap_mitigation_errors(
                 "new alternative evidence must declare existing or planned status: "
                 f"{mitigation.requirement_id}"
             )
+        # Pre-096 persisted matches have no classification metadata. Preserve
+        # their historical validation semantics while requiring an explicit
+        # confirmed gate for all newly-produced results.
+        legacy_classification = (
+            assessment.tier_confidence is None
+            and assessment.tier_rationale is None
+            and assessment.tier_evidence is None
+            and assessment.classification_status is None
+        )
         is_hard_blocker = (
             assessment.tier == "S"
             and assessment.kind == "fact"
             and assessment.status == "missing"
+            and (
+                legacy_classification
+                or (
+                    is_confirmed_hard_gate_assessment(assessment)
+                )
+            )
         )
         if is_hard_blocker and mitigation.gap_type != "hard_blocker":
             errors.append(

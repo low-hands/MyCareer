@@ -73,6 +73,7 @@ _DOMAIN_TOOLS: Mapping[ToolProfile, frozenset[str]] = MappingProxyType(
                 "find_saved_jobs",
                 "get_saved_job",
                 "analyze_job",
+                "correct_job_requirement_tier",
                 "compare_saved_jobs",
                 "research_job",
                 "retry_job_research",

@@ -1736,11 +1736,19 @@ export const API_CONTRACT = {
                 ],
                 "requirements": [
                   {
+                    "classification_status": "model_assessed",
                     "jd_quote": "3 年以上互联网产品经验",
                     "kind": "fact",
+                    "model_tier": null,
+                    "model_tier_rationale": null,
                     "requirement_id": null,
                     "text": "3 年以上产品经验",
-                    "tier": "S"
+                    "tier": "S",
+                    "tier_confidence": "low",
+                    "tier_correction_reason": null,
+                    "tier_evidence": "",
+                    "tier_rationale": "",
+                    "tier_source": "model"
                   }
                 ],
                 "seniority": "mid",
@@ -2372,6 +2380,16 @@ export const API_CONTRACT = {
             "additionalProperties": false,
             "description": "One requirement graded by how much the posting hinges on it.\n\nS is a gate the JD states outright; A is what the role is really hiring\nfor; B distinguishes candidates without disqualifying anyone; C is\nmentioned but incidental. ``kind`` says whether the requirement is\nwritten in the JD (``fact``) or read between its lines (``inference``);\neither way ``jd_quote`` is the sentence it rests on.",
             "properties": {
+              "classification_status": {
+                "default": "model_assessed",
+                "enum": [
+                  "model_assessed",
+                  "user_confirmed",
+                  "user_corrected"
+                ],
+                "title": "Classification Status",
+                "type": "string"
+              },
               "jd_quote": {
                 "maxLength": 500,
                 "minLength": 1,
@@ -2385,6 +2403,38 @@ export const API_CONTRACT = {
                 ],
                 "title": "Kind",
                 "type": "string"
+              },
+              "model_tier": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "S",
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Model Tier"
+              },
+              "model_tier_rationale": {
+                "anyOf": [
+                  {
+                    "maxLength": 1500,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Model Tier Rationale"
               },
               "requirement_id": {
                 "anyOf": [
@@ -2413,6 +2463,52 @@ export const API_CONTRACT = {
                   "C"
                 ],
                 "title": "Tier",
+                "type": "string"
+              },
+              "tier_confidence": {
+                "default": "low",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "title": "Tier Confidence",
+                "type": "string"
+              },
+              "tier_correction_reason": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tier Correction Reason"
+              },
+              "tier_evidence": {
+                "default": "",
+                "maxLength": 500,
+                "title": "Tier Evidence",
+                "type": "string"
+              },
+              "tier_rationale": {
+                "default": "",
+                "maxLength": 1500,
+                "title": "Tier Rationale",
+                "type": "string"
+              },
+              "tier_source": {
+                "default": "model",
+                "enum": [
+                  "model",
+                  "rule",
+                  "user_corrected"
+                ],
+                "title": "Tier Source",
                 "type": "string"
               }
             },
@@ -4459,6 +4555,16 @@ export const API_CONTRACT = {
             "additionalProperties": false,
             "description": "One requirement graded by how much the posting hinges on it.\n\nS is a gate the JD states outright; A is what the role is really hiring\nfor; B distinguishes candidates without disqualifying anyone; C is\nmentioned but incidental. ``kind`` says whether the requirement is\nwritten in the JD (``fact``) or read between its lines (``inference``);\neither way ``jd_quote`` is the sentence it rests on.",
             "properties": {
+              "classification_status": {
+                "default": "model_assessed",
+                "enum": [
+                  "model_assessed",
+                  "user_confirmed",
+                  "user_corrected"
+                ],
+                "title": "Classification Status",
+                "type": "string"
+              },
               "jd_quote": {
                 "maxLength": 500,
                 "minLength": 1,
@@ -4472,6 +4578,38 @@ export const API_CONTRACT = {
                 ],
                 "title": "Kind",
                 "type": "string"
+              },
+              "model_tier": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "S",
+                      "A",
+                      "B",
+                      "C"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Model Tier"
+              },
+              "model_tier_rationale": {
+                "anyOf": [
+                  {
+                    "maxLength": 1500,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Model Tier Rationale"
               },
               "requirement_id": {
                 "anyOf": [
@@ -4500,6 +4638,52 @@ export const API_CONTRACT = {
                   "C"
                 ],
                 "title": "Tier",
+                "type": "string"
+              },
+              "tier_confidence": {
+                "default": "low",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "title": "Tier Confidence",
+                "type": "string"
+              },
+              "tier_correction_reason": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tier Correction Reason"
+              },
+              "tier_evidence": {
+                "default": "",
+                "maxLength": 500,
+                "title": "Tier Evidence",
+                "type": "string"
+              },
+              "tier_rationale": {
+                "default": "",
+                "maxLength": 1500,
+                "title": "Tier Rationale",
+                "type": "string"
+              },
+              "tier_source": {
+                "default": "model",
+                "enum": [
+                  "model",
+                  "rule",
+                  "user_corrected"
+                ],
+                "title": "Tier Source",
                 "type": "string"
               }
             },

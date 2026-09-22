@@ -3132,6 +3132,14 @@ class AnalyzeJobToolArguments(ContractModel):
     selection_index: SelectionIndex | None = None
 
 
+class CorrectJobRequirementTierToolArguments(ContractModel):
+    analysis_id: str = Field(min_length=1)
+    requirement_id: str = Field(pattern=r"^job_requirement_[a-f0-9]{20}$")
+    tier: Literal["S", "A", "B", "C"]
+    reason: str = Field(min_length=1, max_length=1000)
+    confirmation: Literal["confirm", "correct"] = "correct"
+
+
 class ResearchJobToolArguments(ContractModel):
     job_posting_id: str | None = Field(default=None, min_length=1)
     selection_index: SelectionIndex | None = None

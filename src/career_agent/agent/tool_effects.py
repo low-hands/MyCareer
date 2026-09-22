@@ -25,6 +25,7 @@ replays, and the same route twice in one turn is still a repeated call.
 _WRITE_CAPABILITIES = frozenset(
     {
         "analyze_job",
+        "correct_job_requirement_tier",
         "analyze_resume",
         "complete_action_item",
         "complete_interview",

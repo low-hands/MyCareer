@@ -6,9 +6,17 @@ from typing import TYPE_CHECKING, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from career_agent.agent.job_analysis_contracts import (
+    ClassificationStatus,
+    is_confirmed_hard_gate,
     RequirementKind,
     RequirementTier,
+    TierConfidence,
 )
+
+
+def is_confirmed_hard_gate_assessment(assessment: "RequirementAssessment") -> bool:
+    """Apply the canonical hard-gate rule to a bound match assessment."""
+    return is_confirmed_hard_gate(assessment, status=assessment.status)  # type: ignore[arg-type]
 
 if TYPE_CHECKING:
     from career_agent.agent.job_analysis_contracts import TieredRequirement
@@ -76,6 +84,10 @@ class RequirementAssessment(ResumeJobMatchContract):
     jd_quote: str = Field(min_length=1, max_length=500)
     tier: RequirementTier | None = None
     kind: RequirementKind | None = None
+    tier_confidence: TierConfidence | None = None
+    classification_status: ClassificationStatus | None = None
+    tier_rationale: str | None = None
+    tier_evidence: str | None = None
     status: Literal["matched", "partial", "missing", "unclear"]
     rationale: str = Field(min_length=1, max_length=2000)
     resume_evidence: tuple[ResumeMatchEvidence, ...] = Field(default=(), max_length=3)

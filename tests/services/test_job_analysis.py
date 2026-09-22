@@ -118,3 +118,35 @@ def test_rejects_missing_job_and_foreign_snapshot(tmp_path) -> None:
     assert foreign.value.input_kind == "jd_snapshot"
     with pytest.raises(ValueError):
         service.analyze(user_id=" ", job_posting_id=mine.posting.id)
+
+
+def test_requirement_tier_correction_can_revert_to_model_tier(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    saved = repository.save_captured_detail(user_id="u1", detail=detail())
+    service = JobAnalysisService(repository, FakeWorker())
+    original = service.analyze(user_id="u1", job_posting_id=saved.posting.id)
+    requirement = original.analysis.to_result().requirements[0]
+
+    corrected = service.correct_requirement_tier(
+        user_id="u1",
+        analysis_id=original.id,
+        requirement_id=requirement.requirement_id,
+        tier="A",
+        reason="This is core work, not an absolute gate.",
+    )
+    corrected_requirement = corrected.analysis.to_result().requirements[0]
+    assert corrected_requirement.tier_source == "user_corrected"
+    assert corrected_requirement.classification_status == "user_corrected"
+
+    reverted = service.correct_requirement_tier(
+        user_id="u1",
+        analysis_id=corrected.id,
+        requirement_id=requirement.requirement_id,
+        tier="S",
+        reason="The original model classification is confirmed.",
+    )
+    reverted_requirement = reverted.analysis.to_result().requirements[0]
+    assert reverted_requirement.tier == reverted_requirement.model_tier == "S"
+    assert reverted_requirement.tier_source == "model"
+    assert reverted_requirement.classification_status == "user_confirmed"
+    assert reverted_requirement.tier_correction_reason is None
