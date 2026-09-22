@@ -106,6 +106,7 @@ def structured_response(
     max_output_tokens: int,
     code_prefix: str,
     subject: str,
+    include_validation_feedback: bool = False,
 ) -> T:
     """Ask for one JSON-schema-shaped answer, or raise a classified failure.
 
@@ -116,11 +117,21 @@ def structured_response(
     classified — including which are retryable, a judgement that was previously
     made six times.
     """
+    repair_detail: str | None = None
+
     def request_once() -> T:
+        nonlocal repair_detail
+        request_instructions = instructions
+        if include_validation_feedback and repair_detail is not None:
+            request_instructions += (
+                "\nThe previous response failed schema validation. Return a complete "
+                "corrected response conforming to the schema. Structural errors: "
+                + repair_detail
+            )
         try:
             response = client.responses.create(
                 model=model,
-                instructions=instructions,
+                instructions=request_instructions,
                 input=[{"role": "user", "content": content}],
                 text={
                     "format": {
@@ -160,10 +171,11 @@ def structured_response(
         try:
             return output_type.model_validate_json(output_text)
         except ValueError as error:
+            repair_detail = validation_detail(error)
             raise AgentWorkerError(
                 f"{code_prefix}_INVALID_RESPONSE",
                 f"{subject} model returned invalid structured output.",
-                detail=validation_detail(error),
+                detail=repair_detail,
             ) from error
 
     return retry_invalid_response(request_once, code_prefix=code_prefix)

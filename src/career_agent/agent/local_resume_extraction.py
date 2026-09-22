@@ -62,6 +62,8 @@ class ResumeSourceParagraph:
 class ExtractedResumeSource:
     paragraphs: tuple[ResumeSourceParagraph, ...]
     page_count: int
+    # Conservative routing hint only; never claims OCR or visual verification.
+    has_visual_content: bool = False
 
     @property
     def quotes_by_locator(self) -> dict[str, str]:
@@ -182,8 +184,18 @@ def _extract_pdf(raw: bytes, limits: ResumeExtractionLimits) -> ExtractedResumeS
         paragraphs: list[ResumeSourceParagraph] = []
         characters = 0
         text_tokens = 0
+        has_visual_content = False
         for page_number, page in enumerate(reader.pages, start=1):
+            resources = page.get("/Resources", {})
+            resources = resources.get_object() if hasattr(resources, "get_object") else resources
+            contents = page.get_contents()
+            has_visual_content |= bool(
+                resources.get("/XObject")
+                or page.get("/Annots")
+                or (contents and any(op == b"INLINE IMAGE" for _, op in contents.operations))
+            )
             text = page.extract_text() or ""
+            has_visual_content |= "\ufffd" in text or "\x00" in text
             _check_text(text, limits)
             characters += len(text)
             text_tokens += len(text.encode("utf-8"))
@@ -195,7 +207,7 @@ def _extract_pdf(raw: bytes, limits: ResumeExtractionLimits) -> ExtractedResumeS
             if not page_paragraphs:
                 raise _failure("OCR_REQUIRED")
             paragraphs.extend(page_paragraphs)
-        return ExtractedResumeSource(tuple(paragraphs), page_count)
+        return ExtractedResumeSource(tuple(paragraphs), page_count, has_visual_content)
     except AgentWorkerError:
         raise
     except MemoryError:
@@ -253,7 +265,9 @@ def _extract_pdf_isolated(
         paragraphs = tuple(
             ResumeSourceParagraph(**item) for item in payload["paragraphs"]
         )
-        return ExtractedResumeSource(paragraphs, payload["page_count"])
+        return ExtractedResumeSource(
+            paragraphs, payload["page_count"], payload.get("has_visual_content", True)
+        )
     except (ValueError, TypeError, KeyError):
         raise _failure("PDF_DAMAGED") from None
 
@@ -301,6 +315,7 @@ def _pdf_child() -> None:
         source = _extract_pdf(raw, limits)
         payload = {
             "page_count": source.page_count,
+            "has_visual_content": source.has_visual_content,
             "paragraphs": [
                 {"page": item.page, "paragraph": item.paragraph, "text": item.text}
                 for item in source.paragraphs

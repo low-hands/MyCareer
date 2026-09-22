@@ -2867,6 +2867,7 @@ class MainAgentRuntime:
 
     _CAPABILITY_STEP_MESSAGES: ClassVar[dict[str, str]] = {
         "resume_analysis": "正在分析简历内容",
+        "resume_document_prepare": "正在准备简历文档",
         "resume_job_match": "正在比对简历与岗位要求",
         "job_analysis": "正在分析岗位 JD",
         "resume_job_match_state_audit": "正在核对简历比对结果",
