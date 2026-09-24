@@ -18,7 +18,7 @@ from career_agent.agent.questionnaire_contracts import QuestionAnswer, QuestionO
 from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
-from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError
+from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
 from career_agent.cli import main as cli_main
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -44,13 +44,32 @@ class DecisionMaker:
         return self.decision
 
 
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("我有个字节的面试，帮我准备", "interview"),
+        ("开始模拟面试", "interview"),
+        ("看看我的投递进度", "application"),
+        ("帮我优化一下简历", "resume"),
+        ("找上海的 AIGC 实习", "job"),
+        ("分析这个 JD", "job"),
+        ("最近有点焦虑，聊聊吧", None),
+        ("记住我更喜欢小团队", None),
+    ],
+)
+def test_high_confidence_keyword_profile_routing(message, expected) -> None:
+    assert keyword_tool_profile(message) == expected
+
+
 class SequenceDecisionMaker:
     def __init__(self, *decisions: AgentDecision) -> None:
         self.decisions = list(decisions)
         self.contexts = []
+        self.tool_names = []
 
     def decide(self, context, tool_names):
         self.contexts.append(context)
+        self.tool_names.append(tuple(spec["function"]["name"] for spec in tool_names))
         if not self.decisions:
             raise AssertionError("Main Agent requested more decisions than expected")
         return self.decisions.pop(0)
@@ -83,6 +102,27 @@ def build_runtime(tmp_path, decision: AgentDecision):
     manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     tools = CountingRegistry()
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
+
+
+def test_keyword_route_skips_the_core_profile_decision(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    decisions = SequenceDecisionMaker(AgentDecision(action="final", message="请告诉我面试时间。"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(),
+    )
+
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="我有个字节的面试，帮我准备",
+    )
+
+    assert len(decisions.contexts) == 1
+    assert decisions.contexts[0].task.tool_profile == "interview"
+    assert manager.get_task(user_id="u1", conversation_id="c1").tool_profile == "interview"
 
 
 def _never_called_decision_maker():
@@ -3581,7 +3621,11 @@ def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> Non
             action="tool_call",
             tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"}),
         ),
-        AgentDecision(action="ask_user", message="你想打开哪一个岗位？"),
+        AgentDecision(
+            action="ask_user",
+            message="你想打开哪一个岗位？",
+            selection_source="latest_tool_result",
+        ),
     )
     runtime = MainAgentRuntime(
         context_manager=manager,
@@ -3605,6 +3649,39 @@ def test_ask_user_after_listing_emits_structured_public_options(tmp_path) -> Non
     assert interaction.options[0].selection_index == 1
     assert internal_job_id not in interaction.model_dump_json()
     assert events[-1].type == "turn_suspended"
+
+
+def test_ask_user_after_listing_does_not_leak_options_into_a_fact_question(tmp_path) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    _seed_saved_job(repository)
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="find_saved_jobs", arguments={"query": "RAG"}),
+        ),
+        AgentDecision(action="ask_user", message="请确认面试年份。"),
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=decisions,
+        tools=MainAgentToolRegistry(job_repository=repository),
+    )
+    events = []
+
+    runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="面试是 9 月 25 日上午十点",
+        event_sink=events.append,
+    )
+
+    interaction = next(
+        event for event in events if isinstance(event, InteractionRequiredEvent)
+    )
+    assert interaction.kind == "free_text"
+    assert interaction.options == ()
 
 
 def _saved_job_runtime(tmp_path, repository, *decisions):

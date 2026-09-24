@@ -196,7 +196,10 @@ def test_save_with_live_intent_records_one_event_for_the_original_conversation(
     assert events[0]["continuation_status"] == "completed"
     assert events[0]["continuation_turn_id"] == completed.continuation_turn_id
     assert decisions.calls == 1
-    assert len(context_store.list_messages("u1", "c1", limit=10)) == 2
+    messages = context_store.list_messages("u1", "c1", limit=10)
+    assert len(messages) == 2
+    assert [reference.kind for reference in messages[0].resource_refs] == ["saved_job"]
+    assert messages[1].resource_refs == ()
     # The saved job is the one the event points at.
     assert repository.get_job(user_id="u1", job_posting_id=events[0]["job_posting_id"]) is not None
 
@@ -218,6 +221,33 @@ def test_save_without_intent_only_enters_the_library(app, stores, auth, decision
     assert pending.json() == {"events": []}
     assert len(repository.list_jobs(user_id="u1", include_dismissed=True)) == 1
     assert decisions.calls == 0
+
+
+def test_save_without_tab_binding_recovers_the_recent_backend_intent(
+    app, stores, auth, decisions, context_store
+) -> None:
+    _, capture_store = stores
+    intent = capture_store.create_intent(
+        user_id="u1", conversation_id="c1", platform="boss",
+        keyword="AIGC 实习", city=None,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/browser-captures/jobs",
+            headers={**auth, **CAPTURE_HEADERS},
+            json=_job(title="多模态大模型算法工程师（实习）"),
+        )
+        assert response.status_code == 200
+        body = response.json()
+        completed = _wait_for_capture(app, capture_store, body["capture_event_id"])
+
+    assert body["conversation_id"] == "c1"
+    assert body["capture_event_created"] is True
+    assert capture_store.get_intent(user_id="u1", intent_id=intent.id).consumed_at is not None
+    assert completed.continuation_status == "completed"
+    assert decisions.calls == 1
+    assert len(context_store.list_messages("u1", "c1", limit=10)) == 2
 
 
 def test_expired_or_foreign_intent_still_saves_but_starts_no_conversation(
@@ -304,7 +334,8 @@ def test_two_conversations_searching_at_once_do_not_cross(
         body = saved.json()
         messages = context_store.list_messages("u1", body["conversation_id"], limit=10)
         assert len(messages) == 2
-        assert all(message.resource_refs[0].resource_id == body["jd_snapshot_id"] for message in messages)
+        assert messages[0].resource_refs[0].resource_id == body["jd_snapshot_id"]
+        assert messages[1].resource_refs == ()
 
 
 def test_completed_event_waits_for_owner_ack_after_the_page_reopens(

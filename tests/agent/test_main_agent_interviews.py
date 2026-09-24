@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
@@ -8,6 +9,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationTaskState,
     MainAgentContext,
     ToolCall,
+    ActiveSavedJobContextItem,
     project_interview_arguments,
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
@@ -182,6 +184,93 @@ def test_create_interview_falls_back_to_active_and_rejects_bad_selection() -> No
                 "details": {"interview_format": "video"},
             },
         )
+
+
+def test_create_interview_uses_the_unique_active_saved_job_without_reasking() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            active_job_posting_id="job-1",
+            active_jd_snapshot_id="jd-1",
+            active_saved_job=ActiveSavedJobContextItem(
+                job_posting_id="job-1",
+                jd_snapshot_id="jd-1",
+                title="多模态算法研究",
+                company_name="无垠跃迁",
+                jd_version=1,
+            ),
+        ),
+        user_message="他约了我后天上午十点面试",
+    )
+
+    projected = project_interview_arguments(
+        context,
+        "create_interview",
+        {"details": {"interview_format": "unknown"}},
+    )
+
+    assert projected["application_id"] is None
+    assert projected["job_posting_id"] == "job-1"
+
+
+def test_create_interview_can_materialize_tracking_from_the_active_saved_job() -> None:
+    now = datetime(2026, 9, 25, 10, 0, tzinfo=timezone.utc)
+
+    class Applications:
+        def __init__(self):
+            self.created = []
+            self.updated = []
+
+        def create_application(self, **arguments):
+            self.created.append(arguments)
+            application = SimpleNamespace(id="app-1", status="submitted")
+            return SimpleNamespace(application=application, created=True)
+
+        def get_application(self, **arguments):
+            return SimpleNamespace(
+                application=SimpleNamespace(id="app-1", status="submitted")
+            )
+
+        def update_application(self, **arguments):
+            self.updated.append(arguments)
+            return SimpleNamespace(id="app-1", status=arguments["status"])
+
+    class InterviewService:
+        def create_manual(self, **arguments):
+            return InterviewRound(
+                id="interview-1",
+                user_id=arguments["user_id"],
+                application_id=arguments["application_id"],
+                sequence_number=1,
+                status="scheduled",
+                scheduled_start=now,
+                timezone="Asia/Shanghai",
+                created_at=now,
+                updated_at=now,
+            )
+
+    applications = Applications()
+    tools = MainAgentToolRegistry(
+        application_service=applications,
+        interview_service=InterviewService(),
+    )
+
+    result = tools.invoke_atomic_tool(
+        "create_interview",
+        {
+            "user_id": "u1",
+            "job_posting_id": "job-1",
+            "details": {
+                "scheduled_start": now.isoformat(),
+                "timezone": "Asia/Shanghai",
+            },
+        },
+    )
+
+    assert result.state == "interview_ready"
+    assert applications.created[0]["resume_version_id"] is None
+    assert applications.updated[0]["status"] == "interviewing"
 
 
 class RetroInterviews(Interviews):

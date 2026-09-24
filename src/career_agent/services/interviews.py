@@ -183,12 +183,28 @@ class InterviewService:
         if interview is None:
             raise InterviewNotFoundError(interview_round_id)
         try:
-            return self._store.complete(
+            completed = self._store.complete(
                 round_=interview,
                 occurred_at=completed_at or datetime.now(timezone.utc),
             )
         except ValueError as error:
             raise InterviewApplicationConflictError(str(error)) from error
+        # Completing a real interview is also a pipeline milestone. Keep the
+        # application card in sync without guessing an employer outcome.
+        application = self._application_service.get_application(
+            user_id=user_id,
+            application_id=completed.application_id,
+        ).application
+        update_application = getattr(self._application_service, "update_application", None)
+        if application.status == "interviewing" and callable(update_application):
+            update_application(
+                user_id=user_id,
+                application_id=completed.application_id,
+                status="interview_completed",
+                note="面试已完成，等待招聘方结果。",
+                source="user_reported",
+            )
+        return completed
 
     def get_interview(
         self, *, user_id: str, interview_round_id: str

@@ -21,7 +21,13 @@ class SQLiteApplicationStore:
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            apply_schema(connection, "applications", 1, self._migrate)
+            apply_schema(
+                connection,
+                "applications",
+                2,
+                self._migrate,
+                upgrades={2: self._allow_unknown_resume},
+            )
         os.chmod(self.path, 0o600)
 
     def create(
@@ -30,7 +36,7 @@ class SQLiteApplicationStore:
         user_id: str,
         job_posting_id: str,
         jd_snapshot_id: str,
-        resume_version_id: str,
+        resume_version_id: str | None,
         submitted_at: datetime,
         note: str | None = None,
     ) -> Application:
@@ -209,6 +215,16 @@ class SQLiteApplicationStore:
             self._insert_event(connection, event)
         return self.get(user_id=user_id, application_id=application_id)
 
+    def clear_user(self, *, user_id: str) -> int:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            ids = [row[0] for row in connection.execute("SELECT id FROM applications WHERE user_id = ?", (user_id,)).fetchall()]
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                connection.execute(f"DELETE FROM application_events WHERE application_id IN ({placeholders}) AND user_id = ?", (*ids, user_id))
+            connection.execute("DELETE FROM applications WHERE user_id = ?", (user_id,))
+        return len(ids)
+
     def _migrate(self, connection: sqlite3.Connection) -> None:
         connection.execute(
             """
@@ -217,7 +233,7 @@ class SQLiteApplicationStore:
                 user_id TEXT NOT NULL,
                 job_posting_id TEXT NOT NULL,
                 jd_snapshot_id TEXT NOT NULL,
-                resume_version_id TEXT NOT NULL,
+                resume_version_id TEXT,
                 status TEXT NOT NULL,
                 submitted_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -252,6 +268,67 @@ class SQLiteApplicationStore:
             CREATE INDEX IF NOT EXISTS application_events_application_idx
             ON application_events(application_id, occurred_at)
             """
+        )
+
+    @staticmethod
+    def _allow_unknown_resume(connection: sqlite3.Connection) -> None:
+        """Applications reported from referrals/interviews need not name a CV."""
+        connection.execute("DROP INDEX IF EXISTS applications_user_updated_idx")
+        connection.execute("DROP INDEX IF EXISTS application_events_application_idx")
+        connection.execute("ALTER TABLE application_events RENAME TO application_events_v1")
+        connection.execute("ALTER TABLE applications RENAME TO applications_v1")
+        connection.execute(
+            """
+            CREATE TABLE applications (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                job_posting_id TEXT NOT NULL,
+                jd_snapshot_id TEXT NOT NULL,
+                resume_version_id TEXT,
+                status TEXT NOT NULL,
+                submitted_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, job_posting_id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO applications
+            SELECT * FROM applications_v1
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE application_events (
+                id TEXT PRIMARY KEY,
+                application_id TEXT NOT NULL REFERENCES applications(id),
+                user_id TEXT NOT NULL,
+                source TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                previous_status TEXT,
+                new_status TEXT NOT NULL,
+                note TEXT,
+                occurred_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO application_events
+            SELECT * FROM application_events_v1
+            """
+        )
+        connection.execute("DROP TABLE application_events_v1")
+        connection.execute("DROP TABLE applications_v1")
+        connection.execute(
+            "CREATE INDEX applications_user_updated_idx "
+            "ON applications(user_id, updated_at DESC)"
+        )
+        connection.execute(
+            "CREATE INDEX application_events_application_idx "
+            "ON application_events(application_id, occurred_at)"
         )
 
     def _connect(self) -> sqlite3.Connection:

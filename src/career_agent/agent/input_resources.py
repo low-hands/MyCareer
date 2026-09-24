@@ -24,6 +24,7 @@ from career_agent.harness.streaming import TurnInputResource
 from career_agent.services.resume_import import extract_resume_text
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
+from career_agent.services.applications import ApplicationService
 
 
 def saved_job_title(title: str, company_name: str) -> str:
@@ -56,6 +57,28 @@ class InputResourceRejectedError(ValueError):
     message itself and never sees the attached context, so accepting the
     attachment would mean quietly ignoring it. Refusing is the honest answer.
     """
+
+
+def resolve_application_input_resource(
+    service: ApplicationService | None,
+    *,
+    user_id: str,
+    resources: tuple[TurnInputResource, ...],
+) -> tuple[str | None, str | None]:
+    """Verify the attached application belongs to the authenticated user."""
+    selected = tuple(resource for resource in resources if resource.kind == "application")
+    if not selected:
+        return (None, None)
+    if len(selected) > 1:
+        raise ValueError("only one application may be attached to a turn")
+    if service is None:
+        raise InputResourceUnavailableError("application inputs cannot be resolved")
+    resource = selected[0]
+    try:
+        detail = service.get_application(user_id=user_id, application_id=resource.id)
+    except Exception as error:
+        raise InputResourceNotFoundError(resource) from error
+    return detail.application.id, detail.application.status
 
 
 def excerpt_budgets(lengths: tuple[int, ...], total: int) -> tuple[int, ...]:

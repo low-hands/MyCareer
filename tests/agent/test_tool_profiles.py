@@ -253,7 +253,9 @@ def test_shared_read_runs_in_every_profile_without_routing(tmp_path, profile) ->
     )
 
     assert [name for name, _ in tools.calls] == ["list_resumes"]
-    assert result.context.task.tool_profile == profile
+    assert result.context.task.tool_profile == (
+        "resume" if profile == "core" else profile
+    )
     assert result.delegated_read_count == 1
     assert result.delegated_write_count == 0
     assert all("list_resumes" in _offered(schemas) for schemas in decisions.schemas)
@@ -360,7 +362,7 @@ def test_model_receives_exactly_the_profile_schemas_and_the_same_tuple_within_a_
     )
     runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
 
-    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="看看我的简历")
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="继续")
 
     core, resume, resume_again, core_again = decisions.schemas
     assert _offered(core) == profile_tools("core") & registered

@@ -22,6 +22,16 @@ this is generous; but a save made hours later belongs to whatever the user is
 doing then, not to a conversation they have long since left.
 """
 
+UNBOUND_CAPTURE_RECOVERY_WINDOW = timedelta(minutes=15)
+"""Maximum age of an intent recovered when the browser bridge is unavailable.
+
+The frontend may run in an embedded browser while the capture extension runs
+in Chrome. Those two browser processes cannot exchange a tab binding, even
+though the backend has just created the user's search intent. A short window
+lets the backend reconnect the save without turning an unrelated later save
+into an old conversation continuation.
+"""
+
 MAX_PENDING_EVENTS = 50
 
 CONTINUATION_TTL = timedelta(hours=24)
@@ -95,6 +105,15 @@ class JobCaptureStore(Protocol):
 
     def get_intent(
         self, *, user_id: str, intent_id: str
+    ) -> JobCaptureIntent | None: ...
+
+    def get_recent_live_intent(
+        self,
+        *,
+        user_id: str,
+        platform: str,
+        now: datetime | None = None,
+        max_age: timedelta = UNBOUND_CAPTURE_RECOVERY_WINDOW,
     ) -> JobCaptureIntent | None: ...
 
     def record_capture(
@@ -349,6 +368,34 @@ class SQLiteJobCaptureStore:
                 WHERE id = ? AND user_id = ?
                 """,
                 (intent_id, user_id),
+            ).fetchone()
+        return self._intent_from_row(row) if row is not None else None
+
+    def get_recent_live_intent(
+        self,
+        *,
+        user_id: str,
+        platform: str,
+        now: datetime | None = None,
+        max_age: timedelta = UNBOUND_CAPTURE_RECOVERY_WINDOW,
+    ) -> JobCaptureIntent | None:
+        """Return the newest short-lived fallback intent for a bridge-less save."""
+        if not user_id or not platform or max_age <= timedelta(0):
+            return None
+        moment = now or datetime.now(timezone.utc)
+        cutoff = moment - max_age
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, conversation_id, platform, keyword, city,
+                       created_at, expires_at, source_turn_id, consumed_at, consumed_event_id
+                FROM job_capture_intents
+                WHERE user_id = ? AND platform = ?
+                  AND consumed_at IS NULL AND expires_at > ? AND created_at >= ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (user_id, platform, moment.isoformat(), cutoff.isoformat()),
             ).fetchone()
         return self._intent_from_row(row) if row is not None else None
 

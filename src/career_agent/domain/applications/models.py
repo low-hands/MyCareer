@@ -10,6 +10,7 @@ ApplicationStatus = Literal[
     "submitted",
     "acknowledged",
     "interviewing",
+    "interview_completed",
     "offer",
     "rejected",
     "withdrawn",
@@ -30,7 +31,7 @@ class Application(ApplicationContract):
     user_id: str = Field(min_length=1)
     job_posting_id: str = Field(min_length=1)
     jd_snapshot_id: str = Field(min_length=1)
-    resume_version_id: str = Field(min_length=1)
+    resume_version_id: str | None = Field(default=None, min_length=1)
     status: ApplicationStatus
     submitted_at: datetime
     created_at: datetime

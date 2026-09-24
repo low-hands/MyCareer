@@ -67,6 +67,7 @@ from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_import import (
     MAX_RESUME_IMPORT_BYTES,
+    extract_resume_text,
     validate_resume_document,
 )
 from career_agent.storage.action_center import SQLiteActionItemStore
@@ -198,13 +199,16 @@ class ApplicationView(BaseModel):
     salary: str | None = None
     submitted_at: datetime
     updated_at: datetime
+    interview_round_number: int | None = None
+    interview_round_label: str | None = None
+    interview_status: str | None = None
 
 
 class ApplicationCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     job_posting_id: str = Field(min_length=1, max_length=200)
-    resume_version_id: str = Field(min_length=1, max_length=200)
+    resume_version_id: str | None = Field(default=None, min_length=1, max_length=200)
     submitted_at: datetime | None = None
     note: str | None = Field(default=None, max_length=2_000)
 
@@ -382,6 +386,35 @@ class ConversationTranscriptResponse(BaseModel):
     pending_interaction_body: str | None = None
 
 
+def dedupe_adjacent_message_resources(
+    messages: tuple[ConversationMessageView, ...],
+) -> tuple[ConversationMessageView, ...]:
+    """Enforce one visual owner for a resource within a user/reply pair.
+
+    Older rows may contain the same attachment on both sides of a turn. The
+    attachment belongs to the user message; assistant-produced resources keep
+    their own card. This compatibility projection repairs historical rows
+    without mutating the audit log.
+    """
+    projected: list[ConversationMessageView] = []
+    for message in messages:
+        resources = message.resources
+        if message.role == "assistant" and projected:
+            previous = projected[-1]
+            if previous.role == "user" and previous.resources:
+                owned = {
+                    (resource.kind, resource.resource_id)
+                    for resource in previous.resources
+                }
+                resources = tuple(
+                    resource
+                    for resource in resources
+                    if (resource.kind, resource.resource_id) not in owned
+                )
+        projected.append(message.model_copy(update={"resources": resources}))
+    return tuple(projected)
+
+
 RESUME_DOCUMENT_MEDIA_TYPES: dict[str, tuple[str, str]] = {
     "pdf": ("application/pdf", "pdf"),
     "text": ("text/plain; charset=utf-8", "txt"),
@@ -430,6 +463,7 @@ class ResumeVersionView(BaseModel):
     document_format: str
     byte_size: int
     created_at: datetime
+    change_summary: str
 
 
 class ResumeView(BaseModel):
@@ -606,6 +640,35 @@ class DashboardResponse(BaseModel):
     next_actions: tuple[ActionItemView, ...] = ()
 
 
+def resume_version_change_summary(
+    current: str | None, previous: str | None, *, has_previous: bool
+) -> str:
+    if not has_previous:
+        return "初始版本"
+    if current is None or previous is None:
+        return "无法从文件中提取文本，暂无改动摘要"
+    import difflib
+    before = previous.splitlines()
+    after = current.splitlines()
+    matcher = difflib.SequenceMatcher(a=before, b=after, autojunk=False)
+    added: list[str] = []
+    removed: list[str] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("replace", "delete"):
+            removed.extend(before[i1:i2])
+        if tag in ("replace", "insert"):
+            added.extend(after[j1:j2])
+    if not added and not removed:
+        return "与上一版本内容一致"
+    parts: list[str] = []
+    if added:
+        parts.append("新增：" + "；".join(added[:2]))
+    if removed:
+        parts.append("删改：" + "；".join(removed[:2]))
+    result = " / ".join(parts)
+    return result[:320] + ("…" if len(result) > 320 else "")
+
+
 class WorkspaceReader:
     """Read models for the person's UI, separate from model-facing tools."""
 
@@ -653,8 +716,13 @@ class WorkspaceReader:
         )
 
     def applications(self, *, user_id: str, limit: int = 100) -> tuple[ApplicationView, ...]:
-        return tuple(
-            ApplicationView(
+        views = []
+        for item in self._applications.list_applications(
+            user_id=user_id,
+            limit=limit,
+        ):
+            latest = self._latest_interview(user_id=user_id, application_id=item.application.id)
+            views.append(ApplicationView(
                 id=item.application.id,
                 status=item.application.status,
                 title=item.job.posting.title,
@@ -663,12 +731,20 @@ class WorkspaceReader:
                 salary=item.job.salary,
                 submitted_at=item.application.submitted_at,
                 updated_at=item.application.updated_at,
-            )
-            for item in self._applications.list_applications(
-                user_id=user_id,
-                limit=limit,
+                interview_round_number=latest.sequence_number if latest else None,
+                interview_round_label=latest.employer_label if latest else None,
+                interview_status=latest.status if latest else None,
             )
         )
+        return tuple(views)
+
+    def _latest_interview(self, *, user_id: str, application_id: str):
+        rounds = self._interviews.list(
+            user_id=user_id,
+            application_id=application_id,
+            limit=100,
+        )
+        return max(rounds, key=lambda item: item.sequence_number, default=None)
 
     def application_mock_interviews(
         self,
@@ -743,7 +819,7 @@ class WorkspaceReader:
         *,
         user_id: str,
         job_posting_id: str,
-        resume_version_id: str,
+        resume_version_id: str | None,
         submitted_at: datetime | None,
         note: str | None,
     ) -> ApplicationView:
@@ -767,7 +843,21 @@ class WorkspaceReader:
             salary=detail.job.salary,
             submitted_at=detail.application.submitted_at,
             updated_at=detail.application.updated_at,
+            interview_round_number=(latest := self._latest_interview(
+                user_id=user_id, application_id=detail.application.id
+            )).sequence_number if latest else None,
+            interview_round_label=latest.employer_label if latest else None,
+            interview_status=latest.status if latest else None,
         )
+
+    def clear_applications(self, *, user_id: str) -> int:
+        return self._applications._application_store.clear_user(user_id=user_id)
+
+    def delete_resume(self, *, user_id: str, resume_id: str) -> bool:
+        return self._resumes.delete_resume(user_id=user_id, resume_id=resume_id)
+
+    def delete_research(self, *, user_id: str, report_id: str) -> bool:
+        return self._research.delete_report(user_id=user_id, report_id=report_id)
 
     def set_job_availability(
         self, *, user_id: str, job_posting_id: str, status: str
@@ -1078,8 +1168,7 @@ class WorkspaceReader:
                         title=kept.title,
                     )
                 )
-        return ConversationTranscriptResponse(
-            messages=tuple(
+        messages = tuple(
                 ConversationMessageView(
                     role=record.message.role,
                     content=record.message.content,
@@ -1093,7 +1182,9 @@ class WorkspaceReader:
                     ),
                 )
                 for record in records
-            ),
+            )
+        return ConversationTranscriptResponse(
+            messages=dedupe_adjacent_message_resources(messages),
             active_workflow=task.active_workflow if task else None,
             phase=task.phase if task else None,
             pending_interaction=(
@@ -1187,6 +1278,28 @@ class WorkspaceReader:
             if not versions:
                 continue
             latest = versions[0]
+            version_texts: dict[str, str | None] = {}
+            model_summaries: dict[str, str] = {}
+            for version in versions:
+                document = self._resumes.read_version_document(
+                    user_id=user_id, resume_version_id=version.id
+                )
+                version_texts[version.id] = (
+                    extract_resume_text(document.document_format, document.raw_bytes)
+                    if document is not None
+                    else None
+                )
+                draft_id = self._resumes.get_tailoring_draft_id(
+                    user_id=user_id, resume_version_id=version.id
+                )
+                if draft_id is not None:
+                    draft = self._tailoring_drafts.get_for_display(
+                        user_id=user_id, draft_id=draft_id
+                    )
+                    if draft is not None and draft.result.strategy_summary.strip():
+                        model_summaries[version.id] = (
+                            draft.result.strategy_summary.strip()
+                        )
             views.append(
                 ResumeView(
                     id=resume.id,
@@ -1211,8 +1324,18 @@ class WorkspaceReader:
                             document_format=version.document_format,
                             byte_size=version.byte_size,
                             created_at=version.created_at,
+                            change_summary=model_summaries.get(version.id)
+                            or resume_version_change_summary(
+                                version_texts.get(version.id),
+                                (
+                                    version_texts.get(versions[index + 1].id)
+                                    if index + 1 < len(versions)
+                                    else None
+                                ),
+                                has_previous=index + 1 < len(versions),
+                            ),
                         )
-                        for version in versions
+                        for index, version in enumerate(versions)
                     ),
                 )
             )
@@ -1990,6 +2113,9 @@ class ConversationDeletionResponse(BaseModel):
     conversation_id: str
     deleted: Literal[True] = True
 
+class CountResponse(BaseModel):
+    count: int
+
 
 class TargetRoleCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -2086,6 +2212,12 @@ def build_read_router(
                     "message": "没有找到对应的已保存岗位或简历版本。",
                 },
             ) from error
+
+    @router.delete("/applications", response_model=CountResponse)
+    async def clear_applications(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> CountResponse:
+        return CountResponse(count=workspace().clear_applications(user_id=principal.user_id))
 
     @router.get("/jobs", response_model=tuple[SavedJobView, ...])
     async def jobs(
@@ -2336,6 +2468,15 @@ def build_read_router(
     ) -> tuple[ResumeView, ...]:
         return workspace().resumes(user_id=principal.user_id)
 
+    @router.delete("/resumes/{resume_id}", response_model=CountResponse)
+    async def delete_resume(
+        resume_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> CountResponse:
+        if not workspace().delete_resume(user_id=principal.user_id, resume_id=resume_id):
+            raise HTTPException(status_code=404, detail="简历不存在。")
+        return CountResponse(count=1)
+
     @router.get("/target-roles", response_model=tuple[TargetRoleView, ...])
     async def target_roles(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
@@ -2505,6 +2646,15 @@ def build_read_router(
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[CompanyResearchView, ...]:
         return workspace().research(user_id=principal.user_id, limit=limit)
+
+    @router.delete("/company-research/{report_id}", response_model=CountResponse)
+    async def delete_company_research(
+        report_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> CountResponse:
+        if not workspace().delete_research(user_id=principal.user_id, report_id=report_id):
+            raise HTTPException(status_code=404, detail="公司研究不存在。")
+        return CountResponse(count=1)
 
     @router.get("/reports/{kind}/{resource_id}", response_model=ReportView)
     async def report(

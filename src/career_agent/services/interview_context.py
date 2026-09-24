@@ -56,9 +56,12 @@ class InterviewPreparationContextFactory:
             user_id=user_id,
             application_id=application_id,
         )
+        resume_version_id = application.application.resume_version_id
+        if resume_version_id is None:
+            raise InterviewContextInputNotFoundError("resume_version")
         document = self._resumes.read_version_document(
             user_id=user_id,
-            resume_version_id=application.application.resume_version_id,
+            resume_version_id=resume_version_id,
         )
         if document is None:
             raise InterviewContextInputNotFoundError("resume_version")
@@ -96,7 +99,7 @@ class InterviewPreparationContextFactory:
             for evidence in self._career_history.list_evidence(
                 user_id=user_id,
                 verification_status="confirmed",
-                source_resume_version_id=application.application.resume_version_id,
+                source_resume_version_id=resume_version_id,
             )
             if evidence.source_locator is not None
             and evidence.source_quote is not None
@@ -149,7 +152,7 @@ class InterviewPreparationContextFactory:
             application_id=application.application.id,
             job_posting_id=application.application.job_posting_id,
             jd_snapshot_id=application.application.jd_snapshot_id,
-            resume_version_id=application.application.resume_version_id,
+            resume_version_id=resume_version_id,
             document=document,
             context=InterviewPreparationContext(
                 company_name=application.job.posting.company_name,

@@ -50,7 +50,8 @@ class ApplicationService:
             {"acknowledged", "interviewing", "rejected", "withdrawn"}
         ),
         "acknowledged": frozenset({"interviewing", "rejected", "withdrawn"}),
-        "interviewing": frozenset({"offer", "rejected", "withdrawn"}),
+        "interviewing": frozenset({"interview_completed", "offer", "rejected", "withdrawn"}),
+        "interview_completed": frozenset({"offer", "rejected", "withdrawn"}),
         "offer": frozenset(),
         "rejected": frozenset(),
         "withdrawn": frozenset(),
@@ -71,20 +72,18 @@ class ApplicationService:
         *,
         user_id: str,
         job_posting_id: str,
-        resume_version_id: str,
+        resume_version_id: str | None = None,
         submitted_at: datetime | None = None,
         note: str | None = None,
     ) -> ApplicationCreation:
-        if not all(
-            (user_id.strip(), job_posting_id.strip(), resume_version_id.strip())
-        ):
-            raise ValueError("Application owner, job, and resume version are required")
+        if not user_id.strip() or not job_posting_id.strip():
+            raise ValueError("Application owner and job are required")
         job = self._job_repository.get_job(
             user_id=user_id, job_posting_id=job_posting_id
         )
         if job is None:
             raise ApplicationInputNotFoundError("job_posting")
-        if self._resume_store.get_version(
+        if resume_version_id is not None and self._resume_store.get_version(
             user_id=user_id, resume_version_id=resume_version_id
         ) is None:
             raise ApplicationInputNotFoundError("resume_version")

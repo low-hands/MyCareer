@@ -331,6 +331,25 @@ class ResumeStore:
             row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
         return self._resume(row) if row else None
 
+    def delete_resume(self, *, user_id: str, resume_id: str) -> bool:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            version_rows = connection.execute("SELECT id FROM resume_versions WHERE resume_id = ?", (resume_id,)).fetchall()
+            owned = connection.execute("SELECT 1 FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
+            if owned is None:
+                return False
+            version_ids = [row[0] for row in version_rows]
+            if version_ids:
+                placeholders = ",".join("?" for _ in version_ids)
+                if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resume_artifacts'").fetchone():
+                    connection.execute(f"DELETE FROM resume_artifacts WHERE resume_version_id IN ({placeholders})", tuple(version_ids))
+                connection.execute(f"DELETE FROM resume_tailoring_version_links WHERE source_resume_version_id IN ({placeholders}) OR new_resume_version_id IN ({placeholders})", (*version_ids, *version_ids))
+                connection.execute(f"DELETE FROM resume_import_receipts WHERE resume_id = ? OR resume_version_id IN ({placeholders})", (resume_id, *version_ids))
+                connection.execute(f"DELETE FROM resume_version_documents WHERE resume_version_id IN ({placeholders})", tuple(version_ids))
+                connection.execute(f"DELETE FROM resume_versions WHERE id IN ({placeholders})", tuple(version_ids))
+            connection.execute("DELETE FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id))
+        return True
+
     def list_versions(self, *, user_id: str, resume_id: str) -> tuple[ResumeVersion, ...]:
         with self._connect() as connection:
             rows = connection.execute("SELECT v.id, v.resume_id, v.version_number, v.source_type, v.document_format, v.content_sha256, v.byte_size, v.created_at FROM resume_versions v JOIN resumes r ON r.id = v.resume_id WHERE v.resume_id = ? AND r.user_id = ? ORDER BY v.version_number DESC", (resume_id, user_id)).fetchall()
@@ -392,6 +411,23 @@ class ResumeStore:
         if row is None:
             return None
         return self._resume(row[:8]), self._version(row[8:])
+
+    def get_tailoring_draft_id(
+        self, *, user_id: str, resume_version_id: str
+    ) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT link.tailoring_draft_id
+                FROM resume_tailoring_version_links AS link
+                JOIN resume_versions AS version
+                  ON version.id = link.new_resume_version_id
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE link.user_id = ? AND version.id = ? AND resume.user_id = ?
+                """,
+                (user_id, resume_version_id, user_id),
+            ).fetchone()
+        return row[0] if row is not None else None
 
     def create_tailored_version(
         self,

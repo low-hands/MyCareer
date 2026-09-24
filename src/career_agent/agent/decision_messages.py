@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import json
+import os
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from career_agent.agent.main_agent_contracts import MainAgentContext
 from career_agent.agent.tool_profiles import project_tool_availability
@@ -21,6 +24,20 @@ TURN_OBSERVATION_LABEL = (
 )
 SPOTLIGHT_TAG = "untrusted-data"
 CACHEABLE_CONTEXT_SLOTS = ("career_identity", "conversation_summary")
+
+
+def runtime_clock() -> dict[str, str]:
+    """Authoritative wall clock for resolving relative user dates."""
+    timezone_name = os.environ.get("CAREER_AGENT_TIMEZONE", "Asia/Shanghai")
+    try:
+        zone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        timezone_name = "Asia/Shanghai"
+        zone = ZoneInfo(timezone_name)
+    return {
+        "now": datetime.now(zone).isoformat(),
+        "timezone": timezone_name,
+    }
 
 _TASK_DATA_KEYS = frozenset(
     {
@@ -272,6 +289,7 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     task_data = {key: projected_task[key] for key in _TASK_DATA_KEYS}
 
     control: dict[str, Any] = {
+        "runtime_clock": runtime_clock(),
         "preferences": projected["preferences"],
         "task": task_control,
     }

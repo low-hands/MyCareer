@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import sqlite3
 
 import pytest
 
@@ -98,6 +99,68 @@ def test_application_service_is_idempotent_and_records_append_only_events(
     assert events[-1].previous_status == events[-1].new_status == "acknowledged"
     assert all(event.source == "user_reported" for event in events)
     assert first.application.jd_snapshot_id == job.snapshot.id
+
+
+def test_application_can_track_a_user_report_before_the_resume_is_known(tmp_path) -> None:
+    service, _, job, _, _ = seed_application_service(tmp_path)
+
+    created = service.create_application(
+        user_id="u1",
+        job_posting_id=job.posting.id,
+        resume_version_id=None,
+        note="Interview invitation reported by the user.",
+    ).application
+
+    assert created.resume_version_id is None
+    assert service.get_application(
+        user_id="u1", application_id=created.id
+    ).application == created
+
+
+def test_application_v1_upgrade_keeps_existing_rows_and_allows_unknown_resume(
+    tmp_path,
+) -> None:
+    path = tmp_path / "applications.sqlite3"
+    now = datetime(2026, 9, 23, tzinfo=timezone.utc).isoformat()
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE schema_versions (
+                component TEXT PRIMARY KEY, version INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO schema_versions VALUES ('applications', 1, '2026-09-23');
+            CREATE TABLE applications (
+                id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+                job_posting_id TEXT NOT NULL, jd_snapshot_id TEXT NOT NULL,
+                resume_version_id TEXT NOT NULL, status TEXT NOT NULL,
+                submitted_at TEXT NOT NULL, created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL, UNIQUE(user_id, job_posting_id)
+            );
+            CREATE TABLE application_events (
+                id TEXT PRIMARY KEY,
+                application_id TEXT NOT NULL REFERENCES applications(id),
+                user_id TEXT NOT NULL, source TEXT NOT NULL,
+                event_type TEXT NOT NULL, previous_status TEXT,
+                new_status TEXT NOT NULL, note TEXT, occurred_at TEXT NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            "INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("app-1", "u1", "job-1", "jd-1", "resume-1", "submitted", now, now, now),
+        )
+
+    store = SQLiteApplicationStore(path)
+
+    restored = store.get(user_id="u1", application_id="app-1")
+    assert restored is not None and restored.resume_version_id == "resume-1"
+    with sqlite3.connect(path) as connection:
+        resume_column = next(
+            row for row in connection.execute("PRAGMA table_info(applications)")
+            if row[1] == "resume_version_id"
+        )
+    assert resume_column[3] == 0
 
 
 def test_application_service_enforces_transitions_and_prevents_duplicate_application(

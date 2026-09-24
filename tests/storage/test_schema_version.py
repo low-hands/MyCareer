@@ -72,7 +72,7 @@ DECLARED_VERSIONS = {
     "action_center": 2,
     "action_executions": 1,
     "turn_receipts": 2,
-    "applications": 1,
+    "applications": 2,
     "interviews": 2,
     "calendar": 3,
     "email_tracking": 1,

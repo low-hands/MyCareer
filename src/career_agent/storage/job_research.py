@@ -445,6 +445,18 @@ class SQLiteJobResearchStore:
             ).fetchall()
         return tuple(self._source(row) for row in rows)
 
+    def delete_report(self, *, user_id: str, report_id: str) -> bool:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            run = connection.execute("SELECT run_id FROM job_research_reports WHERE id = ? AND user_id = ?", (report_id, user_id)).fetchone()
+            if run is None:
+                return False
+            run_id = run[0]
+            connection.execute("DELETE FROM job_research_sources WHERE run_id = ?", (run_id,))
+            connection.execute("DELETE FROM job_research_reports WHERE id = ? AND user_id = ?", (report_id, user_id))
+            connection.execute("DELETE FROM job_research_runs WHERE id = ? AND user_id = ?", (run_id, user_id))
+        return True
+
     _RUN_SELECT = (
         "SELECT id, user_id, company_key, job_posting_id, jd_snapshot_id, "
         "scope_json, status, "

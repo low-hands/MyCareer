@@ -17,15 +17,18 @@ from career_agent.api.reads import (
     EmailEventView,
     EmailWorkspaceResponse,
     ConversationMessageView,
+    ConversationResourceView,
     ConversationTranscriptResponse,
     ConversationView,
     ResumeView,
     ResumeImportResponse,
+    WorkspaceReader,
     MockInterviewSessionView,
     TargetRoleView,
     SavedJobDetailView,
     SavedJobView,
     build_workspace_reader,
+    dedupe_adjacent_message_resources,
 )
 from career_agent.domain.action_center import ActionItem, DailyBrief
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -43,8 +46,68 @@ from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resumes import ResumeStore
 
+from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
+
 
 NOW = datetime(2026, 8, 31, 2, 0, tzinfo=timezone.utc)
+
+
+def test_transcript_projection_assigns_each_resource_to_one_side_of_a_turn() -> None:
+    resource = ConversationResourceView(kind="saved_job", resource_id="jd-1")
+    messages = (
+        ConversationMessageView(
+            role="user", content="保存了", created_at=NOW, resources=(resource,)
+        ),
+        ConversationMessageView(
+            role="assistant", content="已记录", created_at=NOW, resources=(resource,)
+        ),
+    )
+
+    projected = dedupe_adjacent_message_resources(messages)
+
+    assert projected[0].resources == (resource,)
+    assert projected[1].resources == ()
+
+
+def test_resume_version_uses_tailoring_model_summary(tmp_path) -> None:
+    database = tmp_path / "resumes.sqlite3"
+    resumes = ResumeStore(database)
+    role = resumes.create_target_role(user_id="u1", title="AI 产品经理", priority=1)
+    resume, source = resumes.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="AI 产品简历",
+        content="项目经历：负责产品规划".encode(),
+        document_format="text",
+    )
+    drafts = SQLiteResumeTailoringDraftStore(database)
+    draft = drafts.create(
+        user_id="u1",
+        match_id="match-1",
+        tailoring_goal=None,
+        worker_version="test",
+        result=ResumeTailoringResult(
+            strategy_summary="补充 AI 产品落地成果，突出跨团队推进和量化业务影响。"
+        ),
+    )
+    resumes.create_tailored_version(
+        user_id="u1",
+        source_resume_version_id=source.id,
+        tailoring_draft_id=draft.id,
+        markdown="# 优化后简历\n\n项目经历：负责产品规划与落地",
+    )
+    reader = WorkspaceReader.__new__(WorkspaceReader)
+    reader._resumes = resumes
+    reader._tailoring_drafts = drafts
+
+    view = reader.resumes(user_id="u1")[0]
+
+    assert view.id == resume.id
+    assert view.versions[0].change_summary == (
+        "补充 AI 产品落地成果，突出跨团队推进和量化业务影响。"
+    )
+    assert view.versions[1].change_summary.startswith("初始版本")
 
 
 class _Runtime:

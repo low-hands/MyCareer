@@ -124,7 +124,7 @@ class TurnInputResource(StreamContract):
     request.
     """
 
-    kind: Literal["resume_version", "job_posting", "jd_snapshot"]
+    kind: Literal["resume_version", "job_posting", "jd_snapshot", "application"]
     id: str = Field(min_length=1, max_length=200)
 
 

@@ -842,7 +842,9 @@ class ConversationTaskState(ContractModel):
     not "is a run suspended", so a resume-tailoring turn changes it while
     ``active_workflow`` stays ``none``. It is switched only through
     ``route_to_capability`` and persists across turns so a domain is routed
-    into once, not on every decision.
+    into once, not on every decision. High-confidence ingress keyword routing
+    may select the same profile before the first decision; it never selects an
+    action, so ambiguous requests still go through ``route_to_capability``.
     """
 
     active_workflow: Literal["job_discovery", "mock_interview", "none"] = "none"
@@ -3430,6 +3432,8 @@ class GetInterviewToolArguments(ContractModel):
 class CreateInterviewToolArguments(ContractModel):
     application_id: str | None = Field(default=None, min_length=1)
     application_selection_index: SelectionIndex | None = None
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    job_selection_index: SelectionIndex | None = None
     details: InterviewDetails
 
 
@@ -3655,6 +3659,7 @@ class AgentDecision(ContractModel):
     message: str | None = None
     tool_call: ToolCall | None = None
     questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
+    selection_source: Literal["latest_tool_result"] | None = None
 
     @model_validator(mode="after")
     def _questionnaire_shape(self) -> "AgentDecision":
@@ -3667,6 +3672,8 @@ class AgentDecision(ContractModel):
                 raise ValueError("questionnaire ids must be ordered q1..qN")
         elif self.questions:
             raise ValueError("questions require questionnaire action")
+        if self.selection_source is not None and self.action != "ask_user":
+            raise ValueError("selection_source requires ask_user action")
         return self
 
 
@@ -4363,10 +4370,8 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             resume_version_id = context.task.resume_version_candidates[
                 resume_selection_index - 1
             ].resume_version_id
-        if job_posting_id is None or resume_version_id is None:
-            raise ValueError(
-                "create_application requires selected or active job and resume version"
-            )
+        if job_posting_id is None:
+            raise ValueError("create_application requires a selected or active job")
         payload["job_posting_id"] = job_posting_id
         payload["resume_version_id"] = resume_version_id
     if name in {"update_application_status", "get_application"}:
@@ -4444,9 +4449,20 @@ def project_interview_arguments(
                 selection_index - 1
             ].application_id
         application_id = application_id or context.task.active_application_id
-        if application_id is None:
-            raise ValueError("create_interview requires an active application")
         payload["application_id"] = application_id
+        job_selection_index = payload.pop("job_selection_index", None)
+        job_posting_id = context.task.active_job_posting_id
+        if job_selection_index is not None:
+            if not 1 <= job_selection_index <= len(context.task.saved_job_candidates):
+                raise ValueError("saved-job selection index is out of range")
+            job_posting_id = context.task.saved_job_candidates[
+                job_selection_index - 1
+            ].job_posting_id
+        if application_id is None and job_posting_id is None:
+            raise ValueError(
+                "create_interview requires an active application or saved job"
+            )
+        payload["job_posting_id"] = job_posting_id
     if name in {
         "get_interview",
         "update_interview",

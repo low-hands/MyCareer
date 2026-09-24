@@ -113,6 +113,42 @@ def test_read_version_document_is_user_scoped(tmp_path) -> None:
     ) is None
 
 
+def test_tailoring_draft_link_is_user_scoped(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = create_role(store)
+    resume, source_version = store.import_document(
+        user_id="u1",
+        target_role_id=role.id,
+        name="Base",
+        content=b"source resume",
+        document_format="text",
+    )
+    from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+    from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
+
+    drafts = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3")
+    draft = drafts.create(
+        user_id="u1",
+        match_id="match-1",
+        tailoring_goal=None,
+        worker_version="test",
+        result=ResumeTailoringResult(strategy_summary="突出项目落地和量化结果。"),
+    )
+    _, tailored_version = store.create_tailored_version(
+        user_id="u1",
+        source_resume_version_id=source_version.id,
+        tailoring_draft_id=draft.id,
+        markdown="# 优化后简历",
+    )
+
+    assert store.get_tailoring_draft_id(
+        user_id="u1", resume_version_id=tailored_version.id
+    ) == draft.id
+    assert store.get_tailoring_draft_id(
+        user_id="u2", resume_version_id=tailored_version.id
+    ) is None
+
+
 def test_migrates_legacy_v1_resumes_to_unassigned_target_role(tmp_path) -> None:
     path = tmp_path / "resumes.sqlite3"
     connection = sqlite3.connect(path)

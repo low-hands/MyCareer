@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import json
 import hashlib
+import re
 from contextvars import ContextVar
 from time import perf_counter
 from dataclasses import dataclass
@@ -76,6 +77,7 @@ from career_agent.agent.input_resources import (
     InputResourceNotFoundError,
     InputResourceRejectedError,
     resolve_input_resources,
+    resolve_application_input_resource,
     resolve_job_input_resources,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
@@ -360,6 +362,54 @@ DEFAULT_MAX_EXTERNAL_WRITE_CALLS = 1
 DEFAULT_MAX_PROJECTION_REFUSALS = 2
 DEFAULT_MAX_AUTHORIZATION_REFUSALS = 1
 DEFAULT_MAX_FAILURE_RETRIES = 2
+
+
+_FAST_PROFILE_PATTERNS: tuple[tuple[ToolProfile, re.Pattern[str]], ...] = (
+    (
+        "interview",
+        re.compile(
+            r"(?:模拟面试|面试(?:准备|安排|通知|记录|复盘|题|官)|"
+            r"(?:准备|参加|安排|记录|模拟).{0,4}面试|"
+            r"(?:有|收到|约了|参加).{0,8}面试|mock\s+interview|interview\s+prep)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "application",
+        re.compile(
+            r"(?:投递(?:记录|进度|状态)?|申请进度|招聘邮件|offer(?:\s|$)|"
+            r"跟进招聘|application\s+status)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "resume",
+        re.compile(
+            r"(?:简历(?:分析|优化|修改|润色|匹配|导出)?|(?:^|\s)CV(?:\s|$)|resume)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "job",
+        re.compile(
+            r"(?:找.{0,12}(?:工作|岗位|职位|实习)|搜(?:索)?.{0,8}(?:岗位|职位|实习)|"
+            r"(?:分析|看看|对比).{0,8}(?:JD|岗位|职位)|岗位库|职位描述|job\s+search)",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+
+def keyword_tool_profile(message: str) -> ToolProfile | None:
+    """Route only unmistakable domain language; actions still need a decision."""
+    normalized = " ".join(message.split())
+    if not normalized:
+        return None
+    matches = [
+        profile for profile, pattern in _FAST_PROFILE_PATTERNS
+        if pattern.search(normalized)
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 class PendingAction(TypedDict, total=False):
@@ -1417,6 +1467,15 @@ class MainAgentRuntime:
             if input_resources
             else ()
         )
+        active_application = (
+            resolve_application_input_resource(
+                self._tools.application_service,
+                user_id=user_id,
+                resources=input_resources,
+            )
+            if input_resources
+            else (None, None)
+        )
         bare_confirmation_target = routing_task.bare_confirmation_target
         if bare_confirmation_target is not None:
             routing_task = self._context_manager.disarm_bare_confirmation(
@@ -1442,6 +1501,7 @@ class MainAgentRuntime:
                     ),
                     attached_resumes,
                     attached_jobs,
+                    active_application,
                 )
             )
             try:
@@ -1466,9 +1526,7 @@ class MainAgentRuntime:
                     result.tool_results
                     or ((result.tool_result,) if result.tool_result else ())
                 ),
-                assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
-                    (), context.user_input_resource_refs(),
-                ),
+                assistant_resource_refs=MainAgentRuntime._turn_resource_refs(()),
                 episode_drafts=drafts_from_tool_results(
                     user_id=user_id,
                     conversation_id=conversation_id,
@@ -1536,8 +1594,14 @@ class MainAgentRuntime:
                 ),
                 attached_resumes,
                 attached_jobs,
+                active_application,
             )
         )
+        fast_profile = keyword_tool_profile(context.user_message)
+        if fast_profile is not None and context.task.tool_profile == "core":
+            context = context.model_copy(update={
+                "task": context.task.model_copy(update={"tool_profile": fast_profile})
+            })
         try:
             result = self._run_loaded_context(
                 context,
@@ -1576,7 +1640,7 @@ class MainAgentRuntime:
                     composed=bool(result.model_message),
                 ),
                 assistant_resource_refs=MainAgentRuntime._turn_resource_refs(
-                    result.tool_results, context.user_input_resource_refs(),
+                    result.tool_results,
                 ),
                 assistant_bodies=MainAgentRuntime._delivered_bodies(
                     result.tool_results
@@ -1766,6 +1830,7 @@ class MainAgentRuntime:
         context: MainAgentContext,
         attached_resumes: tuple[AttachedResumeContext, ...],
         attached_jobs: tuple[SavedJobCandidateContextItem, ...] = (),
+        active_application: tuple[str | None, str | None] = (None, None),
     ) -> MainAgentContext:
         """Place verified attachments on the turn and make the last one active.
 
@@ -1777,7 +1842,7 @@ class MainAgentRuntime:
         job candidates, so ``get_saved_job`` with no selection reads exactly
         the posting the page named rather than whatever was last discussed.
         """
-        if not attached_resumes and not attached_jobs:
+        if not attached_resumes and not attached_jobs and active_application[0] is None:
             return context
         task_updates: dict[str, Any] = {}
         if attached_resumes:
@@ -1814,6 +1879,9 @@ class MainAgentRuntime:
                     if item.job_posting_id not in attached_ids
                 ),
             )
+        if active_application[0] is not None:
+            task_updates["active_application_id"] = active_application[0]
+            task_updates["active_application_status"] = active_application[1]
         return context.model_copy(
             update={
                 **({"attached_resumes": attached_resumes} if attached_resumes else {}),
@@ -1889,10 +1957,6 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
         )
         if interaction is not None:
-            for reference in self._turn_resource_refs(
-                (), result.context.user_input_resource_refs(),
-            ):
-                self._emit(self._resource_ready_event(reference))
             self._emit(interaction)
             self._emit(
                 TurnSuspendedEvent(
@@ -1921,7 +1985,7 @@ class MainAgentRuntime:
         # turn holding two stored reports; emitting only the last one would
         # leave a durable report the reader is never handed.
         for reference in self._turn_resource_refs(
-            result.tool_results, result.context.user_input_resource_refs(),
+            result.tool_results,
         ):
             self._emit(MainAgentRuntime._resource_ready_event(reference))
         self._emit(TurnCompletedEvent(turn_id=turn_id))
@@ -2108,10 +2172,16 @@ class MainAgentRuntime:
             and decision.action == "ask_user"
             and not any(item.disposition == "failed" for item in result.tool_results)
         ):
-            # Options are grounded only in the tool result that loaded them.
-            # Prompt wording is model output, not a trustworthy data-source
-            # discriminator and must never change the model's decision.
-            options = MainAgentRuntime._selection_options(tool_result, task)
+            # A list result is not proof that the next question asks the user
+            # to select from it. The model may instead be asking for a date,
+            # role, or other missing fact. Require an explicit typed decision
+            # before attaching candidates, so stale applications cannot appear
+            # underneath an unrelated free-text question.
+            options = (
+                MainAgentRuntime._selection_options(tool_result, task)
+                if decision.selection_source == "latest_tool_result"
+                else ()
+            )
             if options:
                 return InteractionRequiredEvent(
                     interaction_id=interaction_id(*stable_parts, prompt),
@@ -4305,6 +4375,12 @@ class MainAgentRuntime:
         if state.get("pending", {}).get("owner_confirmed"):
             return "present"
         if state.get("pending", {}).get("policy_owned"):
+            return "present"
+        # Capabilities may declare that their result is a complete user-facing
+        # receipt. This is a protocol-level terminal signal, not an intent
+        # shortcut: the model still selected and parameterized the action, but
+        # the runtime does not pay for a second model call just to paraphrase it.
+        if result.disposition != "failed" and result.payload.get("turn_complete") is True:
             return "present"
         # A projection refusal always returns to the model, which then re-selects,
         # asks the user, or explains — its call, not a table's.

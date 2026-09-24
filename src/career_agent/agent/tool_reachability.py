@@ -99,13 +99,13 @@ PRECONDITIONS: dict[str, Precondition] = {
         and _reachable_via_resume_version(t)
         and _has_current_job_analysis(t)
     ),
-    "create_application": lambda t: (
-        _reachable_via_job(t) and _reachable_via_resume_version(t)
-    ),
+    "create_application": _reachable_via_job,
     # Applications.
     "get_application": _reachable_via_application,
     "update_application_status": _reachable_via_application,
-    "create_interview": _reachable_via_application,
+    "create_interview": lambda t: bool(
+        _reachable_via_application(t) or _reachable_via_job(t)
+    ),
     # Interviews.
     "get_interview": _reachable_via_interview,
     "update_interview": _reachable_via_interview,
@@ -177,10 +177,13 @@ REQUIREMENTS: dict[str, str] = {
     "revise_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "finalize_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "match_resume_to_job": "先分析当前 JD，并同时选定一个岗位和一个简历版本",
-    "create_application": "需要同时选定一个岗位和一个简历版本",
+    "create_application": _NEEDS_JOB,
     "get_application": _NEEDS_APPLICATION,
     "update_application_status": _NEEDS_APPLICATION,
-    "create_interview": _NEEDS_APPLICATION,
+    "create_interview": (
+        "需要上下文唯一指向一条投递记录或一个已保存岗位；若都没有，"
+        "先询问是否纳入跟踪，并请用户提供或选择公司与岗位，不能关联无关 JD"
+    ),
     "get_interview": _NEEDS_INTERVIEW,
     "update_interview": _NEEDS_INTERVIEW,
     "complete_interview": _NEEDS_INTERVIEW,

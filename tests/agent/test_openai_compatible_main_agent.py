@@ -12,7 +12,7 @@ from career_agent.agent.decision_messages import (
     TURN_OBSERVATION_LABEL,
     project_decision_messages,
 )
-from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments
+from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments, SavedJobCandidateContextItem
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
 from career_agent.agent.openai_compatible_client import (
@@ -54,6 +54,41 @@ class Client:
     def __init__(self) -> None:
         self.completions = Completions()
         self.chat = type("Chat", (), {"completions": self.completions})()
+
+
+def test_browser_capture_receipt_skips_the_model_call() -> None:
+    client = Client()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://example.test/v1/chat/completions",
+            api_key="test",
+            model="test-model",
+        ),
+        client=client,
+    )
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message=(
+            "我已经从 BOSS 保存了岗位「大模型实习生 · 智谱华章」，先记下来就好。"
+            "暂不需要分析；之后我可以在岗位库点「让 Agent 分析」，再让你仅基于这份 JD 做岗位分析。"
+        ),
+        attached_jobs=(SavedJobCandidateContextItem(
+            job_posting_id="job-1",
+            jd_snapshot_id="jd-1",
+            jd_version=1,
+            title="大模型实习生",
+            company_name="智谱华章",
+        ),),
+    )
+
+    decision = maker.decide(context, ())
+
+    assert decision.action == "final"
+    assert decision.message == (
+        "已记录：智谱华章「大模型实习生」。之后你可以让我仅基于这份 JD 做岗位分析。"
+    )
+    assert client.completions.kwargs is None
 
 
 def test_prompt_cache_policy_is_loaded_explicitly_from_environment() -> None:
@@ -284,6 +319,30 @@ def test_untrusted_data_uses_a_session_stable_matching_spotlight_nonce() -> None
     assert first.splitlines()[1] == second.splitlines()[1]
     other = context.model_copy(update={"conversation_id": "c2"})
     assert maker._spotlight_nonce(other) != nonce
+
+
+def test_decision_context_has_an_authoritative_local_clock() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="后天上午十点",
+    )
+
+    clock = project_decision_messages(context).control["runtime_clock"]
+
+    assert clock["timezone"] == "Asia/Shanghai"
+    assert datetime.fromisoformat(clock["now"]).utcoffset() is not None
+
+
+def test_system_policy_resolves_relative_time_and_unique_active_references() -> None:
+    policy = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
+
+    assert "runtime_clock is the authoritative current instant" in policy
+    assert "Use Asia/Shanghai as the default" in policy
+    assert "semantic compatibility, recency, and uniqueness" in policy
+    assert "Ask one concise confirmation whether to track the interview" in policy
+    assert "do not ask the same confirmation again" in policy
+    assert "do not attach the interview to an unrelated historical JD" in policy
 
 
 def test_request_token_usage_counts_tools_and_weights_cjk() -> None:
@@ -1278,6 +1337,26 @@ def test_main_agent_rejects_malformed_json_instead_of_showing_it_as_prose() -> N
         )
 
     assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"
+    assert "decision validation failed" in (captured.value.detail or "")
+
+
+def test_main_agent_accepts_json_decision_inside_markdown_fence() -> None:
+    client = Client()
+    message = type(
+        "Message",
+        (),
+        {"content": '```json\n{"action":"final","message":"可以"}\n```', "tool_calls": []},
+    )()
+    choice = type("Choice", (), {"message": message, "finish_reason": "stop"})()
+    client.completions.create = lambda **kwargs: type(
+        "Response", (), {"choices": [choice]}
+    )()
+    maker = OpenAICompatibleMainAgentDecisionMaker(_config(), client=client)
+
+    decision = maker.decide(_context(), ())
+
+    assert decision.action == "final"
+    assert decision.message == "可以"
 
 
 def _config() -> OpenAICompatibleAgentConfig:

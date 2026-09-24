@@ -1412,7 +1412,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "create_application",
-                            "description": "Track a real externally submitted application using one exact owned resume version and the saved job's current immutable JD snapshot. Use job_selection_index or resume_version_selection_index to override the active objects. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
+                            "description": "Track a real externally submitted application against the saved job's current immutable JD snapshot. Attach the exact owned resume version when known; it may be omitted for a referral or an already-progressed process whose resume is unknown. Use selection indexes to override active objects. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
                             "parameters": CreateApplicationToolArguments.model_json_schema(),
                         },
                     },
@@ -1510,7 +1510,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "create_interview",
-                            "description": "Create a user-reported real interview appointment for an application. employer_label may be provided only when the employer explicitly used that label; never infer 一面/二面 from sequence.",
+                            "description": "Create a user-reported real interview appointment after explicit tracking authority. It uses the uniquely focused active application when present; otherwise the runtime may create a minimal tracked application from the uniquely focused active saved job, without inventing a resume, and move it to interviewing. Never attach it to an unrelated historical JD. employer_label may be provided only when the employer explicitly used that label; never infer 一面/二面 from sequence.",
                             "parameters": CreateInterviewToolArguments.model_json_schema(),
                         },
                     },
@@ -2522,14 +2522,48 @@ class MainAgentToolRegistry:
         model_arguments = CreateInterviewToolArguments.model_validate(
             {key: value for key, value in arguments.items() if key != "user_id"}
         )
-        if model_arguments.application_id is None:
-            raise ValueError("create_interview requires application_id")
+        application_id = model_arguments.application_id
+        if application_id is None:
+            if (
+                self._application_service is None
+                or model_arguments.job_posting_id is None
+            ):
+                raise ValueError(
+                    "create_interview requires an application or saved job"
+                )
+            try:
+                creation = self._application_service.create_application(
+                    user_id=user_id,
+                    job_posting_id=model_arguments.job_posting_id,
+                    resume_version_id=None,
+                    note="由用户报告的面试安排自动建立跟踪记录。",
+                )
+                application_id = creation.application.id
+            except ApplicationInputNotFoundError:
+                return ToolObservation(
+                    tool_name="create_interview",
+                    state="interview_application_conflict",
+                    message="无法从当前岗位建立面试跟踪记录。",
+                    execution_outcome="not_committed",
+                )
         try:
             interview = self._interview_service.create_manual(
                 user_id=user_id,
-                application_id=model_arguments.application_id,
+                application_id=application_id,
                 details=model_arguments.details,
             )
+            application = self._application_service.get_application(
+                user_id=user_id, application_id=application_id
+            ).application if self._application_service is not None else None
+            if application is not None and application.status in {
+                "submitted", "acknowledged"
+            }:
+                self._application_service.update_application(
+                    user_id=user_id,
+                    application_id=application_id,
+                    status="interviewing",
+                    note="用户已报告收到面试安排。",
+                )
         except InterviewApplicationConflictError as error:
             return ToolObservation(
                 tool_name="create_interview",
@@ -2542,7 +2576,13 @@ class MainAgentToolRegistry:
             tool_name="create_interview",
             state="interview_ready",
             message=f"已记录系统中的第 {interview.sequence_number} 场面试。",
-            payload=self._interview_payload(interview),
+            payload={
+                **self._interview_payload(interview),
+                # The capability has already materialized every local record
+                # required for this request; another model call would only
+                # paraphrase this receipt and add avoidable latency.
+                "turn_complete": True,
+            },
             execution_outcome="committed",
         )
 
@@ -5060,11 +5100,8 @@ class MainAgentToolRegistry:
         model_arguments = CreateApplicationToolArguments.model_validate(
             {key: value for key, value in arguments.items() if key != "user_id"}
         )
-        if (
-            model_arguments.job_posting_id is None
-            or model_arguments.resume_version_id is None
-        ):
-            raise ValueError("create_application requires job and resume version IDs")
+        if model_arguments.job_posting_id is None:
+            raise ValueError("create_application requires a job ID")
         try:
             result = self._application_service.create_application(
                 user_id=user_id,

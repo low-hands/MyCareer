@@ -1102,16 +1102,27 @@ def create_app(
     ) -> BrowserJobCaptureResponse:
         # Ownership is checked inside the store: an intent another user
         # created reads as no intent at all, and the save stays a library save.
-        if intent_id is None:
-            return response
-        intent = _job_capture_store().get_intent(user_id=user_id, intent_id=intent_id)
+        store = _job_capture_store()
+        # The app can be running in an embedded browser while the extension is
+        # running in Chrome. In that topology there is no shared extension
+        # bridge, so recover only the newest very recent BOSS intent. An
+        # ordinary save with no recent search remains library-only.
+        intent = (
+            store.get_intent(user_id=user_id, intent_id=intent_id)
+            if intent_id is not None
+            else store.get_recent_live_intent(user_id=user_id, platform="boss")
+        )
         if intent is None:
-            return response.model_copy(update={"continuation_reason": "invalid_intent"})
+            return response.model_copy(update={
+                "continuation_reason": (
+                    "invalid_intent" if intent_id is not None else "no_intent"
+                )
+            })
         if not conversation_accepts_capture(user_id, intent.conversation_id):
             return response.model_copy(
                 update={"continuation_reason": "conversation_unavailable"}
             )
-        recording = _job_capture_store().record_capture(
+        recording = store.record_capture(
             intent=intent,
             job_posting_id=saved.posting.id,
             jd_snapshot_id=saved.snapshot.id,

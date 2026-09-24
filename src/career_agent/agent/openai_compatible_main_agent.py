@@ -582,6 +582,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._cache_metrics.set(None)
         self._finish_reason.set(None)
         self._attempts.start()
+        capture_receipt = self._capture_receipt_decision(context)
+        if capture_receipt is not None:
+            return capture_receipt
         metadata = self._static_request_metadata(tool_specs)
         tools = metadata.tools
         messages = list(
@@ -674,6 +677,28 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
         return self._parse_text_decision(content)
 
+    @staticmethod
+    def _capture_receipt_decision(
+        context: MainAgentContext,
+    ) -> AgentDecision | None:
+        """Render the backend-authored save receipt without a model round trip."""
+        if (
+            len(context.attached_jobs) != 1
+            or not context.user_message.startswith("我已经从 BOSS 保存了岗位「")
+            or "，先记下来就好。暂不需要分析；" not in context.user_message
+        ):
+            return None
+        job = context.attached_jobs[0]
+        company = " ".join(job.company_name.split())[:200]
+        title = " ".join(job.title.split())[:500]
+        return AgentDecision(
+            action="final",
+            message=(
+                f"已记录：{company}「{title}」。"
+                "之后你可以让我仅基于这份 JD 做岗位分析。"
+            ),
+        )
+
     def _request_with_retries(
         self,
         *,
@@ -740,6 +765,14 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     @staticmethod
     def _parse_text_decision(content: str) -> AgentDecision:
         normalized_content = content.strip()
+        # Compatible providers sometimes wrap an otherwise valid JSON decision
+        # in a Markdown code fence. Strip only the fence; do not attempt to
+        # repair arbitrary prose or malformed JSON because that could turn an
+        # incomplete tool request into an executable decision.
+        if normalized_content.startswith("```") and normalized_content.endswith("```"):
+            lines = normalized_content.splitlines()
+            if len(lines) >= 3:
+                normalized_content = "\n".join(lines[1:-1]).strip()
         try:
             return AgentDecision.model_validate_json(normalized_content)
         except ValueError as error:
@@ -777,7 +810,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             # ordinary answer.
             if not normalized_content.startswith(("{", "[")):
                 return AgentDecision(action="final", message=normalized_content)
-            raise AgentWorkerError("MAIN_AGENT_INVALID_RESPONSE", "Main Agent model returned an invalid decision.") from error
+            detail = str(error).replace("\n", " ")[:1000]
+            raise AgentWorkerError(
+                "MAIN_AGENT_INVALID_RESPONSE",
+                "Main Agent model returned an invalid decision.",
+                detail=f"decision validation failed: {detail}; content_prefix={normalized_content[:240]!r}",
+            ) from error
 
     @staticmethod
     def _system_prompt() -> str:
@@ -895,6 +933,18 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "treat a constraint as expired because it is old. "
             "task.has_active_* flags are the only proof "
             "that active objects exist; internal ids are intentionally withheld. "
+            "runtime_clock is the authoritative current instant and default local "
+            "timezone. Resolve relative temporal expressions from it; do not ask "
+            "for an absolute date or timezone when the conversion is unambiguous. "
+            "Use Asia/Shanghai as the default unless the user explicitly supplies "
+            "another timezone or location that unambiguously implies one. "
+            "Never guess the current date. Resolve anaphoric and deictic references "
+            "against active entities using semantic compatibility, recency, and "
+            "uniqueness. Clarify only when there is no compatible focus or more "
+            "than one plausible target. "
+            "Target resolution does not itself authorize a write, but do not ask "
+            "the user to repeat company, role, or other facts already present in "
+            "the active entity. "
             "Use active_calendar_proposal_expires_at as the proposal deadline. "
             "Natural-language approval cannot replace a harness-owned bound "
             "confirmation interaction. "
@@ -941,6 +991,36 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "list inside final.message or a Markdown code fence. A failed "
             "capability is a failure, not missing user "
             "information: report its classified failure before asking anything. "
+            "A user may ask for interview preparation before tracking an "
+            "application, JD, resume, or interview record. Do not force-link "
+            "that interview to an unrelated saved application and do not make "
+            "creating those records a prerequisite. Use known company, role, "
+            "schedule, timezone, format, and preparation focus from the current "
+            "request, runtime clock, and active entity; ask only for information "
+            "that is actually missing for the next action. Then provide an "
+            "explicitly provisional preparation plan from "
+            "those facts; state that JD-specific and resume-specific advice is "
+            "unavailable until the user optionally supplies them. Only offer "
+            "tracked applications when the user asks to link or persist the "
+            "interview. Treat a bare report such as 'I have an interview' as a "
+            "reported fact, not by itself as authority to write. Ask one concise "
+            "confirmation whether to track the interview and move the corresponding "
+            "application to interviewing. An immediately adjacent affirmative or "
+            "imperative response such as 'yes', 'create it', 'record it', or 'track "
+            "it' is explicit authority for that exact write; do not ask the same "
+            "confirmation again. When one compatible active application or saved job "
+            "is uniquely in focus, link it directly and never ask the user to repeat "
+            "the company or role. When none is in focus, do not attach the interview "
+            "to an unrelated historical JD: ask only for the missing company/role "
+            "or let the user select or update an existing application. Creating an "
+            "interview from a uniquely focused saved job may create the minimal "
+            "tracking application and move it to interviewing; a resume is optional. "
+            "For action='ask_user', set "
+            "selection_source='latest_tool_result' only when the question "
+            "explicitly asks the user to choose one item from the immediately "
+            "preceding list tool result. Omit selection_source for dates, times, "
+            "roles, explanations, confirmations, and every other free-text "
+            "question. "
             "Prefer JSON action='final' with ordinary "
             "assistant prose when no tool is needed; use action='ask_user' "
             "before an action that depends on missing information or "
