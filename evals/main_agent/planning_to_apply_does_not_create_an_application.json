@@ -2,31 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "7a59c39e24bcbbaba1b5e593c49801775d642845bad6f2d69c8ebcf1423f6157",
-  "context_shape_fingerprint": "a92e232e255c020abeb53b1def478d75f8fe783149cecc630a8bd19609bdda63",
-  "recorded_at": "2026-09-20T08:23:41.603306+00:00",
+  "prompt_fingerprint": "069887ff432aae174e457b6013ebd09f5690bdaeb63a1373807c09803a207174",
+  "context_shape_fingerprint": "a6479dcff35b61766650677a2085bbfc238967b25499b1cdf68cfce93f5ccd8f",
+  "recorded_at": "2026-09-24T06:38:56.597646+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "route_to_capability",
-        "arguments": {
-          "domain": "resume"
-        }
-      }
+      "content": "{\"action\":\"ask_user\",\"message\":\"你目前表示的是准备投递，还不能记录为已投递。请在实际提交申请后告诉我“已投递”，我再为“示例科技｜算法工程师”创建投递记录。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:41.603306+00:00",
+      "recorded_at": "2026-09-24T06:38:56.597646+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "route_to_capability",
-            "arguments": {
-              "domain": "resume"
-            }
-          }
+          "content": "{\"action\":\"ask_user\",\"message\":\"你目前表示的是准备投递，还不能记录为已投递。请在实际提交申请后告诉我“已投递”，我再为“示例科技｜算法工程师”创建投递记录。\",\"questions\":[]}"
         }
       ]
     }

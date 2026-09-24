@@ -2,9 +2,9 @@
   "scenario": "weak_match_routes_to_resume_tailoring",
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
-  "context_shape_fingerprint": "9fe51a39972447a50dc2cf330dc4439de39c4129e40311f949826b48d060333c",
-  "recorded_at": "2026-09-20T08:24:01.879420+00:00",
+  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
+  "context_shape_fingerprint": "65a1c440fc5665251a2d767fb68028b32cc7b669b4ce9a6d41d2cb81b692eac0",
+  "recorded_at": "2026-09-24T07:28:03.649407+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,7 +16,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:01.879420+00:00",
+      "recorded_at": "2026-09-24T07:28:03.649407+00:00",
       "steps": [
         {
           "tool_call": {

@@ -505,7 +505,8 @@ def test_transport_errors_are_safe_and_retryable(
     assert caught.value.code == f"RESUME_ANALYSIS_{suffix}"
     assert caught.value.retryable is True
     assert "private" not in str(caught.value)
-    assert len(chat.requests) == 1
+    # A dropped connection gets one retry; a timeout already spent its budget.
+    assert len(chat.requests) == (1 if timeout else 2)
 
 
 def test_complete_request_budget_includes_schema_framing_and_output(

@@ -354,13 +354,18 @@ def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+# The live clock changes on every call; hashing it would make every cassette
+# stale the moment it is written.
+_FINGERPRINT_CLOCK = {"now": "2000-01-01T00:00:00+08:00", "timezone": "Asia/Shanghai"}
+
+
 def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
     """Hash fixture values, authority boundaries and native-message layout."""
     context = scenario.context
     step_shapes = []
     for index, step in enumerate(scenario.steps):
         context = _advance(context, step)
-        projection = project_decision_messages(context)
+        projection = project_decision_messages(context, clock=_FINGERPRINT_CLOCK)
         messages = projection.messages(
             system_prompt="[policy]", spotlight_nonce="0" * 32
         )

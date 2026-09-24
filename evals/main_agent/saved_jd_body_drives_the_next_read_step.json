@@ -2,25 +2,47 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
-  "context_shape_fingerprint": "85729c4491dd06aea38c51ea7d5cf230a44a113288ca914f2c065c2b341b9139",
-  "recorded_at": "2026-09-20T08:24:02.750438+00:00",
+  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
+  "context_shape_fingerprint": "8587bd62921373d686ce106ab6bb4aa85b91f598dc9a09cf56443a9b0e86b598",
+  "recorded_at": "2026-09-24T07:41:24.664526+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "match_resume_to_job",
+        "name": "analyze_job",
         "arguments": {}
       }
     }
   ],
-  "sample_count": 1,
+  "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:02.750438+00:00",
+      "recorded_at": "2026-09-24T07:42:41.697515+00:00",
       "steps": [
         {
           "tool_call": {
-            "name": "match_resume_to_job",
+            "name": "analyze_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:41:14.343687+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:41:24.664526+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
             "arguments": {}
           }
         }

@@ -1356,8 +1356,8 @@ body { background: var(--ui-bg); }
 
 /* Company reports: a quiet reading column with evidence kept close to findings. */
 .company-report { max-width: 920px; margin: 24px auto; color: #343c34; }
-.report-card-body .company-report .markdown-content { max-height: none; overflow: visible; margin-top: 10px; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; }
-.company-report h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 16px; font-weight: 600; }
+.report-card-body .company-report .markdown-content { max-height: none; overflow: visible; margin-top: 10px; color: var(--ui-text, #344054); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.company-report h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 15px; font-weight: 620; }
 .company-report-overview { padding: 20px 22px; border-radius: 12px; border: 1px solid #e6e9e0; background: #f7f8f4; }
 .company-report-section { margin-top: 28px; }
 .company-report-section > h3 { margin-bottom: 14px; }
@@ -1369,7 +1369,7 @@ body { background: var(--ui-bg); }
 .company-evidence.fact { color: #437553; background: #eef6ee; }
 .company-evidence.inference { color: #8b702d; background: #faf5e7; }
 .company-evidence.unknown { color: #6e7480; background: #f0f2f5; }
-.company-finding .markdown-content h3 { margin: 0 0 8px; font-size: 15px; }
+.company-finding .markdown-content h3 { margin: 0 0 8px; font-size: 14px; }
 .company-finding .markdown-content p { color: #596354; }
 .company-report-questions, .company-report-context { padding: 18px 22px; border-radius: 12px; background: #f7f8f3; border: 1px solid #e6e9dc; }
 .company-report-limits { padding: 16px 20px; border-left: 3px solid #e0d5b7; background: #fcfaf5; }
@@ -1382,7 +1382,7 @@ body { background: var(--ui-bg); }
 .company-source { scroll-margin-top: 18px; }
 .company-source-back { display: inline-block; margin-top: 8px; color: #7d887a; font-size: 11px; text-decoration: none; }
 .company-source-back:hover { color: #46715b; text-decoration: underline; }
-.company-report blockquote { margin: 12px 0; padding: 8px 14px; border-left: 2px solid #d7ddcf; background: #f6f7f2; color: #75806d; font-size: 13px; }
+.company-report blockquote { margin: 12px 0; padding: 8px 14px; border-left: 2px solid #d7ddcf; background: #f6f7f2; color: #75806d; font-size: 12px; line-height: 1.6; }
 .research-card:has(.company-report) { grid-column: 1 / -1; }
 @media (max-width: 620px) {
   .company-report-overview, .company-finding, .company-report-questions, .company-report-context { padding: 14px; }
@@ -1520,6 +1520,14 @@ body { background: var(--ui-bg); }
 .resume-version-history[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
 .resume-version-history .resume-version-row { border-radius: 7px; background: var(--ui-subtle); }
 .research-card .report-card { margin-bottom: 0; }
+.research-card .report-card-header { gap: 10px; padding: 10px 12px; }
+.research-card .report-card-icon { width: 30px; height: 30px; border-radius: 8px; }
+.research-card .report-card-label { gap: 2px; }
+.research-card .report-card-label strong { color: var(--ui-text); font-size: 13px; font-weight: 600; line-height: 1.35; }
+.research-card .report-card-label small,
+.research-card .report-card-toggle { font-size: 11px; }
+.research-card .report-card-label small { color: var(--ui-muted); }
+.research-card .report-card-body { padding: 0 12px 12px; }
 .dashboard-version-summary { margin: 0 0 16px; padding: 13px 16px; border-left: 3px solid #789582; background: var(--ui-subtle); }
 .dashboard-version-summary strong { font-size: 13px; }
 .dashboard-version-summary p { margin: 6px 0 0; color: var(--ui-muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }

@@ -2,9 +2,9 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "4e81251e5aa2123eadf5c98c8b248e7b9c9deccd1c0fac694f88a2590bc20d8e",
-  "recorded_at": "2026-09-20T08:23:51.287130+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "5bf2009d5f7377f44b325c3ac61d0e6a1e71bfb61161d2dc8c78fc4793e6a62e",
+  "recorded_at": "2026-09-24T07:48:10.438691+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:51.096510+00:00",
+      "recorded_at": "2026-09-24T07:47:34.455216+00:00",
       "steps": [
         {
           "tool_call": {
@@ -31,7 +31,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:50.908376+00:00",
+      "recorded_at": "2026-09-24T07:48:10.447312+00:00",
       "steps": [
         {
           "tool_call": {
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:51.287130+00:00",
+      "recorded_at": "2026-09-24T07:48:10.438691+00:00",
       "steps": [
         {
           "tool_call": {

@@ -119,17 +119,22 @@ def test_capture_runs_without_a_page_and_keeps_the_original_snapshot(env: Captur
     assert env.decisions.calls == 1
     messages = env.context.list_messages("u1", "original", limit=10)
     assert len(messages) == 2
-    assert all(message.resource_refs[0].resource_id == first["jd_snapshot_id"] for message in messages)
+    user, assistant = messages
+    # The snapshot card belongs to the user's message; the reply does not
+    # repeat the input the user attached.
+    assert [ref.resource_id for ref in user.resource_refs] == [first["jd_snapshot_id"]]
+    assert assistant.resource_refs == ()
     assert all("JD v1" not in message.content for message in messages)
     assert env.context.list_messages("u1", "other", limit=10) == ()
     task = env.context.get_task("u1", "original")
     assert task is not None and task.active_jd_snapshot_id == first["jd_snapshot_id"]
     receipt = env.receipts.get(user_id="u1", conversation_id="original", request_id=event.id)
     assert receipt is not None and receipt.turn_id == event.continuation_turn_id
-    resources = [item for item in receipt.events if item.type == "job_resource_ready"]
-    assert len(resources) == 1 and resources[0].resource_id == first["jd_snapshot_id"]
     kinds = [item.type for item in receipt.events]
-    assert kinds.index("content_delta") < kinds.index("job_resource_ready") < kinds.index("turn_completed")
+    # The card is read back from the user's message, so the reply stream does
+    # not announce it a second time.
+    assert "job_resource_ready" not in kinds
+    assert kinds.index("content_delta") < kinds.index("turn_completed")
 
 
 def test_busy_conversation_queues_and_early_ack_does_not_cancel(env: CaptureApp, auth):

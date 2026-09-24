@@ -18,6 +18,7 @@ from career_agent.agent.main_agent_runtime import (
     RuntimeAction,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.openai_compatible_client import AgentWorkerError
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
 from career_agent.cli import EXIT_WORKFLOW_ERROR, _trajectory_tool_specs, build_parser, main
 from career_agent.evaluation import trajectory
@@ -1172,3 +1173,31 @@ def test_chat_passes_no_interaction_argument_on_an_ordinary_turn() -> None:
 
     assert code == 0
     assert runtime.calls == [("u1", "s1", "你好", None)]
+
+
+def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
+    """One scenario the model cannot answer must not hide the whole report."""
+    scenario = SCENARIOS[0]
+
+    def record_catalogue(*args, **kwargs):
+        raise AgentWorkerError(
+            "MAIN_AGENT_INVALID_RESPONSE", "Main Agent model returned an invalid decision."
+        )
+
+    monkeypatch.setattr(trajectory, "record_catalogue", record_catalogue)
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name: None)
+    monkeypatch.setenv("MAIN_AGENT_BASE_URL", "https://offline.invalid/v1")
+    monkeypatch.setenv("MAIN_AGENT_API_KEY", "offline")
+    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
+    output = StringIO()
+
+    code = main(
+        ["eval", "trajectories", "--record", "--scenario", scenario.name],
+        stdout=output,
+        stderr=StringIO(),
+    )
+    payload = json.loads(output.getvalue())
+
+    assert code != 0
+    assert payload["recording_error"].startswith("MAIN_AGENT_INVALID_RESPONSE")
+    assert payload["results"][0]["behaviour"] == "unrecorded"

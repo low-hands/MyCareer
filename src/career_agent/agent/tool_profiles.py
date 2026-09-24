@@ -21,6 +21,7 @@ cannot be routable without an effect, or have a profile that no route reaches.
 
 from __future__ import annotations
 
+import re
 from types import MappingProxyType
 from typing import Mapping, TypeVar
 
@@ -90,6 +91,9 @@ _DOMAIN_TOOLS: Mapping[ToolProfile, frozenset[str]] = MappingProxyType(
                 "list_target_roles",
                 "find_saved_jobs",
                 "get_saved_job",
+                # Matching requires a current JD analysis; without this the
+                # profile offers the goal but not the step that unlocks it.
+                "analyze_job",
                 "analyze_resume",
                 "get_resume_analysis",
                 "match_resume_to_job",
@@ -191,6 +195,7 @@ if effect_for(ROUTE_TOOL) != "CONTROL":
     raise RuntimeError("the route tool must be a CONTROL capability")
 
 MAX_NEXT_REQUIREMENTS = 3
+_TOOL_NAME = re.compile(r"\b[a-z]+(?:_[a-z]+)+\b")
 Schema = TypeVar("Schema", bound=Mapping[str, object])
 
 
@@ -226,11 +231,21 @@ def project_tool_availability(task: ConversationTaskState) -> dict[str, object]:
         if name in PRECONDITIONS and not reachable(name, task):
             requirement = REQUIREMENTS[name]
             requirements.setdefault(requirement, []).append(name)
+    # A requirement whose unlocking tool is offered right now is the next step;
+    # one that waits on another blocked tool is two steps away. The cap should
+    # cut the distant ones, not whichever sort after the near ones by name.
+    available_set = frozenset(available)
+    ordered = sorted(
+        requirements.items(),
+        key=lambda item: not (
+            frozenset(_TOOL_NAME.findall(item[0])) & available_set
+        ),
+    )
     return {
         "tool_profile": task.tool_profile,
         "available_now": available,
         "next_requirements": [
             f"{', '.join(names)}: {requirement}"
-            for requirement, names in list(requirements.items())[:MAX_NEXT_REQUIREMENTS]
+            for requirement, names in ordered[:MAX_NEXT_REQUIREMENTS]
         ],
     }

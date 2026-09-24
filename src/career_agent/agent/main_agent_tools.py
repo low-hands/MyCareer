@@ -12,6 +12,8 @@ import sqlite3
 from typing import Any, Literal
 from urllib.parse import urlencode
 
+from pydantic import ValidationError
+
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
@@ -32,6 +34,7 @@ from career_agent.agent.interview_preparation_presenter import (
 )
 from career_agent.agent.conversation_span_presenter import render_conversation_span
 from career_agent.agent.job_research_presenter import summarize_job_research
+from career_agent.agent.structured_responses import validation_detail
 from career_agent.agent.summary_text import clamp, condense
 from career_agent.agent.mock_interview_presenter import (
     mock_interview_question_view,
@@ -251,6 +254,31 @@ from career_agent.storage.working_notes import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _deliverable_ref(**fields: Any) -> ConversationResourceReference | None:
+    """A result card reference, or none when the producer built an invalid one.
+
+    The card is presentation. The work it points at has already been committed
+    by the time a reference is built, so a malformed reference must cost the
+    card, not the turn that did the work. The failure is traced with the
+    structural validation detail only: titles and descriptions carry user data.
+    """
+    try:
+        return ConversationResourceReference(**fields)
+    except ValidationError as error:
+        kind = fields.get("kind")
+        logger.error("dropped invalid %s resource reference", kind)
+        record_active_trace(
+            "presentation_degraded",
+            "resource_reference",
+            outcome="failed",
+            error_code="RESOURCE_REFERENCE_INVALID",
+            error_detail=validation_detail(error),
+            recoverable=False,
+            details={"kind": kind if isinstance(kind, str) else None},
+        )
+        return None
 
 
 MainAgentToolOutput = ToolObservation
@@ -752,6 +780,11 @@ class MainAgentToolRegistry:
     def job_repository(self) -> JobPostingRepository | None:
         """The repository that owns saved jobs, for the runtime to verify inputs against."""
         return self._job_repository
+
+    @property
+    def application_service(self) -> ApplicationService | None:
+        """The service that owns applications, for the runtime to verify inputs against."""
+        return self._application_service
 
     def schemas(self) -> tuple[dict[str, Any], ...]:
         schemas: list[dict[str, Any]] = [
@@ -2135,7 +2168,7 @@ class MainAgentToolRegistry:
                 # condition could only ever have hidden that failure. The state
                 # test stays because this builder also serves the running,
                 # awaiting and cancelled results, which have no report at all.
-                ConversationResourceReference(
+                _deliverable_ref(
                     kind="mock_interview_report",
                     resource_id=result.report_id,
                     title=title,
@@ -2377,7 +2410,7 @@ class MainAgentToolRegistry:
             message=summarize_mock_interview_result(view),
             payload=view.model_dump(mode="json"),
             resource_ref=(
-                ConversationResourceReference(
+                _deliverable_ref(
                     kind="mock_interview_report",
                     resource_id=report.id,
                     title=title,
@@ -2732,7 +2765,7 @@ class MainAgentToolRegistry:
             message="真实面试复盘报告已保存；结论仅基于你的复述。",
             payload=self._interview_retro_payload(report),
             execution_outcome="committed",
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="interview_retro_report",
                 resource_id=report.id,
                 title=self._resource_title(
@@ -2784,7 +2817,7 @@ class MainAgentToolRegistry:
             message=summarize_interview_preparation(preparation.result),
             payload=self._interview_preparation_payload(preparation),
             execution_outcome="committed",
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="interview_preparation",
                 resource_id=preparation.id,
                 title=title,
@@ -2839,7 +2872,7 @@ class MainAgentToolRegistry:
             state="interview_preparation_ready",
             message=summarize_interview_preparation(preparation.result),
             payload=self._interview_preparation_payload(preparation),
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="interview_preparation",
                 resource_id=preparation.id,
                 title=title,
@@ -3467,7 +3500,7 @@ class MainAgentToolRegistry:
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
             ),
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="job_research_report",
                 resource_id=result.report.id,
                 job_posting_id=result.report.job_posting_id,
@@ -3518,7 +3551,7 @@ class MainAgentToolRegistry:
             message=summarize_job_research(result.report.summary, cached=False),
             facts=MainAgentToolRegistry._job_research_facts(result),
             payload=self._job_research_payload(result),
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="job_research_report",
                 resource_id=result.report.id,
                 job_posting_id=result.report.job_posting_id,
@@ -3564,7 +3597,7 @@ class MainAgentToolRegistry:
             payload=self._job_research_payload(
                 result, model_arguments.job_posting_id
             ),
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="job_research_report",
                 resource_id=result.report.id,
                 job_posting_id=result.report.job_posting_id,
@@ -3752,7 +3785,7 @@ class MainAgentToolRegistry:
             # captured again later, and this turn's card has to keep opening
             # the text this turn read. Title and description are a display
             # snapshot so the card still names the job once the posting is gone.
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="saved_job",
                 resource_id=record.snapshot.id,
                 job_posting_id=record.posting.id,
@@ -4554,10 +4587,9 @@ class MainAgentToolRegistry:
                 "created_at": stored.created_at.isoformat(),
                 **result.model_dump(mode="json"),
             },
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="job_analysis",
                 resource_id=stored.id,
-                job_posting_id=stored.job_posting_id,
                 title=title,
                 description=description,
             ),
@@ -4693,7 +4725,7 @@ class MainAgentToolRegistry:
                 "created_at": stored.created_at.isoformat(),
                 **stored.result.model_dump(mode="json"),
             },
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="resume_job_match",
                 resource_id=stored.id,
                 title=title,
@@ -4737,7 +4769,7 @@ class MainAgentToolRegistry:
                 "created_at": stored.created_at.isoformat(),
                 **stored.result.model_dump(mode="json"),
             },
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="resume_job_match",
                 resource_id=stored.id,
                 title=title,
@@ -6638,7 +6670,7 @@ class MainAgentToolRegistry:
                 "clarification_questions": draft.result.clarification_questions,
                 "warnings": draft.result.warnings,
             },
-            resource_ref=ConversationResourceReference(
+            resource_ref=_deliverable_ref(
                 kind="resume_tailoring_draft",
                 resource_id=draft.id,
                 title=title,

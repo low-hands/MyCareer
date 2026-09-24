@@ -1174,8 +1174,9 @@ def test_saved_jd_body_pair_is_causal_and_has_fresh_model_evidence(
 
     positive_cassette = load_cassette(requires_rust.name)
     negative_cassette = load_cassette(no_language.name)
+    # Continuing to match an unanalyzed JD starts with its analysis.
     assert positive_cassette.steps[0].get("tool_call", {}).get("name") == (
-        "match_resume_to_job"
+        "analyze_job"
     )
     assert negative_cassette.steps[0].get("tool_call") is None
 
@@ -1322,19 +1323,28 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
     assert resolved.count("report-h1") == 0
     # Other visible report handles belong to different companies.
     borrowed = []
+    bare_reads = 0
     without_reference_count = 0
     for sample in load_cassette(unnumbered.name).recordings:
         call = sample[0].get("tool_call") or {}
         arguments = call.get("arguments", {})
         reference = arguments.get("reference")
         if reference is None:
-            assert call.get("name") not in {"get_job_research", "research_job"}
-            without_reference_count += 1
+            # A bare read returns the active report, which is another
+            # company's: the gap the 2026-09-24 cuts actually showed.
+            if call.get("name") in {"get_job_research", "research_job"}:
+                bare_reads += 1
+            else:
+                without_reference_count += 1
         else:
             borrowed.append(reference)
-    assert without_reference_count + len(borrowed) == unnumbered.recording_samples
+    assert (
+        without_reference_count + bare_reads + len(borrowed)
+        == unnumbered.recording_samples
+    )
     if unnumbered.known_gap is None:
         assert borrowed == []
+        assert bare_reads == 0
     assert {
         unnumbered.context.resolve_reference(
             reference=handle,

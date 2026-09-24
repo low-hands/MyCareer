@@ -166,6 +166,35 @@ def test_route_reducer_switches_profile_only_on_success() -> None:
     assert bogus.tool_profile == "resume"
 
 
+def test_the_resume_profile_offers_the_step_that_unlocks_matching() -> None:
+    """Matching needs a current JD analysis, so its profile must offer one.
+
+    Without analyze_job the resume profile offered neither the match tool nor
+    the step that unlocks it, and the model wandered through job lookups.
+    """
+    unanalyzed = project_tool_availability(
+        ConversationTaskState(
+            tool_profile="resume",
+            active_resume_version_id="rv-1",
+            active_job_posting_id="job-1",
+        )
+    )
+
+    assert "analyze_job" in unanalyzed["available_now"]
+    assert "match_resume_to_job" not in unanalyzed["available_now"]
+    assert "analyze_job" in REQUIREMENTS["match_resume_to_job"]
+    # The cap keeps the step that is actionable now. Ordering by name used to
+    # cut it behind tailoring steps that wait on matching itself.
+    assert any(
+        line.startswith("match_resume_to_job:")
+        for line in unanalyzed["next_requirements"]
+    )
+    assert not any(
+        line.startswith("draft_resume_tailoring")
+        for line in unanalyzed["next_requirements"]
+    )
+
+
 def test_availability_is_derived_from_profile_and_preconditions() -> None:
     cold = project_tool_availability(ConversationTaskState())
     assert cold["tool_profile"] == "core"

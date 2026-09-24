@@ -262,7 +262,9 @@ def context_churn_slot_values(
 _CONTENT_CLIPPED_MARKER = "\n\n[runtime message metadata: content_clipped=true]"
 
 
-def project_decision_messages(context: MainAgentContext) -> DecisionMessageProjection:
+def project_decision_messages(
+    context: MainAgentContext, *, clock: Mapping[str, str] | None = None
+) -> DecisionMessageProjection:
     """Split the existing semantic projection without changing its facts.
 
     Routing and authorization state is emitted in a harness-authority reminder
@@ -270,6 +272,9 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     text remains inside a clearly labelled low-authority data message. Selectors
     and resource handles stay beside their display data rather than being
     duplicated into parallel arrays that the model would have to join.
+
+    ``clock`` replaces the live wall clock for callers that hash the projection
+    and need it to be reproducible.
     """
 
     projected = context.model_context()
@@ -289,7 +294,7 @@ def project_decision_messages(context: MainAgentContext) -> DecisionMessageProje
     task_data = {key: projected_task[key] for key in _TASK_DATA_KEYS}
 
     control: dict[str, Any] = {
-        "runtime_clock": runtime_clock(),
+        "runtime_clock": dict(clock) if clock is not None else runtime_clock(),
         "preferences": projected["preferences"],
         "task": task_control,
     }

@@ -2,37 +2,37 @@
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
-  "context_shape_fingerprint": "66aab76d76f64e9e1978d3c114efd747ca438095df267d59f185be7fd2f41cfd",
-  "recorded_at": "2026-09-20T08:24:24.330675+00:00",
+  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
+  "context_shape_fingerprint": "bfdab4782126660b1d143d30f7b208685ca6f91885f54cd7e97a8308ebe1e1a3",
+  "recorded_at": "2026-09-24T06:41:17.965652+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回了 0 条。当前这段会话的历史只记录到序号 8。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录，结果为 0/0 条。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:23.077993+00:00",
+      "recorded_at": "2026-09-24T06:41:14.786290+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回了 0 条。当前这段会话的历史只记录到序号 8。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录，结果为 0/0 条。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:24:23.421239+00:00",
+      "recorded_at": "2026-09-24T06:41:13.905915+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 返回 0 条记录。这段当前对话目前只记录到序号 8，因此没有 100–110 可读取。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"已读取对话序号 100–110，该范围内没有对话记录，返回 0 条。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:24:24.330675+00:00",
+      "recorded_at": "2026-09-24T06:41:17.965652+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有读到内容，返回 0 条。当前这段会话实际只记录到序号 8，因此该范围尚不存在。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回 0 条。当前可读取的历史截至序号 8。\",\"questions\":[]}"
         }
       ]
     }

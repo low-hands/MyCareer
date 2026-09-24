@@ -3447,6 +3447,9 @@ def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -
         state="resume_job_match_ready",
         message="岗位匹配已完成。",
         payload={},
+        resource_ref=ConversationResourceReference(
+            kind="resume_job_match", resource_id="match-1"
+        ),
     )
     failed = ToolResult(
         tool_name="analyze_resume",
@@ -3472,6 +3475,30 @@ def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -
     assert update["assistant_message"].startswith(failed.message)
     assert update["assistant_message"].endswith(guidance)
     assert update["model_message"] == f"{failed.message}\n\n{guidance}"
+
+
+def test_a_card_state_whose_reference_was_dropped_still_delivers_its_body() -> None:
+    """A dropped card must not take the body with it: nothing else would show it."""
+    backed = ToolResult(
+        tool_name="match_resume_to_job",
+        state="resume_job_match_ready",
+        message="岗位匹配已完成（有卡片）。",
+        payload={},
+        resource_ref=ConversationResourceReference(
+            kind="resume_job_match", resource_id="match-1"
+        ),
+    )
+    dropped = ToolResult(
+        tool_name="analyze_job",
+        state="job_analysis_ready",
+        message="岗位 JD 分析已完成（卡片丢失）。",
+        payload={},
+    )
+
+    bodies = MainAgentRuntime._undelivered_bodies((backed, dropped))
+
+    assert "卡片丢失" in bodies
+    assert "有卡片" not in bodies
 
 
 def test_a_blank_reply_is_no_reply_at_all() -> None:

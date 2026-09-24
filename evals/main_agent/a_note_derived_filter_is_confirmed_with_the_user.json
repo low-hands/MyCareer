@@ -2,37 +2,37 @@
   "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
   "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "02827fbea8e19b519d9086eaea13551b4b104fd51d9d5e61264fda8f937b10f4",
-  "recorded_at": "2026-09-20T08:23:07.218343+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "543fb7f0040a508da809b4f7cda1f5e1d9c86568b2248e9655824eb762e60e4e",
+  "recorded_at": "2026-09-24T06:37:53.271721+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"可以，我来为你打开招聘网站的岗位搜索。请先补充两个条件：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我目标岗位和工作城市，我就能开始搜索新岗位。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:07.958360+00:00",
+      "recorded_at": "2026-09-24T06:37:46.410276+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"可以，我来为你打开招聘网站的岗位搜索。请先补充两个条件：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我目标岗位和工作城市，我就能开始搜索新岗位。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:08.467635+00:00",
+      "recorded_at": "2026-09-24T06:37:52.855856+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请补充两个信息，我就能为你打开对应的 BOSS 直聘岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或使用什么搜索关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"目标城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"可以，我需要先确定搜索条件：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"工作城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:07.218343+00:00",
+      "recorded_at": "2026-09-24T06:37:53.271721+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"可以。请先告诉我目标岗位和城市，我会为你打开对应的 BOSS 直聘搜索页。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位或方向？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"可以。请告诉我岗位方向和城市，我就为你打开招聘搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"目标城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

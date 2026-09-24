@@ -189,6 +189,9 @@ export const API_CONTRACT = {
           "city": "北京",
           "company_name": "示例科技",
           "id": "app-1",
+          "interview_round_label": null,
+          "interview_round_number": null,
+          "interview_status": null,
           "salary": "25-35K",
           "status": "interviewing",
           "submitted_at": "2026-09-12T12:00:00Z",
@@ -218,6 +221,42 @@ export const API_CONTRACT = {
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "interview_round_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Interview Round Label"
+          },
+          "interview_round_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Interview Round Number"
+          },
+          "interview_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Interview Status"
           },
           "salary": {
             "anyOf": [
@@ -1479,6 +1518,26 @@ export const API_CONTRACT = {
         "type": "object"
       }
     },
+    "CountResponse": {
+      "examples": [
+        {
+          "count": 2
+        }
+      ],
+      "schema": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "CountResponse",
+        "type": "object"
+      }
+    },
     "DailyBriefResponse": {
       "examples": [
         {
@@ -1683,6 +1742,9 @@ export const API_CONTRACT = {
               "city": null,
               "company_name": "示例科技",
               "id": "app-1",
+              "interview_round_label": null,
+              "interview_round_number": null,
+              "interview_status": null,
               "salary": null,
               "status": "interviewing",
               "submitted_at": "2026-09-12T12:00:00Z",
@@ -1892,6 +1954,42 @@ export const API_CONTRACT = {
               "id": {
                 "title": "Id",
                 "type": "string"
+              },
+              "interview_round_label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Interview Round Label"
+              },
+              "interview_round_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Interview Round Number"
+              },
+              "interview_status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Interview Status"
               },
               "salary": {
                 "anyOf": [
@@ -4070,6 +4168,10 @@ export const API_CONTRACT = {
                 "title": "Byte Size",
                 "type": "integer"
               },
+              "change_summary": {
+                "title": "Change Summary",
+                "type": "string"
+              },
               "created_at": {
                 "format": "date-time",
                 "title": "Created At",
@@ -4098,7 +4200,8 @@ export const API_CONTRACT = {
               "version_number",
               "document_format",
               "byte_size",
-              "created_at"
+              "created_at",
+              "change_summary"
             ],
             "title": "ResumeVersionView",
             "type": "object"
@@ -5154,7 +5257,8 @@ export const API_CONTRACT = {
                 "enum": [
                   "resume_version",
                   "job_posting",
-                  "jd_snapshot"
+                  "jd_snapshot",
+                  "application"
                 ],
                 "title": "Kind",
                 "type": "string"

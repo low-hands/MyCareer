@@ -753,8 +753,8 @@ def _states_that_attach_a_resource_ref() -> set[str]:
 
     Scanned rather than exercised because the point is to fail when a state is
     added, and a new one has no test to exercise it yet. Matches each
-    ``ToolObservation(...)`` construction that mentions
-    ``ConversationResourceReference`` and takes the ``state=`` inside it.
+    ``ToolObservation(...)`` construction that builds a reference through
+    ``_deliverable_ref`` and takes the ``state=`` inside it.
 
     Known blind spot: a conditional construction counts as attached even when
     the ``else`` branch yields ``None``, because the scan only asks whether the
@@ -770,7 +770,7 @@ def _states_that_attach_a_resource_ref() -> set[str]:
     states = set()
     for block in re.split(r"return ToolObservation\(|= ToolObservation\(", source)[1:]:
         head = block[: block.find("\n    def ") if "\n    def " in block else len(block)]
-        if "ConversationResourceReference" not in head:
+        if "_deliverable_ref(" not in head and "ConversationResourceReference(" not in head:
             continue
         found = re.search(r'state="([a-z_]+)"', head)
         if found:

@@ -2,21 +2,21 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "eb07d4cb5993d8d0a846d84868bb6be283f0e8bec77b547772e775315d1d6753",
-  "recorded_at": "2026-09-20T08:23:43.555472+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "5f9928bdd836f888f31b7779adf37f10762209ef170521708e889d6c18666a42",
+  "recorded_at": "2026-09-24T08:14:06.944834+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"确实值得继续看：上海、算法工程师、30–50K，至少方向和薪资区间比较有吸引力。不过目前还不能只凭这些判断真实匹配度。\\n\\n我可以接着帮你做两件事之一：拆解岗位 JD 的核心要求和风险点，或者结合你的简历评估匹配度。\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看。你希望我下一步做什么？\\n\\n请选择下一步（分析岗位要求、职责和风险 / 用简历评估匹配度 / 调研公司和业务背景 / 把它作为求职目标并记录期望条件 / 其他）\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:43.555472+00:00",
+      "recorded_at": "2026-09-24T08:14:06.944834+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"确实值得继续看：上海、算法工程师、30–50K，至少方向和薪资区间比较有吸引力。不过目前还不能只凭这些判断真实匹配度。\\n\\n我可以接着帮你做两件事之一：拆解岗位 JD 的核心要求和风险点，或者结合你的简历评估匹配度。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看。你希望我下一步做什么？\\n\\n请选择下一步（分析岗位要求、职责和风险 / 用简历评估匹配度 / 调研公司和业务背景 / 把它作为求职目标并记录期望条件 / 其他）\",\"questions\":[]}"
         }
       ]
     }

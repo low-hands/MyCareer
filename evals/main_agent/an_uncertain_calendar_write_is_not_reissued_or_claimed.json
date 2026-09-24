@@ -2,37 +2,49 @@
   "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
   "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "345376bca4359c29d25d5947943af18e7a7cecba3b047e1a93059afc72031bad",
-  "context_shape_fingerprint": "c4adbc1b33d1b31110ed6ce7d4745393333ce1559f47d288e91b989088006bc6",
-  "recorded_at": "2026-09-20T08:24:14.051822+00:00",
+  "prompt_fingerprint": "db80a01cfdf7670f3e83a7abe13d1107f1254955ec3ad27f60166105530f5e35",
+  "context_shape_fingerprint": "82f2e3be64ceb916197f143d075b7a0af23683e151cbd209d18920a875ac299b",
+  "recorded_at": "2026-09-24T07:48:43.517017+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，且本次操作不可直接重试。请先在外部日历中核对该面试事件是否已变更；确认实际状态后，我可以生成新的变更预览，再由你重新批准执行。\",\"questions\":[]}"
+      "tool_call": {
+        "name": "list_calendar_links",
+        "arguments": {}
+      }
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:10.740217+00:00",
+      "recorded_at": "2026-09-24T07:48:52.370656+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，且本次操作不可直接重试。请先在外部日历中核对该面试事件是否已变更；确认实际状态后，我可以生成新的变更预览，再由你重新批准执行。\",\"questions\":[]}"
+          "tool_call": {
+            "name": "list_calendar_links",
+            "arguments": {}
+          }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:24:14.457721+00:00",
+      "recorded_at": "2026-09-24T07:48:45.561193+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，不能直接重试，以免重复创建或修改事件。请先检查外部日历中的实际状态；确认后，我可以重新生成一份日历变更预览，再由你批准执行。\",\"questions\":[]}"
+          "tool_call": {
+            "name": "list_calendar_links",
+            "arguments": {}
+          }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:24:14.051822+00:00",
+      "recorded_at": "2026-09-24T07:48:43.517017+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"日历写入结果暂时无法确认，因此我不能将其视为已成功，也不会直接重试，以免产生重复事件。请先在外部日历中核对该面试事件是否已经更新；确认实际状态后，我可以重新生成一份日历变更预览，再由你确认执行。\",\"questions\":[]}"
+          "tool_call": {
+            "name": "list_calendar_links",
+            "arguments": {}
+          }
         }
       ]
     }

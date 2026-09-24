@@ -344,14 +344,26 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # user's budget on something they did not ask for.
         context=_context(
             user_message="看看我的简历和这个岗位match不match",
+            # The JD is already analyzed so that matching is reachable and the
+            # only live question is whether research tags along. Without it
+            # (as before 5c9415d's analysis precondition) the scenario was
+            # measuring the missing precondition, not the research rule.
             task=ConversationTaskState(
                 tool_profile="resume",
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
+                active_jd_snapshot_id="jd-1",
+                active_job_analysis_id="analysis-1",
+                active_job_analysis_jd_snapshot_id="jd-1",
+                job_analysis_status="ready",
                 active_resume_version_id="rv-1",
             ),
         ),
-        decisive_facts=("task.candidates", "task.has_active_resume_version"),
+        decisive_facts=(
+            "task.candidates",
+            "task.has_active_resume_version",
+            "task.has_active_job_analysis",
+        ),
         steps=(
             TrajectoryStep(
                 expect_tool="match_resume_to_job",
@@ -1030,8 +1042,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # is the only direct selector; a fresh job lookup can recover another.
         # This is intermittent model behaviour, not a retired rule: earlier
         # 2026-09-20 cuts invented an unseen report handle in 1/5 sol samples
-        # and 4/5 qwen samples. The current sol cut passed 5/5, so known_gap
-        # cannot be declared without making its fresh-evidence guard lie.
+        # and 4/5 qwen samples. A 2026-09-20 sol cut passed 5/5, so it carried
+        # no known_gap then; the 2026-09-24 cuts failed again (see known_gap).
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
@@ -1089,6 +1101,13 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         recording_samples=5,
+        known_gap=(
+            "2026-09-24 gpt-5.6-sol recordings called get_job_research with no "
+            "arguments in 2/5 and then 1/5 samples, reading the active report of "
+            "another company; the other samples looked the job up or explained "
+            "the report was unreachable. No handle was invented. Keep this "
+            "visible until a fresh recording passes 5/5."
+        ),
     ),
     TrajectoryScenario(
         name="a_report_older_than_the_window_is_still_read_back",
@@ -1306,10 +1325,15 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "task.has_active_resume_version",
             "task.has_active_job_posting",
         ),
+        # The JD has no current analysis, so continuing to match starts with
+        # analyze_job (5c9415d's precondition); match_resume_to_job is not yet
+        # offered. The stop branch of the pair still expects no tool at all.
         steps=(
             TrajectoryStep(
-                expect_tool="match_resume_to_job",
-                forbid_tools=frozenset({"get_saved_job", "draft_resume_tailoring"}),
+                expect_tool="analyze_job",
+                forbid_tools=frozenset(
+                    {"get_saved_job", "draft_resume_tailoring", "match_resume_to_job"}
+                ),
             ),
         ),
     ),
@@ -2026,6 +2050,13 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "user_message", "task.has_active_resume_job_match", "recent_messages.0.content",
         ),
         recording_samples=3,
+        known_gap=(
+            "2026-09-24 gpt-5.6-sol recordings passed 3/3 once, then 2/3 in three "
+            "later cuts with and without the actionable-first requirement order: "
+            "the failing sample first called a read (analyze_resume, then "
+            "get_resume_job_match) instead of draft_resume_tailoring. The detour "
+            "is read-only and no application was created."
+        ),
         steps=(
             TrajectoryStep(
                 expect_tool="draft_resume_tailoring",

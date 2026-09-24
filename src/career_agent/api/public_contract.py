@@ -67,6 +67,7 @@ from career_agent.api.reads import (
     ConversationResourceView,
     ConversationTranscriptResponse,
     ConversationView,
+    CountResponse,
     DailyBriefResponse,
     DashboardResponse,
     DashboardStats,
@@ -555,6 +556,7 @@ def _read_examples() -> dict[str, list[BaseModel]]:
         AvailabilityResponse(job_posting_id="job-1", availability_status="closed", changed=True),
         PursuitStatusResponse(job_posting_id="job-1", pursuit_status="dismissed", changed=False),
         JobDeletionResponse(job_posting_id="job-1"),
+        CountResponse(count=2),
         ConversationView(
             id="conv-1",
             status="active",

@@ -2,9 +2,9 @@
   "scenario": "a_core_request_routes_before_job_analysis",
   "policy": "When the current profile lacks a required domain tool, route to that domain first, then use the tool under the updated profile.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "5ea8a2399631a7e7629aeb01970a2b3ea3cda58efc1b9833d93764fe86942b1f",
-  "context_shape_fingerprint": "e0175269624bae541d87b18f2dcc87f9edf9e513d3257fc3473cbadd0a6f735b",
-  "recorded_at": "2026-09-20T08:24:28.125074+00:00",
+  "prompt_fingerprint": "94049b6d3275c8cae9798e4808390e332043ef306a49257457c1279bc39385fb",
+  "context_shape_fingerprint": "7dadd9ede1011095e145ed807597762470734637f694f4766c60bbc8a60d3760",
+  "recorded_at": "2026-09-24T07:42:54.908313+00:00",
   "steps": [
     {
       "tool_call": {
@@ -21,10 +21,48 @@
       }
     }
   ],
-  "sample_count": 1,
+  "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:28.125074+00:00",
+      "recorded_at": "2026-09-24T07:42:57.396270+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "route_to_capability",
+            "arguments": {
+              "domain": "job"
+            }
+          }
+        },
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:43:17.344965+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "route_to_capability",
+            "arguments": {
+              "domain": "job"
+            }
+          }
+        },
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:42:54.908313+00:00",
       "steps": [
         {
           "tool_call": {

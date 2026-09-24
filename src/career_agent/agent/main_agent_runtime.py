@@ -4634,7 +4634,9 @@ class MainAgentRuntime:
         bodies: list[str] = []
         for result in results:
             policy = policy_for(result.state)
-            if not policy.condensed_message or policy.delivers_body_elsewhere:
+            # A card state whose reference was dropped has no entity to
+            # carry its body, so it is delivered here like a card-less one.
+            if not policy.condensed_message or MainAgentRuntime._has_backed_card(result):
                 continue
             rendered = MainAgentRuntime._assistant_message(result)
             if rendered and rendered not in bodies:

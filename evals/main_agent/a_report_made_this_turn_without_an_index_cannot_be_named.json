@@ -2,24 +2,26 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "41434116b10ff28777704a4f4f1402db133d68ab2ab31546d6275788a89824f6",
-  "recorded_at": "2026-09-20T08:23:57.133720+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "d2cde1ac106c4c27502a34e533515d3887f3295e8107400e0cf21e8c429deba6",
+  "recorded_at": "2026-09-24T07:48:32.002984+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "find_saved_jobs",
-        "arguments": {
-          "query": "示例科技",
-          "limit": 10
-        }
-      }
+      "content": "{\"action\":\"ask_user\",\"message\":\"我目前能定位到的两份调研分别是“历史科技甲”和“历史科技乙”，没有找到标题或公司名为“示例科技”的报告。请确认“示例科技”对应哪一份，或提供该报告的名称。\",\"questions\":[]}"
     }
   ],
   "sample_count": 5,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:52.632947+00:00",
+      "recorded_at": "2026-09-24T07:48:23.164944+00:00",
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前能定位到的两份调研分别是“历史科技甲”和“历史科技乙”，没有找到标题或公司名为“示例科技”的报告。请确认“示例科技”对应哪一份，或提供该报告的名称。\",\"questions\":[]}"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:48:01.592436+00:00",
       "steps": [
         {
           "tool_call": {
@@ -33,39 +35,28 @@
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:57.154875+00:00",
+      "recorded_at": "2026-09-24T07:48:24.958661+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前无法定位“示例科技”那份调研：现有可识别的报告只有“历史科技甲”和“历史科技乙”，而刚才的查询结果也没有返回示例科技的报告正文或引用。请把那份报告的卡片/引用发给我，或告诉我它对应哪个已保存岗位，我就能准确查出主要竞争对手。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前无法确认“示例科技”对应哪份已保存调研报告。请提供该报告的名称或从已保存报告中指出对应的一份，我再准确查找其主要竞争对手。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:59.940088+00:00",
+      "recorded_at": "2026-09-24T07:48:10.114973+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前拿不到“示例科技”那份调研的报告引用；当前可见的报告是“历史科技甲”“历史科技乙”，而刚才的示例科技调研结果也没有返回正文或可读取的引用。请把“示例科技”报告卡片的标题/引用发我，或重新选中那份报告，我就能准确告诉你主要竞争对手。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"我现在无法可靠读取“示例科技”那份调研：当前可识别的报告只有“历史科技甲”和“历史科技乙”，而刚才返回的“另一家科技”报告提到的竞争对手是 **B 公司**，不能据此认定它属于示例科技。\\n\\n请把“示例科技”的调研卡片或报告引用发给我，我再准确查出其主要竞争对手。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-20T08:23:59.488120+00:00",
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我目前找不到名为“示例科技”的调研报告；现有可识别的报告是“历史科技甲”和“历史科技乙”，不能把其他公司的竞争对手套用过来。请提供“示例科技”报告的卡片/引用，或确认你指的是其中哪一份，我再准确回答。\",\"questions\":[]}"
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-20T08:23:57.133720+00:00",
+      "recorded_at": "2026-09-24T07:48:32.002984+00:00",
       "steps": [
         {
           "tool_call": {
-            "name": "find_saved_jobs",
-            "arguments": {
-              "query": "示例科技",
-              "limit": 10
-            }
+            "name": "get_job_research",
+            "arguments": {}
           }
         }
       ]

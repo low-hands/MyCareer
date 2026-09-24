@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "92ecff9427a365574b78ce537e3f3a18c0447d6cb8d9969113bc54d34d38ff04",
-  "recorded_at": "2026-09-20T08:23:08.696161+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "b5428a4cca907d42f5d783535c09fb116b9dd6c164a0f9122209dfa7eeeed87d",
+  "recorded_at": "2026-09-24T06:38:16.676991+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"可以。先确定两个搜索条件，我就能帮你打开合适的 BOSS 直聘岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位？可以填写多个关键词，例如“Java 后端”“产品经理”“数据分析”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索地点和目标岗位，我再为你打开招聘搜索页面。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么岗位或使用什么关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:08.696161+00:00",
+      "recorded_at": "2026-09-24T06:38:16.676991+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"可以。先确定两个搜索条件，我就能帮你打开合适的 BOSS 直聘岗位搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位？可以填写多个关键词，例如“Java 后端”“产品经理”“数据分析”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索地点和目标岗位，我再为你打开招聘搜索页面。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么岗位或使用什么关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

@@ -2,9 +2,9 @@
   "scenario": "a_report_older_than_the_window_is_still_read_back",
   "policy": "A working-memory data entry or archived report may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "ddbfc814c969d352fb7db76164bc3a2fd50f97708f4f0d53c264ed4da964aa9d",
-  "context_shape_fingerprint": "e0fd847d7052c922f1ef82fc34c8ea10d405b18fd1bcb87f6bc933250152d1a4",
-  "recorded_at": "2026-09-20T08:23:55.210807+00:00",
+  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
+  "context_shape_fingerprint": "e91c7e76e8e8b9cf1a43fab72e47ad440ebea9da17ffb0dee5fa475392c93697",
+  "recorded_at": "2026-09-24T07:48:28.260073+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:55.210807+00:00",
+      "recorded_at": "2026-09-24T07:48:28.260073+00:00",
       "steps": [
         {
           "tool_call": {

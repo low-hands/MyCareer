@@ -18,7 +18,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from openai import APIConnectionError, APIStatusError, RateLimitError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 from pydantic import BaseModel
 
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -259,6 +259,64 @@ def test_two_invalid_samples_stop_after_one_retry_and_trace_it_once() -> None:
     assert len(retries) == 1
     assert retries[0].event_type == "model_retry"
     assert retries[0].attempt == 2
+
+
+class _FlakyClient:
+    """A responses client that raises the queued errors, then answers."""
+
+    def __init__(self, *errors: Exception, output_text: str = '{"verdict": "ok", "score": 1}'):
+        self._errors = list(errors)
+        self._output_text = output_text
+        self.calls: list[dict] = []
+        self.responses = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._errors:
+            raise self._errors.pop(0)
+        return type("Response", (), {"output_text": self._output_text})()
+
+
+def test_a_dropped_connection_is_retried_once_and_the_next_answer_wins() -> None:
+    client = _FlakyClient(APIConnectionError(request=_request()))
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-transport-retry"))
+    try:
+        answer = _call(client)
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert answer == Answer(verdict="ok", score=1)
+    assert len(client.calls) == 2
+    retries = recorder.snapshot("turn-transport-retry").events
+    assert [(item.event_type, item.attempt, item.error_code) for item in retries] == [
+        ("model_retry", 2, "RESUME_ANALYSIS_TRANSPORT_ERROR")
+    ]
+
+
+def test_two_dropped_connections_stop_after_one_retry_and_stay_retryable() -> None:
+    client = _FlakyClient(
+        APIConnectionError(request=_request()),
+        APIConnectionError(request=_request()),
+    )
+
+    with pytest.raises(AgentWorkerError) as raised:
+        _call(client)
+
+    assert raised.value.code == "RESUME_ANALYSIS_TRANSPORT_ERROR"
+    assert raised.value.retryable is True
+    assert len(client.calls) == 2
+
+
+def test_a_timeout_is_not_retried() -> None:
+    """A timeout already spent the whole budget; a retry would double the wait."""
+    client = _FlakyClient(APITimeoutError(request=_request()))
+
+    with pytest.raises(AgentWorkerError) as raised:
+        _call(client)
+
+    assert raised.value.code == "RESUME_ANALYSIS_TRANSPORT_ERROR"
+    assert len(client.calls) == 1
 
 
 def test_each_capability_keeps_its_own_error_vocabulary() -> None:

@@ -1618,3 +1618,104 @@ def test_from_env_applies_the_configured_output_budget() -> None:
     maker.decide(_context(), ())
 
     assert completions.requests[0]["max_tokens"] == 4096
+
+
+def _q(question_id, prompt, *, options=None):
+    return {
+        "question_id": question_id,
+        "prompt": prompt,
+        "kind": "single" if options else "free_text",
+        "options": options or [],
+        "allow_free_text": False,
+        "allow_skip": True,
+    }
+
+
+def test_ask_user_carrying_several_questions_becomes_a_questionnaire() -> None:
+    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
+        json.dumps(
+            {
+                "action": "ask_user",
+                "message": "请补充",
+                "questions": [_q("q2", "目标城市？"), _q("q7", "期望薪资？")],
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert decision.action == "questionnaire"
+    assert [item.question_id for item in decision.questions] == ["q1", "q2"]
+    assert [item.prompt for item in decision.questions] == ["目标城市？", "期望薪资？"]
+
+
+def test_a_single_question_is_asked_in_prose_not_as_a_questionnaire() -> None:
+    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
+        json.dumps(
+            {
+                "action": "ask_user",
+                "message": "还差一项信息。",
+                "questions": [
+                    _q(
+                        "q1",
+                        "你想把这个岗位加入求职方向吗？",
+                        options=[
+                            {"value": "yes", "label": "加入", "meaning": "choice"},
+                            {"value": "no", "label": "不加入", "meaning": "none"},
+                        ],
+                    )
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert decision.action == "ask_user"
+    assert decision.questions == ()
+    assert decision.message == (
+        "还差一项信息。\n\n你想把这个岗位加入求职方向吗？（加入 / 不加入）"
+    )
+
+
+def test_option_values_outside_the_pattern_are_renamed_not_rejected() -> None:
+    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
+        json.dumps(
+            {
+                "action": "questionnaire",
+                "message": "请逐题回答",
+                "questions": [
+                    _q(
+                        "q1",
+                        "偏好哪种？",
+                        options=[
+                            {"value": "1", "label": "远程", "meaning": "choice"},
+                            {"value": "2", "label": "坐班", "meaning": "choice"},
+                        ],
+                    ),
+                    _q("q2", "补充说明"),
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert decision.action == "questionnaire"
+    assert [option.value for option in decision.questions[0].options] == [
+        "option_1",
+        "option_2",
+    ]
+    assert [option.label for option in decision.questions[0].options] == ["远程", "坐班"]
+
+
+def test_question_repair_never_applies_to_a_tool_call() -> None:
+    with pytest.raises(AgentWorkerError) as captured:
+        OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
+            json.dumps(
+                {
+                    "action": "tool_call",
+                    "tool_call": {"name": "find_saved_jobs", "arguments": {}},
+                    "questions": [_q("q1", "a"), _q("q2", "b")],
+                }
+            )
+        )
+
+    assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"

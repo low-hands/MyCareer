@@ -32,6 +32,7 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchStateFinding,
 )
 from career_agent.domain.job_discovery import JobDetail, Provenance
+from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 from career_agent.harness.streaming import TurnInputResource
 from career_agent.services.resume_job_match import (
     ResumeJobMatchAnalysisRequiredError,
@@ -627,6 +628,55 @@ def test_match_tool_exposes_the_analysis_precondition_as_a_stable_state(tmp_path
         "retryable": False,
     }
     assert worker_stub.calls == []
+
+
+def test_analyze_job_tool_delivers_a_valid_analysis_reference(tmp_path) -> None:
+    """The reference must pass its own contract, or the whole turn fails."""
+    _, jobs, _, _, saved = seed_inputs(tmp_path, analyze=False)
+    registry = MainAgentToolRegistry(
+        job_repository=jobs,
+        job_analysis_service=JobAnalysisService(jobs, AnalysisWorker()),
+    )
+
+    observation = registry.invoke_atomic_tool(
+        "analyze_job", {"user_id": "u1", "job_posting_id": saved.posting.id}
+    )
+
+    assert observation.state == "job_analysis_ready"
+    reference = observation.resource_ref
+    assert reference is not None and reference.kind == "job_analysis"
+    assert reference.resource_id == observation.payload["analysis_id"]
+    assert reference.job_posting_id is None
+
+
+def test_an_invalid_card_reference_costs_the_card_not_the_result(
+    tmp_path, monkeypatch
+) -> None:
+    """The analysis is already stored; a malformed card must not fail the turn."""
+    _, jobs, _, _, saved = seed_inputs(tmp_path, analyze=False)
+    registry = MainAgentToolRegistry(
+        job_repository=jobs,
+        job_analysis_service=JobAnalysisService(jobs, AnalysisWorker()),
+    )
+    monkeypatch.setattr(
+        MainAgentToolRegistry, "_resource_title", staticmethod(lambda *parts: "长" * 81)
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-invalid-ref"))
+    try:
+        observation = registry.invoke_atomic_tool(
+            "analyze_job", {"user_id": "u1", "job_posting_id": saved.posting.id}
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+
+    assert observation.state == "job_analysis_ready"
+    assert observation.resource_ref is None
+    events = recorder.snapshot("turn-invalid-ref").events
+    assert [(item.event_type, item.error_code, item.details) for item in events] == [
+        ("presentation_degraded", "RESOURCE_REFERENCE_INVALID", {"kind": "job_analysis"})
+    ]
+    assert "长" not in (events[0].error_detail or "")
 
 
 @pytest.mark.parametrize("mode", ["unknown", "duplicate", "tampered", "omitted"])

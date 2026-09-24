@@ -2,9 +2,9 @@
   "scenario": "research_is_not_started_as_part_of_matching",
   "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
-  "context_shape_fingerprint": "59cd4b04ab666011e6f01a82ef3cf12b67a104086d65b878252653a3afa767f5",
-  "recorded_at": "2026-09-20T08:23:41.391957+00:00",
+  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
+  "context_shape_fingerprint": "6df80edbf797f9953f57e5eeb9dc420b98e62ad43f6def9798fd4a126b566ddc",
+  "recorded_at": "2026-09-24T07:43:23.647588+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,10 +13,32 @@
       }
     }
   ],
-  "sample_count": 1,
+  "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:41.391957+00:00",
+      "recorded_at": "2026-09-24T07:44:33.192339+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:43:23.268459+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-24T07:43:23.647588+00:00",
       "steps": [
         {
           "tool_call": {

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+import re
 import secrets
 import time
 from threading import Lock
@@ -283,6 +284,71 @@ def _request_envelope_token_count(
             serialized_prefix + "," + dynamic_inner + serialized_suffix
         )
     return count_tokens(serialized_prefix + serialized_suffix)
+
+
+_OPTION_VALUE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+
+
+def _repair_question_shape(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Fit a question-asking decision to the questionnaire contract, or None.
+
+    Models reliably ask the right questions but not always in the right
+    envelope: ``ask_user`` carrying a question list, ids out of order, or
+    option values such as ``"1"``. Every one of those failed the whole turn.
+    The repair only reshapes a decision that asks the user something, so it
+    can never turn into a tool call; anything it cannot fit stays invalid.
+    """
+    if payload.get("action") not in {"ask_user", "questionnaire"}:
+        return None
+    questions = payload.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return None
+    if not all(isinstance(item, dict) for item in questions):
+        return None
+    repaired_questions = []
+    for index, question in enumerate(questions, start=1):
+        fixed = dict(question)
+        fixed["question_id"] = f"q{index}"
+        options = fixed.get("options")
+        if isinstance(options, list):
+            fixed_options = []
+            for position, option in enumerate(options, start=1):
+                if not isinstance(option, dict):
+                    return None
+                fixed_option = dict(option)
+                value = fixed_option.get("value")
+                if not (isinstance(value, str) and _OPTION_VALUE.fullmatch(value)):
+                    fixed_option["value"] = f"option_{position}"
+                fixed_options.append(fixed_option)
+            fixed["options"] = fixed_options
+        repaired_questions.append(fixed)
+    repaired = dict(payload)
+    if 2 <= len(repaired_questions) <= 8:
+        repaired["action"] = "questionnaire"
+        repaired["questions"] = repaired_questions
+        repaired.pop("selection_source", None)
+        return repaired
+    if len(repaired_questions) != 1:
+        return None
+    # One question is not a questionnaire: ask it in prose instead.
+    only = repaired_questions[0]
+    prompt = only.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    labels = [
+        option.get("label")
+        for option in only.get("options") or ()
+        if isinstance(option.get("label"), str)
+    ]
+    asked = prompt.strip() + (f"（{' / '.join(labels)}）" if labels else "")
+    message = payload.get("message")
+    message = message.strip() if isinstance(message, str) else ""
+    repaired["action"] = "ask_user"
+    repaired["message"] = asked if not message else (
+        message if prompt.strip() in message else f"{message}\n\n{asked}"
+    )
+    repaired.pop("questions", None)
+    return repaired
 
 
 class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
@@ -802,6 +868,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     return AgentDecision.model_validate(normalized_payload)
                 except ValueError:
                     pass
+                repaired = _repair_question_shape(normalized_payload)
+                if repaired is not None:
+                    try:
+                        return AgentDecision.model_validate(repaired)
+                    except ValueError:
+                        pass
             # OpenAI-compatible providers do not all honor structured-output
             # hints consistently. Plain assistant prose is nevertheless an
             # unambiguous final action when the response contains no native

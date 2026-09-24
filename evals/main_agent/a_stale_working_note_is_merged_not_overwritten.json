@@ -2,9 +2,9 @@
   "scenario": "a_stale_working_note_is_merged_not_overwritten",
   "policy": "Always pass the revision from the current working_notes projection; after working_notes_stale, merge the current note before retrying and never overwrite it directly.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
-  "context_shape_fingerprint": "f6d3258d1436afce48debd347ef4ff2bf14e145fa3f7bfdc750e481baac2828b",
-  "recorded_at": "2026-09-20T08:23:44.736198+00:00",
+  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
+  "context_shape_fingerprint": "01491f8eba214202adf4b57f602b6c7cbc25761e4a45561c2d5f917fb02979e7",
+  "recorded_at": "2026-09-24T06:38:22.794496+00:00",
   "steps": [
     {
       "tool_call": {
@@ -19,7 +19,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:44.736198+00:00",
+      "recorded_at": "2026-09-24T06:38:22.794496+00:00",
       "steps": [
         {
           "tool_call": {

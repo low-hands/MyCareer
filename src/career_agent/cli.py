@@ -1935,19 +1935,27 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 )
 
         config = None
+        recording_error: str | None = None
         if args.record:
             config = _replace(
                 OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
                 timeout_seconds=args.main_agent_timeout_seconds,
             )
-            record_catalogue(
-                selected,
-                tool_specs=schemas,
-                config=config,
-                sample_count=args.samples,
-                jobs=args.jobs,
-                force=args.force,
-            )
+            try:
+                record_catalogue(
+                    selected,
+                    tool_specs=schemas,
+                    config=config,
+                    sample_count=args.samples,
+                    jobs=args.jobs,
+                    force=args.force,
+                )
+            except AgentWorkerError as error:
+                # The catalogue already wrote every scenario that finished.
+                # Report the run instead of dying before the report: the
+                # scenario that failed shows up below as stale or unrecorded,
+                # and the exit status stays non-zero.
+                recording_error = f"{error.code}: {error}"
         from dotenv import load_dotenv
 
         load_dotenv()
@@ -2083,6 +2091,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             ),
             "stale": sum(1 for item in results if item["behaviour"] == "stale"),
             "unrecorded": unrecorded,
+            **({"recording_error": recording_error} if recording_error else {}),
             # Said outright rather than left to be inferred from the counts: a
             # run with no cassettes is green and proves nothing about the model.
             "note": (
@@ -2095,7 +2104,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         }
         json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
         stdout.write("\n")
-        return EXIT_OK if not failed else EXIT_ARGUMENT_ERROR
+        return EXIT_OK if not failed and recording_error is None else EXIT_ARGUMENT_ERROR
     except AgentConfigurationError as error:
         json.dump({"state": "failed", "error_code": error.code, "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
         stdout.write("\n")

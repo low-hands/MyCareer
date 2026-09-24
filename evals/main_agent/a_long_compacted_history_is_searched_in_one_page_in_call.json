@@ -2,9 +2,9 @@
   "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "325afad14fd4286257ea510fd5e7854b70f655bbab969f5c25d53adbb7db0340",
-  "context_shape_fingerprint": "1c8577ef0457cc747900075a15dfee6eb33e8842fe510ec0e0cb88f498893c6d",
-  "recorded_at": "2026-09-20T08:23:10.383307+00:00",
+  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
+  "context_shape_fingerprint": "44907381ef12ea7bf5356ceab37ba6a13afddcf535c858e0019d69e3ab29dd91",
+  "recorded_at": "2026-09-24T06:40:53.537990+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 120,
-          "query": "目标公司 一开始指定 美团 对照 公司名"
+          "query": "目标公司 算法工程师 美团 公司名"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:23:10.383307+00:00",
+      "recorded_at": "2026-09-24T06:40:53.537990+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,7 +28,7 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 120,
-              "query": "目标公司 一开始指定 美团 对照 公司名"
+              "query": "目标公司 算法工程师 美团 公司名"
             }
           }
         }

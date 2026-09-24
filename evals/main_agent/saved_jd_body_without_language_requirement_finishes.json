@@ -2,21 +2,21 @@
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "61e780401b7b6a7a8ceff06416f6f5d7ad52d3dbbdb6c076005c02016468d9dc",
-  "context_shape_fingerprint": "a96d64b2b090fd2490a38e3e259411f6ee3d4fa5d69761d187ac7e2884ee3d0c",
-  "recorded_at": "2026-09-20T08:24:04.106964+00:00",
+  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
+  "context_shape_fingerprint": "b1f089c38f8686f2b61f9e8da60282c859f806623bff5ee74bdee55a404ad969",
+  "recorded_at": "2026-09-24T07:48:28.451078+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"完整 JD 没有明确要求 Rust，因此不继续匹配简历，到这里结束。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"完整 JD 没有明确要求 Rust，仅要求分布式系统设计和生产环境异步服务经验。因此按你的条件，到这里为止，不继续匹配简历。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-20T08:24:04.106964+00:00",
+      "recorded_at": "2026-09-24T07:48:28.451078+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"完整 JD 没有明确要求 Rust，因此不继续匹配简历，到这里结束。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"完整 JD 没有明确要求 Rust，仅要求分布式系统设计和生产环境异步服务经验。因此按你的条件，到这里为止，不继续匹配简历。\",\"questions\":[]}"
         }
       ]
     }

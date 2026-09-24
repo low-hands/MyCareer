@@ -176,7 +176,7 @@ REQUIREMENTS: dict[str, str] = {
     "review_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "revise_resume_tailoring": _NEEDS_TAILORING_DRAFT,
     "finalize_resume_tailoring": _NEEDS_TAILORING_DRAFT,
-    "match_resume_to_job": "先分析当前 JD，并同时选定一个岗位和一个简历版本",
+    "match_resume_to_job": "先用 analyze_job 分析当前 JD，并同时选定一个岗位和一个简历版本",
     "create_application": _NEEDS_JOB,
     "get_application": _NEEDS_APPLICATION,
     "update_application_status": _NEEDS_APPLICATION,
