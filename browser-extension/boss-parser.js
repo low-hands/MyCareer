@@ -12,7 +12,10 @@
       "h1[class*='job']",
     ],
     company: [
+      ".sider-company [ka*='job-detail-company']",
+      ".sider-company .company-info .name",
       ".sider-company .company-name",
+      ".sider-company .company-info a",
       ".company-card .company-name",
       ".company-name",
       "[class*='company-name']",
@@ -48,33 +51,86 @@
     return compact(value).replace(/\s+/g, " ");
   }
 
+  function isVisible(node) {
+    if (!node || node.hidden || node.getAttribute?.("aria-hidden") === "true") return false;
+    if (node.closest?.("[hidden], [aria-hidden='true']")) return false;
+
+    const style = node.ownerDocument?.defaultView?.getComputedStyle?.(node);
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+
+    // BOSS is a client-side app. During navigation it can leave the previous
+    // detail page mounted but hidden for a short time. querySelector() then
+    // returns that stale node, mixing the old company with the new title/JD.
+    if (typeof node.getClientRects === "function" && node.getClientRects().length === 0) return false;
+    return true;
+  }
+
   function firstText(documentRef, selectors) {
     for (const selector of selectors) {
-      const node = documentRef.querySelector(selector);
-      const value = oneLine(node?.innerText || node?.textContent || "");
-      if (value) return value;
+      const nodes = typeof documentRef.querySelectorAll === "function"
+        ? documentRef.querySelectorAll(selector)
+        : [documentRef.querySelector(selector)].filter(Boolean);
+      for (const node of nodes) {
+        if (!isVisible(node)) continue;
+        const value = oneLine(node?.innerText || node?.textContent || "");
+        if (value) return value;
+      }
     }
     return "";
+  }
+
+  const JOB_SECTION_LABEL = /(?:职位描述|岗位职责|工作职责|工作内容|任职要求|岗位要求|任职资格)/;
+  const COMPANY_SECTION_LABEL = /(?:公司介绍|公司基本信息|企业介绍|工商信息|公司简介)/;
+
+  function descriptionSectionScore(node, value) {
+    const scope = node.closest?.(
+      ".job-detail-section, .job-sec, section, [class*='detail-section']",
+    );
+    const heading = scope?.querySelector?.(
+      "h1, h2, h3, h4, .title, [class*='section-title']",
+    );
+    const headingText = oneLine(heading?.innerText || heading?.textContent || "");
+    const opening = oneLine(scope?.innerText || scope?.textContent || value).slice(0, 120);
+    const labelText = `${headingText} ${opening}`;
+    if (COMPANY_SECTION_LABEL.test(labelText) && !JOB_SECTION_LABEL.test(labelText)) return -10_000;
+    if (JOB_SECTION_LABEL.test(labelText)) return 10_000 + Math.min(value.length, 5_000);
+    return Math.min(value.length, 5_000);
+  }
+
+  function bodyDescription(documentRef) {
+    const bodyText = compact(documentRef.body?.innerText || "");
+    const start = bodyText.search(JOB_SECTION_LABEL);
+    if (start < 0) return "";
+    let section = bodyText.slice(start, start + 30_000);
+    const tail = section.slice(40);
+    const end = tail.search(new RegExp(`\\n${COMPANY_SECTION_LABEL.source}`));
+    if (end >= 0) section = section.slice(0, end + 40);
+    return compact(section).slice(0, 100_000);
   }
 
   function bestDescription(documentRef) {
     const candidates = [];
     for (const selector of FIELD_SELECTORS.description) {
       for (const node of documentRef.querySelectorAll(selector)) {
+        if (!isVisible(node)) continue;
         const value = compact(node?.innerText || node?.textContent || "");
-        if (value.length >= 20 && !candidates.includes(value)) candidates.push(value);
+        if (value.length >= 20 && !candidates.some((item) => item.value === value)) {
+          candidates.push({ value, score: descriptionSectionScore(node, value) });
+        }
       }
     }
-    candidates.sort((left, right) => right.length - left.length);
-    if (candidates[0]) return candidates[0].slice(0, 100_000);
+    const labeled = candidates
+      .filter((item) => item.score >= 10_000)
+      .sort((left, right) => right.score - left.score);
+    if (labeled[0]) return labeled[0].value.slice(0, 100_000);
 
-    const bodyText = compact(documentRef.body?.innerText || "");
-    const start = bodyText.search(/(?:职位描述|岗位职责|工作职责|工作内容|任职要求|岗位要求|任职资格)/);
-    if (start < 0) return "";
-    let section = bodyText.slice(start, start + 30_000);
-    const end = section.slice(40).search(/\n(?:公司介绍|公司基本信息|工商信息|工作地址|BOSS安全提示|竞争力分析|相似职位)/);
-    if (end >= 0) section = section.slice(0, end + 40);
-    return compact(section).slice(0, 100_000);
+    const fromBody = bodyDescription(documentRef);
+    if (fromBody) return fromBody;
+
+    const unlabeled = candidates
+      .filter((item) => item.score >= 0)
+      .sort((left, right) => right.score - left.score);
+    return unlabeled[0]?.value.slice(0, 100_000) || "";
   }
 
   function pageBarrier(documentRef) {

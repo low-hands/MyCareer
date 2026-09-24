@@ -9,9 +9,9 @@ const BOSS_SEARCH = "https://www.zhipin.com/web/geek/job?query=AI&city=101020100
 const BOSS_DETAIL = "https://www.zhipin.com/job_detail/abc.html";
 const APP_TAB = { tab: { id: 1, url: "http://127.0.0.1:5173/" } };
 
-function background(fetchImpl, { now = () => 1_000_000 } = {}) {
+function background(fetchImpl, { now = () => 1_000_000, persistedLocal } = {}) {
   const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
-  const session = {};
+  const local = persistedLocal || { careerAgentCaptureApiKey: "cak_capture" };
   const created = [];
   const sent = [];
   let nextTabId = 100;
@@ -22,7 +22,10 @@ function background(fetchImpl, { now = () => 1_000_000 } = {}) {
       return new Date(...args);
     }, { now, parse: Date.parse }),
     chrome: {
-      runtime: { onMessage: { addListener() {} } },
+      runtime: {
+        onMessage: { addListener() {} },
+        onStartup: { addListener() {} },
+      },
       tabs: {
         onCreated: { addListener() {} },
         onRemoved: { addListener() {} },
@@ -40,17 +43,14 @@ function background(fetchImpl, { now = () => 1_000_000 } = {}) {
       },
       storage: {
         local: {
-          async get() {
-            return { careerAgentCaptureApiKey: "cak_capture" };
-          },
-          async set() {},
-        },
-        session: {
           async get(key) {
-            return { [key]: session[key] };
+            return { [key]: local[key] };
           },
           async set(values) {
-            Object.assign(session, values);
+            Object.assign(local, values);
+          },
+          async remove(key) {
+            delete local[key];
           },
         },
       },
@@ -58,7 +58,9 @@ function background(fetchImpl, { now = () => 1_000_000 } = {}) {
   };
   vm.createContext(context);
   vm.runInContext(source, context);
-  return { runtime: context, session, created, sent };
+  // Keep the old test-facing name: callers care about the stored bindings,
+  // not which Chrome storage area owns them.
+  return { runtime: context, session: local, local, created, sent };
 }
 
 function saveResponse(extra = {}) {
@@ -89,6 +91,28 @@ test("opening a search binds the intent to the new tab and keeps it out of the U
     session.careerAgentTabIntents["100"].expires_at,
     Date.parse("2026-09-12T14:00:00+00:00"),
   );
+});
+
+test("an extension reload keeps the intent for an already-open BOSS tab", async () => {
+  const requests = [];
+  const persistedLocal = { careerAgentCaptureApiKey: "cak_capture" };
+  const first = background(saveResponse(), { persistedLocal });
+  await first.runtime.openJobSearch(
+    { url: BOSS_SEARCH, capture_intent_id: INTENT },
+    APP_TAB,
+  );
+
+  // A new background context models Chrome reloading the unpacked extension.
+  const reloaded = background(async (url, request) => {
+    requests.push(JSON.parse(request.body));
+    return saveResponse()();
+  }, { persistedLocal });
+  await reloaded.runtime.saveJob(
+    { source_url: BOSS_DETAIL, title: "AI Engineer", company_name: "质谱华章", description: "Build" },
+    { tab: { id: 100, url: BOSS_DETAIL } },
+  );
+
+  assert.equal(requests[0].capture_intent_id, INTENT);
 });
 
 test("only the Career Agent page may open, and only a BOSS URL", async () => {

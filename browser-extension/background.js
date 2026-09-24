@@ -6,10 +6,16 @@ const CLOSURE_ENDPOINTS = API_HOSTS.map(
 const APP_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"];
 const APP_TAB_PATTERNS = APP_ORIGINS.map((origin) => `${origin}/*`);
 const INTENT_PATTERN = /^capint_[a-f0-9]{32}$/;
-// Intents are bound to BOSS *tabs*, never written into a BOSS URL. Session
-// storage outlives a service-worker restart but not the browser, which is
-// also the lifetime of the tabs it describes.
+// Intents are bound to BOSS *tabs*, never written into a BOSS URL. Local
+// storage deliberately survives an extension reload: reloading an unpacked
+// development build must not silently turn an already-open search into an
+// unrelated library-only save. Browser startup clears the bindings because
+// tab ids from a previous browser session must never be reused.
 const TAB_INTENTS_KEY = "careerAgentTabIntents";
+
+chrome.runtime.onStartup?.addListener(() => {
+  chrome.storage.local.remove(TAB_INTENTS_KEY).catch(() => undefined);
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "CAREER_AGENT_OPEN_JOB_SEARCH") {
@@ -101,8 +107,8 @@ async function openJobSearch(message, sender) {
 }
 
 async function readTabIntents() {
-  if (!chrome.storage?.session) return {};
-  const stored = await chrome.storage.session.get(TAB_INTENTS_KEY);
+  if (!chrome.storage?.local) return {};
+  const stored = await chrome.storage.local.get(TAB_INTENTS_KEY);
   const intents = stored?.[TAB_INTENTS_KEY];
   return intents && typeof intents === "object" ? { ...intents } : {};
 }
@@ -116,7 +122,7 @@ function mutateTabIntents(update) {
   const run = tabIntentMutations.then(async () => {
     const intents = await readTabIntents();
     if (update(intents) === false) return;
-    await chrome.storage.session.set({ [TAB_INTENTS_KEY]: intents });
+    await chrome.storage.local.set({ [TAB_INTENTS_KEY]: intents });
   });
   tabIntentMutations = run.catch(() => undefined);
   return run;

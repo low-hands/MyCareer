@@ -8,15 +8,21 @@ function node(text) {
 }
 
 function documentFixture(fields, bodyText = "") {
+  function nodesFor(selector) {
+    const value = fields[selector];
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "object") return [value];
+    return [node(value)];
+  }
+
   return {
     body: node(bodyText),
     querySelector(selector) {
-      const value = fields[selector];
-      return value ? node(value) : null;
+      return nodesFor(selector)[0] || null;
     },
     querySelectorAll(selector) {
-      const value = fields[selector];
-      return value ? [node(value)] : [];
+      return nodesFor(selector);
     },
   };
 }
@@ -61,6 +67,63 @@ test("does not treat a search page as a complete job", () => {
 
   assert.equal(result.status, "not_ready");
   assert.deepEqual(result.missing_fields, ["company_name", "description"]);
+});
+
+test("ignores a hidden company left behind by client-side navigation", () => {
+  const staleCompany = {
+    ...node("拼多多集团-PDD"),
+    hidden: true,
+    getClientRects: () => [],
+  };
+  const currentCompany = {
+    ...node("字节跳动"),
+    hidden: false,
+    getClientRects: () => [{ width: 120, height: 24 }],
+  };
+  const documentRef = documentFixture({
+    ".job-title": "27届校招-后端开发工程师-番茄/红果短剧",
+    ".sider-company .company-name": [staleCompany, currentCompany],
+    ".job-description": "职位描述\n负责字节跳动番茄小说服务端开发工作。",
+  });
+
+  const result = parser.extract(documentRef, {
+    href: "https://www.zhipin.com/job_detail/bytedance.html",
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.job.company_name, "字节跳动");
+});
+
+test("prefers the labelled job description over a longer company section", () => {
+  function sectionNode(text, heading) {
+    const section = {
+      innerText: `${heading}\n${text}`,
+      textContent: `${heading}\n${text}`,
+      querySelector: () => node(heading),
+    };
+    return {
+      ...node(text),
+      closest: (selector) => selector.includes("[hidden]") ? null : section,
+    };
+  }
+  const jd = "负责多模态大模型算法研发。\n任职要求：熟悉 Python 与深度学习。";
+  const company = "智谱华章是一家专注人工智能技术的公司。".repeat(20);
+  const documentRef = documentFixture({
+    ".job-title": "大模型算法实习生",
+    ".company-name": "智谱华章",
+    ".job-detail-section .text": [
+      sectionNode(jd, "职位描述"),
+      sectionNode(company, "公司基本信息"),
+    ],
+  });
+
+  const result = parser.extract(documentRef, {
+    href: "https://www.zhipin.com/job_detail/zhipu.html",
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.job.description, jd);
+  assert.doesNotMatch(result.job.description, /专注人工智能技术的公司/);
 });
 
 test("rejects non-BOSS URLs", () => {

@@ -179,7 +179,7 @@
           ? "后端正在续接原会话，关闭页面不影响处理"
           : continuation === "failed"
             ? "续接失败，可在原会话重试"
-            : "未续接会话";
+            : "当前标签未关联对话；岗位已保存，但对话不会自动收到它";
       status.textContent = `${saved}，${outcome}`;
     } catch (error) {
       save.disabled = false;
