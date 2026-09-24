@@ -34,6 +34,9 @@ export interface ApplicationView {
   salary: string | null;
   submitted_at: string;
   updated_at: string;
+  interview_round_number?: number | null;
+  interview_round_label?: string | null;
+  interview_status?: string | null;
 }
 
 export interface MockInterviewSessionView {
@@ -135,7 +138,7 @@ export interface ConversationView {
   last_active_at: string;
 }
 
-export type MessageResourceKind = ReportResourceKind | "resume_version" | "saved_job";
+export type MessageResourceKind = ReportResourceKind | "resume_version" | "saved_job" | "application";
 
 export interface ConversationResourceView {
   kind: MessageResourceKind;
@@ -233,6 +236,7 @@ export interface ResumeVersionView {
   document_format: string;
   byte_size: number;
   created_at: string;
+  change_summary: string;
 }
 
 export interface ResumeView {
@@ -401,6 +405,14 @@ export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {
 
 export function fetchApplications(options: ReadOptions): Promise<ApplicationView[]> {
   return getJson<ApplicationView[]>("/v1/applications", {}, options);
+}
+export async function clearApplications(options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/applications`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
+  if (!response.ok) throw new ApiError(`清空投递记录失败：${response.status}`);
+}
+export async function deleteResume(resumeId: string, options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/resumes/${encodeURIComponent(resumeId)}`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
+  if (!response.ok) throw new ApiError(`删除简历失败：${response.status}`);
 }
 
 export function fetchApplicationMockInterviews(
@@ -749,6 +761,10 @@ export async function disconnectIntegration(
 
 export function fetchCompanyResearch(options: ReadOptions): Promise<CompanyResearchView[]> {
   return getJson<CompanyResearchView[]>("/v1/company-research", {}, options);
+}
+export async function deleteCompanyResearch(reportId: string, options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/company-research/${encodeURIComponent(reportId)}`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
+  if (!response.ok) throw new ApiError(`删除公司研究失败：${response.status}`);
 }
 
 export function fetchConversations(options: ReadOptions): Promise<ConversationView[]> {

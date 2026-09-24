@@ -1,6 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { chatReducer, initialChatState } from "./reducer";
+import { chatReducer, initialChatState, visibleMessageResources } from "./reducer";
+
+describe("visibleMessageResources", () => {
+  const savedJob = { kind: "saved_job" as const, resourceId: "jd-1" };
+
+  it("hides an identical resource repeated on the adjacent assistant reply", () => {
+    const messages = [
+      { id: "u", role: "user" as const, content: "保存了", resources: [savedJob] },
+      { id: "a", role: "assistant" as const, content: "已记录", resources: [savedJob] },
+    ];
+    expect(visibleMessageResources(messages, 0)).toEqual([savedJob]);
+    expect(visibleMessageResources(messages, 1)).toEqual([]);
+  });
+
+  it("keeps a resource on a later independent assistant message", () => {
+    const messages = [
+      { id: "u", role: "user" as const, content: "保存了", resources: [savedJob] },
+      { id: "a1", role: "assistant" as const, content: "已记录" },
+      { id: "a2", role: "assistant" as const, content: "再看一下", resources: [savedJob] },
+    ];
+    expect(visibleMessageResources(messages, 2)).toEqual([savedJob]);
+  });
+});
 
 describe("chatReducer", () => {
   it("aggregates token deltas and reaches a committed terminal state", () => {
@@ -45,6 +67,9 @@ describe("chatReducer", () => {
         allow_free_text: false,
       },
     });
+    // The form is usable as soon as it appears. A delayed/lost terminal SSE
+    // frame must not strand the user with a disabled interaction card.
+    expect(state.phase).toBe("awaiting_input");
     state = chatReducer(state, {
       type: "stream_event",
       event: {

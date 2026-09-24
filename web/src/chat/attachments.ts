@@ -34,10 +34,21 @@ export interface JobAttachment {
   jdVersion: number;
 }
 
-export type ChatAttachment = ResumeAttachment | JobAttachment;
+export interface ApplicationAttachment {
+  kind: "application";
+  applicationId: string;
+  title: string;
+  description: string;
+}
+
+export type ChatAttachment = ResumeAttachment | JobAttachment | ApplicationAttachment;
 
 export function isJobAttachment(item: ChatAttachment): item is JobAttachment {
   return "kind" in item && item.kind === "jd_snapshot";
+}
+
+export function isApplicationAttachment(item: ChatAttachment): item is ApplicationAttachment {
+  return "kind" in item && item.kind === "application";
 }
 
 /** The current JD snapshot of a saved job, or null when none was captured. */
@@ -56,6 +67,7 @@ export function attachmentFromSavedJob(job: SavedJobView): JobAttachment | null 
 /** The line shown while a standalone task waits for its own conversation. */
 export function attachmentLabel(item: ChatAttachment): string {
   if (isJobAttachment(item)) return `岗位「${item.companyName} · ${item.title}」的 JD v${item.jdVersion}`;
+  if (isApplicationAttachment(item)) return `投递记录「${item.title}」`;
   return `简历“${item.name}” v${item.versionNumber}`;
 }
 
@@ -105,6 +117,8 @@ export function toInputResources(attachments: ChatAttachment[]): TurnInputResour
   return attachments.map((item) =>
     isJobAttachment(item)
       ? { kind: "jd_snapshot", id: item.jdSnapshotId }
+      : isApplicationAttachment(item)
+        ? { kind: "application", id: item.applicationId }
       : { kind: "resume_version", id: item.resumeVersionId },
   );
 }
@@ -121,6 +135,8 @@ export function toMessageResources(attachments: ChatAttachment[]): MessageResour
           description: `JD 快照 v${item.jdVersion}`,
           available: true,
         }
+      : isApplicationAttachment(item)
+        ? { kind: "application", resourceId: item.applicationId, title: item.title, description: item.description }
       : {
           kind: "resume_version",
           resourceId: item.resumeVersionId,

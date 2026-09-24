@@ -8,7 +8,7 @@ export const JOB_CAPTURED_MESSAGE = "career-agent:job-captured";
 /** How long to wait for the bridge before falling back to a plain `window.open`. */
 export const BRIDGE_TIMEOUT_MS = 800;
 /** Pending events are re-read on this cadence; the bridge nudge only makes it sooner. */
-export const CAPTURE_POLL_INTERVAL_MS = 15_000;
+export const CAPTURE_POLL_INTERVAL_MS = 3_000;
 
 export function captureDeliveryReady(event: JobCapturedEventView): boolean {
   return event.continuation_status === "completed" || event.continuation_status === "discarded";

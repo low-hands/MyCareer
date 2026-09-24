@@ -13,7 +13,7 @@ export interface ChatStreamRequest {
 }
 
 export interface TurnInputResource {
-  kind: "resume_version" | "job_posting" | "jd_snapshot";
+  kind: "resume_version" | "job_posting" | "jd_snapshot" | "application";
   id: string;
 }
 

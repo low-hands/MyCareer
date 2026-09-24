@@ -54,6 +54,30 @@ export interface ChatMessage {
   resources?: MessageResource[];
 }
 
+/**
+ * Avoid showing an attachment twice when an older stored turn pinned the exact
+ * same resource to both the user message and its immediately following reply.
+ * A later, independent mention remains visible because only a user/assistant
+ * pair is considered.
+ */
+export function visibleMessageResources(
+  messages: ChatMessage[],
+  index: number,
+): MessageResource[] {
+  const message = messages[index];
+  const resources = message?.resources ?? [];
+  if (!message || message.role !== "assistant" || index === 0) return resources;
+
+  const previous = messages[index - 1];
+  if (previous?.role !== "user" || !previous.resources?.length) return resources;
+  const previousKeys = new Set(
+    previous.resources.map((resource) => `${resource.kind}:${resource.resourceId}`),
+  );
+  return resources.filter(
+    (resource) => !previousKeys.has(`${resource.kind}:${resource.resourceId}`),
+  );
+}
+
 export interface ProgressStep {
   key: string;
   label: string;
@@ -252,7 +276,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "content_delta":
       return { ...state, messages: updateActiveMessage(state, event.delta) };
     case "interaction_required":
-      return { ...state, interaction: event, progress: null };
+      // An interaction is already durable when the server publishes it. The
+      // following turn_suspended event is useful confirmation, but the form
+      // must not remain disabled if that final SSE frame is delayed or lost.
+      return { ...state, phase: "awaiting_input", interaction: event, progress: null };
     case "artifact_ready":
       return { ...state, artifacts: [...state.artifacts, event] };
     case "report_ready": {

@@ -37,7 +37,12 @@ import {
   standaloneAgentTaskStep,
   type StandaloneAgentTask,
 } from "./chat/agentTask";
-import { chatReducer, initialChatState, type ProgressStep } from "./chat/reducer";
+import {
+  chatReducer,
+  initialChatState,
+  visibleMessageResources,
+  type ProgressStep,
+} from "./chat/reducer";
 import { useConversationComposer } from "./chat/composer";
 import {
   RECOVERY_ATTEMPTS,
@@ -92,7 +97,7 @@ const VIEW_GROUPS: {
       { id: "jobs", label: "岗位库", description: "JD 与结构化分析", icon: "search" },
       { id: "applications", label: "投递记录", description: "岗位申请与状态", icon: "applications" },
       { id: "email", label: "邮件追踪", description: "招聘邮件与待确认事件", icon: "mail" },
-      { id: "calendar", label: "面试日历", description: "面试安排与同步", icon: "calendar" },
+      { id: "calendar", label: "面试中心", description: "日程、练习与复盘", icon: "calendar" },
       { id: "resumes", label: "简历管理", description: "简历家族与版本", icon: "document" },
       { id: "research", label: "公司研究", description: "业务和产品资料", icon: "building" },
     ],
@@ -722,6 +727,8 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "dashboard"}
           onAskAgent={startAgentTask}
+          onStartStandaloneTask={startStandaloneTask}
+          onNavigate={setView}
         />
         <ApplicationsPanel
           apiBaseUrl={API_BASE_URL}
@@ -729,6 +736,7 @@ export default function App() {
           hidden={view !== "applications"}
           onAskAgent={startAgentTask}
           onOpenConversation={openConversation}
+          onStartStandaloneTask={startStandaloneTask}
         />
         <JobsPanel
           apiBaseUrl={API_BASE_URL}
@@ -747,6 +755,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "calendar"}
           onAskAgent={startAgentTask}
+          onOpenConversation={openConversation}
         />
         <EmailPanel
           apiBaseUrl={API_BASE_URL}
@@ -852,13 +861,16 @@ export default function App() {
               </div>
             ) : null}
 
-            {state.messages.filter((message) =>
+            {state.messages.map((message, index) => ({
+              message,
+              resources: visibleMessageResources(state.messages, index),
+            })).filter(({ message, resources }) =>
               Boolean(
                 message.content
-                || message.resources?.length
+                || resources.length
                 || (message.role === "assistant" && busy),
               )
-            ).map((message) => (
+            ).map(({ message, resources }) => (
               <article className={`message message-${message.role}`} key={message.id}>
                 <div className="message-content">
                   {message.content ? (
@@ -871,7 +883,7 @@ export default function App() {
                     <span className="typing">● ● ●</span>
                   ) : null}
                 </div>
-                {message.resources?.map((resource) => (
+                {resources.map((resource) => (
                   <MessageResourceCard
                     key={`${resource.kind}-${resource.resourceId}`}
                     resource={resource}

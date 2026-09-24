@@ -49,6 +49,7 @@ describe("resume attachments", () => {
       document_format: "markdown",
       byte_size: 512,
       created_at: "2026-09-13T00:00:00Z",
+      change_summary: "初始版本",
     });
     expect(toInputResources([attached])).toEqual([{ kind: "resume_version", id: "version-2" }]);
     expect(attached.uploadedAt).toBe("2026-09-13T00:00:00Z");
