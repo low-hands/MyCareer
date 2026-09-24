@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   fetchJobMatches, fetchResumes,
@@ -39,21 +39,22 @@ export function JobMatchesPanel({
 
   return (
     <section className="job-match-history" aria-label="岗位匹配历史">
-      <h3>匹配分析{history ? `（${history.total} 份）` : ""}</h3>
-      <p>查看已保存的报告不会重新运行匹配。</p>
+      <div className="match-history-heading"><div><h3>简历匹配{history ? <span>{history.total} 份报告</span> : null}</h3><p>回顾匹配结果，找到下一步改进方向。</p></div>
+        <button type="button" className="link" onClick={() => setReload((value) => value + 1)}>刷新匹配历史</button>
+      </div>
       {error ? <p role="alert">{error}</p> : !history ? <p role="status">正在读取匹配历史…</p> : null}
-      <button type="button" className="link" onClick={() => setReload((value) => value + 1)}>刷新匹配历史</button>
       {history?.total === 0 ? <p>尚未匹配。请选择一个简历版本发起匹配。</p> : null}
       {history?.items.map((match) => (
         <article key={match.report_id} className="match-history-item">
-          <p>
-            {match.resume_name ?? "历史简历"} · 简历 v{match.resume_version_number ?? "未知"}
-            {" × "}JD v{match.jd_version ?? "未知"}
-            {match.current_jd === false ? " · 历史 JD 快照" : ""}
-            {" · "}{FIT_LABELS[match.overall_fit] ?? match.overall_fit}
-          </p>
-          <time>{new Date(match.created_at).toLocaleString("zh-CN")}</time>
-          <p>{match.summary}</p>
+          <div className="match-result-heading">
+            <div><h4>{match.resume_name ?? "历史简历"}</h4>
+              <span className="match-result-meta">简历 v{match.resume_version_number ?? "未知"} × JD v{match.jd_version ?? "未知"}</span>
+            </div>
+            <span className={`match-fit match-fit-${match.overall_fit}`}>{FIT_LABELS[match.overall_fit] ?? "待评估"}</span>
+          </div>
+          <time>{new Date(match.created_at).toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" })}</time>
+          {match.current_jd === false ? <p className="match-history-notice">岗位描述已更新，这份结果基于更新前的内容。</p> : null}
+          <p className="match-result-summary">{match.summary}</p>
           <ReportCard
             resource={{ kind: "resume_job_match", resourceId: match.report_id, title: "查看这份匹配报告" }}
             apiBaseUrl={apiBaseUrl}
@@ -84,6 +85,16 @@ function MatchResumePicker({
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [started, setStarted] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const pickerId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (pickerOpen) { setSearch(""); searchRef.current?.focus(); }
+  }, [pickerOpen]);
 
   useEffect(() => {
     const request = new AbortController();
@@ -97,8 +108,20 @@ function MatchResumePicker({
     return () => request.abort();
   }, [apiBaseUrl, reload]);
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const close = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [pickerOpen]);
+
   const resume = resumes?.find((item) => item.versions.some((version) => version.id === versionId));
   const version = resume?.versions.find((item) => item.id === versionId);
+  const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const filteredVersions = (resumes ?? []).flatMap((item) => item.versions.map((entry) => ({ item, entry })))
+    .filter(({ item, entry }) => terms.every((term) => `${item.name} v${entry.version_number}`.toLocaleLowerCase().includes(term)));
   return (
     <form className="match-resume-picker" onSubmit={(event) => {
       event.preventDefault();
@@ -116,18 +139,47 @@ function MatchResumePicker({
       {error ? <p role="alert">{error} <button type="button" onClick={() => setReload((value) => value + 1)}>重试</button></p> : null}
       {!resumes && !error ? <p role="status">正在读取简历版本…</p> : null}
       {resumes?.length === 0 ? <p>请先到简历库导入简历。</p> : null}
-      <label>匹配使用的简历版本
-        <select value={versionId} onChange={(event) => setVersionId(event.target.value)} disabled={started}>
-          <option value="">请选择简历版本</option>
-          {resumes?.map((item) => (
-            <optgroup key={item.id} label={item.name}>
-              {item.versions.map((entry) => (
-                <option value={entry.id} key={entry.id}>{item.name} · v{entry.version_number} · {new Date(entry.created_at).toLocaleString("zh-CN")}</option>
-              ))}
-            </optgroup>
+      <div className="resume-version-picker" ref={pickerRef} onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setPickerOpen(false);
+      }} onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.target === searchRef.current && ["Home", "End"].includes(event.key)) return;
+        if (event.target === searchRef.current && event.key === "Enter") { event.preventDefault(); return; }
+        if (event.key === "Escape") { event.preventDefault(); setPickerOpen(false); triggerRef.current?.focus(); }
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          if (!pickerOpen) { setPickerOpen(true); return; }
+          const options = Array.from(pickerRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+          const index = options.indexOf(document.activeElement as HTMLButtonElement);
+          const next = index === -1 ? (event.key === "ArrowUp" ? options.length - 1 : 0) : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+          options[next]?.focus();
+        }
+      }}>
+        <span className="resume-version-label" id={`${pickerId}-label`}>选择用于匹配的简历</span>
+        <button ref={triggerRef} type="button" className={`resume-version-trigger ${pickerOpen ? "is-open" : ""}`} disabled={started || !resumes?.some((item) => item.versions.length)} aria-labelledby={`${pickerId}-label ${pickerId}-value`} aria-controls={pickerOpen ? pickerId : undefined} aria-haspopup="listbox" aria-expanded={pickerOpen} onClick={() => setPickerOpen((value) => !value)}>
+          <span className="resume-version-trigger-icon">CV</span>
+          <span className="resume-version-trigger-copy" id={`${pickerId}-value`}>
+            <strong>{version ? resume?.name : "请选择简历版本"}</strong>
+            <small>{version ? `v${version.version_number} · ${new Date(version.created_at).toLocaleDateString("zh-CN")}` : "从已导入的简历中选择"}</small>
+          </span>
+          <span className="resume-version-chevron" aria-hidden="true">⌄</span>
+        </button>
+        {pickerOpen ? <div className="resume-version-menu">
+          <div className="resume-version-search">
+            <input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="搜索简历名称或版本" placeholder="搜索简历名称或版本，如 v2" aria-controls={pickerId} />
+          </div>
+          <div className="resume-version-results" id={pickerId} role="listbox" aria-label="简历版本">
+          {filteredVersions.map(({ item, entry }) => (
+            <button type="button" role="option" tabIndex={-1} aria-selected={versionId === entry.id} className={`resume-version-option ${versionId === entry.id ? "is-selected" : ""}`} key={entry.id} onClick={() => { setVersionId(entry.id); setPickerOpen(false); triggerRef.current?.focus(); }}>
+              <span className="resume-version-option-icon">CV</span>
+              <span className="resume-version-option-copy"><strong>{item.name}</strong><small>v{entry.version_number} · {new Date(entry.created_at).toLocaleDateString("zh-CN")}</small></span>
+              {versionId === entry.id ? <span className="resume-version-check" aria-hidden="true">✓</span> : null}
+            </button>
           ))}
-        </select>
-      </label>
+          </div>
+          {filteredVersions.length === 0 ? <p className="resume-version-empty" role="status">没有找到对应简历，试试其他名称或版本。</p> : null}
+        </div> : null}
+      </div>
       <button type="submit" disabled={!version || !snapshot || !onStartTask || started}>
         {started ? "匹配任务已排队" : "开始匹配"}
       </button>

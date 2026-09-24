@@ -5,6 +5,8 @@ import type { ReportResourceKind } from "../chat/events";
 import type { MessageResource } from "../chat/reducer";
 import { AppIcon } from "./AppIcon";
 import { MarkdownContent } from "./MarkdownContent";
+import { CompanyReportContent } from "./CompanyReportContent";
+import { MatchReportContent } from "./MatchReportContent";
 import { MatchProvenance } from "./MatchProvenance";
 
 /** A message resource that is a stored report, as opposed to an attached resume. */
@@ -25,6 +27,11 @@ const KIND_LABELS: Record<ReportResourceKind, string> = {
   job_analysis: "岗位 JD 分析",
   delivered_body: "完整内容",
 };
+
+const FIT_SUMMARY: Record<string, string> = {
+  strong: "匹配度较高", moderate: "有一定匹配", weak: "匹配度偏低", insufficient_evidence: "信息还不够",
+};
+const FIT_EMOJI: Record<string, string> = { strong: "🎯", moderate: "🟡", weak: "🧩", insufficient_evidence: "🔎" };
 
 /**
  * The full report behind a message that only summarizes it.
@@ -87,7 +94,7 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
         </span>
         <span className="report-card-label">
           <strong>{report?.title ?? resource.title ?? KIND_LABELS[resource.kind]}</strong>
-          <small>{report?.subtitle ?? (removed ? "内容已删除" : "点开查看完整内容")}</small>
+          <small>{report?.resume_job_match ? "匹配结论与改进建议" : report?.subtitle ?? (removed ? "内容已删除" : "点开查看完整内容")}</small>
         </span>
         <span className="report-card-toggle" aria-hidden="true">
           {expanded ? "收起" : "展开"}
@@ -105,10 +112,13 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
             <div role="status">内容已过期，无法继续查看。</div>
           ) : report ? (
             <>
+              {report.resume_job_match ? <div className={`match-report-hero match-report-${report.resume_job_match.overall_fit}`}>
+                <div><span className="match-report-eyebrow">匹配结论</span><strong><span aria-hidden="true">{FIT_EMOJI[report.resume_job_match.overall_fit] ?? "📌"}</span> {FIT_SUMMARY[report.resume_job_match.overall_fit] ?? "待评估"}</strong></div>
+              </div> : null}
+              {resource.kind === "resume_job_match" ? <MatchReportContent body={report.body} hasVerdict={Boolean(report.resume_job_match)} /> : resource.kind === "job_research_report" ? <CompanyReportContent body={report.body} /> : <MarkdownContent content={report.body} className="markdown-content" />}
               {report.resume_job_match ? (
                 <MatchProvenance match={report.resume_job_match} apiBaseUrl={apiBaseUrl} />
               ) : null}
-              <MarkdownContent content={report.body} className="markdown-content" />
             </>
           ) : (
             <div className="history-loading">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   type ApplicationView,
@@ -10,6 +10,9 @@ import {
   type ResumeView,
   type SavedJobView,
   createApplication,
+  clearApplications,
+  deleteResume,
+  deleteCompanyResearch,
   fetchApplications,
   fetchApplicationMockInterviews,
   fetchCalendar,
@@ -37,6 +40,7 @@ import {
   type ResumeAttachment,
 } from "../chat/attachments";
 import { JobAnalysisDetails } from "../components/JobAnalysisDetails";
+import { SearchableSelect } from "../components/SearchableSelect";
 import { JobMatchesPanel } from "../components/JobMatchesPanel";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 import { ReportCard } from "../components/ReportCard";
@@ -58,12 +62,14 @@ type PageProps = {
     prompt: string, resource: ChatAttachment, additionalResources?: ChatAttachment[],
   ) => void;
   onOpenConversation?: (conversationId: string) => void;
+  onNavigate?: (view: "dashboard" | "applications" | "jobs" | "brief" | "research" | "resumes") => void;
 };
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: "已投递",
   acknowledged: "已确认",
   interviewing: "面试中",
+  interview_completed: "面试已完成",
   offer: "Offer",
   rejected: "未通过",
   withdrawn: "已撤回",
@@ -147,6 +153,8 @@ function PageHeader({
   description,
   loading,
   onRefresh,
+  showRefresh = true,
+  actions,
 }: {
   icon: AppIconName;
   eyebrow: string;
@@ -154,6 +162,8 @@ function PageHeader({
   description: string;
   loading: boolean;
   onRefresh: () => void;
+  showRefresh?: boolean;
+  actions?: ReactNode;
 }) {
   return (
     <header className="management-header">
@@ -165,10 +175,13 @@ function PageHeader({
           <p>{description}</p>
         </div>
       </div>
-      <button className="soft-button" type="button" onClick={onRefresh} disabled={loading}>
-        <AppIcon name="refresh" size={16} className={loading ? "is-spinning" : undefined} />
-        {loading ? "刷新中" : "刷新"}
-      </button>
+      <div className="management-header-actions">
+        {actions}
+        {showRefresh ? <button className="soft-button header-refresh-button" type="button" onClick={onRefresh} disabled={loading}>
+          <AppIcon name="refresh" size={16} className={loading ? "is-spinning" : undefined} />
+          {loading ? "刷新中" : "刷新"}
+        </button> : null}
+      </div>
     </header>
   );
 }
@@ -200,12 +213,71 @@ function ErrorBanner({ message }: { message: string | null }) {
   return message ? <div className="error-banner" role="alert">{message}</div> : null;
 }
 
+type DashboardSelection = { kind: "job"; item: SavedJobView } | { kind: "resume"; item: ResumeView };
+
+function DashboardDetail({ selection, props, onClose }: {
+  selection: DashboardSelection;
+  props: PageProps;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef(document.activeElement);
+  const [versionId, setVersionId] = useState(selection.kind === "resume" ? selection.item.latest_version_id : "");
+  const load = useCallback((signal: AbortSignal) =>
+    selection.kind === "job"
+      ? fetchSavedJobDetail(selection.item.id, { apiBaseUrl: props.apiBaseUrl, signal })
+      : Promise.resolve(null), [selection, props.apiBaseUrl]);
+  const state = usePageData(load, props.refreshToken, true);
+  useEffect(() => {
+    const element = dialog.current;
+    const trigger = triggerRef.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (trigger instanceof HTMLElement) trigger.focus();
+    };
+  }, []);
+  const version = selection.kind === "resume" ? selection.item.versions.find((item) => item.id === versionId) : null;
+  return (
+    <dialog ref={dialog} className="dashboard-detail" aria-labelledby="dashboard-detail-title" onCancel={onClose} onClick={(event) => {
+      if (event.target === event.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
+      }
+    }}>
+      <header className="dashboard-detail-header">
+        <div><span className="card-kicker">{selection.kind === "job" ? "岗位 JD" : "简历详情"}</span><h2 id="dashboard-detail-title">{selection.kind === "job" ? selection.item.title : selection.item.name}</h2><p>{selection.kind === "job" ? selection.item.company_name : selection.item.target_role}</p></div>
+        <button type="button" className="soft-button" onClick={onClose} autoFocus>关闭</button>
+      </header>
+      <div className="dashboard-detail-content">
+        <ErrorBanner message={state.error} />
+        {state.error ? <button type="button" className="soft-button" onClick={state.reload}>重试</button> : null}
+        {selection.kind === "job" ? <>
+          {state.loading ? <p role="status">正在读取 JD…</p> : null}
+          {state.data ? <div className="job-jd-body"><div className="job-jd-meta"><span>JD 快照 v{state.data.jd_version}</span><span>{[state.data.city, state.data.salary].filter(Boolean).join(" · ")}</span></div><pre>{state.data.jd_text || "该岗位暂未保存 JD 正文。"}</pre></div> : null}
+          {selection.item.jd_analysis ? <JobAnalysisDetails analysis={selection.item.jd_analysis} version={selection.item.jd_analysis_version} stale={selection.item.jd_analysis_status === "stale"} /> : null}
+        </> : <>
+          <SearchableSelect label="简历版本" placeholder="选择简历版本" searchPlaceholder="搜索版本或日期" value={versionId} onChange={setVersionId} options={selection.item.versions.map((item) => ({ value: item.id, label: `v${item.version_number}${item.id === selection.item.latest_version_id ? " · 最新" : ""}`, description: `${dateLabel(item.created_at)} · ${item.change_summary || "暂无改动概要"}` }))} />
+          {version ? <div className="dashboard-version-summary"><strong>v{version.version_number} 改动概要</strong><p>{version.change_summary}</p></div> : null}
+          {version ? <>
+            <iframe key={version.id} className="dashboard-resume-preview" title={`${selection.item.name} v${version.version_number} 原文件预览`} src={resumeDocumentUrl(selection.item.id, version.id, { apiBaseUrl: props.apiBaseUrl })} />
+            <p className="workflow-note">如果浏览器无法预览此格式，可点击“查看原文件”或“下载”。</p>
+          </> : <p>暂无可查看的简历版本。</p>}
+        </>}
+      </div>
+    </dialog>
+  );
+}
+
 export function DashboardPanel(props: PageProps) {
   const load = useCallback(
     (signal: AbortSignal) => fetchDashboard({ apiBaseUrl: props.apiBaseUrl, signal }),
     [props.apiBaseUrl],
   );
   const state = usePageData<Dashboard>(load, props.refreshToken, !props.hidden);
+  const loadResumes = useCallback((signal: AbortSignal) => fetchResumes({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]);
+  const resumes = usePageData(loadResumes, props.refreshToken, !props.hidden);
+  const [selection, setSelection] = useState<DashboardSelection | null>(null);
   const stats = state.data?.stats;
   const cards: { label: string; value: number; icon: AppIconName; tone: string; hint: string }[] = [
     { label: "岗位库", value: stats?.saved_jobs ?? 0, icon: "search", tone: "blue", hint: "已保存完整 JD" },
@@ -215,23 +287,47 @@ export function DashboardPanel(props: PageProps) {
   ];
   return (
     <section className="management-page dashboard-page" hidden={props.hidden}>
-      <PageHeader icon="dashboard" eyebrow="CAREER OVERVIEW" title="求职工作台" description="把投递进度、下一步行动和求职资料放在一个视图里" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader icon="dashboard" eyebrow="CAREER OVERVIEW" title="求职工作台" description="把投递进度、下一步行动和求职资料放在一个视图里" loading={state.loading || resumes.loading} onRefresh={() => { state.reload(); resumes.reload(); }} />
       <ErrorBanner message={state.error} />
       <div className="stat-grid">
         {cards.map((card) => (
-          <article className={`stat-card tone-card-${card.tone}`} key={card.label}>
+          <button type="button" className={`stat-card tone-card-${card.tone}`} key={card.label} onClick={() => props.onNavigate?.(card.label === "岗位库" ? "jobs" : card.label === "简历版本" ? "resumes" : "applications")}>
             <span className="stat-icon"><AppIcon name={card.icon} size={22} /></span>
-            <div><small>{card.label}</small><strong>{card.value}</strong><p>{card.hint}</p></div>
-          </article>
+            <div><small>{card.label}</small><strong>{card.value}</strong><p>{card.hint}</p></div><span className="dashboard-arrow" aria-hidden="true">↗</span>
+          </button>
         ))}
       </div>
       <div className="dashboard-grid">
+        <section className="surface-card">
+          <div className="section-heading"><div><small>NEXT ACTIONS</small><h2>下一步行动</h2></div><button type="button" className="section-link" onClick={() => props.onNavigate?.("brief")}>{state.data?.next_actions.length ?? 0} 项 · 查看全部</button></div>
+          {state.data && state.data.next_actions.length > 0 ? (
+            <div className="action-list">
+              {state.data.next_actions.map((item) => (
+                <button type="button" className="dashboard-action-row" key={item.id} onClick={() => props.onNavigate?.("brief")}><span><AppIcon name="check" size={17} /></span><div><strong>{item.title}</strong><small>{item.summary}</small></div></button>
+              ))}
+            </div>
+          ) : <EmptyState icon="check" title="当前没有待办" description="Agent 会根据投递、面试和邮件事件生成行动项。" action="问问 Agent" onAction={() => props.onAskAgent("根据我的求职进度，建议我下一步做什么")} />}
+        </section>
+        <section className="surface-card">
+          <div className="section-heading"><div><small>APPLICATION PIPELINE</small><h2>投递进展</h2></div><button type="button" className="section-link" onClick={() => props.onNavigate?.("applications")}>{stats?.offers ?? 0} 个 Offer · 查看全部</button></div>
+          {state.data && state.data.recent_applications.length > 0 ? (
+            <div className="compact-list">
+              {state.data.recent_applications.map((item) => (
+                <button type="button" className="dashboard-link-row" key={item.id} onClick={() => props.onNavigate?.("applications")}>
+                  <span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span>
+                  <div><strong>{item.title}</strong><small>{item.company_name} · {dateLabel(item.submitted_at)}</small></div>
+                  <span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>
+                </button>
+              ))}
+            </div>
+          ) : <EmptyState icon="applications" title="还没有投递记录" description="在对话里保存第一次投递后，进度会出现在这里。" action="记录一次投递" onAction={() => props.onAskAgent("帮我记录一次新的岗位投递")} />}
+        </section>
         <section className="surface-card surface-card-wide">
-          <div className="section-heading"><div><small>SAVED JOBS</small><h2>最近保存的 JD</h2></div><span>{stats?.saved_jobs ?? 0} 个岗位</span></div>
+          <div className="section-heading"><div><small>SAVED JOBS</small><h2>最近保存的 JD</h2></div><button type="button" className="section-link" onClick={() => props.onNavigate?.("jobs")}>{stats?.saved_jobs ?? 0} 个岗位 · 查看全部</button></div>
           {state.data && state.data.recent_jobs.length > 0 ? (
-            <div className="saved-job-grid">
+            <div className="dashboard-resource-grid">
               {state.data.recent_jobs.map((item) => (
-                <article key={item.id}>
+                <button type="button" className="dashboard-resource-card" key={item.id} onClick={() => setSelection({ kind: "job", item })}>
                   <span className="list-icon tone-blue"><AppIcon name="brief" size={18} /></span>
                   <div>
                     <strong>{item.title}</strong>
@@ -251,36 +347,26 @@ export function DashboardPanel(props: PageProps) {
                         ? "已下架"
                         : "未投递"}
                   </span>
-                </article>
+                </button>
               ))}
             </div>
           ) : <EmptyState icon="search" title="岗位库还是空的" description="保存你真正看过的完整 JD；它不会因为保存就变成投递记录。" action="去找岗位" onAction={() => props.onAskAgent("帮我打开招聘网站，我想查找并保存感兴趣的岗位")} />}
         </section>
-        <section className="surface-card">
-          <div className="section-heading"><div><small>APPLICATION PIPELINE</small><h2>投递进展</h2></div><span>{stats?.offers ?? 0} 个 Offer</span></div>
-          {state.data && state.data.recent_applications.length > 0 ? (
-            <div className="compact-list">
-              {state.data.recent_applications.map((item) => (
-                <article key={item.id}>
-                  <span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span>
-                  <div><strong>{item.title}</strong><small>{item.company_name} · {dateLabel(item.submitted_at)}</small></div>
-                  <span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>
-                </article>
-              ))}
-            </div>
-          ) : <EmptyState icon="applications" title="还没有投递记录" description="在对话里保存第一次投递后，进度会出现在这里。" action="记录一次投递" onAction={() => props.onAskAgent("帮我记录一次新的岗位投递")} />}
-        </section>
-        <section className="surface-card">
-          <div className="section-heading"><div><small>NEXT ACTIONS</small><h2>下一步行动</h2></div><span>{state.data?.next_actions.length ?? 0} 项</span></div>
-          {state.data && state.data.next_actions.length > 0 ? (
-            <div className="action-list">
-              {state.data.next_actions.map((item) => (
-                <article key={item.id}><span><AppIcon name="check" size={17} /></span><div><strong>{item.title}</strong><small>{item.summary}</small></div></article>
-              ))}
-            </div>
-          ) : <EmptyState icon="check" title="当前没有待办" description="Agent 会根据投递、面试和邮件事件生成行动项。" action="问问 Agent" onAction={() => props.onAskAgent("根据我的求职进度，建议我下一步做什么")} />}
+        <section className="surface-card surface-card-wide">
+          <div className="section-heading"><div><small>RESUMES</small><h2>我的简历</h2></div><button type="button" className="section-link" onClick={() => props.onNavigate?.("resumes")}>管理全部简历</button></div>
+          <ErrorBanner message={resumes.error} />
+          {resumes.error ? <button type="button" className="soft-button" onClick={resumes.reload}>重新读取简历</button> : null}
+          {resumes.loading && !resumes.data ? <p role="status">正在读取简历…</p> : null}
+          {resumes.data?.length ? <div className="dashboard-resource-grid">{resumes.data.map((item) => (
+            <button type="button" className="dashboard-resource-card" key={item.id} onClick={() => setSelection({ kind: "resume", item })}>
+              <span className="list-icon tone-blue"><AppIcon name="document" size={22} /></span>
+              <div><strong>{item.name}</strong><small>{item.target_role || "通用简历"}</small><small>v{item.latest_version_number} · {item.version_count} 个版本 · {dateLabel(item.updated_at)} 更新</small></div>
+              <span className="status-pill status-current">{item.document_format.toUpperCase()}</span>
+            </button>
+          ))}</div> : resumes.data ? <EmptyState icon="document" title="还没有简历" description="导入简历后，可以在这里直接打开并查看各个版本。" action="导入简历" onAction={() => props.onNavigate?.("resumes")} /> : null}
         </section>
       </div>
+      {selection && !props.hidden ? <DashboardDetail key={`${selection.kind}:${selection.item.id}`} selection={selection} props={props} onClose={() => setSelection(null)} /> : null}
     </section>
   );
 }
@@ -299,6 +385,7 @@ function ApplicationPracticePanel({
   refreshToken,
   onAskAgent,
   onOpenConversation,
+  onStartStandaloneTask,
   onClose,
 }: {
   application: ApplicationView;
@@ -306,6 +393,7 @@ function ApplicationPracticePanel({
   refreshToken: number;
   onAskAgent: (prompt: string) => void;
   onOpenConversation?: (conversationId: string) => void;
+  onStartStandaloneTask?: (prompt: string, resource: ChatAttachment, additionalResources?: ChatAttachment[]) => void;
   onClose: () => void;
 }) {
   const load = useCallback(
@@ -316,7 +404,20 @@ function ApplicationPracticePanel({
     [apiBaseUrl, application.id],
   );
   const state = usePageData<ApplicationMockInterviews>(load, refreshToken, true);
-  const startPrompt = `基于投递记录中的「${application.company_name} · ${application.title}」开始一轮模拟面试；请先让我选择面试类型和题目数量。`;
+  // This panel already has the selected application. Keep the application id
+  // in the request so the agent does not need to route through a second
+  // natural-language "choose a job" step.
+  const startPrompt = `开始一轮模拟面试。目标投递记录 application_id=${application.id}（${application.company_name} · ${application.title}）。只询问我面试类型和题目数量，然后直接开始。`;
+  const startPractice = useCallback(() => {
+    const resource: ChatAttachment = {
+      kind: "application",
+      applicationId: application.id,
+      title: `${application.company_name} · ${application.title}`,
+      description: "已选定的投递记录",
+    };
+    if (onStartStandaloneTask) onStartStandaloneTask(startPrompt, resource);
+    else onAskAgent(startPrompt);
+  }, [application.company_name, application.id, application.title, onAskAgent, onStartStandaloneTask, startPrompt]);
 
   return (
     <section className="surface-card application-practice-panel">
@@ -327,9 +428,6 @@ function ApplicationPracticePanel({
           <p>{application.company_name} · {application.title}</p>
         </div>
         <div>
-          <button type="button" className="soft-button" onClick={() => onAskAgent(startPrompt)}>
-            <AppIcon name="sparkles" size={15} /> 让 Agent 开始模拟面试
-          </button>
           <button type="button" className="panel-close-button" onClick={onClose}>关闭</button>
         </div>
       </header>
@@ -372,9 +470,7 @@ function ApplicationPracticePanel({
                 <button
                   type="button"
                   className="card-agent-action"
-                  onClick={() => onAskAgent(
-                    `基于投递记录中的「${application.company_name} · ${application.title}」再进行一轮${session.interview_type_label}模拟面试。`,
-                  )}
+                  onClick={startPractice}
                 >
                   再练一轮同类型
                 </button>
@@ -401,7 +497,7 @@ function ApplicationPracticePanel({
           title="还没有模拟面试记录"
           description="模拟面试会在 Agent 对话中进行；完成后，本轮总结和每题反馈会保存在这里。"
           action="让 Agent 开始模拟面试"
-          onAction={() => onAskAgent(startPrompt)}
+          onAction={startPractice}
         />
       )}
     </section>
@@ -434,6 +530,13 @@ export function ApplicationsPanel(props: PageProps) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [practiceApplication, setPracticeApplication] = useState<ApplicationView | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  async function clearAll(): Promise<void> {
+    if (!window.confirm("确定清空全部投递记录吗？此操作不可恢复。")) return;
+    setClearing(true); setActionError(null);
+    try { await clearApplications({ apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "清空失败"); } finally { setClearing(false); }
+  }
 
   async function submitApplication(): Promise<void> {
     setSaving(true);
@@ -457,15 +560,24 @@ export function ApplicationsPanel(props: PageProps) {
 
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="applications" eyebrow="APPLICATIONS" title="投递记录" description="按公司和岗位查看从已投递到 Offer 的完整进度" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader
+        icon="applications"
+        eyebrow="APPLICATIONS"
+        title="投递记录"
+        description="按公司和岗位查看从已投递到 Offer 的完整进度"
+        loading={state.loading}
+        onRefresh={state.reload}
+        actions={<div className="management-actions">
+          <button type="button" className="soft-button" onClick={() => setShowForm((visible) => !visible)}><AppIcon name="applications" size={16} /> 直接记录投递</button>
+          <button type="button" className="soft-button" onClick={() => props.onAskAgent("帮我记录一次新的岗位投递；请根据我已保存的岗位和简历询问并确认必要信息")}><AppIcon name="sparkles" size={16} /> 让 Agent 记录</button>
+          <button type="button" className="danger-action" disabled={clearing || !state.data?.applications.length} onClick={() => void clearAll()}><AppIcon name="trash" size={16} />{clearing ? "正在清空…" : "清空投递记录"}</button>
+        </div>}
+      />
       <ErrorBanner message={state.error} />
-      <div className="management-actions">
-        <button type="button" className="soft-button" onClick={() => setShowForm((visible) => !visible)}><AppIcon name="applications" size={16} /> 直接记录投递</button>
-        <button type="button" className="soft-button" onClick={() => props.onAskAgent("帮我记录一次新的岗位投递；请根据我已保存的岗位和简历询问并确认必要信息")}><AppIcon name="sparkles" size={16} /> 让 Agent 记录</button>
-      </div>
+      <ErrorBanner message={actionError} />
       <ErrorBanner message={formError} />
-      {showForm ? <section className="surface-card application-create-form"><div><label>已保存岗位<select value={jobId} onChange={(event) => setJobId(event.target.value)}><option value="">请选择岗位</option>{state.data?.jobs.map((job) => <option key={job.id} value={job.id}>{job.company_name} · {job.title}</option>)}</select></label><label>使用的简历<select value={resumeVersionId} onChange={(event) => setResumeVersionId(event.target.value)}><option value="">请选择简历版本</option>{state.data?.resumes.map((resume) => <option key={resume.latest_version_id} value={resume.latest_version_id}>{resume.name} · v{resume.latest_version_number}</option>)}</select></label><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && (state.data.jobs.length === 0 || state.data.resumes.length === 0) ? <p>记录前需要至少一个已保存岗位和一个简历版本。可以先前往岗位库/简历管理，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
-      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span></span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
+      {showForm ? <section className="surface-card application-create-form"><div><SearchableSelect label="已保存岗位" placeholder="请选择岗位" searchPlaceholder="搜索公司或岗位" value={jobId} onChange={setJobId} disabled={saving} options={(state.data?.jobs ?? []).map((job) => ({ value: job.id, label: job.title, description: job.company_name }))} /><SearchableSelect label="使用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={resumeVersionId} onChange={setResumeVersionId} disabled={saving} options={(state.data?.resumes ?? []).map((resume) => ({ value: resume.latest_version_id, label: resume.name, description: `v${resume.latest_version_number}` }))} /><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && (state.data.jobs.length === 0 || state.data.resumes.length === 0) ? <p>记录前需要至少一个已保存岗位和一个简历版本。可以先前往岗位库/简历管理，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
+      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>{item.interview_round_number ? <small className="application-round-label">{item.interview_round_label || `第 ${item.interview_round_number} 场`}</small> : null}</span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
       {practiceApplication ? (
         <ApplicationPracticePanel
           application={practiceApplication}
@@ -473,6 +585,7 @@ export function ApplicationsPanel(props: PageProps) {
           refreshToken={props.refreshToken}
           onAskAgent={props.onAskAgent}
           onOpenConversation={props.onOpenConversation}
+          onStartStandaloneTask={props.onStartStandaloneTask}
           onClose={() => setPracticeApplication(null)}
         />
       ) : null}
@@ -697,7 +810,10 @@ export function JobsPanel(props: PageProps) {
                     <div className="analysis-section"><strong>核心职责</strong><ul>{item.responsibilities.slice(0, 4).map((entry) => <li key={entry}>{entry}</li>)}</ul></div>
                   ) : null}
                   {item.clarification_questions.length > 0 ? (
-                    <div className="analysis-question"><AppIcon name="target" size={16} /><span>{item.clarification_questions.length} 个信息点需要进一步确认</span></div>
+                    <details className="analysis-question">
+                      <summary><AppIcon name="target" size={16} /><span>{item.clarification_questions.length} 个信息点需要进一步确认</span><span className="analysis-question-toggle"><span className="when-closed">展开查看</span><span className="when-open">收起</span></span></summary>
+                      <ol>{item.clarification_questions.map((question, index) => <li key={index}>{question}</li>)}</ol>
+                    </details>
                   ) : null}
                 </div>
               ) : (
@@ -746,7 +862,7 @@ export function JobsPanel(props: PageProps) {
                 >
                   {openMatches === item.id ? "收起匹配分析" : `查看匹配分析（${item.resume_match_count ?? 0}）`}
                 </button>
-                <button type="button" className="link" onClick={() => toggleJd(item.id)}>
+                <button type="button" className="job-primary-action" aria-expanded={openJd === item.id} onClick={() => toggleJd(item.id)}>
                   {openJd === item.id ? "收起 JD" : "查看完整 JD"}
                 </button>
                 <button type="button" className="link" onClick={() => analyzeJob(item)}>
@@ -852,15 +968,18 @@ export function ResumesPanel(props: PageProps) {
   const state = usePageData<ResumeView[]>(load, props.refreshToken, !props.hidden);
   const [showImporter, setShowImporter] = useState(false);
   const analyzeResume = props.onStartStandaloneTask ?? props.onAskAgent;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deletingResume, setDeletingResume] = useState<string | null>(null);
+  async function removeResume(id: string, name: string): Promise<void> {
+    if (!window.confirm(`确定删除简历“${name}”及其全部版本吗？`)) return;
+    setDeletingResume(id); setActionError(null);
+    try { await deleteResume(id, { apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "删除失败"); } finally { setDeletingResume(null); }
+  }
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => setShowImporter((open) => !open)}><AppIcon name="plus" size={16} /> {showImporter ? "收起导入" : "导入简历"}</button></div>} />
       <ErrorBanner message={state.error} />
-      <div className="management-actions">
-        <button type="button" className="soft-button" onClick={() => setShowImporter((open) => !open)}>
-          <AppIcon name="plus" size={16} /> {showImporter ? "收起导入" : "导入简历"}
-        </button>
-      </div>
+      <ErrorBanner message={actionError} />
       {showImporter ? (
         <ResumeImporter
           apiBaseUrl={props.apiBaseUrl}
@@ -894,6 +1013,7 @@ export function ResumesPanel(props: PageProps) {
                       ))}
                     </details>
                   ) : null}
+                  <div className="resume-card-actions"><button type="button" className="danger-action" disabled={deletingResume === item.id} onClick={() => void removeResume(item.id, item.name)}><AppIcon name="trash" size={15} />{deletingResume === item.id ? "正在删除…" : "删除简历"}</button></div>
                 </div>
               </article>
             );
@@ -918,29 +1038,33 @@ function ResumeVersionRow({
   apiBaseUrl,
   onAnalyze,
   latest = false,
+  showAnalyze = true,
 }: {
   resumeName: string;
   version: ResumeVersionView;
   apiBaseUrl: string;
   onAnalyze: (prompt: string, resource: ResumeAttachment) => void;
   latest?: boolean;
+  showAnalyze?: boolean;
 }) {
   return (
     <div className={`resume-version-row ${latest ? "is-latest" : ""}`}>
       <div>
         <strong>v{version.version_number}{latest ? " · 最新" : ""}</strong>
         <small>{version.document_format.toUpperCase()} · {formatBytes(version.byte_size)} · {new Date(version.created_at).toLocaleString("zh-CN")} 上传</small>
+        <p className="resume-version-summary"><strong>改动概要</strong>{version.change_summary || "暂无可用的版本摘要"}</p>
       </div>
       <div className="resume-version-actions">
         <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl })} target="_blank" rel="noreferrer">查看原文件</a>
         <a href={resumeDocumentUrl(version.resume_id, version.id, { apiBaseUrl, download: true })}>下载</a>
-        <button type="button" onClick={() => onAnalyze(`帮我分析简历“${resumeName}”的 v${version.version_number}`, attachmentFromVersion(resumeName, version))}>让 Agent 分析</button>
+        {showAnalyze ? <button type="button" onClick={() => onAnalyze(`帮我分析简历“${resumeName}”的 v${version.version_number}`, attachmentFromVersion(resumeName, version))}>让 Agent 分析</button> : null}
       </div>
     </div>
   );
 }
 
 export function CalendarPanel(props: PageProps) {
+  const [activeSection, setActiveSection] = useState<"schedule" | "practice">("schedule");
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<CalendarWorkspace["events"][number] | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -952,7 +1076,21 @@ export function CalendarPanel(props: PageProps) {
     month: selectedMonth,
     timezone,
   }), [props.apiBaseUrl, selectedMonth, timezone]);
-  const state = usePageData<CalendarWorkspace>(load, props.refreshToken, !props.hidden);
+  const state = usePageData<CalendarWorkspace>(load, props.refreshToken, !props.hidden && activeSection === "schedule");
+  const loadPractice = useCallback(async (signal: AbortSignal) => {
+    const options = { apiBaseUrl: props.apiBaseUrl, signal };
+    const applications = await fetchApplications(options);
+    const histories = await Promise.all(
+      applications.map((application) => fetchApplicationMockInterviews(application.id, options)),
+    );
+    return histories.flatMap((history) => history.sessions.map((session) => ({
+      ...session,
+      application_id: history.application_id,
+      title: history.title,
+      company_name: history.company_name,
+    }))).sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+  }, [props.apiBaseUrl]);
+  const practice = usePageData(loadPractice, props.refreshToken, !props.hidden && activeSection === "practice");
   const grouped = eventsByDay(state.data?.events ?? [], timezone);
   const days = calendarDays(cursor);
   const now = new Date();
@@ -971,7 +1109,23 @@ export function CalendarPanel(props: PageProps) {
 
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="calendar" eyebrow="CALENDAR" title="面试日历" description="查看项目中的面试安排及 Google Calendar 同步状态" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader
+        icon="calendar"
+        eyebrow="INTERVIEW CENTER"
+        title="面试中心"
+        description="统一管理真实面试日程、模拟练习与面试复盘"
+        loading={activeSection === "schedule" ? state.loading : practice.loading}
+        onRefresh={activeSection === "schedule" ? state.reload : practice.reload}
+      />
+      <div className="interview-tabs" role="tablist" aria-label="面试中心内容">
+        <button type="button" role="tab" aria-selected={activeSection === "schedule"} className={activeSection === "schedule" ? "is-active" : ""} onClick={() => setActiveSection("schedule")}>
+          <AppIcon name="calendar" size={16} /> 面试日程
+        </button>
+        <button type="button" role="tab" aria-selected={activeSection === "practice"} className={activeSection === "practice" ? "is-active" : ""} onClick={() => setActiveSection("practice")}>
+          <AppIcon name="sparkles" size={16} /> 模拟面试
+        </button>
+      </div>
+      {activeSection === "schedule" ? <>
       <ErrorBanner message={state.error} />
       <ErrorBanner message={connectionError} />
       <details className="integration-help">
@@ -1004,7 +1158,37 @@ export function CalendarPanel(props: PageProps) {
         </div>
         {state.data && state.data.events.length === 0 ? <div className="calendar-empty">本月还没有已安排的面试。</div> : null}
       </section>
-      {selected ? <aside className="calendar-detail"><button type="button" className="calendar-detail-close" onClick={() => setSelected(null)}>关闭</button><span className="card-kicker">{selected.employer_label || "面试安排"}</span><h2>{selected.company_name || "未关联公司"} · {selected.job_title || "未关联岗位"}</h2><p>{selected.scheduled_start ? new Date(selected.scheduled_start).toLocaleString("zh-CN", { timeZone: selected.timezone || timezone }) : "时间待确认"} · {selected.timezone}</p><dl><div><dt>形式</dt><dd>{selected.interview_format || "unknown"}</dd></div><div><dt>地点</dt><dd>{selected.location || "未提供"}</dd></div><div><dt>同步</dt><dd>{selected.sync_status}</dd></div>{selected.contact_summary ? <div><dt>联系人</dt><dd>{selected.contact_summary}</dd></div> : null}</dl><div className="calendar-detail-actions">{selectedMeetingUrl ? <a href={selectedMeetingUrl} target="_blank" rel="noreferrer">加入会议</a> : null}{selectedExternalUrl ? <a href={selectedExternalUrl} target="_blank" rel="noreferrer">在 Google Calendar 打开</a> : <button type="button" onClick={() => props.onAskAgent(`把 interview_round_id=${selected.interview_round_id} 的面试安排同步到 Google Calendar`)}>让 Agent 同步</button>}</div></aside> : null}
+      {selected ? <aside className="calendar-detail"><button type="button" className="calendar-detail-close" onClick={() => setSelected(null)}>关闭</button><span className="card-kicker">{selected.employer_label || "面试安排"}</span><h2>{selected.company_name || "未关联公司"} · {selected.job_title || "未关联岗位"}</h2><p>{selected.scheduled_start ? new Date(selected.scheduled_start).toLocaleString("zh-CN", { timeZone: selected.timezone || timezone }) : "时间待确认"} · {selected.timezone}</p><dl><div><dt>形式</dt><dd>{selected.interview_format || "unknown"}</dd></div><div><dt>地点</dt><dd>{selected.location || "未提供"}</dd></div><div><dt>日历状态</dt><dd>{selected.sync_status === "not_synced" ? "尚未添加到 Google Calendar" : selected.sync_status}</dd></div>{selected.contact_summary ? <div><dt>联系人</dt><dd>{selected.contact_summary}</dd></div> : null}</dl><div className="calendar-detail-actions">{selectedMeetingUrl ? <a href={selectedMeetingUrl} target="_blank" rel="noreferrer">加入会议</a> : null}{selectedExternalUrl ? <a href={selectedExternalUrl} target="_blank" rel="noreferrer">在 Google Calendar 打开</a> : <button type="button" onClick={() => props.onAskAgent(`把 interview_round_id=${selected.interview_round_id} 的面试安排添加到 Google Calendar`)}>添加到 Google Calendar</button>}</div></aside> : null}
+      </> : <>
+        <ErrorBanner message={practice.error} />
+        <section className="surface-card interview-practice-hero">
+          <div>
+            <span className="list-icon tone-blue"><AppIcon name="sparkles" size={21} /></span>
+            <div><small>PRACTICE HISTORY</small><h2>模拟面试复盘</h2><p>这里集中查看每轮练习的回答、逐题反馈和总结。请从投递记录进入具体岗位后开始新一轮练习。</p></div>
+          </div>
+        </section>
+        {practice.loading && !practice.data ? <div className="history-loading"><span className="spinner" /> 正在汇总练习记录…</div> : null}
+        {practice.data && practice.data.length > 0 ? (
+          <section className="interview-practice-history">
+            <div className="section-heading"><div><small>HISTORY</small><h2>全部练习记录</h2></div><span>{practice.data.length} 轮</span></div>
+            <div className="mock-session-list">
+              {practice.data.map((session) => (
+                <article className="mock-session-card interview-session-card" key={session.session_id}>
+                  <div className="mock-session-heading">
+                    <div><span className="card-kicker">{session.interview_type_label}</span><strong>{session.company_name} · {session.title}</strong></div>
+                    <span className={`status-pill status-${session.status}`}>{MOCK_INTERVIEW_STATUS_LABELS[session.status] ?? session.status}</span>
+                  </div>
+                  <p>{session.summary ?? (session.status === "active" ? "这轮模拟面试仍在原对话中进行。" : session.status === "paused" ? "练习已暂停，可以回到原对话继续。" : session.status === "cancelled" ? "这轮练习已取消。" : "练习尚未生成最终总结。")}</p>
+                  <small>{dateLabel(session.completed_at ?? session.created_at)} · 已完成 {session.question_count} / {session.max_primary_questions} 道主问题</small>
+                  {session.report_id ? <ReportCard apiBaseUrl={props.apiBaseUrl} resource={{ kind: "mock_interview_report", resourceId: session.report_id }} /> : null}
+                  {session.status === "completed" ? <small className="workflow-note">如需再练一轮，请到投递记录中选择「{session.company_name} · {session.title}」后发起。</small> : null}
+                  {(session.status === "active" || session.status === "paused") && session.conversation_id && props.onOpenConversation ? <button type="button" className="card-agent-action" onClick={() => props.onOpenConversation?.(session.conversation_id!)}>回到原对话继续练习</button> : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : practice.data ? <section className="surface-card"><EmptyState icon="sparkles" title="还没有模拟面试记录" description="从投递记录中选择一个岗位开始练习；完成后，本页面会展示总结和逐题反馈。" /></section> : null}
+      </>}
     </section>
   );
 }
@@ -1049,17 +1233,9 @@ export function EmailPanel(props: PageProps) {
 
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="mail" eyebrow="EMAIL TRACKING" title="邮件追踪" description="查看招聘邮箱账号、同步状态和 Agent 识别出的求职事件" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader icon="mail" eyebrow="EMAIL TRACKING" title="邮件追踪" description="查看招聘邮箱账号、同步状态和 Agent 识别出的求职事件" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => void connectGoogle()}><AppIcon name="mail" size={16} /> 连接 Gmail</button><button type="button" className="soft-button" onClick={() => setShowQQ((open) => !open)}>连接 QQ 邮箱</button><button type="button" className="soft-button" onClick={() => props.onAskAgent("同步我已连接邮箱中的最新招聘邮件，并列出需要我确认的事件")}><AppIcon name="sparkles" size={16} /> 让 Agent 同步邮箱</button>{pending.length > 0 ? <button type="button" className="soft-button" onClick={() => props.onAskAgent("逐项处理邮箱里等待确认的求职事件")}>处理 {pending.length} 个待确认事件</button> : null}</div>} />
       <ErrorBanner message={state.error} />
       <ErrorBanner message={connectionError} />
-      <div className="management-actions">
-        <button type="button" className="soft-button" onClick={() => void connectGoogle()}><AppIcon name="mail" size={16} /> 连接 Gmail</button>
-        <button type="button" className="soft-button" onClick={() => setShowQQ((open) => !open)}>连接 QQ 邮箱</button>
-        <button type="button" className="soft-button" onClick={() => props.onAskAgent("同步我已连接邮箱中的最新招聘邮件，并列出需要我确认的事件")}>
-          <AppIcon name="sparkles" size={16} /> 让 Agent 同步邮箱
-        </button>
-        {pending.length > 0 ? <button type="button" className="soft-button" onClick={() => props.onAskAgent("逐项处理邮箱里等待确认的求职事件")}>处理 {pending.length} 个待确认事件</button> : null}
-      </div>
       <details className="integration-help">
         <summary>Gmail / QQ 邮箱如何连接？</summary>
         <div className="integration-help-columns">
@@ -1099,12 +1275,19 @@ export function EmailPanel(props: PageProps) {
 export function ResearchPanel(props: PageProps) {
   const load = useCallback((signal: AbortSignal) => fetchCompanyResearch({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]);
   const state = usePageData<CompanyResearchView[]>(load, props.refreshToken, !props.hidden);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deletingReport, setDeletingReport] = useState<string | null>(null);
+  async function removeReport(id: string): Promise<void> {
+    if (!window.confirm("确定删除这份公司研究及其来源吗？此操作不可恢复。")) return;
+    setDeletingReport(id); setActionError(null);
+    try { await deleteCompanyResearch(id, { apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "删除失败"); } finally { setDeletingReport(null); }
+  }
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="building" eyebrow="COMPANY RESEARCH" title="公司研究" description="集中查看用户主动要求生成的业务、产品线和市场资料" loading={state.loading} onRefresh={state.reload} />
+      <PageHeader icon="building" eyebrow="COMPANY RESEARCH" title="公司研究" description="集中查看用户主动要求生成的业务、产品线和市场资料" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => props.onAskAgent("我想研究岗位库里一家目标公司的业务、产品线和市场情况")}><AppIcon name="sparkles" size={16} /> 让 Agent 研究公司</button></div>} />
       <ErrorBanner message={state.error} />
-      <div className="management-actions"><button type="button" className="soft-button" onClick={() => props.onAskAgent("我想研究岗位库里一家目标公司的业务、产品线和市场情况")}><AppIcon name="sparkles" size={16} /> 让 Agent 研究公司</button></div>
-      {state.data && state.data.length > 0 ? <div className="research-grid">{state.data.map((item) => <article className="research-card" key={item.id}><div className="research-card-top"><span className="company-avatar">{item.company_name.slice(0, 1)}</span><div><span className="card-kicker">{item.focus || "公司与业务概览"}</span><h2>{item.company_name}</h2></div><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span></div><p>{item.summary}</p><div className="card-meta"><span>{item.finding_count} 条发现</span><span>{item.source_count} 个来源</span><time>{dateLabel(item.created_at)}</time></div><small>检索锚点：{item.anchor_job_title}</small><ReportCard resource={{ kind: "job_research_report", resourceId: item.id }} apiBaseUrl={props.apiBaseUrl} /></article>)}</div> : <EmptyState icon="building" title="还没有公司研究" description="研究需要以岗位库中的已保存岗位为锚点，由 Agent 确认范围后启动。" action="让 Agent 研究公司" onAction={() => props.onAskAgent("我想研究岗位库里一家目标公司的业务和产品线")} />}
+      <ErrorBanner message={actionError} />
+      {state.data && state.data.length > 0 ? <div className="research-grid">{state.data.map((item) => <article className="research-card" key={item.id}><div className="research-card-top"><span className="company-avatar">{item.company_name.slice(0, 1)}</span><div><span className="card-kicker">{item.focus || "公司与业务概览"}</span><h2>{item.company_name}</h2></div><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span></div><p>{item.summary}</p><div className="card-meta"><span>{item.finding_count} 条发现</span><span>{item.source_count} 个来源</span><time>{dateLabel(item.created_at)}</time></div><small>关联岗位 · {item.anchor_job_title}</small><ReportCard resource={{ kind: "job_research_report", resourceId: item.id }} apiBaseUrl={props.apiBaseUrl} /><div className="research-card-actions"><button type="button" className="danger-action" disabled={deletingReport === item.id} onClick={() => void removeReport(item.id)}><AppIcon name="trash" size={15} />{deletingReport === item.id ? "正在删除…" : "删除研究"}</button></div></article>)}</div> : <EmptyState icon="building" title="还没有公司研究" description="研究需要以岗位库中的已保存岗位为锚点，由 Agent 确认范围后启动。" action="让 Agent 研究公司" onAction={() => props.onAskAgent("我想研究岗位库里一家目标公司的业务和产品线")} />}
     </section>
   );
 }

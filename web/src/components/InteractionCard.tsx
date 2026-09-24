@@ -24,6 +24,7 @@ function optionValue(option: InteractionRequiredEvent["options"][number]): strin
 
 export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: InteractionCardProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [freeText, setFreeText] = useState("");
   const isMultiple = interaction.kind === "multiple_selection";
   const selectedMessage = useMemo(() => [...selected].join(", "), [selected]);
 
@@ -102,6 +103,26 @@ export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: 
           );
         })}
       </div>
+      {interaction.allow_free_text ? (
+        <div className="interaction-free-text">
+          <label htmlFor={`${interaction.interaction_id}-free-text`}>以上都不适用？直接填写</label>
+          <textarea
+            id={`${interaction.interaction_id}-free-text`}
+            rows={3}
+            value={freeText}
+            disabled={disabled}
+            placeholder="输入你的回答…"
+            onChange={(event) => setFreeText(event.target.value)}
+          />
+          <button
+            type="button"
+            disabled={disabled || !freeText.trim()}
+            onClick={() => onReply({ message: freeText.trim() })}
+          >
+            提交填写内容
+          </button>
+        </div>
+      ) : null}
       {isMultiple ? (
         <button
           type="button"

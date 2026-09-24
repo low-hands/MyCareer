@@ -62,6 +62,7 @@ beforeEach(() => {
     versions: [2, 1].map((number) => ({
       id: `resume-v${number}`, resume_id: "resume", version_number: number,
       document_format: "text", byte_size: 20, created_at: first.created_at,
+      change_summary: number === 1 ? "初始版本" : "新增：新项目",
     })),
   }]);
   container = document.createElement("div");
@@ -76,6 +77,30 @@ afterEach(async () => {
 });
 
 describe("job library match history", () => {
+  it("searches names and versions, handles no results, and selects a filtered version", async () => {
+    const start = vi.fn();
+    await act(async () => root.render(<JobMatchesPanel job={job} apiBaseUrl="/api" refreshToken={0} onStartTask={start} />));
+    await click("选择简历版本发起匹配");
+    await click("请选择简历版本");
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    expect(document.activeElement).toBe(search);
+    const type = async (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, value);
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await type("不存在的简历");
+    expect(container.querySelectorAll('[role="option"]')).toHaveLength(0);
+    expect(container.textContent).toContain("没有找到对应简历");
+    await type(" ENGINEERING v1 ");
+    expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
+    await act(async () => search.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    expect(document.activeElement?.getAttribute("role")).toBe("option");
+    await act(async () => (document.activeElement as HTMLButtonElement).click());
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
+    await click("开始匹配");
+    expect(start).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ resumeVersionId: "resume-v1" }), expect.any(Array));
+  });
+
   it("opens persisted reports by ID from the job card with exact original version links", async () => {
     const start = vi.fn();
     await act(async () => root.render(
@@ -87,9 +112,9 @@ describe("job library match history", () => {
     const buttons = container.querySelectorAll<HTMLButtonElement>(".report-card-header");
     await act(async () => buttons[1].click());
     expect(fetchReport).toHaveBeenCalledWith("resume_job_match", "match-v1", expect.anything(), expect.anything());
-    expect(container.querySelector(".match-provenance")?.textContent).toContain("jd-v1");
-    expect(container.querySelector(".match-provenance")?.textContent).toContain("resume-v1");
-    expect(container.querySelector(".match-provenance")?.textContent).toContain("matcher-v2");
+    expect(container.querySelector(".match-provenance")?.textContent).toContain("JD v1");
+    expect(container.querySelector(".match-provenance")?.textContent).toContain("简历 v1");
+    expect(container.querySelector(".match-provenance")?.textContent).not.toContain("matcher-v2");
     expect(container.querySelector(".match-provenance a")?.getAttribute("href")).toContain("/resume/versions/resume-v1/document");
     expect(container.textContent).toContain("Built Python services");
     expect(start).not.toHaveBeenCalled();
@@ -104,11 +129,11 @@ describe("job library match history", () => {
     await act(async () => root.render(<JobMatchesPanel job={job} apiBaseUrl="/api" refreshToken={0} onStartTask={start} />));
     expect(container.textContent).toContain("尚未匹配");
     await click("选择简历版本发起匹配");
-    const select = container.querySelector("select")!;
-    expect(select.querySelectorAll("option")).toHaveLength(3);
+    await click("请选择简历版本");
+    const option = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((item) => item.textContent?.includes("v1"))!;
+    expect(container.querySelectorAll('[role="option"]')).toHaveLength(2);
     await act(async () => {
-      select.value = "resume-v1";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
+      option.click();
       root.render(<JobMatchesPanel job={{ ...job, jd_snapshot_id: "jd-v3", jd_version: 3 }} apiBaseUrl="/api" refreshToken={1} onStartTask={start} />);
     });
     await click("开始匹配");
@@ -131,8 +156,8 @@ describe("job library match history", () => {
     await act(async () => root.render(<JobMatchesPanel job={job} apiBaseUrl="/api" refreshToken={0} />));
     await click("查看这份匹配报告");
     const provenance = container.querySelector(".match-provenance")!;
-    expect(provenance.textContent).toContain("resume-v1");
-    expect(provenance.textContent).toContain("jd-v1");
+    expect(provenance.textContent).toContain("简历 v1");
+    expect(provenance.textContent).toContain("JD v1");
     expect(provenance.textContent).toContain("原简历已删除或不可访问");
     expect(provenance.textContent).toContain("原 JD 已删除或不可访问");
     expect(provenance.querySelector("a")).toBeNull();

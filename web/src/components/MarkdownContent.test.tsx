@@ -4,6 +4,17 @@ import { describe, expect, it } from "vitest";
 import { MarkdownContent } from "./MarkdownContent";
 
 describe("MarkdownContent", () => {
+  it("highlights match verdicts and requirement statuses without changing evidence text", () => {
+    const content = "整体判断：弱匹配\n\n### 1. [部分匹配] 开发服务\n\n### 2. [未体现] Python\n\n### 3. [匹配] 协作\n\n### 4. [不明确] 学历\n\n> 原文含有 [部分匹配] 字样";
+    const html = renderToStaticMarkup(<MarkdownContent content={content} highlightMatchStatus />);
+    expect(html).toContain("match-overall-verdict");
+    for (const tone of ["positive", "partial", "missing", "unknown"]) {
+      expect(html).toContain(`match-status-${tone}`);
+    }
+    expect(html).toContain("原文含有 [部分匹配] 字样");
+    expect(renderToStaticMarkup(<MarkdownContent content={content} />)).not.toContain("match-status-badge");
+  });
+
   it("renders presenter Markdown instead of exposing syntax markers", () => {
     const html = renderToStaticMarkup(
       <MarkdownContent

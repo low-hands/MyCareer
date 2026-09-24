@@ -70,6 +70,9 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
     if (question.kind === "single" || meaning === "none") {
       update({ ...answer, selected_values: [value], skipped: false,
         free_text: meaning === "other" ? answer.free_text : "" });
+      if (meaning !== "other" && index < questions.length - 1) {
+        setIndex(index + 1);
+      }
       return;
     }
     const withoutNone = question.options.filter((item) => item.meaning === "none").map((item) => item.value);
@@ -102,13 +105,13 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
   }
   return (
     <section className="interaction-card questionnaire-card" aria-labelledby="questionnaire-title">
-      <span className="interaction-kicker">补充信息</span>
+      <span className="interaction-kicker">补充信息{questions.length > 1 ? ` · ${index + 1}/${questions.length}` : ""}</span>
       <p>{interaction.prompt}</p>
       <h3 id="questionnaire-title" ref={heading} tabIndex={-1}>{question.prompt}</h3>
-      <p className="questionnaire-progress" aria-live="polite">{index + 1} / {questions.length}</p>
       {question.kind === "free_text" ? (
         <textarea aria-label={question.prompt} value={answer.free_text} disabled={disabled || answer.skipped}
-          maxLength={1000} onChange={(event) => update({ ...answer, free_text: event.target.value, skipped: false })} />
+          rows={4} maxLength={1000} placeholder="请在这里填写回答…"
+          onChange={(event) => update({ ...answer, free_text: event.target.value, skipped: false })} />
       ) : (
         <div className="interaction-options" role={question.kind === "single" ? "radiogroup" : "group"}
           aria-label={question.prompt}>
@@ -131,18 +134,12 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
         {question.allow_skip ? <button type="button" disabled={disabled}
           onClick={() => { update({ selected_values: [], free_text: "", skipped: true });
             if (index < questions.length - 1) setIndex(index + 1); }}>跳过</button> : null}
-        {index < questions.length - 1 ? (
+        {index < questions.length - 1 && question.kind !== "single" ? (
           <button type="button" disabled={disabled || !valid} onClick={() => setIndex(index + 1)}>下一步</button>
-        ) : (
-          <button type="button" disabled={disabled || !allValid} onClick={submit}>一次提交全部回答</button>
-        )}
+        ) : index === questions.length - 1 ? (
+          <button type="button" className="questionnaire-submit" disabled={disabled || !allValid} onClick={submit}>提交</button>
+        ) : null}
       </div>
-      <ol className="questionnaire-summary" aria-label="回答进度">
-        {questions.map((item, position) => (
-          <li key={item.question_id}>{position + 1}. {answers[item.question_id]?.skipped ? "已跳过" :
-            answers[item.question_id] ? "已回答" : "待回答"}</li>
-        ))}
-      </ol>
     </section>
   );
 }
