@@ -56,6 +56,7 @@ from career_agent.api.integrations import (
 from career_agent.api.reads import (
     ActionItemView,
     ApplicationMockInterviewsResponse,
+    FreeMockInterviewsResponse,
     ApplicationView,
     AvailabilityResponse,
     CalendarAccountView,
@@ -511,6 +512,7 @@ def _read_examples() -> dict[str, list[BaseModel]]:
                 ),
             ),
         ),
+        FreeMockInterviewsResponse(sessions=()),
         _saved_job(
             city=None,
             salary=None,
@@ -611,6 +613,7 @@ def _read_examples() -> dict[str, list[BaseModel]]:
             id="resume-1",
             name="产品简历",
             target_role="AI 产品经理",
+            target_role_id="target-role-1",
             status="active",
             latest_version_number=2,
             latest_version_id="resume-version-2",

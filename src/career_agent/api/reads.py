@@ -92,6 +92,7 @@ from career_agent.storage.resumes import (
     ResumeStore,
     StoredResumeDocument,
 )
+from career_agent.domain.mock_interviews import MockInterviewSession
 from career_agent.domain.resume import ResumeVersion
 from career_agent.agent.interview_preparation_presenter import (
     render_interview_preparation,
@@ -109,6 +110,7 @@ from career_agent.agent.mock_interview_presenter import (
     mock_interview_question_view,
     render_mock_interview_question,
     render_mock_interview_report,
+    practice_basis,
 )
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
 from career_agent.agent.resume_analysis_presenter import render_resume_analysis
@@ -125,6 +127,7 @@ from career_agent.agent.resume_tailoring_presenter import (
 from career_agent.agent.main_agent_contracts import (
     CONFIRMATION_SPECS,
     ConversationResourceReference,
+    ConversationTaskState,
     OwnerSettingsContext,
 )
 from career_agent.domain.job_research import (
@@ -202,6 +205,11 @@ class ApplicationView(BaseModel):
     interview_round_number: int | None = None
     interview_round_label: str | None = None
     interview_status: str | None = None
+    resume_name: str | None = None
+    resume_version_number: int | None = None
+    resume_deleted: bool = False
+    resume_id: str | None = None
+    resume_version_id: str | None = None
 
 
 class ApplicationCreateRequest(BaseModel):
@@ -211,6 +219,10 @@ class ApplicationCreateRequest(BaseModel):
     resume_version_id: str | None = Field(default=None, min_length=1, max_length=200)
     submitted_at: datetime | None = None
     note: str | None = Field(default=None, max_length=2_000)
+
+class ApplicationResumeVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    resume_version_id: str | None = Field(default=None, max_length=200)
 
 
 RESUMABLE_MOCK_INTERVIEW_STATUSES = frozenset({"created", "active", "paused"})
@@ -231,6 +243,26 @@ class MockInterviewSessionView(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
     updated_at: datetime
+    application_id: str | None = None
+    title: str | None = None
+    company_name: str | None = None
+    resume_name: str | None = None
+    resume_version_number: int | None = None
+    resume_deleted: bool = False
+    resume_id: str | None = None
+    resume_version_id: str | None = None
+    # What "再来一次" needs to start the same practice again, exactly: the
+    # settings, and the resume version and JD version as attachable resources.
+    max_follow_ups_per_question: int = 0
+    target_role: str | None = None
+    target_company: str | None = None
+    resume_document_format: str | None = None
+    resume_byte_size: int | None = None
+    job_posting_id: str | None = None
+    jd_snapshot_id: str | None = None
+    jd_version: int | None = None
+    job_title: str | None = None
+    job_company_name: str | None = None
 
 
 class ApplicationMockInterviewsResponse(BaseModel):
@@ -239,6 +271,11 @@ class ApplicationMockInterviewsResponse(BaseModel):
     application_id: str
     title: str
     company_name: str
+    sessions: tuple[MockInterviewSessionView, ...] = ()
+
+
+class FreeMockInterviewsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
     sessions: tuple[MockInterviewSessionView, ...] = ()
 
 
@@ -472,6 +509,7 @@ class ResumeView(BaseModel):
     id: str
     name: str
     target_role: str
+    target_role_id: str
     status: str
     latest_version_number: int
     latest_version_id: str
@@ -501,6 +539,8 @@ class ResumeImportResponse(BaseModel):
     version_number: int
     document_format: str
     byte_size: int
+    already_in_library: bool = False
+    """The same file was already stored; this is that version, not a new one."""
 
 
 class EmailAccountView(BaseModel):
@@ -616,6 +656,11 @@ class ReportView(BaseModel):
     created_at: datetime
     availability: Literal["available", "expired"] = "available"
     resume_job_match: ResumeJobMatchView | None = None
+    resume_name: str | None = None
+    resume_version_number: int | None = None
+    resume_deleted: bool = False
+    resume_id: str | None = None
+    resume_version_id: str | None = None
 
 
 class DashboardStats(BaseModel):
@@ -714,6 +759,12 @@ class WorkspaceReader:
         self._resume_analyses = SQLiteResumeAnalysisDraftStore(
             Path(args.resume_store).expanduser()
         )
+        action_store = getattr(
+            args,
+            "action_store",
+            Path(args.context_store).expanduser().with_name("actions.sqlite3"),
+        )
+        self._actions = SQLiteActionItemStore(Path(action_store).expanduser())
 
     def applications(self, *, user_id: str, limit: int = 100) -> tuple[ApplicationView, ...]:
         views = []
@@ -721,22 +772,57 @@ class WorkspaceReader:
             user_id=user_id,
             limit=limit,
         ):
-            latest = self._latest_interview(user_id=user_id, application_id=item.application.id)
-            views.append(ApplicationView(
-                id=item.application.id,
-                status=item.application.status,
-                title=item.job.posting.title,
-                company_name=item.job.posting.company_name,
-                city=item.job.city,
-                salary=item.job.salary,
-                submitted_at=item.application.submitted_at,
-                updated_at=item.application.updated_at,
-                interview_round_number=latest.sequence_number if latest else None,
-                interview_round_label=latest.employer_label if latest else None,
-                interview_status=latest.status if latest else None,
-            )
-        )
+            views.append(self._application_view(user_id=user_id, detail=item))
         return tuple(views)
+
+    def _resume_view(self, *, user_id: str, resume_version_id: str | None) -> dict[str, object]:
+        if resume_version_id is None:
+            return {}
+        located = self._resumes.get_version(user_id=user_id, resume_version_id=resume_version_id)
+        if located is None:
+            return {"resume_version_id": resume_version_id}
+        resume, version = located
+        return {
+            "resume_name": resume.name,
+            "resume_version_number": version.version_number,
+            "resume_deleted": resume.status == "deleted",
+            "resume_id": resume.id,
+            "resume_version_id": version.id,
+        }
+
+    def _repeat_view(self, *, user_id: str, session: MockInterviewSession) -> dict[str, object]:
+        """The settings and exact inputs a repeat of ``session`` starts from."""
+        view: dict[str, object] = {
+            "max_follow_ups_per_question": session.max_follow_ups_per_question,
+            "target_role": session.target_role,
+            "target_company": session.target_company,
+        }
+        located = (
+            self._resumes.get_version(user_id=user_id, resume_version_id=session.resume_version_id)
+            if session.resume_version_id is not None
+            else None
+        )
+        if located is not None:
+            view["resume_document_format"] = located[1].document_format
+            view["resume_byte_size"] = located[1].byte_size
+        # An application run repeats through its application; only free
+        # practice on a saved job needs the JD version itself.
+        if session.application_id is None and session.jd_snapshot_id is not None:
+            snapshot = self._jobs.get_snapshot(user_id=user_id, jd_snapshot_id=session.jd_snapshot_id)
+            job = (
+                self._jobs.get_job(user_id=user_id, job_posting_id=session.job_posting_id)
+                if session.job_posting_id is not None
+                else None
+            )
+            if snapshot is not None and job is not None:
+                view.update(
+                    job_posting_id=job.posting.id,
+                    jd_snapshot_id=snapshot.id,
+                    jd_version=snapshot.version,
+                    job_title=job.posting.title,
+                    job_company_name=job.posting.company_name,
+                )
+        return view
 
     def _latest_interview(self, *, user_id: str, application_id: str):
         rounds = self._interviews.list(
@@ -805,6 +891,9 @@ class WorkspaceReader:
                     created_at=session.created_at,
                     completed_at=session.completed_at,
                     updated_at=session.updated_at,
+                    application_id=session.application_id,
+                    **self._resume_view(user_id=user_id, resume_version_id=session.resume_version_id),
+                    **self._repeat_view(user_id=user_id, session=session),
                 )
             )
         return ApplicationMockInterviewsResponse(
@@ -813,6 +902,48 @@ class WorkspaceReader:
             company_name=application.job.posting.company_name,
             sessions=tuple(sessions),
         )
+
+    def free_mock_interviews(self, *, user_id: str, limit: int = 50) -> FreeMockInterviewsResponse:
+        sessions = []
+        for session in self._mock_interviews.list_sessions(user_id=user_id, limit=limit):
+            report = self._mock_interviews.get_report(user_id=user_id, session_id=session.id)
+            application_title = application_company = None
+            if session.application_id:
+                try:
+                    detail = self._applications.get_application(user_id=user_id, application_id=session.application_id)
+                    application_title = detail.job.posting.title
+                    application_company = detail.job.posting.company_name
+                except ApplicationInputNotFoundError:
+                    pass
+            elif session.job_posting_id and (
+                job := self._jobs.get_job(user_id=user_id, job_posting_id=session.job_posting_id)
+            ):
+                # Free practice on a saved job: named by that job, not "自由练习".
+                application_title = job.posting.title
+                application_company = job.posting.company_name
+            elif session.target_company:
+                application_company = session.target_company
+            conversation_id = (
+                self._context.conversation_owning_run(user_id=user_id, workflow="mock_interview", run_id=session.id)
+                if session.status in RESUMABLE_MOCK_INTERVIEW_STATUSES else None
+            )
+            sessions.append(MockInterviewSessionView(
+                session_id=session.id, status=session.status,
+                interview_type=session.interview_type,
+                interview_type_label=INTERVIEW_TYPE_LABELS.get(session.interview_type, session.interview_type),
+                question_count=len(report.question_results) if report else 0,
+                max_primary_questions=session.max_primary_questions,
+                report_id=report.id if report else None,
+                summary=report.summary if report else None,
+                conversation_id=conversation_id, created_at=session.created_at,
+                completed_at=session.completed_at, updated_at=session.updated_at,
+                application_id=session.application_id,
+                title=application_title or ("自由练习" if session.application_id is None else None),
+                company_name=application_company,
+                **self._resume_view(user_id=user_id, resume_version_id=session.resume_version_id),
+                **self._repeat_view(user_id=user_id, session=session),
+            ))
+        return FreeMockInterviewsResponse(sessions=tuple(sessions))
 
     def create_application(
         self,
@@ -834,6 +965,12 @@ class WorkspaceReader:
             user_id=user_id,
             application_id=created.application.id,
         )
+        return self._application_view(user_id=user_id, detail=detail)
+
+    def _application_view(self, *, user_id: str, detail) -> ApplicationView:
+        latest = self._latest_interview(
+            user_id=user_id, application_id=detail.application.id
+        )
         return ApplicationView(
             id=detail.application.id,
             status=detail.application.status,
@@ -843,18 +980,53 @@ class WorkspaceReader:
             salary=detail.job.salary,
             submitted_at=detail.application.submitted_at,
             updated_at=detail.application.updated_at,
-            interview_round_number=(latest := self._latest_interview(
-                user_id=user_id, application_id=detail.application.id
-            )).sequence_number if latest else None,
+            interview_round_number=latest.sequence_number if latest else None,
             interview_round_label=latest.employer_label if latest else None,
             interview_status=latest.status if latest else None,
+            **self._resume_view(
+                user_id=user_id, resume_version_id=detail.application.resume_version_id
+            ),
         )
 
+    def update_application_resume_version(
+        self, *, user_id: str, application_id: str, resume_version_id: str | None
+    ) -> ApplicationView:
+        self._applications.update_resume_version(
+            user_id=user_id,
+            application_id=application_id,
+            resume_version_id=resume_version_id,
+        )
+        detail = self._applications.get_application(
+            user_id=user_id, application_id=application_id
+        )
+        return self._application_view(user_id=user_id, detail=detail)
+
     def clear_applications(self, *, user_id: str) -> int:
+        """Clear the owner's applications and everything that hangs off them.
+
+        Interview rounds, their preparations and application-bound mock
+        interviews require an application, and the reminders generated from
+        them name one. Left
+        behind, an orphaned round kept producing a retro reminder in the daily
+        brief after its application was gone.
+
+        Scoped by user rather than by the application ids being removed, so a
+        clear also sweeps orphans an earlier application-only clear left. The
+        stores live in separate files and cannot share a transaction, so the
+        dependents go first and the applications last: a failure part way
+        leaves the applications in place and a repeat finishes the job.
+        """
+        self._actions.clear_application_derived(user_id=user_id)
+        self._mock_interviews.clear_user(user_id=user_id, application_bound_only=True)
+        self._preparations.clear_user(user_id=user_id)
+        self._interviews.clear_user(user_id=user_id)
         return self._applications._application_store.clear_user(user_id=user_id)
 
     def delete_resume(self, *, user_id: str, resume_id: str) -> bool:
-        return self._resumes.delete_resume(user_id=user_id, resume_id=resume_id)
+        referenced = set(self._applications._application_store.list_resume_version_ids(user_id=user_id))
+        referenced.update(self._mock_interviews.list_resume_version_ids(user_id=user_id))
+        keep = [version.id for version in self._resumes.list_versions(user_id=user_id, resume_id=resume_id) if version.id in referenced]
+        return self._resumes.delete_resume(user_id=user_id, resume_id=resume_id, keep_version_ids=keep)
 
     def delete_research(self, *, user_id: str, report_id: str) -> bool:
         return self._research.delete_report(user_id=user_id, report_id=report_id)
@@ -1118,6 +1290,98 @@ class WorkspaceReader:
             conversation_id=conversation_id,
         )
 
+    def _practice_basis(self, session: MockInterviewSession) -> str:
+        report = (
+            self._research.get_report(
+                user_id=session.user_id, report_id=session.company_research_report_id
+            )
+            if session.company_research_report_id is not None
+            else None
+        )
+        return practice_basis(
+            session,
+            resumes=self._resumes,
+            jobs=self._jobs,
+            research_at=report.created_at if report is not None else None,
+            plan=self._mock_interviews.get_plan(user_id=session.user_id, session_id=session.id),
+        )
+
+    def _with_mock_interview_exchanges(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        task: ConversationTaskState | None,
+        messages: tuple[ConversationMessageView, ...],
+    ) -> tuple[ConversationMessageView, ...]:
+        """Show a mock interview's questions and answers where they happened.
+
+        The run's turns are kept out of the stored conversation on purpose: the
+        conversation is also Main Agent's context, and a dozen interview
+        exchanges would crowd it and invite the model to re-grade them. The
+        reader still has to see them, during the run, after a reload, and when
+        the run failed before its closing reply was written. They come from the
+        run's own record, so what the model sees is unchanged.
+        """
+        extra: list[ConversationMessageView] = []
+        if (
+            task is not None
+            and task.active_workflow == "mock_interview"
+            and task.workflow_entry_message
+            and task.workflow_entry_at is not None
+        ):
+            # The request that started a run still in progress is held until
+            # the run's closing reply; show it now, where it was sent.
+            extra.append(
+                ConversationMessageView(
+                    role="user",
+                    content=task.workflow_entry_message,
+                    created_at=task.workflow_entry_at,
+                )
+            )
+        for session in self._mock_interviews.list_conversation_sessions(
+            user_id=user_id, conversation_id=conversation_id
+        ):
+            for position, turn in enumerate(
+                self._mock_interviews.list_turns(user_id=user_id, session_id=session.id)
+            ):
+                # The question still waiting for its answer is included too: a
+                # reloaded page has no other place to show it. A live page does
+                # not re-read the transcript, so it is not shown twice.
+                extra.append(
+                    ConversationMessageView(
+                        role="assistant",
+                        # The opening question says which resume it is based
+                        # on, as it did on screen when it was asked.
+                        content=(
+                            f"{self._practice_basis(session)}\n\n{turn.question}"
+                            if position == 0
+                            else turn.question
+                        ),
+                        created_at=turn.asked_at,
+                    )
+                )
+                if turn.answer is not None and turn.answered_at is not None:
+                    extra.append(
+                        ConversationMessageView(
+                            role="user", content=turn.answer, created_at=turn.answered_at
+                        )
+                    )
+            if session.ended_by_message is not None:
+                # What the candidate said to stop; its closing reply is stored.
+                extra.append(
+                    ConversationMessageView(
+                        role="user",
+                        content=session.ended_by_message,
+                        created_at=session.updated_at,
+                    )
+                )
+        if not extra:
+            return messages
+        # Stable, so a stored request and its reply, written together, keep
+        # their order.
+        return tuple(sorted((*messages, *extra), key=lambda message: message.created_at))
+
     def conversation_messages(
         self,
         *,
@@ -1183,6 +1447,12 @@ class WorkspaceReader:
                 )
                 for record in records
             )
+        messages = self._with_mock_interview_exchanges(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            task=task,
+            messages=messages,
+        )
         return ConversationTranscriptResponse(
             messages=dedupe_adjacent_message_resources(messages),
             active_workflow=task.active_workflow if task else None,
@@ -1309,6 +1579,7 @@ class WorkspaceReader:
                         if resume.target_role_id in roles
                         else "未分类岗位"
                     ),
+                    target_role_id=resume.target_role_id,
                     status=resume.status,
                     latest_version_number=latest.version_number,
                     latest_version_id=latest.id,
@@ -1363,6 +1634,14 @@ class WorkspaceReader:
             return None
         return document, resume.name, version
 
+    def move_resume(self, *, user_id: str, resume_id: str, target_role_id: str) -> bool:
+        return (
+            self._resumes.move_resume(
+                user_id=user_id, resume_id=resume_id, target_role_id=target_role_id
+            )
+            is not None
+        )
+
     def target_roles(self, *, user_id: str) -> tuple[TargetRoleView, ...]:
         return tuple(
             TargetRoleView(
@@ -1405,6 +1684,7 @@ class WorkspaceReader:
         target_role_id: str | None,
         idempotency_key: str | None = None,
     ) -> ResumeImportResponse:
+        started = datetime.now(timezone.utc)
         resume, version = self._resumes.import_document(
             user_id=user_id,
             content=content,
@@ -1421,6 +1701,20 @@ class WorkspaceReader:
             version_number=version.version_number,
             document_format=version.document_format,
             byte_size=version.byte_size,
+            # Reused rather than stored: the version predates this import. A
+            # retry under the same key compares with the first call's receipt,
+            # so it replays the same answer instead of "already there".
+            already_in_library=version.created_at
+            < (
+                (
+                    self._resumes.import_receipt_time(
+                        user_id=user_id, idempotency_key=idempotency_key
+                    )
+                    if idempotency_key is not None
+                    else None
+                )
+                or started
+            ),
         )
 
     def email(self, *, user_id: str, limit: int = 100) -> EmailWorkspaceResponse:
@@ -1723,6 +2017,7 @@ class WorkspaceReader:
         )
         if report is None or session is None:
             return None
+        plan = self._mock_interviews.get_plan(user_id=user_id, session_id=session.id)
         interview_type = INTERVIEW_TYPE_LABELS.get(
             session.interview_type, session.interview_type
         )
@@ -1731,8 +2026,9 @@ class WorkspaceReader:
             resource_id=report.id,
             title="模拟面试报告",
             subtitle=f"{interview_type} · {len(report.question_results)} 题",
-            body=render_mock_interview_report(report),
+            body=render_mock_interview_report(report, plan, lead=False),
             created_at=report.created_at,
+            **self._resume_view(user_id=user_id, resume_version_id=session.resume_version_id),
         )
 
     def _interview_preparation(
@@ -2117,6 +2413,12 @@ class CountResponse(BaseModel):
     count: int
 
 
+class ResumeMoveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_role_id: str = Field(min_length=1, max_length=200)
+
+
 class TargetRoleCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2167,6 +2469,13 @@ def build_read_router(
     ) -> tuple[ApplicationView, ...]:
         return workspace().applications(user_id=principal.user_id, limit=limit)
 
+    @router.get("/mock-interviews", response_model=FreeMockInterviewsResponse)
+    async def free_mock_interviews(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        limit: int = Query(default=50, ge=1, le=500),
+    ) -> FreeMockInterviewsResponse:
+        return workspace().free_mock_interviews(user_id=principal.user_id, limit=limit)
+
     @router.get(
         "/applications/{application_id}/mock-interviews",
         response_model=ApplicationMockInterviewsResponse,
@@ -2212,6 +2521,17 @@ def build_read_router(
                     "message": "没有找到对应的已保存岗位或简历版本。",
                 },
             ) from error
+
+    @router.patch("/applications/{application_id}/resume-version", response_model=ApplicationView)
+    async def update_application_resume_version(
+        application_id: str,
+        request: ApplicationResumeVersionRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ApplicationView:
+        try:
+            return workspace().update_application_resume_version(user_id=principal.user_id, application_id=application_id, resume_version_id=request.resume_version_id)
+        except ApplicationInputNotFoundError as error:
+            raise HTTPException(status_code=404, detail={"code": "APPLICATION_INPUT_NOT_FOUND", "message": "没有找到投递或简历版本。"}) from error
 
     @router.delete("/applications", response_model=CountResponse)
     async def clear_applications(
@@ -2467,6 +2787,28 @@ def build_read_router(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
     ) -> tuple[ResumeView, ...]:
         return workspace().resumes(user_id=principal.user_id)
+
+    @router.patch("/resumes/{resume_id}", response_model=CountResponse)
+    async def move_resume(
+        resume_id: str,
+        request: ResumeMoveRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> CountResponse:
+        """File the resume under another target role; its versions are untouched."""
+        try:
+            moved = workspace().move_resume(
+                user_id=principal.user_id,
+                resume_id=resume_id,
+                target_role_id=request.target_role_id,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_TARGET_ROLE", "message": str(error)},
+            ) from error
+        if not moved:
+            raise HTTPException(status_code=404, detail="简历不存在。")
+        return CountResponse(count=1)
 
     @router.delete("/resumes/{resume_id}", response_model=CountResponse)
     async def delete_resume(

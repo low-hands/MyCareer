@@ -363,7 +363,12 @@ def test_each_report_kind_reads_back_its_full_rendered_body(tmp_path, auth, api_
         user_id="u1", session_id=mock_session_id
     )
     assert stored_mock_report is not None
-    assert mock["body"] == render_mock_interview_report(stored_mock_report)
+    stored_mock_plan = mock_store.get_plan(user_id="u1", session_id=mock_session_id)
+    # The card's own header names the report, so the chat reply's lead line is left off.
+    assert mock["body"] == render_mock_interview_report(
+        stored_mock_report, stored_mock_plan, lead=False
+    )
+    assert mock["body"].startswith("## 总结")
 
     assert "重点准备检索可靠性。" in preparation["body"]
     assert "你怎么衡量召回质量？" in preparation["body"]

@@ -17,31 +17,67 @@ export const API_CONTRACT = {
           "company_name": "示例科技",
           "sessions": [
             {
+              "application_id": null,
+              "company_name": null,
               "completed_at": "2026-09-12T12:00:00Z",
               "conversation_id": null,
               "created_at": "2026-09-12T12:00:00Z",
               "interview_type": "behavioral",
               "interview_type_label": "行为面",
+              "jd_snapshot_id": null,
+              "jd_version": null,
+              "job_company_name": null,
+              "job_posting_id": null,
+              "job_title": null,
+              "max_follow_ups_per_question": 0,
               "max_primary_questions": 5,
               "question_count": 5,
               "report_id": "mock-report-1",
+              "resume_byte_size": null,
+              "resume_deleted": false,
+              "resume_document_format": null,
+              "resume_id": null,
+              "resume_name": null,
+              "resume_version_id": null,
+              "resume_version_number": null,
               "session_id": "mock-1",
               "status": "completed",
               "summary": "项目深度可以，系统设计偏弱。",
+              "target_company": null,
+              "target_role": null,
+              "title": null,
               "updated_at": "2026-09-12T12:00:00Z"
             },
             {
+              "application_id": null,
+              "company_name": null,
               "completed_at": null,
               "conversation_id": "conv-1",
               "created_at": "2026-09-12T12:00:00Z",
               "interview_type": "technical",
               "interview_type_label": "技术面",
+              "jd_snapshot_id": null,
+              "jd_version": null,
+              "job_company_name": null,
+              "job_posting_id": null,
+              "job_title": null,
+              "max_follow_ups_per_question": 0,
               "max_primary_questions": 5,
               "question_count": 2,
               "report_id": null,
+              "resume_byte_size": null,
+              "resume_deleted": false,
+              "resume_document_format": null,
+              "resume_id": null,
+              "resume_name": null,
+              "resume_version_id": null,
+              "resume_version_number": null,
               "session_id": "mock-2",
               "status": "active",
               "summary": null,
+              "target_company": null,
+              "target_role": null,
+              "title": null,
               "updated_at": "2026-09-12T12:00:00Z"
             }
           ],
@@ -53,6 +89,30 @@ export const API_CONTRACT = {
           "MockInterviewSessionView": {
             "additionalProperties": false,
             "properties": {
+              "application_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Application Id"
+              },
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Company Name"
+              },
               "completed_at": {
                 "anyOf": [
                   {
@@ -91,6 +151,71 @@ export const API_CONTRACT = {
                 "title": "Interview Type Label",
                 "type": "string"
               },
+              "jd_snapshot_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Snapshot Id"
+              },
+              "jd_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Version"
+              },
+              "job_company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Company Name"
+              },
+              "job_posting_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Posting Id"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Title"
+              },
+              "max_follow_ups_per_question": {
+                "default": 0,
+                "title": "Max Follow Ups Per Question",
+                "type": "integer"
+              },
               "max_primary_questions": {
                 "title": "Max Primary Questions",
                 "type": "integer"
@@ -111,6 +236,83 @@ export const API_CONTRACT = {
                 "default": null,
                 "title": "Report Id"
               },
+              "resume_byte_size": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Byte Size"
+              },
+              "resume_deleted": {
+                "default": false,
+                "title": "Resume Deleted",
+                "type": "boolean"
+              },
+              "resume_document_format": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Document Format"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
+              },
+              "resume_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Name"
+              },
+              "resume_version_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Id"
+              },
+              "resume_version_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Number"
+              },
               "session_id": {
                 "title": "Session Id",
                 "type": "string"
@@ -130,6 +332,42 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Summary"
+              },
+              "target_company": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Company"
+              },
+              "target_role": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Role"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
               },
               "updated_at": {
                 "format": "date-time",
@@ -192,6 +430,11 @@ export const API_CONTRACT = {
           "interview_round_label": null,
           "interview_round_number": null,
           "interview_status": null,
+          "resume_deleted": false,
+          "resume_id": null,
+          "resume_name": null,
+          "resume_version_id": null,
+          "resume_version_number": null,
           "salary": "25-35K",
           "status": "interviewing",
           "submitted_at": "2026-09-12T12:00:00Z",
@@ -257,6 +500,59 @@ export const API_CONTRACT = {
             ],
             "default": null,
             "title": "Interview Status"
+          },
+          "resume_deleted": {
+            "default": false,
+            "title": "Resume Deleted",
+            "type": "boolean"
+          },
+          "resume_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Id"
+          },
+          "resume_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Name"
+          },
+          "resume_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Version Id"
+          },
+          "resume_version_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Version Number"
           },
           "salary": {
             "anyOf": [
@@ -985,6 +1281,7 @@ export const API_CONTRACT = {
             }
           ],
           "pending_interaction": {
+            "accepts_upload": null,
             "allow_free_text": false,
             "interaction_id": "interaction_561f7d5c3073c27dced2",
             "kind": "approval",
@@ -1208,6 +1505,19 @@ export const API_CONTRACT = {
           "InteractionRequiredEvent": {
             "additionalProperties": false,
             "properties": {
+              "accepts_upload": {
+                "anyOf": [
+                  {
+                    "const": "resume",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Accepts Upload"
+              },
               "allow_free_text": {
                 "default": false,
                 "title": "Allow Free Text",
@@ -1745,6 +2055,11 @@ export const API_CONTRACT = {
               "interview_round_label": null,
               "interview_round_number": null,
               "interview_status": null,
+              "resume_deleted": false,
+              "resume_id": null,
+              "resume_name": null,
+              "resume_version_id": null,
+              "resume_version_number": null,
               "salary": null,
               "status": "interviewing",
               "submitted_at": "2026-09-12T12:00:00Z",
@@ -1990,6 +2305,59 @@ export const API_CONTRACT = {
                 ],
                 "default": null,
                 "title": "Interview Status"
+              },
+              "resume_deleted": {
+                "default": false,
+                "title": "Resume Deleted",
+                "type": "boolean"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
+              },
+              "resume_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Name"
+              },
+              "resume_version_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Id"
+              },
+              "resume_version_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Number"
               },
               "salary": {
                 "anyOf": [
@@ -2865,6 +3233,332 @@ export const API_CONTRACT = {
           }
         },
         "title": "EmailWorkspaceResponse",
+        "type": "object"
+      }
+    },
+    "FreeMockInterviewsResponse": {
+      "examples": [
+        {
+          "sessions": []
+        }
+      ],
+      "schema": {
+        "$defs": {
+          "MockInterviewSessionView": {
+            "additionalProperties": false,
+            "properties": {
+              "application_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Application Id"
+              },
+              "company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Company Name"
+              },
+              "completed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Completed At"
+              },
+              "conversation_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Conversation Id"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "interview_type": {
+                "title": "Interview Type",
+                "type": "string"
+              },
+              "interview_type_label": {
+                "title": "Interview Type Label",
+                "type": "string"
+              },
+              "jd_snapshot_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Snapshot Id"
+              },
+              "jd_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Jd Version"
+              },
+              "job_company_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Company Name"
+              },
+              "job_posting_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Posting Id"
+              },
+              "job_title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Job Title"
+              },
+              "max_follow_ups_per_question": {
+                "default": 0,
+                "title": "Max Follow Ups Per Question",
+                "type": "integer"
+              },
+              "max_primary_questions": {
+                "title": "Max Primary Questions",
+                "type": "integer"
+              },
+              "question_count": {
+                "title": "Question Count",
+                "type": "integer"
+              },
+              "report_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Report Id"
+              },
+              "resume_byte_size": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Byte Size"
+              },
+              "resume_deleted": {
+                "default": false,
+                "title": "Resume Deleted",
+                "type": "boolean"
+              },
+              "resume_document_format": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Document Format"
+              },
+              "resume_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Id"
+              },
+              "resume_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Name"
+              },
+              "resume_version_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Id"
+              },
+              "resume_version_number": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resume Version Number"
+              },
+              "session_id": {
+                "title": "Session Id",
+                "type": "string"
+              },
+              "status": {
+                "title": "Status",
+                "type": "string"
+              },
+              "summary": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Summary"
+              },
+              "target_company": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Company"
+              },
+              "target_role": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Role"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "session_id",
+              "status",
+              "interview_type",
+              "interview_type_label",
+              "question_count",
+              "max_primary_questions",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "MockInterviewSessionView",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "sessions": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/MockInterviewSessionView"
+            },
+            "title": "Sessions",
+            "type": "array"
+          }
+        },
+        "title": "FreeMockInterviewsResponse",
         "type": "object"
       }
     },
@@ -3774,7 +4468,12 @@ export const API_CONTRACT = {
           "created_at": "2026-09-12T12:00:00Z",
           "kind": "job_research_report",
           "resource_id": "report-1",
+          "resume_deleted": false,
+          "resume_id": null,
           "resume_job_match": null,
+          "resume_name": null,
+          "resume_version_id": null,
+          "resume_version_number": null,
           "subtitle": "岗位调研 · 2026-09-12",
           "title": "示例科技 · AI 产品经理"
         },
@@ -3784,6 +4483,8 @@ export const API_CONTRACT = {
           "created_at": "2026-09-12T12:00:00Z",
           "kind": "resume_job_match",
           "resource_id": "legacy-match",
+          "resume_deleted": false,
+          "resume_id": null,
           "resume_job_match": {
             "company_name": null,
             "created_at": "2026-09-12T12:00:00Z",
@@ -3806,6 +4507,9 @@ export const API_CONTRACT = {
             "resume_version_number": null,
             "summary": "历史输入已不可访问。"
           },
+          "resume_name": null,
+          "resume_version_id": null,
+          "resume_version_number": null,
           "subtitle": "历史匹配",
           "title": "简历与岗位匹配"
         }
@@ -4060,6 +4764,23 @@ export const API_CONTRACT = {
             "title": "Resource Id",
             "type": "string"
           },
+          "resume_deleted": {
+            "default": false,
+            "title": "Resume Deleted",
+            "type": "boolean"
+          },
+          "resume_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Id"
+          },
           "resume_job_match": {
             "anyOf": [
               {
@@ -4070,6 +4791,42 @@ export const API_CONTRACT = {
               }
             ],
             "default": null
+          },
+          "resume_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Name"
+          },
+          "resume_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Version Id"
+          },
+          "resume_version_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Version Number"
           },
           "subtitle": {
             "title": "Subtitle",
@@ -4095,6 +4852,7 @@ export const API_CONTRACT = {
     "ResumeImportResponse": {
       "examples": [
         {
+          "already_in_library": false,
           "byte_size": 20480,
           "document_format": "docx",
           "name": "产品简历",
@@ -4106,6 +4864,11 @@ export const API_CONTRACT = {
       "schema": {
         "additionalProperties": false,
         "properties": {
+          "already_in_library": {
+            "default": false,
+            "title": "Already In Library",
+            "type": "boolean"
+          },
           "byte_size": {
             "title": "Byte Size",
             "type": "integer"
@@ -4154,6 +4917,7 @@ export const API_CONTRACT = {
           "name": "产品简历",
           "status": "active",
           "target_role": "AI 产品经理",
+          "target_role_id": "target-role-1",
           "updated_at": "2026-09-12T12:00:00Z",
           "version_count": 2,
           "versions": []
@@ -4241,6 +5005,10 @@ export const API_CONTRACT = {
             "title": "Target Role",
             "type": "string"
           },
+          "target_role_id": {
+            "title": "Target Role Id",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -4263,6 +5031,7 @@ export const API_CONTRACT = {
           "id",
           "name",
           "target_role",
+          "target_role_id",
           "status",
           "latest_version_number",
           "latest_version_id",
@@ -5446,6 +6215,7 @@ export const API_CONTRACT = {
         "type": "capability_completed"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": true,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "single_selection",
@@ -5469,6 +6239,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "multiple_selection",
@@ -5492,6 +6263,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": true,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "confirmation",
@@ -5515,6 +6287,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": true,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "free_text",
@@ -5525,6 +6298,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "approval",
@@ -5548,6 +6322,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "file_upload",
@@ -5558,6 +6333,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_0123456789abcdef0123",
         "kind": "questionnaire",
@@ -5591,6 +6367,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_040b2fd3401c2cd27ad6",
         "kind": "confirmation",
@@ -5614,6 +6391,7 @@ export const API_CONTRACT = {
         "type": "interaction_required"
       },
       {
+        "accepts_upload": null,
         "allow_free_text": false,
         "interaction_id": "interaction_561f7d5c3073c27dced2",
         "kind": "approval",
@@ -6023,6 +6801,19 @@ export const API_CONTRACT = {
         "InteractionRequiredEvent": {
           "additionalProperties": false,
           "properties": {
+            "accepts_upload": {
+              "anyOf": [
+                {
+                  "const": "resume",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Accepts Upload"
+            },
             "allow_free_text": {
               "default": false,
               "title": "Allow Free Text",

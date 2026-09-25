@@ -147,7 +147,8 @@ def test_the_document_route_serves_the_owner_the_original_bytes(tmp_path, api_ke
             "/v1/resumes/import",
             headers=owner,
             data={"name": "另一份", "target_role_id": role_id},
-            files={"file": ("other.pdf", PDF, "application/pdf")},
+            # A different file: identical bytes would reuse the first version.
+            files={"file": ("other.pdf", PDF + b"\n% another resume\n", "application/pdf")},
         ).json()
 
         route = f"/v1/resumes/{pdf['resume_id']}/versions/{pdf['resume_version_id']}/document"
@@ -289,3 +290,32 @@ def test_deleting_the_conversation_leaves_the_resume_in_the_library(tmp_path, ap
     assert context.get_session("u1", "c1") is None
     assert resumes.get_version(user_id="u1", resume_version_id=version.id) is not None
     assert [item["versions"][0]["id"] for item in library] == [version.id]
+
+
+def test_uploading_the_same_file_again_reuses_its_version_and_says_so(
+    tmp_path, api_keys, issue_key
+):
+    client, _ = _client(tmp_path, api_keys)
+    owner = issue_key("u1", WORKSPACE_WRITE, WORKSPACE_READ)
+    with client:
+        role_id = _role(client, owner)
+
+        def upload(name, key):
+            return client.post(
+                "/v1/resumes/import",
+                headers={**owner, "Idempotency-Key": key},
+                data={"name": name, "target_role_id": role_id},
+                files={"file": ("resume.pdf", PDF, "application/pdf")},
+            ).json()
+
+        first = upload("正式简历", "k1")
+        again = upload("练习用", "k2")
+        replayed = upload("练习用", "k2")
+        listed = client.get("/v1/resumes", headers=owner).json()
+
+    assert first["already_in_library"] is False
+    assert (again["resume_version_id"], again["name"], again["already_in_library"]) == (
+        first["resume_version_id"], "正式简历", True,
+    )
+    assert replayed == again
+    assert len(listed) == 1
