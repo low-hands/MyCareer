@@ -84,6 +84,43 @@ describe("chatReducer", () => {
     expect(state.interaction?.options[0]?.selection_index).toBe(1);
   });
 
+  it("keeps an answered question in the transcript instead of an empty bubble", () => {
+    let state = chatReducer(initialChatState, {
+      type: "submit",
+      messageId: "user-1",
+      assistantMessageId: "assistant-1",
+      content: "开始模拟面试",
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "interaction_required",
+        interaction_id: "interaction_1234567890abcdef1234",
+        kind: "free_text",
+        prompt: "模拟面试题：讲一个你负责的项目。",
+        options: [],
+        allow_free_text: true,
+      },
+    });
+    // A free-text question is a message right away, not a card.
+    expect(state.messages.at(-1)?.content).toBe("模拟面试题：讲一个你负责的项目。");
+    expect(state.interaction?.kind).toBe("free_text");
+
+    state = chatReducer(state, {
+      type: "submit",
+      messageId: "user-2",
+      assistantMessageId: "assistant-2",
+      content: "我负责检索评测。",
+    });
+
+    expect(state.messages.map((message) => message.content)).toEqual([
+      "开始模拟面试",
+      "模拟面试题：讲一个你负责的项目。",
+      "我负责检索评测。",
+      "",
+    ]);
+  });
+
   it("keeps a browser action as an explicit clickable fallback", () => {
     const state = chatReducer(initialChatState, {
       type: "stream_event",

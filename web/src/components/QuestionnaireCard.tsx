@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { InteractionRequiredEvent } from "../chat/types";
+import { InlineOtherOption } from "./InlineOtherOption";
 import type { InteractionReply } from "./InteractionCard";
 
 type DraftAnswer = { selected_values: string[]; free_text: string; skipped: boolean };
@@ -41,7 +42,8 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, DraftAnswer>>(() => storedAnswers(storageKey));
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { heading.current?.focus(); }, [index]);
+  const [noting, setNoting] = useState(false);
+  useEffect(() => { heading.current?.focus(); setNoting(false); }, [index]);
   useEffect(() => {
     try { sessionStorage.setItem(storageKey, JSON.stringify(answers)); } catch { /* In-memory draft still works. */ }
   }, [answers, storageKey]);
@@ -83,6 +85,12 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
     update({ ...answer, selected_values: next, skipped: false,
       free_text: question.allow_free_text || retainsOther ? answer.free_text : "" });
   }
+  /** Enter in an inline answer: move on, or submit on the last question. */
+  function advance() {
+    if (!valid) return;
+    if (index < questions.length - 1) setIndex(index + 1);
+    else submit();
+  }
   function submit() {
     if (!allValid || disabled) return;
     onReply({
@@ -115,20 +123,31 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
       ) : (
         <div className="interaction-options" role={question.kind === "single" ? "radiogroup" : "group"}
           aria-label={question.prompt}>
-          {question.options.map((option) => (
+          {question.options.map((option) => option.meaning === "other" ? (
+            // "Other" is answered in its own row: choosing it opens the input there.
+            <InlineOtherOption key={option.value} label={option.label} placeholder={`${option.label}：请输入，回车确认`}
+              value={answer.free_text} open={selected.has(option.value)} disabled={disabled}
+              onOpen={() => choose(option.value, option.meaning)}
+              onChange={(text) => update({ ...answer, free_text: text, skipped: false })}
+              onSubmit={advance} />
+          ) : (
             <button key={option.value} type="button" disabled={disabled}
               className={selected.has(option.value) ? "option-button is-selected" : "option-button"}
               role={question.kind === "single" ? "radio" : "checkbox"}
               aria-checked={selected.has(option.value)}
               onClick={() => choose(option.value, option.meaning)}>{option.label}</button>
           ))}
+          {question.allow_free_text && !question.options.some((option) => option.meaning === "other")
+            && !question.options.some((option) => option.meaning === "none" && selected.has(option.value)) ? (
+            <InlineOtherOption label="补充说明（可选）" placeholder="补充说明，回车确认"
+              value={answer.free_text} open={noting || answer.free_text.length > 0} disabled={disabled}
+              onOpen={() => setNoting(true)}
+              onClose={() => { if (!answer.free_text) setNoting(false); }}
+              onChange={(text) => update({ ...answer, free_text: text, skipped: false })}
+              onSubmit={advance} />
+          ) : null}
         </div>
       )}
-      {question.kind !== "free_text" && (question.allow_free_text || otherSelected)
-        && !question.options.some((option) => option.meaning === "none" && selected.has(option.value)) ? (
-        <textarea aria-label="补充说明" value={answer.free_text} maxLength={1000} disabled={disabled || answer.skipped}
-          onChange={(event) => update({ ...answer, free_text: event.target.value, skipped: false })} />
-      ) : null}
       <div className="questionnaire-actions">
         <button type="button" disabled={disabled || index === 0} onClick={() => setIndex(index - 1)}>上一步</button>
         {question.allow_skip ? <button type="button" disabled={disabled}

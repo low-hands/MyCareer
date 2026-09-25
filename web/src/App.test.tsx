@@ -317,6 +317,29 @@ describe("resume-library conversation isolation", () => {
     await act(async () => history.resolve(transcript(true)));
   });
 
+  it("does not send when Enter only confirms pinyin in an input method", async () => {
+    await mount();
+    await typeDraft("nihao");
+    const box = element<HTMLTextAreaElement>("#message");
+
+    // Chrome marks the committing Enter as composing; Safari sends keyCode 229.
+    await act(async () => {
+      box.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", isComposing: true, bubbles: true, cancelable: true,
+      }));
+      box.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", keyCode: 229, bubbles: true, cancelable: true,
+      }));
+    });
+    expect(streamChat).not.toHaveBeenCalled();
+    expect(box.value).toBe("nihao");
+
+    await act(async () => {
+      box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    expect(streamChat).toHaveBeenCalledTimes(1);
+  });
+
   it("shows repeated tailoring stages as a second review round", async () => {
     const completion = deferred<void>();
     vi.mocked(streamChat).mockImplementation(async function* (): AsyncGenerator<PublicStreamEvent> {

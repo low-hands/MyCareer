@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { isImeKeyEvent } from "../chat/keyboard";
 
 interface SelectOption { value: string; label: string; description?: string }
 
@@ -29,7 +30,7 @@ export function SearchableSelect({ label, placeholder, searchPlaceholder, value,
   return <div className="searchable-select resume-version-picker" ref={root} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }} onKeyDown={(event) => {
-    if (event.nativeEvent.isComposing) return;
+    if (isImeKeyEvent(event)) return;
     if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus(); }
     if (event.target === search.current && event.key === "Enter") { event.preventDefault(); return; }
     if (event.target === search.current && ["Home", "End"].includes(event.key)) return;

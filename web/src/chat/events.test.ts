@@ -19,6 +19,22 @@ describe("parsePublicStreamEvent", () => {
     })).toThrow("SSE_EVENT_INVALID");
   });
 
+  it("accepts a selection that can also be answered by a resume upload", () => {
+    const event = {
+      type: "interaction_required",
+      interaction_id: "interaction_0123456789abcdef0123",
+      kind: "single_selection",
+      prompt: "用哪份简历？",
+      options: [{ label: "不用简历", value: "without_resume" }],
+      allow_free_text: true,
+      accepts_upload: "resume",
+    };
+    expect(parsePublicStreamEvent(event)).toMatchObject({ accepts_upload: "resume" });
+    expect(() => parsePublicStreamEvent({ ...event, accepts_upload: "video" })).toThrow(
+      "SSE_EVENT_INVALID",
+    );
+  });
+
   it("accepts a report reference the card can resolve", () => {
     expect(
       parsePublicStreamEvent({

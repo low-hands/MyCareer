@@ -2,12 +2,17 @@ import { useMemo, useState } from "react";
 
 import type { InteractionRequiredEvent } from "../chat/types";
 import type { InteractionResponse } from "../api/sse";
+import type { ResumeImportResult } from "../api/client";
+import { attachmentFromImport, type ChatAttachment } from "../chat/attachments";
+import { InlineOtherOption } from "./InlineOtherOption";
 import { ResumeImporter } from "./ResumeImporter";
 import { QuestionnaireCard } from "./QuestionnaireCard";
 
 export interface InteractionReply {
   message: string;
   interactionResponse?: InteractionResponse;
+  /** Sent with the reply instead of whatever the composer has queued. */
+  resources?: ChatAttachment[];
 }
 
 interface InteractionCardProps {
@@ -15,6 +20,17 @@ interface InteractionCardProps {
   disabled: boolean;
   apiBaseUrl: string;
   onReply: (reply: InteractionReply) => void;
+}
+
+/** Answer with the uploaded version attached, which is what the server starts on. */
+export function uploadReply(result: ResumeImportResult): InteractionReply {
+  const label = `《${result.name}》v${result.version_number}`;
+  return {
+    message: result.already_in_library
+      ? `用简历${label}（库里已有这份文件，直接用它）`
+      : `用刚上传的简历${label}`,
+    resources: [attachmentFromImport(result)],
+  };
 }
 
 function optionValue(option: InteractionRequiredEvent["options"][number]): string {
@@ -25,6 +41,8 @@ function optionValue(option: InteractionRequiredEvent["options"][number]): strin
 export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: InteractionCardProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [freeText, setFreeText] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [typing, setTyping] = useState(false);
   const isMultiple = interaction.kind === "multiple_selection";
   const selectedMessage = useMemo(() => [...selected].join(", "), [selected]);
 
@@ -33,12 +51,8 @@ export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: 
   }
 
   if (interaction.kind === "free_text") {
-    return (
-      <div className="interaction-card" aria-labelledby={interaction.interaction_id}>
-        <span className="interaction-kicker">需要你的回答</span>
-        <p id={interaction.interaction_id}>{interaction.prompt}</p>
-      </div>
-    );
+    // The question is already the last message; the composer takes the answer.
+    return null;
   }
   if (interaction.kind === "file_upload") {
     return (
@@ -103,24 +117,37 @@ export function InteractionCard({ interaction, disabled, apiBaseUrl, onReply }: 
           );
         })}
       </div>
+      {interaction.accepts_upload === "resume" ? (
+        <div className="interaction-upload">
+          {uploading ? (
+            <ResumeImporter
+              apiBaseUrl={apiBaseUrl}
+              submitLabel="上传并使用"
+              onCancel={() => setUploading(false)}
+              onImported={(result) => onReply(uploadReply(result))}
+            />
+          ) : (
+            <button type="button" className="option-button" disabled={disabled} onClick={() => setUploading(true)}>
+              <span>上传一份简历</span>
+              <small>会存入简历库；和库里某一版完全相同时直接用那一版</small>
+            </button>
+          )}
+        </div>
+      ) : null}
       {interaction.allow_free_text ? (
-        <div className="interaction-free-text">
-          <label htmlFor={`${interaction.interaction_id}-free-text`}>以上都不适用？直接填写</label>
-          <textarea
-            id={`${interaction.interaction_id}-free-text`}
-            rows={3}
+        <div className="interaction-options">
+          <InlineOtherOption
+            label="其他，直接输入…"
+            placeholder="输入你的回答，回车发送"
             value={freeText}
+            open={typing}
             disabled={disabled}
-            placeholder="输入你的回答…"
-            onChange={(event) => setFreeText(event.target.value)}
+            submitLabel="发送"
+            onOpen={() => setTyping(true)}
+            onClose={() => setTyping(false)}
+            onChange={setFreeText}
+            onSubmit={() => onReply({ message: freeText.trim() })}
           />
-          <button
-            type="button"
-            disabled={disabled || !freeText.trim()}
-            onClick={() => onReply({ message: freeText.trim() })}
-          >
-            提交填写内容
-          </button>
         </div>
       ) : null}
       {isMultiple ? (

@@ -106,3 +106,62 @@ it("renders an obvious editable field for open-text questions", async () => {
   });
   expect(button("下一步").disabled).toBe(false);
 });
+
+function type(input: HTMLInputElement, text: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  setter.call(input, text);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function pressEnter(input: HTMLInputElement) {
+  input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+}
+
+const roleQuestionnaire: InteractionRequiredEvent = {
+  ...interaction,
+  prompt: "开始前需要确定模拟方向。",
+  questions: [
+    {
+      question_id: "q1", prompt: "这次面试的岗位方向是什么？", kind: "single",
+      options: [
+        { value: "pm", label: "AI 产品经理", meaning: "choice" },
+        { value: "other", label: "其他岗位", meaning: "other" },
+      ],
+      allow_free_text: true, allow_skip: false,
+    },
+    {
+      question_id: "q2", prompt: "几道题？", kind: "single",
+      options: [{ value: "2", label: "2 道", meaning: "choice" }],
+      allow_free_text: true, allow_skip: false,
+    },
+  ],
+};
+
+it("answers an 'other' option in its own row, with no separate text box", async () => {
+  const onReply = vi.fn();
+  await act(async () => root.render(<QuestionnaireCard interaction={roleQuestionnaire} disabled={false} onReply={onReply} />));
+  expect(container.querySelector("textarea")).toBeNull();
+  expect(container.querySelector(".option-input")).toBeNull();
+
+  await act(async () => button("其他岗位").click());
+  const input = container.querySelector<HTMLInputElement>(".option-input input")!;
+  expect(input).not.toBeNull();
+  await act(async () => type(input, "数据分析"));
+  await act(async () => pressEnter(input));
+
+  // Enter moved on to the next question.
+  expect(container.querySelector("h3")?.textContent).toBe("几道题？");
+  // A choice question that allows a note offers it as a closed row, not a box.
+  expect(container.querySelector("textarea")).toBeNull();
+  await act(async () => button("补充说明（可选）").click());
+  const note = container.querySelector<HTMLInputElement>(".option-input input")!;
+  await act(async () => button("2 道").click());
+  await act(async () => type(note, "不要追问"));
+  await act(async () => pressEnter(note));
+
+  expect(onReply).toHaveBeenCalledTimes(1);
+  expect(onReply.mock.calls[0][0].interactionResponse.answers).toEqual([
+    { question_id: "q1", selected_values: ["other"], free_text: "数据分析", skipped: false },
+    { question_id: "q2", selected_values: ["2"], free_text: "不要追问", skipped: false },
+  ]);
+});

@@ -48,7 +48,8 @@ export function hydrationFrom(
   return {
     messages,
     interaction: transcript.pending_interaction,
-    awaitingInput: Boolean(transcript.active_workflow),
+    // The server reports an empty slot as "none", which is a truthy string.
+    awaitingInput: Boolean(transcript.active_workflow && transcript.active_workflow !== "none"),
   };
 }
 

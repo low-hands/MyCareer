@@ -83,6 +83,15 @@ describe("hydrationFrom", () => {
     expect(hydration.awaitingInput).toBe(true);
   });
 
+  it("does not wait for input once a workflow has left the conversation", () => {
+    // The server reports the empty slot as the string "none", not null.
+    const hydration = hydrationFrom(
+      "c1",
+      transcript([{ role: "user", content: "开始" }], { active_workflow: "none" }),
+    );
+    expect(hydration.awaitingInput).toBe(false);
+  });
+
   it("restores a resume attachment's snapshot, including that it is no longer reachable", () => {
     const stored = transcript([{ role: "user", content: "帮我分析这份简历" }]);
     stored.messages[0].resources = [

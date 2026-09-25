@@ -34,6 +34,7 @@ import {
 } from "./chat/jobCapture";
 import {
   newStandaloneAgentTask,
+  standaloneTaskResources,
   standaloneAgentTaskStep,
   type StandaloneAgentTask,
 } from "./chat/agentTask";
@@ -44,6 +45,7 @@ import {
   type ProgressStep,
 } from "./chat/reducer";
 import { useConversationComposer } from "./chat/composer";
+import { isImeKeyEvent } from "./chat/keyboard";
 import {
   RECOVERY_ATTEMPTS,
   RECOVERY_INTERVAL_MS,
@@ -207,6 +209,13 @@ export default function App() {
     },
     [],
   );
+  // "我投了" on a saved job opens the application form, which lives on the
+  // applications page; bring that page forward or the click shows nothing.
+  useEffect(() => {
+    const show = () => setView("applications");
+    window.addEventListener("open-application-form", show);
+    return () => window.removeEventListener("open-application-form", show);
+  }, []);
   useEffect(() => {
     const request = new AbortController();
     void fetchConversations({ apiBaseUrl: API_BASE_URL, signal: request.signal })
@@ -308,9 +317,7 @@ export default function App() {
     pendingStandaloneTask.current = null;
     activeStandaloneTask.current = standaloneTask;
     setStandaloneTask(null);
-    void sendMessage(standaloneTask.prompt, undefined, [
-      standaloneTask.resource, ...(standaloneTask.additionalResources ?? []),
-    ]).finally(() => {
+    void sendMessage(standaloneTask.prompt, undefined, standaloneTaskResources(standaloneTask)).finally(() => {
       if (activeStandaloneTask.current === standaloneTask) activeStandaloneTask.current = null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -558,13 +565,15 @@ export default function App() {
    * task waits for it rather than interrupting it or degrading to a draft.
    */
   function startStandaloneTask(
-    prompt: string, resource: ChatAttachment, additionalResources: ChatAttachment[] = [],
+    prompt: string, resource: ChatAttachment | null, additionalResources: ChatAttachment[] = [],
+    label?: string,
   ): void {
     setView("chat");
     const active = activeStandaloneTask.current;
-    const activeInputs = active
-      ? toInputResources([active.resource, ...(active.additionalResources ?? [])]) : null;
-    const inputs = toInputResources([resource, ...additionalResources]);
+    const activeInputs = active ? toInputResources(standaloneTaskResources(active)) : null;
+    const inputs = toInputResources(
+      [resource, ...additionalResources].filter((item): item is ChatAttachment => item !== null),
+    );
     if (
       pendingStandaloneTask.current
       || (
@@ -572,7 +581,7 @@ export default function App() {
         && JSON.stringify(activeInputs) === JSON.stringify(inputs)
       )
     ) return;
-    const task = newStandaloneAgentTask(prompt, resource, additionalResources);
+    const task = newStandaloneAgentTask(prompt, resource, additionalResources, label);
     pendingStandaloneTask.current = task;
     setStandaloneTask(task);
   }
@@ -755,6 +764,7 @@ export default function App() {
           refreshToken={completedTurns}
           hidden={view !== "calendar"}
           onAskAgent={startAgentTask}
+          onStartStandaloneTask={startStandaloneTask}
           onOpenConversation={openConversation}
         />
         <EmailPanel
@@ -853,9 +863,13 @@ export default function App() {
               <div className="standalone-task-notice" role="status">
                 <span className="spinner" />
                 <span>
-                  {busy || historyLoading
-                    ? `当前任务结束后，将在新对话中分析${[standaloneTask.resource, ...(standaloneTask.additionalResources ?? [])].map(attachmentLabel).join(" 与 ")}`
-                    : `正在打开新对话，分析${[standaloneTask.resource, ...(standaloneTask.additionalResources ?? [])].map(attachmentLabel).join(" 与 ")}…`}
+                  {(() => {
+                    const subject = standaloneTask.label
+                      ?? `分析${standaloneTaskResources(standaloneTask).map(attachmentLabel).join(" 与 ")}`;
+                    return busy || historyLoading
+                      ? `当前任务结束后，将在新对话中${subject}`
+                      : `正在打开新对话，${subject}…`;
+                  })()}
                 </span>
                 <button type="button" onClick={cancelStandaloneTask}>取消</button>
               </div>
@@ -1051,7 +1065,11 @@ export default function App() {
                 disabled={busy}
                 apiBaseUrl={API_BASE_URL}
                 onReply={(reply) =>
-                  void sendMessage(reply.message, reply.interactionResponse)
+                  void sendMessage(
+                    reply.message,
+                    reply.interactionResponse,
+                    reply.resources ?? attachments,
+                  )
                 }
               />
             ) : null}
@@ -1086,6 +1104,7 @@ export default function App() {
                     setSubmitNotice(null);
                   }}
                   onKeyDown={(event) => {
+                    if (isImeKeyEvent(event)) return;
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
                       if (historyLoading) {

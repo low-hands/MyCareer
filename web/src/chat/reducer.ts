@@ -166,11 +166,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     };
   }
   if (action.type === "submit") {
+    // The question being answered was shown only on the interaction card. Once
+    // the card closes it has to stay in the transcript as the reply it was,
+    // or the exchange reads as an answer to an empty bubble.
+    const answered = state.interaction;
+    const settled = answered
+      ? state.messages.map((message) =>
+          message.id === state.activeAssistantMessageId && !message.content
+            ? { ...message, content: answered.prompt }
+            : message,
+        )
+      : state.messages;
     return {
       ...state,
       phase: "running",
       messages: [
-        ...state.messages,
+        ...settled,
         {
           id: action.messageId,
           role: "user",
@@ -279,6 +290,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       // An interaction is already durable when the server publishes it. The
       // following turn_suspended event is useful confirmation, but the form
       // must not remain disabled if that final SSE frame is delayed or lost.
+      // A free-text question has no choices to lay out, so it is a message,
+      // not a card: it goes into the transcript now (rendered as Markdown,
+      // like any reply) and the composer below takes the answer.
+      if (event.kind === "free_text") {
+        return {
+          ...state,
+          phase: "awaiting_input",
+          interaction: event,
+          progress: null,
+          messages: state.messages.map((message) =>
+            message.id === state.activeAssistantMessageId && !message.content
+              ? { ...message, content: event.prompt }
+              : message,
+          ),
+        };
+      }
       return { ...state, phase: "awaiting_input", interaction: event, progress: null };
     case "artifact_ready":
       return { ...state, artifacts: [...state.artifacts, event] };

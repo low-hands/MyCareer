@@ -111,6 +111,8 @@ export type PublicStreamEvent =
       questions?: UserQuestion[];
       allow_free_text: boolean;
       scope?: InteractionScope | null;
+      /** The selection can also be answered by uploading this kind of file. */
+      accepts_upload?: "resume" | null;
     }
   | { type: "content_delta"; delta: string }
   | {
@@ -252,6 +254,7 @@ export function parsePublicStreamEvent(value: unknown): PublicStreamEvent {
               && typeof question.allow_free_text === "boolean"
               && typeof question.allow_skip === "boolean"))) ||
         typeof value.allow_free_text !== "boolean" ||
+        (value.accepts_upload != null && value.accepts_upload !== "resume") ||
         (value.scope != null &&
           (typeof value.scope !== "string" || !INTERACTION_SCOPE_SET.has(value.scope)))
       ) {

@@ -12,8 +12,17 @@ import type { ChatAttachment } from "./attachments";
 export interface StandaloneAgentTask {
   conversationId: string;
   prompt: string;
-  resource: ChatAttachment;
+  /** Null for a task that carries only its prompt, such as repeating a practice run with no resume or job. */
+  resource: ChatAttachment | null;
   additionalResources?: ChatAttachment[];
+  /** What the waiting notice says; defaults to analysing the attached resources. */
+  label?: string;
+}
+
+export function standaloneTaskResources(task: StandaloneAgentTask): ChatAttachment[] {
+  return [task.resource, ...(task.additionalResources ?? [])].filter(
+    (item): item is ChatAttachment => item !== null,
+  );
 }
 
 export interface AgentTaskChatState {
@@ -28,10 +37,11 @@ export type AgentTaskStep = "wait" | "switch" | "send";
 
 export function newStandaloneAgentTask(
   prompt: string,
-  resource: ChatAttachment,
+  resource: ChatAttachment | null,
   additionalResources: ChatAttachment[] = [],
+  label?: string,
 ): StandaloneAgentTask {
-  return { conversationId: `conversation-${crypto.randomUUID()}`, prompt, resource, additionalResources };
+  return { conversationId: `conversation-${crypto.randomUUID()}`, prompt, resource, additionalResources, label };
 }
 
 /**
