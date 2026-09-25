@@ -17,6 +17,7 @@ from .models import (
     jd_content_hash,
     new_id,
     normalize_jd,
+    title_without_salary,
     validate_job_detail,
 )
 

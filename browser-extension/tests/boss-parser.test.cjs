@@ -175,3 +175,18 @@ test("closure wording variants are all recognised", () => {
     false,
   );
 });
+
+test("takes the job name from the banner heading, not the block that also holds the salary", () => {
+  const documentRef = documentFixture({
+    ".job-banner .name h1": "Agent开发实习",
+    ".job-banner .name": "Agent开发实习 200-250元/天",
+    ".job-banner .salary": "200-250元/天",
+    ".company-name": "量霸科技",
+    ".job-description": "职位描述\n负责 Agent 应用的设计、开发和评测。\n任职要求\n熟悉 Python 和大模型应用开发。",
+  });
+
+  const result = parser.extract(documentRef, { href: "https://www.zhipin.com/job_detail/abc.html" });
+
+  assert.equal(result.job.title, "Agent开发实习");
+  assert.equal(result.job.salary, "200-250元/天");
+});

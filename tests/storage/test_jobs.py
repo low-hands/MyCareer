@@ -303,3 +303,61 @@ def test_legacy_analysis_rows_survive_fingerprint_migration(tmp_path) -> None:
     assert restored.analysis.analysis.to_result() is None
     rebuilt.save_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="jd-analysis-v1", analysis=tiered_payload(), content_fingerprint="fp-1")
     assert rebuilt.find_analysis(user_id="u1", jd_snapshot_id=saved.snapshot.id, analyzer_version="jd-analysis-v1", content_fingerprint="fp-1") is not None
+
+
+@pytest.mark.parametrize(
+    ("title", "salary", "expected"),
+    [
+        ("Agent开发实习 200-250元/天", "200-250元/天", "Agent开发实习"),
+        ("AI 产品经理·25-35K", "25-35K", "AI 产品经理"),
+        ("AI 产品经理", "25-35K", "AI 产品经理"),
+        # Money that is not the salary field is part of the title.
+        ("年薪百万合伙人", "面议", "年薪百万合伙人"),
+        # A title that is only the salary is kept rather than emptied.
+        ("25-35K", "25-35K", "25-35K"),
+        ("AI 产品经理 25-35K", None, "AI 产品经理 25-35K"),
+    ],
+)
+def test_the_salary_is_taken_out_of_a_title_only_as_its_exact_suffix(
+    title, salary, expected
+) -> None:
+    from career_agent.domain.job_discovery import title_without_salary
+
+    assert title_without_salary(title, salary) == expected
+
+
+def test_a_captured_title_is_stored_without_its_salary_and_found_again(tmp_path) -> None:
+    repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    captured = detail().model_copy(update={"title": "AI Engineer 25-35K"})
+
+    first = repository.save_captured_detail(user_id="u1", detail=captured)
+    again = repository.save_captured_detail(user_id="u1", detail=detail())
+
+    assert first.posting.title == "AI Engineer"
+    # The same job captured with a clean title is the same row, not a duplicate.
+    assert again.posting.id == first.posting.id
+    assert again.posting.company_title_fingerprint == first.posting.company_title_fingerprint
+
+
+def test_titles_saved_with_their_salary_are_cleaned_on_upgrade(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite3"
+    repository = SQLiteJobPostingRepository(path)
+    clean = repository.save_captured_detail(user_id="u1", detail=detail())
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE job_postings SET title = 'AI Engineer 25-35K', "
+            "company_title_fingerprint = 'stale', content_fingerprint = 'stale'"
+        )
+        connection.execute("UPDATE job_posting_fts SET title = 'AI Engineer 25-35K'")
+        connection.execute(
+            "UPDATE schema_versions SET version = 2 WHERE component = 'job_postings'"
+        )
+
+    upgraded = SQLiteJobPostingRepository(path)
+
+    record = upgraded.get_job(user_id="u1", job_posting_id=clean.posting.id)
+    assert record.posting.title == "AI Engineer"
+    assert record.posting.company_title_fingerprint == clean.posting.company_title_fingerprint
+    assert record.posting.content_fingerprint == clean.posting.content_fingerprint
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT title FROM job_posting_fts").fetchone()[0] == "AI Engineer"

@@ -5,6 +5,8 @@
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const FIELD_SELECTORS = Object.freeze({
     title: [
+      // The banner's name block also holds the salary; its h1 is the name alone.
+      ".job-banner .name h1",
       ".job-banner .name",
       ".job-title",
       ".job-name",

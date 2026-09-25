@@ -176,6 +176,23 @@ def jd_content_hash(description: str) -> str:
     return hashlib.sha256(normalize_jd(description).encode("utf-8")).hexdigest()
 
 
+def title_without_salary(title: str, salary: str | None) -> str:
+    """Drop the salary a job board rendered into the title's own element.
+
+    On BOSS the job name and its salary share one heading, so the captured
+    title reads "Agent开发实习 200-250元/天" although the salary is also its own
+    field. Only an exact trailing copy of that field is removed, so a title
+    that merely mentions money is left alone, and a title that is nothing but
+    the salary is kept rather than emptied.
+    """
+    stripped = title.strip()
+    wage = (salary or "").strip()
+    if not wage or not stripped.endswith(wage):
+        return stripped
+    remainder = stripped[: -len(wage)].rstrip(" \t·|-–—,，")
+    return remainder or stripped
+
+
 def content_fingerprint(title: str, company_name: str, description: str) -> str:
     value = "␟".join((title.casefold().strip(), company_name.casefold().strip(), normalize_jd(description)))
     return hashlib.sha256(value.encode("utf-8")).hexdigest()

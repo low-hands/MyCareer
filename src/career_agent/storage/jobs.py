@@ -26,6 +26,7 @@ from career_agent.domain.job_discovery import (
     jd_content_hash,
     new_id,
     normalize_jd,
+    title_without_salary,
     validate_job_detail,
 )
 from career_agent.storage.schema import apply_schema
@@ -262,9 +263,9 @@ class SQLiteJobPostingRepository:
             apply_schema(
                 connection,
                 "job_postings",
-                2,
+                3,
                 self._migrate,
-                {2: self._upgrade_to_v2},
+                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -287,6 +288,37 @@ class SQLiteJobPostingRepository:
             )
         if "dismissed_at" not in columns:
             connection.execute("ALTER TABLE job_postings ADD COLUMN dismissed_at TEXT")
+
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        """Take the salary back out of titles captured before it was stripped.
+
+        The fingerprints and the search index are derived from the title, so
+        each is rewritten with it; otherwise a re-capture of the same job
+        would no longer match its own row.
+        """
+        rows = connection.execute(
+            "SELECT p.id, p.title, p.company_name, p.salary, s.content "
+            "FROM job_postings p JOIN jd_snapshots s ON s.id = p.latest_snapshot_id"
+        ).fetchall()
+        for posting_id, title, company, salary, content in rows:
+            cleaned = title_without_salary(title, salary)
+            if cleaned == title:
+                continue
+            connection.execute(
+                "UPDATE job_postings SET title = ?, company_title_fingerprint = ?, "
+                "content_fingerprint = ? WHERE id = ?",
+                (
+                    cleaned,
+                    company_title_fingerprint(cleaned, company),
+                    content_fingerprint(cleaned, company, content),
+                    posting_id,
+                ),
+            )
+            connection.execute(
+                "UPDATE job_posting_fts SET title = ? WHERE job_posting_id = ?",
+                (cleaned, posting_id),
+            )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -424,6 +456,7 @@ class SQLiteJobPostingRepository:
         run_link: tuple[str, str, int] | None,
     ) -> StoredJobRecord:
         normalized = validate_job_detail(detail)
+        title = title_without_salary(detail.title, detail.salary)
         now = datetime.now(timezone.utc)
         source_identity = self._source_identity(detail, normalized)
         content_hash = jd_content_hash(normalized)
@@ -461,7 +494,7 @@ class SQLiteJobPostingRepository:
             posting = JobPosting(
                 id=posting_id,
                 user_id=user_id,
-                title=detail.title.strip(),
+                title=title,
                 company_name=detail.company_name.strip(),
                 source_name=detail.source_name,
                 source_job_id=detail.source_job_id,
@@ -470,8 +503,8 @@ class SQLiteJobPostingRepository:
                 persisted_at=persisted_at,
                 last_seen_at=now,
                 latest_snapshot_id=snapshot.id,
-                company_title_fingerprint=company_title_fingerprint(detail.title, detail.company_name),
-                content_fingerprint=content_fingerprint(detail.title, detail.company_name, normalized),
+                company_title_fingerprint=company_title_fingerprint(title, detail.company_name),
+                content_fingerprint=content_fingerprint(title, detail.company_name, normalized),
             )
             connection.execute(
                 """
