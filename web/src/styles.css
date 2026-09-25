@@ -606,6 +606,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .mock-session-card > p { margin: 11px 0 6px; color: #5f6b7e; font-size: 11px; line-height: 1.6; }
 .mock-session-card > small { color: #8b95a7; font-size: 9px; }
 .mock-session-card .report-card { margin: 12px 0 0; }
+.mock-session-card .workflow-note { display: block; margin-top: 7px; color: var(--ui-muted); line-height: 1.55; }
 .mock-session-card .card-agent-action { display: block; }
 .workflow-note { display: block; margin-top: 10px; color: #9b6b2f !important; }
 
@@ -1445,10 +1446,10 @@ body { background: var(--ui-bg); }
 .job-analysis-card > header .status-pill { padding: 4px 7px; border: 1px solid var(--ui-border); background: transparent; color: var(--ui-muted); font-size: 10px; font-weight: 500; }
 .job-analysis-card > header .status-pill.status-ready, .job-analysis-card > header .status-pill.status-current { color: #4d6955; border-color: #cbdace; background: #f3f7f2; }
 .job-analysis-card > header .status-pill.status-stale, .job-analysis-card > header .status-pill.status-outdated { color: #966d2e; border-color: #eadbbd; background: #fff9ec; }
-.job-analysis-card h2 { font-size: 19px; }
+.job-analysis-card h2 { font-size: 16px; font-weight: 620; line-height: 1.4; }
 .job-analysis-card header p { color: #69716e; font-size: 13px; line-height: 1.6; white-space: normal; }
 .job-analysis-body { padding: 24px; gap: 22px; }
-.job-summary { font-size: 14px; font-weight: 400; }
+.job-summary { font-size: 13px; font-weight: 400; line-height: 1.7; }
 .analysis-section > strong { font-size: 13px; }
 .analysis-section ul, .jd-requirements li, .jd-quoted-list li { max-width: 78ch; font-size: 13px; line-height: 1.8; }
 .skill-chips span { font-size: 12px; border-radius: 6px; font-weight: 400; }
@@ -1458,7 +1459,7 @@ body { background: var(--ui-bg); }
 .job-card-actions button.link { font-size: 12px; font-weight: 500; }
 .job-card-actions .job-primary-action { padding: 8px 12px; background: #f1f4f0; border-color: #dce4da; color: #35513e; font-size: 12px; }
 .job-jd-body { padding: 22px 24px; }
-.job-jd-body pre { font-size: 14px; color: #414a45; }
+.job-jd-body pre { font-size: 13px; line-height: 1.75; color: #414a45; }
 .job-jd-meta { font-size: 12px; }
 @media (max-width: 760px) {
   .dashboard-page .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1706,3 +1707,265 @@ body { background: var(--ui-bg); }
   .dashboard-detail { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
   .dashboard-detail-header, .dashboard-detail-content { padding: 16px; }
 }
+
+/* Which resume an application or practice run used, and editing it in place. */
+.link-button { padding: 0; border: 0; background: none; color: #45725f; font: inherit; cursor: pointer; }
+.link-button:hover:not(:disabled) { text-decoration: underline; }
+.application-resume a,
+.report-resume-reference a { color: #45725f; }
+.application-resume-editor { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.application-resume-editor > button:not(.link-button) { padding: 6px 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-surface); font: inherit; font-size: 12px; cursor: pointer; }
+.report-resume-reference { margin: 4px 0 10px; color: var(--ui-muted); font-size: 12px; }
+
+.interaction-upload {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* The JD analysis sits outside every container that styles ``.link``, so
+   its toggle has its own quiet text style instead of the browser default. */
+.jd-requirements-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; color: var(--ui-muted); background: none; border: 0; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+.jd-requirements-toggle:hover { color: var(--ui-text); }
+.jd-requirements-toggle svg { transition: transform 0.15s ease; }
+.jd-requirements-toggle svg.is-open { transform: rotate(180deg); }
+
+/* One screen tall on desktop. The shell only had a minimum height, so a long
+   conversation list stretched the page: the whole document scrolled, the
+   sidebar's background stopped at one screen, and the composer ended up
+   below the fold. Each column scrolls inside itself instead. */
+/* flow-root keeps the shell's top margin inside body; collapsed through it,
+   body (min-height 100vh) started 8px down and the page scrolled by 8px. */
+body { display: flow-root; }
+@media (min-width: 861px) {
+  .app-shell { height: calc(100dvh - 16px); min-height: 0; }
+  .app-content, .workspace { height: 100%; min-height: 0; }
+  .conversation-panel, .chat-panel { min-height: 0; overflow: hidden; }
+}
+
+/* One look for every "choose / fill in" card, above the composer or inside a
+   message. The base rules left option and action buttons at the browser's
+   16px (the compact sizes were written only under `.message`), and the
+   questionnaire card dropped the card frame the selection card has. */
+.interaction-card,
+.message .interaction-card,
+.questionnaire-card,
+.message .questionnaire-card {
+  padding: 14px 16px;
+  font-size: 13px;
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, #e2e2de);
+  border-radius: 12px;
+}
+.interaction-card .interaction-kicker { margin-bottom: 4px; font-size: 10px; }
+.interaction-card > p { margin: 0; color: var(--ui-muted, #72726c); font-size: 12px; font-weight: 500; line-height: 1.55; }
+.interaction-card.questionnaire-card h3 { margin: 10px 0 8px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.interaction-card .interaction-options { gap: 6px; margin-top: 10px; }
+.interaction-card .option-button {
+  gap: 2px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: #f7f6f2;
+  border: 1px solid #e4e2dc;
+  border-radius: 10px;
+}
+.interaction-card .option-button > span { font-weight: 500; }
+.interaction-card .option-button small { font-size: 11px; }
+.interaction-card textarea { font-size: 13px; }
+.interaction-card .questionnaire-actions { margin-top: 10px; }
+.interaction-card .questionnaire-actions button,
+.interaction-card .interaction-free-text > button,
+.interaction-card .confirm-button {
+  padding: 7px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.interaction-card .questionnaire-actions .questionnaire-submit,
+.interaction-card .interaction-free-text > button,
+.interaction-card .confirm-button { color: #fff; background: #2d2d2a; border: 1px solid #2d2d2a; }
+
+/* The "type your own" row: shaped like an option, opened in place. */
+.interaction-card .option-other > span { color: var(--ui-muted, #72726c); font-weight: 500; }
+.interaction-card .option-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  background: #fff;
+  border: 1px solid #396b57;
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px rgba(57, 107, 87, .1);
+}
+.interaction-card .option-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  color: var(--ui-text, #20201e);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+}
+.interaction-card .option-input button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  color: #fff;
+  background: #2d2d2a;
+  border: 0;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.interaction-card .option-input button:disabled { opacity: .35; }
+/* A free-text question keeps a multi-line box. `.composer textarea` (the
+   message box) stripped its border, leaving an invisible input on the card. */
+.composer .interaction-card textarea,
+.interaction-card textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  margin-top: 8px;
+  padding: 9px 11px;
+  color: var(--ui-text, #20201e);
+  background: #fff;
+  border: 1px solid #d3d2cc;
+  border-radius: 10px;
+  resize: vertical;
+}
+.composer .interaction-card textarea:focus,
+.interaction-card textarea:focus { border-color: #396b57; box-shadow: 0 0 0 3px rgba(57, 107, 87, .1); }
+
+/* One type scale for every report card body, wherever the card sits. The
+   mock interview report fell back to the page's Markdown defaults (bigger
+   text, 17px headings) while the company report used 13px and the match
+   report 14px, so three reports read as three products. */
+.report-card-body .markdown-content,
+.report-card-body .company-report .markdown-content,
+.report-card-body .match-report-content .markdown-content {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.report-card-body .markdown-content h1,
+.report-card-body .markdown-content h2,
+.report-card-body .match-report-section > h2 {
+  margin: 18px 0 8px;
+  color: var(--ui-text, #20201e);
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.4;
+}
+.report-card-body .markdown-content h3 {
+  margin: 14px 0 6px;
+  color: var(--ui-text, #20201e);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.report-card-body .markdown-content > :first-child { margin-top: 0; }
+.report-card-body .markdown-content ul,
+.report-card-body .markdown-content ol { margin: 6px 0; padding-left: 18px; }
+.report-card-body .markdown-content li { margin: 3px 0; }
+.report-card-body .report-resume-reference { margin-top: 12px; color: var(--ui-muted, #72726c); font-size: 12px; }
+
+/* One header for every report card. Only cards inside a message, a research
+   card or a saved-job card had a compact header; a report in the practice
+   history (面试中心) fell back to the browser's 16px title and wider padding. */
+.report-card .report-card-header { gap: 10px; padding: 10px 12px; }
+.report-card .report-card-icon { width: 30px; height: 30px; border-radius: 8px; }
+.report-card .report-card-label { gap: 2px; }
+.report-card .report-card-label strong { color: var(--ui-text, #20201e); font-size: 13px; font-weight: 600; line-height: 1.35; }
+.report-card .report-card-label small,
+.report-card .report-card-toggle { font-size: 11px; }
+.report-card .report-card-label small { color: var(--ui-muted, #72726c); }
+.report-card .report-card-body { padding: 0 12px 12px; }
+
+/* One title size for the cards in the job and resume libraries (and the
+   research cards sharing `.card-body h2`): a step above 13px body text,
+   well below the 30px page title. The job card had been enlarged to 19px
+   while the resume card stayed at 16px bold. */
+.card-body h2,
+.research-card h2 { font-size: 16px; font-weight: 620; line-height: 1.4; }
+
+/* A narrow card squeezed the version details into a sliver that ran under
+   the actions, which never shrink; the actions wrap below instead. */
+.resume-version-row { flex-wrap: wrap; align-items: flex-start; row-gap: 8px; }
+.resume-version-row > div:first-child { flex: 1 1 180px; }
+.resume-version-actions { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+
+/* The resume library, one group per target role. */
+.resume-role-group { display: grid; gap: 12px; }
+.resume-role-group + .resume-role-group { margin-top: 26px; }
+.resume-role-heading { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--ui-border, #e2e2de); }
+.resume-role-heading h2 { margin: 0; color: var(--ui-text, #20201e); font-size: 15px; font-weight: 620; }
+.resume-role-heading > span { color: var(--ui-muted, #72726c); font-size: 12px; }
+.resume-role-heading .link-button { margin-left: auto; font-size: 12px; }
+.resume-role-empty { margin: 0; color: var(--ui-muted, #72726c); font-size: 12px; }
+.resume-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+/* Default size for every control inside the app. `button, textarea
+   { font: inherit }` handed buttons, inputs and selects that set no size of
+   their own the body's 16px: the resume importer's 导入简历 / 取消 and file
+   input, the application form's pickers. `:where()` keeps this at element
+   specificity, so any control that does set a size keeps it. */
+:where(.app-shell) button,
+:where(.app-shell) :is(input, select, textarea) { font-size: 13px; }
+
+/* The importer's actions sized like every other action: 13px, compact. */
+.resume-importer-actions button[type="submit"],
+.resume-importer-actions .soft-button {
+  min-height: 34px;
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.resume-importer input, .resume-importer select { font-size: 13px; }
+
+/* 简历匹配 is a section of the job card, not a second card title: heading at
+   the card's section level (14px, below the 16px card title), text at the
+   card's 12-13px, its action button like the card's other actions. */
+.job-match-history .match-history-heading h3 { font-size: 14px; font-weight: 620; }
+.job-match-history .match-result-summary { font-size: 13px; line-height: 1.7; }
+.job-match-history .match-history-empty { margin: 0 0 10px; color: var(--ui-muted, #72726c); font-size: 12px; }
+.job-match-history > .soft-button { padding: 7px 12px; font-size: 12px; border-radius: 8px; }
+
+/* DropdownMenu: a trigger styled like the app's buttons and a list that
+   opens in the flow below it (cards clip overflow, so no floating popup). */
+.dropdown-menu { display: grid; gap: 4px; min-width: 0; }
+.dropdown-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  color: var(--ui-text, #20201e);
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, #e2e2de);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dropdown-menu-trigger:hover:not(:disabled), .dropdown-menu-trigger.is-open { border-color: #c9cdc4; background: #f7f6f2; }
+.dropdown-menu-trigger svg { flex: 0 0 auto; color: var(--ui-muted, #72726c); transition: transform .15s ease; }
+.dropdown-menu-trigger.is-open svg { transform: rotate(180deg); }
+.dropdown-menu-list {
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--ui-border, #e2e2de);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(24, 24, 22, .08);
+}
+.dropdown-menu-item {
+  padding: 7px 10px;
+  color: var(--ui-text, #20201e);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dropdown-menu-item:hover, .dropdown-menu-item:focus-visible { background: #edf3ef; outline: none; }
+.resume-card-actions { align-items: flex-start; }
