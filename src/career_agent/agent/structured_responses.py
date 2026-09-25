@@ -167,6 +167,7 @@ def structured_response(
             raise AgentWorkerError(
                 f"{code_prefix}_EMPTY_RESPONSE",
                 f"{subject} model returned no structured output.",
+                detail=_empty_response_shape(response),
             )
         try:
             return output_type.model_validate_json(output_text)
@@ -179,3 +180,19 @@ def structured_response(
             ) from error
 
     return retry_invalid_response(request_once, code_prefix=code_prefix)
+
+
+def _empty_response_shape(response: object) -> str:
+    """Structure only (status and output item types, never content).
+
+    Tells a response the relay delivered without its message ("status=
+    completed; output=reasoning") from one the model left empty.
+    """
+    status = getattr(response, "status", None)
+    items = getattr(response, "output", None)
+    kinds = (
+        ",".join(str(getattr(item, "type", "?")) for item in items)
+        if isinstance(items, list)
+        else "?"
+    )
+    return f"status={status}; output={kinds or 'none'}"

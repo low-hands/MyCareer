@@ -236,6 +236,8 @@ def test_an_invalid_sample_is_retried_once_and_the_next_valid_sample_wins() -> N
     assert retry.error_code == "RESUME_ANALYSIS_INVALID_RESPONSE"
     assert retry.recoverable is True
     assert retry.details == {"code_prefix": "RESUME_ANALYSIS"}
+    # Why the sample was rejected survives the retry, and only structurally.
+    assert '"loc": ["score"]' in (retry.error_detail or "")
     assert private_output not in retry.model_dump_json()
 
 
@@ -494,3 +496,41 @@ def test_a_failure_that_is_not_an_invalid_sample_keeps_its_own_retryability() ->
     assert raised.value.code == "CAPABILITY_RATE_LIMITED"
     assert raised.value.retryable is True
     assert len(attempts) == 1
+
+
+class _LostMessageClient:
+    """A relay that answers "completed" but sometimes drops the message item."""
+
+    def __init__(self, *outcomes: str | None):
+        self._outcomes = list(outcomes)
+        self.calls = 0
+        self.responses = self
+
+    def create(self, **kwargs):
+        self.calls += 1
+        text = self._outcomes.pop(0)
+        reasoning = type("Item", (), {"type": "reasoning"})()
+        message = type("Item", (), {"type": "message"})()
+        return type("Response", (), {
+            "status": "completed",
+            "output": [reasoning] if text is None else [reasoning, message],
+            "output_text": "" if text is None else text,
+        })()
+
+
+def test_an_answer_that_lost_its_message_is_retried_and_the_next_one_wins() -> None:
+    client = _LostMessageClient(None, None, '{"verdict": "strong", "score": 8}')
+
+    assert _call(client) == Answer(verdict="strong", score=8)
+    assert client.calls == 3
+
+
+def test_empty_answers_stop_after_two_retries_and_say_what_arrived() -> None:
+    client = _LostMessageClient(None, None, None, '{"verdict": "strong", "score": 8}')
+
+    with pytest.raises(AgentWorkerError) as raised:
+        _call(client)
+
+    assert client.calls == 3
+    assert raised.value.code == "RESUME_ANALYSIS_EMPTY_RESPONSE"
+    assert raised.value.detail == "status=completed; output=reasoning"

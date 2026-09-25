@@ -1,8 +1,9 @@
 """Bounded retries for side-effect-free structured model calls.
 
-Two failures get one retry each: a schema-invalid sample, and a connection the
-provider dropped before answering. A timeout is not retried: it has already
-spent the whole time budget, and a second one would double the wait.
+Three failures are retried: a schema-invalid sample and a connection the
+provider dropped before answering get one retry each; an answer that arrived
+without its message gets two. A timeout is not retried: it has already spent
+the whole time budget, and a second one would double the wait.
 """
 
 from __future__ import annotations
@@ -19,6 +20,12 @@ from career_agent.harness.observability import record_active_trace
 T = TypeVar("T")
 INVALID_RESPONSE_RETRIES = 1
 TRANSPORT_RETRIES = 1
+# The relay intermittently returns a "completed" response whose message item
+# is missing although its usage counts the message tokens: the answer was
+# generated and lost on the way back. Replaying the stuck mock-interview
+# follow-up call four times failed twice and then succeeded twice, so a lost
+# message is a transport loss, not a verdict on the request.
+EMPTY_RESPONSE_RETRIES = 2
 
 
 def retry_invalid_response(call: Callable[[], T], *, code_prefix: str) -> T:
@@ -33,8 +40,10 @@ def retry_invalid_response(call: Callable[[], T], *, code_prefix: str) -> T:
 
     invalid_code = f"{code_prefix}_INVALID_RESPONSE"
     transport_code = f"{code_prefix}_TRANSPORT_ERROR"
+    empty_code = f"{code_prefix}_EMPTY_RESPONSE"
     invalid_retries = 0
     transport_retries = 0
+    empty_retries = 0
     while True:
         try:
             return call()
@@ -50,14 +59,21 @@ def retry_invalid_response(call: Callable[[], T], *, code_prefix: str) -> T:
                 if transport_retries >= TRANSPORT_RETRIES:
                     raise
                 transport_retries += 1
+            elif error.code == empty_code:
+                if empty_retries >= EMPTY_RESPONSE_RETRIES:
+                    raise
+                empty_retries += 1
             else:
                 raise
             record_active_trace(
                 "model_retry",
                 "structured_response",
-                attempt=invalid_retries + transport_retries + 1,
+                attempt=invalid_retries + transport_retries + empty_retries + 1,
                 outcome="started",
                 error_code=error.code,
+                # Structural only (field, type, message; no payload), so the
+                # cause of a rejected sample survives past the retry.
+                error_detail=error.detail,
                 recoverable=True,
                 details={"code_prefix": code_prefix},
                 model_call_category="capability_agent",
