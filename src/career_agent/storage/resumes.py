@@ -243,7 +243,9 @@ class ResumeStore:
         same request returns the version it created without writing anything;
         the same key with a different request is refused, because silently
         answering with the earlier version would hide that the retry changed
-        its mind. Without a key every call creates a new version.
+        its mind. A file identical to a live version already stored is not
+        stored again: that version is returned instead (see
+        ``_identical_version``).
         """
         if bool(name) == bool(resume_id):
             raise ValueError("Provide exactly one of name or resume_id.")
@@ -286,6 +288,20 @@ class ResumeStore:
                             "The resume version this Idempotency-Key created no longer exists."
                         )
                     return replayed
+            identical = self._identical_version(
+                connection,
+                user_id=user_id,
+                digest=digest,
+                resume_id=resume_id,
+                target_role_id=target_role_id,
+            )
+            if identical is not None:
+                if idempotency_key is not None:
+                    connection.execute(
+                        "INSERT INTO resume_import_receipts(user_id, idempotency_key, request_fingerprint, resume_id, resume_version_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (user_id, idempotency_key, fingerprint, identical[0].id, identical[1].id, now.isoformat()),
+                    )
+                return identical
             if resume_id:
                 row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
                 if row is None:
@@ -315,8 +331,83 @@ class ResumeStore:
         os.chmod(self.path, 0o600)
         return resume, version
 
+    def import_receipt_time(self, *, user_id: str, idempotency_key: str) -> datetime | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT created_at FROM resume_import_receipts WHERE user_id = ? AND idempotency_key = ?",
+                (user_id, idempotency_key.strip()),
+            ).fetchone()
+        return datetime.fromisoformat(row[0]) if row else None
+
+    def _identical_version(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        user_id: str,
+        digest: str,
+        resume_id: str | None,
+        target_role_id: str | None,
+    ) -> tuple[Resume, ResumeVersion] | None:
+        """Match on the file's own bytes, never on extracted text.
+
+        A version stands for the exact file that was sent or practised on, and
+        two different files can extract to the same (or the same garbled) text.
+        A re-exported PDF therefore counts as new, which costs a duplicate the
+        user can delete rather than a wrong merge. Deleted resumes are skipped:
+        uploading one again means the user wants it back in the library.
+        Appending to a named resume only matches that resume's own versions; a
+        new resume only matches resumes of the same target role, so filing the
+        same file under a second role still gives that role its own copy.
+        """
+        query = (
+            "SELECT v.id FROM resume_versions v JOIN resumes r ON r.id = v.resume_id "
+            "WHERE r.user_id = ? AND r.status != 'deleted' AND v.content_sha256 = ?"
+        )
+        params: tuple[str, ...] = (user_id, digest)
+        if resume_id:
+            query += " AND r.id = ?"
+            params += (resume_id,)
+        elif target_role_id:
+            query += " AND r.target_role_id = ?"
+            params += (target_role_id,)
+        row = connection.execute(
+            query + " ORDER BY r.updated_at DESC, v.version_number DESC LIMIT 1", params
+        ).fetchone()
+        if row is None:
+            return None
+        return self._get_version(connection, user_id=user_id, resume_version_id=row[0])
+
+    def move_resume(self, *, user_id: str, resume_id: str, target_role_id: str) -> Resume | None:
+        """File a whole resume, every version of it, under another target role.
+
+        A resume belongs to exactly one role. Versions stay where they are, so
+        everything that cites one (an application, a practice run, a match)
+        keeps pointing at the same file. ``None`` means the resume is not the
+        user's live resume; a role that is not the user's is refused.
+        """
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            role = connection.execute(
+                "SELECT 1 FROM target_roles WHERE id = ? AND user_id = ?",
+                (target_role_id, user_id),
+            ).fetchone()
+            if role is None:
+                raise ValueError("Target role not found.")
+            changed = connection.execute(
+                "UPDATE resumes SET target_role_id = ?, updated_at = ? "
+                "WHERE id = ? AND user_id = ? AND status != 'deleted'",
+                (target_role_id, datetime.now(timezone.utc).isoformat(), resume_id, user_id),
+            ).rowcount
+            if not changed:
+                return None
+            row = connection.execute(
+                "SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ?",
+                (resume_id,),
+            ).fetchone()
+        return self._resume(row)
+
     def list_resumes(self, *, user_id: str, target_role_id: str | None = None) -> tuple[Resume, ...]:
-        query = "SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE user_id = ?"
+        query = "SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE user_id = ? AND status != 'deleted'"
         params: tuple[str, ...] = (user_id,)
         if target_role_id:
             query += " AND target_role_id = ?"
@@ -331,22 +422,29 @@ class ResumeStore:
             row = connection.execute("SELECT id, user_id, target_role_id, name, status, latest_version_id, created_at, updated_at FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
         return self._resume(row) if row else None
 
-    def delete_resume(self, *, user_id: str, resume_id: str) -> bool:
+    def delete_resume(self, *, user_id: str, resume_id: str, keep_version_ids: Sequence[str] = ()) -> bool:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            version_rows = connection.execute("SELECT id FROM resume_versions WHERE resume_id = ?", (resume_id,)).fetchall()
             owned = connection.execute("SELECT 1 FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id)).fetchone()
             if owned is None:
                 return False
+            version_rows = connection.execute("SELECT id FROM resume_versions WHERE resume_id = ?", (resume_id,)).fetchall()
             version_ids = [row[0] for row in version_rows]
-            if version_ids:
-                placeholders = ",".join("?" for _ in version_ids)
+            keep = set(keep_version_ids).intersection(version_ids)
+            delete_ids = [version_id for version_id in version_ids if version_id not in keep]
+            if keep:
+                connection.execute("UPDATE resumes SET status = 'deleted', updated_at = ? WHERE id = ? AND user_id = ?", (datetime.now(timezone.utc).isoformat(), resume_id, user_id))
+            if delete_ids:
+                placeholders = ",".join("?" for _ in delete_ids)
                 if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resume_artifacts'").fetchone():
-                    connection.execute(f"DELETE FROM resume_artifacts WHERE resume_version_id IN ({placeholders})", tuple(version_ids))
-                connection.execute(f"DELETE FROM resume_tailoring_version_links WHERE source_resume_version_id IN ({placeholders}) OR new_resume_version_id IN ({placeholders})", (*version_ids, *version_ids))
-                connection.execute(f"DELETE FROM resume_import_receipts WHERE resume_id = ? OR resume_version_id IN ({placeholders})", (resume_id, *version_ids))
-                connection.execute(f"DELETE FROM resume_version_documents WHERE resume_version_id IN ({placeholders})", tuple(version_ids))
-                connection.execute(f"DELETE FROM resume_versions WHERE id IN ({placeholders})", tuple(version_ids))
+                    connection.execute(f"DELETE FROM resume_artifacts WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
+                connection.execute(f"DELETE FROM resume_tailoring_version_links WHERE source_resume_version_id IN ({placeholders}) OR new_resume_version_id IN ({placeholders})", (*delete_ids, *delete_ids))
+                connection.execute(f"DELETE FROM resume_import_receipts WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
+                connection.execute(f"DELETE FROM resume_version_documents WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
+                connection.execute(f"DELETE FROM resume_versions WHERE id IN ({placeholders})", tuple(delete_ids))
+            if keep:
+                return True
+            connection.execute("DELETE FROM resume_import_receipts WHERE resume_id = ?", (resume_id,))
             connection.execute("DELETE FROM resumes WHERE id = ? AND user_id = ?", (resume_id, user_id))
         return True
 

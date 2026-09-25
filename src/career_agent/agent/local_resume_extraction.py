@@ -64,6 +64,11 @@ class ExtractedResumeSource:
     page_count: int
     # Conservative routing hint only; never claims OCR or visual verification.
     has_visual_content: bool = False
+    # The extracted characters cannot be trusted to be the ones on the page:
+    # a composite font without a ToUnicode map yields glyph ids that decode to
+    # unrelated code points (a LaTeX Fandol resume reads as Gurmukhi/Tibetan).
+    # Unlike visual content this is never safe to ignore.
+    text_unreliable: bool = False
 
     @property
     def quotes_by_locator(self) -> dict[str, str]:
@@ -185,17 +190,31 @@ def _extract_pdf(raw: bytes, limits: ResumeExtractionLimits) -> ExtractedResumeS
         characters = 0
         text_tokens = 0
         has_visual_content = False
+        text_unreliable = False
         for page_number, page in enumerate(reader.pages, start=1):
             resources = page.get("/Resources", {})
             resources = resources.get_object() if hasattr(resources, "get_object") else resources
             contents = page.get_contents()
-            has_visual_content |= bool(
-                resources.get("/XObject")
-                or page.get("/Annots")
-                or (contents and any(op == b"INLINE IMAGE" for _, op in contents.operations))
-            )
+            has_visual_content |= bool(resources.get("/XObject"))
+            annots = page.get("/Annots") or []
+            for annotation in annots:
+                annotation = annotation.get_object() if hasattr(annotation, "get_object") else annotation
+                if annotation.get("/Subtype") != "/Link":
+                    has_visual_content = True
+                    break
+            fonts = resources.get("/Font") or {}
+            fonts = fonts.get_object() if hasattr(fonts, "get_object") else fonts
+            for font_ref in fonts.values() if hasattr(fonts, "values") else ():
+                font = font_ref.get_object() if hasattr(font_ref, "get_object") else font_ref
+                # Simple fonts (Type1/TrueType with a standard encoding) decode
+                # fine without a ToUnicode map; composite fonts do not.
+                if font.get("/Subtype") == "/Type0" and font.get("/ToUnicode") is None:
+                    text_unreliable = True
+                    break
+            if contents and hasattr(contents, "operations"):
+                has_visual_content |= any(op == b"INLINE IMAGE" for _, op in contents.operations)
             text = page.extract_text() or ""
-            has_visual_content |= "\ufffd" in text or "\x00" in text
+            text_unreliable |= "\ufffd" in text or "\x00" in text
             _check_text(text, limits)
             characters += len(text)
             text_tokens += len(text.encode("utf-8"))
@@ -207,7 +226,9 @@ def _extract_pdf(raw: bytes, limits: ResumeExtractionLimits) -> ExtractedResumeS
             if not page_paragraphs:
                 raise _failure("OCR_REQUIRED")
             paragraphs.extend(page_paragraphs)
-        return ExtractedResumeSource(tuple(paragraphs), page_count, has_visual_content)
+        return ExtractedResumeSource(
+            tuple(paragraphs), page_count, has_visual_content, text_unreliable
+        )
     except AgentWorkerError:
         raise
     except MemoryError:
@@ -266,7 +287,10 @@ def _extract_pdf_isolated(
             ResumeSourceParagraph(**item) for item in payload["paragraphs"]
         )
         return ExtractedResumeSource(
-            paragraphs, payload["page_count"], payload.get("has_visual_content", True)
+            paragraphs,
+            payload["page_count"],
+            payload.get("has_visual_content", True),
+            payload.get("text_unreliable", True),
         )
     except (ValueError, TypeError, KeyError):
         raise _failure("PDF_DAMAGED") from None
@@ -316,6 +340,7 @@ def _pdf_child() -> None:
         payload = {
             "page_count": source.page_count,
             "has_visual_content": source.has_visual_content,
+            "text_unreliable": source.text_unreliable,
             "paragraphs": [
                 {"page": item.page, "paragraph": item.paragraph, "text": item.text}
                 for item in source.paragraphs

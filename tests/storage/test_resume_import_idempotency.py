@@ -62,26 +62,31 @@ def test_keys_are_scoped_to_the_user(tmp_path):
     assert resume.user_id == "u2" and version.version_number == 1
 
 
-def test_identical_bytes_under_different_keys_are_distinct_imports(tmp_path):
-    """Dedup by file hash would silently drop the second role's copy."""
+def test_identical_bytes_reuse_the_version_but_never_across_roles(tmp_path):
+    """The same file is stored once per role; another role keeps its own copy."""
     store, role_id = _store(tmp_path)
     second_role = store.create_target_role(user_id="u1", title="Architect", priority=2)
     content = b"same file"
 
-    first, _ = store.import_document(user_id="u1", target_role_id=role_id, name="A", content=content, document_format="text", idempotency_key="k1")
-    second, _ = store.import_document(user_id="u1", target_role_id=second_role.id, name="A", content=content, document_format="text", idempotency_key="k2")
-    same, appended = store.import_document(user_id="u1", resume_id=first.id, content=content, document_format="text", idempotency_key="k3")
+    first, version = store.import_document(user_id="u1", target_role_id=role_id, name="A", content=content, document_format="text", idempotency_key="k1")
+    again, reused = store.import_document(user_id="u1", target_role_id=role_id, name="B", content=content, document_format="text", idempotency_key="k2")
+    other_role, _ = store.import_document(user_id="u1", target_role_id=second_role.id, name="A", content=content, document_format="text", idempotency_key="k3")
+    same, appended = store.import_document(user_id="u1", resume_id=first.id, content=content, document_format="text", idempotency_key="k4")
 
-    assert first.id != second.id
-    assert same.id == first.id and appended.version_number == 2
+    assert (again.id, reused.id, again.name) == (first.id, version.id, "A")
+    assert other_role.id != first.id
+    assert (same.id, appended.id) == (first.id, version.id)
 
 
-def test_a_missing_key_never_replays(tmp_path):
+def test_a_changed_file_is_a_new_version_and_a_deleted_one_is_not_matched(tmp_path):
     store, role_id = _store(tmp_path)
-    request = dict(user_id="u1", target_role_id=role_id, name="A", content=b"x", document_format="text")
-    first, _ = store.import_document(**request)
-    second, _ = store.import_document(**request)
-    assert first.id != second.id
+    first, _ = store.import_document(user_id="u1", target_role_id=role_id, name="A", content=b"x", document_format="text")
+    _, v2 = store.import_document(user_id="u1", resume_id=first.id, content=b"x changed", document_format="text")
+    assert v2.version_number == 2
+
+    store.delete_resume(user_id="u1", resume_id=first.id)
+    restored, _ = store.import_document(user_id="u1", target_role_id=role_id, name="A", content=b"x", document_format="text")
+    assert restored.id != first.id
 
 
 def test_a_version_8_file_gains_the_receipt_table_on_open(tmp_path):

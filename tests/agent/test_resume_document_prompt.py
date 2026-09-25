@@ -3,7 +3,13 @@ import json
 
 import pytest
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import DictionaryObject, NameObject
+from pypdf.generic import (
+    ArrayObject,
+    DictionaryObject,
+    NameObject,
+    NumberObject,
+    TextStringObject,
+)
 
 from career_agent.agent import resume_document_prompt as prompts
 from career_agent.agent.deepagent_resume_tailoring_worker import (
@@ -133,3 +139,65 @@ def test_route_telemetry_contains_no_resume_content():
     ]
     assert "Private candidate" not in recorder.snapshot("test").model_dump_json()
     assert all(event.duration_ms is not None for event in events)
+
+
+def _rewritten(raw: bytes, edit) -> bytes:
+    reader = PdfReader(BytesIO(raw))
+    writer = PdfWriter()
+    for page in reader.pages:
+        edit(page, writer)
+        writer.add_page(page)
+    out = BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def _without_to_unicode(page, writer):
+    for font in page["/Resources"]["/Font"].values():
+        font.get_object().pop("/ToUnicode", None)
+
+
+def _with_mailto_link(page, writer):
+    link = DictionaryObject({
+        NameObject("/Type"): NameObject("/Annot"),
+        NameObject("/Subtype"): NameObject("/Link"),
+        NameObject("/Rect"): ArrayObject([NumberObject(0)] * 4),
+        NameObject("/A"): DictionaryObject({
+            NameObject("/S"): NameObject("/URI"),
+            NameObject("/URI"): TextStringObject("mailto:someone@example.invalid"),
+        }),
+    })
+    page[NameObject("/Annots")] = ArrayObject([writer._add_object(link)])
+
+
+def test_a_link_annotation_is_not_visual_content():
+    """An email or portfolio link is on most resumes and carries no picture."""
+    raw = _rewritten(synthetic_pdf(("张三 Python 开发",)), _with_mailto_link)
+    result = prompts.pdf_text_prompt(document(raw))
+    assert result is not None and "张三 Python 开发" in result
+
+
+def test_a_composite_font_without_to_unicode_always_sends_the_pdf():
+    """Its glyph ids decode to unrelated characters; no caller may take them."""
+    raw = _rewritten(synthetic_pdf(("张三 Python 开发",)), _without_to_unicode)
+    assert prompts.pdf_text_prompt(document(raw)) is None
+    assert prompts.pdf_text_prompt(document(raw), ignore_visual_content=True) is None
+
+
+def test_visual_content_can_be_ignored_only_by_the_caller_that_asks():
+    reader = PdfReader(BytesIO(synthetic_pdf(("Small text layer", None))))
+    first, image_page = reader.pages
+    first["/Resources"][NameObject("/XObject")] = image_page["/Resources"]["/XObject"]
+    writer = PdfWriter()
+    writer.add_page(first)
+    out = BytesIO()
+    writer.write(out)
+    doc = document(out.getvalue())
+
+    # Either order: the flag is part of the cache key, so one caller's route
+    # never leaks into the other's.
+    assert prompts.pdf_text_prompt(doc, ignore_visual_content=True) is not None
+    assert prompts.pdf_text_prompt(doc) is None
+    prompts._CACHE.clear()
+    assert prompts.pdf_text_prompt(doc) is None
+    assert prompts.pdf_text_prompt(doc, ignore_visual_content=True) is not None

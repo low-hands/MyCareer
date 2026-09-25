@@ -38,7 +38,7 @@ class Resume(ResumeContract):
     user_id: str = Field(min_length=1)
     target_role_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
-    status: Literal["active"] = "active"
+    status: Literal["active", "deleted"] = "active"
     latest_version_id: str = Field(min_length=1)
     created_at: datetime
     updated_at: datetime
