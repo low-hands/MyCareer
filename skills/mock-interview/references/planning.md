@@ -78,6 +78,20 @@ inventing a level.
 - Put material missing inputs, ambiguous seniority, absent resume evidence, and
   unsourced company-style assumptions in `limitations`.
 
+## Write each primary question
+
+Every item carries the exact `question` the candidate will be asked. Later
+turns use it verbatim, so write it once, well:
+
+- one main ask per question, answerable in two to four minutes;
+- anchored to the item's JD quote or resume evidence without quoting the
+  resume back at the candidate as a test;
+- no answer hints, scoring criteria, or references to other items;
+- in the language the candidate will answer in (Chinese unless the JD and
+  resume are clearly English);
+- independently understandable, since follow-ups, not later questions, adapt
+  to what the candidate says.
+
 ## Quality gate
 
 Before returning the plan, check that:
@@ -86,5 +100,5 @@ Before returning the plan, check that:
 - core JD coverage is not crowded out by generic questions;
 - resume deep-dives point to supplied evidence rather than invented stories;
 - question types and difficulty are varied enough to produce new evidence;
-- each item has one clear focus and can support one concise primary question;
+- each item has one clear focus and a written `question` that asks one thing;
 - no item depends on an unsupported claim about an employer's process or culture.

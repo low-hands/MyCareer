@@ -276,6 +276,14 @@ class ContextManager:
     def load_for_turn(
         self, *, user_id: str, conversation_id: str, user_message: str
     ) -> MainAgentContext:
+        received_at = datetime.now(timezone.utc)
+        return self._load_for_turn(
+            user_id=user_id, conversation_id=conversation_id, user_message=user_message
+        ).model_copy(update={"received_at": received_at})
+
+    def _load_for_turn(
+        self, *, user_id: str, conversation_id: str, user_message: str
+    ) -> MainAgentContext:
         self._sessions.get_or_create(user_id=user_id, session_id=conversation_id)
         self._store.capture_free_text_preference_from_message(
             user_id=user_id,
@@ -1127,7 +1135,7 @@ class ContextManager:
             }
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None, user_resource_refs: tuple[ConversationResourceReference, ...] | None = None) -> None:
+    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None, user_resource_refs: tuple[ConversationResourceReference, ...] | None = None, user_message_at: datetime | None = None) -> None:
         now = datetime.now(timezone.utc)
         if user_resource_refs is None:
             user_resource_refs = context.user_input_resource_refs()
@@ -1146,7 +1154,7 @@ class ContextManager:
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
             task=task,
-            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=now, resource_refs=user_resource_refs, user_interaction_id=context.user_interaction_id),
+            user_message=ConversationMessageContext(role="user", content=self._truncate(context.stored_user_message()), created_at=user_message_at or now, resource_refs=user_resource_refs, user_interaction_id=context.user_interaction_id),
             assistant_message=ConversationMessageContext(role="assistant", content=self._truncate(assistant_message), created_at=now, resource_refs=assistant_resource_refs),
             assistant_bodies=assistant_bodies,
             episode_drafts=episode_drafts,
@@ -1194,6 +1202,7 @@ class ContextManager:
         held = task.hold_entry_message(
             self._truncate(context.stored_user_message()),
             context.user_input_resource_refs(),
+            context.received_at or datetime.now(timezone.utc),
         )
         self.commit_workflow_turn(
             context=context,
@@ -1269,8 +1278,10 @@ class ContextManager:
                 update={
                     "workflow_entry_message": None,
                     "workflow_entry_resource_refs": (),
+                    "workflow_entry_at": None,
                 }
             ),
+            user_message_at=context.task.workflow_entry_at,
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
             assistant_bodies=assistant_bodies,

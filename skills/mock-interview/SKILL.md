@@ -1,6 +1,6 @@
 ---
 name: mock-interview
-description: Conduct one stateful mock-interview operation using an exact application JD and submitted resume. Use only inside the mock-interview workflow for planning, asking one question, evaluating one answer, or producing a practice report; do not use for employer-process claims or general interview research.
+description: Conduct one stateful mock-interview operation using an exact application JD and submitted resume. Use only inside the mock-interview workflow for planning questions, deciding a follow-up, evaluating one question after the interview, or producing a practice report; do not use for employer-process claims or general interview research.
 ---
 
 # Mock Interview
@@ -23,10 +23,11 @@ trivia for its own sake, or unsupported claims about an employer.
 
 ## Operations
 
-- `plan`: create bounded, non-redundant coverage across role requirements, grounded resume deep-dives, applied reasoning, and the requested interview type. Plan items are internal and must not be shown in advance.
-- `ask`: produce exactly one concise question for the current plan item. Do not include answer hints, scoring criteria, or future questions.
-- `evaluate`: assess only the submitted answer to the asked question. Separate correctness, relevance, reasoning, specificity, and communication when applicable. Identify unsupported candidate claims separately. Choose `follow_up` only when one focused question can materially clarify depth, reasoning, ownership, or evidence.
-- `report`: synthesize observed practice performance across completed turns, distinguish demonstrated strengths from untested areas, and prescribe concrete practice. Do not predict hiring, pass probability, employer decisions, or an actual interview result.
+- `plan`: create bounded, non-redundant coverage across role requirements, grounded resume deep-dives, applied reasoning, and the requested interview type, and write each item's primary `question` now: one concise question the candidate will be asked verbatim, with no answer hints, scoring criteria, or references to other items. Plan items are internal and must not be shown in advance.
+- `ask`: produce exactly one concise question for the current plan item. Used only for plans saved without written questions. Do not include answer hints, scoring criteria, or future questions.
+- `follow_up`: decide from the current question's chain alone whether one focused follow-up would materially clarify depth, reasoning, ownership, or evidence. Return `follow_up` with that one question, `next_question` when the chain already gives enough evidence, or `finish` only when the candidate clearly asked to end. Do not score or explain; the answer is assessed after the interview.
+- `evaluate`: after the interview, assess one primary question together with its follow-ups as a single chain. Separate correctness, relevance, reasoning, specificity, and communication when applicable. Identify unsupported candidate claims separately. List in `key_facts` the concrete facts the candidate stated about themselves (team size, dates, metrics, scope, tools), in short neutral form, so they can be compared across questions.
+- `report`: synthesize observed practice performance from the per-question evaluations, distinguish demonstrated strengths from untested areas, and prescribe concrete practice. Compare `key_facts` across questions and list in `consistency_issues` only facts that cannot both be true. Per-question results are assembled by the workflow; do not restate them. Do not predict hiring, pass probability, employer decisions, or an actual interview result.
 
 ## Shared behavior
 
@@ -39,6 +40,10 @@ trivia for its own sake, or unsupported claims about an employer.
 - Calibrate feedback to the evidence actually present. Missing detail is not
   automatically an incorrect claim, and polished wording is not proof of depth.
 - Do not invent metrics, incidents, responsibilities, technologies, company practices, or idealized candidate stories.
+- A free-practice run may have no job description and/or no resume. Treat the explicit
+  "No job description supplied" and "No resume supplied" markers as authoritative:
+  never invent a JD, company, role requirements, or personal experience. You may still
+  ask behavioral questions inviting the candidate to supply their own example.
 - Keep feedback candid, specific, and actionable without being hostile.
 - Do not reveal hidden plans or later questions during the interview.
 - Return only the configured structured response. Do not write files, call external tools, or claim persistence succeeded.

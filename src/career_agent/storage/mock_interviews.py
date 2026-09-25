@@ -38,9 +38,16 @@ class SQLiteMockInterviewStore:
             apply_schema(
                 connection,
                 "mock_interviews",
-                3,
+                7,
                 self._migrate,
-                {2: self._upgrade_v2, 3: self._upgrade_v3},
+                {
+                    2: self._upgrade_v2,
+                    3: self._upgrade_v3,
+                    4: self._upgrade_v4,
+                    5: self._upgrade_v5,
+                    6: self._upgrade_v6,
+                    7: self._upgrade_v7,
+                },
             )
         os.chmod(self.path, 0o600)
 
@@ -48,13 +55,17 @@ class SQLiteMockInterviewStore:
         self,
         *,
         user_id: str,
-        application_id: str,
-        job_posting_id: str,
-        jd_snapshot_id: str,
-        resume_version_id: str,
-        interview_type: MockInterviewType,
+        application_id: str | None = None,
+        job_posting_id: str | None = None,
+        jd_snapshot_id: str | None = None,
+        resume_version_id: str | None = None,
+        target_role: str | None = None,
+        target_company: str | None = None,
+        company_research_report_id: str | None = None,
+        interview_type: MockInterviewType = "mixed",
+        conversation_id: str | None = None,
         interview_round_id: str | None = None,
-        max_primary_questions: int = 6,
+        max_primary_questions: int = 10,
         max_follow_ups_per_question: int = 2,
         graph_version: int = 1,
     ) -> MockInterviewSession:
@@ -67,7 +78,11 @@ class SQLiteMockInterviewStore:
             job_posting_id=job_posting_id,
             jd_snapshot_id=jd_snapshot_id,
             resume_version_id=resume_version_id,
+            target_role=target_role,
+            target_company=target_company,
+            company_research_report_id=company_research_report_id,
             interview_type=interview_type,
+            conversation_id=conversation_id,
             graph_version=graph_version,
             status="created",
             max_primary_questions=max_primary_questions,
@@ -82,11 +97,12 @@ class SQLiteMockInterviewStore:
                 """
                 INSERT INTO mock_interview_sessions(
                     id, user_id, application_id, interview_round_id, job_posting_id,
-                    jd_snapshot_id, resume_version_id, interview_type, graph_version, status,
+                    jd_snapshot_id, resume_version_id, target_role, interview_type, graph_version, status,
                     max_primary_questions, max_follow_ups_per_question,
                     current_plan_item, current_turn_id,
-                    created_at, started_at, paused_at, completed_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, started_at, paused_at, completed_at, updated_at,
+                    conversation_id, target_company, company_research_report_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._session_values(session),
             )
@@ -166,7 +182,10 @@ class SQLiteMockInterviewStore:
                 {"status": "active", "paused_at": None, "updated_at": now},
             )
 
-    def cancel(self, *, session: MockInterviewSession) -> MockInterviewSession:
+    def cancel(
+        self, *, session: MockInterviewSession, message: str | None = None
+    ) -> MockInterviewSession:
+        """End the run; ``message`` is what the candidate said to stop it, if anything."""
         if session.status in {"completed", "cancelled"}:
             raise ValueError("finished sessions cannot be cancelled")
         now = datetime.now(timezone.utc)
@@ -177,6 +196,7 @@ class SQLiteMockInterviewStore:
                 "current_turn_id": None,
                 "paused_at": None,
                 "updated_at": now,
+                "ended_by_message": message,
             },
         )
 
@@ -386,6 +406,82 @@ class SQLiteMockInterviewStore:
             )
         return updated, evaluated_turn
 
+    def settle_answer(
+        self, *, session: MockInterviewSession, turn: MockInterviewTurn
+    ) -> MockInterviewSession:
+        """Release the current turn once its answer is stored, without scoring it.
+
+        Answers are scored per question when the interview ends, so an
+        answered turn no longer holds the session between questions.
+        Idempotent: settling a turn that is no longer current is a no-op.
+        """
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            stored = self._load_session(connection, session.user_id, session.id)
+            if stored is None:
+                raise ValueError("mock interview session does not exist")
+            if stored.current_turn_id != turn.id:
+                return stored
+            current = self._load_turn(connection, session.id, turn.id)
+            if current is None or current.status == "awaiting_answer":
+                raise ValueError("turn requires a persisted answer before it settles")
+            return self._apply(
+                connection,
+                stored,
+                {"current_turn_id": None, "updated_at": datetime.now(timezone.utc)},
+            )
+
+    def record_question_evaluation(
+        self,
+        *,
+        session: MockInterviewSession,
+        turn: MockInterviewTurn,
+        evaluation: MockInterviewAnswerEvaluation,
+        evaluated_at: datetime | None = None,
+    ) -> MockInterviewTurn:
+        """Store the end-of-interview assessment of one question on its primary turn.
+
+        Idempotent per question, so a retry after a dropped connection scores
+        only the questions that did not finish.
+        """
+        if turn.turn_type != "primary":
+            raise ValueError("a question evaluation belongs on its primary turn")
+        evaluated = evaluated_at or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            stored = self._load_session(connection, session.user_id, session.id)
+            if stored is None:
+                raise ValueError("mock interview session does not exist")
+            if stored.current_turn_id is not None:
+                raise ValueError("questions are evaluated only after the last answer")
+            current = self._load_turn(connection, session.id, turn.id)
+            if current is None:
+                raise ValueError("mock interview turn does not exist")
+            if current.status == "evaluated":
+                return current
+            if current.status != "answered":
+                raise ValueError("turn requires a persisted answer before evaluation")
+            evaluated_turn = MockInterviewTurn.model_validate(
+                current.model_copy(
+                    update={
+                        "evaluation": evaluation,
+                        "status": "evaluated",
+                        "evaluated_at": evaluated,
+                    }
+                ).model_dump()
+            )
+            changed = connection.execute(
+                """
+                UPDATE mock_interview_turns SET
+                    evaluation_json = ?, status = 'evaluated', evaluated_at = ?
+                WHERE id = ? AND session_id = ? AND status = 'answered'
+                """,
+                (evaluation.model_dump_json(), evaluated.isoformat(), turn.id, session.id),
+            ).rowcount
+            if not changed:
+                raise RuntimeError("mock interview turn changed concurrently")
+        return evaluated_turn
+
     def complete(
         self, *, session: MockInterviewSession, report: MockInterviewReport
     ) -> tuple[MockInterviewSession, MockInterviewReport]:
@@ -464,6 +560,7 @@ class SQLiteMockInterviewStore:
         *,
         user_id: str,
         application_id: str | None = None,
+        free_only: bool = False,
         statuses: tuple[MockInterviewStatus, ...] = (),
         limit: int = 50,
     ) -> tuple[MockInterviewSession, ...]:
@@ -472,6 +569,8 @@ class SQLiteMockInterviewStore:
         if application_id is not None:
             query += " AND application_id = ?"
             params.append(application_id)
+        if free_only:
+            query += " AND application_id IS NULL"
         if statuses:
             query += f" AND status IN ({','.join('?' for _ in statuses)})"
             params.extend(statuses)
@@ -566,9 +665,10 @@ class SQLiteMockInterviewStore:
 
     _SESSION_SELECT = (
         "SELECT id, user_id, application_id, interview_round_id, job_posting_id, "
-        "jd_snapshot_id, resume_version_id, interview_type, graph_version, status, "
+        "jd_snapshot_id, resume_version_id, target_role, interview_type, graph_version, status, "
         "max_primary_questions, max_follow_ups_per_question, current_plan_item, "
-        "current_turn_id, created_at, started_at, paused_at, completed_at, updated_at "
+        "current_turn_id, created_at, started_at, paused_at, completed_at, updated_at, "
+        "conversation_id, ended_by_message, target_company, company_research_report_id "
         "FROM mock_interview_sessions"
     )
     _TURN_SELECT = (
@@ -596,7 +696,8 @@ class SQLiteMockInterviewStore:
             """
             UPDATE mock_interview_sessions SET
                 status = ?, current_plan_item = ?, current_turn_id = ?,
-                started_at = ?, paused_at = ?, completed_at = ?, updated_at = ?
+                started_at = ?, paused_at = ?, completed_at = ?, updated_at = ?,
+                ended_by_message = ?
             WHERE id = ? AND user_id = ? AND updated_at = ?
             """,
             (
@@ -607,6 +708,7 @@ class SQLiteMockInterviewStore:
                 self._iso(updated.paused_at),
                 self._iso(updated.completed_at),
                 updated.updated_at.isoformat(),
+                updated.ended_by_message,
                 updated.id,
                 updated.user_id,
                 session.updated_at.isoformat(),
@@ -687,11 +789,12 @@ class SQLiteMockInterviewStore:
             CREATE TABLE IF NOT EXISTS mock_interview_sessions (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                application_id TEXT NOT NULL,
+                application_id TEXT,
                 interview_round_id TEXT,
-                job_posting_id TEXT NOT NULL,
-                jd_snapshot_id TEXT NOT NULL,
-                resume_version_id TEXT NOT NULL,
+                job_posting_id TEXT,
+                jd_snapshot_id TEXT,
+                resume_version_id TEXT,
+                target_role TEXT,
                 interview_type TEXT NOT NULL,
                 graph_version INTEGER NOT NULL DEFAULT 1,
                 status TEXT NOT NULL,
@@ -703,7 +806,11 @@ class SQLiteMockInterviewStore:
                 started_at TEXT,
                 paused_at TEXT,
                 completed_at TEXT,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                conversation_id TEXT,
+                ended_by_message TEXT,
+                target_company TEXT,
+                company_research_report_id TEXT
             )
             """
         )
@@ -793,6 +900,97 @@ class SQLiteMockInterviewStore:
                 "ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 1"
             )
 
+    @staticmethod
+    def _upgrade_v4(connection: sqlite3.Connection) -> None:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(mock_interview_sessions)")}
+        if "target_role" in columns:
+            return
+        # SQLite cannot drop NOT NULL constraints. Build the replacement first,
+        # then drop the old parent. Renaming the old table would rewrite every
+        # child FK to *_legacy and leave future writes permanently broken.
+        connection.execute("PRAGMA foreign_keys=OFF")
+        connection.execute("""CREATE TABLE mock_interview_sessions_new (
+            id TEXT PRIMARY KEY, user_id TEXT NOT NULL, application_id TEXT,
+            interview_round_id TEXT, job_posting_id TEXT, jd_snapshot_id TEXT,
+            resume_version_id TEXT, target_role TEXT, interview_type TEXT NOT NULL,
+            graph_version INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL,
+            max_primary_questions INTEGER NOT NULL, max_follow_ups_per_question INTEGER NOT NULL,
+            current_plan_item INTEGER NOT NULL, current_turn_id TEXT,
+            created_at TEXT NOT NULL, started_at TEXT, paused_at TEXT,
+            completed_at TEXT, updated_at TEXT NOT NULL)""")
+        connection.execute("""INSERT INTO mock_interview_sessions_new
+            (id,user_id,application_id,interview_round_id,job_posting_id,jd_snapshot_id,
+             resume_version_id,target_role,interview_type,graph_version,status,
+             max_primary_questions,max_follow_ups_per_question,current_plan_item,current_turn_id,
+             created_at,started_at,paused_at,completed_at,updated_at)
+            SELECT id,user_id,application_id,interview_round_id,job_posting_id,jd_snapshot_id,
+             resume_version_id,NULL,interview_type,graph_version,status,max_primary_questions,
+             max_follow_ups_per_question,current_plan_item,current_turn_id,created_at,started_at,
+             paused_at,completed_at,updated_at FROM mock_interview_sessions""")
+        connection.execute("DROP TABLE mock_interview_sessions")
+        connection.execute("ALTER TABLE mock_interview_sessions_new RENAME TO mock_interview_sessions")
+        connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_active_idx ON mock_interview_sessions(user_id) WHERE status = 'active'")
+        connection.execute("CREATE INDEX IF NOT EXISTS mock_interview_sessions_user_idx ON mock_interview_sessions(user_id, status, updated_at DESC)")
+        connection.execute("PRAGMA foreign_keys=ON")
+
+    @staticmethod
+    def _upgrade_v5(connection: sqlite3.Connection) -> None:
+        """Record which conversation a run belongs to, so its transcript can
+        show the run's questions and answers."""
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(mock_interview_sessions)")}
+        if "conversation_id" not in columns:
+            connection.execute("ALTER TABLE mock_interview_sessions ADD COLUMN conversation_id TEXT")
+
+    @staticmethod
+    def _upgrade_v6(connection: sqlite3.Connection) -> None:
+        """Keep what the candidate said to stop a run, for its transcript."""
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(mock_interview_sessions)")}
+        if "ended_by_message" not in columns:
+            connection.execute("ALTER TABLE mock_interview_sessions ADD COLUMN ended_by_message TEXT")
+
+    @staticmethod
+    def _upgrade_v7(connection: sqlite3.Connection) -> None:
+        """Free practice can name a company, and pins the research it used."""
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(mock_interview_sessions)")}
+        for column in ("target_company", "company_research_report_id"):
+            if column not in columns:
+                connection.execute(f"ALTER TABLE mock_interview_sessions ADD COLUMN {column} TEXT")
+
+    def list_conversation_sessions(
+        self, *, user_id: str, conversation_id: str
+    ) -> tuple[MockInterviewSession, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                self._SESSION_SELECT + " WHERE user_id = ? AND conversation_id = ? ORDER BY created_at",
+                (user_id, conversation_id),
+            ).fetchall()
+        return tuple(self._session(row) for row in rows)
+
+    def clear_user(self, *, user_id: str, application_bound_only: bool = False) -> int:
+        """Delete every mock interview session of ``user_id`` and what it produced.
+
+        When ``application_bound_only`` is set, free-practice sessions are
+        intentionally retained.
+        """
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            where = "user_id = ? AND session_id IN (SELECT id FROM mock_interview_sessions WHERE user_id = ? AND application_id IS NOT NULL)" if application_bound_only else "user_id = ?"
+            params = (user_id, user_id) if application_bound_only else (user_id,)
+            for table in ("mock_interview_turns", "mock_interview_reports", "mock_interview_plans"):
+                connection.execute(f"DELETE FROM {table} WHERE {where}", params)
+            session_where = "user_id = ? AND application_id IS NOT NULL" if application_bound_only else "user_id = ?"
+            return connection.execute(
+                f"DELETE FROM mock_interview_sessions WHERE {session_where}", (user_id,)
+            ).rowcount
+
+    def list_resume_version_ids(self, *, user_id: str) -> frozenset[str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT resume_version_id FROM mock_interview_sessions WHERE user_id = ? AND resume_version_id IS NOT NULL",
+                (user_id,),
+            ).fetchall()
+        return frozenset(row[0] for row in rows)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")
@@ -803,13 +1001,15 @@ class SQLiteMockInterviewStore:
         return (
             session.id, session.user_id, session.application_id,
             session.interview_round_id, session.job_posting_id,
-            session.jd_snapshot_id, session.resume_version_id,
+            session.jd_snapshot_id, session.resume_version_id, session.target_role,
             session.interview_type, session.graph_version, session.status,
             session.max_primary_questions,
             session.max_follow_ups_per_question, session.current_plan_item,
             session.current_turn_id, session.created_at.isoformat(),
             cls._iso(session.started_at), cls._iso(session.paused_at),
             cls._iso(session.completed_at), session.updated_at.isoformat(),
+            session.conversation_id, session.target_company,
+            session.company_research_report_id,
         )
 
     @classmethod
@@ -830,11 +1030,13 @@ class SQLiteMockInterviewStore:
         return MockInterviewSession(
             id=row[0], user_id=row[1], application_id=row[2],
             interview_round_id=row[3], job_posting_id=row[4], jd_snapshot_id=row[5],
-            resume_version_id=row[6], interview_type=row[7], graph_version=row[8],
-            status=row[9], max_primary_questions=row[10],
-            max_follow_ups_per_question=row[11], current_plan_item=row[12],
-            current_turn_id=row[13], created_at=row[14], started_at=row[15],
-            paused_at=row[16], completed_at=row[17], updated_at=row[18],
+            resume_version_id=row[6], target_role=row[7], interview_type=row[8], graph_version=row[9],
+            status=row[10], max_primary_questions=row[11],
+            max_follow_ups_per_question=row[12], current_plan_item=row[13],
+            current_turn_id=row[14], created_at=row[15], started_at=row[16],
+            paused_at=row[17], completed_at=row[18], updated_at=row[19],
+            conversation_id=row[20], ended_by_message=row[21],
+            target_company=row[22], company_research_report_id=row[23],
         )
 
     @staticmethod

@@ -45,15 +45,25 @@ class MockInterviewContract(BaseModel):
 class MockInterviewSession(MockInterviewContract):
     id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
-    application_id: str = Field(min_length=1)
+    application_id: str | None = Field(default=None, min_length=1)
     interview_round_id: str | None = Field(default=None, min_length=1)
-    job_posting_id: str = Field(min_length=1)
-    jd_snapshot_id: str = Field(min_length=1)
-    resume_version_id: str = Field(min_length=1)
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    jd_snapshot_id: str | None = Field(default=None, min_length=1)
+    resume_version_id: str | None = Field(default=None, min_length=1)
+    target_role: str | None = Field(default=None, min_length=1, max_length=300)
+    # Free practice only: the employer named without a saved job (a saved job
+    # carries its own company), and the company research pinned at start so
+    # every step of the run reads the same report.
+    target_company: str | None = Field(default=None, min_length=1, max_length=200)
+    company_research_report_id: str | None = Field(default=None, min_length=1)
     interview_type: MockInterviewType
+    # The conversation the run was started from; its transcript shows the run.
+    conversation_id: str | None = Field(default=None, min_length=1)
+    # What the candidate said to end the run early; shown in its transcript.
+    ended_by_message: str | None = Field(default=None, min_length=1, max_length=20_000)
     graph_version: int = Field(default=1, ge=1)
     status: MockInterviewStatus = "created"
-    max_primary_questions: int = Field(default=6, ge=1, le=20)
+    max_primary_questions: int = Field(default=10, ge=1, le=20)
     max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)
     current_plan_item: int = Field(default=0, ge=0)
     current_turn_id: str | None = Field(default=None, min_length=1)
@@ -104,6 +114,10 @@ class MockInterviewPlanItem(MockInterviewContract):
     difficulty: MockInterviewDifficulty
     focus: str = Field(min_length=1, max_length=500)
     rationale: str = Field(min_length=1, max_length=1000)
+    # The primary question itself, written once at planning so a turn needs no
+    # model call to produce it. Plans saved before this field have none, and
+    # the workflow then falls back to generating the question.
+    question: str | None = Field(default=None, min_length=1, max_length=2000)
     jd_quotes: tuple[str, ...] = Field(default=(), max_length=3)
     resume_locators: tuple[str, ...] = Field(default=(), max_length=3)
     resume_quotes: tuple[str, ...] = Field(default=(), max_length=3)
@@ -121,6 +135,11 @@ class MockInterviewPlan(MockInterviewContract):
     items: tuple[MockInterviewPlanItem, ...] = Field(min_length=1, max_length=20)
     limitations: tuple[str, ...] = Field(default=(), max_length=10)
     created_at: datetime
+    # The company.md profile heading this plan followed, if any. ``inferred``
+    # means the model matched the employer itself because the name is not in
+    # the alias table; the run's opening line says so.
+    company_style_profile: str | None = Field(default=None, min_length=1, max_length=200)
+    company_style_inferred: bool = False
 
     @model_validator(mode="after")
     def require_contiguous_sequence(self) -> MockInterviewPlan:
@@ -153,6 +172,9 @@ class MockInterviewAnswerEvaluation(MockInterviewContract):
     strengths: tuple[str, ...] = Field(default=(), max_length=8)
     improvements: tuple[str, ...] = Field(default=(), max_length=8)
     unsupported_claims: tuple[str, ...] = Field(default=(), max_length=5)
+    # Concrete facts the candidate stated (team size, dates, metrics, scope),
+    # so the report can check them against each other across questions.
+    key_facts: tuple[str, ...] = Field(default=(), max_length=8)
     next_action: Literal["follow_up", "next_question", "finish"]
     next_action_reason: str = Field(min_length=1, max_length=1000)
     follow_up_question: str | None = Field(default=None, min_length=1, max_length=1500)

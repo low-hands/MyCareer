@@ -155,6 +155,10 @@ def test_restart_mock_interview_only_after_a_stuck_run() -> None:
     )
 
 
+def test_free_mock_interview_is_reachable_without_an_application() -> None:
+    assert reachable("start_mock_interview", ConversationTaskState())
+
+
 def test_retry_research_requires_the_active_run_its_projection_will_name() -> None:
     assert not reachable("retry_job_research", ConversationTaskState())
     assert not reachable(

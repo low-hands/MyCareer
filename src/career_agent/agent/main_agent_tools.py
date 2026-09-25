@@ -39,6 +39,7 @@ from career_agent.agent.summary_text import clamp, condense
 from career_agent.agent.mock_interview_presenter import (
     mock_interview_question_view,
     render_mock_interview_turn,
+    practice_basis,
     summarize_mock_interview_question,
     summarize_mock_interview_report,
     summarize_mock_interview_result,
@@ -1614,8 +1615,20 @@ class MainAgentToolRegistry:
                     "function": {
                         "name": "start_mock_interview",
                         "description": (
-                            "Start one stateful mock interview for the active or numbered "
-                            "application, using its exact submitted resume and immutable JD. "
+                            "Start one stateful mock interview for an application/interview or "
+                            "as explicit free practice (practice_scope=free). Application runs "
+                            "use the exact submitted resume and immutable JD. Free practice "
+                            "runs only on a resume the user chose: a single resume attached "
+                            "to this message, resume_version_selection_index from the resume "
+                            "choice this tool offered, or without_resume=true when the user "
+                            "said not to use one. With none of these the tool starts nothing "
+                            "and shows the user a resume choice; never pick one yourself. "
+                            "For a specific job, pass job_selection_index from a saved-job "
+                            "list or the job choice this tool offered; a single job attached "
+                            "to this message is used as is. When the user names only a "
+                            "company, pass company_name exactly as they said it: the tool "
+                            "offers that company's saved jobs first, and without_job=true "
+                            "is the user's answer that they want company-only practice. "
                             "Optionally bind a numbered real interview appointment for context. "
                             "After the first question, user answers are routed directly to the "
                             "active mock-interview workflow; do not call this tool again to answer."
@@ -1889,6 +1902,69 @@ class MainAgentToolRegistry:
             raise ValueError("Mock interview workflow is not configured")
         workflow_input = StartMockInterviewWorkflowInput.model_validate(arguments)
         try:
+            if workflow_input.application_id is None:
+                if workflow_input.job_choice == "check" and workflow_input.target_company:
+                    offered = self._mock_interview_job_choice(
+                        workflow_input.user_id, workflow_input.target_company
+                    )
+                    if offered is not None:
+                        return offered
+                if workflow_input.resume_choice == "required":
+                    return self._mock_interview_resume_choice(workflow_input.user_id)
+                jd_snapshot_id = workflow_input.jd_snapshot_id
+                if workflow_input.job_posting_id is not None:
+                    job = (
+                        self._job_repository.get_job(
+                            user_id=workflow_input.user_id,
+                            job_posting_id=workflow_input.job_posting_id,
+                        )
+                        if self._job_repository is not None
+                        else None
+                    )
+                    if job is None:
+                        raise ApplicationInputNotFoundError("job_posting")
+                    # A job picked from a search result carries no snapshot:
+                    # pin the version current now, as an attachment would.
+                    jd_snapshot_id = jd_snapshot_id or job.snapshot.id
+                if workflow_input.resume_version_id is not None and (
+                    self._resume_store is None
+                    or self._resume_store.get_version(
+                        user_id=workflow_input.user_id,
+                        resume_version_id=workflow_input.resume_version_id,
+                    )
+                    is None
+                ):
+                    raise ApplicationInputNotFoundError("resume_version")
+                research = (
+                    self._job_research_service.latest_company_report(
+                        user_id=workflow_input.user_id,
+                        company_name=workflow_input.target_company,
+                    )
+                    if workflow_input.target_company and self._job_research_service is not None
+                    else None
+                )
+                result = self._mock_interview_graph.start(
+                    MockInterviewStartRequest(
+                        user_id=workflow_input.user_id,
+                        resume_version_id=workflow_input.resume_version_id,
+                        job_posting_id=workflow_input.job_posting_id,
+                        jd_snapshot_id=jd_snapshot_id,
+                        # A saved job names its own company; keep the column
+                        # for company-only practice.
+                        target_company=(
+                            None if workflow_input.job_posting_id else workflow_input.target_company
+                        ),
+                        company_research_report_id=research.id if research is not None else None,
+                        interview_type=workflow_input.interview_type,
+                        target_role=workflow_input.target_role,
+                        max_primary_questions=workflow_input.max_primary_questions,
+                        max_follow_ups_per_question=workflow_input.max_follow_ups_per_question,
+                        conversation_id=workflow_input.conversation_id,
+                    )
+                )
+                return self._mock_interview_observation(
+                    result, "start_mock_interview", user_id=workflow_input.user_id
+                )
             detail = self._application_service.get_application(
                 user_id=workflow_input.user_id,
                 application_id=workflow_input.application_id,
@@ -1918,6 +1994,7 @@ class MainAgentToolRegistry:
                     max_follow_ups_per_question=(
                         workflow_input.max_follow_ups_per_question
                     ),
+                    conversation_id=workflow_input.conversation_id,
                 )
             )
         except (ApplicationInputNotFoundError, AgentWorkerError, ValueError) as error:
@@ -1951,6 +2028,90 @@ class MainAgentToolRegistry:
             )
         return self._mock_interview_observation(
             result, "start_mock_interview", user_id=workflow_input.user_id
+        )
+
+    def _mock_interview_job_choice(
+        self, user_id: str, company_name: str
+    ) -> ToolObservation | None:
+        """Offer the saved jobs at the named company, or ``None`` if there are none.
+
+        Matching is loose on purpose ("字节" finds "字节跳动") because the user
+        picks from the result; nothing is chosen on their behalf. Company-only
+        practice stays one click away on the same card.
+        """
+        if self._job_repository is None:
+            return None
+        wanted = " ".join(company_name.split()).casefold()
+        matches = [
+            job
+            for job in self._job_repository.list_jobs(
+                user_id=user_id, limit=100, include_dismissed=False
+            )
+            if job.jd_snapshot_id is not None
+            and (
+                wanted in (folded := " ".join(job.company_name.split()).casefold())
+                or folded in wanted
+            )
+        ][:20]
+        if not matches:
+            return None
+        return ToolObservation(
+            tool_name="start_mock_interview",
+            state="mock_interview_job_choice_required",
+            message=(
+                f"岗位库里有 {company_name} 的岗位。要针对其中一个练习（按它的 JD 出题），"
+                "还是不针对具体岗位？"
+            ),
+            payload={
+                "company_name": company_name,
+                "items": [
+                    {
+                        "job_posting_id": job.job_posting_id,
+                        "title": job.title,
+                        "company_name": job.company_name,
+                        "city": job.city,
+                        "salary": job.salary,
+                        "jd_snapshot_id": job.jd_snapshot_id,
+                    }
+                    for job in matches
+                ],
+            },
+            execution_outcome="not_committed",
+        )
+
+    def _mock_interview_resume_choice(self, user_id: str) -> ToolObservation:
+        """Ask which resume free practice should use; nothing starts.
+
+        Every live resume is offered, even when there is only one, together
+        with "no resume" and an upload on the card itself: the user decides,
+        and a practice is never run on a resume they did not pick.
+        """
+        versions: list[dict[str, Any]] = []
+        if self._resume_store is not None:
+            for resume in self._resume_store.list_resumes(user_id=user_id):
+                located = self._resume_store.get_version(
+                    user_id=user_id, resume_version_id=resume.latest_version_id
+                )
+                if located is None:
+                    continue
+                _, version = located
+                versions.append(
+                    {
+                        "resume_version_id": version.id,
+                        "resume_name": resume.name,
+                        "version_number": version.version_number,
+                        "source_type": version.source_type,
+                        "document_format": version.document_format,
+                        "byte_size": version.byte_size,
+                        "updated_at": resume.updated_at.isoformat(),
+                    }
+                )
+        return ToolObservation(
+            tool_name="start_mock_interview",
+            state="mock_interview_resume_choice_required",
+            message="开始前请选择这场练习用哪份简历，也可以上传一份，或者不用简历。",
+            payload={"versions": versions[:20]},
+            execution_outcome="not_committed",
         )
 
     def resume_mock_interview(
@@ -2130,17 +2291,43 @@ class MainAgentToolRegistry:
         # so a finished run is condensed to its headline instead of carrying the
         # whole report into every later turn's window; the full report reaches
         # the screen through the runtime presenter.
-        message = (
-            summarize_mock_interview_report(result.report)
-            if result.state == "completed" and result.report is not None
-            else render_mock_interview_turn(result)
-        )
         session = (
             self._mock_interview_store.get_session(
                 user_id=user_id, session_id=result.session_id
             )
             if self._mock_interview_store is not None
             else None
+        )
+        if (
+            session is not None
+            and tool_name in {"start_mock_interview", "restart_mock_interview"}
+            and result.state == "awaiting_answer"
+        ):
+            report = (
+                self._job_research_service.find_report(
+                    user_id=user_id, report_id=session.company_research_report_id
+                )
+                if session.company_research_report_id is not None
+                and self._job_research_service is not None
+                else None
+            )
+            result = result.model_copy(
+                update={
+                    "resume_basis": practice_basis(
+                        session,
+                        resumes=self._resume_store,
+                        jobs=self._job_repository,
+                        research_at=report.created_at if report is not None else None,
+                        plan=self._mock_interview_store.get_plan(
+                            user_id=user_id, session_id=session.id
+                        ),
+                    )
+                }
+            )
+        message = (
+            summarize_mock_interview_report(result.report)
+            if result.state == "completed" and result.report is not None
+            else render_mock_interview_turn(result)
         )
         job = (
             self._job_display(
@@ -2215,9 +2402,13 @@ class MainAgentToolRegistry:
                     job_posting_id=stuck.job_posting_id,
                     jd_snapshot_id=stuck.jd_snapshot_id,
                     resume_version_id=stuck.resume_version_id,
+                    target_role=stuck.target_role,
+                    target_company=stuck.target_company,
+                    company_research_report_id=stuck.company_research_report_id,
                     interview_type=stuck.interview_type,
                     max_primary_questions=stuck.max_primary_questions,
                     max_follow_ups_per_question=stuck.max_follow_ups_per_question,
+                    conversation_id=stuck.conversation_id,
                 )
             )
         except (AgentWorkerError, ValueError) as error:

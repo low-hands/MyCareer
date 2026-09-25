@@ -15,6 +15,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolProfile,
 )
 from career_agent.agent.mock_interview_contracts import (
+    MockInterviewFollowUpDecision,
     MockInterviewInputDecision,
     MockInterviewPlanDraft,
     MockInterviewQuestionDraft,
@@ -92,7 +93,7 @@ class FixedSources:
 
 
 class OneQuestionWorker:
-    """One question, one evaluation, one report: enough to reach completion."""
+    """One planned question, no follow-up, one score, one report: enough to finish."""
 
     def route_input(self, **kwargs):
         return MockInterviewInputDecision(action="answer")
@@ -116,6 +117,7 @@ class OneQuestionWorker:
                     jd_quotes=("RAG",),
                     resume_locators=("简历",),
                     resume_quotes=("负责检索系统",),
+                    question="介绍一个你负责的检索改进。",
                 ),
             ),
         )
@@ -135,17 +137,26 @@ class OneQuestionWorker:
     ):
         return MockInterviewQuestionDraft(question="介绍一个你负责的检索改进。")
 
+    def decide_follow_up(
+        self,
+        *,
+        session,
+        plan_item,
+        turns,
+        follow_ups_remaining,
+        document,
+        jd_text,
+    ):
+        return MockInterviewFollowUpDecision(next_action="next_question")
+
     def evaluate(
         self,
         *,
         session,
         plan_item,
-        turn,
-        prior_turns=(),
+        turns,
         document,
         jd_text,
-        company_name="",
-        role_title="",
         confirmed_facts=(),
     ):
         return evaluation("adequate")

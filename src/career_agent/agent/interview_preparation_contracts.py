@@ -55,6 +55,31 @@ class PriorInterviewRetroContext(BaseModel):
     self_assessment: Literal["strong", "mixed", "weak", "uncertain"]
 
 
+class CompanyResearchFindingContext(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    topic: str
+    statement: str
+    evidence_type: Literal["fact", "inference", "unknown"]
+    confidence: Literal["high", "medium", "low"]
+
+
+class CompanyResearchContext(BaseModel):
+    """Public business context from the user's own company research report.
+
+    It says what the company does and where it stands, never how it
+    interviews: interview style comes only from the mock-interview skill's
+    company profiles.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    researched_at: datetime
+    outdated: bool
+    summary: str
+    findings: tuple[CompanyResearchFindingContext, ...] = ()
+
+
 class InterviewPreparationContext(BaseModel):
     """Shared structured context for prep briefs and mock-interview planning."""
 
@@ -66,6 +91,7 @@ class InterviewPreparationContext(BaseModel):
     logistics: InterviewLogisticsContext | None = None
     confirmed_facts: tuple[PreparationConfirmedFact, ...] = ()
     prior_retros: tuple[PriorInterviewRetroContext, ...] = ()
+    company_research: CompanyResearchContext | None = None
 
 
 class InterviewPreparationWorker(Protocol):

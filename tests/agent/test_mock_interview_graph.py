@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from career_agent.agent.mock_interview_contracts import (
+    MockInterviewFollowUpDecision,
     MockInterviewGraphResult,
     MockInterviewInputDecision,
     MockInterviewPlanDraft,
@@ -71,13 +72,16 @@ def _evaluation(*, next_action, follow_up_question=None):
 class Worker:
     def __init__(self) -> None:
         self.ask_calls = 0
+        self.decide_calls = 0
         self.evaluate_calls = 0
+        self.evaluated_chains: list[tuple[int, ...]] = []
         self.report_calls = 0
         self.input_action = "answer"
         self.plan_company: tuple[str, str] | None = None
-        self.ask_companies: list[tuple[str, str]] = []
+        self.write_questions = True
 
     def route_input(self, **kwargs):
+        self.route_calls = getattr(self, "route_calls", 0) + 1
         return MockInterviewInputDecision(action=self.input_action)
 
     def plan(self, **kwargs):
@@ -94,6 +98,10 @@ class Worker:
                     rationale="The resume mentions retrieval systems.",
                     resume_locators=("experience.1",),
                     resume_quotes=("Built retrieval systems",),
+                    question=(
+                        "What did you personally own in the retrieval system?"
+                        if self.write_questions else None
+                    ),
                 ),
                 MockInterviewPlanItem(
                     sequence_number=2,
@@ -102,15 +110,16 @@ class Worker:
                     focus="Reliability trade-offs",
                     rationale="The JD requires reliable retrieval.",
                     jd_quotes=("Design reliable retrieval",),
+                    question=(
+                        "How would you design retrieval failure recovery?"
+                        if self.write_questions else None
+                    ),
                 ),
             ),
         )
 
     def ask(self, *, plan_item, **kwargs):
         self.ask_calls += 1
-        self.ask_companies.append(
-            (kwargs["company_name"], kwargs["role_title"])
-        )
         return MockInterviewQuestionDraft(
             question=(
                 "What did you personally own in the retrieval system?"
@@ -119,16 +128,20 @@ class Worker:
             )
         )
 
-    def evaluate(self, *, turn, **kwargs):
-        self.evaluate_calls += 1
-        assert turn.status == "answered"
-        if turn.turn_type == "primary" and turn.plan_item_number == 1:
-            return _evaluation(
+    def decide_follow_up(self, *, plan_item, turns, **kwargs):
+        self.decide_calls += 1
+        assert {turn.plan_item_number for turn in turns} == {plan_item.sequence_number}
+        if turns[-1].turn_type == "primary" and plan_item.sequence_number == 1:
+            return MockInterviewFollowUpDecision(
                 next_action="follow_up",
                 follow_up_question="How did you validate that decision?",
             )
-        if turn.turn_type == "follow_up":
-            return _evaluation(next_action="next_question")
+        return MockInterviewFollowUpDecision(next_action="next_question")
+
+    def evaluate(self, *, turns, **kwargs):
+        self.evaluate_calls += 1
+        self.evaluated_chains.append(tuple(turn.plan_item_number for turn in turns))
+        assert all(turn.status == "answered" for turn in turns)
         return _evaluation(next_action="finish")
 
     def report(self, *, turns, **kwargs):
@@ -156,16 +169,16 @@ class Worker:
         )
 
 
-class FlakyEvaluationWorker(Worker):
+class FlakyDecisionWorker(Worker):
     def __init__(self) -> None:
         super().__init__()
         self.failed_once = False
 
-    def evaluate(self, **kwargs):
+    def decide_follow_up(self, **kwargs):
         if not self.failed_once:
             self.failed_once = True
-            raise RuntimeError("temporary evaluation failure")
-        return super().evaluate(**kwargs)
+            raise RuntimeError("temporary decision failure")
+        return super().decide_follow_up(**kwargs)
 
 
 def _request(*, max_follow_ups_per_question=1):
@@ -203,7 +216,9 @@ def test_graph_runs_primary_follow_up_next_question_and_report(tmp_path: Path) -
     )
     assert follow_up.state == "awaiting_answer"
     assert follow_up.question == "How did you validate that decision?"
-    assert follow_up.evaluation.next_action == "follow_up"
+    # Nothing is scored mid-interview.
+    assert follow_up.evaluation is None
+    assert worker.evaluate_calls == 0
 
     second = graph.resume(
         user_id="u1",
@@ -221,21 +236,57 @@ def test_graph_runs_primary_follow_up_next_question_and_report(tmp_path: Path) -
     assert completed.state == "completed"
     assert completed.report is not None
     assert len(completed.report.question_results) == 2
-    assert worker.ask_calls == 2
-    assert worker.evaluate_calls == 3
+    # Questions come from the plan; a follow-up decision runs only while one is
+    # still allowed; each question is scored once, on its own chain.
+    assert worker.ask_calls == 0
+    assert worker.decide_calls == 2
+    assert worker.evaluate_calls == 2
+    assert sorted(worker.evaluated_chains) == [(1, 1), (2,)]
     assert worker.report_calls == 1
     assert worker.plan_company == ("Example Corp", "Retrieval Engineer")
-    assert worker.ask_companies == [
-        ("Example Corp", "Retrieval Engineer"),
-        ("Example Corp", "Retrieval Engineer"),
-    ]
-    assert len(sources.calls) >= 4
 
     session = store.get_session(user_id="u1", session_id=first.session_id)
     turns = store.list_turns(user_id="u1", session_id=first.session_id)
     assert session.status == "completed"
     assert [turn.turn_type for turn in turns] == ["primary", "follow_up", "primary"]
-    assert all(turn.status == "evaluated" for turn in turns)
+    assert [turn.status for turn in turns] == ["evaluated", "answered", "evaluated"]
+
+
+def test_a_plan_saved_without_questions_falls_back_to_asking(tmp_path: Path) -> None:
+    graph, _, worker, _ = _graph(tmp_path)
+    worker.write_questions = False
+
+    first = graph.start(_request())
+
+    assert first.question == "What did you personally own in the retrieval system?"
+    assert worker.ask_calls == 1
+
+
+def test_one_failed_question_score_is_the_only_one_redone(tmp_path: Path) -> None:
+    class SecondScoreFailsOnce(Worker):
+        failed = False
+
+        def evaluate(self, *, turns, **kwargs):
+            if turns[0].plan_item_number == 2 and not self.failed:
+                self.failed = True
+                raise AgentWorkerError("MOCK_INTERVIEW_TRANSPORT_ERROR", "dropped", retryable=True)
+            return super().evaluate(turns=turns, **kwargs)
+
+    store = SQLiteMockInterviewStore(tmp_path / "mock.sqlite3")
+    worker = SecondScoreFailsOnce()
+    graph = MockInterviewGraph(store=store, worker=worker, sources=Sources())
+    started = graph.start(_request(max_follow_ups_per_question=0))
+    graph.resume(user_id="u1", session_id=started.session_id, answer="I owned evaluation.")
+
+    with pytest.raises(AgentWorkerError):
+        graph.resume(user_id="u1", session_id=started.session_id, answer="Degrade gracefully.")
+
+    statuses = [turn.status for turn in store.list_turns(user_id="u1", session_id=started.session_id)]
+    assert statuses == ["evaluated", "answered"]
+    completed = graph.retry(user_id="u1", session_id=started.session_id)
+
+    assert completed.state == "completed"
+    assert sorted(worker.evaluated_chains) == [(1,), (2,)]
 
 
 def test_handle_input_cancels_without_persisting_the_message_as_an_answer(
@@ -273,7 +324,19 @@ def test_handle_input_persists_a_substantive_answer_even_when_it_says_end(
 
     turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
     assert turn.answer == answer
-    assert turn.status == "evaluated"
+    assert turn.status == "answered"
+
+
+def test_an_answer_with_nothing_like_stopping_skips_the_router(tmp_path: Path) -> None:
+    graph, store, worker, _ = _graph(tmp_path)
+    started = graph.start(_request())
+
+    graph.handle_input(
+        user_id="u1", session_id=started.session_id, message="我负责离线评测和回滚指标。"
+    )
+
+    assert getattr(worker, "route_calls", 0) == 0
+    assert store.get_turn(user_id="u1", turn_id=started.turn_id).status == "answered"
 
 
 def test_input_routing_failure_does_not_consume_or_persist_the_message(
@@ -299,7 +362,8 @@ def test_input_routing_failure_does_not_consume_or_persist_the_message(
         graph.handle_input(
             user_id="u1",
             session_id=started.session_id,
-            message="这是不能被保存的回答",
+            # Contains a stop word, so it reaches the router that fails.
+            message="这是不能被保存的回答，结束",
         )
 
     turn = store.get_turn(user_id="u1", turn_id=started.turn_id)
@@ -325,7 +389,8 @@ def test_graph_overrides_a_follow_up_when_the_session_limit_is_zero(
     assert next_question.question == "How would you design retrieval failure recovery?"
     turns = store.list_turns(user_id="u1", session_id=first.session_id)
     assert [turn.turn_type for turn in turns] == ["primary", "primary"]
-    assert worker.ask_calls == 2
+    # No follow-up allowed, so no decision is worth a model call.
+    assert worker.decide_calls == 0
 
 
 def test_graph_state_keeps_large_sources_out_of_the_checkpoint(tmp_path: Path) -> None:
@@ -344,7 +409,8 @@ def test_graph_state_keeps_large_sources_out_of_the_checkpoint(tmp_path: Path) -
         "session_id",
         "route",
         "current_turn_id",
-        "evaluated_turn_id",
+        "decided_turn_id",
+        "decision",
         "follow_up_question",
         "follow_up_parent_turn_id",
         "answer",
@@ -367,13 +433,13 @@ def test_status_projects_the_current_persisted_question(tmp_path: Path) -> None:
     assert status.question == started.question
 
 
-def test_evaluation_failure_retries_from_the_persisted_answer(tmp_path: Path) -> None:
+def test_a_failed_decision_retries_from_the_persisted_answer(tmp_path: Path) -> None:
     store = SQLiteMockInterviewStore(tmp_path / "mock.sqlite3")
-    worker = FlakyEvaluationWorker()
+    worker = FlakyDecisionWorker()
     graph = MockInterviewGraph(store=store, worker=worker, sources=Sources())
     started = graph.start(_request())
 
-    with pytest.raises(RuntimeError, match="temporary evaluation failure"):
+    with pytest.raises(RuntimeError, match="temporary decision failure"):
         graph.resume(
             user_id="u1",
             session_id=started.session_id,
@@ -393,7 +459,7 @@ def test_evaluation_failure_retries_from_the_persisted_answer(tmp_path: Path) ->
     )
     assert resumed.state == "awaiting_answer"
     assert resumed.question == "How did you validate that decision?"
-    assert worker.evaluate_calls == 1
+    assert worker.decide_calls == 1
 
 
 def test_sqlite_checkpoint_resumes_after_connection_and_graph_reopen(
@@ -539,13 +605,49 @@ def test_resume_rejects_an_incompatible_graph_version(tmp_path: Path) -> None:
             "UPDATE mock_interview_sessions SET graph_version = 999 WHERE id = ?",
             (started.session_id,),
         )
-
     with pytest.raises(MockInterviewGraphVersionError, match="session=999"):
         graph.resume(
-            user_id="u1",
-            session_id=started.session_id,
+            user_id="u1", session_id=started.session_id,
             answer="Do not process this answer.",
         )
+
+
+def test_free_practice_runs_on_exactly_the_chosen_resume_or_none(tmp_path: Path) -> None:
+    class PinnedSources(Sources):
+        def __init__(self):
+            super().__init__()
+            self.loaded_versions = []
+
+        def load(self, *, session):
+            self.loaded_versions.append(session.resume_version_id)
+            if session.resume_version_id is None:
+                return MockInterviewSources(
+                    document=None,
+                    context=InterviewPreparationContext(
+                        jd_text="", company_name="", role_title="PM"
+                    ),
+                )
+            return super().load(session=session)
+
+    sources = PinnedSources()
+    store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
+    graph = MockInterviewGraph(store=store, worker=Worker(), sources=sources)
+    chosen = graph.start(MockInterviewStartRequest(
+        user_id="u1", interview_type="technical", max_primary_questions=2,
+        max_follow_ups_per_question=0, resume_version_id="resume-v1",
+    ))
+    assert chosen.state == "awaiting_answer"
+    assert set(sources.loaded_versions) == {"resume-v1"}
+
+    graph.cancel(user_id="u1", session_id=chosen.session_id)
+    sources.loaded_versions.clear()
+    # No resume chosen means none: there is no "latest resume" fallback.
+    without = graph.start(MockInterviewStartRequest(
+        user_id="u1", interview_type="technical", max_primary_questions=2,
+        max_follow_ups_per_question=0,
+    ))
+    assert without.state == "awaiting_answer"
+    assert sources.loaded_versions and set(sources.loaded_versions) == {None}
 
 
 def test_cancel_deletes_checkpoint_threads_without_accumulating_orphans(
@@ -600,13 +702,13 @@ def test_retry_recovers_without_the_candidate_retyping_the_answer(
             super().__init__()
             self.fail = True
 
-        def evaluate(self, **kwargs):
+        def decide_follow_up(self, **kwargs):
             if self.fail:
                 self.fail = False
                 raise AgentWorkerError(
-                    "worker_unavailable", "evaluate failed", retryable=True
+                    "worker_unavailable", "decision failed", retryable=True
                 )
-            return super().evaluate(**kwargs)
+            return super().decide_follow_up(**kwargs)
 
     store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
     owner = SQLiteCheckpointOwner(tmp_path / "checkpoints.sqlite3")
@@ -614,7 +716,7 @@ def test_retry_recovers_without_the_candidate_retyping_the_answer(
     graph = MockInterviewGraph(
         store=store, worker=worker, sources=Sources(), checkpointer=owner.saver
     )
-    started = graph.start(_request(max_follow_ups_per_question=0))
+    started = graph.start(_request(max_follow_ups_per_question=1))
     answer = "我主导了离线评测设计"
     with pytest.raises(AgentWorkerError):
         graph.resume(user_id="u1", session_id=started.session_id, answer=answer)
@@ -631,5 +733,34 @@ def test_retry_recovers_without_the_candidate_retyping_the_answer(
 
     recovered = graph.retry(user_id="u1", session_id=started.session_id)
     assert recovered.state == "awaiting_answer"
-    assert worker.evaluate_calls == 1
+    assert worker.decide_calls == 1
     owner.close()
+
+
+@pytest.mark.parametrize(
+    ("company", "inferred"), [("字节", False), ("北京字节跳动科技有限公司", True)]
+)
+def test_the_plan_records_whether_its_company_style_was_inferred(
+    tmp_path: Path, company: str, inferred: bool
+) -> None:
+    class StyledWorker(Worker):
+        def plan(self, **kwargs):
+            return super().plan(**kwargs).model_copy(
+                update={"company_style_profile": "ByteDance and related businesses"}
+            )
+
+    class CompanySources(Sources):
+        def load(self, *, session):
+            loaded = super().load(session=session)
+            return MockInterviewSources(
+                document=loaded.document,
+                context=loaded.context.model_copy(update={"company_name": company}),
+            )
+
+    store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
+    graph = MockInterviewGraph(store=store, worker=StyledWorker(), sources=CompanySources())
+    started = graph.start(_request())
+
+    plan = store.get_plan(user_id="u1", session_id=started.session_id)
+    assert plan.company_style_profile == "ByteDance and related businesses"
+    assert plan.company_style_inferred is inferred

@@ -8,9 +8,11 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     ApplicationCandidateContextItem,
+    AttachedResumeContext,
     CareerProfileContext,
     ConversationTaskState,
     MainAgentContext,
+    ResumeVersionCandidateContextItem,
     ToolCall,
     project_mock_interview_arguments,
 )
@@ -181,6 +183,20 @@ def test_projection_selects_application_by_index_and_rejects_internal_ids() -> N
         project_mock_interview_arguments(context, {"application_id": "app-2"})
 
 
+def test_free_practice_ignores_an_active_application_and_requires_type() -> None:
+    context = MainAgentContext(
+        conversation_id="c1", profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(active_application_id="app-1"),
+        user_message="随便练练",
+    )
+    projected = project_mock_interview_arguments(
+        context, {"practice_scope": "free", "interview_type": "behavioral"}
+    )
+    assert projected["application_id"] is None
+    with pytest.raises(ValueError, match="requires interview_type"):
+        project_mock_interview_arguments(context, {"practice_scope": "free"})
+
+
 def test_runtime_starts_then_resumes_mock_interview_through_the_main_graph(
     tmp_path,
 ) -> None:
@@ -232,7 +248,7 @@ def test_runtime_starts_then_resumes_mock_interview_through_the_main_graph(
     assert started.context.task.active_workflow == "mock_interview"
     assert started.context.task.run_id == "mock-session-1"
     assert started.assistant_message == (
-        "模拟面试题：\n请介绍一个你亲自负责的 RAG 可靠性改进。"
+        "请介绍一个你亲自负责的 RAG 可靠性改进。"
     )
     # Mid-run the conversation has no trace of the interview at all, not even a
     # request waiting for an answer. It is held, so the whole run can be written
@@ -885,3 +901,238 @@ def test_the_progress_events_name_the_entry_that_actually_ran(tmp_path) -> None:
         "handle_mock_interview_input",
         "handle_mock_interview_input",
     ]
+
+
+class ScriptedDecisions:
+    def __init__(self, *decisions: AgentDecision) -> None:
+        self.decisions = list(decisions)
+
+    def decide(self, context, tool_specs):
+        return self.decisions.pop(0)
+
+
+def _free_start(**arguments) -> AgentDecision:
+    return AgentDecision(
+        action="tool_call",
+        tool_call=ToolCall(
+            name="start_mock_interview",
+            arguments={"practice_scope": "free", "interview_type": "behavioral", **arguments},
+        ),
+    )
+
+
+def test_free_practice_asks_which_resume_before_starting_anything(tmp_path) -> None:
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = resumes.create_target_role(user_id="u1", title="PM", priority=1)
+    _, fixture = resumes.import_document(
+        user_id="u1", target_role_id=role.id, name="测试简历",
+        content=b"fixture", document_format="text",
+    )
+    _, real = resumes.import_document(
+        user_id="u1", target_role_id=role.id, name="正式简历",
+        content=b"real", document_format="text",
+    )
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seed = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="想练面试")
+    manager.commit_turn(
+        context=seed, task=ConversationTaskState(tool_profile="interview"),
+        assistant_message="好的。",
+    )
+    graph = FakeMockInterviewGraph()
+    tools = MainAgentToolRegistry(
+        application_service=object(), mock_interview_graph=graph, resume_store=resumes,
+    )
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=ScriptedDecisions(
+            _free_start(), _free_start(resume_version_selection_index=2)
+        ),
+        tools=tools,
+    )
+
+    asked = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="来一场行为面")
+
+    # Nothing started: the latest resume is not picked on the user's behalf.
+    assert graph.starts == []
+    assert asked.context.task.active_workflow == "none"
+    card = MainAgentRuntime._interaction_event(result=asked, conversation_id="c1")
+    assert card is not None and card.kind == "single_selection"
+    assert card.accepts_upload == "resume"
+    assert [option.label for option in card.options] == [
+        "《正式简历》v1", "《测试简历》v1", "不用简历",
+    ]
+
+    chosen = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="《测试简历》v1")
+
+    assert [request.resume_version_id for request in graph.starts] == [fixture.id]
+    assert chosen.context.task.active_workflow == "mock_interview"
+    assert real.id != fixture.id
+
+
+def test_free_practice_resume_comes_only_from_the_user() -> None:
+    def context(**updates) -> MainAgentContext:
+        return MainAgentContext(
+            conversation_id="c1", profile=CareerProfileContext(user_id="u1"),
+            task=updates.pop("task", None) or ConversationTaskState(
+                active_resume_version_id="resume-seen-earlier",
+                resume_version_candidates=(
+                    ResumeVersionCandidateContextItem(
+                        resume_version_id="resume-offered", version_number=1,
+                        source_type="user_import", document_format="pdf", byte_size=1,
+                        resume_name="正式简历",
+                    ),
+                ),
+            ),
+            user_message="练一下", **updates,
+        )
+
+    free = {"practice_scope": "free", "interview_type": "behavioral"}
+    unchosen = project_mock_interview_arguments(context(), free)
+    assert (unchosen["resume_choice"], unchosen["resume_version_id"]) == ("required", None)
+    picked = project_mock_interview_arguments(
+        context(), {**free, "resume_version_selection_index": 1}
+    )
+    assert picked["resume_version_id"] == "resume-offered"
+    none = project_mock_interview_arguments(context(), {**free, "without_resume": True})
+    assert (none["resume_choice"], none["resume_version_id"]) == ("none", None)
+    attached = project_mock_interview_arguments(
+        context(attached_resumes=(
+            AttachedResumeContext(
+                resume_version_id="resume-attached", resume_id="r", resume_name="附件",
+                version_number=1, is_latest_version=True, document_format="pdf",
+                byte_size=1, uploaded_at=NOW,
+            ),
+        )),
+        free,
+    )
+    assert attached["resume_version_id"] == "resume-attached"
+    with pytest.raises(ValueError, match="free practice only"):
+        project_mock_interview_arguments(
+            context(task=ConversationTaskState(active_application_id="app-1")),
+            {"interview_type": "technical", "without_resume": True},
+        )
+
+
+def _save_job(jobs, *, source_job_id: str, company: str, title: str, jd: str):
+    return jobs.save_detail(
+        user_id="u1", run_id=f"run-{source_job_id}", result_ref=f"ref-{source_job_id}",
+        selection_index=1,
+        detail=JobDetail(
+            source_name="test", source_job_id=source_job_id, title=title,
+            company_name=company, description=jd, captured_at=NOW,
+            provenance=Provenance(
+                source_name="test", source_job_id=source_job_id, captured_at=NOW,
+                operation="detail", adapter_version="test-v1",
+            ),
+        ),
+    )
+
+
+class FakeResearch:
+    """Research keyed exactly by company name, like the real store."""
+
+    def __init__(self, reports: dict[str, object]) -> None:
+        self.reports = reports
+        self.looked_up: list[str] = []
+
+    def latest_company_report(self, *, user_id, company_name):
+        self.looked_up.append(company_name)
+        return self.reports.get(company_name)
+
+    def find_report(self, *, user_id, report_id):
+        return next(
+            (report for report in self.reports.values() if report.id == report_id), None
+        )
+
+
+class _Report:
+    def __init__(self, report_id: str) -> None:
+        self.id = report_id
+        self.created_at = NOW
+
+
+def _company_runtime(tmp_path, decisions, *, research):
+    resumes = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = resumes.create_target_role(user_id="u1", title="PM", priority=1)
+    _, resume = resumes.import_document(
+        user_id="u1", target_role_id=role.id, name="正式简历",
+        content=b"real", document_format="text",
+    )
+    jobs = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    seed = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="想练面试")
+    manager.commit_turn(
+        context=seed, task=ConversationTaskState(tool_profile="interview"),
+        assistant_message="好的。",
+    )
+    graph = FakeMockInterviewGraph()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=ScriptedDecisions(*decisions),
+        tools=MainAgentToolRegistry(
+            application_service=object(), mock_interview_graph=graph,
+            resume_store=resumes, job_repository=jobs, job_research_service=research,
+        ),
+    )
+    return runtime, graph, jobs, resume
+
+
+def test_naming_a_company_offers_its_saved_jobs_then_practises_on_the_chosen_jd(
+    tmp_path,
+) -> None:
+    research = FakeResearch({"字节跳动": _Report("research-bytedance")})
+    runtime, graph, jobs, resume = _company_runtime(
+        tmp_path,
+        (
+            _free_start(company_name="字节"),
+            _free_start(job_selection_index=1, company_name="字节"),
+            _free_start(job_selection_index=1, resume_version_selection_index=1),
+        ),
+        research=research,
+    )
+    job = _save_job(
+        jobs, source_job_id="bd-1", company="字节跳动", title="AI 产品经理", jd="负责大模型产品。",
+    )
+    _save_job(jobs, source_job_id="other", company="阿里巴巴", title="产品经理", jd="电商。")
+
+    offered = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="模拟面试，字节")
+    job_card = MainAgentRuntime._interaction_event(result=offered, conversation_id="c1")
+    assert graph.starts == []
+    assert [option.label for option in job_card.options] == [
+        "字节跳动 · AI 产品经理", "不针对具体岗位，只按「字节」",
+    ]
+
+    asked = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="字节跳动 · AI 产品经理")
+    # The job is settled; the resume is still the user's to choose.
+    assert graph.starts == []
+    assert asked.tool_result.state == "mock_interview_resume_choice_required"
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="《正式简历》v1")
+
+    [request] = graph.starts
+    assert (request.job_posting_id, request.jd_snapshot_id) == (job.posting.id, job.snapshot.id)
+    assert request.resume_version_id == resume.id
+    assert request.target_company is None and request.application_id is None
+    # Research is looked up by the job's own company name, and pinned.
+    assert request.company_research_report_id == "research-bytedance"
+
+
+def test_company_only_practice_keeps_the_name_and_uses_no_research_it_does_not_have(
+    tmp_path,
+) -> None:
+    research = FakeResearch({"字节跳动": _Report("research-bytedance")})
+    runtime, graph, _, _ = _company_runtime(
+        tmp_path,
+        (_free_start(company_name="字节", without_resume=True),),
+        research=research,
+    )
+
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="按字节的风格练，不用简历")
+
+    [request] = graph.starts
+    assert (request.target_company, request.job_posting_id) == ("字节", None)
+    # "字节" is not guessed to be "字节跳动": no research is used.
+    assert request.company_research_report_id is None
+    assert research.looked_up == ["字节"]

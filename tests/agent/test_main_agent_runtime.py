@@ -49,6 +49,11 @@ class DecisionMaker:
     [
         ("我有个字节的面试，帮我准备", "interview"),
         ("开始模拟面试", "interview"),
+        # Named outright; the other domain words only describe the request.
+        ("我想做一场自由模拟面试，不针对具体投递", "interview"),
+        ("用我的简历做一场模拟面试", "interview"),
+        # Two topical domains and no named capability stay a model decision.
+        ("我投递的岗位有面试安排了", None),
         ("看看我的投递进度", "application"),
         ("帮我优化一下简历", "resume"),
         ("找上海的 AIGC 实习", "job"),

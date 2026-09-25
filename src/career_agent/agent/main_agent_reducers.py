@@ -224,6 +224,52 @@ def _get_resume_metadata(
     )
 
 
+def _mock_interview_choice(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    if result.state == "mock_interview_job_choice_required":
+        # The offered jobs become the numbered choice the next start call
+        # picks from, each pinned to the JD version that was offered.
+        return task.model_copy(
+            update={
+                "saved_job_candidates": tuple(
+                    SavedJobCandidateContextItem(
+                        job_posting_id=item["job_posting_id"],
+                        title=item["title"],
+                        company_name=item["company_name"],
+                        city=item.get("city"),
+                        salary=item.get("salary"),
+                        jd_snapshot_id=item.get("jd_snapshot_id"),
+                    )
+                    for item in _items(result)
+                )
+            }
+        )
+    return _mock_interview_resume_choice(task, result)
+
+
+def _mock_interview_resume_choice(
+    task: ConversationTaskState, result: ToolResult
+) -> ConversationTaskState:
+    # The offered resumes become the numbered choice the next start call picks
+    # from; offering them does not make any of them active.
+    return task.model_copy(
+        update={
+            "resume_version_candidates": tuple(
+                ResumeVersionCandidateContextItem(
+                    resume_version_id=item["resume_version_id"],
+                    version_number=item["version_number"],
+                    source_type=item["source_type"],
+                    document_format=item["document_format"],
+                    byte_size=item["byte_size"],
+                    resume_name=item["resume_name"],
+                )
+                for item in _items(result, "versions")
+            )
+        }
+    )
+
+
 def _list_email_events(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
@@ -804,6 +850,13 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     ),
     "list_resumes": _entry(("resumes_found", "no_resumes_found"), _list_resumes),
     "get_resume_metadata": _entry(("resume_metadata_ready",), _get_resume_metadata),
+    "start_mock_interview": _entry(
+        (
+            "mock_interview_job_choice_required",
+            "mock_interview_resume_choice_required",
+        ),
+        _mock_interview_choice,
+    ),
     "list_email_events": _entry(
         ("email_events_found", "no_email_events_found"), _list_email_events
     ),

@@ -11,7 +11,7 @@ from career_agent.domain.mock_interviews import (
 )
 
 
-MockInterviewOperation = Literal["plan", "ask", "evaluate", "report"]
+MockInterviewOperation = Literal["plan", "ask", "follow_up", "evaluate", "report"]
 MockInterviewReferenceName = Literal[
     "planning",
     "company",
@@ -138,7 +138,7 @@ class MockInterviewSkillLoader:
                 "company",
                 *self._INTERVIEW_REFERENCES[interview_type],
             )
-        if operation in {"ask", "evaluate"}:
+        if operation in {"ask", "follow_up", "evaluate"}:
             if question_type is None:
                 raise ValueError(
                     f"{operation} skill loading requires question_type"

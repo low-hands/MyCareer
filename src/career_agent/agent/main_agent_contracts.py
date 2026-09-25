@@ -700,6 +700,9 @@ class ResumeVersionCandidateContextItem(ContractModel):
     source_type: str
     document_format: str
     byte_size: int
+    # Set when the list spans several resumes, as the mock-interview resume
+    # choice does; a single resume's version list leaves it empty.
+    resume_name: str | None = None
 
 
 class EmailEventCandidateContextItem(ContractModel):
@@ -858,6 +861,9 @@ class ConversationTaskState(ContractModel):
     workflow_entry_message: str | None = None
     workflow_entry_resource_refs: tuple["ConversationResourceReference", ...] = ()
     """The inputs attached to the held request, written back with it on exit."""
+    workflow_entry_at: datetime | None = None
+    """When the held request was sent, so the transcript shows it before the run
+    it started rather than at the moment the run ended and it was written."""
     pending_job_intent_update: JobIntentUpdate | None = None
     pending_free_text_preference: FreeTextPreferenceConfirmationProposal | None = None
     pending_memory_amendment: MemoryAmendmentProposal | None = None
@@ -1076,6 +1082,9 @@ class ConversationTaskState(ContractModel):
                     if self.active_workflow == workflow
                     else ()
                 ),
+                "workflow_entry_at": (
+                    self.workflow_entry_at if self.active_workflow == workflow else None
+                ),
             }
         )
 
@@ -1103,6 +1112,7 @@ class ConversationTaskState(ContractModel):
         self,
         message: str,
         resource_refs: tuple["ConversationResourceReference", ...] = (),
+        at: datetime | None = None,
     ) -> "ConversationTaskState":
         """Keep the request a multi-turn workflow has not answered yet.
 
@@ -1115,6 +1125,7 @@ class ConversationTaskState(ContractModel):
             update={
                 "workflow_entry_message": message,
                 "workflow_entry_resource_refs": resource_refs,
+                "workflow_entry_at": at,
             }
         )
 
@@ -1134,6 +1145,7 @@ class ConversationTaskState(ContractModel):
                 "manual_search_query": None,
                 "workflow_entry_message": None,
                 "workflow_entry_resource_refs": (),
+                "workflow_entry_at": None,
             }
         )
 
@@ -2182,6 +2194,12 @@ def _with_truncation_notice(
 
 class MainAgentContext(ContractModel):
     conversation_id: str
+    received_at: datetime | None = Field(default=None, exclude=True)
+    """When this turn's user message arrived; harness-only, never projected.
+
+    A workflow's opening request is written only when the run ends, and the
+    transcript places it by time, so it needs the moment it was sent rather
+    than the moment the turn that started the run finished."""
     spotlight_nonce: str | None = Field(default=None, min_length=32, max_length=32)
     """Harness-only session delimiter; deliberately absent from model_context JSON."""
     profile: CareerProfileContext
@@ -2851,6 +2869,11 @@ class MainAgentContext(ContractModel):
                 "resume_versions": [
                     {
                         "selection_index": index,
+                        **(
+                            {"resume_name": candidate.resume_name}
+                            if candidate.resume_name is not None
+                            else {}
+                        ),
                         "version_number": candidate.version_number,
                         "source_type": candidate.source_type,
                         "document_format": candidate.document_format,
@@ -3521,19 +3544,38 @@ class GetInterviewPreparationToolArguments(ContractModel):
 
 
 class StartMockInterviewToolArguments(ContractModel):
+    """The resume, job and company fields are free-practice only: an
+    application run always uses its submitted resume and immutable JD.
+
+    ``company_name`` is the employer as the user named it when no saved job is
+    chosen; ``without_job`` records that the user declined the saved jobs
+    offered for that company and wants company-only practice.
+    """
+
+    practice_scope: Literal["application", "free"] | None = None
     application_selection_index: SelectionIndex | None = None
     interview_selection_index: SelectionIndex | None = None
-    interview_type: MockInterviewType = "mixed"
-    max_primary_questions: int = Field(default=6, ge=1, le=20)
+    interview_type: MockInterviewType | None = None
+    target_role: str | None = Field(default=None, min_length=1, max_length=300)
+    max_primary_questions: int = Field(default=10, ge=1, le=20)
     max_follow_ups_per_question: int = Field(default=2, ge=0, le=5)
+    resume_version_selection_index: SelectionIndex | None = None
+    without_resume: bool = False
+    job_selection_index: SelectionIndex | None = None
+    company_name: str | None = Field(default=None, min_length=1, max_length=100)
+    without_job: bool = False
 
     @model_validator(mode="after")
     def validate_selector(self) -> "StartMockInterviewToolArguments":
+        if self.without_job and self.job_selection_index is not None:
+            raise ValueError("choose a job or without_job, not both")
         if (
             self.application_selection_index is not None
             and self.interview_selection_index is not None
         ):
             raise ValueError("use either an application or interview selector")
+        if self.without_resume and self.resume_version_selection_index is not None:
+            raise ValueError("choose a resume or without_resume, not both")
         return self
 
 
@@ -3642,11 +3684,31 @@ class ConfirmResumeAnalysisToolArguments(ContractModel):
 
 class StartMockInterviewWorkflowInput(ContractModel):
     user_id: str = Field(min_length=1)
-    application_id: str = Field(min_length=1)
+    application_id: str | None = Field(default=None, min_length=1)
     interview_round_id: str | None = Field(default=None, min_length=1)
     interview_type: MockInterviewType
+    target_role: str | None = Field(default=None, min_length=1, max_length=300)
     max_primary_questions: int = Field(ge=1, le=20)
     max_follow_ups_per_question: int = Field(ge=0, le=5)
+    conversation_id: str | None = Field(default=None, min_length=1)
+    # Free practice only. ``required`` means nobody has said which resume to
+    # use yet, so the run must not start; the tool asks instead of guessing.
+    resume_choice: Literal["chosen", "none", "required"] = "chosen"
+    resume_version_id: str | None = Field(default=None, min_length=1)
+    # ``check`` means the user named a company but no job: the tool offers any
+    # saved jobs at that company before starting company-only practice.
+    job_choice: Literal["chosen", "none", "check"] = "none"
+    job_posting_id: str | None = Field(default=None, min_length=1)
+    jd_snapshot_id: str | None = Field(default=None, min_length=1)
+    target_company: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_resume_choice(self) -> "StartMockInterviewWorkflowInput":
+        if (self.resume_choice == "chosen") != (self.resume_version_id is not None) and (
+            self.application_id is None
+        ):
+            raise ValueError("a chosen resume needs its version, and only then")
+        return self
 
 
 class ToolCall(ContractModel):
@@ -4552,9 +4614,29 @@ def project_mock_interview_arguments(
 ) -> dict[str, Any]:
     _reject_internal_identifiers("start_mock_interview", arguments)
     model_arguments = StartMockInterviewToolArguments.model_validate(arguments)
-    application_id = context.task.active_application_id
+    application_id = (
+        None
+        if model_arguments.practice_scope == "free"
+        else context.task.active_application_id
+    )
     interview_round_id: str | None = None
 
+    if model_arguments.practice_scope == "free" and (
+        model_arguments.application_selection_index is not None
+        or model_arguments.interview_selection_index is not None
+    ):
+        raise ValueError("free practice cannot select an application or interview")
+    if model_arguments.practice_scope != "free" and (
+        model_arguments.without_resume
+        or model_arguments.resume_version_selection_index is not None
+        or model_arguments.job_selection_index is not None
+        or model_arguments.company_name is not None
+        or model_arguments.without_job
+    ):
+        raise ValueError(
+            "an application run uses its submitted resume and JD; resume, job and "
+            "company choice is free practice only"
+        )
     if model_arguments.application_selection_index is not None:
         index = model_arguments.application_selection_index
         if not 1 <= index <= len(context.task.application_candidates):
@@ -4568,8 +4650,11 @@ def project_mock_interview_arguments(
         application_id = candidate.application_id
         interview_round_id = candidate.interview_round_id
 
-    if application_id is None:
-        raise ValueError("start_mock_interview requires an active application")
+    if application_id is None and model_arguments.interview_type is None:
+        raise ValueError("start_mock_interview requires interview_type for free practice")
+    target_role = model_arguments.target_role
+    if application_id is None and target_role is None and context.profile.current_targets:
+        target_role = context.profile.current_targets[0].title
     if interview_round_id is None and context.task.active_interview_round_id is not None:
         active = next(
             (
@@ -4584,14 +4669,82 @@ def project_mock_interview_arguments(
         if active is not None:
             interview_round_id = active.interview_round_id
 
+    resume_choice: Literal["chosen", "none", "required"] = "chosen"
+    resume_version_id: str | None = None
+    job: SavedJobCandidateContextItem | None = None
+    job_choice: Literal["chosen", "none", "check"] = "none"
+    if application_id is None:
+        resume_choice, resume_version_id = _free_practice_resume(context, model_arguments)
+        job = _free_practice_job(context, model_arguments)
+        job_choice = (
+            "chosen"
+            if job is not None
+            else "check"
+            if model_arguments.company_name is not None and not model_arguments.without_job
+            else "none"
+        )
+        if job is not None and model_arguments.target_role is None:
+            # The job's own title is the role; the profile's default target
+            # role filled in above would contradict it.
+            target_role = None
+
     return StartMockInterviewWorkflowInput(
         user_id=context.profile.user_id,
         application_id=application_id,
         interview_round_id=interview_round_id,
-        interview_type=model_arguments.interview_type,
+        interview_type=model_arguments.interview_type or "mixed",
+        target_role=target_role,
+        conversation_id=context.conversation_id,
         max_primary_questions=model_arguments.max_primary_questions,
         max_follow_ups_per_question=model_arguments.max_follow_ups_per_question,
+        resume_choice=resume_choice,
+        resume_version_id=resume_version_id,
+        job_choice=job_choice,
+        job_posting_id=job.job_posting_id if job is not None else None,
+        jd_snapshot_id=job.jd_snapshot_id if job is not None else None,
+        target_company=(
+            job.company_name if job is not None else model_arguments.company_name
+        ),
     ).model_dump()
+
+
+def _free_practice_job(
+    context: MainAgentContext, arguments: StartMockInterviewToolArguments
+) -> SavedJobCandidateContextItem | None:
+    """The saved job free practice is for: a pick from the offered list, or a
+    single job attached to this message. Never inferred from the conversation.
+    """
+    index = arguments.job_selection_index
+    if index is not None:
+        if not 1 <= index <= len(context.task.saved_job_candidates):
+            raise ValueError("saved-job selection index is out of range")
+        return context.task.saved_job_candidates[index - 1]
+    if len(context.attached_jobs) == 1:
+        return context.attached_jobs[0]
+    return None
+
+
+def _free_practice_resume(
+    context: MainAgentContext, arguments: StartMockInterviewToolArguments
+) -> tuple[Literal["chosen", "none", "required"], str | None]:
+    """Which resume free practice runs on, or ``required`` when nobody said.
+
+    Only the user decides this: an explicit "no resume", a pick from the
+    offered list, or a single resume attached to this very message. Anything
+    else, including a resume the conversation touched earlier, asks again. The
+    old fallback took the most recently updated resume, which silently ran a
+    practice on a test fixture.
+    """
+    if arguments.without_resume:
+        return "none", None
+    index = arguments.resume_version_selection_index
+    if index is not None:
+        if not 1 <= index <= len(context.task.resume_version_candidates):
+            raise ValueError("resume-version selection index is out of range")
+        return "chosen", context.task.resume_version_candidates[index - 1].resume_version_id
+    if len(context.attached_resumes) == 1:
+        return "chosen", context.attached_resumes[0].resume_version_id
+    return "required", None
 
 
 def project_restart_mock_interview_arguments(

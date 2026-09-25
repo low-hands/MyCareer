@@ -24,8 +24,14 @@ class InterviewPreparationSources:
     application_id: str
     job_posting_id: str
     jd_snapshot_id: str
-    resume_version_id: str
-    document: StoredResumeDocument
+    resume_version_id: str | None
+    document: StoredResumeDocument | None
+    context: InterviewPreparationContext
+
+
+@dataclass(frozen=True)
+class FreeInterviewPreparationSources:
+    document: StoredResumeDocument | None
     context: InterviewPreparationContext
 
 
@@ -161,5 +167,25 @@ class InterviewPreparationContextFactory:
                 logistics=logistics,
                 confirmed_facts=facts,
                 prior_retros=tuple(prior_retros),
+            ),
+        )
+
+    def build_free(
+        self, *, user_id: str, resume_version_id: str | None, target_role: str = ""
+    ) -> FreeInterviewPreparationSources:
+        """Load the exact resume version pinned when free practice started."""
+        document = (
+            self._resumes.read_version_document(
+                user_id=user_id, resume_version_id=resume_version_id
+            )
+            if resume_version_id is not None
+            else None
+        )
+        if resume_version_id is not None and document is None:
+            raise InterviewContextInputNotFoundError("resume_version")
+        return FreeInterviewPreparationSources(
+            document=document,
+            context=InterviewPreparationContext(
+                company_name="", role_title=target_role, jd_text=""
             ),
         )

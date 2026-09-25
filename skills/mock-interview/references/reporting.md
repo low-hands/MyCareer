@@ -1,16 +1,15 @@
 # Interview reporting guidance
 
-Use this reference only after the workflow supplies evaluated turns. The report
-is a practice artifact, not an employer decision, personality profile, or hiring
-forecast.
+Use this reference only after the workflow supplies per-question evaluations.
+Each question was scored on its own chain; you see those evaluations, not the
+answers. The report is a practice artifact, not an employer decision,
+personality profile, or hiring forecast.
 
 ## Synthesize evidence, do not average prose
 
-- Base every conclusion on one or more evaluated answers in the supplied session.
-- Preserve the persisted primary question text and follow-up counts exactly in
-  each question result.
-- Resolve a primary item using the whole question chain: a focused follow-up may
-  strengthen, qualify, or fail to resolve the initial evidence.
+- Base every conclusion on one or more supplied question evaluations.
+- Per-question results (question, rating, summary, follow-up count) are
+  assembled by the workflow from those evaluations; do not restate them.
 - Do not let one excellent or poor answer silently determine unrelated areas.
 - Repeated patterns across different questions deserve more weight than a single
   stylistic moment.
@@ -27,15 +26,14 @@ Do not convert an untested area into a weakness. Do not convert a candidate's
 new answer-only claim into confirmed career history. Avoid statements about
 personality, employability, pass likelihood, or what the employer will decide.
 
-## Write useful question results
+## Check consistency across questions
 
-For each answered primary item:
-
-- choose the final rating from the full evaluated chain;
-- state what the candidate demonstrated and the most important remaining gap;
-- keep the summary specific enough that the candidate knows which answer it
-  refers to;
-- avoid reproducing long answers or generic encouragement.
+Each evaluation lists `key_facts` the candidate stated. Compare them across
+questions and report in `consistency_issues` only facts that cannot both be
+true, naming both questions, for example "第1题说团队5人，第4题说团队3人".
+Different facts about different projects are not a contradiction, and a detail
+given in one answer but not another is not one either. Leave the list empty
+when nothing conflicts.
 
 ## Prescribe deliberate practice
 
@@ -59,6 +57,14 @@ explicitly requested a separate coaching operation.
   remaining coverage as a limitation, not a failure.
 - `safety_stop`: keep the report minimal and do not restate unsafe or sensitive
   content unnecessarily.
+- If `question_chain_limitations` says an answer was truncated or omitted,
+  treat that question as partially observed: do not infer that the missing
+  portion was absent, and mention the limitation when it materially affects
+  confidence in the rating.
+
+Write for the candidate. Never name workflow fields or data structures
+(`confirmed_resume_facts`, `key_facts`, `question_chain`, and the like); say
+what they mean instead, for example "简历中的经历尚未经你确认".
 
 The top-level summary should be candid and compact: overall observed pattern,
 strongest demonstrated capability, highest-priority development area, and the

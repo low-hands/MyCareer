@@ -18,7 +18,37 @@ Apply signals in this order:
 Never claim that a topic is guaranteed, assign interview probabilities, quote
 pass rates, or state a current number of rounds from these profiles. Subsidiaries,
 business groups, geographies, levels, and interviewers can differ materially.
-When the company name is missing or does not match confidently, do not guess.
+
+## Choosing a profile
+
+- When `company_style_profile` is set, the workflow has already matched the
+  employer: use exactly that profile.
+- When it is null but `target_company` is set, the name is not in the workflow's
+  alias list. Use a profile only if you are confident the employer is that
+  company or one of its businesses, and return its exact `###` heading in the
+  plan's `company_style_profile`. The candidate is told which profile was used.
+- Otherwise, or when unsure, apply no profile and return null. Never apply a
+  profile to a company that merely resembles one below.
+- During `ask`, follow the profile the plan recorded, or none.
+
+## Company business context
+
+`company_business_context`, when present, is the candidate's own research report
+on the company: what it does and where it stands, with each finding marked
+`fact`, `inference`, or `unknown` and a confidence. It is not evidence about how
+the company interviews; interview style comes only from the profiles below.
+
+- Use it for motivation and business-understanding questions, for example why
+  this company or how the candidate reads one of its named businesses.
+- Quote only what a `fact` states. Put an `inference` to the candidate as an
+  open premise ("有公开信息显示……，你怎么看"), never as settled truth, and do
+  not build a question on an `unknown`.
+- When `outdated` is true, avoid time-sensitive details or say they may have
+  changed.
+- It never outranks the JD, and it cannot make a business line part of this
+  role unless the JD says so.
+- Without it, ask motivation questions without asserting anything about the
+  company's business.
 
 ## How company context may change practice
 

@@ -163,8 +163,7 @@ class TestMockInterviewTurn:
                 ),
             )
         )
-        assert rendered.index("上一题反馈") < rendered.index("模拟面试题")
-        assert "再讲一个线上故障。" in rendered
+        assert rendered.index("上一题反馈") < rendered.index("再讲一个线上故障。")
 
     def test_a_waiting_run_uses_restricted_markdown_for_model_text(self) -> None:
         rendered = render_mock_interview_turn(
@@ -206,7 +205,7 @@ class TestMockInterviewTurn:
             )
         )
         assert "上一题反馈" not in rendered
-        assert rendered == "模拟面试题：\n先自我介绍。"
+        assert rendered == "先自我介绍。"
 
     def test_an_in_flight_run_falls_back_to_the_graph_s_own_status(self) -> None:
         assert render_mock_interview_turn(_graph_result()) == (

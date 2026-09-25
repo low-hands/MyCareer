@@ -400,11 +400,25 @@ _FAST_PROFILE_PATTERNS: tuple[tuple[ToolProfile, re.Pattern[str]], ...] = (
 )
 
 
+# A request that names one capability outright. Other domain words in the same
+# message describe its circumstances ("不针对具体投递", "用我的简历") rather
+# than asking for a second domain, so these win over topical matches.
+_NAMED_CAPABILITY_PATTERNS: tuple[tuple[ToolProfile, re.Pattern[str]], ...] = (
+    ("interview", re.compile(r"模拟面试|mock\s+interview", re.IGNORECASE)),
+)
+
+
 def keyword_tool_profile(message: str) -> ToolProfile | None:
     """Route only unmistakable domain language; actions still need a decision."""
     normalized = " ".join(message.split())
     if not normalized:
         return None
+    named = {
+        profile for profile, pattern in _NAMED_CAPABILITY_PATTERNS
+        if pattern.search(normalized)
+    }
+    if len(named) == 1:
+        return next(iter(named))
     matches = [
         profile for profile, pattern in _FAST_PROFILE_PATTERNS
         if pattern.search(normalized)
@@ -569,6 +583,8 @@ class MainAgentRuntime:
             "career_fact_proposed",
             "mock_interview_answer_required",
             "mock_interview_running",
+            "mock_interview_resume_choice_required",
+            "mock_interview_job_choice_required",
             "resume_analysis_ready",
             "resume_final_review_blocked",
             "resume_tailoring_review_blocked",
@@ -2137,6 +2153,36 @@ class MainAgentRuntime:
                         InteractionOption(value="cancel", label="暂不执行"),
                     ),
                 )
+            if tool_result.state == "mock_interview_resume_choice_required":
+                return MainAgentRuntime._mock_interview_resume_choice_event(
+                    interaction_id(*stable_parts, prompt), prompt, task
+                )
+            if tool_result.state == "mock_interview_job_choice_required":
+                company = str(tool_result.payload.get("company_name") or "这家公司")
+                return InteractionRequiredEvent(
+                    interaction_id=interaction_id(*stable_parts, prompt),
+                    kind="single_selection",
+                    prompt=prompt,
+                    options=(
+                        *(
+                            InteractionOption(
+                                selection_index=index,
+                                label=f"{item.company_name} · {item.title}",
+                                description="，".join(
+                                    value for value in (item.city, item.salary) if value
+                                )
+                                or None,
+                            )
+                            for index, item in enumerate(task.saved_job_candidates, start=1)
+                        ),
+                        InteractionOption(
+                            value="without_job",
+                            label=f"不针对具体岗位，只按「{company}」",
+                            description="没有 JD，按目标岗位出题；常见大厂会参考其面试风格",
+                        ),
+                    ),
+                    allow_free_text=True,
+                )
             if tool_result.state == "email_events_pending":
                 return InteractionRequiredEvent(
                     interaction_id=interaction_id(*stable_parts),
@@ -2469,6 +2515,40 @@ class MainAgentRuntime:
             assistant_message=message,
             tool_result=result,
             tool_results=(result,),
+        )
+
+    @staticmethod
+    def _mock_interview_resume_choice_event(
+        event_id: str, prompt: str, task: ConversationTaskState
+    ) -> InteractionRequiredEvent:
+        """Every live resume, "no resume", and an upload on the card itself.
+
+        The resumes are the task's candidates, so a click answers with the same
+        number the next start call selects by. Uploading imports into the
+        library (an identical file reuses its version) and answers with the
+        version attached, which starts the run on it.
+        """
+        return InteractionRequiredEvent(
+            interaction_id=event_id,
+            kind="single_selection",
+            prompt=prompt,
+            options=(
+                *(
+                    InteractionOption(
+                        selection_index=index,
+                        label=f"《{item.resume_name or '简历'}》v{item.version_number}",
+                        description=item.document_format.upper(),
+                    )
+                    for index, item in enumerate(task.resume_version_candidates, start=1)
+                ),
+                InteractionOption(
+                    value="without_resume",
+                    label="不用简历",
+                    description="只问通用题和专业基础",
+                ),
+            ),
+            allow_free_text=True,
+            accepts_upload="resume",
         )
 
     @staticmethod
@@ -2951,7 +3031,8 @@ class MainAgentRuntime:
         "mock_interview_plan": "正在规划模拟面试",
         "mock_interview_input_route": "正在理解你的回答",
         "mock_interview_ask": "正在生成面试问题",
-        "mock_interview_evaluate": "正在点评你的回答",
+        "mock_interview_follow_up": "正在判断是否需要追问",
+        "mock_interview_evaluate": "正在逐题评估你的回答",
         "mock_interview_report": "正在整理面试报告",
         "email_tracking_assess": "正在识别招聘邮件",
         "email_sync.fetch": "正在读取邮箱",
@@ -4236,7 +4317,12 @@ class MainAgentRuntime:
                 "restart_mock_interview",
                 "handle_mock_interview_input",
                 "retry_mock_interview",
+            } and result.state not in {
+                "mock_interview_resume_choice_required",
+                "mock_interview_job_choice_required",
             }:
+                # The resume choice starts nothing; its offered list is ordinary
+                # task state, applied by the atomic reducer below.
                 updated = self._update_mock_interview_task(context, result)
             else:
                 updated = self._update_atomic_task(

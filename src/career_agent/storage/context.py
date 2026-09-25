@@ -975,20 +975,34 @@ class CareerContextStore:
                                 WHERE hidden.user_id = messages.user_id
                                   AND hidden.conversation_id = messages.conversation_id
                                   AND hidden.sequence = messages.sequence
-                              ))
+                              )),
+                       -- A workflow's opening request is held, not written,
+                       -- until the run ends; it still names the conversation.
+                       (SELECT json_extract(task.payload, '$.workflow_entry_message')
+                        FROM conversation_task_state AS task
+                        WHERE task.user_id = s.user_id
+                          AND task.conversation_id = s.session_id)
                 FROM sessions AS s
                 WHERE s.user_id = ?
-                  AND EXISTS (
-                      SELECT 1 FROM conversation_messages AS present
-                      WHERE present.user_id = s.user_id
-                        AND present.conversation_id = s.session_id
-                        AND NOT EXISTS (
-                              SELECT 1
-                              FROM memory_deletion_message_suppressions AS hidden
-                              WHERE hidden.user_id = present.user_id
-                                AND hidden.conversation_id = present.conversation_id
-                                AND hidden.sequence = present.sequence
-                            )
+                  AND (
+                      EXISTS (
+                          SELECT 1 FROM conversation_messages AS present
+                          WHERE present.user_id = s.user_id
+                            AND present.conversation_id = s.session_id
+                            AND NOT EXISTS (
+                                  SELECT 1
+                                  FROM memory_deletion_message_suppressions AS hidden
+                                  WHERE hidden.user_id = present.user_id
+                                    AND hidden.conversation_id = present.conversation_id
+                                    AND hidden.sequence = present.sequence
+                                )
+                      )
+                      OR EXISTS (
+                          SELECT 1 FROM conversation_task_state AS task
+                          WHERE task.user_id = s.user_id
+                            AND task.conversation_id = s.session_id
+                            AND json_extract(task.payload, '$.workflow_entry_message') IS NOT NULL
+                      )
                   )
                 ORDER BY s.last_active_at DESC
                 LIMIT ?
@@ -1007,8 +1021,9 @@ class CareerContextStore:
                 if row[5]
                 else None
             )
-            title = first.content.strip() if first else "新对话"
-            preview = last.content.strip() if last else "尚未发送消息"
+            held = row[7].strip() if isinstance(row[7], str) and row[7].strip() else None
+            title = first.content.strip() if first else held or "新对话"
+            preview = last.content.strip() if last else held or "尚未发送消息"
             conversations.append(
                 StoredConversationOverview(
                     conversation_id=row[0],

@@ -185,6 +185,23 @@ class JobResearchService:
         )
         return self._execute(run=running, request=request, resume=True)
 
+    def find_report(self, *, user_id: str, report_id: str) -> JobResearchReport | None:
+        return self._store.get_report(user_id=user_id, report_id=report_id)
+
+    def latest_company_report(
+        self, *, user_id: str, company_name: str
+    ) -> JobResearchReport | None:
+        """This company's newest report, if the user ever researched it.
+
+        Matched by the same folded key research is stored under, so "字节"
+        does not find a report about "字节跳动"; see ``company_key``.
+        """
+        return self._store.latest_company_report(
+            user_id=user_id,
+            company_key=company_key(company_name),
+            outdated_before=datetime.now(timezone.utc) - self._freshness,
+        )
+
     def get_report(
         self,
         *,

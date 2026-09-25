@@ -145,9 +145,14 @@ class InteractionRequiredEvent(StreamContract):
     questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
     allow_free_text: bool = False
     scope: Literal["resume_analysis_confirmation", "capability_confirmation", "questionnaire"] | None = None
+    # A selection that can also be answered by uploading a file, sent back as
+    # an attached resource on the reply rather than as a chosen option.
+    accepts_upload: Literal["resume"] | None = None
 
     @model_validator(mode="after")
     def _validate_options(self) -> "InteractionRequiredEvent":
+        if self.accepts_upload is not None and self.kind != "single_selection":
+            raise ValueError("only a single selection can also accept an upload")
         requires_options = self.kind in {
             "single_selection",
             "multiple_selection",

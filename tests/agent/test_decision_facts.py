@@ -247,10 +247,11 @@ def test_no_capability_hands_the_model_an_enum_where_prose_was_meant() -> None:
     """
     offenders: list[str] = []
     for source in Path("src/career_agent").rglob("*.py"):
-        # The mock interview worker's own ``next_action`` is a different field:
-        # a closed three-value enum for the graph, paired with a prose
-        # ``next_action_reason``. The CLI's is operator-facing English prose.
-        if "mock_interviews" in str(source) or source.name == "cli.py":
+        # The mock interview's own ``next_action`` is a different field: a
+        # closed three-value enum the graph routes on (the worker and graph
+        # build it too), paired with a prose ``next_action_reason``. The CLI's
+        # is operator-facing English prose.
+        if "mock_interview" in str(source) or source.name == "cli.py":
             continue
         for node in ast.walk(ast.parse(source.read_text())):
             if not isinstance(node, ast.Call):

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
+import pytest
 
 from career_agent.domain.interviews import (
     InterviewRetroQuestion,
@@ -7,8 +8,10 @@ from career_agent.domain.interviews import (
     InterviewRound,
 )
 from career_agent.services.interview_context import InterviewPreparationContextFactory
+from career_agent.services.interview_context import InterviewContextInputNotFoundError
 from career_agent.services.interviews import InterviewDetail
 from career_agent.storage.resumes import StoredResumeDocument
+from career_agent.storage.resumes import ResumeStore
 
 
 NOW = datetime(2026, 8, 29, tzinfo=timezone.utc)
@@ -134,3 +137,28 @@ def test_context_uses_latest_prior_retro_without_raw_source_notes() -> None:
     assert sources.context.prior_retros[0].summary == "Latest version"
     assert "secret raw recollection" not in sources.context.model_dump_json()
     assert "Later round" not in sources.context.model_dump_json()
+
+
+def test_free_context_reads_the_pinned_resume_version(tmp_path) -> None:
+    store = ResumeStore(tmp_path / "resumes.sqlite3")
+    role = store.create_target_role(user_id="u1", title="RAG Engineer", priority=1)
+    resume, first = store.import_document(
+        user_id="u1", content=b"old", document_format="markdown",
+        name="resume", target_role_id=role.id,
+    )
+    factory = InterviewPreparationContextFactory(
+        interviews=Interviews(), applications=Applications(), resumes=store,
+        career_history=CareerHistory(),
+    )
+    # A newer version lands after the session pinned the first one.
+    store.import_document(
+        user_id="u1", content=b"new", document_format="markdown",
+        resume_id=resume.id,
+    )
+    pinned = factory.build_free(user_id="u1", resume_version_id=first.id)
+    assert pinned.document is not None
+    assert pinned.document.resume_version_id == first.id
+    assert pinned.document.raw_bytes == b"old"
+    store.delete_resume(user_id="u1", resume_id=resume.id)
+    with pytest.raises(InterviewContextInputNotFoundError):
+        factory.build_free(user_id="u1", resume_version_id=first.id)

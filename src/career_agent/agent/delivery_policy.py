@@ -111,6 +111,8 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "email_events_pending": _WAITING,
     "mock_interview_answer_required": _WAITING,
     "mock_interview_running": _WAITING,
+    "mock_interview_resume_choice_required": _WAITING,
+    "mock_interview_job_choice_required": _WAITING,
     "memory_amendment_proposed": _WAITING,
     "memory_tombstone_proposed": _WAITING,
     "free_text_preference_confirmation_proposed": _WAITING,

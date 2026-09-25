@@ -2,15 +2,15 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "db80a01cfdf7670f3e83a7abe13d1107f1254955ec3ad27f60166105530f5e35",
+  "prompt_fingerprint": "73638db1747d6d9cf014214b6a6fb1cee24f2b0304a6bab07210a42c4793e27b",
   "context_shape_fingerprint": "417fc60a2a643dc17bb81f8373f826342ebaaced0a161a6bbcee2672efc7bc06",
-  "recorded_at": "2026-09-24T07:48:17.646887+00:00",
+  "recorded_at": "2026-09-25T08:17:47.294702+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "route_to_capability",
+        "name": "get_interview",
         "arguments": {
-          "domain": "interview"
+          "selection_index": 1
         }
       }
     }
@@ -18,13 +18,13 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:48:17.646887+00:00",
+      "recorded_at": "2026-09-25T08:17:47.294702+00:00",
       "steps": [
         {
           "tool_call": {
-            "name": "route_to_capability",
+            "name": "get_interview",
             "arguments": {
-              "domain": "interview"
+              "selection_index": 1
             }
           }
         }

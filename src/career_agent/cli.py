@@ -292,6 +292,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         ),
         sources=StoredMockInterviewSourceProvider(
             context_factory=interview_context_factory,
+            jobs=job_repository,
+            research=job_research_store,
         ),
         checkpointer=mock_checkpoint_owner.saver,
     )

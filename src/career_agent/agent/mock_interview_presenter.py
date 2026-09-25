@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 import re
+from typing import Any
 
 from career_agent.agent.mock_interview_contracts import (
     MockInterviewExchange,
@@ -9,7 +11,13 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewResultView,
 )
 from career_agent.agent.summary_text import condense
-from career_agent.domain.mock_interviews.models import MockInterviewReport, MockInterviewTurn
+from career_agent.agent.mock_interview_company_styles import company_style_by_heading
+from career_agent.domain.mock_interviews.models import (
+    MockInterviewPlan,
+    MockInterviewReport,
+    MockInterviewSession,
+    MockInterviewTurn,
+)
 
 
 _MARKDOWN_LINK_BRACKET = re.compile(r"([\[\]])")
@@ -56,12 +64,17 @@ def mock_interview_question_view(
     )
 
 
-def render_mock_interview_report(report: MockInterviewReport) -> str:
+def render_mock_interview_report(
+    report: MockInterviewReport, plan=None, *, lead: bool = True
+) -> str:
     """Render a finished mock interview for the screen.
 
     Kept out of the tool observation's ``message`` so the durable conversation
     row can stay one line: the report itself is an entity the UI reads back
-    through the message's resource reference.
+    through the message's resource reference. Section titles are real
+    headings, so the report card styles them like every other report; the
+    "模拟面试完成。" lead is for the chat reply and is left off inside the card
+    (``lead=False``), whose own header already names the report.
     """
     sections = (
         ("总结", (report.summary,)),
@@ -70,8 +83,8 @@ def render_mock_interview_report(report: MockInterviewReport) -> str:
         ("练习建议", report.practice_actions),
     )
     blocks = [
-        title
-        + "\n"
+        f"## {title}"
+        + "\n\n"
         + (
             "\n".join(f"- {_escape_markdown_text(item)}" for item in items)
             or "- 暂无"
@@ -84,19 +97,22 @@ def render_mock_interview_report(report: MockInterviewReport) -> str:
         "weak": "需要加强",
         "insufficient_evidence": "信息不足",
     }
-    question_sections = "\n\n".join(
-        (
-            f"### 第 {item.plan_item_number} 题 · "
-            f"{rating_labels.get(item.final_rating, item.final_rating)}\n\n"
-            f"**问题**：{_escape_markdown_text(item.question)}\n\n"
-            f"{_escape_markdown_text(item.summary)}\n\n"
-            f"追问次数：{item.follow_up_count}"
-        )
-        for item in report.question_results
-    )
+    question_type_labels = {
+        "introduction": "自我介绍", "knowledge": "基础知识", "problem_solving": "问题解决",
+        "system_design": "系统设计", "project_deep_dive": "项目深挖", "role_scenario": "岗位场景",
+        "behavioral": "行为", "motivation": "动机", "career_planning": "职业规划",
+    }
+    def render_question(item):
+        plan_item = next((candidate for candidate in (plan.items if plan is not None else ()) if candidate.sequence_number == item.plan_item_number), None)
+        question_type = f" · {question_type_labels.get(plan_item.question_type, plan_item.question_type)}" if plan_item is not None else ""
+        evidence = f"本题依据：{_escape_markdown_text('；'.join(plan_item.resume_quotes))}\n\n" if plan_item is not None and plan_item.resume_quotes else ""
+        return (f"### 第 {item.plan_item_number} 题{question_type} · {rating_labels.get(item.final_rating, item.final_rating)}\n\n"
+                f"**问题**：{_escape_markdown_text(item.question)}\n\n"
+                f"{_escape_markdown_text(item.summary)}\n\n{evidence}追问次数：{item.follow_up_count}")
+    question_sections = "\n\n".join(render_question(item) for item in report.question_results)
     if question_sections:
         blocks.append(f"## 每题反馈\n\n{question_sections}")
-    return "\n\n".join(("模拟面试完成。", *blocks))
+    return "\n\n".join((("模拟面试完成。",) if lead else ()) + tuple(blocks))
 
 
 def render_mock_interview_turn(result: MockInterviewGraphResult) -> str:
@@ -130,9 +146,84 @@ def render_mock_interview_turn(result: MockInterviewGraphResult) -> str:
                 "下一步原因："
                 f"{_escape_markdown_text(result.evaluation.next_action_reason)}"
             )
-        blocks.append(f"模拟面试题：\n{_escape_markdown_text(result.question)}")
+        if result.resume_basis is not None:
+            blocks.append(_escape_markdown_text(result.resume_basis))
+        # The bare question, as the transcript shows it after a reload.
+        blocks.append(_escape_markdown_text(result.question))
         return "\n\n".join(blocks)
     return result.message
+
+
+def practice_basis_line(
+    *,
+    resume: tuple[str, int] | None,
+    job: str | None = None,
+    company: str | None = None,
+    research_at: datetime | None = None,
+    style: str | None = None,
+    style_inferred: bool = False,
+) -> str:
+    """Say up front what the questions come from, and what they do not.
+
+    ``resume`` is (name, version number); ``job`` is "公司 · 岗位" for a chosen
+    saved job, ``company`` the employer named without one.
+    """
+    basis = [f"简历《{resume[0]}》v{resume[1]}"] if resume is not None else []
+    if job is not None:
+        basis.append(f"岗位《{job}》的 JD")
+    elif company is not None:
+        basis.append(f"公司「{company}」（没有 JD）")
+    notes = []
+    if style is not None:
+        notes.append(f"面试风格参考{style}" + ("（由公司名推断）" if style_inferred else ""))
+    if research_at is not None:
+        notes.append(f"业务背景参考你 {research_at:%Y-%m-%d} 的公司研究")
+    if not basis:
+        return "本场不参考简历，只考察通用题和专业基础。"
+    joined = "、".join(basis)
+    # A space between a trailing Latin token ("v2", "JD") and the Chinese verb.
+    gap = " " if joined[-1].isascii() and joined[-1].isalnum() else ""
+    line = ("本场不参考简历，" if resume is None else "本场") + f"基于{joined}{gap}出题"
+    return line + "".join(f"；{note}" for note in notes) + "。"
+
+
+def practice_basis(
+    session: MockInterviewSession,
+    *,
+    resumes: Any,
+    jobs: Any = None,
+    research_at: datetime | None = None,
+    plan: MockInterviewPlan | None = None,
+) -> str:
+    """Resolve a session's pinned resume and job for the line.
+
+    Every id is read as pinned at start, so a reload describes the run exactly
+    as it was based, even after a newer JD version. ``research_at`` is when the
+    pinned company research report was written, looked up by the caller.
+    """
+    located = (
+        resumes.get_version(user_id=session.user_id, resume_version_id=session.resume_version_id)
+        if session.resume_version_id is not None and resumes is not None
+        else None
+    )
+    record = (
+        jobs.get_job(user_id=session.user_id, job_posting_id=session.job_posting_id)
+        if session.job_posting_id is not None and jobs is not None
+        else None
+    )
+    style = company_style_by_heading(plan.company_style_profile if plan is not None else None)
+    return practice_basis_line(
+        resume=(located[0].name, located[1].version_number) if located is not None else None,
+        job=(
+            f"{record.posting.company_name} · {record.posting.title}"
+            if record is not None
+            else None
+        ),
+        company=session.target_company,
+        research_at=research_at,
+        style=style.display_name if style is not None else None,
+        style_inferred=plan.company_style_inferred if plan is not None else False,
+    )
 
 
 def summarize_mock_interview_report(report: MockInterviewReport) -> str:

@@ -129,9 +129,9 @@ PRECONDITIONS: dict[str, Precondition] = {
     # Job research retry.
     "retry_job_research": lambda t: bool(t.active_job_research_run_id),
     # Mock interview.
-    "start_mock_interview": lambda t: bool(
-        _reachable_via_application(t) or _reachable_via_interview(t)
-    ),
+    # Free practice is always available; an application/interview only changes
+    # where the source materials come from.
+    "start_mock_interview": lambda t: True,
     "restart_mock_interview": lambda t: (
         t.active_workflow == "mock_interview"
         and t.phase
@@ -198,7 +198,7 @@ REQUIREMENTS: dict[str, str] = {
     "get_calendar_proposal": "先用 prepare_interview_calendar_sync 生成日历预览",
     "execute_calendar_proposal": "先用 prepare_interview_calendar_sync 生成日历预览",
     "retry_job_research": "只能重试当前会话里已发起的公司调研",
-    "start_mock_interview": "先选定一条投递记录或一轮面试",
+    "start_mock_interview": "可直接自由练习，也可选择一条投递或面试",
     "restart_mock_interview": "只有模拟面试检查点丢失或不兼容时才能重启",
     "confirm_free_text_preference": _NEEDS_PROPOSAL,
     "confirm_memory_amendment": _NEEDS_PROPOSAL,

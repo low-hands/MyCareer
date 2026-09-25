@@ -362,3 +362,13 @@ def test_report_must_be_grounded_in_evaluated_answers(tmp_path) -> None:
 
     fresh = create_session(store)
     assert fresh.status == "created"
+
+
+def test_free_practice_has_no_application_and_is_listed_separately(tmp_path) -> None:
+    store = SQLiteMockInterviewStore(tmp_path / "mock-interviews.sqlite3")
+    free = store.create_session(
+        user_id="u1", interview_type="behavioral", target_role="AI 产品经理"
+    )
+    assert free.application_id is None
+    assert free.target_role == "AI 产品经理"
+    assert store.list_sessions(user_id="u1", free_only=True) == (free,)
