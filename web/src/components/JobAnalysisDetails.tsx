@@ -107,11 +107,14 @@ export function JobAnalysisDetails({ analysis, version, stale }: JobAnalysisDeta
       ) : null}
       <button
         type="button"
-        className="link"
+        className="jd-requirements-toggle"
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
       >
         {expanded ? "收起分层要求" : `展开分层要求（${analysis.requirements.length} 条）`}
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" className={expanded ? "is-open" : undefined}>
+          <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {expanded ? (
         <div className="jd-analysis-body">

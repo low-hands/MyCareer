@@ -6,6 +6,7 @@ import {
 } from "../api/client";
 import { attachmentFromSavedJob, attachmentFromVersion, type ChatAttachment } from "../chat/attachments";
 import { ReportCard } from "./ReportCard";
+import { isImeKeyEvent } from "../chat/keyboard";
 
 const FIT_LABELS: Record<string, string> = {
   strong: "强匹配", moderate: "中等匹配", weak: "弱匹配", insufficient_evidence: "证据不足",
@@ -43,7 +44,7 @@ export function JobMatchesPanel({
         <button type="button" className="link" onClick={() => setReload((value) => value + 1)}>刷新匹配历史</button>
       </div>
       {error ? <p role="alert">{error}</p> : !history ? <p role="status">正在读取匹配历史…</p> : null}
-      {history?.total === 0 ? <p>尚未匹配。请选择一个简历版本发起匹配。</p> : null}
+      {history?.total === 0 ? <p className="match-history-empty">尚未匹配。请选择一个简历版本发起匹配。</p> : null}
       {history?.items.map((match) => (
         <article key={match.report_id} className="match-history-item">
           <div className="match-result-heading">
@@ -142,7 +143,7 @@ function MatchResumePicker({
       <div className="resume-version-picker" ref={pickerRef} onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setPickerOpen(false);
       }} onKeyDown={(event) => {
-        if (event.nativeEvent.isComposing) return;
+        if (isImeKeyEvent(event)) return;
         if (event.target === searchRef.current && ["Home", "End"].includes(event.key)) return;
         if (event.target === searchRef.current && event.key === "Enter") { event.preventDefault(); return; }
         if (event.key === "Escape") { event.preventDefault(); setPickerOpen(false); triggerRef.current?.focus(); }

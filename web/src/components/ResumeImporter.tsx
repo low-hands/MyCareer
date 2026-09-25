@@ -25,12 +25,15 @@ export function ResumeImporter({
   initialFile = null,
   onCancel,
   submitLabel = "导入简历",
+  initialTargetRoleId,
 }: {
   apiBaseUrl: string;
   onImported: (result: ResumeImportResult) => void;
   initialFile?: File | null;
   onCancel?: () => void;
   submitLabel?: string;
+  /** Preselect this target role for a new resume, as "import into this role" does. */
+  initialTargetRoleId?: string;
 }) {
   const [resumes, setResumes] = useState<ResumeView[]>([]);
   const [roles, setRoles] = useState<TargetRoleView[]>([]);
@@ -61,7 +64,11 @@ export function ResumeImporter({
     ]).then(([nextResumes, nextRoles]) => {
       setResumes(nextResumes);
       setRoles(nextRoles);
-      setRoleId(nextRoles.length > 0 ? nextRoles[0].id : "__new__");
+      setRoleId(
+        initialTargetRoleId && nextRoles.some((role) => role.id === initialTargetRoleId)
+          ? initialTargetRoleId
+          : nextRoles.length > 0 ? nextRoles[0].id : "__new__",
+      );
     }).catch((cause: unknown) => {
       if (!request.signal.aborted) {
         setError(cause instanceof Error ? cause.message : "读取简历分类失败。");

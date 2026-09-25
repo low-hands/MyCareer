@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { ApiError, fetchReport, type ReportView } from "../api/client";
+import { ApiError, fetchReport, resumeDocumentUrl, type ReportView } from "../api/client";
 import type { ReportResourceKind } from "../chat/events";
 import type { MessageResource } from "../chat/reducer";
 import { AppIcon } from "./AppIcon";
@@ -112,6 +112,7 @@ export function ReportCard({ resource, apiBaseUrl }: ReportCardProps) {
             <div role="status">内容已过期，无法继续查看。</div>
           ) : report ? (
             <>
+              {report.resume_name ? <div className="report-resume-reference">使用简历：{report.resume_name} · 第 {report.resume_version_number} 版{report.resume_deleted ? "（已删除）" : ""}{report.resume_id && report.resume_version_id ? <> · <a href={resumeDocumentUrl(report.resume_id, report.resume_version_id, { apiBaseUrl })} target="_blank" rel="noreferrer">打开原版</a></> : null}</div> : null}
               {report.resume_job_match ? <div className={`match-report-hero match-report-${report.resume_job_match.overall_fit}`}>
                 <div><span className="match-report-eyebrow">匹配结论</span><strong><span aria-hidden="true">{FIT_EMOJI[report.resume_job_match.overall_fit] ?? "📌"}</span> {FIT_SUMMARY[report.resume_job_match.overall_fit] ?? "待评估"}</strong></div>
               </div> : null}

@@ -37,6 +37,11 @@ export interface ApplicationView {
   interview_round_number?: number | null;
   interview_round_label?: string | null;
   interview_status?: string | null;
+  resume_name?: string | null;
+  resume_version_number?: number | null;
+  resume_deleted?: boolean;
+  resume_id?: string | null;
+  resume_version_id?: string | null;
 }
 
 export interface MockInterviewSessionView {
@@ -52,7 +57,27 @@ export interface MockInterviewSessionView {
   created_at: string;
   completed_at: string | null;
   updated_at: string;
+  application_id?: string | null;
+  title?: string | null;
+  company_name?: string | null;
+  resume_name?: string | null;
+  resume_version_number?: number | null;
+  resume_deleted?: boolean;
+  resume_id?: string | null;
+  resume_version_id?: string | null;
+  max_follow_ups_per_question?: number;
+  target_role?: string | null;
+  target_company?: string | null;
+  resume_document_format?: string | null;
+  resume_byte_size?: number | null;
+  job_posting_id?: string | null;
+  jd_snapshot_id?: string | null;
+  jd_version?: number | null;
+  job_title?: string | null;
+  job_company_name?: string | null;
 }
+
+export interface MockInterviewsResponse { sessions: MockInterviewSessionView[]; }
 
 export interface ApplicationMockInterviews {
   application_id: string;
@@ -170,6 +195,11 @@ export interface ReportView {
   subtitle: string;
   body: string;
   created_at: string;
+  resume_name?: string | null;
+  resume_version_number?: number | null;
+  resume_deleted?: boolean;
+  resume_id?: string | null;
+  resume_version_id?: string | null;
 }
 
 export interface ResumeJobMatchView {
@@ -243,6 +273,7 @@ export interface ResumeView {
   id: string;
   name: string;
   target_role: string;
+  target_role_id: string;
   status: string;
   latest_version_number: number;
   latest_version_id: string;
@@ -268,6 +299,8 @@ export interface ResumeImportResult {
   version_number: number;
   document_format: string;
   byte_size: number;
+  /** The same file was already in the library; this is that version. */
+  already_in_library?: boolean;
 }
 
 export interface EmailAccountView {
@@ -406,6 +439,9 @@ export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {
 export function fetchApplications(options: ReadOptions): Promise<ApplicationView[]> {
   return getJson<ApplicationView[]>("/v1/applications", {}, options);
 }
+export function fetchMockInterviews(options: ReadOptions): Promise<MockInterviewsResponse> {
+  return getJson<MockInterviewsResponse>("/v1/mock-interviews", {}, options);
+}
 export async function clearApplications(options: ReadOptions): Promise<void> {
   const response = await fetch(`${options.apiBaseUrl}/v1/applications`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
   if (!response.ok) throw new ApiError(`清空投递记录失败：${response.status}`);
@@ -413,6 +449,17 @@ export async function clearApplications(options: ReadOptions): Promise<void> {
 export async function deleteResume(resumeId: string, options: ReadOptions): Promise<void> {
   const response = await fetch(`${options.apiBaseUrl}/v1/resumes/${encodeURIComponent(resumeId)}`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
   if (!response.ok) throw new ApiError(`删除简历失败：${response.status}`);
+}
+
+/** File a whole resume (every version) under another target role. */
+export async function moveResume(resumeId: string, targetRoleId: string, options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/resumes/${encodeURIComponent(resumeId)}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ target_role_id: targetRoleId }),
+    signal: options.signal,
+  });
+  if (!response.ok) throw new ApiError(`移动简历失败：${response.status}`);
 }
 
 export function fetchApplicationMockInterviews(
@@ -429,7 +476,7 @@ export function fetchApplicationMockInterviews(
 export async function createApplication(
   values: {
     jobPostingId: string;
-    resumeVersionId: string;
+    resumeVersionId?: string;
     submittedAt?: string;
     note?: string;
   },
@@ -447,6 +494,12 @@ export async function createApplication(
     signal: options.signal,
   });
   if (!response.ok) throw new ApiError(`记录投递失败：${response.status}`);
+  return (await response.json()) as ApplicationView;
+}
+
+export async function updateApplicationResumeVersion(applicationId: string, resumeVersionId: string | null, options: ReadOptions): Promise<ApplicationView> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/applications/${encodeURIComponent(applicationId)}/resume-version`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ resume_version_id: resumeVersionId }), signal: options.signal });
+  if (!response.ok) throw new ApiError(`更新投递简历版本失败：${response.status}`);
   return (await response.json()) as ApplicationView;
 }
 

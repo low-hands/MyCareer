@@ -12,9 +12,13 @@ import {
   createApplication,
   clearApplications,
   deleteResume,
+  fetchTargetRoles,
+  moveResume,
+  type TargetRoleView,
   deleteCompanyResearch,
   fetchApplications,
   fetchApplicationMockInterviews,
+  fetchMockInterviews,
   fetchCalendar,
   connectQQ,
   disconnectIntegration,
@@ -30,6 +34,7 @@ import {
   setJobPursuit,
   type SavedJobDetail,
   resumeDocumentUrl,
+  updateApplicationResumeVersion,
   type ResumeVersionView,
 } from "../api/client";
 import {
@@ -45,7 +50,10 @@ import { JobMatchesPanel } from "../components/JobMatchesPanel";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 import { ReportCard } from "../components/ReportCard";
 import { ResumeImporter } from "../components/ResumeImporter";
+import { DropdownMenu } from "../components/DropdownMenu";
 import { calendarDays, eventsByDay, monthKey } from "../calendar/month";
+import { practiceRepeat } from "../chat/practiceRepeat";
+import { groupResumesByRole } from "./resumeGroups";
 
 type PageProps = {
   apiBaseUrl: string;
@@ -58,12 +66,24 @@ type PageProps = {
    * chat is open: analysing an exact resume version, or the JD of a saved job
    * with nothing but that JD attached.
    */
-  onStartStandaloneTask?: (
-    prompt: string, resource: ChatAttachment, additionalResources?: ChatAttachment[],
-  ) => void;
+  onStartStandaloneTask?: StartStandaloneTask;
   onOpenConversation?: (conversationId: string) => void;
   onNavigate?: (view: "dashboard" | "applications" | "jobs" | "brief" | "research" | "resumes") => void;
 };
+
+/** Sentinel for "I do not know which resume I sent"; it is sent as null. */
+const UNKNOWN_RESUME = "__unknown_resume__";
+
+function resumeVersionOptions(resumes: ResumeView[]) {
+  return [
+    { value: UNKNOWN_RESUME, label: "不确定用了哪一版", description: "可以之后再补填" },
+    ...resumes.flatMap((resume) => resume.versions.map((version) => ({
+      value: version.id,
+      label: resume.name,
+      description: `第 ${version.version_number} 版`,
+    }))),
+  ];
+}
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: "已投递",
@@ -393,7 +413,7 @@ function ApplicationPracticePanel({
   refreshToken: number;
   onAskAgent: (prompt: string) => void;
   onOpenConversation?: (conversationId: string) => void;
-  onStartStandaloneTask?: (prompt: string, resource: ChatAttachment, additionalResources?: ChatAttachment[]) => void;
+  onStartStandaloneTask?: StartStandaloneTask;
   onClose: () => void;
 }) {
   const load = useCallback(
@@ -449,13 +469,16 @@ function ApplicationPracticePanel({
               </div>
               <p>{session.summary ?? (
                 session.status === "active"
-                  ? "这轮模拟面试仍在原对话中进行。"
+                  ? "这轮模拟面试仍在原对话中进行。每次回答先判断是否需要追问，整场结束后再统一评分。"
                   : session.status === "paused"
                     ? "这轮模拟面试已暂停，已有回答会保留，继续后才会生成最终总结。"
                     : session.status === "cancelled"
                       ? "这轮模拟面试已取消，不会生成最终总结。"
                   : "这轮模拟面试尚未生成最终总结。"
               )}</p>
+              {session.status === "completed" && session.report_id ? (
+                <small className="workflow-note">已按题目独立评估（含追问链），再汇总为整场报告。</small>
+              ) : null}
               <small>已完成 {session.question_count} / {session.max_primary_questions} 道主问题</small>
               {session.report_id ? (
                 <ReportCard
@@ -466,15 +489,7 @@ function ApplicationPracticePanel({
                   }}
                 />
               ) : null}
-              {session.status === "completed" ? (
-                <button
-                  type="button"
-                  className="card-agent-action"
-                  onClick={startPractice}
-                >
-                  再练一轮同类型
-                </button>
-              ) : null}
+              <RepeatPracticeButton session={session} onStartStandaloneTask={onStartStandaloneTask} />
               {session.status === "active" || session.status === "paused" ? (
                 session.conversation_id && onOpenConversation ? (
                   <button
@@ -530,8 +545,34 @@ export function ApplicationsPanel(props: PageProps) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [practiceApplication, setPracticeApplication] = useState<ApplicationView | null>(null);
+  const [editingResume, setEditingResume] = useState<string | null>(null);
+  const [editedVersion, setEditedVersion] = useState("");
+  const [savingResume, setSavingResume] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (event: Event) => { const job = (event as CustomEvent<string>).detail; setJobId(job); setResumeVersionId(""); setShowForm(true); };
+    window.addEventListener("open-application-form", open);
+    return () => window.removeEventListener("open-application-form", open);
+  }, []);
+  async function saveResumeVersion(applicationId: string): Promise<void> {
+    setSavingResume(true);
+    setActionError(null);
+    try {
+      await updateApplicationResumeVersion(
+        applicationId,
+        editedVersion === UNKNOWN_RESUME ? null : editedVersion,
+        { apiBaseUrl: props.apiBaseUrl },
+      );
+      setEditingResume(null);
+      state.reload();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "无法更新这次投递使用的简历。");
+    } finally {
+      setSavingResume(false);
+    }
+  }
+
   async function clearAll(): Promise<void> {
     if (!window.confirm("确定清空全部投递记录吗？此操作不可恢复。")) return;
     setClearing(true); setActionError(null);
@@ -544,7 +585,7 @@ export function ApplicationsPanel(props: PageProps) {
     try {
       await createApplication({
         jobPostingId: jobId,
-        resumeVersionId,
+        resumeVersionId: resumeVersionId && resumeVersionId !== UNKNOWN_RESUME ? resumeVersionId : undefined,
         submittedAt: new Date(submittedAt).toISOString(),
         note,
       }, { apiBaseUrl: props.apiBaseUrl });
@@ -568,7 +609,7 @@ export function ApplicationsPanel(props: PageProps) {
         loading={state.loading}
         onRefresh={state.reload}
         actions={<div className="management-actions">
-          <button type="button" className="soft-button" onClick={() => setShowForm((visible) => !visible)}><AppIcon name="applications" size={16} /> 直接记录投递</button>
+          <button type="button" className="soft-button" aria-expanded={showForm} onClick={() => setShowForm((visible) => !visible)}><AppIcon name="applications" size={16} /> {showForm ? "收起记录表单" : "直接记录投递"}</button>
           <button type="button" className="soft-button" onClick={() => props.onAskAgent("帮我记录一次新的岗位投递；请根据我已保存的岗位和简历询问并确认必要信息")}><AppIcon name="sparkles" size={16} /> 让 Agent 记录</button>
           <button type="button" className="danger-action" disabled={clearing || !state.data?.applications.length} onClick={() => void clearAll()}><AppIcon name="trash" size={16} />{clearing ? "正在清空…" : "清空投递记录"}</button>
         </div>}
@@ -576,8 +617,8 @@ export function ApplicationsPanel(props: PageProps) {
       <ErrorBanner message={state.error} />
       <ErrorBanner message={actionError} />
       <ErrorBanner message={formError} />
-      {showForm ? <section className="surface-card application-create-form"><div><SearchableSelect label="已保存岗位" placeholder="请选择岗位" searchPlaceholder="搜索公司或岗位" value={jobId} onChange={setJobId} disabled={saving} options={(state.data?.jobs ?? []).map((job) => ({ value: job.id, label: job.title, description: job.company_name }))} /><SearchableSelect label="使用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={resumeVersionId} onChange={setResumeVersionId} disabled={saving} options={(state.data?.resumes ?? []).map((resume) => ({ value: resume.latest_version_id, label: resume.name, description: `v${resume.latest_version_number}` }))} /><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && (state.data.jobs.length === 0 || state.data.resumes.length === 0) ? <p>记录前需要至少一个已保存岗位和一个简历版本。可以先前往岗位库/简历管理，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
-      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>{item.interview_round_number ? <small className="application-round-label">{item.interview_round_label || `第 ${item.interview_round_number} 场`}</small> : null}</span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
+      {showForm ? <section className="surface-card application-create-form"><div><SearchableSelect label="已保存岗位" placeholder="请选择岗位" searchPlaceholder="搜索公司或岗位" value={jobId} onChange={setJobId} disabled={saving} options={(state.data?.jobs ?? []).map((job) => ({ value: job.id, label: job.title, description: job.company_name }))} /><SearchableSelect label="使用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={resumeVersionId} onChange={setResumeVersionId} disabled={saving} options={resumeVersionOptions(state.data?.resumes ?? [])} /><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && state.data.jobs.length === 0 ? <p>记录前需要至少一个已保存岗位。可以先前往岗位库，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
+      {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><small className="application-resume">{item.resume_name ? <>使用简历：{item.resume_name} · 第 {item.resume_version_number} 版{item.resume_deleted ? "（已删除）" : ""}{item.resume_id && item.resume_version_id ? <> · <a href={resumeDocumentUrl(item.resume_id, item.resume_version_id, { apiBaseUrl: props.apiBaseUrl })} target="_blank" rel="noreferrer noopener">查看</a></> : null}</> : "未记录简历版本"} · <button type="button" className="link-button" onClick={() => { setEditingResume(item.id); setEditedVersion(item.resume_version_id ?? UNKNOWN_RESUME); }}>{item.resume_version_id ? "更换" : "补填"}</button></small>{editingResume === item.id ? <span className="application-resume-editor"><SearchableSelect label="投递时用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={editedVersion} onChange={setEditedVersion} disabled={savingResume} options={resumeVersionOptions(state.data?.resumes ?? [])} /><button type="button" disabled={savingResume || !editedVersion} onClick={() => void saveResumeVersion(item.id)}>{savingResume ? "正在保存…" : "保存"}</button><button type="button" className="link-button" disabled={savingResume} onClick={() => setEditingResume(null)}>取消</button></span> : null}<button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>{item.interview_round_number ? <small className="application-round-label">{item.interview_round_label || `第 ${item.interview_round_number} 场`}</small> : null}</span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="可直接选择已保存岗位和简历记录，也可以让 Agent 通过对话协助。" />}
       {practiceApplication ? (
         <ApplicationPracticePanel
           application={practiceApplication}
@@ -915,7 +956,7 @@ export function JobsPanel(props: PageProps) {
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => props.onAskAgent(`我投了岗位库里的「${item.company_name} · ${item.title}」，帮我记录这次投递`)}
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-application-form", { detail: item.id }))}
                   >
                     我投了
                   </button>
@@ -964,63 +1005,104 @@ export function JobsPanel(props: PageProps) {
 }
 
 export function ResumesPanel(props: PageProps) {
-  const load = useCallback((signal: AbortSignal) => fetchResumes({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]);
-  const state = usePageData<ResumeView[]>(load, props.refreshToken, !props.hidden);
-  const [showImporter, setShowImporter] = useState(false);
+  const load = useCallback(async (signal: AbortSignal) => {
+    const [resumes, roles] = await Promise.all([
+      fetchResumes({ apiBaseUrl: props.apiBaseUrl, signal }),
+      fetchTargetRoles({ apiBaseUrl: props.apiBaseUrl, signal }),
+    ]);
+    return { resumes, roles };
+  }, [props.apiBaseUrl]);
+  const state = usePageData<{ resumes: ResumeView[]; roles: TargetRoleView[] }>(load, props.refreshToken, !props.hidden);
+  // null: closed; "" : import with the importer's own role choice; otherwise into that role.
+  const [importRoleId, setImportRoleId] = useState<string | null>(null);
   const analyzeResume = props.onStartStandaloneTask ?? props.onAskAgent;
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingResume, setDeletingResume] = useState<string | null>(null);
+  const [movingResume, setMovingResume] = useState<string | null>(null);
   async function removeResume(id: string, name: string): Promise<void> {
     if (!window.confirm(`确定删除简历“${name}”及其全部版本吗？`)) return;
     setDeletingResume(id); setActionError(null);
     try { await deleteResume(id, { apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "删除失败"); } finally { setDeletingResume(null); }
   }
+  async function relocateResume(id: string, targetRoleId: string): Promise<void> {
+    setMovingResume(id); setActionError(null);
+    try { await moveResume(id, targetRoleId, { apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "移动失败"); } finally { setMovingResume(null); }
+  }
+  const roles = state.data?.roles ?? [];
+  const groups = state.data ? groupResumesByRole(state.data.resumes, roles) : [];
+  const importer = (roleId: string) => (
+    <ResumeImporter
+      key={roleId || "any"}
+      apiBaseUrl={props.apiBaseUrl}
+      initialTargetRoleId={roleId || undefined}
+      onCancel={() => setImportRoleId(null)}
+      onImported={(result) => {
+        setImportRoleId(null);
+        state.reload();
+        analyzeResume("帮我分析这份简历", attachmentFromImport(result));
+      }}
+    />
+  );
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => setShowImporter((open) => !open)}><AppIcon name="plus" size={16} /> {showImporter ? "收起导入" : "导入简历"}</button></div>} />
+      <PageHeader icon="document" eyebrow="RESUME LIBRARY" title="简历管理" description="按目标岗位管理简历家族、版本和来源" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => setImportRoleId((open) => open === "" ? null : "")}><AppIcon name="plus" size={16} /> {importRoleId === "" ? "收起导入" : "导入简历"}</button></div>} />
       <ErrorBanner message={state.error} />
       <ErrorBanner message={actionError} />
-      {showImporter ? (
-        <ResumeImporter
-          apiBaseUrl={props.apiBaseUrl}
-          onImported={(result) => {
-            setShowImporter(false);
-            state.reload();
-            analyzeResume("帮我分析这份简历", attachmentFromImport(result));
-          }}
-        />
-      ) : null}
-      {state.data && state.data.length > 0 ? (
-        <div className="card-grid">
-          {state.data.map((item) => {
-            const [latest, ...older] = item.versions;
-            return (
-              <article className="resume-card" key={item.id}>
-                <span className="document-preview"><AppIcon name="document" size={28} /><small>{item.document_format.toUpperCase()}</small></span>
-                <div className="card-body">
-                  <span className="card-kicker">{item.target_role}</span>
-                  <h2>{item.name}</h2>
-                  <p>最新 v{item.latest_version_number} · 共 {item.version_count} 个版本</p>
-                  <div className="card-meta"><span>{formatBytes(item.byte_size)}</span><time>{dateLabel(item.updated_at)} 更新</time></div>
-                  {latest ? (
-                    <ResumeVersionRow resumeName={item.name} version={latest} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} latest />
-                  ) : null}
-                  {older.length > 0 ? (
-                    <details className="resume-version-history">
-                      <summary>历史版本（{older.length}）</summary>
-                      {older.map((version) => (
-                        <ResumeVersionRow key={version.id} resumeName={item.name} version={version} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} />
-                      ))}
-                    </details>
-                  ) : null}
-                  <div className="resume-card-actions"><button type="button" className="danger-action" disabled={deletingResume === item.id} onClick={() => void removeResume(item.id, item.name)}><AppIcon name="trash" size={15} />{deletingResume === item.id ? "正在删除…" : "删除简历"}</button></div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : !showImporter ? (
-        <EmptyState icon="document" title="还没有简历" description="先导入 PDF、TXT 或 Markdown；导入后可立即交给 Agent 分析。" action="导入一份简历" onAction={() => setShowImporter(true)} />
+      {importRoleId === "" ? importer("") : null}
+      {state.data && state.data.resumes.length > 0 ? groups.map((group) => (
+        <section className="resume-role-group" key={group.roleId} aria-label={`目标岗位：${group.title}`}>
+          <div className="resume-role-heading">
+            <h2>{group.title}</h2>
+            <span>{group.resumes.length} 份</span>
+            <button type="button" className="link-button" onClick={() => setImportRoleId((open) => open === group.roleId ? null : group.roleId)}>
+              {importRoleId === group.roleId ? "收起导入" : "导入到这个岗位"}
+            </button>
+          </div>
+          {importRoleId === group.roleId ? importer(group.roleId) : null}
+          {group.resumes.length > 0 ? (
+            <div className="card-grid">
+              {group.resumes.map((item) => {
+                const [latest, ...older] = item.versions;
+                const otherRoles = roles.filter((role) => role.id !== item.target_role_id);
+                return (
+                  <article className="resume-card" key={item.id}>
+                    <span className="document-preview"><AppIcon name="document" size={28} /><small>{item.document_format.toUpperCase()}</small></span>
+                    <div className="card-body">
+                      <h2>{item.name}</h2>
+                      <p>最新 v{item.latest_version_number} · 共 {item.version_count} 个版本</p>
+                      <div className="card-meta"><span>{formatBytes(item.byte_size)}</span><time>{dateLabel(item.updated_at)} 更新</time></div>
+                      {latest ? (
+                        <ResumeVersionRow resumeName={item.name} version={latest} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} latest />
+                      ) : null}
+                      {older.length > 0 ? (
+                        <details className="resume-version-history">
+                          <summary>历史版本（{older.length}）</summary>
+                          {older.map((version) => (
+                            <ResumeVersionRow key={version.id} resumeName={item.name} version={version} apiBaseUrl={props.apiBaseUrl} onAnalyze={analyzeResume} />
+                          ))}
+                        </details>
+                      ) : null}
+                      <div className="resume-card-actions">
+                        {otherRoles.length > 0 ? (
+                          <DropdownMenu
+                            label={movingResume === item.id ? "正在移动…" : "移动到…"}
+                            ariaLabel={`把“${item.name}”移动到其他岗位`}
+                            disabled={movingResume === item.id}
+                            items={otherRoles.map((role) => ({ value: role.id, label: role.title }))}
+                            onSelect={(roleId) => void relocateResume(item.id, roleId)}
+                          />
+                        ) : null}
+                        <button type="button" className="danger-action" disabled={deletingResume === item.id} onClick={() => void removeResume(item.id, item.name)}><AppIcon name="trash" size={15} />{deletingResume === item.id ? "正在删除…" : "删除简历"}</button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : importRoleId !== group.roleId ? <p className="resume-role-empty">这个岗位下还没有简历。</p> : null}
+        </section>
+      )) : importRoleId === null ? (
+        <EmptyState icon="document" title="还没有简历" description="先导入 PDF、TXT 或 Markdown；导入后可立即交给 Agent 分析。" action="导入一份简历" onAction={() => setImportRoleId("")} />
       ) : null}
     </section>
   );
@@ -1063,6 +1145,36 @@ function ResumeVersionRow({
   );
 }
 
+type StartStandaloneTask = (
+  prompt: string,
+  resource: ChatAttachment | null,
+  additionalResources?: ChatAttachment[],
+  label?: string,
+) => void;
+
+/** Start the same practice again, in a new conversation, from a finished or cancelled run. */
+function RepeatPracticeButton({
+  session,
+  onStartStandaloneTask,
+}: {
+  session: MockInterviewSessionView;
+  onStartStandaloneTask?: StartStandaloneTask;
+}) {
+  if (!onStartStandaloneTask || (session.status !== "cancelled" && session.status !== "completed")) return null;
+  return (
+    <button
+      type="button"
+      className="card-agent-action"
+      onClick={() => {
+        const repeat = practiceRepeat(session);
+        onStartStandaloneTask(repeat.prompt, repeat.resource, repeat.additionalResources, repeat.label);
+      }}
+    >
+      再来一次
+    </button>
+  );
+}
+
 export function CalendarPanel(props: PageProps) {
   const [activeSection, setActiveSection] = useState<"schedule" | "practice">("schedule");
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -1079,16 +1191,8 @@ export function CalendarPanel(props: PageProps) {
   const state = usePageData<CalendarWorkspace>(load, props.refreshToken, !props.hidden && activeSection === "schedule");
   const loadPractice = useCallback(async (signal: AbortSignal) => {
     const options = { apiBaseUrl: props.apiBaseUrl, signal };
-    const applications = await fetchApplications(options);
-    const histories = await Promise.all(
-      applications.map((application) => fetchApplicationMockInterviews(application.id, options)),
-    );
-    return histories.flatMap((history) => history.sessions.map((session) => ({
-      ...session,
-      application_id: history.application_id,
-      title: history.title,
-      company_name: history.company_name,
-    }))).sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+    const history = await fetchMockInterviews(options);
+    return history.sessions.sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
   }, [props.apiBaseUrl]);
   const practice = usePageData(loadPractice, props.refreshToken, !props.hidden && activeSection === "practice");
   const grouped = eventsByDay(state.data?.events ?? [], timezone);
@@ -1164,8 +1268,9 @@ export function CalendarPanel(props: PageProps) {
         <section className="surface-card interview-practice-hero">
           <div>
             <span className="list-icon tone-blue"><AppIcon name="sparkles" size={21} /></span>
-            <div><small>PRACTICE HISTORY</small><h2>模拟面试复盘</h2><p>这里集中查看每轮练习的回答、逐题反馈和总结。请从投递记录进入具体岗位后开始新一轮练习。</p></div>
+            <div><small>PRACTICE HISTORY</small><h2>模拟面试复盘</h2><p>这里集中查看挂投递岗位的练习和自由练习。你可以从投递记录开始，也可以直接开启一场自由练习。</p></div>
           </div>
+          <button type="button" className="soft-button" onClick={() => props.onAskAgent("开始一场自由模拟面试，先询问我的目标岗位和题目数量")}><AppIcon name="sparkles" size={16} /> 开始自由练习</button>
         </section>
         {practice.loading && !practice.data ? <div className="history-loading"><span className="spinner" /> 正在汇总练习记录…</div> : null}
         {practice.data && practice.data.length > 0 ? (
@@ -1175,19 +1280,21 @@ export function CalendarPanel(props: PageProps) {
               {practice.data.map((session) => (
                 <article className="mock-session-card interview-session-card" key={session.session_id}>
                   <div className="mock-session-heading">
-                    <div><span className="card-kicker">{session.interview_type_label}</span><strong>{session.company_name} · {session.title}</strong></div>
+                    <div><span className="card-kicker">{session.interview_type_label}</span><strong>{[session.company_name, session.title].filter(Boolean).join(" · ")}</strong></div>
                     <span className={`status-pill status-${session.status}`}>{MOCK_INTERVIEW_STATUS_LABELS[session.status] ?? session.status}</span>
                   </div>
-                  <p>{session.summary ?? (session.status === "active" ? "这轮模拟面试仍在原对话中进行。" : session.status === "paused" ? "练习已暂停，可以回到原对话继续。" : session.status === "cancelled" ? "这轮练习已取消。" : "练习尚未生成最终总结。")}</p>
+                  <p>{session.summary ?? (session.status === "active" ? "这轮模拟面试仍在原对话中进行。每次回答先判断是否需要追问，整场结束后再统一评分。" : session.status === "paused" ? "练习已暂停，可以回到原对话继续。" : session.status === "cancelled" ? "这轮练习已取消。" : "练习尚未生成最终总结。")}</p>
+                  {session.status === "completed" && session.report_id ? <small className="workflow-note">已按题目独立评估（含追问链），再汇总为整场报告。</small> : null}
                   <small>{dateLabel(session.completed_at ?? session.created_at)} · 已完成 {session.question_count} / {session.max_primary_questions} 道主问题</small>
+                  <small className="application-resume">{session.resume_name ? <>使用简历：{session.resume_name} · 第 {session.resume_version_number} 版{session.resume_deleted ? "（已删除）" : ""}{session.resume_id && session.resume_version_id ? <> · <a href={resumeDocumentUrl(session.resume_id, session.resume_version_id, { apiBaseUrl: props.apiBaseUrl })} target="_blank" rel="noreferrer noopener">查看</a></> : null}</> : "未使用简历"}</small>
                   {session.report_id ? <ReportCard apiBaseUrl={props.apiBaseUrl} resource={{ kind: "mock_interview_report", resourceId: session.report_id }} /> : null}
-                  {session.status === "completed" ? <small className="workflow-note">如需再练一轮，请到投递记录中选择「{session.company_name} · {session.title}」后发起。</small> : null}
+                  <RepeatPracticeButton session={session} onStartStandaloneTask={props.onStartStandaloneTask} />
                   {(session.status === "active" || session.status === "paused") && session.conversation_id && props.onOpenConversation ? <button type="button" className="card-agent-action" onClick={() => props.onOpenConversation?.(session.conversation_id!)}>回到原对话继续练习</button> : null}
                 </article>
               ))}
             </div>
           </section>
-        ) : practice.data ? <section className="surface-card"><EmptyState icon="sparkles" title="还没有模拟面试记录" description="从投递记录中选择一个岗位开始练习；完成后，本页面会展示总结和逐题反馈。" /></section> : null}
+        ) : practice.data ? <section className="surface-card"><EmptyState icon="sparkles" title="还没有模拟面试记录" description="可以从投递记录开始岗位练习，也可以点击“开始自由练习”直接开始。" action="开始自由练习" onAction={() => props.onAskAgent("开始一场自由模拟面试，先询问我的目标岗位和题目数量")} /></section> : null}
       </>}
     </section>
   );
@@ -1233,7 +1340,7 @@ export function EmailPanel(props: PageProps) {
 
   return (
     <section className="management-page" hidden={props.hidden}>
-      <PageHeader icon="mail" eyebrow="EMAIL TRACKING" title="邮件追踪" description="查看招聘邮箱账号、同步状态和 Agent 识别出的求职事件" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => void connectGoogle()}><AppIcon name="mail" size={16} /> 连接 Gmail</button><button type="button" className="soft-button" onClick={() => setShowQQ((open) => !open)}>连接 QQ 邮箱</button><button type="button" className="soft-button" onClick={() => props.onAskAgent("同步我已连接邮箱中的最新招聘邮件，并列出需要我确认的事件")}><AppIcon name="sparkles" size={16} /> 让 Agent 同步邮箱</button>{pending.length > 0 ? <button type="button" className="soft-button" onClick={() => props.onAskAgent("逐项处理邮箱里等待确认的求职事件")}>处理 {pending.length} 个待确认事件</button> : null}</div>} />
+      <PageHeader icon="mail" eyebrow="EMAIL TRACKING" title="邮件追踪" description="查看招聘邮箱账号、同步状态和 Agent 识别出的求职事件" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => void connectGoogle()}><AppIcon name="mail" size={16} /> 连接 Gmail</button><button type="button" className="soft-button" onClick={() => setShowQQ((open) => !open)} aria-expanded={showQQ}>{showQQ ? "收起 QQ 邮箱连接" : "连接 QQ 邮箱"}</button><button type="button" className="soft-button" onClick={() => props.onAskAgent("同步我已连接邮箱中的最新招聘邮件，并列出需要我确认的事件")}><AppIcon name="sparkles" size={16} /> 让 Agent 同步邮箱</button>{pending.length > 0 ? <button type="button" className="soft-button" onClick={() => props.onAskAgent("逐项处理邮箱里等待确认的求职事件")}>处理 {pending.length} 个待确认事件</button> : null}</div>} />
       <ErrorBanner message={state.error} />
       <ErrorBanner message={connectionError} />
       <details className="integration-help">
