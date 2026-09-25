@@ -310,6 +310,29 @@ class SQLiteActionItemStore:
             """
         )
 
+    def clear_application_derived(self, *, user_id: str) -> int:
+        """Delete ``user_id``'s items generated from applications or interviews.
+
+        Runs when the owner clears their applications. Marking them obsolete
+        would keep them resurrectable by a refresh that still sees an orphaned
+        interview, so they go with their source. Items from saved jobs and
+        tailoring drafts do not depend on an application and stay.
+        """
+        condition = (
+            "user_id = ? AND (application_id IS NOT NULL "
+            "OR source_type IN ('application', 'interview_round'))"
+        )
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM action_item_events WHERE action_item_id IN "
+                f"(SELECT id FROM action_items WHERE {condition})",
+                (user_id,),
+            )
+            return connection.execute(
+                f"DELETE FROM action_items WHERE {condition}", (user_id,)
+            ).rowcount
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")

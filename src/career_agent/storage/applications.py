@@ -153,6 +153,14 @@ class SQLiteApplicationStore:
             ).fetchall()
         return frozenset(row[0] for row in rows)
 
+    def list_resume_version_ids(self, *, user_id: str) -> frozenset[str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT resume_version_id FROM applications WHERE user_id = ? AND resume_version_id IS NOT NULL",
+                (user_id,),
+            ).fetchall()
+        return frozenset(row[0] for row in rows)
+
     def list_events(
         self, *, user_id: str, application_id: str
     ) -> tuple[ApplicationEvent, ...]:
@@ -212,6 +220,19 @@ class SQLiteApplicationStore:
             ).rowcount
             if not updated:
                 return None
+            self._insert_event(connection, event)
+        return self.get(user_id=user_id, application_id=application_id)
+
+    def update_resume_version(self, *, user_id: str, application_id: str, resume_version_id: str | None, note: str | None = None) -> Application | None:
+        now = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT resume_version_id FROM applications WHERE id = ? AND user_id = ?", (application_id, user_id)).fetchone()
+            if row is None:
+                return None
+            connection.execute("UPDATE applications SET resume_version_id = ?, updated_at = ? WHERE id = ? AND user_id = ?", (resume_version_id, now.isoformat(), application_id, user_id))
+            current_status = connection.execute("SELECT status FROM applications WHERE id = ? AND user_id = ?", (application_id, user_id)).fetchone()[0]
+            event = ApplicationEvent(id=f"application_event_{uuid4().hex}", application_id=application_id, user_id=user_id, source="user_reported", event_type="resume_version_changed", previous_status=current_status, new_status=current_status, note=note, occurred_at=now)
             self._insert_event(connection, event)
         return self.get(user_id=user_id, application_id=application_id)
 

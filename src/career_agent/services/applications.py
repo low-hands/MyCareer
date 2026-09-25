@@ -142,6 +142,14 @@ class ApplicationService:
             )
         return updated
 
+    def update_resume_version(self, *, user_id: str, application_id: str, resume_version_id: str | None) -> Application:
+        if resume_version_id is not None and self._resume_store.get_version(user_id=user_id, resume_version_id=resume_version_id) is None:
+            raise ApplicationInputNotFoundError("resume_version")
+        updated = self._application_store.update_resume_version(user_id=user_id, application_id=application_id, resume_version_id=resume_version_id)
+        if updated is None:
+            raise ApplicationInputNotFoundError("application")
+        return updated
+
     def apply_email_event(
         self,
         *,

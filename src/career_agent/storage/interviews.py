@@ -629,6 +629,21 @@ class SQLiteInterviewStore:
             """
         )
 
+    def clear_user(self, *, user_id: str) -> int:
+        """Delete every interview round of ``user_id`` with its events and retros.
+
+        Rounds belong to applications, so this runs when the owner clears their
+        applications; left behind, a round keeps generating reminders for an
+        application that no longer exists.
+        """
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM interview_retro_reports WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM interview_round_events WHERE user_id = ?", (user_id,))
+            return connection.execute(
+                "DELETE FROM interview_rounds WHERE user_id = ?", (user_id,)
+            ).rowcount
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")

@@ -159,6 +159,14 @@ class SQLiteInterviewPreparationStore:
         "result_json, created_at FROM interview_preparations"
     )
 
+    def clear_user(self, *, user_id: str) -> int:
+        """Delete every preparation of ``user_id``; each belongs to an interview round."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return connection.execute(
+                "DELETE FROM interview_preparations WHERE user_id = ?", (user_id,)
+            ).rowcount
+
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30.0)
 

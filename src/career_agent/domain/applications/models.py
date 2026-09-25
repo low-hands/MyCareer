@@ -43,7 +43,7 @@ class ApplicationEvent(ApplicationContract):
     application_id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
     source: Literal["user_reported", "email_sync", "system"]
-    event_type: Literal["created", "status_changed", "note_added"]
+    event_type: Literal["created", "status_changed", "note_added", "resume_version_changed"]
     previous_status: ApplicationStatus | None = None
     new_status: ApplicationStatus
     note: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -61,4 +61,6 @@ class ApplicationEvent(ApplicationContract):
             self.previous_status != self.new_status or self.note is None
         ):
             raise ValueError("note events require an unchanged status and a note")
+        if self.event_type == "resume_version_changed" and self.previous_status != self.new_status:
+            raise ValueError("resume version events require an unchanged status")
         return self
