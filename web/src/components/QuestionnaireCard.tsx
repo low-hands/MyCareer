@@ -114,7 +114,6 @@ export function QuestionnaireCard({ interaction, disabled, onReply }: Props) {
   return (
     <section className="interaction-card questionnaire-card" aria-labelledby="questionnaire-title">
       <span className="interaction-kicker">补充信息{questions.length > 1 ? ` · ${index + 1}/${questions.length}` : ""}</span>
-      <p>{interaction.prompt}</p>
       <h3 id="questionnaire-title" ref={heading} tabIndex={-1}>{question.prompt}</h3>
       {question.kind === "free_text" ? (
         <textarea aria-label={question.prompt} value={answer.free_text} disabled={disabled || answer.skipped}

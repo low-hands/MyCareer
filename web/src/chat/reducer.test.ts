@@ -121,6 +121,29 @@ describe("chatReducer", () => {
     ]);
   });
 
+  it("shows a questionnaire's lead-in once, as the reply, not on the card too", () => {
+    let state = chatReducer(initialChatState, {
+      type: "submit", messageId: "user-1", assistantMessageId: "assistant-1", content: "我投了量霸科技",
+    });
+    state = chatReducer(state, {
+      type: "stream_event",
+      event: {
+        type: "interaction_required",
+        interaction_id: "interaction_1234567890abcdef1234",
+        kind: "questionnaire",
+        scope: "questionnaire",
+        prompt: "记这条投递还需要确认两项。",
+        options: [],
+        allow_free_text: false,
+        questions: [
+          { question_id: "q1", prompt: "用的哪份简历？", kind: "single", options: [{ value: "a", label: "A", meaning: "choice" }], allow_free_text: false, allow_skip: false },
+          { question_id: "q2", prompt: "什么时候投的？", kind: "free_text", options: [], allow_free_text: true, allow_skip: false },
+        ],
+      },
+    });
+    expect(state.messages.at(-1)?.content).toBe("记这条投递还需要确认两项。");
+  });
+
   it("keeps a browser action as an explicit clickable fallback", () => {
     const state = chatReducer(initialChatState, {
       type: "stream_event",

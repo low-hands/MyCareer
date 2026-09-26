@@ -46,6 +46,8 @@ function button(label: string): HTMLButtonElement {
 it("shows five questions in sequence and sends one bound response", async () => {
   const onReply = vi.fn();
   await act(async () => root.render(<QuestionnaireCard interaction={interaction} disabled={false} onReply={onReply} />));
+  // The lead-in is the reply above the card; the card carries only questions.
+  expect(container.textContent).not.toContain("补充简历信息");
   for (let number = 1; number <= 5; number += 1) {
     expect(container.querySelector("h3")?.textContent).toBe(`问题 ${number}`);
     expect(container.textContent).toContain(`补充信息 · ${number}/5`);

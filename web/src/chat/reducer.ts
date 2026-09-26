@@ -292,8 +292,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       // must not remain disabled if that final SSE frame is delayed or lost.
       // A free-text question has no choices to lay out, so it is a message,
       // not a card: it goes into the transcript now (rendered as Markdown,
-      // like any reply) and the composer below takes the answer.
-      if (event.kind === "free_text") {
+      // like any reply) and the composer below takes the answer. A
+      // questionnaire's lead-in is also the turn's reply; it is shown once,
+      // here, and the card carries only the questions.
+      if (event.kind === "free_text" || event.kind === "questionnaire") {
         return {
           ...state,
           phase: "awaiting_input",
