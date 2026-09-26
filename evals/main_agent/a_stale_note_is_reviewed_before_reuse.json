@@ -2,21 +2,21 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "d94565af5672b13cf9d0500b8a899009f2ec071c8a39f1abfaf7c69b723b4593",
-  "recorded_at": "2026-09-24T06:37:59.446214+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "943f8faabc651473791f9250d0044c89bcd47c5030a9b42b036300b01e8933f6",
+  "recorded_at": "2026-09-26T04:00:24.942785+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我岗位方向和工作城市，我来帮你打开对应的招聘搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"目标城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请补充岗位关键词和城市，我再帮你打开招聘搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市找？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:37:59.446214+00:00",
+      "recorded_at": "2026-09-26T04:00:24.942785+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请告诉我岗位方向和工作城市，我来帮你打开对应的招聘搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"目标城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请补充岗位关键词和城市，我再帮你打开招聘搜索。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位？例如 Rust 开发、后端开发、产品经理。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市找？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

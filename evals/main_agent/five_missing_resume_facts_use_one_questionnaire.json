@@ -2,21 +2,21 @@
   "scenario": "five_missing_resume_facts_use_one_questionnaire",
   "policy": "For two to eight independent missing facts needed for the current task, use JSON action='questionnaire' rather than a Markdown question list.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
-  "context_shape_fingerprint": "9a5f9398eadae3f41168e1996cf9b7de520bd7f609a4e24c036f35b7d2a7e30d",
-  "recorded_at": "2026-09-24T07:49:02.882457+00:00",
+  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
+  "context_shape_fingerprint": "1e2d5583483eff075a39c956fac249d9caf85f5afceb4d25a62d645440d6acde",
+  "recorded_at": "2026-09-26T04:03:35.582670+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下 5 项简历定制信息；每题可填写具体情况、明确选择“没有”，或跳过。暂时不会调用工具或生成优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验有哪些？请说明年限、技术栈、项目类型、职责，以及可量化成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有前端开发经验\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？请说明产品名称、使用场景、数据规模及你负责的工作。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过向量数据库\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你是否有 Dify 相关经验？请说明使用过的功能、搭建的应用或工作流，以及实际效果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有 Dify 经验\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？请说明工具名称、主要用途、使用频率，以及对开发效率或质量的影响。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过 AI 编程工具\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目或技术博客？请提供项目或博客名称、链接、主要内容、个人贡献及影响力数据。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有开源项目或技术博客\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项信息；每项可详细说明，也可以回答“跳过”或“没有”。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请介绍你的前端开发经验，包括使用过的框架、项目类型、负责内容和大致年限。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？请说明使用场景、熟悉程度和具体工作内容；如未使用过请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有哪些 Dify 使用或开发经验？请说明具体功能、工作流、插件、知识库或部署实践；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？请说明工具名称、使用场景以及对开发效率或质量的帮助；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目或技术博客？请提供项目名称、链接、贡献内容或文章主题；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:49:02.882457+00:00",
+      "recorded_at": "2026-09-26T04:03:35.582670+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下 5 项简历定制信息；每题可填写具体情况、明确选择“没有”，或跳过。暂时不会调用工具或生成优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验有哪些？请说明年限、技术栈、项目类型、职责，以及可量化成果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有前端开发经验\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？请说明产品名称、使用场景、数据规模及你负责的工作。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过向量数据库\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你是否有 Dify 相关经验？请说明使用过的功能、搭建的应用或工作流，以及实际效果。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有 Dify 经验\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？请说明工具名称、主要用途、使用频率，以及对开发效率或质量的影响。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有使用过 AI 编程工具\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目或技术博客？请提供项目或博客名称、链接、主要内容、个人贡献及影响力数据。\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有开源项目或技术博客\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项信息；每项可详细说明，也可以回答“跳过”或“没有”。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请介绍你的前端开发经验，包括使用过的框架、项目类型、负责内容和大致年限。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？请说明使用场景、熟悉程度和具体工作内容；如未使用过请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有哪些 Dify 使用或开发经验？请说明具体功能、工作流、插件、知识库或部署实践；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？请说明工具名称、使用场景以及对开发效率或质量的帮助；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目或技术博客？请提供项目名称、链接、贡献内容或文章主题；如没有请明确回答“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}"
         }
       ]
     }

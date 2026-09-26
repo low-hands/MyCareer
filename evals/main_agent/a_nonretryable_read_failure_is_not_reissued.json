@@ -2,37 +2,37 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "abb821f05baa15c2d0993df7fa8955357d256c57696231d9629bb60a5b6679bb",
-  "recorded_at": "2026-09-24T06:40:05.341559+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "1a28567c59708b7002f773c7d7341853ac27d66b2fb202751b00b70700cb4010",
+  "recorded_at": "2026-09-26T04:01:57.766008+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”已保存岗位的查询，且这次失败不可立即重试。稍后你可以再让我查一次。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 **RAG 岗位**的查询，因此暂时不能列出结果。此次查询不可重试；你可以稍后再试。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:39:47.099501+00:00",
+      "recorded_at": "2026-09-26T04:01:53.009387+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”已保存岗位的查询，且这次失败不可立即重试。稍后你可以再让我查一次。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 **RAG 岗位**的查询，因此暂时不能列出结果。此次查询不可重试；你可以稍后再试。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:39:51.253784+00:00",
+      "recorded_at": "2026-09-26T04:01:54.443197+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”查询，且本次错误不可重试，所以暂时无法列出你保存过的相关岗位。你可以稍后再试。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成对已保存 **RAG 岗位**的查询，且这次失败不可立即重试。你可以稍后再试。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:40:05.341559+00:00",
+      "recorded_at": "2026-09-26T04:01:57.766008+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成查询，因此暂时找不到你保存过的 RAG 岗位。请稍后再试。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库当前无法完成“RAG”已保存岗位的查询，且本次错误不可重试。你可以稍后再试。\",\"questions\":[]}"
         }
       ]
     }

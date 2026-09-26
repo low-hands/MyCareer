@@ -2,21 +2,21 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "069887ff432aae174e457b6013ebd09f5690bdaeb63a1373807c09803a207174",
-  "context_shape_fingerprint": "a6479dcff35b61766650677a2085bbfc238967b25499b1cdf68cfce93f5ccd8f",
-  "recorded_at": "2026-09-24T06:38:56.597646+00:00",
+  "prompt_fingerprint": "17d28d6a347035cba1810b1e2056b4c91061964763588b54e23d177b91410baf",
+  "context_shape_fingerprint": "4f9e77b5f267468890eac1f445406e05e81becc5bfa719c046c1e2f0ca9bd155",
+  "recorded_at": "2026-09-26T04:00:47.018766+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你目前表示的是准备投递，还不能记录为已投递。请在实际提交申请后告诉我“已投递”，我再为“示例科技｜算法工程师”创建投递记录。\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你还没有提交申请记录。提交“示例科技·算法工程师”后告诉我“已投递”，我再为你建立投递记录；如果需要先准备简历，也可以先告诉我。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:38:56.597646+00:00",
+      "recorded_at": "2026-09-26T04:00:47.018766+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你目前表示的是准备投递，还不能记录为已投递。请在实际提交申请后告诉我“已投递”，我再为“示例科技｜算法工程师”创建投递记录。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"你还没有提交申请记录。提交“示例科技·算法工程师”后告诉我“已投递”，我再为你建立投递记录；如果需要先准备简历，也可以先告诉我。\",\"questions\":[]}"
         }
       ]
     }

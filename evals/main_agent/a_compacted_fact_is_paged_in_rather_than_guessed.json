@@ -2,9 +2,9 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
-  "context_shape_fingerprint": "5e13b83f898902dddfafd34cfbb531015c909ee12f5031acaecbbd6e196f685a",
-  "recorded_at": "2026-09-24T06:40:50.151822+00:00",
+  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
+  "context_shape_fingerprint": "c3f3ae3ac26901a75bd8585a85949c65fa86631fd4ff1e9d08e6b37732da599b",
+  "recorded_at": "2026-09-26T04:02:34.912552+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {
           "from_sequence": 1,
           "through_sequence": 8,
-          "query": "目标公司 公司 美团"
+          "query": "目标公司 公司 美团 算法工程师"
         }
       }
     }
@@ -20,7 +20,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:40:47.179242+00:00",
+      "recorded_at": "2026-09-26T04:02:46.073972+00:00",
       "steps": [
         {
           "tool_call": {
@@ -28,14 +28,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "目标公司 公司 美团"
+              "query": "目标公司 公司 美团 算法工程师"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:40:45.730711+00:00",
+      "recorded_at": "2026-09-26T04:03:27.830855+00:00",
       "steps": [
         {
           "tool_call": {
@@ -43,14 +43,14 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "一开始指定 目标公司 公司全名 美团 JD"
+              "query": "目标公司 公司 全名 美团 算法工程师"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:40:50.151822+00:00",
+      "recorded_at": "2026-09-26T04:02:34.912552+00:00",
       "steps": [
         {
           "tool_call": {
@@ -58,7 +58,7 @@
             "arguments": {
               "from_sequence": 1,
               "through_sequence": 8,
-              "query": "一开始 指定 目标公司 公司全名 美团 对照"
+              "query": "目标公司 公司 美团 算法工程师"
             }
           }
         }

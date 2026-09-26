@@ -1,0 +1,34 @@
+{
+  "scenario": "a_resume_critique_loads_its_skill",
+  "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
+  "model": "gpt-5.6-sol",
+  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
+  "context_shape_fingerprint": "b09d2bef75d280fb7d6056d72ff1347f05902033d73fc169f0c69baac6a025e6",
+  "recorded_at": "2026-09-26T04:04:40.110876+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "load_skill",
+        "arguments": {
+          "skill": "resume-critique"
+        }
+      }
+    }
+  ],
+  "sample_count": 1,
+  "samples": [
+    {
+      "recorded_at": "2026-09-26T04:04:40.110876+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "load_skill",
+            "arguments": {
+              "skill": "resume-critique"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,15 +2,15 @@
   "scenario": "submitted_resume_questionnaire_continues_tailoring",
   "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "df21bdfafcac90317c54a9a896dac531fb6ae2652a101bf10d30791e9a64a85b",
-  "context_shape_fingerprint": "0cd69121c3fbe497190ceeffc143e9891b275db8e1adfda011ccdd030f9768f5",
-  "recorded_at": "2026-09-24T07:45:00.629957+00:00",
+  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
+  "context_shape_fingerprint": "a615175996b655b181b8646ec893d7f1e27b1006b6de85dbef41bf5199194ee5",
+  "recorded_at": "2026-09-26T04:03:44.932309+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "draft_resume_tailoring",
         "arguments": {
-          "tailoring_goal": "请根据当前岗位匹配结果生成定制简历草稿，并仅使用以下已提供信息：使用 React 开发过内部管理页面；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；开源项目或博客信息跳过。不要扩写为项目细节、年限或量化成果。"
+          "tailoring_goal": "结合本轮补充信息定制当前岗位匹配简历：前端使用 React 开发过内部管理页面；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；无开源项目或博客信息。仅使用这些已提供事实，不扩写项目、年限或成果。"
         }
       }
     }
@@ -18,37 +18,39 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:46:12.939271+00:00",
+      "recorded_at": "2026-09-26T04:03:18.520762+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "draft_resume_tailoring",
             "arguments": {
-              "tailoring_goal": "请根据当前岗位匹配结果生成定制简历草稿，并仅使用以下已提供信息：使用 React 开发过内部管理页面；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；开源项目或博客信息跳过。不要扩写为项目细节、年限或量化成果。"
+              "tailoring_goal": "结合本轮补充信息定制当前岗位匹配简历：前端使用 React 开发过内部管理页面；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；无开源项目或博客信息。仅使用这些已提供事实，不扩写项目、年限或成果。"
             }
           }
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:44:43.559120+00:00",
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_resume_job_match",
-            "arguments": {}
-          }
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-24T07:45:00.629957+00:00",
+      "recorded_at": "2026-09-26T04:03:24.359667+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "draft_resume_tailoring",
             "arguments": {
-              "tailoring_goal": "基于当前岗位匹配结果定制简历，并纳入以下用户补充信息：有使用 React 开发内部管理页面的经验；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；无开源项目或博客信息。仅使用这些明确内容，不扩写项目、年限或成果。"
+              "tailoring_goal": "基于当前岗位匹配结果定制简历。补充并准确表达：使用 React 开发过内部管理页面；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor。不要虚构开源项目、博客、年限、项目成果或量化数据。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-09-26T04:03:44.932309+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {
+              "tailoring_goal": "请基于当前岗位匹配结果生成定制简历草稿，并仅使用以下补充信息，不扩写未提供的项目、年限或成果：有使用 React 开发内部管理页面的经验；未使用过向量数据库；了解基础 Dify 工作流配置；日常使用 Claude Code 和 Cursor；无开源项目或博客信息。"
             }
           }
         }

@@ -2,49 +2,39 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "3547c15265ced9d8e49ba4b364d5dc270336be5dcc7626b7d2ca42aabbb2285a",
-  "context_shape_fingerprint": "4bb50e778dae85c9d97bcd931fd0bd5b3b38b0257a05f0e4e9ef581af27d5baa",
-  "recorded_at": "2026-09-24T07:48:36.501844+00:00",
+  "prompt_fingerprint": "f8918b92108e0c80415f584c059829f13a5fa1de271b8509559dc5a93d773eb0",
+  "context_shape_fingerprint": "02557d5f3c07d56671134ef6030c66ba9e7cf3b76e2509e0fe11abf2922ccb05",
+  "recorded_at": "2026-09-26T04:01:50.048232+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
         "arguments": {
-          "query": "岗位",
-          "limit": 20
+          "limit": 20,
+          "query": "岗位"
         }
       }
     },
     {
-      "tool_call": {
-        "name": "get_saved_job",
-        "arguments": {
-          "selection_index": 1
-        }
-      }
+      "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:48:36.501844+00:00",
+      "recorded_at": "2026-09-26T04:01:50.048232+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
             "arguments": {
-              "query": "岗位",
-              "limit": 20
+              "limit": 20,
+              "query": "岗位"
             }
           }
         },
         {
-          "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {
-              "selection_index": 1
-            }
-          }
+          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\",\"questions\":[]}"
         }
       ]
     }

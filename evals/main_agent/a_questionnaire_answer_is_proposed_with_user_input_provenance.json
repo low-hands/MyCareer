@@ -2,16 +2,16 @@
   "scenario": "a_questionnaire_answer_is_proposed_with_user_input_provenance",
   "policy": "When proposing a career fact from a user's questionnaire answer, supply an exact user_quote so the stored origin is user_input.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "c3ece57f3e5eb6c0b737f738e88f37f848860732742e468ec155c8a972cfbc63",
-  "context_shape_fingerprint": "89c8d579d32f67e70eb292915b79f1a803c6591ec266d5afc2eadbf68196de98",
-  "recorded_at": "2026-09-24T07:49:11.391673+00:00",
+  "prompt_fingerprint": "203de415941e70eb972723eae61808d928e27f418db9ca2156f9c50dfde748cc",
+  "context_shape_fingerprint": "e1042bbf8c51ec145cfcfa80bb90bfb352aa514508f31d5dfbdb774f4df5052e",
+  "recorded_at": "2026-09-26T04:04:05.855568+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "propose_career_fact",
         "arguments": {
           "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-          "reason": "将你刚才问卷中明确陈述的 AI 编程工具使用情况，关联到示例科技的工作经历记录，先提交为待确认提案。",
+          "reason": "根据你刚才问卷中的明确陈述，将 AI 编程工具使用情况关联到示例科技的工作经历，先作为待确认事实提案。",
           "record_selection_index": 1,
           "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
         }
@@ -21,14 +21,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:49:00.267706+00:00",
+      "recorded_at": "2026-09-26T04:05:26.504726+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "将你刚才问卷中明确陈述的 AI 编程工具使用情况，关联到示例科技的工作经历记录，先提交为待确认提案。",
+              "reason": "根据你刚才问卷中的明确陈述，将 AI 编程工具使用情况关联到示例科技的工作经历，先作为待确认事实提案。",
               "record_selection_index": 1,
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
@@ -37,14 +37,14 @@
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:49:05.166857+00:00",
+      "recorded_at": "2026-09-26T04:05:38.304050+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "根据你刚才问卷中明确陈述的 AI 编程工具使用情况，将其关联到示例科技的工作经历事实；当前仅创建待确认提案，不会直接写入。",
+              "reason": "将你刚才问卷中明确提供的 AI 编程工具使用情况，作为示例科技这段工作经历的补充事实，先提交提案供你确认。",
               "record_selection_index": 1,
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
@@ -53,14 +53,14 @@
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:49:11.391673+00:00",
+      "recorded_at": "2026-09-26T04:04:05.855568+00:00",
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "将用户在当前任务问卷中明确提供的 AI 编程工具使用情况，关联到其在示例科技的软件工程师工作经历；当前仅提出事实提案，等待用户确认后再写入。",
+              "reason": "将用户在当前任务问卷中明确陈述的 AI 编程工具使用情况关联到其在示例科技的软件工程师工作经历；先提交为待确认事实提案，不直接写入。",
               "record_selection_index": 1,
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }

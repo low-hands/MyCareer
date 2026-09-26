@@ -2,21 +2,21 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "5f9928bdd836f888f31b7779adf37f10762209ef170521708e889d6c18666a42",
-  "recorded_at": "2026-09-24T08:14:06.944834+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "a97be95ebba4699377ee436852b8ae2c22933334659838bccade17959a635d87",
+  "recorded_at": "2026-09-26T04:00:27.317984+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看。你希望我下一步做什么？\\n\\n请选择下一步（分析岗位要求、职责和风险 / 用简历评估匹配度 / 调研公司和业务背景 / 把它作为求职目标并记录期望条件 / 其他）\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步？\\n\\n请选择下一步操作（分析岗位要求、面试重点和风险 / 调研公司和业务背景 / 与其他已保存岗位对比 / 记录为求职意向 / 其他）\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T08:14:06.944834+00:00",
+      "recorded_at": "2026-09-26T04:00:27.317984+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"这个岗位确实值得进一步看。你希望我下一步做什么？\\n\\n请选择下一步（分析岗位要求、职责和风险 / 用简历评估匹配度 / 调研公司和业务背景 / 把它作为求职目标并记录期望条件 / 其他）\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步？\\n\\n请选择下一步操作（分析岗位要求、面试重点和风险 / 调研公司和业务背景 / 与其他已保存岗位对比 / 记录为求职意向 / 其他）\",\"questions\":[]}"
         }
       ]
     }

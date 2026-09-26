@@ -70,6 +70,12 @@ class TrajectoryStep:
     """
 
     expect_action: str | None = None
+    forbid_actions: frozenset[str] = frozenset()
+    """Actions this decision must not take, when several others are all fine.
+
+    For a step whose right move is open (look something up first, or ask)
+    but one move is the violation: answering outright with ``final``.
+    """
     expect_user_input: bool = False
     """Accept either bound way to ask the user: ask_user or questionnaire."""
     expect_question_count: int | None = None
@@ -622,6 +628,11 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
         failures.append(
             f"{label}: expected action '{step.expect_action}', got "
             f"'{decision.action}'" + (f" calling '{called}'" if called else "")
+        )
+    if decision.action in step.forbid_actions:
+        failures.append(
+            f"{label}: took forbidden action '{decision.action}'"
+            + (f" calling '{called}'" if called else "")
         )
     if step.expect_user_input and decision.action not in {"ask_user", "questionnaire"}:
         failures.append(

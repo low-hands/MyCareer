@@ -2,37 +2,37 @@
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "7b73f77529b91fba5b4486cec5c4b9e60c6606184de48dd0fa4cc98feff388fe",
-  "recorded_at": "2026-09-24T07:49:00.860136+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "2d6e388a8fc6d22b691c159273f9862517aafa353b973481f1ab470ed974cbbf",
+  "recorded_at": "2026-09-26T04:02:42.163700+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个岗位。请确认是否打开第 1 个岗位“示例科技｜算法工程师”的完整 JD。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位序号 2 不存在。当前列表只有 1 个岗位：1. 示例科技｜算法工程师。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:49:22.975703+00:00",
+      "recorded_at": "2026-09-26T04:02:28.529911+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，没有第 2 个岗位。请确认是否打开第 1 个岗位“示例科技｜算法工程师”的完整 JD。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位序号 2 不存在。当前列表只有 1 个岗位：1. 示例科技｜算法工程师。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:48:48.406242+00:00",
+      "recorded_at": "2026-09-26T04:02:27.167215+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前已保存岗位列表只有 1 个岗位，序号 2 不存在。请选择序号 1，或先搜索并保存更多岗位。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"岗位序号 2 不存在，当前列表只有 1 个岗位。请确认是否打开第 1 个岗位的完整 JD。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:49:00.860136+00:00",
+      "recorded_at": "2026-09-26T04:02:42.163700+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前岗位列表只有 1 个岗位，不存在第 2 个。请确认是否打开第 1 个岗位的完整 JD。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"岗位序号 2 不存在，当前列表只有 1 个岗位。请选择有效序号：1（示例科技｜算法工程师）。\",\"questions\":[],\"selection_source\":\"latest_tool_result\"}"
         }
       ]
     }

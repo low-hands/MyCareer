@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
 from career_agent.agent.conversation_span_presenter import render_conversation_span
+from career_agent.agent.main_agent_contracts import AttachedResumeContext
 from career_agent.agent.main_agent_contracts import (
     ApplicationCandidateContextItem,
     BehaviorPolicyContext,
@@ -364,6 +365,13 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "task.has_active_resume_version",
             "task.has_active_job_analysis",
         ),
+        known_gap=(
+            "2026-09-25/26 gpt-5.6-sol cuts passed 5/5, 2/5, 2/5 (the same code "
+            "without that day's changes), 1/3, 1/1 and 0/1: the failing samples "
+            "first call route_to_capability to the profile they are already in, "
+            "or list_resumes, instead of match_resume_to_job. No sample started "
+            "research, which is what this policy is about."
+        ),
         steps=(
             TrajectoryStep(
                 expect_tool="match_resume_to_job",
@@ -457,25 +465,38 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         decisive_facts=("working_notes", "task.candidates", "user_message"),
+        # The policy forbids deciding from the note, not reading facts. Until
+        # 2026-09-26 the first step had to be a question, so looking the two
+        # jobs up first (find/compare, which rank nothing) counted as the
+        # violation; the recorded failures were mostly those lookups. Now the
+        # first step may read, and must not answer; once the facts are in, the
+        # choice itself must wait for the user to confirm the preference.
         steps=(
             TrajectoryStep(
-                expect_user_input=True,
+                forbid_actions=frozenset({"final"}),
                 forbid_tools=frozenset(
-                    {
-                        "compare_saved_jobs",
-                        "match_resume_to_job",
-                        "create_application",
-                    }
+                    {"match_resume_to_job", "create_application", "update_working_notes"}
                 ),
+            ),
+            TrajectoryStep(
+                observation=DecisionObservation(
+                    tool_name="compare_saved_jobs",
+                    state="saved_jobs_compared",
+                    message="已比较 2 个已保存岗位。",
+                    arguments={"job_selection_indices": [1, 2]},
+                    body=(
+                        "| | 示例科技 算法工程师 | 另一家科技 推荐算法工程师 |\n"
+                        "|---|---|---|\n"
+                        "| 城市 | 上海 | 上海 |\n"
+                        "| 薪资 | 30-50K | 35-55K |\n"
+                        "| 公司规模 | 大型 | 中型 |"
+                    ),
+                ),
+                expect_user_input=True,
+                forbid_tools=frozenset({"match_resume_to_job", "create_application"}),
             ),
         ),
         recording_samples=3,
-        known_gap=(
-            "2026-09-20 gpt-5.6-sol current-prompt recording called "
-            "compare_saved_jobs from unconfirmed working_notes in 1/3 samples; "
-            "the other 2/3 requested user input. Keep this visible until a "
-            "fresh recording resolves the policy defect."
-        ),
     ),
     TrajectoryScenario(
         name="a_note_derived_filter_is_confirmed_with_the_user",
@@ -1105,8 +1126,12 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "2026-09-24 gpt-5.6-sol recordings called get_job_research with no "
             "arguments in 2/5 and then 1/5 samples, reading the active report of "
             "another company; the other samples looked the job up or explained "
-            "the report was unreachable. No handle was invented. Keep this "
-            "visible until a fresh recording passes 5/5."
+            "the report was unreachable. No handle was invented. Since "
+            "2026-09-26 the runtime refuses that selector-less read when the "
+            "request names a different saved company than the active report "
+            "(test_an_unselected_read_of_another_companys_report_is_refused), so "
+            "the wrong report no longer reaches the model; the decision itself "
+            "is still the defect. Keep this visible until a recording passes 5/5."
         ),
     ),
     TrajectoryScenario(
@@ -1991,6 +2016,46 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
+        name="a_resume_critique_loads_its_skill",
+        policy=(
+            "A request to review, critique or improve an attached resume without "
+            "naming a job loads the resume-critique skill and follows it; comparing "
+            "a resume with a job is match_resume_to_job."
+        ),
+        context=_context(
+            user_message="帮我点评一下这份简历，看看哪里写得不好、应该怎么改。",
+            task=ConversationTaskState(
+                tool_profile="resume",
+                active_resume_version_id="resume-version-1",
+            ),
+        ).model_copy(
+            update={
+                "attached_resumes": (
+                    AttachedResumeContext(
+                        resume_version_id="resume-version-1",
+                        resume_id="resume-1",
+                        resume_name="后端简历",
+                        version_number=1,
+                        is_latest_version=True,
+                        target_role="后端工程师",
+                        document_format="text",
+                        byte_size=120,
+                        uploaded_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+                        excerpt="张三\n示例公司 后端工程师 2022.03-2024.05\n负责检索系统",
+                    ),
+                )
+            }
+        ),
+        decisive_facts=("user_message", "attached_resumes"),
+        steps=(
+            TrajectoryStep(
+                expect_tool="load_skill",
+                expect_arguments={"skill": "resume-critique"},
+                forbid_tools=frozenset({"match_resume_to_job", "draft_resume_tailoring"}),
+            ),
+        ),
+    ),
+    TrajectoryScenario(
         name="five_missing_resume_facts_use_one_questionnaire",
         policy=(
             "For two to eight independent missing facts needed for the current task, "
@@ -2050,13 +2115,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "user_message", "task.has_active_resume_job_match", "recent_messages.0.content",
         ),
         recording_samples=3,
-        known_gap=(
-            "2026-09-24 gpt-5.6-sol recordings passed 3/3 once, then 2/3 in three "
-            "later cuts with and without the actionable-first requirement order: "
-            "the failing sample first called a read (analyze_resume, then "
-            "get_resume_job_match) instead of draft_resume_tailoring. The detour "
-            "is read-only and no application was created."
-        ),
         steps=(
             TrajectoryStep(
                 expect_tool="draft_resume_tailoring",

@@ -2,37 +2,37 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "c3ece57f3e5eb6c0b737f738e88f37f848860732742e468ec155c8a972cfbc63",
-  "context_shape_fingerprint": "75e13f496dca66393eddfa37356c975573cf0942bc93143e4c0f6c2ccc2248cb",
-  "recorded_at": "2026-09-24T07:47:19.413694+00:00",
+  "prompt_fingerprint": "203de415941e70eb972723eae61808d928e27f418db9ca2156f9c50dfde748cc",
+  "context_shape_fingerprint": "ebdc2bc3e11087825e90a59da2222063041ead5906acc29b3c79ad8e489a82a4",
+  "recorded_at": "2026-09-26T04:00:33.967708+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索新岗位所需的信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请提供以下信息，我再帮你打开新岗位搜索：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想看哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位方向或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:47:51.887137+00:00",
+      "recorded_at": "2026-09-26T04:00:34.594079+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索新岗位所需的信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供以下信息，我再帮你打开新岗位搜索：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想看哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位方向或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:47:54.345639+00:00",
+      "recorded_at": "2026-09-26T04:01:06.164817+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供以下信息，我就帮你打开新岗位搜索：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想找哪个城市的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索新岗位所需的信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么岗位或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T07:47:19.413694+00:00",
+      "recorded_at": "2026-09-26T04:00:33.967708+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供以下信息，我再帮你打开招聘搜索：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位或关键词？例如：Java后端、产品经理、数据分析\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请补充以下信息，我就能打开岗位搜索：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想看哪个岗位方向或关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

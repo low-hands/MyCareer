@@ -2,37 +2,37 @@
   "scenario": "a_compacted_fact_without_page_in_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
-  "context_shape_fingerprint": "5b7ae1340efb32663a83a84cb91481df6a0aa354d7da6b35c4a2efdce2e2816f",
-  "recorded_at": "2026-09-24T06:41:04.899505+00:00",
+  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
+  "context_shape_fingerprint": "421815f8e914ad063fe3738fa36548ceeceec6bbc1959d4e41d2078b32279514",
+  "recorded_at": "2026-09-26T04:02:53.062212+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"我目前能看到的上下文没有保留你最初指定的目标公司全名，只能确认**美团是对照岗位，不是原始目标**。请把最初那份 JD 或公司名线索再发一下，我再准确核对。\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名，现有记录里也没有保存该信息。请把公司名或当时的目标岗位发我，我再帮你核对。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:40:56.702440+00:00",
+      "recorded_at": "2026-09-26T04:02:52.199094+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前能看到的上下文没有保留你最初指定的目标公司全名，只能确认**美团是对照岗位，不是原始目标**。请把最初那份 JD 或公司名线索再发一下，我再准确核对。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"我目前看不到你一开始指定的目标公司全名，现有记录里也没有保存该信息。请把公司名或当时的目标岗位发我，我再帮你核对。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:40:58.340912+00:00",
+      "recorded_at": "2026-09-26T04:02:47.475622+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见上下文里没有你一开始指定的目标公司全名，我无法可靠还原。请把公司名或当时的相关原话再发一次。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前能看到的上下文里没有你最初指定的目标公司全名，只能确认**美团不是最初目标，只是对照项**。请把公司名或相关那句话再发我一次。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:41:04.899505+00:00",
+      "recorded_at": "2026-09-26T04:02:53.062212+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我这边看不到你一开始指定的公司全名。刚才说“不是你一开始指定的目标”没有可见依据，是我说错了。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"我目前看不到你最初指定的目标公司全名；现有上下文只确认美团不是那个目标。请把最初的公司名或相关 JD 再发一次，我再帮你核对。\",\"questions\":[]}"
         }
       ]
     }

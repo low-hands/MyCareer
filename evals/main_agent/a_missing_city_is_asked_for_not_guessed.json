@@ -2,21 +2,21 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "b5428a4cca907d42f5d783535c09fb116b9dd6c164a0f9122209dfa7eeeed87d",
-  "recorded_at": "2026-09-24T06:38:16.676991+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "6f1a5132d9df1753a7075f5d117316f621de61057c0b38d22854e191aed79aa4",
+  "recorded_at": "2026-09-26T04:00:17.986788+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索地点和目标岗位，我再为你打开招聘搜索页面。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么岗位或使用什么关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你开始找工作，请先补充以下信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位或关键词？例如：前端开发、产品经理、数据分析、Java 后端\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:38:16.676991+00:00",
+      "recorded_at": "2026-09-26T04:00:17.986788+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请提供搜索地点和目标岗位，我再为你打开招聘搜索页面。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么岗位或使用什么关键词？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你开始找工作，请先补充以下信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位或关键词？例如：前端开发、产品经理、数据分析、Java 后端\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
         }
       ]
     }

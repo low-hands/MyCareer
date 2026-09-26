@@ -2,37 +2,37 @@
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
-  "context_shape_fingerprint": "bfdab4782126660b1d143d30f7b208685ca6f91885f54cd7e97a8308ebe1e1a3",
-  "recorded_at": "2026-09-24T06:41:17.965652+00:00",
+  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
+  "context_shape_fingerprint": "193016eb9bb2003f31d75e27d27273bcc7383c098d481e5a3397cf32b275b4bb",
+  "recorded_at": "2026-09-26T04:03:11.257399+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录，结果为 0/0 条。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 的对话不存在或当前不可读取，返回 0 条记录。\",\"questions\":[]}"
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:41:14.786290+00:00",
+      "recorded_at": "2026-09-26T04:03:03.276250+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有可读取的对话记录，结果为 0/0 条。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 的对话不存在或当前不可读取，返回 0 条记录。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:41:13.905915+00:00",
+      "recorded_at": "2026-09-26T04:03:07.166603+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"已读取对话序号 100–110，该范围内没有对话记录，返回 0 条。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"已读取会话序号 100–110，但该范围内没有可返回的对话记录（0/0 条）。\",\"questions\":[]}"
         }
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:41:17.965652+00:00",
+      "recorded_at": "2026-09-26T04:03:11.257399+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 没有对话记录，返回 0 条。当前可读取的历史截至序号 8。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 不在当前会话范围内，因此没有读到任何内容。当前可读取的历史只到序号 8。\",\"questions\":[]}"
         }
       ]
     }

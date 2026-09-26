@@ -2,21 +2,21 @@
   "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
   "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "49f3f1eaa4b569c1c4dc22b148bdcc3daf9f6aa9ab4689659105fdc0ef6940a2",
-  "context_shape_fingerprint": "b1da46743fc7f6a49498c2658058bfbff8fcb10f4a53ec7603d784ded3491e42",
-  "recorded_at": "2026-09-24T07:48:22.133611+00:00",
+  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "context_shape_fingerprint": "5e8abcc8196782e51e5ba02bd106cb9b1fe38fa7aa6f385412abff0b27773326",
+  "recorded_at": "2026-09-26T04:01:45.960170+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"调研完成：该公司正将检索业务独立并显著扩招，赛道布局较领先，但具体团队与产品情况仍需面试核实。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技正将检索业务独立化并扩大招聘，且主要竞争对手尚未公开同类产品，业务扩张信号较强。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T07:48:22.133611+00:00",
+      "recorded_at": "2026-09-26T04:01:45.960170+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"调研完成：该公司正将检索业务独立并显著扩招，赛道布局较领先，但具体团队与产品情况仍需面试核实。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技正将检索业务独立化并扩大招聘，且主要竞争对手尚未公开同类产品，业务扩张信号较强。\",\"questions\":[]}"
         }
       ]
     }

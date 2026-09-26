@@ -2,9 +2,9 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
-  "context_shape_fingerprint": "6e9d9e25bc5c542f673f44b10a8fbd81ad6ec85d855744cdf2fb07cf9bb3b59c",
-  "recorded_at": "2026-09-24T06:42:03.368236+00:00",
+  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
+  "context_shape_fingerprint": "3ad96432bbf5d6c7a5c1d202e803a21a2d344d673b111a6485a446f27a023939",
+  "recorded_at": "2026-09-26T04:05:24.352960+00:00",
   "steps": [
     {
       "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
@@ -13,7 +13,7 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:40:53.085070+00:00",
+      "recorded_at": "2026-09-26T04:02:59.688226+00:00",
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
@@ -21,7 +21,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:40:53.670273+00:00",
+      "recorded_at": "2026-09-26T04:02:41.642330+00:00",
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"
@@ -29,7 +29,7 @@
       ]
     },
     {
-      "recorded_at": "2026-09-24T06:42:03.368236+00:00",
+      "recorded_at": "2026-09-26T04:05:24.352960+00:00",
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}"

@@ -38,6 +38,7 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     CareerProfileBudgets,
     ConversationMessageContext,
+    ToolCall,
 )
 from career_agent.agent.questionnaire_contracts import UserQuestion
 from career_agent.agent.openai_compatible_client import (
@@ -361,6 +362,24 @@ def test_user_input_policy_accepts_questionnaire_but_rejects_final() -> None:
     assert "expected user input action" in check_step(
         step, AgentDecision(action="final", message="城市？"),
         scenario="clarify", index=0,
+    )[0]
+
+
+def test_a_forbidden_action_fails_while_every_other_move_passes() -> None:
+    """A step whose right move is open: read first or ask, but never answer."""
+    step = TrajectoryStep(forbid_actions=frozenset({"final"}))
+    assert check_step(
+        step,
+        AgentDecision(action="tool_call", tool_call=ToolCall(name="compare_saved_jobs", arguments={})),
+        scenario="open", index=0,
+    ) == ()
+    assert check_step(
+        step, AgentDecision(action="ask_user", message="你更看重哪一点？"),
+        scenario="open", index=0,
+    ) == ()
+    assert "took forbidden action 'final'" in check_step(
+        step, AgentDecision(action="final", message="推荐示例科技。"),
+        scenario="open", index=0,
     )[0]
 
 

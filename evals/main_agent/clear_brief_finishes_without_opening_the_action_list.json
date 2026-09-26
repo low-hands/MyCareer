@@ -2,21 +2,21 @@
   "scenario": "clear_brief_finishes_without_opening_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "82b667b9456c6376cabae82f003faffb36575332804e6a63e90701c65f40f8b6",
-  "context_shape_fingerprint": "724785a180d69a0ea0069b2d1b5d5b413c3e7d3824690420336acc7179972d23",
-  "recorded_at": "2026-09-24T06:39:12.307538+00:00",
+  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
+  "context_shape_fingerprint": "2b9757cf573d75eab40487a00b7bb7d8d3578ac3e1cf1701c2d189222131e518",
+  "recorded_at": "2026-09-26T04:01:30.469468+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"简报显示没有逾期事项（0 项），无需打开行动清单。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"刚才的简报显示没有逾期事项（逾期 0 项），无需打开行动清单。\",\"questions\":[]}"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:39:12.307538+00:00",
+      "recorded_at": "2026-09-26T04:01:30.469468+00:00",
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"简报显示没有逾期事项（0 项），无需打开行动清单。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"刚才的简报显示没有逾期事项（逾期 0 项），无需打开行动清单。\",\"questions\":[]}"
         }
       ]
     }

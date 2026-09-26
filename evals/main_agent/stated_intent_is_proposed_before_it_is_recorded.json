@@ -2,9 +2,9 @@
   "scenario": "stated_intent_is_proposed_before_it_is_recorded",
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
   "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "3547c15265ced9d8e49ba4b364d5dc270336be5dcc7626b7d2ca42aabbb2285a",
-  "context_shape_fingerprint": "77ef92951cadf9b5b319a2cd558734ee7e4540528fb52b88063a8001cc47f8ec",
-  "recorded_at": "2026-09-24T06:38:23.377388+00:00",
+  "prompt_fingerprint": "f8918b92108e0c80415f584c059829f13a5fa1de271b8509559dc5a93d773eb0",
+  "context_shape_fingerprint": "03e30afdbe7679f72450973b743212ea19f021d2a74cb195ace376aa8d298ead",
+  "recorded_at": "2026-09-26T04:00:24.588341+00:00",
   "steps": [
     {
       "tool_call": {
@@ -18,7 +18,8 @@
         "arguments": {
           "city": "上海",
           "salary_expectation": "40K 以上",
-          "target_role_selection_index": 1
+          "target_role_selection_index": 1,
+          "timescale": "permanent"
         }
       }
     }
@@ -26,7 +27,7 @@
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-24T06:38:23.377388+00:00",
+      "recorded_at": "2026-09-26T04:00:24.588341+00:00",
       "steps": [
         {
           "tool_call": {
@@ -40,7 +41,8 @@
             "arguments": {
               "city": "上海",
               "salary_expectation": "40K 以上",
-              "target_role_selection_index": 1
+              "target_role_selection_index": 1,
+              "timescale": "permanent"
             }
           }
         }
