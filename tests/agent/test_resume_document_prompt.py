@@ -49,16 +49,22 @@ def test_scanned_or_mixed_pdf_never_silently_loses_pages(pages):
     assert prompts.pdf_text_prompt(document(synthetic_pdf(pages))) is None
 
 
-def test_image_plus_text_on_same_page_retains_original_pdf():
+def _text_and_image_page() -> bytes:
+    """One page with a text layer and an image drawn on it."""
     reader = PdfReader(BytesIO(synthetic_pdf(("Small text layer", None))))
     first, image_page = reader.pages
-    resources = first["/Resources"]
-    resources[NameObject("/XObject")] = image_page["/Resources"]["/XObject"]
+    first["/Resources"][NameObject("/XObject")] = image_page["/Resources"]["/XObject"]
     writer = PdfWriter()
-    writer.add_page(first)
+    page = writer.add_page(first)
+    # Drawn, not only listed: an unused resource puts nothing on the page.
+    page.merge_page(image_page)
     out = BytesIO()
     writer.write(out)
-    assert prompts.pdf_text_prompt(document(out.getvalue())) is None
+    return out.getvalue()
+
+
+def test_image_plus_text_on_same_page_retains_original_pdf():
+    assert prompts.pdf_text_prompt(document(_text_and_image_page())) is None
 
 
 def test_cache_uses_content_not_version_id(monkeypatch):
@@ -185,14 +191,7 @@ def test_a_composite_font_without_to_unicode_always_sends_the_pdf():
 
 
 def test_visual_content_can_be_ignored_only_by_the_caller_that_asks():
-    reader = PdfReader(BytesIO(synthetic_pdf(("Small text layer", None))))
-    first, image_page = reader.pages
-    first["/Resources"][NameObject("/XObject")] = image_page["/Resources"]["/XObject"]
-    writer = PdfWriter()
-    writer.add_page(first)
-    out = BytesIO()
-    writer.write(out)
-    doc = document(out.getvalue())
+    doc = document(_text_and_image_page())
 
     # Either order: the flag is part of the cache key, so one caller's route
     # never leaks into the other's.

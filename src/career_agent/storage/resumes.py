@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -31,12 +32,29 @@ if TYPE_CHECKING:
     )
 
 
+class StoredResumeText(BaseModel):
+    """A version's text, page by page, as every reader of the resume uses it.
+
+    Read once, when the version is imported or first needed: locally for a
+    text layer that decodes, by the model from the PDF itself when it does
+    not (a scan, a font without a Unicode map). Readers never parse again.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    pages: tuple[str, ...]
+    method: Literal["plain", "local", "model"]
+    has_visual_content: bool = False
+
+
 class StoredResumeDocument(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     resume_version_id: str
     document_format: Literal["pdf", "text", "markdown"]
     raw_bytes: bytes
+    text: StoredResumeText | None = None
+    """The version's text, read once and stored; ``None`` until it is."""
 
 
 class ResumeImportConflictError(ValueError):
@@ -75,7 +93,7 @@ class ResumeStore:
             apply_schema(
                 connection,
                 "resumes",
-                9,
+                10,
                 self._migrate,
                 upgrades={
                     4: self._add_target_role_intent_columns,
@@ -86,6 +104,7 @@ class ResumeStore:
                     # Version 9 adds ``resume_import_receipts``; the baseline
                     # creates it, so an existing file needs no data change.
                     9: lambda connection: None,
+                    10: self._create_version_texts,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -440,6 +459,7 @@ class ResumeStore:
                     connection.execute(f"DELETE FROM resume_artifacts WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
                 connection.execute(f"DELETE FROM resume_tailoring_version_links WHERE source_resume_version_id IN ({placeholders}) OR new_resume_version_id IN ({placeholders})", (*delete_ids, *delete_ids))
                 connection.execute(f"DELETE FROM resume_import_receipts WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
+                connection.execute(f"DELETE FROM resume_version_texts WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
                 connection.execute(f"DELETE FROM resume_version_documents WHERE resume_version_id IN ({placeholders})", tuple(delete_ids))
                 connection.execute(f"DELETE FROM resume_versions WHERE id IN ({placeholders})", tuple(delete_ids))
             if keep:
@@ -665,12 +685,15 @@ class ResumeStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT version.id, version.document_format, document.content
+                SELECT version.id, version.document_format, document.content,
+                       text.pages_json, text.method, text.has_visual_content
                 FROM resume_version_documents AS document
                 JOIN resume_versions AS version
                   ON version.id = document.resume_version_id
                 JOIN resumes AS resume
                   ON resume.id = version.resume_id
+                LEFT JOIN resume_version_texts AS text
+                  ON text.resume_version_id = version.id
                 WHERE version.id = ? AND resume.user_id = ?
                 """,
                 (resume_version_id, user_id),
@@ -681,6 +704,80 @@ class ResumeStore:
             resume_version_id=row[0],
             document_format=row[1],
             raw_bytes=bytes(row[2]),
+            text=self._text(row[3:]) if row[3] is not None else None,
+        )
+
+    def get_version_text(
+        self, *, user_id: str, resume_version_id: str
+    ) -> StoredResumeText | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT text.pages_json, text.method, text.has_visual_content
+                FROM resume_version_texts AS text
+                JOIN resume_versions AS version ON version.id = text.resume_version_id
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE text.resume_version_id = ? AND resume.user_id = ?
+                """,
+                (resume_version_id, user_id),
+            ).fetchone()
+        return self._text(row) if row is not None else None
+
+    def save_version_text(
+        self, *, user_id: str, resume_version_id: str, text: StoredResumeText
+    ) -> bool:
+        """Keep the first text stored for a version: versions never change."""
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            owned = connection.execute(
+                """
+                SELECT 1 FROM resume_versions AS version
+                JOIN resumes AS resume ON resume.id = version.resume_id
+                WHERE version.id = ? AND resume.user_id = ?
+                """,
+                (resume_version_id, user_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO resume_version_texts(
+                    resume_version_id, pages_json, method, has_visual_content, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    resume_version_id,
+                    json.dumps(list(text.pages), ensure_ascii=False),
+                    text.method,
+                    int(text.has_visual_content),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        return True
+
+    @staticmethod
+    def _text(row: tuple) -> StoredResumeText:
+        return StoredResumeText(
+            pages=tuple(json.loads(row[0])),
+            method=row[1],
+            has_visual_content=bool(row[2]),
+        )
+
+    @staticmethod
+    def _create_version_texts(connection: sqlite3.Connection) -> None:
+        """Version 10: a version's text is read once and kept beside its file."""
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS resume_version_texts (
+                resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id),
+                pages_json TEXT NOT NULL,
+                method TEXT NOT NULL CHECK(method IN ('plain', 'local', 'model')),
+                has_visual_content INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
         )
 
     @staticmethod
@@ -750,6 +847,7 @@ class ResumeStore:
             connection.execute("CREATE TABLE resume_versions (id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id), version_number INTEGER NOT NULL, source_type TEXT NOT NULL, document_format TEXT NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(resume_id, version_number))")
             connection.execute("CREATE TABLE resume_version_documents (resume_version_id TEXT PRIMARY KEY REFERENCES resume_versions(id), content BLOB NOT NULL)")
         connection.execute("CREATE TABLE IF NOT EXISTS target_roles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, priority INTEGER NOT NULL, status TEXT NOT NULL, city TEXT, salary_expectation TEXT, experience TEXT, education TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, title))")
+        self._create_version_texts(connection)
         connection.execute("CREATE TABLE IF NOT EXISTS resume_import_receipts (user_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_fingerprint TEXT NOT NULL, resume_id TEXT NOT NULL REFERENCES resumes(id), resume_version_id TEXT NOT NULL REFERENCES resume_versions(id), created_at TEXT NOT NULL, PRIMARY KEY(user_id, idempotency_key))")
         self._add_target_role_intent_columns(connection)
         apply_intent_version_schema(connection)

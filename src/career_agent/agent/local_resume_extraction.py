@@ -12,12 +12,15 @@ import json
 import logging
 import math
 import os
+import re
 import subprocess
 import sys
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
-from io import BytesIO
+from hashlib import sha256
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING
 
 from career_agent.agent.openai_compatible_client import AgentWorkerError
@@ -159,6 +162,16 @@ def extract_resume_source(
         raise _failure("EMPTY_DOCUMENT")
     if len(document.raw_bytes) > limits.max_bytes:
         raise _failure("DOCUMENT_TOO_LARGE")
+    if document.text is not None:
+        # Read once when the version was imported; locally or, where the
+        # parser could not, transcribed by the model. Either way it is the
+        # page's own text.
+        return _source_from_pages(
+            document.text.pages,
+            limits,
+            has_visual_content=document.text.has_visual_content,
+            text_unreliable=False,
+        )
     if document.document_format == "pdf":
         return _extract_pdf_isolated(document.raw_bytes, limits)
     try:
@@ -172,75 +185,109 @@ def extract_resume_source(
     return ExtractedResumeSource(paragraphs=paragraphs, page_count=1)
 
 
-def _extract_pdf(raw: bytes, limits: ResumeExtractionLimits) -> ExtractedResumeSource:
-    from pypdf import PdfReader
+@dataclass(frozen=True)
+class ExtractedPdfPages:
+    """What the sandboxed parser read: each page's text, in page order."""
+
+    pages: tuple[str, ...]
+    has_visual_content: bool
+    text_unreliable: bool
+
+
+# Characters a parser emits for a glyph it could not map to Unicode.
+_UNMAPPED_CHARACTERS = re.compile("[\x00\ufffd\ufffe]")
+
+
+def _has_visual_content(page, pdfium_c) -> bool:
+    # Images anywhere on the page, including inside form XObjects. A link
+    # annotation (email, portfolio) carries no picture; any other kind may.
+    for _ in page.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=8):
+        return True
+    for index in range(pdfium_c.FPDFPage_GetAnnotCount(page)):
+        annotation = pdfium_c.FPDFPage_GetAnnot(page, index)
+        try:
+            subtype = pdfium_c.FPDFAnnot_GetSubtype(annotation)
+        finally:
+            pdfium_c.FPDFPage_CloseAnnot(annotation)
+        if subtype != pdfium_c.FPDF_ANNOT_LINK:
+            return True
+    return False
+
+
+def _has_unmapped_characters(textpage, pdfium_c) -> bool:
+    # PDFium recovers Unicode from the embedded font when a composite font has
+    # no ToUnicode map (LaTeX CJK fonts); this flags the glyphs it could not.
+    return any(
+        pdfium_c.FPDFText_HasUnicodeMapError(textpage, index) == 1
+        for index in range(pdfium_c.FPDFText_CountChars(textpage))
+    )
+
+
+def _read_pdf(raw: bytes, *, max_pages: int, max_characters: int) -> ExtractedPdfPages:
+    """Parse ``raw`` with PDFium. Called only inside the limited child process:
+    PDFium is native code reading an untrusted file, and it is not thread-safe."""
+
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as pdfium_c
 
     if not raw.startswith(b"%PDF-"):
         raise _failure("PDF_DAMAGED")
     try:
-        reader = PdfReader(BytesIO(raw), strict=True)
-        if reader.is_encrypted:
-            raise _failure("PDF_ENCRYPTED")
-        page_count = len(reader.pages)
-        if page_count > limits.max_pages:
-            raise _failure("PDF_TOO_MANY_PAGES")
-        if page_count == 0:
-            raise _failure("EMPTY_DOCUMENT")
-        paragraphs: list[ResumeSourceParagraph] = []
-        characters = 0
-        text_tokens = 0
-        has_visual_content = False
-        text_unreliable = False
-        for page_number, page in enumerate(reader.pages, start=1):
-            resources = page.get("/Resources", {})
-            resources = resources.get_object() if hasattr(resources, "get_object") else resources
-            contents = page.get_contents()
-            has_visual_content |= bool(resources.get("/XObject"))
-            annots = page.get("/Annots") or []
-            for annotation in annots:
-                annotation = annotation.get_object() if hasattr(annotation, "get_object") else annotation
-                if annotation.get("/Subtype") != "/Link":
-                    has_visual_content = True
-                    break
-            fonts = resources.get("/Font") or {}
-            fonts = fonts.get_object() if hasattr(fonts, "get_object") else fonts
-            for font_ref in fonts.values() if hasattr(fonts, "values") else ():
-                font = font_ref.get_object() if hasattr(font_ref, "get_object") else font_ref
-                # Simple fonts (Type1/TrueType with a standard encoding) decode
-                # fine without a ToUnicode map; composite fonts do not.
-                if font.get("/Subtype") == "/Type0" and font.get("/ToUnicode") is None:
-                    text_unreliable = True
-                    break
-            if contents and hasattr(contents, "operations"):
-                has_visual_content |= any(op == b"INLINE IMAGE" for _, op in contents.operations)
-            text = page.extract_text() or ""
-            text_unreliable |= "\ufffd" in text or "\x00" in text
-            _check_text(text, limits)
-            characters += len(text)
-            text_tokens += len(text.encode("utf-8"))
-            if characters > limits.max_characters:
-                raise _failure("CHARACTER_BUDGET_EXCEEDED")
-            if text_tokens > limits.max_text_tokens:
-                raise _failure("TOKEN_BUDGET_EXCEEDED")
-            page_paragraphs = _paragraphs(text, page=page_number)
-            if not page_paragraphs:
-                raise _failure("OCR_REQUIRED")
-            paragraphs.extend(page_paragraphs)
-        return ExtractedResumeSource(
-            tuple(paragraphs), page_count, has_visual_content, text_unreliable
-        )
+        try:
+            pdf = pdfium.PdfDocument(raw)
+        except pdfium.PdfiumError as error:
+            encrypted = "password" in str(error).casefold()
+            raise _failure("PDF_ENCRYPTED" if encrypted else "PDF_DAMAGED") from None
+        try:
+            page_count = len(pdf)
+            if page_count > max_pages:
+                raise _failure("PDF_TOO_MANY_PAGES")
+            if page_count == 0:
+                raise _failure("EMPTY_DOCUMENT")
+            pages: list[str] = []
+            characters = 0
+            has_visual_content = False
+            text_unreliable = False
+            for index in range(page_count):
+                page = pdf[index]
+                try:
+                    has_visual_content |= _has_visual_content(page, pdfium_c)
+                    textpage = page.get_textpage()
+                    try:
+                        text = textpage.get_text_range()
+                        text_unreliable |= (
+                            _has_unmapped_characters(textpage, pdfium_c)
+                            or _UNMAPPED_CHARACTERS.search(text) is not None
+                        )
+                    finally:
+                        textpage.close()
+                finally:
+                    page.close()
+                characters += len(text)
+                if characters > max_characters:
+                    raise _failure("CHARACTER_BUDGET_EXCEEDED")
+                pages.append(text)
+            return ExtractedPdfPages(tuple(pages), has_visual_content, text_unreliable)
+        finally:
+            pdf.close()
     except AgentWorkerError:
         raise
     except MemoryError:
         raise _failure("PDF_EXTRACTION_LIMIT") from None
     except Exception:
-        # pypdf failures can embed document bytes in the exception message.
+        # Parser failures can embed document bytes in the exception message.
         raise _failure("PDF_DAMAGED") from None
 
 
-def _extract_pdf_isolated(
-    raw: bytes, limits: ResumeExtractionLimits
-) -> ExtractedResumeSource:
+def read_pdf_pages(
+    raw: bytes, limits: ResumeExtractionLimits = ResumeExtractionLimits()
+) -> ExtractedPdfPages:
+    """Each page's text of ``raw``, read by PDFium in a resource-limited child.
+
+    Every PDF text read goes through here, so no untrusted PDF is parsed by
+    native code inside the API process.
+    """
+
     environment = dict(os.environ)
     environment["PYTHONPATH"] = os.pathsep.join(
         filter(
@@ -256,7 +303,6 @@ def _extract_pdf_isolated(
                 "career_agent.agent.local_resume_extraction",
                 str(limits.max_pages),
                 str(limits.max_characters),
-                str(limits.max_text_tokens),
                 str(limits.max_bytes),
             ],
             input=raw,
@@ -283,17 +329,118 @@ def _extract_pdf_isolated(
         code = payload.get("error")
         if code in _MESSAGES:
             raise _failure(code)
-        paragraphs = tuple(
-            ResumeSourceParagraph(**item) for item in payload["paragraphs"]
-        )
-        return ExtractedResumeSource(
-            paragraphs,
-            payload["page_count"],
-            payload.get("has_visual_content", True),
-            payload.get("text_unreliable", True),
+        pages = payload["pages"]
+        if not isinstance(pages, list) or not all(isinstance(page, str) for page in pages):
+            raise ValueError("Invalid parser pages")
+        return ExtractedPdfPages(
+            tuple(pages),
+            bool(payload.get("has_visual_content", True)),
+            bool(payload.get("text_unreliable", True)),
         )
     except (ValueError, TypeError, KeyError):
         raise _failure("PDF_DAMAGED") from None
+
+
+def _extract_pdf_isolated(
+    raw: bytes, limits: ResumeExtractionLimits
+) -> ExtractedResumeSource:
+    read = read_pdf_pages(raw, limits)
+    return _source_from_pages(
+        read.pages,
+        limits,
+        has_visual_content=read.has_visual_content,
+        text_unreliable=read.text_unreliable,
+    )
+
+
+def _source_from_pages(
+    pages: tuple[str, ...],
+    limits: ResumeExtractionLimits,
+    *,
+    has_visual_content: bool,
+    text_unreliable: bool,
+) -> ExtractedResumeSource:
+    paragraphs: list[ResumeSourceParagraph] = []
+    characters = 0
+    text_tokens = 0
+    for page_number, text in enumerate(pages, start=1):
+        _check_text(text, limits)
+        characters += len(text)
+        text_tokens += len(text.encode("utf-8"))
+        if characters > limits.max_characters:
+            raise _failure("CHARACTER_BUDGET_EXCEEDED")
+        if text_tokens > limits.max_text_tokens:
+            raise _failure("TOKEN_BUDGET_EXCEEDED")
+        page_paragraphs = _paragraphs(text, page=page_number)
+        if not page_paragraphs:
+            raise _failure("OCR_REQUIRED")
+        paragraphs.extend(page_paragraphs)
+    return ExtractedResumeSource(
+        tuple(paragraphs), len(pages), has_visual_content, text_unreliable
+    )
+
+
+_PAGE_CACHE: OrderedDict[str, ExtractedPdfPages | str] = OrderedDict()
+_PAGE_CACHE_LOCK = Lock()
+_PAGE_CACHE_SIZE = 64
+# Reading a stored resume for validation, display or excerpts: no analysis
+# budgets, only the parser's own safety bounds.
+_READ_LIMITS = ResumeExtractionLimits(
+    max_pages=100, max_characters=400_000, max_text_tokens=1_600_000
+)
+# Failures of the parser run, not of the file: never remembered.
+_TRANSIENT_CODES = frozenset(
+    {"PDF_EXTRACTION_LIMIT", "PDF_SANDBOX_UNAVAILABLE", "PDF_EXTRACTION_FAILED"}
+)
+
+
+def cached_pdf_read(raw: bytes) -> ExtractedPdfPages:
+    """``read_pdf_pages`` for callers that only read, cached by content.
+
+    Pages read the same file on every visit, so the child process runs once
+    per distinct document. Raises the parser's ``AgentWorkerError``; one that
+    comes from the file itself (damaged, encrypted) is cached like a result.
+    """
+
+    digest = sha256(raw).hexdigest()
+    with _PAGE_CACHE_LOCK:
+        cached = _PAGE_CACHE.get(digest)
+        if cached is not None:
+            _PAGE_CACHE.move_to_end(digest)
+    if isinstance(cached, str):
+        raise _failure(cached)
+    if cached is not None:
+        return cached
+    try:
+        result: ExtractedPdfPages | str = read_pdf_pages(raw, _READ_LIMITS)
+    except AgentWorkerError as error:
+        code = error.code.removeprefix("RESUME_ANALYSIS_")
+        if code in _TRANSIENT_CODES or code not in _MESSAGES:
+            raise
+        result = code
+    with _PAGE_CACHE_LOCK:
+        _PAGE_CACHE[digest] = result
+        _PAGE_CACHE.move_to_end(digest)
+        while len(_PAGE_CACHE) > _PAGE_CACHE_SIZE:
+            _PAGE_CACHE.popitem(last=False)
+    if isinstance(result, str):
+        raise _failure(result)
+    return result
+
+
+def cached_pdf_pages(raw: bytes) -> ExtractedPdfPages | None:
+    """``cached_pdf_read``, with ``None`` when no text could be read at all."""
+
+    try:
+        return cached_pdf_read(raw)
+    except AgentWorkerError:
+        return None
+
+
+def is_transient_pdf_failure(error: AgentWorkerError) -> bool:
+    """The parser could not run; that says nothing about the file."""
+
+    return error.code.removeprefix("RESUME_ANALYSIS_") in _TRANSIENT_CODES
 
 
 _PDF_CHILD_MEMORY_BYTES = 512 * 1_048_576
@@ -326,30 +473,21 @@ def _pdf_child() -> None:
         sys.exit(_SANDBOX_UNAVAILABLE_EXIT)
     logging.disable(logging.CRITICAL)
     warnings.simplefilter("ignore")
-    limits = ResumeExtractionLimits(
-        max_pages=int(sys.argv[1]),
-        max_characters=int(sys.argv[2]),
-        max_text_tokens=int(sys.argv[3]),
-        max_bytes=int(sys.argv[4]),
-    )
-    raw = sys.stdin.buffer.read(limits.max_bytes + 1)
+    max_pages, max_characters, max_bytes = (int(value) for value in sys.argv[1:4])
+    raw = sys.stdin.buffer.read(max_bytes + 1)
     try:
-        if len(raw) > limits.max_bytes:
+        if len(raw) > max_bytes:
             raise _failure("DOCUMENT_TOO_LARGE")
-        source = _extract_pdf(raw, limits)
+        read = _read_pdf(raw, max_pages=max_pages, max_characters=max_characters)
         payload = {
-            "page_count": source.page_count,
-            "has_visual_content": source.has_visual_content,
-            "text_unreliable": source.text_unreliable,
-            "paragraphs": [
-                {"page": item.page, "paragraph": item.paragraph, "text": item.text}
-                for item in source.paragraphs
-            ],
+            "pages": list(read.pages),
+            "has_visual_content": read.has_visual_content,
+            "text_unreliable": read.text_unreliable,
         }
     except AgentWorkerError as error:
         payload = {"error": error.code.removeprefix("RESUME_ANALYSIS_")}
     except MemoryError:
-        # Raised under RLIMIT_AS outside _extract_pdf (e.g. importing pypdf).
+        # Raised under RLIMIT_AS outside _read_pdf (e.g. importing pypdfium2).
         payload = {"error": "PDF_EXTRACTION_LIMIT"}
     sys.stdout.write(json.dumps(payload, ensure_ascii=False))
 

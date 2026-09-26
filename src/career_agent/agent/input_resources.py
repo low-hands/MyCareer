@@ -21,7 +21,8 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.summary_text import condense
 from career_agent.harness.streaming import TurnInputResource
-from career_agent.services.resume_import import extract_resume_text
+from career_agent.services.resume_import import resume_document_text
+from career_agent.services.resume_text import ResumeTextService
 from career_agent.storage.jobs import JobPostingRepository
 from career_agent.storage.resumes import ResumeStore
 from career_agent.services.applications import ApplicationService
@@ -154,6 +155,7 @@ def resolve_input_resources(
     *,
     user_id: str,
     resources: tuple[TurnInputResource, ...],
+    text_service: ResumeTextService | None = None,
 ) -> tuple[AttachedResumeContext, ...]:
     resources = tuple(
         resource for resource in resources if resource.kind == "resume_version"
@@ -171,12 +173,12 @@ def resolve_input_resources(
         if located is None:
             raise InputResourceNotFoundError(resource)
         resume, version = located
-        document = store.read_version_document(
+        document = (text_service.ensure if text_service is not None else store.read_version_document)(
             user_id=user_id, resume_version_id=version.id
         )
         located_versions.append((resume, version))
         texts.append(
-            extract_resume_text(document.document_format, document.raw_bytes)
+            resume_document_text(document)
             if document is not None
             else None
         )

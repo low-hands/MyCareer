@@ -100,7 +100,7 @@ def test_a_version_8_file_gains_the_receipt_table_on_open(tmp_path):
     store = ResumeStore(path)
 
     with sqlite3.connect(path) as connection:
-        assert check_schema_version(connection, "resumes", 9) == 9
+        assert check_schema_version(connection, "resumes", 10) == 10
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE name = 'resume_import_receipts'"
         ).fetchone() is not None

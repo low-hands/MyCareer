@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-from io import BytesIO
 from typing import Literal, TypedDict
 
-from pypdf import PdfReader
 
 from langgraph.graph import END, START, StateGraph
 
+from career_agent.agent.local_resume_extraction import cached_pdf_pages
 from career_agent.agent.resume_job_match_contracts import (
     ConfirmedResumeFact,
     ResumeJobMatchResult,
@@ -616,15 +615,16 @@ class ResumeTailoringReviewGraph:
         upload has neither. Callers must treat those cases differently.
         """
 
+        if document.text is not None:
+            return tuple(cls._normalize(page) for page in document.text.pages), True
         if document.document_format == "pdf":
-            try:
-                reader = PdfReader(BytesIO(document.raw_bytes), strict=False)
-                extracted = tuple(
-                    cls._normalize(page.extract_text() or "") for page in reader.pages
-                )
-            except Exception:
+            read = cached_pdf_pages(document.raw_bytes)
+            if read is None:
                 return None, False
-            return extracted, True
+            if read.text_unreliable:
+                # Readable, but its text is not the page's: no reliable layer.
+                return None, True
+            return tuple(cls._normalize(page) for page in read.pages), True
         try:
             decoded = document.raw_bytes.decode("utf-8-sig")
         except UnicodeDecodeError:

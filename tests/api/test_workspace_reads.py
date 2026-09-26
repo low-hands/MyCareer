@@ -968,6 +968,9 @@ def test_resume_import_and_target_role_creation_require_write_scope(
             self.calls.append((f"role:{title}", user_id, None))
             return TargetRoleView(id="role-1", title=title, priority=0, status="active")
 
+        def read_resume_text(self, **values):
+            self.calls.append(("read_text", values["user_id"], values["resume_version_id"]))
+
         def import_resume(self, **values):
             self.calls.append(("import", values["user_id"], len(values["content"])))
             return ResumeImportResponse(
@@ -1017,6 +1020,8 @@ def test_resume_import_and_target_role_creation_require_write_scope(
     assert reader.calls == [
         ("role:AI 产品经理", "u1", None),
         ("import", "u1", len(b"# Resume")),
+        # Its text is read once, right after the response, for later readers.
+        ("read_text", "u1", "version-1"),
     ]
 
 

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from io import BytesIO
 from pathlib import Path
 
-from pypdf import PdfReader
+from career_agent.agent.local_resume_extraction import (
+    cached_pdf_pages,
+    cached_pdf_read,
+    is_transient_pdf_failure,
+)
+from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.storage.resumes import StoredResumeDocument
 
 
 MAX_RESUME_IMPORT_BYTES = 5 * 1_048_576
@@ -34,15 +39,17 @@ def validate_resume_document(filename: str, content: bytes) -> tuple[bytes, str]
         if not content.startswith(b"%PDF-"):
             raise ValueError("Resume PDF has an invalid header.")
         try:
-            reader = PdfReader(BytesIO(content), strict=False)
-            if reader.is_encrypted:
-                raise ValueError("Encrypted resume PDFs are not supported.")
-            if not reader.pages:
-                raise ValueError("Resume PDF contains no pages.")
-        except ValueError:
-            raise
-        except Exception as error:
-            raise ValueError("Resume PDF is malformed or unreadable.") from error
+            cached_pdf_read(content)
+        except AgentWorkerError as error:
+            if is_transient_pdf_failure(error):
+                # The parser could not run; that says nothing against the file.
+                return content, document_format
+            code = error.code.removeprefix("RESUME_ANALYSIS_")
+            if code == "PDF_ENCRYPTED":
+                raise ValueError("Encrypted resume PDFs are not supported.") from None
+            if code == "EMPTY_DOCUMENT":
+                raise ValueError("Resume PDF contains no pages.") from None
+            raise ValueError("Resume PDF is malformed or unreadable.") from None
         return content, document_format
     if b"\x00" in content:
         raise ValueError("Resume text must not contain NUL bytes.")
@@ -64,17 +71,28 @@ def extract_resume_text(document_format: str, content: bytes) -> str | None:
     layout noise of a PDF does not consume the caller's budget.
     """
     if document_format == "pdf":
-        try:
-            reader = PdfReader(BytesIO(content), strict=False)
-            pages = [page.extract_text() or "" for page in reader.pages]
-        except Exception:
+        read = cached_pdf_pages(content)
+        # Text PDFium could not map is not the resume's text; no text is better.
+        if read is None or read.text_unreliable:
             return None
-        raw = "\n".join(pages)
+        raw = "\n".join(read.pages)
     else:
         try:
             raw = content.decode("utf-8-sig")
         except UnicodeDecodeError:
             return None
+    return _collapsed(raw)
+
+
+def resume_document_text(document: StoredResumeDocument) -> str | None:
+    """``extract_resume_text`` for a stored version: its stored text once read."""
+
+    if document.text is not None:
+        return _collapsed("\n".join(document.text.pages))
+    return extract_resume_text(document.document_format, document.raw_bytes)
+
+
+def _collapsed(raw: str) -> str | None:
     lines = [" ".join(line.split()) for line in raw.splitlines()]
     text = "\n".join(line for line in lines if line)
     return text or None

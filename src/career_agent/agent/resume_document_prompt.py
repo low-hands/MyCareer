@@ -49,7 +49,9 @@ def pdf_text_prompt(document: StoredResumeDocument, *, ignore_visual_content: bo
         return finish(None)
     digest = sha256(document.raw_bytes).hexdigest()
     with _LOCK:
-        cache_key = f"{digest}:{int(ignore_visual_content)}"
+        # A version's stored text can arrive after its bytes were first seen
+        # here (a model transcription); it must not be shadowed by that miss.
+        cache_key = f"{digest}:{int(ignore_visual_content)}:{int(document.text is not None)}"
         cache_hit = cache_key in _CACHE
         cached_prompt = _CACHE.get(cache_key)
         if cache_hit:

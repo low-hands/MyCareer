@@ -42,12 +42,12 @@ def synthetic_pdf(pages: tuple[str | None, ...], *, encrypted: bool = False) -> 
                 }
             )
             page[NameObject("/Resources")] = DictionaryObject(
-                {NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image})}
+                {NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): writer._add_object(image)})}
             )
             stream.set_data(b"q 100 0 0 100 20 20 cm /Im0 Do Q")
         else:
             # A real Type0 text layer and an explicit ToUnicode CMap exercise
-            # Chinese extraction rather than replacing pypdf with a mock.
+            # Chinese extraction rather than replacing the parser with a mock.
             cmap = DecodedStreamObject()
             characters = sorted(set(text) - {"\n"})
             mappings = "\n".join(
@@ -64,11 +64,27 @@ def synthetic_pdf(pages: tuple[str | None, ...], *, encrypted: bool = False) -> 
                     "endcmap CMapName currentdict /CMap defineresource pop end end"
                 ).encode("ascii")
             )
+            # Every real composite font has a descriptor; PDFium loads no font,
+            # and so reads no text, without one.
+            descriptor = DictionaryObject(
+                {
+                    NameObject("/Type"): NameObject("/FontDescriptor"),
+                    NameObject("/FontName"): NameObject("/SyntheticUnicode"),
+                    NameObject("/Flags"): NumberObject(4),
+                    NameObject("/FontBBox"): ArrayObject([NumberObject(0)] * 4),
+                    NameObject("/ItalicAngle"): NumberObject(0),
+                    NameObject("/Ascent"): NumberObject(880),
+                    NameObject("/Descent"): NumberObject(-120),
+                    NameObject("/CapHeight"): NumberObject(700),
+                    NameObject("/StemV"): NumberObject(80),
+                }
+            )
             descendant = DictionaryObject(
                 {
                     NameObject("/Type"): NameObject("/Font"),
                     NameObject("/Subtype"): NameObject("/CIDFontType2"),
                     NameObject("/BaseFont"): NameObject("/SyntheticUnicode"),
+                    NameObject("/FontDescriptor"): writer._add_object(descriptor),
                     NameObject("/CIDSystemInfo"): DictionaryObject(
                         {
                             NameObject("/Registry"): TextStringObject("Adobe"),
@@ -84,8 +100,8 @@ def synthetic_pdf(pages: tuple[str | None, ...], *, encrypted: bool = False) -> 
                     NameObject("/Subtype"): NameObject("/Type0"),
                     NameObject("/BaseFont"): NameObject("/SyntheticUnicode"),
                     NameObject("/Encoding"): NameObject("/Identity-H"),
-                    NameObject("/DescendantFonts"): ArrayObject([descendant]),
-                    NameObject("/ToUnicode"): cmap,
+                    NameObject("/DescendantFonts"): ArrayObject([writer._add_object(descendant)]),
+                    NameObject("/ToUnicode"): writer._add_object(cmap),
                 }
             )
             page[NameObject("/Resources")] = DictionaryObject(
@@ -96,7 +112,8 @@ def synthetic_pdf(pages: tuple[str | None, ...], *, encrypted: bool = False) -> 
                 commands.extend([f"<{line.encode('utf-16-be').hex()}> Tj", "T*"])
             commands.append("ET")
             stream.set_data("\n".join(commands).encode("ascii"))
-        page[NameObject("/Contents")] = stream
+        # Streams must be indirect objects (ISO 32000 7.3.8); PDFium holds to it.
+        page[NameObject("/Contents")] = writer._add_object(stream)
     if encrypted:
         writer.encrypt("synthetic-password")
     output = BytesIO()
@@ -124,7 +141,9 @@ def test_chinese_text_pdf_keeps_exact_page_paragraph_quotes() -> None:
     )
     assert source.page_count == 2
     assert source.quotes_by_locator == {
-        "page 1, paragraph 1": "示例公司  后端工程师",
+        # PDFium emits the source's run of two spaces as one; our code keeps
+        # whatever the parser gives verbatim.
+        "page 1, paragraph 1": "示例公司 后端工程师",
         "page 1, paragraph 2": "负责检索系统",
         "page 2, paragraph 1": "项目经历",
         "page 2, paragraph 2": "Career Agent",
@@ -150,7 +169,8 @@ def test_utf8_bom_blank_lines_and_untrusted_locator_text(document_format: str) -
 @pytest.mark.parametrize(
     ("pages", "encrypted", "code"),
     [
-        ((), False, "EMPTY_DOCUMENT"),
+        # PDFium refuses a document with no pages at load time.
+        ((), False, "PDF_DAMAGED"),
         (("",), False, "OCR_REQUIRED"),
         ((None,), False, "OCR_REQUIRED"),
         (("Readable first page", None), False, "OCR_REQUIRED"),

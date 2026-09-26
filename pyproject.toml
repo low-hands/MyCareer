@@ -15,7 +15,7 @@ dependencies = [
     "langgraph>=0.2",
     "langgraph-checkpoint-sqlite>=3.1.1,<4",
     "openai>=1.66",
-    "pypdf>=6.0",
+    "pypdfium2>=5.13,<6",
     "tiktoken>=0.7,<1",
     "deepagents>=0.7.6,<0.8",
     "deepagents>=0.7.6,<0.8",
@@ -31,7 +31,7 @@ career-agent = "career_agent.cli:main"
 career-agent-api = "career_agent.api.app:run"
 
 [project.optional-dependencies]
-test = ["pytest>=8", "httpx>=0.28,<1"]
+test = ["pytest>=8", "httpx>=0.28,<1", "pypdf>=6.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
