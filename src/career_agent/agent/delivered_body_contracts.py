@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BodyReference(BaseModel):
@@ -15,19 +14,6 @@ class SavedJobBodySource(BodyReference):
     job_posting_id: str = Field(min_length=1)
 
 
-class ResumeAnalysisBodySource(BodyReference):
-    kind: Literal["resume_analysis"] = "resume_analysis"
-    analysis_id: str = Field(min_length=1)
-    expires_at: datetime
-
-    @field_validator("expires_at")
-    @classmethod
-    def timezone_required(cls, value: datetime) -> datetime:
-        if value.tzinfo is None:
-            raise ValueError("expires_at must be timezone-aware")
-        return value
-
-
 class MockInterviewBodySource(BodyReference):
     kind: Literal["mock_interview_question"] = "mock_interview_question"
     session_id: str = Field(min_length=1)
@@ -35,7 +21,7 @@ class MockInterviewBodySource(BodyReference):
 
 
 DeliveredBodySource = Annotated[
-    SavedJobBodySource | ResumeAnalysisBodySource | MockInterviewBodySource,
+    SavedJobBodySource | MockInterviewBodySource,
     Field(discriminator="kind"),
 ]
 

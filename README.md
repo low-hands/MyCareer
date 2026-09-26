@@ -34,7 +34,7 @@
 ### 🧩 看清匹配，找到差距
 
 - **简历管理**：导入 PDF、TXT 或 Markdown。每次导入都是一个不可改的版本，可以随时打开原文件。简历按目标岗位分组，也能移到别的岗位下；重复上传同一个文件不会存两份。
-- **事实确认**：从简历里提取经历（"第 2 页：负责内部搜索平台开发……"），你确认或修正后，才会用于后续匹配。
+- **简历点评**：不需要 JD，按简历所在的目标岗位，从 HR 初筛、面试官和简历编辑三个角度指出写得弱的地方和改法，并列出面试官可能追问的问题。扫描件或特殊字体的 PDF 读不出文字时，会自动交给模型识别。
 - **逐条匹配**：拿指定的简历版本对照岗位的每条要求，结论只有四种：匹配、部分匹配、未体现、不明确。整体结论分为强、中、弱和证据不足，这不是录用概率。
 - **补强建议**：针对缺口给出下一步：澄清问题、补材料、做项目或学技能。
 
@@ -109,7 +109,7 @@ MAIN_AGENT_API_KEY=你的密钥
 MAIN_AGENT_MODEL=你的模型名
 MAIN_AGENT_TIMEOUT_SECONDS=120
 
-# 专家模型：负责简历分析、匹配、定制、公司调研、邮件处理和模拟面试
+# 专家模型：负责简历识别、匹配、定制、公司调研、邮件处理和模拟面试
 RESUME_ANALYSIS_AGENT_BASE_URL=https://你的服务/v1
 RESUME_ANALYSIS_AGENT_API_KEY=你的密钥
 RESUME_ANALYSIS_AGENT_MODEL=你的模型名
@@ -160,7 +160,7 @@ cd web && npm run dev          # 终端二，前端默认 http://127.0.0.1:5173
 **第一次上手**
 
 1. 在"简历管理"导入简历（也可以直接拖进对话框），选好它属于哪个目标岗位。
-2. 在对话里说"帮我分析这份简历"，确认提取出的经历。
+2. 在简历版本上点"简历点评"，看看哪里需要先改。
 3. 用扩展保存几个感兴趣的 BOSS 岗位。
 4. 让 Agent 做匹配、比较岗位或公司调研。
 5. 需要时发起简历定制：先看草稿，等自动审核通过后逐条确认，再下载定稿。
@@ -170,7 +170,7 @@ cd web && npm run dev          # 终端二，前端默认 http://127.0.0.1:5173
 
 | 想做的事 | 例子 |
 | --- | --- |
-| 分析简历 | "帮我分析这份简历"（附上简历） |
+| 点评简历 | "帮我点评这份简历"（附上简历） |
 | 看匹配 | "用 Agent开发 这份简历，对照岗位库里量霸科技那个岗位做个匹配" |
 | 比较岗位 | "岗位库里这几个多模态实习，哪个更值得投？" |
 | 公司调研 | "帮我调研一下岗位库里阿里巴巴那个岗位的公司情况" |
@@ -274,11 +274,6 @@ uv run career-agent backup restore --source ~/.career-agent-backups/20260914T120
 **公司调研使用独立模型（可选）**
 
 设置 `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）。三项都不设置时复用 `RESUME_ANALYSIS_AGENT_*`；只要设置了其中一项，就必须三项都填。该接口需要支持 Responses 的 `web_search` 工具，可以先运行 `python -m career_agent.agent.job_research_provider_smoke --work-root <目录> --report <新文件>` 检查。
-
-**专家模型的其他选项**
-
-- `RESUME_ANALYSIS_AGENT_API_PROTOCOL`：`chat_completions`（默认）或 `responses`。
-- `RESUME_ANALYSIS_AGENT_DISABLE_THINKING=true`：向百炼发送 `enable_thinking: false`；不支持该参数的接口会直接报错。
 
 **对话历史压缩**
 

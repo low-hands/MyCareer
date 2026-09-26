@@ -273,8 +273,9 @@ def test_unmatched_intent_is_traced_with_its_reason(env: CaptureApp, auth):
 def test_conversation_awaiting_the_user_defers_the_continuation(env: CaptureApp, auth):
     env.context.upsert_task(
         user_id="u1", conversation_id="original",
+        # A mock interview in progress takes the next message as an answer.
         task=ConversationTaskState(
-            active_resume_analysis_id="analysis-1", resume_analysis_status="pending",
+            active_workflow="mock_interview", run_id="s1", phase="mock_interview_running",
         ),
     )
     assert not env.runtime.accepts_background_turn(user_id="u1", conversation_id="original")
@@ -286,7 +287,7 @@ def test_conversation_awaiting_the_user_defers_the_continuation(env: CaptureApp,
         assert event is not None and event.continuation_status == "pending"
         env.context.upsert_task(
             user_id="u1", conversation_id="original",
-            task=ConversationTaskState(resume_analysis_status="confirmed"),
+            task=ConversationTaskState(),
         )
         # The dispatcher also polls; the retry wake-up only makes it sooner.
         client.post(f"/v1/job-captures/events/{saved['capture_event_id']}/retry", headers=auth)
@@ -297,8 +298,9 @@ def test_conversation_awaiting_the_user_defers_the_continuation(env: CaptureApp,
 def test_a_waiting_conversation_is_not_locked_on_every_pass(env: CaptureApp, auth):
     env.context.upsert_task(
         user_id="u1", conversation_id="original",
+        # A mock interview in progress takes the next message as an answer.
         task=ConversationTaskState(
-            active_resume_analysis_id="analysis-1", resume_analysis_status="pending",
+            active_workflow="mock_interview", run_id="s1", phase="mock_interview_running",
         ),
     )
     with TestClient(env.app) as client:
@@ -323,8 +325,9 @@ def test_a_waiting_conversation_is_not_locked_on_every_pass(env: CaptureApp, aut
 def test_a_continuation_past_its_ttl_expires_instead_of_running(env: CaptureApp, auth):
     env.context.upsert_task(
         user_id="u1", conversation_id="original",
+        # A mock interview in progress takes the next message as an answer.
         task=ConversationTaskState(
-            active_resume_analysis_id="analysis-1", resume_analysis_status="pending",
+            active_workflow="mock_interview", run_id="s1", phase="mock_interview_running",
         ),
     )
     with TestClient(env.app) as client:

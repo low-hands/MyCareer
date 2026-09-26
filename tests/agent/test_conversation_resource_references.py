@@ -288,10 +288,12 @@ def test_job_research_reads_back_the_referenced_report_not_the_active_one() -> N
         context, "get_job_research", {"reference": _only_handle(context)}
     )
     assert projected == {"user_id": "u1", "report_id": "report-1"}
-    # With no reference the active pointer still applies.
+    # With no reference the active pointer still applies, and carries the
+    # request so the read can check it is about the same company.
     assert project_job_research_arguments(context, "get_job_research", {}) == {
         "user_id": "u1",
         "report_id": "report-9",
+        "implicit_request": context.user_message,
     }
 
 

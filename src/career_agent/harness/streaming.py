@@ -96,7 +96,7 @@ class InteractionResponse(StreamContract):
     """A UI response whose authority is bound to one durable interaction."""
 
     interaction_id: str = Field(pattern=r"^interaction_[a-f0-9]{20}$")
-    scope: Literal["resume_analysis_confirmation", "capability_confirmation", "questionnaire"]
+    scope: Literal["capability_confirmation", "questionnaire"]
     action: Literal["confirm", "cancel", "submit"]
     answers: tuple[QuestionAnswer, ...] = Field(default=(), max_length=8)
 
@@ -144,7 +144,7 @@ class InteractionRequiredEvent(StreamContract):
     options: tuple[InteractionOption, ...] = Field(default=(), max_length=50)
     questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
     allow_free_text: bool = False
-    scope: Literal["resume_analysis_confirmation", "capability_confirmation", "questionnaire"] | None = None
+    scope: Literal["capability_confirmation", "questionnaire"] | None = None
     # A selection that can also be answered by uploading a file, sent back as
     # an attached resource on the reply rather than as a chosen option.
     accepts_upload: Literal["resume"] | None = None
@@ -317,7 +317,7 @@ def interaction_id(*durable_parts: object) -> str:
 
 
 InteractionScope: TypeAlias = Literal[
-    "resume_analysis_confirmation", "capability_confirmation", "questionnaire"
+    "capability_confirmation", "questionnaire"
 ]
 
 
@@ -334,13 +334,8 @@ _CAPABILITY_CONFIRMATION_OPTIONS = (
     InteractionOption(value="confirm", label="确认执行"),
     InteractionOption(value="cancel", label="不要执行"),
 )
-_RESUME_ANALYSIS_CONFIRMATION_OPTIONS = (
-    InteractionOption(value="confirm", label="确认并导入"),
-    InteractionOption(value="cancel", label="取消导入"),
-)
 _SCOPED_OPTIONS: Mapping[InteractionScope, tuple[InteractionOption, ...]] = {
     "capability_confirmation": _CAPABILITY_CONFIRMATION_OPTIONS,
-    "resume_analysis_confirmation": _RESUME_ANALYSIS_CONFIRMATION_OPTIONS,
 }
 
 
@@ -378,24 +373,6 @@ def capability_confirmation_event(
         kind="approval",
         prompt=prompt,
         options=_CAPABILITY_CONFIRMATION_OPTIONS,
-    )
-
-
-def resume_analysis_confirmation_event(
-    *, conversation_id: str, analysis_id: str
-) -> InteractionRequiredEvent:
-    """Rebuild the same pending gate for live delivery and transcript reload."""
-
-    return InteractionRequiredEvent(
-        interaction_id=interaction_id(
-            conversation_id,
-            "resume_analysis_confirmation",
-            analysis_id,
-        ),
-        scope="resume_analysis_confirmation",
-        kind="confirmation",
-        prompt="请核对上面的候选事实。确认后才会写入职业事实库。",
-        options=_RESUME_ANALYSIS_CONFIRMATION_OPTIONS,
     )
 
 

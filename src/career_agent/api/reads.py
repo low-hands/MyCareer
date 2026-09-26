@@ -22,6 +22,8 @@ browser extension for capture cannot read any of this.
 
 from __future__ import annotations
 
+import asyncio
+
 import argparse
 from collections.abc import Callable
 import re
@@ -33,6 +35,7 @@ from typing import Any, Literal
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -48,7 +51,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
-    ResumeAnalysisBodySource,
     SavedJobBodySource,
 )
 from career_agent.security.authentication import require_scope
@@ -64,10 +66,13 @@ from career_agent.services.applications import (
     ApplicationService,
 )
 from career_agent.services.email_tracking import EmailTrackingService
+from career_agent.services.resume_text import ResumeTextService
+from career_agent.agent.openai_resume_transcription_worker import OpenAIResumeTranscriptionWorker
+from career_agent.agent.openai_compatible_client import AgentConfigurationError
 from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_import import (
     MAX_RESUME_IMPORT_BYTES,
-    extract_resume_text,
+    resume_document_text,
     validate_resume_document,
 )
 from career_agent.storage.action_center import SQLiteActionItemStore
@@ -85,7 +90,6 @@ from career_agent.storage.resume_job_matches import (
     SQLiteResumeJobMatchStore,
     StoredResumeJobMatch,
 )
-from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 from career_agent.storage.resumes import (
     ResumeImportConflictError,
@@ -113,11 +117,9 @@ from career_agent.agent.mock_interview_presenter import (
     practice_basis,
 )
 from career_agent.agent.resume_job_match_presenter import render_resume_job_match
-from career_agent.agent.resume_analysis_presenter import render_resume_analysis
 from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     capability_confirmation_event,
-    resume_analysis_confirmation_event,
     questionnaire_event,
 )
 from career_agent.agent.resume_tailoring_presenter import (
@@ -360,6 +362,7 @@ class ConversationView(BaseModel):
     phase: str | None = None
     created_at: datetime
     last_active_at: datetime
+    turn_running: bool = False
 
 
 DELIVERED_BODY_KIND = "delivered_body"
@@ -421,6 +424,11 @@ class ConversationTranscriptResponse(BaseModel):
     phase: str | None = None
     pending_interaction: InteractionRequiredEvent | None = None
     pending_interaction_body: str | None = None
+    turn_running: bool = False
+    """A turn is executing now; its reply is not in ``messages`` yet."""
+    running_turn_message: str | None = None
+    """The message that started the running turn, when this process runs it
+    and its events can be followed at ``/conversations/{id}/live``."""
 
 
 def dedupe_adjacent_message_resources(
@@ -720,6 +728,7 @@ class WorkspaceReader:
     def __init__(self, args: argparse.Namespace) -> None:
         self._jobs = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
         self._resumes = ResumeStore(Path(args.resume_store).expanduser())
+        self._resume_text_service: ResumeTextService | None = None
         self._applications = ApplicationService(
             SQLiteApplicationStore(Path(args.application_store).expanduser()),
             self._jobs,
@@ -754,9 +763,6 @@ class WorkspaceReader:
             Path(args.resume_store).expanduser()
         )
         self._tailoring_drafts = SQLiteResumeTailoringDraftStore(
-            Path(args.resume_store).expanduser()
-        )
-        self._resume_analyses = SQLiteResumeAnalysisDraftStore(
             Path(args.resume_store).expanduser()
         )
         action_store = getattr(
@@ -1280,6 +1286,7 @@ class WorkspaceReader:
                     phase=task.phase if task else None,
                     created_at=item.created_at,
                     last_active_at=item.last_active_at,
+                    turn_running=item.turn_running,
                 )
             )
         return tuple(views)
@@ -1392,16 +1399,6 @@ class WorkspaceReader:
         if self._context.get_session(user_id, conversation_id) is None:
             return ConversationTranscriptResponse()
         task = self._context.get_task(user_id, conversation_id)
-        pending_analysis = (
-            self._resume_analyses.get(
-                user_id=user_id,
-                analysis_id=task.active_resume_analysis_id,
-            )
-            if task is not None
-            and task.resume_analysis_status == "pending"
-            and task.active_resume_analysis_id is not None
-            else None
-        )
         owner_settings = self._context.get_owner_settings(user_id) or OwnerSettingsContext()
         pending_confirmations = self._capability_confirmations.pending_for_conversation(
             user_id=user_id,
@@ -1454,6 +1451,9 @@ class WorkspaceReader:
             messages=messages,
         )
         return ConversationTranscriptResponse(
+            turn_running=self._context.has_running_turn(
+                user_id=user_id, conversation_id=conversation_id
+            ),
             messages=dedupe_adjacent_message_resources(messages),
             active_workflow=task.active_workflow if task else None,
             phase=task.phase if task else None,
@@ -1474,23 +1474,10 @@ class WorkspaceReader:
                     ),
                 )
                 if pending_confirmation is not None
-                else resume_analysis_confirmation_event(
-                    conversation_id=conversation_id,
-                    analysis_id=pending_analysis.id,
-                )
-                if pending_analysis is not None
-                and pending_analysis.status == "pending"
                 else questionnaire_event(task.pending_questionnaire)
                 if task is not None
                 and task.pending_questionnaire is not None
                 and task.pending_questionnaire.expires_at > datetime.now(timezone.utc)
-                else None
-            ),
-            pending_interaction_body=(
-                render_resume_analysis(pending_analysis.result)
-                if pending_analysis is not None
-                and pending_analysis.status == "pending"
-                and pending_confirmation is None
                 else None
             ),
         )
@@ -1555,7 +1542,7 @@ class WorkspaceReader:
                     user_id=user_id, resume_version_id=version.id
                 )
                 version_texts[version.id] = (
-                    extract_resume_text(document.document_format, document.raw_bytes)
+                    resume_document_text(document)
                     if document is not None
                     else None
                 )
@@ -1672,6 +1659,30 @@ class WorkspaceReader:
             priority=role.priority,
             status=role.status,
         )
+
+    def read_resume_text(self, *, user_id: str, resume_version_id: str) -> None:
+        """Read and keep a version's text; best effort, retried on next use."""
+
+        try:
+            self._resume_text().ensure(
+                user_id=user_id, resume_version_id=resume_version_id
+            )
+        except Exception:
+            # Background work after the response: a failure here must not
+            # surface, and the next reader of the resume tries again.
+            return
+
+    def _resume_text(self) -> ResumeTextService:
+        if self._resume_text_service is None:
+            try:
+                transcriber: OpenAIResumeTranscriptionWorker | None = (
+                    OpenAIResumeTranscriptionWorker.from_env()
+                )
+            except AgentConfigurationError:
+                # Reads work without model configuration; so does local text.
+                transcriber = None
+            self._resume_text_service = ResumeTextService(self._resumes, transcriber)
+        return self._resume_text_service
 
     def import_resume(
         self,
@@ -2156,18 +2167,6 @@ class WorkspaceReader:
                 return None
             body = job.snapshot.content.strip()
             subtitle = "当前岗位描述"
-        elif isinstance(stored.source, ResumeAnalysisBodySource):
-            now = datetime.now(timezone.utc)
-            if now >= stored.source.expires_at:
-                body, subtitle, availability = "", "简历分析已过期", "expired"
-            else:
-                analysis = self._resume_analyses.get(
-                    user_id=user_id, analysis_id=stored.source.analysis_id, now=now
-                )
-                if analysis is None:
-                    return None
-                body = render_resume_analysis(analysis.result)
-                subtitle = "简历分析"
         elif isinstance(stored.source, MockInterviewBodySource):
             session = self._mock_interviews.get_session(
                 user_id=user_id, session_id=stored.source.session_id
@@ -2430,6 +2429,7 @@ def build_read_router(
     workspace_reader_factory: Callable[[], WorkspaceReader],
     *,
     before_conversation_delete: Callable[[str, str], None] | None = None,
+    live_turn_message: Callable[[str, str], str | None] | None = None,
 ) -> APIRouter:
     """Wire the read endpoints against a lazily built service.
 
@@ -2752,10 +2752,20 @@ def build_read_router(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=200, ge=1, le=500),
     ) -> ConversationTranscriptResponse:
-        return workspace().conversation_messages(
+        transcript = workspace().conversation_messages(
             user_id=principal.user_id,
             conversation_id=conversation_id,
             limit=limit,
+        )
+        message = (
+            live_turn_message(principal.user_id, conversation_id)
+            if live_turn_message is not None
+            else None
+        )
+        if message is None:
+            return transcript
+        return transcript.model_copy(
+            update={"turn_running": True, "running_turn_message": message}
         )
 
     @router.delete(
@@ -2843,6 +2853,7 @@ def build_read_router(
 
     @router.post("/resumes/import", response_model=ResumeImportResponse)
     async def import_resume(
+        background: BackgroundTasks,
         file: UploadFile = File(...),
         name: str | None = Form(default=None),
         resume_id: str | None = Form(default=None),
@@ -2873,11 +2884,13 @@ def build_read_router(
             )
         try:
             content = await file.read(MAX_RESUME_IMPORT_BYTES + 1)
-            content, document_format = validate_resume_document(
+            # A PDF is checked by the parser's child process; off the event loop.
+            content, document_format = await asyncio.to_thread(
+                validate_resume_document,
                 file.filename or "",
                 content,
             )
-            return workspace().import_resume(
+            imported = workspace().import_resume(
                 user_id=principal.user_id,
                 content=content,
                 document_format=document_format,
@@ -2886,6 +2899,14 @@ def build_read_router(
                 target_role_id=target_role_id,
                 idempotency_key=idempotency_key or client_upload_id,
             )
+            # Read its text now, once, so the first analysis or chat that uses
+            # the resume does not wait on it (or on a model transcription).
+            background.add_task(
+                workspace().read_resume_text,
+                user_id=principal.user_id,
+                resume_version_id=imported.resume_version_id,
+            )
+            return imported
         except ResumeImportConflictError as error:
             raise HTTPException(
                 status_code=409,

@@ -15,7 +15,6 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.storage.interview_preparations import (
     SQLiteInterviewPreparationStore,
 )
-from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
@@ -33,7 +32,6 @@ SHARED_STORES = (
     CareerHistoryStore,
     SQLiteResumeJobMatchStore,
     SQLiteResumeArtifactStore,
-    SQLiteResumeAnalysisDraftStore,
     SQLiteResumeTailoringDraftStore,
     SQLiteInterviewPreparationStore,
 )
@@ -50,13 +48,12 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
         )
 
     # PRAGMA user_version is one integer per file, so it can only ever describe
-    # one of these seven. Each owner needs its own row.
+    # one of these six. Each owner needs its own row.
     assert set(recorded) == {
         "resumes",
         "career_history",
         "resume_job_matches",
         "resume_artifacts",
-        "resume_analysis",
         "resume_tailoring",
         "interview_preparations",
     }
@@ -67,7 +64,7 @@ def test_every_owner_of_the_shared_file_records_its_own_version(tmp_path: Path) 
 # — the numbers predate the registry — so raising one has to be a deliberate edit
 # here as well, which is the moment to notice a migration was never written.
 DECLARED_VERSIONS = {
-    "resumes": 9,
+    "resumes": 10,
     "career_history": 8,
     "action_center": 2,
     "action_executions": 1,
@@ -78,7 +75,6 @@ DECLARED_VERSIONS = {
     "email_tracking": 1,
     "oauth_flows": 2,
     "mock_interviews": 7,
-    "resume_analysis": 1,
     "resume_tailoring": 1,
     "resume_artifacts": 1,
     "resume_job_matches": 2,

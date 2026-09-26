@@ -60,7 +60,6 @@ export type InteractionKind = (typeof INTERACTION_KINDS)[number];
  * response the server will reject.
  */
 export const INTERACTION_SCOPES = [
-  "resume_analysis_confirmation",
   "capability_confirmation",
   "questionnaire",
 ] as const;

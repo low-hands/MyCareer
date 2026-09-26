@@ -38,7 +38,7 @@ class DeliveryPolicy:
     about the row's size in every later turn's window — nothing else.
     """
 
-    body_delivery: Literal["message", "resource_card"] = "message"
+    body_delivery: Literal["message", "resource_card", "model"] = "message"
     """Where the full content reaches the reader.
 
     ``resource_card`` means the turn attaches a ``resource_ref`` and the UI
@@ -155,7 +155,9 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "job_research_ready": _card(),
     "mock_interview_completed": _card(),
     "mock_interview_result_found": _card(),
-    "resume_analysis_ready": _summarised("简历分析", "source"),
+    # Instructions for the model's own reply. The model reads them; the
+    # reader gets the reply they shaped, never the instructions.
+    "skill_loaded": DeliveryPolicy(durable_message="summary", body_delivery="model"),
     "resume_job_match_ready": _card(),
     "resume_tailoring_draft_ready": _card(),
     # Reading a saved job hands the model the JD as its observation body; the
@@ -268,10 +270,6 @@ _POLICIES.update(
             "invalid_input",
             "no_mock_interview_result_found",
             "no_mock_interview_to_restart",
-            "resume_analysis_confirmed",
-            "resume_analysis_decision_expired",
-            "resume_analysis_not_found",
-            "resume_analysis_rejected",
             "resume_artifact_ready",
             "resume_job_match_not_found",
             "resume_metadata_ready",

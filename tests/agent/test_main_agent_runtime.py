@@ -355,82 +355,6 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
     assert turn.context.task.active_application_status == "submitted"
 
 
-def test_a_replayed_interaction_write_does_not_recreate_the_old_interaction(
-    tmp_path,
-) -> None:
-    """Reducer repair and model observation have deliberately different states."""
-
-    class Registry(MainAgentToolRegistry):
-        def capability_kind(self, name):
-            return "atomic_tool"
-
-        def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - guarded
-            raise AssertionError("a succeeded analysis must not run again")
-
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
-
-    database = tmp_path / "context.sqlite3"
-    manager = ContextManager(CareerContextStore(database))
-    manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "resume")
-    ledger = SQLiteActionExecutionStore(database)
-    arguments = {"user_id": "u1"}
-    fingerprint = hashlib.sha256(
-        json.dumps(
-            {"tool": "analyze_resume", "arguments": arguments},
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-        ).encode()
-    ).hexdigest()
-    execution, _ = ledger.prepare(
-        user_id="u1",
-        conversation_id="c1",
-        anchor="request-1",
-        request_id="request-1",
-        write_slot=0,
-        tool_name="analyze_resume",
-        fingerprint=fingerprint,
-        policy_epoch=1,
-    )
-    ledger.succeed(
-        action_id=execution.action_id,
-        output={
-            "__result_state__": "resume_analysis_ready",
-            "analysis_id": "analysis-1",
-            "resume_version_id": "resume-1",
-        },
-    )
-
-    turn = Runtime(
-        context_manager=manager,
-        decision_maker=SequenceDecisionMaker(
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(name="analyze_resume", arguments={}),
-            ),
-            AgentDecision(action="final", message="分析已经做过，可以读取结果。"),
-        ),
-        tools=Registry(),
-        action_execution_store=ledger,
-    ).run_turn(
-        user_id="u1",
-        conversation_id="c1",
-        user_message="继续分析",
-        request_id="request-1",
-    )
-
-    assert turn.tool_result.state == "action_execution_replayed"
-    assert turn.context.task.active_resume_analysis_id == "analysis-1"
-    assert turn.context.task.active_resume_version_id == "resume-1"
-    assert turn.context.task.resume_analysis_status == "pending"
-    assert turn.model_decision.action == "final"
-
-
 @pytest.mark.parametrize(
     ("state", "execution_outcome", "expected_status"),
     (
@@ -546,7 +470,7 @@ def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) ->
     "origin",
     (
         ModelDecision(AgentDecision(action="final", message="好的。")),
-        InteractionReceipt(scope="resume_analysis_confirmation", action="confirm"),
+        InteractionReceipt(scope="capability_confirmation", action="confirm"),
         RuntimeAction(workflow="mock_interview"),
     ),
 )
@@ -1139,16 +1063,16 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            notify_capability_step("resume_analysis")
+            notify_capability_step("job_analysis")
             notify_capability_step("internal_label_nobody_maps")
-            notify_capability_step("resume_analysis", kind="retry")
+            notify_capability_step("job_analysis", kind="retry")
             notify_capability_step("job_research", index=2)
             notify_capability_step("job_research.read_file", kind="tool")
             notify_capability_step("email_sync.scan", kind="io", index=3, total=12)
             time.sleep(0.15)
             return ToolObservation(
                 tool_name=name,
-                state="resume_analysis_ready",
+                state="career_history_found",
                 message="分析完成。",
                 execution_outcome="committed",
             )
@@ -1166,7 +1090,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
         decision_maker=SequenceDecisionMaker(
             AgentDecision(
                 action="tool_call",
-                tool_call=ToolCall(name="analyze_resume", arguments={}),
+                tool_call=ToolCall(name="analyze_job", arguments={}),
             ),
             AgentDecision(action="final", message="完成。"),
         ),
@@ -1188,8 +1112,8 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
         if event.type == "progress" and event.stage == "running_capability"
     ]
     assert running[:5] == [
-        "正在分析简历内容……",
-        "正在分析简历内容时请求失败，正在重试……",
+        "正在分析岗位 JD……",
+        "正在分析岗位 JD时请求失败，正在重试……",
         "正在调研岗位背景（第 2 次调用模型）……",
         "正在阅读工作指南……",
         "正在扫描邮件（第 3/12 项）……",
@@ -1200,8 +1124,8 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
         if event.type == "progress" and event.step_key is not None
     ]
     assert structured[:5] == [
-        ("resume_analysis", "正在分析简历内容"),
-        ("resume_analysis", "正在分析简历内容"),
+        ("job_analysis", "正在分析岗位 JD"),
+        ("job_analysis", "正在分析岗位 JD"),
         ("job_research", "正在调研岗位背景"),
         ("job_research.read_file", "正在阅读工作指南"),
         ("email_sync.scan", "正在扫描邮件"),
@@ -3144,8 +3068,8 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
     context, not by taking away the pen.
     """
     result = ToolResult(
-        tool_name="analyze_resume",
-        state="resume_analysis_ready",
+        tool_name="analyze_job",
+        state="career_history_found",
         message="已分析简历并生成待确认候选事实。",
         payload={"records": [{"title": "PRIVATE RESULT"}]},
     )
@@ -3178,7 +3102,7 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
 
 def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_error() -> None:
     result = ToolResult(
-        tool_name="analyze_resume",
+        tool_name="analyze_job",
         state="failed",
         message=(
             "简历分析未完成：当前模型配置不支持该能力，请检查端点、模型和协议配置。"
@@ -3206,7 +3130,7 @@ def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_e
 
 def test_runtime_adds_safe_error_code_only_to_the_user_receipt() -> None:
     result = ToolResult(
-        tool_name="analyze_resume",
+        tool_name="analyze_job",
         state="failed",
         message="简历分析未完成：当前端点拒绝了请求。",
         payload={
@@ -3332,7 +3256,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
 
 
 def test_question_after_earlier_failure_still_reports_the_failure() -> None:
-    failed = ToolResult(tool_name="analyze_resume", state="failed",
+    failed = ToolResult(tool_name="analyze_job", state="failed",
                         message="简历分析未完成：当前端点拒绝请求。")
     succeeded = ToolResult(tool_name="find_saved_jobs", state="saved_jobs_ready",
                            message="已找到岗位。")
@@ -3457,7 +3381,7 @@ def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -
         ),
     )
     failed = ToolResult(
-        tool_name="analyze_resume",
+        tool_name="analyze_job",
         state="failed",
         message=(
             "简历分析未完成：当前模型配置不支持该能力，请检查端点、模型和协议配置。"
@@ -3518,8 +3442,8 @@ def test_a_blank_reply_is_no_reply_at_all() -> None:
     invariant the code states has to hold, or the next reader builds on it.
     """
     result = ToolResult(
-        tool_name="analyze_resume",
-        state="resume_analysis_ready",
+        tool_name="analyze_job",
+        state="career_history_found",
         message="已分析简历并生成待确认候选事实。",
         payload={"records": []},
     )
@@ -4007,8 +3931,8 @@ def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
             "pending": {
                 **base["pending"],
                 "result": ToolObservation(
-                    tool_name="get_resume_analysis",
-                    state="resume_analysis_ready",
+                    tool_name="get_saved_job",
+                    state="career_history_found",
                     message="已读取分析。",
                     disposition="completed",
                 ),
@@ -4021,9 +3945,9 @@ def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
             "pending": {
                 **base["pending"],
                 "result": ToolObservation(
-                    tool_name="analyze_resume",
-                    state="resume_analysis_ready",
-                    message="分析完成，等待确认。",
+                    tool_name="propose_career_fact",
+                    state="career_fact_proposed",
+                    message="已提出候选事实，等待确认。",
                     disposition="interaction_required",
                 ),
             },

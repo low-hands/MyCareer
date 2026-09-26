@@ -881,8 +881,6 @@ class ConversationTaskState(ContractModel):
         "job_intent",
         "free_text_preference",
     ] | None = None
-    active_resume_analysis_id: str | None = None
-    resume_analysis_status: Literal["pending", "confirmed", "rejected"] | None = None
     active_resume_job_match_id: str | None = None
     resume_job_match_status: Literal["ready"] | None = None
     active_job_analysis_id: str | None = None
@@ -920,6 +918,21 @@ class ConversationTaskState(ContractModel):
     resume_version_candidates: tuple[ResumeVersionCandidateContextItem, ...] = ()
     email_event_candidates: tuple[EmailEventCandidateContextItem, ...] = ()
     email_sync_phase: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_removed_fields(cls, value: Any) -> Any:
+        # Resume fact extraction was removed; a stored task may still carry its
+        # two slots, and the conversation must stay listable to be deleted.
+        if isinstance(value, dict) and (
+            "active_resume_analysis_id" in value or "resume_analysis_status" in value
+        ):
+            value = {
+                key: item
+                for key, item in value.items()
+                if key not in {"active_resume_analysis_id", "resume_analysis_status"}
+            }
+        return value
 
     @model_validator(mode="after")
     def _validate_saved_job_focus(self) -> "ConversationTaskState":
@@ -1870,8 +1883,7 @@ class ToolResult(ContractModel):
         Most waiting states have one meaning everywhere, so the policy registry
         supplies their disposition. A tool may still explicitly require an
         interaction for a state that is not universally waiting — notably a
-        newly produced ``resume_analysis_ready`` draft, while reading that same
-        immutable analysis remains completed. Failures are classified here so
+        tool-specific interaction. Failures are classified here so
         their return to ``decide`` is deliberate rather than a default side
         effect of an unused enum value.
         """
@@ -1886,10 +1898,9 @@ class ToolResult(ContractModel):
                     f"waiting state {state!r} must require an interaction"
                 )
             data["disposition"] = "interaction_required"
-        elif declared == "interaction_required" and state != "resume_analysis_ready":
+        elif declared == "interaction_required":
             raise ValueError(
-                "an interaction-required emitter must be declared waiting; "
-                "only the analyze/read shared resume state is tool-specific"
+                "an interaction-required emitter must be declared waiting"
             )
         elif declared is None and isinstance(state, str):
             data["disposition"] = "failed" if is_failed(state) else "completed"
@@ -2769,7 +2780,6 @@ class MainAgentContext(ContractModel):
                     }
                     for index, candidate in enumerate(self.task.candidates, start=1)
                 ],
-                "resume_analysis_status": self.task.resume_analysis_status,
                 "resume_job_match_status": self.task.resume_job_match_status,
                 "job_analysis_status": self.task.job_analysis_status,
                 "resume_tailoring_status": self.task.resume_tailoring_status,
@@ -3186,6 +3196,10 @@ class RetryJobResearchToolArguments(ContractModel):
     run_id: str | None = Field(default=None, min_length=1)
 
 
+IMPLICIT_REQUEST_KEY = "implicit_request"
+"""Set by projection, never by the model: the arguments model forbids it."""
+
+
 class GetJobResearchToolArguments(ContractModel):
     """Selectors for reading back one job-research report.
 
@@ -3222,9 +3236,18 @@ class GetResumeMetadataToolArguments(ContractModel):
     selection_index: SelectionIndex | None = None
 
 
-class AnalyzeResumeToolArguments(ContractModel):
-    resume_version_id: str | None = Field(default=None, min_length=1)
-    selection_index: SelectionIndex | None = None
+MainAgentSkill = Literal["resume-critique"]
+"""Skills the main agent itself may load. Specialist skills (job research,
+mock interview, tailoring) belong to their workers and are not listed."""
+
+
+class LoadSkillToolArguments(ContractModel):
+    skill: MainAgentSkill = Field(
+        description=(
+            "resume-critique: how to critique a resume as a document when the "
+            "user asks to review, critique or improve it without naming a job."
+        )
+    )
 
 
 class MatchResumeToJobToolArguments(ContractModel):
@@ -3672,14 +3695,6 @@ class GetCalendarProposalToolArguments(ContractModel):
 
 class ExecuteCalendarProposalToolArguments(GetCalendarProposalToolArguments):
     pass
-
-
-class GetResumeAnalysisToolArguments(ContractModel):
-    analysis_id: str | None = Field(default=None, min_length=1)
-
-
-class ConfirmResumeAnalysisToolArguments(ContractModel):
-    analysis_id: str | None = Field(default=None, min_length=1)
 
 
 class StartMockInterviewWorkflowInput(ContractModel):
@@ -4272,9 +4287,18 @@ def project_job_research_arguments(
                 ].job_posting_id
             }
         elif context.task.active_job_research_report_id is not None:
-            payload = {"report_id": context.task.active_job_research_report_id}
+            # No selector: the active report stands in for "the report". The
+            # request travels with it so the read can be refused when the
+            # user was asking about a different company.
+            payload = {
+                "report_id": context.task.active_job_research_report_id,
+                IMPLICIT_REQUEST_KEY: context.user_message,
+            }
         elif context.task.active_job_posting_id is not None:
-            payload = {"job_posting_id": context.task.active_job_posting_id}
+            payload = {
+                "job_posting_id": context.task.active_job_posting_id,
+                IMPLICIT_REQUEST_KEY: context.user_message,
+            }
         else:
             raise ValueError("get_job_research requires an active research report or job")
     else:
@@ -4290,8 +4314,6 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = ListResumesToolArguments.model_validate(arguments)
     elif name == "get_resume_metadata":
         model_arguments = GetResumeMetadataToolArguments.model_validate(arguments)
-    elif name == "analyze_resume":
-        model_arguments = AnalyzeResumeToolArguments.model_validate(arguments)
     elif name == "match_resume_to_job":
         model_arguments = MatchResumeToJobToolArguments.model_validate(arguments)
     elif name == "get_resume_job_match":
@@ -4316,8 +4338,6 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
         model_arguments = ListApplicationsToolArguments.model_validate(arguments)
     elif name == "get_application":
         model_arguments = GetApplicationToolArguments.model_validate(arguments)
-    elif name == "get_resume_analysis":
-        model_arguments = GetResumeAnalysisToolArguments.model_validate(arguments)
     else:
         raise ValueError(f"Unknown resume tool: {name}")
     payload = model_arguments.model_dump()
@@ -4339,18 +4359,6 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             ].resume_id
         if payload.get("resume_id") is None:
             raise ValueError("get_resume_metadata requires a selected resume")
-    if name == "analyze_resume":
-        selection_index = payload.pop("selection_index", None)
-        resume_version_id = context.task.active_resume_version_id
-        if selection_index is not None:
-            if not 1 <= selection_index <= len(context.task.resume_version_candidates):
-                raise ValueError("resume-version selection index is out of range")
-            resume_version_id = context.task.resume_version_candidates[
-                selection_index - 1
-            ].resume_version_id
-        if resume_version_id is None:
-            raise ValueError("analyze_resume requires a selected or active resume version")
-        payload["resume_version_id"] = resume_version_id
     if name == "match_resume_to_job":
         resume_selection_index = payload.pop(
             "resume_version_selection_index", None
@@ -4381,11 +4389,6 @@ def project_resume_arguments(context: MainAgentContext, name: str, arguments: di
             job_posting_id=job_posting_id,
             explicit_selection=job_selection_index is not None,
         )
-    if name == "get_resume_analysis":
-        analysis_id = payload.get("analysis_id") or context.task.active_resume_analysis_id
-        if analysis_id is None:
-            raise ValueError(f"{name} requires an active resume analysis")
-        payload["analysis_id"] = analysis_id
     if name == "get_resume_job_match":
         match_id = payload.get("match_id") or context.task.active_resume_job_match_id
         if match_id is None:

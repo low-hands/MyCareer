@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -17,7 +18,6 @@ from pydantic import ValidationError
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
-    ResumeAnalysisBodySource,
 )
 from career_agent.agent.input_resources import (
     saved_job_description,
@@ -51,8 +51,7 @@ from career_agent.agent.mock_interview_graph import (
     MockInterviewInputRoutingError,
 )
 from career_agent.agent.main_agent_contracts import (
-    AnalyzeResumeToolArguments,
-    ConfirmResumeAnalysisToolArguments,
+    LoadSkillToolArguments,
     CompleteInterviewToolArguments,
     RecordInterviewRetroToolArguments,
     ReadConversationSpanToolArguments,
@@ -89,7 +88,6 @@ from career_agent.agent.main_agent_contracts import (
     RestartMockInterviewToolArguments,
     GetInterviewToolArguments,
     GetResumeMetadataToolArguments,
-    GetResumeAnalysisToolArguments,
     GetResumeJobMatchToolArguments,
     GetResumeTailoringDraftToolArguments,
     GetSavedJobToolArguments,
@@ -98,6 +96,7 @@ from career_agent.agent.main_agent_contracts import (
     ResearchJobToolArguments,
     RetryJobResearchToolArguments,
     GetJobResearchToolArguments,
+    IMPLICIT_REQUEST_KEY,
     CareerProfileContext,
     HardConstraintContext,
     JobIntentUpdate,
@@ -151,13 +150,7 @@ from career_agent.harness.observability import (
 )
 from career_agent.connectors.email_accounts import EmailCredentialError
 from career_agent.connectors.gmail_readonly import GmailAPIError
-from career_agent.services.resume_analysis import (
-    ResumeAnalysisNotFoundError,
-    ResumeAnalysisNotPendingError,
-    ResumeAnalysisService,
-    ResumeAnalysisWorkerNotCommittedError,
-    ResumeVersionNotFoundError,
-)
+from career_agent.services.resume_text import ResumeTextService
 from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.services.free_text_preferences import structured_pref_scope
 from career_agent.storage.intent_versions import intent_entry_id
@@ -359,7 +352,8 @@ class MainAgentToolRegistry:
         job_analysis_service: JobAnalysisService | None = None,
         career_profile_store: CareerProfileStore | None = None,
         resume_store: ResumeStore | None = None,
-        resume_analysis_service: ResumeAnalysisService | None = None,
+        resume_text_service: ResumeTextService | None = None,
+        skills_root: Path | None = None,
         resume_job_match_service: ResumeJobMatchService | None = None,
         resume_tailoring_service: ResumeTailoringService | None = None,
         resume_export_service: ResumeExportService | None = None,
@@ -414,7 +408,8 @@ class MainAgentToolRegistry:
         self._job_analysis_service = job_analysis_service
         self._career_profile_store = career_profile_store
         self._resume_store = resume_store
-        self._resume_analysis_service = resume_analysis_service
+        self._resume_text_service = resume_text_service
+        self._skills_root = skills_root
         self._resume_job_match_service = resume_job_match_service
         self._resume_tailoring_service = resume_tailoring_service
         self._resume_export_service = resume_export_service
@@ -511,13 +506,8 @@ class MainAgentToolRegistry:
             self._atomic_handlers["export_resume_artifact"] = (
                 self._export_resume_artifact
             )
-        if resume_analysis_service is not None:
-            self._atomic_handlers.update(
-                {
-                    "analyze_resume": self._analyze_resume,
-                    "get_resume_analysis": self._get_resume_analysis,
-                }
-            )
+        if skills_root is not None:
+            self._atomic_handlers["load_skill"] = self._load_skill
         if resume_job_match_service is not None:
             self._atomic_handlers.update(
                 {
@@ -673,6 +663,33 @@ class MainAgentToolRegistry:
         )
         return title, self._resource_description(description)
 
+    def _other_company_asked_for(
+        self, *, user_id: str, request: str, report_company: str
+    ) -> str | None:
+        """A saved company the request names, when it does not name the report's.
+
+        Every research report is anchored to a saved job, so a company the user
+        asks for a report about is a saved company: its name in the request,
+        without the default report's company, means the default is the wrong
+        report. A request naming neither is left to the model.
+        """
+
+        if report_company and report_company in request:
+            return None
+        list_jobs = getattr(self._job_repository, "list_jobs", None)
+        if not callable(list_jobs):
+            return None
+        companies = {
+            job.company_name.strip()
+            for job in list_jobs(user_id=user_id, limit=100, include_dismissed=True)
+        }
+        named = sorted(
+            (name for name in companies if len(name) >= 2 and name != report_company and name in request),
+            key=len,
+            reverse=True,
+        )
+        return named[0] if named else None
+
     def _job_research_metadata(
         self, *, user_id: str, report
     ) -> tuple[str, str | None]:
@@ -755,9 +772,7 @@ class MainAgentToolRegistry:
     def harness_action_names(self) -> tuple[str, ...]:
         """Durable transitions callable only through bound UI interactions."""
 
-        if self._resume_analysis_service is None:
-            return ()
-        return ("confirm_resume_analysis", "reject_resume_analysis")
+        return ()
 
     @property
     def runtime_workflow_names(self) -> tuple[str, ...]:
@@ -778,6 +793,11 @@ class MainAgentToolRegistry:
         return self._resume_store
 
     @property
+    def resume_text_service(self) -> ResumeTextService | None:
+        """Reads a version's text once and keeps it, for attached resumes."""
+        return self._resume_text_service
+
+    @property
     def job_repository(self) -> JobPostingRepository | None:
         """The repository that owns saved jobs, for the runtime to verify inputs against."""
         return self._job_repository
@@ -796,8 +816,8 @@ class MainAgentToolRegistry:
                     "description": (
                         "Expose a required tool outside the current profile by "
                         "switching to its domain: job (saved jobs, comparison, company "
-                        "research), resume (analysis, job match, tailoring, "
-                        "export), application (applications, status, email "
+                        "research), resume (critique, experience import, job "
+                        "match, tailoring, export), application (applications, status, email "
                         "events), interview (rounds, preparation, retro, calendar, "
                         "mock interview) or memory (career facts, preferences, "
                         "amendments, deletions). task.tool_profile shows the "
@@ -1108,7 +1128,9 @@ class MainAgentToolRegistry:
                             "instead of guessing or searching nationwide. This only constructs "
                             "a safe search URL for the client; it never reads results, "
                             "automates browsing, calls BOSS APIs, or saves a job. The user "
-                            "browses normally and explicitly chooses which JD to save."
+                            "browses normally and explicitly chooses which JD to save. "
+                            "After opening it, tell the user that browsing and saving are "
+                            "theirs, and never claim that jobs were found or saved."
                         ),
                         "parameters": OpenJobSearchToolArguments.model_json_schema(),
                     },
@@ -1320,26 +1342,26 @@ class MainAgentToolRegistry:
                     },
                 ]
             )
-        if self._resume_analysis_service is not None:
-            schemas.extend(
-                [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "analyze_resume",
-                            "description": "Analyze the content of one resume version in isolation and extract structured career-fact candidates for review. Requires a selected resume version, or the active latest version when selection_index is omitted. Structured candidates are delivered outside the decision context and are not career facts until explicitly confirmed.",
-                            "parameters": AnalyzeResumeToolArguments.model_json_schema(),
-                        },
+        if self._skills_root is not None:
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "load_skill",
+                        "description": (
+                            "Load the working instructions (a skill) for a task you do "
+                            "yourself, then follow them in your reply. The skill text is "
+                            "for you only; the user does not see it. Available skills: "
+                            "resume-critique, for reviewing, critiquing or improving a "
+                            "resume as a document when the user names no job (a resume "
+                            "compared with a job is match_resume_to_job). It works from "
+                            "the resume attached to the message, whose text is in "
+                            "attached_resumes; if none is attached, ask the user to "
+                            "attach the resume first instead of loading the skill."
+                        ),
+                        "parameters": LoadSkillToolArguments.model_json_schema(),
                     },
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "get_resume_analysis",
-                            "description": "Retrieve the active unexpired resume analysis draft so its candidates can be reviewed before confirmation. Never returns the original resume file.",
-                            "parameters": GetResumeAnalysisToolArguments.model_json_schema(),
-                        },
-                    },
-                ]
+                }
             )
         if self._job_analysis_service is not None:
             schemas.append(
@@ -1446,7 +1468,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "create_application",
-                            "description": "Track a real externally submitted application against the saved job's current immutable JD snapshot. Attach the exact owned resume version when known; it may be omitted for a referral or an already-progressed process whose resume is unknown. Use selection indexes to override active objects. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient. Repeated calls for the same job return the original application.",
+                            "description": "Track a real externally submitted application against the saved job's current immutable JD snapshot. Attach the exact owned resume version when known; it may be omitted for a referral or an already-progressed process whose resume is unknown. Use selection indexes to override active objects. Call only after the user explicitly reports that they actually applied; planning or preparing is not sufficient, but do not lecture about this rule unless the user says they have not applied yet. Identify the job from what the user named: call find_saved_jobs with that company or title, use the job if exactly one matches, and ask the user to choose only among the matches if several do. Never offer the whole saved-job library as options; if the user named no job, ask which company or role in plain text. Repeated calls for the same job return the original application.",
                             "parameters": CreateApplicationToolArguments.model_json_schema(),
                         },
                     },
@@ -3546,20 +3568,6 @@ class MainAgentToolRegistry:
             raise ValueError(f"Unknown main-agent atomic tool: {name}")
         return self._require_write_execution_outcome(name, handler(arguments))
 
-    def resolve_resume_analysis_confirmation(
-        self,
-        *,
-        user_id: str,
-        analysis_id: str,
-        action: Literal["confirm", "cancel"],
-    ) -> ToolObservation:
-        """Consume a UI-bound decision without granting that write to the LLM."""
-
-        arguments = {"user_id": user_id, "analysis_id": analysis_id}
-        if action == "confirm":
-            return self._confirm_resume_analysis(arguments)
-        return self._reject_resume_analysis(arguments)
-
     def deliver_resume_artifact(
         self, *, user_id: str, artifact_id: str
     ) -> ResumeArtifactDelivery:
@@ -3759,8 +3767,13 @@ class MainAgentToolRegistry:
         if self._job_research_service is None:
             raise ValueError("Job research service is not configured")
         user_id = str(arguments["user_id"])
+        implicit_request = arguments.get(IMPLICIT_REQUEST_KEY)
         model_arguments = GetJobResearchToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
+            {
+                key: value
+                for key, value in arguments.items()
+                if key not in {"user_id", IMPLICIT_REQUEST_KEY}
+            }
         )
         try:
             result = self._job_research_service.get_report(
@@ -3777,6 +3790,21 @@ class MainAgentToolRegistry:
         title, description = self._job_research_metadata(
             user_id=user_id, report=result.report
         )
+        if isinstance(implicit_request, str):
+            other = self._other_company_asked_for(
+                user_id=user_id, request=implicit_request, report_company=title
+            )
+            if other is not None:
+                return ToolObservation(
+                    tool_name="get_job_research",
+                    state="invalid_input",
+                    message=(
+                        f"没有指定要读哪份调研，默认的是「{title}」的，而用户问的是"
+                        f"「{other}」。先用 find_saved_jobs 找到{other}的岗位，"
+                        "再按它的 selection_index 读取；找不到就告诉用户这份调研现在读不到。"
+                    ),
+                    payload={"requested_company": other, "default_company": title},
+                )
         return ToolObservation(
             tool_name="get_job_research",
             state="job_research_ready",
@@ -4095,180 +4123,24 @@ class MainAgentToolRegistry:
             },
         )
 
-    def _analyze_resume(self, arguments: dict[str, Any]) -> ToolObservation:
-        if self._resume_analysis_service is None:
-            raise ValueError("Resume analysis service is not configured")
-        user_id = str(arguments["user_id"])
-        model_arguments = AnalyzeResumeToolArguments.model_validate(
+    def _load_skill(self, arguments: dict[str, Any]) -> ToolObservation:
+        if self._skills_root is None:
+            raise ValueError("Skills are not configured")
+        skill = LoadSkillToolArguments.model_validate(
             {key: value for key, value in arguments.items() if key != "user_id"}
-        )
-        try:
-            draft = self._resume_analysis_service.analyze_version(
-                user_id=user_id,
-                resume_version_id=model_arguments.resume_version_id,
-            )
-        except ResumeVersionNotFoundError:
-            return ToolObservation(
-                tool_name="analyze_resume",
-                state="resume_version_not_found",
-                message="没有找到这个简历版本，或它不属于当前用户。",
-                payload={"resume_version_id": model_arguments.resume_version_id},
-                execution_outcome="not_committed",
-            )
-        except ResumeAnalysisWorkerNotCommittedError as error:
-            return ToolObservation(
-                tool_name="analyze_resume",
-                state="failed",
-                message=worker_failure_reason(error),
-                payload={
-                    "resume_version_id": model_arguments.resume_version_id,
-                    "error_code": error.code,
-                    "retryable": error.retryable,
-                },
-                execution_outcome="not_committed",
-            )
-        except AgentWorkerError as error:
-            return ToolObservation(
-                tool_name="analyze_resume",
-                state="failed",
-                message="简历分析结果是否已保存无法确认，请先核对再重试。",
-                payload={
-                    "resume_version_id": model_arguments.resume_version_id,
-                    "error_code": error.code,
-                    "retryable": error.retryable,
-                },
-                execution_outcome="unknown",
-            )
+        ).skill
+        text = (self._skills_root.expanduser() / skill / "SKILL.md").read_text(encoding="utf-8")
+        # The frontmatter is for choosing the skill, which the tool description
+        # already did; the model needs the instructions.
+        if text[:4] == "---\n":
+            closing = text.find("\n---", 3)
+            if closing != -1:
+                text = text[closing + len("\n---"):]
         return ToolObservation(
-            tool_name="analyze_resume",
-            state="resume_analysis_ready",
-            disposition="interaction_required",
-            body_source=ResumeAnalysisBodySource(
-                analysis_id=draft.id, expires_at=draft.expires_at
-            ),
-            message=f"已分析该简历版本，提取出 {len(draft.result.records)} 段候选经历。",
-            # Whether to ask the candidate anything before confirming turns on
-            # the clarification and warning counts, which the receipt cannot
-            # carry without listing them.
-            facts={
-                "record_count": len(draft.result.records),
-                "clarification_count": len(draft.result.clarification_questions),
-                "has_warnings": bool(draft.result.warnings),
-            },
-            payload={
-                "analysis_id": draft.id,
-                "resume_version_id": model_arguments.resume_version_id,
-                "expires_at": draft.expires_at.isoformat(),
-                "records": [record.model_dump(mode="json") for record in draft.result.records],
-                "clarification_questions": draft.result.clarification_questions,
-                "warnings": draft.result.warnings,
-            },
-            execution_outcome="committed",
-        )
-
-    def _get_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
-        if self._resume_analysis_service is None:
-            raise ValueError("Resume analysis service is not configured")
-        user_id = str(arguments["user_id"])
-        model_arguments = GetResumeAnalysisToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
-        )
-        if model_arguments.analysis_id is None:
-            raise ValueError("get_resume_analysis requires analysis_id")
-        try:
-            draft = self._resume_analysis_service.get_analysis(
-                user_id=user_id,
-                analysis_id=model_arguments.analysis_id,
-            )
-        except ResumeAnalysisNotFoundError:
-            return ToolObservation(
-                tool_name="get_resume_analysis",
-                state="resume_analysis_not_found",
-                message="没有找到这次简历分析，或它已经过期。",
-                payload={"analysis_id": model_arguments.analysis_id},
-            )
-        return ToolObservation(
-            tool_name="get_resume_analysis",
-            state="resume_analysis_ready",
-            body_source=ResumeAnalysisBodySource(
-                analysis_id=draft.id, expires_at=draft.expires_at
-            ),
-            message=f"已读取这次简历分析，其中有 {len(draft.result.records)} 段候选经历。",
-            next_action=(
-                "这份分析还没确认。确认由用户在界面上完成，你不能代他确认。"
-                if draft.status == "pending"
-                else None
-            ),
-            payload={
-                "analysis_id": draft.id,
-                "resume_version_id": draft.resume_version_id,
-                "status": draft.status,
-                "expires_at": draft.expires_at.isoformat(),
-                "records": [record.model_dump(mode="json") for record in draft.result.records],
-                "clarification_questions": draft.result.clarification_questions,
-                "warnings": draft.result.warnings,
-            },
-        )
-
-    def _confirm_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
-        if self._resume_analysis_service is None:
-            raise ValueError("Resume analysis service is not configured")
-        user_id = str(arguments["user_id"])
-        model_arguments = ConfirmResumeAnalysisToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "user_id"}
-        )
-        if model_arguments.analysis_id is None:
-            raise ValueError("confirm_resume_analysis requires analysis_id")
-        try:
-            imported = self._resume_analysis_service.confirm_analysis(
-                user_id=user_id,
-                analysis_id=model_arguments.analysis_id,
-            )
-        except (ResumeAnalysisNotFoundError, ResumeAnalysisNotPendingError):
-            return ToolObservation(
-                tool_name="confirm_resume_analysis",
-                state="resume_analysis_decision_expired",
-                message="这次简历分析已过期或已处理，不能再次确认。",
-                payload={"analysis_id": model_arguments.analysis_id},
-            )
-        return ToolObservation(
-            tool_name="confirm_resume_analysis",
-            state="resume_analysis_confirmed",
-            message=(
-                f"已确认并保存 {len(imported.records)} 段职业经历和 "
-                f"{len(imported.evidence)} 条事实证据。"
-            ),
-            payload={
-                "analysis_id": model_arguments.analysis_id,
-                "career_record_ids": [record.id for record in imported.records],
-                "career_evidence_ids": [evidence.id for evidence in imported.evidence],
-            },
-        )
-
-    def _reject_resume_analysis(self, arguments: dict[str, Any]) -> ToolObservation:
-        if self._resume_analysis_service is None:
-            raise ValueError("Resume analysis service is not configured")
-        user_id = str(arguments["user_id"])
-        analysis_id = str(arguments.get("analysis_id", ""))
-        if not analysis_id:
-            raise ValueError("reject_resume_analysis requires analysis_id")
-        try:
-            self._resume_analysis_service.reject_analysis(
-                user_id=user_id,
-                analysis_id=analysis_id,
-            )
-        except (ResumeAnalysisNotFoundError, ResumeAnalysisNotPendingError):
-            return ToolObservation(
-                tool_name="reject_resume_analysis",
-                state="resume_analysis_decision_expired",
-                message="这次简历分析已过期或已处理，不能再次取消。",
-                payload={"analysis_id": analysis_id},
-            )
-        return ToolObservation(
-            tool_name="reject_resume_analysis",
-            state="resume_analysis_rejected",
-            message="已取消导入；这次分析不会写入职业事实库。",
-            payload={"analysis_id": analysis_id},
+            tool_name="load_skill",
+            state="skill_loaded",
+            message=f"已加载 {skill} 的做法说明，按它完成本轮回复。",
+            payload={"skill": skill, "body": text.strip()},
         )
 
     def _propose_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:

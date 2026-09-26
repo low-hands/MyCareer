@@ -1305,14 +1305,18 @@ export const API_CONTRACT = {
             "type": "interaction_required"
           },
           "pending_interaction_body": null,
-          "phase": null
+          "phase": null,
+          "running_turn_message": null,
+          "turn_running": false
         },
         {
           "active_workflow": null,
           "messages": [],
           "pending_interaction": null,
           "pending_interaction_body": null,
-          "phase": null
+          "phase": null,
+          "running_turn_message": null,
+          "turn_running": false
         }
       ],
       "schema": {
@@ -1569,7 +1573,6 @@ export const API_CONTRACT = {
                 "anyOf": [
                   {
                     "enum": [
-                      "resume_analysis_confirmation",
                       "capability_confirmation",
                       "questionnaire"
                     ],
@@ -1737,6 +1740,23 @@ export const API_CONTRACT = {
             ],
             "default": null,
             "title": "Phase"
+          },
+          "running_turn_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Running Turn Message"
+          },
+          "turn_running": {
+            "default": false,
+            "title": "Turn Running",
+            "type": "boolean"
           }
         },
         "title": "ConversationTranscriptResponse",
@@ -1754,7 +1774,8 @@ export const API_CONTRACT = {
           "message_count": 2,
           "phase": null,
           "status": "active",
-          "title": "示例科技调研"
+          "title": "示例科技调研",
+          "turn_running": false
         }
       ],
       "schema": {
@@ -1813,6 +1834,11 @@ export const API_CONTRACT = {
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "turn_running": {
+            "default": false,
+            "title": "Turn Running",
+            "type": "boolean"
           }
         },
         "required": [
@@ -5954,7 +5980,6 @@ export const API_CONTRACT = {
               },
               "scope": {
                 "enum": [
-                  "resume_analysis_confirmation",
                   "capability_confirmation",
                   "questionnaire"
                 ],
@@ -6364,30 +6389,6 @@ export const API_CONTRACT = {
           }
         ],
         "scope": "questionnaire",
-        "type": "interaction_required"
-      },
-      {
-        "accepts_upload": null,
-        "allow_free_text": false,
-        "interaction_id": "interaction_040b2fd3401c2cd27ad6",
-        "kind": "confirmation",
-        "options": [
-          {
-            "description": null,
-            "label": "确认并导入",
-            "selection_index": null,
-            "value": "confirm"
-          },
-          {
-            "description": null,
-            "label": "取消导入",
-            "selection_index": null,
-            "value": "cancel"
-          }
-        ],
-        "prompt": "请核对上面的候选事实。确认后才会写入职业事实库。",
-        "questions": [],
-        "scope": "resume_analysis_confirmation",
         "type": "interaction_required"
       },
       {
@@ -6865,7 +6866,6 @@ export const API_CONTRACT = {
               "anyOf": [
                 {
                   "enum": [
-                    "resume_analysis_confirmation",
                     "capability_confirmation",
                     "questionnaire"
                   ],

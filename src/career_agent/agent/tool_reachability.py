@@ -75,10 +75,8 @@ PRECONDITIONS: dict[str, Precondition] = {
     "compare_saved_jobs": lambda t: bool(t.saved_job_candidates),
     # Resumes and their immutable versions.
     "get_resume_metadata": lambda t: bool(t.resume_candidates),
-    "analyze_resume": _reachable_via_resume_version,
     "export_resume_artifact": lambda t: bool(t.active_resume_version_id),
     # Active-object-only analysis / match / tailoring chain.
-    "get_resume_analysis": lambda t: bool(t.active_resume_analysis_id),
     "get_resume_job_match": lambda t: bool(t.active_resume_job_match_id),
     "draft_resume_tailoring": lambda t: bool(t.active_resume_job_match_id),
     "get_resume_tailoring_draft": lambda t: bool(
@@ -167,9 +165,7 @@ REQUIREMENTS: dict[str, str] = {
     "research_job": _NEEDS_JOB,
     "compare_saved_jobs": "先用 find_saved_jobs 列出可比较的岗位",
     "get_resume_metadata": "先用 list_resumes 列出简历",
-    "analyze_resume": _NEEDS_RESUME_VERSION,
     "export_resume_artifact": "先选定一个简历版本（定制完成后自动选定）",
-    "get_resume_analysis": "先用 analyze_resume 完成简历分析",
     "get_resume_job_match": "先用 match_resume_to_job 完成岗位匹配",
     "draft_resume_tailoring": "定制前需先用 match_resume_to_job 完成岗位匹配",
     "get_resume_tailoring_draft": _NEEDS_TAILORING_DRAFT,

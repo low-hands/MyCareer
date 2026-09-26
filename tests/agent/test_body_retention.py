@@ -21,7 +21,6 @@ def test_only_snapshots_and_entity_handles_are_retained() -> None:
     } == {
         "daily_brief_ready": "snapshot",
         "saved_jobs_compared": "snapshot",
-        "resume_analysis_ready": "source",
         "mock_interview_question_found": "source",
     }
 

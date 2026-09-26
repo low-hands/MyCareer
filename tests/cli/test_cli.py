@@ -29,7 +29,6 @@ from career_agent.harness.streaming import (
     ContentDeltaEvent,
     InteractionResponse,
     capability_confirmation_event,
-    resume_analysis_confirmation_event,
 )
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
 from career_agent.storage.context import CareerContextStore
@@ -508,8 +507,8 @@ def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> Non
             "workflow:mock_interview",
         ),
         (
-            InteractionReceipt(scope="resume_analysis_confirmation", action="confirm"),
-            "interaction:resume_analysis_confirmation",
+            InteractionReceipt(scope="capability_confirmation", action="confirm"),
+            "interaction:capability_confirmation",
         ),
     ),
 )
@@ -800,91 +799,6 @@ def test_chat_prints_the_owner_gate_with_the_flags_that_answer_it() -> None:
     assert pending["cancel_with"] == f"--cancel-interaction {expected.interaction_id}"
 
 
-def test_chat_prints_the_resume_analysis_gate_with_its_scope() -> None:
-    """The same event the SSE stream and transcript reload rebuild, so one id."""
-    task = type(
-        "Task",
-        (),
-        {
-            "resume_analysis_status": "pending",
-            "active_resume_analysis_id": "analysis-1",
-        },
-    )()
-    turn = MainAgentTurnResult(
-        origin=ModelDecision(
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(name="analyze_resume", arguments={}),
-            )
-        ),
-        context=type("Context", (), {"task": task})(),
-        assistant_message="请核对候选事实。",
-        tool_result=ToolObservation(
-            tool_name="analyze_resume",
-            state="resume_analysis_ready",
-            message="请核对候选事实。",
-            payload={"analysis_id": "analysis-1"},
-        ),
-    )
-    output = StringIO()
-
-    code = main(
-        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "分析我的简历"],
-        runtime_factory=lambda args: Runtime(turn),
-        stdout=output,
-        stderr=StringIO(),
-    )
-
-    payload = json.loads(output.getvalue())
-    assert code == 0
-    pending = payload["pending_interaction"]
-    expected = resume_analysis_confirmation_event(
-        conversation_id="s1", analysis_id="analysis-1"
-    )
-    assert pending["interaction_id"] == expected.interaction_id
-    assert pending["scope"] == "resume_analysis_confirmation"
-    assert pending["kind"] == "confirmation"
-    assert pending["confirm_with"] == (
-        f"--confirm-interaction {expected.interaction_id}"
-        " --interaction-scope resume_analysis_confirmation"
-    )
-    assert pending["cancel_with"] == (
-        f"--cancel-interaction {expected.interaction_id}"
-        " --interaction-scope resume_analysis_confirmation"
-    )
-
-
-def test_chat_prints_no_gate_once_the_resume_analysis_is_no_longer_pending() -> None:
-    task = type(
-        "Task",
-        (),
-        {
-            "resume_analysis_status": "confirmed",
-            "active_resume_analysis_id": "analysis-1",
-        },
-    )()
-    turn = MainAgentTurnResult(
-        origin=ModelDecision(AgentDecision(action="final", message=None)),
-        context=type("Context", (), {"task": task})(),
-        assistant_message="已导入。",
-        tool_result=ToolObservation(
-            tool_name="analyze_resume",
-            state="resume_analysis_ready",
-            message="已导入。",
-        ),
-    )
-    output = StringIO()
-
-    main(
-        ["chat", "--user-id", "u1", "--session-id", "s1", "--message", "好"],
-        runtime_factory=lambda args: Runtime(turn),
-        stdout=output,
-        stderr=StringIO(),
-    )
-
-    assert json.loads(output.getvalue())["pending_interaction"] is None
-
-
 def test_chat_confirms_a_pending_interaction_with_the_web_clients_words() -> None:
     """``--message`` is optional here; the transcript reads as if the button was pressed."""
     interaction = capability_confirmation_event(
@@ -923,45 +837,6 @@ def test_chat_confirms_a_pending_interaction_with_the_web_clients_words() -> Non
         )
     ]
     assert runtime.closed is True
-
-
-def test_chat_cancels_a_resume_analysis_interaction_in_its_scope() -> None:
-    interaction = resume_analysis_confirmation_event(
-        conversation_id="s1", analysis_id="analysis-1"
-    ).interaction_id
-    runtime = InteractionRuntime(_final_turn("已取消导入。"))
-
-    code = main(
-        [
-            "chat",
-            "--user-id",
-            "u1",
-            "--session-id",
-            "s1",
-            "--cancel-interaction",
-            interaction,
-            "--interaction-scope",
-            "resume_analysis_confirmation",
-        ],
-        runtime_factory=lambda args: runtime,
-        stdout=StringIO(),
-        stderr=StringIO(),
-    )
-
-    assert code == 0
-    assert runtime.calls == [
-        (
-            "u1",
-            "s1",
-            "取消导入",
-            None,
-            InteractionResponse(
-                interaction_id=interaction,
-                scope="resume_analysis_confirmation",
-                action="cancel",
-            ),
-        )
-    ]
 
 
 def test_chat_refuses_a_message_alongside_an_interaction_answer(capsys) -> None:
@@ -1009,7 +884,7 @@ def test_chat_refuses_an_interaction_scope_without_an_interaction(capsys) -> Non
                 "--message",
                 "你好",
                 "--interaction-scope",
-                "resume_analysis_confirmation",
+                "capability_confirmation",
             ],
             runtime_factory=lambda args: runtime,
             stdout=StringIO(),

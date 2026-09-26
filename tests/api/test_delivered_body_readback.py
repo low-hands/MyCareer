@@ -11,17 +11,12 @@ from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
-    ResumeAnalysisBodySource,
     SavedJobBodySource,
 )
 from career_agent.agent.main_agent_contracts import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,
-)
-from career_agent.agent.resume_analysis_contracts import (
-    ExtractedCareerRecord,
-    ResumeAnalysisResult,
 )
 from career_agent.api.app import create_app
 from career_agent.api.reads import WorkspaceReader
@@ -35,7 +30,6 @@ from career_agent.domain.mock_interviews.models import (
 from career_agent.storage.context import CareerContextStore, DeliveredBodyDraft
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
-from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.harness.streaming import ContentDeltaEvent
 
@@ -222,78 +216,6 @@ def test_snapshot_survives_job_update_and_is_physically_deleted_with_job(tmp_pat
         assert connection.execute(
             "SELECT COUNT(*) FROM conversation_delivered_bodies"
         ).fetchone() == (0,)
-
-
-@pytest.mark.parametrize(
-    "expired,removed", [(False, False), (True, False), (True, True)]
-)
-def test_resume_handle_uses_original_expiry_even_after_cleanup(
-    tmp_path, api_keys, auth, issue_key, expired, removed
-):
-    drafts = SQLiteResumeAnalysisDraftStore(
-        Path(_args(tmp_path).resume_store), ttl=timedelta(hours=1)
-    )
-    now = datetime.now(timezone.utc)
-    draft = drafts.create(
-        user_id="u1",
-        resume_version_id="rv-1",
-        result=ResumeAnalysisResult(
-            records=(
-                ExtractedCareerRecord(
-                    record_type="work",
-                    title="PRIVATE CANDIDATE",
-                    source_locator="第 1 页",
-                    source_quote="PRIVATE CANDIDATE",
-                ),
-            )
-        ),
-        now=now - timedelta(hours=2) if expired else now,
-    )
-    body_id = _store_body(
-        tmp_path,
-        DeliveredBodyDraft(
-            kind="resume_analysis_ready",
-            title="简历分析",
-            retention="source",
-            source=ResumeAnalysisBodySource(
-                analysis_id=draft.id, expires_at=draft.expires_at
-            ),
-        ),
-    )
-    if removed:
-        assert drafts.delete_expired(now=now) == 1
-    reader = WorkspaceReader(_args(tmp_path))
-    app = create_app(
-        runtime_factory=_Runtime,
-        workspace_reader_factory=lambda: reader,
-        api_key_store_factory=lambda: api_keys,
-        action_center_factory=lambda: None,
-    )
-    with TestClient(app) as client:
-        response = client.get(f"/v1/reports/delivered_body/{body_id}", headers=auth)
-        assert response.status_code == 200
-        report = response.json()
-        assert report["availability"] == ("expired" if expired else "available")
-        assert ("PRIVATE CANDIDATE" in report["body"]) is not expired
-        assert (
-            client.get(
-                f"/v1/reports/delivered_body/{body_id}", headers=issue_key("u2")
-            ).status_code
-            == 404
-        )
-    assert (
-        reader.conversation_messages(user_id="u1", conversation_id="c1")
-        .messages[-1]
-        .resources[-1]
-        .resource_id
-        == body_id
-    )
-    with sqlite3.connect(_args(tmp_path).context_store) as connection:
-        row = connection.execute(
-            "SELECT body, source_json FROM conversation_delivered_bodies"
-        ).fetchone()
-    assert row[0] == "" and "PRIVATE CANDIDATE" not in row[1]
-    assert draft.expires_at.isoformat().replace("+00:00", "Z") in row[1]
 
 
 def test_mock_interview_handle_includes_follow_up_and_checks_message_visibility_first(

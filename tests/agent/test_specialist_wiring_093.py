@@ -16,7 +16,6 @@ import pytest
 
 from career_agent import cli
 from career_agent.agent.openai_compatible_client import AgentConfigurationError
-from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 
 
 class Observed(Exception):
@@ -52,25 +51,6 @@ def _build(tmp_path: Path, env: dict[str, str], **patches):
         for name, effect in patches.items():
             stack.enter_context(patch.object(cli, name, side_effect=effect))
         cli.build_main_agent_runtime(_args(tmp_path))
-
-
-@pytest.mark.parametrize("protocol", [None, "responses"])
-def test_resume_worker_uses_the_configured_protocol_and_cli_timeout(tmp_path, protocol):
-    seen: list[OpenAIResumeAnalysisWorker] = []
-
-    def capture(resumes, worker, *rest):
-        seen.append(worker)
-        raise Observed
-
-    env = dict(BASE_ENV)
-    if protocol is not None:
-        env["RESUME_ANALYSIS_AGENT_API_PROTOCOL"] = protocol
-    with pytest.raises(Observed):
-        _build(tmp_path, env, ResumeAnalysisService=capture)
-    worker = seen[0]
-    assert worker._protocol == (protocol or "chat_completions")
-    assert worker._config.timeout_seconds == 42
-    assert worker._config.model == "synthetic-specialist"
 
 
 def _research_config(tmp_path: Path, env: dict[str, str]):

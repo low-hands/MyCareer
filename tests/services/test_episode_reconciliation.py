@@ -130,18 +130,11 @@ def test_committed_episodic_tool_cannot_silently_skip_its_source_pointer() -> No
         )
 
 
-def test_resume_intent_and_tailoring_successes_become_episodes() -> None:
+def test_intent_and_tailoring_successes_become_episodes() -> None:
     drafts = drafts_from_tool_results(
         user_id="u1",
         conversation_id="conversation-1",
         tool_results=(
-            ToolObservation(
-                tool_name="confirm_resume_analysis",
-                state="resume_analysis_confirmed",
-                message="已确认并保存 2 段职业经历。",
-                execution_outcome="committed",
-                payload={"analysis_id": "analysis-1"},
-            ),
             ToolObservation(
                 tool_name="confirm_job_intent",
                 state="job_intent_recorded",
@@ -167,7 +160,6 @@ def test_resume_intent_and_tailoring_successes_become_episodes() -> None:
     )
 
     assert [(draft.kind, draft.source_run_id) for draft in drafts] == [
-        ("resume_analysis", "analysis-1"),
         ("intent_confirmation", "intent-1"),
         ("resume_tailoring", "draft-1"),
     ]

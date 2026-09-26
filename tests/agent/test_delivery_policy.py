@@ -286,14 +286,9 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
             },
             "真实模拟问题标记",
         ),
-        "resume_analysis_ready": (
-            {
-                "analysis_id": internal_id,
-                "records": [],
-                "clarification_questions": [],
-                "warnings": ["真实简历分析标记"],
-            },
-            "真实简历分析标记",
+        "skill_loaded": (
+            {"skill": "resume-critique", "body": "真实技能说明标记"},
+            "真实技能说明标记",
         ),
         "resume_job_match_ready": (
             {
@@ -478,15 +473,6 @@ def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
             message="需要用户继续。",
         ).disposition == "interaction_required"
 
-    # The sole state whose meaning depends on its emitter: producing a new
-    # analysis asks for confirmation, reading the same immutable result does
-    # not. Every other explicit interaction must first be declared waiting.
-    assert ToolObservation(
-        tool_name="analyze_resume",
-        state="resume_analysis_ready",
-        message="等待确认。",
-        disposition="interaction_required",
-    ).disposition == "interaction_required"
     with pytest.raises(ValueError, match="must be declared waiting"):
         ToolObservation(
             tool_name="future_emitter",
@@ -504,7 +490,8 @@ def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
         found = re.search(r'state="([a-z_]+)"', constructor)
         assert found is not None, "explicit interaction must name a reviewable state"
         explicit_states.add(found.group(1))
-    assert explicit_states == {"resume_analysis_ready"}
+    # Every interaction a tool asks for is a declared waiting state.
+    assert explicit_states == set()
 
 
 def test_a_match_receipt_must_embed_the_value_a_scenario_decides_on() -> None:
@@ -584,7 +571,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
     waiting = {
         state for state, policy in DELIVERY_POLICIES.items() if policy.waiting
     }
-    expected = waiting | {"resume_analysis_ready"}
+    expected = waiting
     assert MainAgentRuntime._INTERACTION_RENDERER_STATES == expected
 
     for state in sorted(expected):
@@ -593,19 +580,10 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
         payload: dict[str, object] = {}
         if state == "capability_confirmation_required":
             # The durable seal is what the interaction is keyed on, so the
-            # renderer needs it. Supplied here for the same reason the analysis
-            # branch below supplies task state: the state alone is not the gate.
+            # renderer needs it: the state alone is not the gate.
             payload = {"confirmation_id": "c" * 32}
-        if state == "resume_analysis_ready":
-            task = task.model_copy(
-                update={
-                    "active_resume_analysis_id": "analysis-1",
-                    "resume_analysis_status": "pending",
-                }
-            )
-            disposition = "interaction_required"
         observation = ToolObservation(
-            tool_name="analyze_resume" if disposition else "emitter",
+            tool_name="emitter",
             state=state,
             message="请继续。",
             payload=payload,

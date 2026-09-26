@@ -18,11 +18,6 @@ from career_agent.api.app import create_app
 from career_agent.api.reads import build_workspace_reader
 from career_agent.agent.main_agent_contracts import ConversationTaskState
 from career_agent.agent.mock_interview_presenter import render_mock_interview_report
-from career_agent.agent.resume_analysis_contracts import (
-    ExtractedCareerEvidence,
-    ExtractedCareerRecord,
-    ResumeAnalysisResult,
-)
 from career_agent.agent.session_contracts import AgentSession
 from career_agent.domain.interview_preparation import (
     InterviewFocusArea,
@@ -51,7 +46,6 @@ from career_agent.storage.job_research import SQLiteJobResearchStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.context import CareerContextStore
-from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
@@ -88,63 +82,6 @@ def _client(tmp_path: Path, api_keys) -> TestClient:
             workspace_reader_factory=lambda: build_workspace_reader(args),
         )
     )
-
-
-def test_pending_resume_analysis_rebuilds_body_and_bound_interaction(
-    tmp_path: Path,
-) -> None:
-    args = _args(tmp_path)
-    draft = SQLiteResumeAnalysisDraftStore(
-        Path(args.resume_store)
-    ).create(
-        user_id="u1",
-        resume_version_id="resume-version-1",
-        result=ResumeAnalysisResult(
-            records=(
-                ExtractedCareerRecord(
-                    record_type="work",
-                    organization="示例科技",
-                    title="产品经理",
-                    source_locator="第 1 页",
-                    source_quote="示例科技 产品经理",
-                    evidence=(
-                        ExtractedCareerEvidence(
-                            claim="负责知识库产品规划",
-                            source_locator="第 1 页，第 1 条",
-                            source_quote="负责知识库产品规划",
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-    context = CareerContextStore(Path(args.context_store))
-    context.upsert_session(
-        AgentSession(
-            session_id="c1",
-            user_id="u1",
-            created_at=NOW,
-            last_active_at=NOW,
-        )
-    )
-    context.upsert_task(
-        user_id="u1",
-        conversation_id="c1",
-        task=ConversationTaskState(
-            active_resume_analysis_id=draft.id,
-            resume_analysis_status="pending",
-        ),
-    )
-
-    transcript = build_workspace_reader(args).conversation_messages(
-        user_id="u1",
-        conversation_id="c1",
-    )
-
-    assert "负责知识库产品规划" in transcript.pending_interaction_body
-    assert transcript.pending_interaction is not None
-    assert transcript.pending_interaction.scope == "resume_analysis_confirmation"
-    assert draft.id not in transcript.pending_interaction.interaction_id
 
 
 def _saved_job(tmp_path: Path):

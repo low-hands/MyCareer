@@ -43,6 +43,8 @@ ROUTE_TOOL = "route_to_capability"
 CORE_TOOLS = frozenset(
     {
         ROUTE_TOOL,
+        # Instructions the agent follows itself, for any domain.
+        "load_skill",
         # General conversation support.
         "read_conversation_span",
         "update_working_notes",
@@ -94,8 +96,6 @@ _DOMAIN_TOOLS: Mapping[ToolProfile, frozenset[str]] = MappingProxyType(
                 # Matching requires a current JD analysis; without this the
                 # profile offers the goal but not the step that unlocks it.
                 "analyze_job",
-                "analyze_resume",
-                "get_resume_analysis",
                 "match_resume_to_job",
                 "get_resume_job_match",
                 "draft_resume_tailoring",

@@ -9,6 +9,8 @@ tables the runtime enforces.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -70,7 +72,7 @@ def _registry() -> MainAgentToolRegistry:
         job_repository=object(),
         career_profile_store=object(),
         resume_store=object(),
-        resume_analysis_service=object(),
+        skills_root=Path("skills"),
         resume_job_match_service=object(),
         job_analysis_service=object(),
         resume_tailoring_service=object(),
@@ -200,14 +202,14 @@ def test_availability_is_derived_from_profile_and_preconditions() -> None:
     assert cold["tool_profile"] == "core"
     assert "find_saved_jobs" in cold["available_now"]
     assert ROUTE_TOOL in cold["available_now"]
-    assert "analyze_resume" not in cold["available_now"]
+    assert "export_resume_artifact" not in cold["available_now"]
     # Core discloses only its own gaps; the resume chain's are not mentioned.
     assert len(cold["next_requirements"]) <= MAX_NEXT_REQUIREMENTS
     assert not any("match_resume_to_job" in line for line in cold["next_requirements"])
 
     resume = project_tool_availability(ConversationTaskState(tool_profile="resume"))
     assert "list_resumes" in resume["available_now"]
-    assert "analyze_resume" not in resume["available_now"]
+    assert "export_resume_artifact" not in resume["available_now"]
     assert 0 < len(resume["next_requirements"]) <= MAX_NEXT_REQUIREMENTS
     assert all(isinstance(line, str) for line in resume["next_requirements"])
 
@@ -222,7 +224,7 @@ def test_availability_is_derived_from_profile_and_preconditions() -> None:
             job_analysis_status="ready",
         )
     )
-    assert {"analyze_resume", "match_resume_to_job"} <= set(ready["available_now"])
+    assert {"export_resume_artifact", "match_resume_to_job"} <= set(ready["available_now"])
     assert "draft_resume_tailoring" not in ready["available_now"]
 
 
@@ -315,7 +317,7 @@ def test_input_and_artifact_preconditions_remain_independent(
     )
     available = project_tool_availability(task)["available_now"]
 
-    assert ("analyze_resume" in available) is has_resume
+    assert ("export_resume_artifact" in available) is has_resume
     assert ("match_resume_to_job" in available) is (
         has_resume and has_job and has_current_analysis
     )
@@ -396,8 +398,8 @@ def test_model_receives_exactly_the_profile_schemas_and_the_same_tuple_within_a_
     core, resume, resume_again, core_again = decisions.schemas
     assert _offered(core) == profile_tools("core") & registered
     assert _offered(resume) == profile_tools("resume") & registered
-    assert "analyze_resume" in _offered(resume)
-    assert "analyze_resume" not in _offered(core)
+    assert "export_resume_artifact" in _offered(resume)
+    assert "export_resume_artifact" not in _offered(core)
     assert "match_resume_to_job" not in _offered(core)
     assert not (_offered(resume) - profile_tools("resume"))
     # The prefix cache depends on the same object being reused within a
@@ -411,7 +413,7 @@ def test_schema_filtering_only_offers_tools_the_registry_installs(tmp_path) -> N
     manager = _manager(tmp_path)
     tools = MainAgentToolRegistry(job_repository=object(), resume_store=object())
     registered = _offered(tools.schemas())
-    assert "analyze_resume" not in registered
+    assert "match_resume_to_job" not in registered
     assert "list_resumes" in registered
     decisions = SequenceDecisionMaker(
         AgentDecision(action="tool_call", tool_call=ToolCall(name=ROUTE_TOOL, arguments={"domain": "resume"})),

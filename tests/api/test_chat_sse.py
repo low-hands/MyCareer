@@ -159,7 +159,7 @@ def test_chat_endpoint_transports_bound_interaction_response(api_keys, auth) -> 
     app = create_app(api_key_store_factory=lambda: api_keys, runtime_factory=lambda: runtime)
     response_value = InteractionResponse(
         interaction_id="interaction_0123456789abcdef0123",
-        scope="resume_analysis_confirmation",
+        scope="capability_confirmation",
         action="confirm",
     )
 
@@ -169,7 +169,7 @@ def test_chat_endpoint_transports_bound_interaction_response(api_keys, auth) -> 
             headers=auth,
             json={
                 "conversation_id": "c1",
-                "message": "确认并导入",
+                "message": "确认执行",
                 "interaction_response": response_value.model_dump(),
             },
         )

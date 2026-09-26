@@ -10,6 +10,8 @@ These tests hold two things:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from career_agent.agent.main_agent_contracts import ConversationTaskState
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.tool_reachability import (
@@ -24,7 +26,7 @@ def _registry() -> MainAgentToolRegistry:
         job_repository=object(),
         career_profile_store=object(),
         resume_store=object(),
-        resume_analysis_service=object(),
+        skills_root=Path("skills"),
         resume_job_match_service=object(),
         job_analysis_service=object(),
         resume_tailoring_service=object(),

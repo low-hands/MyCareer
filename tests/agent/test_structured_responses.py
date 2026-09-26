@@ -339,13 +339,13 @@ def test_each_capability_keeps_its_own_error_vocabulary() -> None:
 
 
 _MIGRATED_WORKERS = {
-    "openai_resume_analysis_worker": "RESUME_ANALYSIS",
     "openai_resume_job_match_worker": "RESUME_JOB_MATCH",
     "openai_job_analysis_worker": "JOB_ANALYSIS",
     "openai_email_tracking_worker": "EMAIL_TRACKING",
     "openai_interview_preparation_worker": "INTERVIEW_PREPARATION",
     "openai_resume_tailoring_reviewer": "RESUME_REVIEW",
     "openai_mock_interview_worker": "MOCK_INTERVIEW",
+    "openai_resume_transcription_worker": "RESUME_TRANSCRIPTION",
 }
 """Each worker and the error vocabulary its capability owns."""
 
@@ -372,7 +372,7 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
     # The shared helpers: Responses (``structured_responses``) and, since 093,
     # Chat Completions JSON Schema plus the explicit Responses text adapter
     # (``structured_chat_completions``). Only they may call the provider.
-    helpers = {"structured_responses", "structured_chat_completions"}
+    helpers = {"structured_responses"}
     for source in agent.glob("*.py"):
         if source.stem in helpers:
             continue

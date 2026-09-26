@@ -28,7 +28,6 @@ from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     InteractionResponse,
     capability_confirmation_event,
-    resume_analysis_confirmation_event,
     scoped_interaction_message,
 )
 from career_agent.agent.mock_interview_graph import (
@@ -43,9 +42,9 @@ from career_agent.agent.openai_compatible_main_agent import (
     max_output_tokens_from_env,
 )
 from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
-from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_job_analysis_worker import OpenAIJobAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
+from career_agent.agent.openai_resume_transcription_worker import OpenAIResumeTranscriptionWorker
 from career_agent.agent.openai_resume_tailoring_reviewer import (
     OpenAIResumeTailoringReviewer,
 )
@@ -62,6 +61,7 @@ from career_agent.agent.deepagent_job_research_worker import (
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
 from career_agent.connectors.calendar import EnvironmentCalendarConnectorResolver
 from career_agent.services.applications import ApplicationService
+from career_agent.services.resume_text import ResumeTextService
 from career_agent.services.action_center import ActionCenterService
 from career_agent.services.calendar import CalendarService
 from career_agent.services.email_tracking import EmailTrackingService
@@ -71,7 +71,6 @@ from career_agent.services.interview_context import InterviewPreparationContextF
 from career_agent.services.job_research import JobResearchService
 from career_agent.services.memory_report import build_memory_report
 from career_agent.services.memory_review import MemoryReviewService
-from career_agent.services.resume_analysis import ResumeAnalysisService
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.job_analysis import JobAnalysisService
 from career_agent.services.resume_job_match import ResumeJobMatchService
@@ -114,7 +113,6 @@ from career_agent.storage.action_executions import (
     RESULT_STATE_RECEIPT_KEY,
     SQLiteActionExecutionStore,
 )
-from career_agent.storage.resume_analysis import SQLiteResumeAnalysisDraftStore
 from career_agent.storage.resume_artifacts import SQLiteResumeArtifactStore
 from career_agent.services.job_comparison import JobComparisonService
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
@@ -189,6 +187,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         timeout_seconds=args.agent_timeout_seconds,
     )
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
+    resume_text_service = ResumeTextService(
+        resume_store, OpenAIResumeTranscriptionWorker(resume_analysis_config)
+    )
     try:
         semantic_retriever = optional_semantic_retriever(
             career_history=career_history_store,
@@ -333,6 +334,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_capture_store=SQLiteJobCaptureStore(Path(args.job_store).expanduser()),
             job_research_service=job_research_service,
             resume_store=resume_store,
+            resume_text_service=resume_text_service,
+            skills_root=Path(args.resume_tailoring_skills_dir),
             career_history_store=career_history_store,
             episode_store=episode_store,
             resume_export_service=ResumeExportService(
@@ -347,14 +350,6 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             calendar_service=calendar_service,
             mock_interview_graph=mock_interview_graph,
             mock_interview_store=mock_interview_store,
-            resume_analysis_service=ResumeAnalysisService(
-                resume_store,
-                OpenAIResumeAnalysisWorker.from_env(
-                    timeout_seconds=args.agent_timeout_seconds,
-                ),
-                SQLiteResumeAnalysisDraftStore(Path(args.resume_store).expanduser()),
-                career_history_store,
-            ),
             job_comparison_service=JobComparisonService(job_repository, match_store),
             job_analysis_service=JobAnalysisService(
                 job_repository,
@@ -507,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     chat.add_argument(
         "--interaction-scope",
-        choices=("capability_confirmation", "resume_analysis_confirmation"),
+        choices=("capability_confirmation",),
         help=(
             "Scope of the interaction being answered, as printed in "
             "pending_interaction (default: capability_confirmation, the owner's "
@@ -1139,17 +1134,6 @@ def _chat_pending_interaction_event(
             conversation_id=session_id,
             confirmation_id=confirmation_id,
             prompt=tool_result.message,
-        )
-    task = getattr(turn.context, "task", None)
-    if (
-        tool_result.state == "resume_analysis_ready"
-        and task is not None
-        and task.resume_analysis_status == "pending"
-        and task.active_resume_analysis_id is not None
-    ):
-        return resume_analysis_confirmation_event(
-            conversation_id=session_id,
-            analysis_id=task.active_resume_analysis_id,
         )
     return None
 

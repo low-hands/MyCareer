@@ -107,7 +107,6 @@ from career_agent.harness.streaming import (
     TurnStartedEvent,
     TurnSuspendedEvent,
     capability_confirmation_event,
-    resume_analysis_confirmation_event,
 )
 from career_agent.storage.context import OwnerSettingsEvent
 
@@ -238,9 +237,6 @@ def _stream_event_examples() -> tuple[PublicStreamEvent, ...]:
                                  options=(QuestionOption(value="sqlite", label="SQLite"),)),
                     UserQuestion(question_id="q2", prompt="补充项目背景", kind="free_text"),
                 ),
-            ),
-            resume_analysis_confirmation_event(
-                conversation_id="conv-1", analysis_id="analysis-1"
             ),
             capability_confirmation_event(
                 conversation_id="conv-1",

@@ -27,7 +27,7 @@ from career_agent.harness.capability_steps import (
     CapabilityStep,
     observing_capability_steps,
 )
-from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, LoadSkillToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_contracts import (
     CONFIRMATION_SPECS,
     confirmation_arguments_snapshot,
@@ -99,12 +99,9 @@ from career_agent.agent.mock_interview_presenter import (
     render_mock_interview_result,
     render_mock_interview_turn,
 )
-from career_agent.agent.resume_analysis_contracts import ResumeAnalysisResult
 from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, QuestionAnswer
-from career_agent.agent.resume_analysis_presenter import render_resume_analysis
 from career_agent.agent.delivered_body_contracts import (
     BodyDependency,
-    ResumeAnalysisBodySource,
     SavedJobBodySource,
 )
 from career_agent.agent.job_analysis_contracts import JobAnalysisResult
@@ -153,7 +150,6 @@ from career_agent.harness.streaming import (
     interaction_id,
     iter_content_deltas,
     capability_confirmation_event,
-    resume_analysis_confirmation_event,
     questionnaire_event,
 )
 from career_agent.storage.action_executions import (
@@ -585,7 +581,6 @@ class MainAgentRuntime:
             "mock_interview_running",
             "mock_interview_resume_choice_required",
             "mock_interview_job_choice_required",
-            "resume_analysis_ready",
             "resume_final_review_blocked",
             "resume_tailoring_review_blocked",
             "resume_tailoring_superseded",
@@ -939,17 +934,7 @@ class MainAgentRuntime:
                     conversation_id=conversation_id,
                     turn_id=turn_id,
                     answered=tuple(answered),
-                    body_expires_at=min(
-                        (
-                            output.body_source.expires_at
-                            for output in (
-                                result.tool_results
-                                or ((result.tool_result,) if result.tool_result else ())
-                            )
-                            if isinstance(output.body_source, ResumeAnalysisBodySource)
-                        ),
-                        default=None,
-                    ),
+                    body_expires_at=None,
                 )
             return result
         except Exception as error:
@@ -1470,6 +1455,7 @@ class MainAgentRuntime:
                 self._tools.resume_store,
                 user_id=user_id,
                 resources=input_resources,
+                text_service=self._tools.resume_text_service,
             )
             if input_resources
             else ()
@@ -1850,7 +1836,7 @@ class MainAgentRuntime:
     ) -> MainAgentContext:
         """Place verified attachments on the turn and make the last one active.
 
-        The active version is what ``analyze_resume`` and its siblings resolve
+        The active version is what ``match_resume_to_job`` and its siblings resolve
         "this resume" to, so attaching a version is the same act as choosing
         it; the stored reference on the user message is what keeps the choice
         from drifting when the resume later gains a newer version. A job
@@ -2045,16 +2031,6 @@ class MainAgentRuntime:
             conversation_id=conversation_id,
         )
         if interaction is not None:
-            # Resume analysis is different from ordinary questions: the user
-            # must see the complete proposed evidence before the bound buttons
-            # can carry meaningful consent. The card prompt is only the gate,
-            # not a replacement for the analysis body.
-            if interaction.scope == "resume_analysis_confirmation":
-                self._emit(
-                    ProgressEvent(stage="presenting", message="正在展示分析结果……")
-                )
-                for delta in iter_content_deltas(result.assistant_message):
-                    self._emit(ContentDeltaEvent(delta=delta, delivery="synthetic"))
             return
 
         if not result.content_streamed:
@@ -2106,7 +2082,7 @@ class MainAgentRuntime:
             and questionnaire is not None
             and not any(item.disposition == "failed" for item in result.tool_results)
             and (tool_result is None or tool_result.state not in {
-                "capability_confirmation_required", "resume_analysis_ready",
+                "capability_confirmation_required",
                 "calendar_approval_required", "email_events_pending",
             })
         ):
@@ -2133,15 +2109,6 @@ class MainAgentRuntime:
                         f"{tool_result.payload['confirmation_summary']}\n"
                         "这是删除或停用操作，请亲自确认是否执行。"
                     ),
-                )
-            if (
-                tool_result.state == "resume_analysis_ready"
-                and task.resume_analysis_status == "pending"
-                and task.active_resume_analysis_id is not None
-            ):
-                return resume_analysis_confirmation_event(
-                    conversation_id=conversation_id,
-                    analysis_id=task.active_resume_analysis_id,
                 )
             if tool_result.state == "calendar_approval_required":
                 return InteractionRequiredEvent(
@@ -2253,61 +2220,10 @@ class MainAgentRuntime:
     ) -> MainAgentTurnResult:
         """Resolve a capability-owned UI decision before the LLM sees it."""
 
-        if response.scope == "capability_confirmation":
-            return self._run_owner_confirmation(
-                context=context, conversation_id=conversation_id, response=response
-            )
-        task = context.task
-        analysis_id = task.active_resume_analysis_id
-        expected_id = (
-            interaction_id(
-                conversation_id,
-                "resume_analysis_confirmation",
-                analysis_id,
-            )
-            if analysis_id is not None
-            else None
-        )
-        if (
-            response.scope != "resume_analysis_confirmation"
-            or analysis_id is None
-            or task.resume_analysis_status != "pending"
-            or response.interaction_id != expected_id
-        ):
-            result = ToolObservation(
-                tool_name="resume_analysis_confirmation",
-                state="resume_analysis_decision_expired",
-                message="这项确认已过期或已处理，请重新打开当前简历分析。",
-            )
-            updated = context
-        else:
-            result = self._tools.resolve_resume_analysis_confirmation(
-                user_id=context.profile.user_id,
-                analysis_id=analysis_id,
-                action=response.action,
-            )
-            updated = (
-                context.model_copy(
-                    update={
-                        "task": reduce_task_state(
-                            task, result, now=self._context_manager.now()
-                        )
-                    }
-                )
-                if result.state
-                in {"resume_analysis_confirmed", "resume_analysis_rejected"}
-                else context
-            )
-        return MainAgentTurnResult(
-            # The user clicked an approval whose contract was already sealed.
-            # This used to fabricate an ``AgentDecision(action="final")`` so the
-            # result could be typed as a model decision; nothing read its
-            # message, and everything that read its ``action`` read a fiction.
-            origin=InteractionReceipt(scope=response.scope, action=response.action),
-            context=updated,
-            assistant_message=self._assistant_message(result),
-            tool_result=result,
-            tool_results=(result,),
+        if response.scope != "capability_confirmation":
+            raise ValueError(f"no capability owns interaction scope {response.scope!r}")
+        return self._run_owner_confirmation(
+            context=context, conversation_id=conversation_id, response=response
         )
 
     def _run_owner_confirmation(
@@ -2669,8 +2585,8 @@ class MainAgentRuntime:
         """Whether a turn the user did not type may run in this conversation now.
 
         False while the conversation is waiting on the user: a mock interview
-        that will consume the next message, a resume analysis awaiting
-        confirmation, or a capability confirmation still open. A background
+        that will consume the next message, or a capability confirmation still
+        open. A background
         message there would be taken as the user's answer. Session liveness is
         the caller's check; this reads only the routing state.
         """
@@ -2678,11 +2594,6 @@ class MainAgentRuntime:
             user_id=user_id, conversation_id=conversation_id
         )
         if self._owns_next_turn(task):
-            return False
-        if (
-            task.resume_analysis_status == "pending"
-            and task.active_resume_analysis_id is not None
-        ):
             return False
         # Unexpired rows under any policy revision: one the owner's current
         # policy hides still ends at its expiry, so the wait stays bounded.
@@ -3016,7 +2927,7 @@ class MainAgentRuntime:
         )
 
     _CAPABILITY_STEP_MESSAGES: ClassVar[dict[str, str]] = {
-        "resume_analysis": "正在分析简历内容",
+        "resume_transcription": "正在识别简历文字",
         "resume_document_prepare": "正在准备简历文档",
         "resume_job_match": "正在比对简历与岗位要求",
         "job_analysis": "正在分析岗位 JD",
@@ -4630,6 +4541,9 @@ class MainAgentRuntime:
         """
         if result.state == "saved_job_ready" and result.resource_ref is not None:
             return result.message
+        if policy_for(result.state).body_delivery == "model":
+            # Instructions for the model, never the reader's screen.
+            return result.message
         screen = MainAgentRuntime._assistant_message(result)
         if result.disposition != "failed":
             return screen
@@ -4722,7 +4636,11 @@ class MainAgentRuntime:
             policy = policy_for(result.state)
             # A card state whose reference was dropped has no entity to
             # carry its body, so it is delivered here like a card-less one.
-            if not policy.condensed_message or MainAgentRuntime._has_backed_card(result):
+            if (
+                not policy.condensed_message
+                or policy.body_delivery == "model"
+                or MainAgentRuntime._has_backed_card(result)
+            ):
                 continue
             rendered = MainAgentRuntime._assistant_message(result)
             if rendered and rendered not in bodies:
@@ -4914,6 +4832,7 @@ class MainAgentRuntime:
             "career_memory_search_found",
             "career_episode_search_found",
             "career_history_found",
+            "skill_loaded",
         }:
             body = result.payload.get("body")
             if isinstance(body, str) and body.strip():
@@ -4936,10 +4855,6 @@ class MainAgentRuntime:
                 return render_mock_interview_question(view)
         if result.state == "daily_brief_ready":
             return render_daily_brief(result.payload)
-        if result.state == "resume_analysis_ready":
-            analysis = MainAgentRuntime._resume_analysis_result(result)
-            if analysis is not None:
-                return render_resume_analysis(analysis)
         if result.state == "interview_retro_recorded":
             view = MainAgentRuntime._validated(InterviewRetroView, result.payload)
             if view is not None:
@@ -5070,21 +4985,6 @@ class MainAgentRuntime:
         return delivers_body_elsewhere(result.state) and result.resource_ref is not None
 
     @staticmethod
-    def _resume_analysis_result(
-        result: MainAgentToolOutput,
-    ) -> ResumeAnalysisResult | None:
-        return MainAgentRuntime._validated(
-            ResumeAnalysisResult,
-            {
-                "records": result.payload.get("records", ()),
-                "clarification_questions": result.payload.get(
-                    "clarification_questions", ()
-                ),
-                "warnings": result.payload.get("warnings", ()),
-            },
-        )
-
-    @staticmethod
     def _resume_job_match_result(
         result: MainAgentToolOutput,
     ) -> ResumeJobMatchResult | None:
@@ -5188,6 +5088,11 @@ class MainAgentRuntime:
 
     @staticmethod
     def _project_atomic_tool_arguments(context: MainAgentContext, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        if name == "load_skill":
+            return {
+                "user_id": context.profile.user_id,
+                **LoadSkillToolArguments.model_validate(arguments).model_dump(),
+            }
         if name == "route_to_capability":
             model_arguments = RouteToCapabilityToolArguments.model_validate(arguments)
             return {
@@ -5345,8 +5250,6 @@ class MainAgentRuntime:
             "list_target_roles",
             "list_resumes",
             "get_resume_metadata",
-            "analyze_resume",
-            "get_resume_analysis",
             "match_resume_to_job",
             "get_resume_job_match",
             "draft_resume_tailoring",

@@ -38,10 +38,10 @@ describe("streamChat", () => {
 
     for await (const _event of streamChat({
       conversation_id: "c1",
-      message: "确认并导入",
+      message: "确认执行",
       interaction_response: {
         interaction_id: "interaction_0123456789abcdef0123",
-        scope: "resume_analysis_confirmation",
+        scope: "capability_confirmation",
         action: "confirm",
       },
     })) {
@@ -51,10 +51,10 @@ describe("streamChat", () => {
     const request = fetchMock.mock.calls[0][1];
     expect(JSON.parse(String(request?.body))).toEqual({
       conversation_id: "c1",
-      message: "确认并导入",
+      message: "确认执行",
       interaction_response: {
         interaction_id: "interaction_0123456789abcdef0123",
-        scope: "resume_analysis_confirmation",
+        scope: "capability_confirmation",
         action: "confirm",
       },
     });

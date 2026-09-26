@@ -171,7 +171,7 @@ export function ResumeImporter({
       </div>
       <small>
         支持 PDF、TXT、Markdown，最大 5 MiB。“上传”只把原文件保存到本地简历库；
-        只有“发送消息 / 让 Agent 分析”时，提取出的简历内容才会发给配置的模型供应商。
+        只有“发送消息 / 简历点评”时，提取出的简历内容才会发给配置的模型供应商。
       </small>
     </form>
   );

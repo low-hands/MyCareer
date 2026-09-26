@@ -26,7 +26,6 @@ _WRITE_CAPABILITIES = frozenset(
     {
         "analyze_job",
         "correct_job_requirement_tier",
-        "analyze_resume",
         "complete_action_item",
         "complete_interview",
         "confirm_constraint_retirement",
@@ -68,6 +67,7 @@ _WRITE_CAPABILITIES = frozenset(
 
 _READ_CAPABILITIES = frozenset(
     {
+        "load_skill",
         "compare_saved_jobs",
         "find_saved_jobs",
         "get_application",
@@ -78,7 +78,6 @@ _READ_CAPABILITIES = frozenset(
         "get_interview_preparation",
         "get_job_research",
         "get_mock_interview_result",
-        "get_resume_analysis",
         "get_resume_job_match",
         "get_resume_metadata",
         "get_resume_tailoring_draft",

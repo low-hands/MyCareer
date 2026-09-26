@@ -33,7 +33,6 @@ from career_agent.agent.openai_interview_preparation_worker import (
     OpenAIInterviewPreparationWorker,
 )
 from career_agent.agent.openai_mock_interview_worker import OpenAIMockInterviewWorker
-from career_agent.agent.openai_resume_analysis_worker import OpenAIResumeAnalysisWorker
 from career_agent.agent.openai_resume_job_match_worker import (
     OpenAIResumeJobMatchWorker,
 )
@@ -55,7 +54,6 @@ from career_agent.storage.context import CareerContextStore
         (OpenAICompatibleAgentWorker, "decide"),
         (OpenAIEmailTrackingWorker, "assess"),
         (OpenAIInterviewPreparationWorker, "prepare"),
-        (OpenAIResumeAnalysisWorker, "analyze"),
         (OpenAIResumeJobMatchWorker, "match"),
         (OpenAIMockInterviewWorker, "_request_structured"),
         (OpenAIResumeTailoringReviewer, "_review"),

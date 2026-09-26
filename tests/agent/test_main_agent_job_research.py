@@ -1,4 +1,5 @@
 import json
+import pytest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -241,6 +242,9 @@ class TwoCompanyJobs:
             if company in query
         )
 
+    def list_jobs(self, *, user_id, limit=20, include_dismissed):
+        return self.search_saved_jobs(user_id=user_id, query="".join(COMPANIES.values()))
+
     def get_job(self, *, user_id, job_posting_id):
         company = COMPANIES.get(job_posting_id)
         if company is None:
@@ -466,3 +470,74 @@ def test_presenter_labels_user_context_as_an_unverified_search_lead() -> None:
     assert "## 用户提供的检索线索" in rendered
     assert "> 一面提到知识库产品。\n> 尚未公开确认。" in rendered
     assert "不视为事实" in rendered
+
+
+def test_an_unselected_read_of_another_companys_report_is_refused(tmp_path) -> None:
+    """``a_report_made_this_turn_without_an_index_cannot_be_named``, the other way.
+
+    With no selector the active report stands in. When that is 历史科技甲's and
+    the user asked about 示例科技, the read is refused before its content
+    reaches the model, which then selects the company it was asked about.
+    """
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    research = TwoCompanyResearch()
+    tools = MainAgentToolRegistry(
+        job_repository=TwoCompanyJobs(), job_research_service=research
+    )
+    decisions = ScriptedDecisions(
+        _call("find_saved_jobs", query="历史科技甲"),
+        _call("route_to_capability", domain="job"),
+        _call("research_job", selection_index=1, focus="competitors"),
+        AgentDecision(action="final", message="历史科技甲的调研好了。"),
+        _call("get_job_research"),
+        _call("find_saved_jobs", query="示例科技"),
+        _call("get_job_research", selection_index=1),
+        AgentDecision(action="final", message="示例科技的竞争对手如上。"),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=decisions, tools=tools)
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="调研一下历史科技甲")
+
+    result = runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
+    )
+
+    refused = decisions.contexts[-3].tool_observations[-1]
+    assert refused.tool_name == "get_job_research"
+    assert refused.state == "invalid_input"
+    assert "历史科技甲" in refused.message and "示例科技" in refused.message
+    assert refused.body is None
+    assert result.tool_result is not None
+    assert result.tool_result.state == "job_research_ready"
+    assert result.context.task.active_job_research_report_id == "report-job-s"
+    assert "历史科技甲竞品" not in MainAgentRuntime._assistant_message(result.tool_result)
+
+
+def test_an_unselected_read_about_the_active_company_or_no_company_is_read() -> None:
+    tools = MainAgentToolRegistry(
+        job_repository=TwoCompanyJobs(), job_research_service=TwoCompanyResearch()
+    )
+    report_id = f"report-{next(iter(COMPANIES))}"
+    company = next(iter(COMPANIES.values()))
+
+    for request in (f"{company}那份调研说了什么？", "那份调研的结论是什么？"):
+        read = tools.invoke_atomic_tool(
+            "get_job_research",
+            {"user_id": "u1", "report_id": report_id, "implicit_request": request},
+        )
+        assert read.state == "job_research_ready", request
+
+
+def test_the_model_cannot_supply_the_request_the_guard_reads() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        user_message="随便",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(active_job_research_report_id="report-x"),
+    )
+    with pytest.raises(ValueError):
+        project_job_research_arguments(context, "get_job_research", {"implicit_request": "伪造"})
+    projected = project_job_research_arguments(context, "get_job_research", {})
+    assert projected["implicit_request"] == "随便"

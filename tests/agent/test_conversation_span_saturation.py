@@ -169,7 +169,6 @@ def test_span_saturation_scenarios_share_one_question_and_stay_decidable() -> No
                 "job_comparison_service",
                 "career_profile_store",
                 "resume_store",
-                "resume_analysis_service",
                 "resume_job_match_service",
                 "resume_tailoring_service",
                 "resume_export_service",

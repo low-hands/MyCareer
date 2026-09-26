@@ -168,7 +168,6 @@ describe("stream event contract", () => {
     expect(scoped.map((event) => event.scope).sort()).toEqual([
       "capability_confirmation",
       "questionnaire",
-      "resume_analysis_confirmation",
     ]);
     for (const event of scoped) {
       expect(parsePublicStreamEvent(event).type).toBe("interaction_required");

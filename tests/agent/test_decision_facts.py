@@ -42,10 +42,6 @@ DECLARED_FACTS = {
         "keys": {"overdue", "due_today", "waiting"},
         "reason": "收据只能给出总数；分桶写进一句话就成了报告本身",
     },
-    "resume_analysis_ready": {
-        "keys": {"record_count", "clarification_count", "has_warnings"},
-        "reason": "是否先追问用户取决于澄清与告警数，列举它们等于复述结果",
-    },
     "job_research_ready": {
         "keys": {"cached", "finding_count", "status"},
         "reason": "三值状态需要精确取值，散文收据说不准",
@@ -177,7 +173,6 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
     """Declaring a fact is not enough; it has to survive to the observation."""
     payloads = {
         "daily_brief_ready": {},
-        "resume_analysis_ready": {},
         "job_research_ready": {},
         "claim_source_found": {},
         "career_memory_detail_found": {},
