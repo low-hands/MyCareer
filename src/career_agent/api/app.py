@@ -41,6 +41,7 @@ from career_agent.api.single_worker import (
     lock_path_for,
     refuse_multi_worker_configuration,
 )
+from career_agent.api.live_turns import LiveTurn, LiveTurnRegistry
 from career_agent.harness.streaming import (
     InteractionResponse,
     PublicStreamEvent,
@@ -532,6 +533,7 @@ async def _sse_stream(
     heartbeat_seconds: float,
     synthetic_content_delay_seconds: float = 0.025,
     on_turn_finished: Callable[[], Awaitable[None]] | None = None,
+    live: LiveTurn | None = None,
 ) -> AsyncIterator[str]:
     queue: asyncio.Queue[PublicStreamEvent | object] = asyncio.Queue()
     sentinel = object()
@@ -549,6 +551,8 @@ async def _sse_stream(
                 content_delay_seconds=synthetic_content_delay_seconds,
             ):
                 await queue.put(event)
+                if live is not None:
+                    await live.append(event)
         except Exception:
             # MainAgentRuntime emits a safe turn_failed event before raising.
             # The HTTP adapter must not serialize the raw exception after the
@@ -652,6 +656,12 @@ def create_app(
     )
     # Built on first use, not at import: constructing it opens the local
     # databases, and creating an app must not touch the real store paths.
+    live_turns = LiveTurnRegistry()
+
+    def live_turn_message(user_id: str, conversation_id: str) -> str | None:
+        turn = live_turns.get(user_id, conversation_id)
+        return turn.user_message if turn is not None else None
+
     def ensure_conversation_idle(user_id: str, conversation_id: str) -> None:
         gate: ConversationRunGate = application.state.run_gate
         if gate.is_active(user_id, conversation_id):
@@ -667,6 +677,7 @@ def create_app(
         read_factory,
         workspace_factory,
         before_conversation_delete=ensure_conversation_idle,
+        live_turn_message=live_turn_message,
     )
     integration_router = build_integration_router(
         integration_service_factory or build_integration_service
@@ -834,9 +845,18 @@ def create_app(
                 headers={"Retry-After": "10"},
             ) from error
 
+        live = live_turns.start(
+            principal.user_id, request.conversation_id, request.message
+        )
+
         async def release_gate() -> None:
-            await gate.release(principal.user_id, request.conversation_id)
-            capture_wakeup.set()
+            try:
+                await gate.release(principal.user_id, request.conversation_id)
+                capture_wakeup.set()
+            finally:
+                # After the release: the reply is stored by now, so a follower
+                # that re-reads the transcript on the end finds it there.
+                await live_turns.end(principal.user_id, request.conversation_id, live)
 
         stream_started = False
 
@@ -851,6 +871,7 @@ def create_app(
                 heartbeat_seconds=heartbeat_seconds,
                 synthetic_content_delay_seconds=synthetic_content_delay_seconds,
                 on_turn_finished=release_gate,
+                live=live,
             ):
                 yield chunk
 
@@ -858,6 +879,37 @@ def create_app(
             generate(),
             stream_started=lambda: stream_started,
             release_unstarted=release_gate,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @application.get("/v1/conversations/{conversation_id}/live")
+    async def follow_live_turn(
+        conversation_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> StreamingResponse:
+        """Replay a running turn's events so far, then follow it to its end."""
+
+        live = live_turns.get(principal.user_id, conversation_id)
+        if live is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "NO_LIVE_TURN",
+                    "message": "这个对话现在没有正在运行的一轮。",
+                },
+            )
+
+        async def generate() -> AsyncIterator[str]:
+            async for event in live.follow(heartbeat_seconds=heartbeat_seconds):
+                yield ": keep-alive\n\n" if event is None else _encode_sse(event)
+
+        return StreamingResponse(
+            generate(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache, no-transform",

@@ -12,7 +12,7 @@ import {
   retryJobCapture,
 } from "./api/client";
 import { seedCaptureApiKey } from "./api/auth";
-import { streamChat, type InteractionResponse, type TurnInputResource } from "./api/sse";
+import { ChatStreamHttpError, followLiveTurn, streamChat, type InteractionResponse, type TurnInputResource } from "./api/sse";
 import {
   DEFAULT_ATTACHMENT_PROMPT,
   attachmentFromImport,
@@ -35,6 +35,7 @@ import {
 import {
   newStandaloneAgentTask,
   standaloneTaskResources,
+  standaloneTaskSubject,
   standaloneAgentTaskStep,
   type StandaloneAgentTask,
 } from "./chat/agentTask";
@@ -58,6 +59,7 @@ import { MessageResourceCard } from "./components/MessageResourceCard";
 import { ResumeImporter } from "./components/ResumeImporter";
 import { MarkdownContent } from "./components/MarkdownContent";
 import { AppIcon, type AppIconName } from "./components/AppIcon";
+import { InlineDeleteConfirm } from "./components/InlineDeleteConfirm";
 import { DailyBriefPanel } from "./pages/DailyBrief";
 import { consumeGoogleOAuthCallback } from "./oauthCallback";
 import {
@@ -108,6 +110,8 @@ const VIEW_GROUPS: {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 const ROUND_BASED_PROGRESS = new Set(["resume_tailoring", "resume_draft_review"]);
+/** How often a turn running without this page's stream is checked on. */
+const RUNNING_POLL_INTERVAL_MS = 4000;
 
 function progressStepText(step: ProgressStep): string {
   if (step.occurrence === 1) return step.label;
@@ -172,9 +176,22 @@ export default function App() {
   const pendingStandaloneTask = useRef<StandaloneAgentTask | null>(null);
   const activeStandaloneTask = useRef<StandaloneAgentTask | null>(null);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  // Which list asks, as "<list>:<id>": the sidebar and the panel each render the row.
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   // Bumped to re-read the current conversation's transcript without changing
   // conversations: the "重新读取" fallback after a recovery that found nothing.
   const [transcriptReloads, setTranscriptReloads] = useState(0);
+  // Conversations left while their turn was still running, keyed to the
+  // message that started it (a first turn has no stored title yet). The
+  // server keeps executing them; the sidebar shows them as running.
+  const [backgroundTurns, setBackgroundTurns] = useState<Map<string, string>>(new Map());
+  const backgroundTurnsRef = useRef(backgroundTurns);
+  backgroundTurnsRef.current = backgroundTurns;
+  // The open conversation has a turn executing that this page is not
+  // streaming (it was started, then left, or started in another tab).
+  const [remoteRunning, setRemoteRunning] = useState(false);
+  // The running turn this page re-attached to, so leaving it keeps its title.
+  const followedTurn = useRef<{ conversationId: string; message: string } | null>(null);
   const [conversationPanelWidth, setConversationPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("career-agent:conversation-panel-width"));
     return Number.isFinite(saved) && saved >= 220 && saved <= 380 ? Math.min(saved, 300) : 270;
@@ -200,7 +217,7 @@ export default function App() {
   activeConversationId.current = conversationId;
   activeChatState.current = state;
   const busy = state.phase === "running" || state.phase === "recovering";
-  const canSubmit = (draft.trim().length > 0 || attachments.length > 0) && !busy && !historyLoading;
+  const canSubmit = (draft.trim().length > 0 || attachments.length > 0) && !busy && !historyLoading && !remoteRunning;
 
   useEffect(
     () => () => {
@@ -241,6 +258,13 @@ export default function App() {
         if (request.signal.aborted) return;
         dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
         setHydratedConversationId(conversationId);
+        // A turn this server is running shows as it unfolds; one it cannot
+        // replay (a capture continuation) is read back once it is stored.
+        if (transcript.running_turn_message != null) {
+          void attachLiveTurn(conversationId, transcript.running_turn_message);
+        } else {
+          setRemoteRunning(Boolean(transcript.turn_running));
+        }
       })
       .catch((cause: unknown) => {
         if (!request.signal.aborted) {
@@ -258,6 +282,62 @@ export default function App() {
   useEffect(() => {
     if (!historyLoading) setSubmitNotice(null);
   }, [historyLoading]);
+  // The open conversation's turn runs on without this page: read it back until
+  // the server has stored the reply, then show it.
+  useEffect(() => {
+    if (!remoteRunning) return;
+    const request = new AbortController();
+    const timer = window.setInterval(() => {
+      void fetchConversationMessages(conversationId, { apiBaseUrl: API_BASE_URL, signal: request.signal })
+        .then((transcript) => {
+          if (request.signal.aborted || transcript.turn_running) return;
+          dispatch({ type: "hydrate", ...hydrationFrom(conversationId, transcript) });
+          setRemoteRunning(false);
+          setBackgroundTurns((current) => {
+            if (!current.has(conversationId)) return current;
+            const next = new Map(current);
+            next.delete(conversationId);
+            return next;
+          });
+          setCompletedTurns((count) => count + 1);
+        })
+        .catch(() => undefined);
+    }, RUNNING_POLL_INTERVAL_MS);
+    return () => {
+      request.abort();
+      window.clearInterval(timer);
+    };
+  }, [remoteRunning, conversationId]);
+  // While a conversation the reader left is still running, refresh the list
+  // so its running mark clears (and the pages refresh) when it finishes.
+  const runningElsewhere = [...backgroundTurns.keys()].some((id) => id !== conversationId)
+    || conversations.some((item) => item.turn_running && item.id !== conversationId);
+  useEffect(() => {
+    if (!runningElsewhere) return;
+    const request = new AbortController();
+    const timer = window.setInterval(() => {
+      void fetchConversations({ apiBaseUrl: API_BASE_URL, signal: request.signal })
+        .then((items) => {
+          if (request.signal.aborted) return;
+          setConversations(items);
+          const stillRunning = new Set(items.filter((item) => item.turn_running).map((item) => item.id));
+          const finished = [...backgroundTurnsRef.current.keys()].filter((id) => !stillRunning.has(id));
+          if (finished.length === 0) return;
+          setBackgroundTurns((current) => {
+            const next = new Map(current);
+            finished.forEach((id) => next.delete(id));
+            return next;
+          });
+          // A finished turn may have changed what the pages show.
+          setCompletedTurns((count) => count + 1);
+        })
+        .catch(() => undefined);
+    }, RUNNING_POLL_INTERVAL_MS);
+    return () => {
+      request.abort();
+      window.clearInterval(timer);
+    };
+  }, [runningElsewhere]);
   useEffect(() => {
     transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
   }, [state.messages, state.progress, state.interaction]);
@@ -462,6 +542,56 @@ export default function App() {
   }
 
   /**
+   * Show a turn that ran on while this page was elsewhere the way it is
+   * unfolding: its message, what it has done so far, and the rest live. If it
+   * settles before we attach, the stored transcript already has the reply.
+   */
+  async function attachLiveTurn(id: string, message: string): Promise<void> {
+    const next = new AbortController();
+    controller.current = next;
+    followedTurn.current = { conversationId: id, message };
+    dispatch({
+      type: "submit",
+      messageId: crypto.randomUUID(),
+      assistantMessageId: crypto.randomUUID(),
+      content: message,
+    });
+    let settled = false;
+    try {
+      for await (const event of followLiveTurn(id, { apiBaseUrl: API_BASE_URL, signal: next.signal })) {
+        // Replayed actions already happened when the turn ran; opening a
+        // search tab again would only duplicate it.
+        if (event.type === "client_action") continue;
+        if (event.type === "turn_completed" || event.type === "turn_suspended" || event.type === "turn_failed") {
+          settled = true;
+          setCompletedTurns((count) => count + 1);
+        }
+        dispatch({ type: "stream_event", event });
+      }
+      if (!settled && !next.signal.aborted) setTranscriptReloads((count) => count + 1);
+    } catch (error) {
+      if (next.signal.aborted) return;
+      if (error instanceof ChatStreamHttpError && error.code === "NO_LIVE_TURN") {
+        // Settled between the two reads: the stored transcript has the reply.
+        setTranscriptReloads((count) => count + 1);
+      } else {
+        // Lost the live view, not the turn: read it back once it is stored.
+        dispatch({ type: "transport_lost" });
+        setRemoteRunning(true);
+      }
+    } finally {
+      if (controller.current === next) controller.current = null;
+      if (followedTurn.current?.conversationId === id) followedTurn.current = null;
+      setBackgroundTurns((current) => {
+        if (!current.has(id) || next.signal.aborted) return current;
+        const remaining = new Map(current);
+        remaining.delete(id);
+        return remaining;
+      });
+    }
+  }
+
+  /**
    * The stream died after the turn began. The server finishes the turn on its
    * own and stores the reply, so read the transcript back until the reply for
    * `sentMessage` shows up, then show that instead of a failure. A turn can
@@ -545,6 +675,18 @@ export default function App() {
   }
 
   function switchConversation(next: string): void {
+    // Leaving a running turn does not stop it: the server finishes and stores
+    // it whether or not anyone is listening. Only this page's stream is let go.
+    if (busy && controller.current) {
+      const leaving = conversationId;
+      const sent = lastRequest.current?.conversationId === leaving
+        ? lastRequest.current.message
+        : followedTurn.current?.conversationId === leaving ? followedTurn.current.message : "";
+      controller.current.abort();
+      controller.current = null;
+      setBackgroundTurns((current) => new Map(current).set(leaving, sent));
+    }
+    setRemoteRunning(false);
     window.localStorage.setItem("career-agent:conversation-id", next);
     setConversationId(next);
     setHistoryLoading(true);
@@ -554,7 +696,6 @@ export default function App() {
   }
 
   function newConversation(): void {
-    if (busy) return;
     switchConversation(`conversation-${crypto.randomUUID()}`);
   }
 
@@ -591,27 +732,38 @@ export default function App() {
     setStandaloneTask(null);
   }
 
+  /**
+   * A request made from a workspace page ("让 Agent 研究公司", "问问 Agent", …)
+   * is a task of its own, so it always runs in a new conversation. It used to
+   * be sent into whatever conversation was open, mixing an unrelated task into
+   * that thread, taking along the composer's queued attachments, and, while a
+   * turn ran, overwriting the draft being typed there.
+   */
   function startAgentTask(prompt: string, resource?: ResumeAttachment): void {
-    setView("chat");
-    const resources = resource ? withAttachment(attachments, resource) : attachments;
-    if (busy || historyLoading) {
-      setDraft(prompt);
-      if (resource) setAttachments(resources);
-      return;
-    }
-    void sendMessage(prompt, undefined, resources);
+    startStandaloneTask(prompt, resource ?? null);
+  }
+
+  /** A turn of this conversation is executing, here or left in the background. */
+  function conversationRunning(item: ConversationView): boolean {
+    return Boolean(item.turn_running)
+      || backgroundTurns.has(item.id)
+      || (item.id === conversationId && (busy || remoteRunning));
+  }
+
+  /** A conversation whose first turn is still running has no stored title yet. */
+  function conversationTitle(item: ConversationView): string {
+    const sent = backgroundTurns.get(item.id);
+    return item.message_count === 0 && sent ? sent.slice(0, 40) : item.title;
   }
 
   function openConversation(nextConversationId: string): void {
-    if (busy) return;
     setView("chat");
     if (nextConversationId === conversationId) return;
     switchConversation(nextConversationId);
   }
 
   async function removeConversation(item: ConversationView): Promise<void> {
-    if (busy || deletingConversationId) return;
-    if (!window.confirm(`确定删除会话“${item.title}”的聊天记录吗？执行审计记录会继续保留，此操作无法撤销。`)) return;
+    if (deletingConversationId || conversationRunning(item)) return;
     setDeletingConversationId(item.id);
     try {
       await deleteConversation(item.id, { apiBaseUrl: API_BASE_URL });
@@ -625,7 +777,22 @@ export default function App() {
       setConversationListError(cause instanceof Error ? cause.message : "删除会话失败。");
     } finally {
       setDeletingConversationId(null);
+      setConfirmingDelete(null);
     }
+  }
+
+  /** The row's in-place "delete this chat?" prompt, shown instead of the row. */
+  function conversationDeleteConfirm(item: ConversationView, className?: string) {
+    return (
+      <InlineDeleteConfirm
+        className={className}
+        question="删除这段聊天？"
+        note="只删聊天记录，岗位、简历、报告和记忆都会保留"
+        busy={deletingConversationId === item.id}
+        onConfirm={() => void removeConversation(item)}
+        onCancel={() => setConfirmingDelete(null)}
+      />
+    );
   }
 
   function beginConversationPanelResize(event: ReactPointerEvent<HTMLButtonElement>): void {
@@ -694,26 +861,28 @@ export default function App() {
           <div className="conversation-history mobile-conversation-history">
             <span className="nav-group-label">最近对话</span>
             {conversationListError ? <small className="history-error">暂时无法读取</small> : null}
-            {conversations.length > 0 ? conversations.map((item) => (
+            {conversations.length > 0 ? conversations.map((item) => confirmingDelete === `nav:${item.id}` ? (
+              <div className="mobile-conversation-item-row" key={item.id}>{conversationDeleteConfirm(item, "is-compact")}</div>
+            ) : (
               <div className="mobile-conversation-item-row" key={item.id}>
                 <button
                   type="button"
                   className={`conversation-item ${item.id === conversationId ? "is-current" : ""}`}
-                  disabled={busy || deletingConversationId === item.id}
+                  disabled={deletingConversationId === item.id}
                   onClick={() => openConversation(item.id)}
-                  title={item.title}
+                  title={conversationTitle(item)}
                 >
-                  <span className="conversation-dot" />
+                  <span className={`conversation-dot${conversationRunning(item) ? " is-running" : ""}`} />
                   <span>
-                    <strong>{item.title}</strong>
+                    <strong>{conversationTitle(item)}</strong>
                     <small>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</small>
                   </span>
                 </button>
                 <button
                   type="button"
                   className="mobile-conversation-delete"
-                  disabled={busy || deletingConversationId !== null}
-                  onClick={() => void removeConversation(item)}
+                  disabled={deletingConversationId !== null || conversationRunning(item)}
+                  onClick={() => setConfirmingDelete(`nav:${item.id}`)}
                   aria-label={`删除会话：${item.title}`}
                 >
                   <AppIcon name="trash" size={14} />
@@ -723,7 +892,7 @@ export default function App() {
           </div>
         </nav>
         <div className="sidebar-footer">
-          <button className="new-chat" type="button" onClick={newConversation} disabled={busy} aria-label="新对话">
+          <button className="new-chat" type="button" onClick={newConversation} aria-label="新对话">
             <AppIcon name="plus" size={18} />
             <span className="new-chat-label">新对话</span>
           </button>
@@ -795,7 +964,7 @@ export default function App() {
           <aside className="context-panel conversation-panel" aria-label="历史对话">
             <header className="conversation-panel-header">
               <h1>对话</h1>
-              <button type="button" onClick={newConversation} disabled={busy} aria-label="新建对话">
+              <button type="button" onClick={newConversation} aria-label="新建对话">
                 <AppIcon name="plus" size={18} />
               </button>
             </header>
@@ -808,28 +977,33 @@ export default function App() {
                 </button>
               ) : null}
               {conversationListError ? <div className="conversation-panel-error">暂时无法读取历史对话</div> : null}
-              {conversations.map((item) => (
+              {conversations.map((item) => confirmingDelete === `panel:${item.id}` ? (
+                <div className="conversation-panel-row" key={item.id}>{conversationDeleteConfirm(item)}</div>
+              ) : (
                 <div className="conversation-panel-row" key={item.id}>
                   <button
                     type="button"
                     className={`conversation-panel-item ${item.id === conversationId ? "is-current" : ""}`}
-                    disabled={busy || deletingConversationId === item.id}
+                    disabled={deletingConversationId === item.id}
                     onClick={() => openConversation(item.id)}
                   >
                     <span className="conversation-avatar"><AppIcon name="chat" size={17} /></span>
                     <span>
-                      <strong>{item.title}</strong>
-                      <time>{new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮</time>
+                      <strong>{conversationTitle(item)}</strong>
+                      <time>
+                        {conversationRunning(item) ? <span className="conversation-running">运行中</span> : null}
+                        {new Date(item.last_active_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} · {Math.ceil(item.message_count / 2)} 轮
+                      </time>
                     </span>
                     {item.id === conversationId ? <span className="conversation-current-mark" /> : null}
                   </button>
                   <button
                     type="button"
                     className="conversation-delete"
-                    disabled={busy || deletingConversationId !== null}
-                    onClick={() => void removeConversation(item)}
+                    disabled={deletingConversationId !== null || conversationRunning(item)}
+                    onClick={() => setConfirmingDelete(`panel:${item.id}`)}
                     aria-label={`删除会话：${item.title}`}
-                    title="删除会话"
+                    title={conversationRunning(item) ? "运行中，结束后才能删除" : "删除会话"}
                   >
                     <AppIcon name="trash" size={15} />
                   </button>
@@ -858,14 +1032,16 @@ export default function App() {
             ) : null}
 
             {historyLoading ? <div className="history-loading"><span className="spinner" /> 正在恢复对话…</div> : null}
+            {remoteRunning && !historyLoading ? (
+              <div className="history-loading" role="status"><span className="spinner" /> 这一轮还在后台运行，完成后会自动显示结果。</div>
+            ) : null}
 
             {standaloneTask ? (
               <div className="standalone-task-notice" role="status">
                 <span className="spinner" />
                 <span>
                   {(() => {
-                    const subject = standaloneTask.label
-                      ?? `分析${standaloneTaskResources(standaloneTask).map(attachmentLabel).join(" 与 ")}`;
+                    const subject = standaloneTaskSubject(standaloneTask, attachmentLabel);
                     return busy || historyLoading
                       ? `当前任务结束后，将在新对话中${subject}`
                       : `正在打开新对话，${subject}…`;

@@ -160,6 +160,33 @@ export async function* streamChat(
       "无法连接 Career Agent 服务，请确认 FastAPI 已启动。",
     );
   }
+  yield* readEventStream(response);
+}
+
+/**
+ * Follow a turn that is running on the server without this page: every event
+ * it has emitted so far, then the rest as they come. Throws a
+ * `ChatStreamHttpError` with code `NO_LIVE_TURN` when it has already settled.
+ */
+export async function* followLiveTurn(
+  conversationId: string,
+  options: Pick<ChatStreamOptions, "apiBaseUrl" | "signal"> = {},
+): AsyncGenerator<PublicStreamEvent> {
+  const apiBaseUrl = (options.apiBaseUrl ?? "/api").replace(/\/$/, "");
+  let response: Response;
+  try {
+    response = await fetch(
+      `${apiBaseUrl}/v1/conversations/${encodeURIComponent(conversationId)}/live`,
+      { headers: { Accept: "text/event-stream" }, signal: options.signal },
+    );
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
+    throw new ChatStreamHttpError(0, "API_UNREACHABLE", "无法连接 Career Agent 服务，请确认 FastAPI 已启动。");
+  }
+  yield* readEventStream(response);
+}
+
+async function* readEventStream(response: Response): AsyncGenerator<PublicStreamEvent> {
   if (!response.ok) throw await errorFromResponse(response);
   if (!response.body) {
     throw new ChatStreamHttpError(502, "STREAM_BODY_MISSING", "服务没有返回流式响应。");

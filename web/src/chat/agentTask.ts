@@ -19,6 +19,15 @@ export interface StandaloneAgentTask {
   label?: string;
 }
 
+/** What the waiting notice says the new conversation will do. */
+export function standaloneTaskSubject(task: StandaloneAgentTask, label: (item: ChatAttachment) => string): string {
+  if (task.label) return task.label;
+  const resources = standaloneTaskResources(task);
+  if (resources.length > 0) return `分析${resources.map(label).join(" 与 ")}`;
+  const prompt = task.prompt.trim();
+  return `处理“${prompt.length > 18 ? `${prompt.slice(0, 18)}…` : prompt}”`;
+}
+
 export function standaloneTaskResources(task: StandaloneAgentTask): ChatAttachment[] {
   return [task.resource, ...(task.additionalResources ?? [])].filter(
     (item): item is ChatAttachment => item !== null,
@@ -52,8 +61,11 @@ export function standaloneAgentTaskStep(
   task: StandaloneAgentTask,
   chat: AgentTaskChatState,
 ): AgentTaskStep {
-  if (chat.busy || chat.historyLoading) return "wait";
+  // A running turn no longer holds the task back: switching leaves it to
+  // finish on the server, and the sidebar shows it as running.
+  if (chat.historyLoading) return "wait";
   if (chat.conversationId !== task.conversationId) return "switch";
+  if (chat.busy) return "wait";
   if (chat.hydratedConversationId !== task.conversationId) return "wait";
   return "send";
 }

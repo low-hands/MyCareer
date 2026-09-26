@@ -161,6 +161,8 @@ export interface ConversationView {
   phase: string | null;
   created_at: string;
   last_active_at: string;
+  /** A turn of this conversation is executing on the server right now. */
+  turn_running?: boolean;
 }
 
 export type MessageResourceKind = ReportResourceKind | "resume_version" | "saved_job" | "application";
@@ -257,6 +259,10 @@ export interface ConversationTranscript {
     { type: "interaction_required" }
   > | null;
   pending_interaction_body: string | null;
+  /** A turn is executing; its reply is not in `messages` yet. */
+  turn_running?: boolean;
+  /** The message that started the running turn, when it can be followed live. */
+  running_turn_message?: string | null;
 }
 
 export interface ResumeVersionView {

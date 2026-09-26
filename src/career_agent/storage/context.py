@@ -130,6 +130,8 @@ class StoredConversationOverview(BaseModel):
     title: str
     last_message_preview: str
     message_count: int
+    turn_running: bool = False
+    """A turn of this conversation is executing now (its client may have left)."""
 
 
 class StoredConversationMessage(BaseModel):
@@ -941,6 +943,14 @@ class CareerContextStore:
         if limit < 1 or limit > 100:
             raise ValueError("limit must be between 1 and 100")
         with self._connect() as connection:
+            running = self._running_turn_conversation_ids(connection, user_id)
+            # A conversation whose first turn is still executing has no stored
+            # message yet; it is listed anyway so the reader can find it.
+            running_clause = (
+                " OR s.session_id IN (" + ",".join("?" for _ in running) + ")"
+                if running
+                else ""
+            )
             rows = connection.execute(
                 """
                 SELECT s.session_id, s.status, s.created_at, s.last_active_at,
@@ -1003,11 +1013,12 @@ class CareerContextStore:
                             AND task.conversation_id = s.session_id
                             AND json_extract(task.payload, '$.workflow_entry_message') IS NOT NULL
                       )
+                      __RUNNING__
                   )
                 ORDER BY s.last_active_at DESC
                 LIMIT ?
-                """,
-                (user_id, limit),
+                """.replace("__RUNNING__", running_clause),
+                (user_id, *sorted(running), limit),
             ).fetchall()
         conversations = []
         for row in rows:
@@ -1033,9 +1044,39 @@ class CareerContextStore:
                     title=title[:80],
                     last_message_preview=preview[:160],
                     message_count=int(row[6]),
+                    turn_running=row[0] in running,
                 )
             )
         return tuple(conversations)
+
+    def has_running_turn(self, *, user_id: str, conversation_id: str) -> bool:
+        with self._connect() as connection:
+            return conversation_id in self._running_turn_conversation_ids(connection, user_id)
+
+    @staticmethod
+    def _running_turn_conversation_ids(
+        connection: sqlite3.Connection, user_id: str
+    ) -> frozenset[str]:
+        """Conversations with a ``RUNNING`` turn receipt.
+
+        A receipt is written ``RUNNING`` when a turn begins and settled when it
+        ends, and a leftover from a process that died is settled at the next
+        start, so this is exactly "a turn is executing now". The receipt table
+        belongs to the turn-receipt store; before it exists nothing is running.
+        """
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'turn_receipts'"
+        ).fetchone()
+        if exists is None:
+            return frozenset()
+        return frozenset(
+            row[0]
+            for row in connection.execute(
+                "SELECT DISTINCT conversation_id FROM turn_receipts "
+                "WHERE user_id = ? AND status = 'RUNNING'",
+                (user_id,),
+            )
+        )
 
     def get_profile(self, user_id: str) -> CareerProfileContext | None:
         return self._get_single("career_profile_context", user_id, CareerProfileContext)

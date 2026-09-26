@@ -1174,6 +1174,34 @@ body { background: var(--ui-bg); }
 .conversation-panel-item strong { font-size: 13px; font-weight: 550; }
 .conversation-panel-item time { font-size: 11px; }
 
+/* Deleting a chat asks in place of the row, not in a modal. */
+.inline-delete-confirm { grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0; padding: 9px 10px; border: 1px solid #ecd3cf; border-radius: 10px; background: #fff8f6; }
+.inline-delete-copy { display: grid; gap: 2px; min-width: 0; }
+.inline-delete-copy strong { color: var(--ui-text); font-size: 13px; font-weight: 600; }
+.inline-delete-copy small { color: var(--ui-muted); font-size: 11px; line-height: 1.5; }
+.inline-delete-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.inline-delete-actions button { min-height: 26px; padding: 3px 10px; border: 1px solid var(--ui-border); border-radius: 7px; color: var(--ui-text); background: var(--ui-surface); font: inherit; font-size: 12px; cursor: pointer; }
+.inline-delete-actions button:hover:not(:disabled) { border-color: var(--ui-border-strong); }
+.inline-delete-actions button.is-danger { color: #fff; border-color: #b8483c; background: #b8483c; font-weight: 550; }
+.inline-delete-actions button.is-danger:hover:not(:disabled) { border-color: #9c3a30; background: #9c3a30; }
+.inline-delete-actions button:focus-visible { outline: 2px solid #52715e; outline-offset: 2px; }
+.inline-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.inline-delete-confirm.is-compact { flex: 1; gap: 6px; padding: 7px 8px; }
+.inline-delete-confirm.is-compact small { display: none; }
+.inline-delete-confirm.is-compact .inline-delete-copy strong { font-size: 11px; }
+
+/* The app's confirmation for destructive page actions. */
+.confirm-dialog { width: min(400px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--ui-border); border-radius: 14px; color: var(--ui-text); background: var(--ui-surface, #fff); box-shadow: 0 24px 70px #0003; }
+.confirm-dialog::backdrop { background: rgba(20, 30, 25, .38); }
+.confirm-dialog-body { display: grid; gap: 8px; padding: 22px 22px 6px; }
+.confirm-dialog-body h2 { margin: 0; font-size: 16px; font-weight: 620; line-height: 1.45; overflow-wrap: anywhere; }
+.confirm-dialog-body p { margin: 0; color: var(--ui-muted); font-size: 13px; line-height: 1.65; }
+.confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 22px 20px; }
+.confirm-dialog-actions .soft-button { padding: 7px 14px; font-size: 13px; }
+.confirm-dialog-danger { padding: 7px 14px; border: 1px solid #b8483c; border-radius: 9px; color: #fff; background: #b8483c; font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; }
+.confirm-dialog-danger:hover { border-color: #9c3a30; background: #9c3a30; }
+.confirm-dialog-danger:focus-visible, .confirm-dialog-actions .soft-button:focus-visible { outline: 2px solid #52715e; outline-offset: 2px; }
+
 .transcript { max-height: calc(100vh - 148px); padding: 42px clamp(24px, 5vw, 72px); }
 .welcome { max-width: 760px; margin: 18vh auto 0; text-align: left; }
 .welcome h2 { margin: 0 0 8px; font-size: 24px; font-weight: 620; letter-spacing: -.025em; }
@@ -1969,3 +1997,19 @@ body { display: flow-root; }
 }
 .dropdown-menu-item:hover, .dropdown-menu-item:focus-visible { background: #edf3ef; outline: none; }
 .resume-card-actions { align-items: flex-start; }
+
+/* A conversation whose turn is still running, here or left in the background. */
+.conversation-running {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  color: #396b57;
+  background: #edf3ef;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+}
+.conversation-dot.is-running { background: #396b57; animation: conversation-pulse 1.4s ease-in-out infinite; }
+@keyframes conversation-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .conversation-dot.is-running { animation: none; } }

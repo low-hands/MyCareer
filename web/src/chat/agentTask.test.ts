@@ -36,7 +36,7 @@ describe("standalone agent task", () => {
     expect(task.resource).toMatchObject({ jdSnapshotId: "snapshot-3" });
   });
 
-  it("waits for a running turn instead of interrupting it", () => {
+  it("switches away from a running turn, which finishes on the server", () => {
     const task = newStandaloneAgentTask("p", resource);
     expect(
       standaloneAgentTaskStep(task, {
@@ -45,7 +45,7 @@ describe("standalone agent task", () => {
         busy: true,
         historyLoading: false,
       }),
-    ).toBe("wait");
+    ).toBe("switch");
   });
 
   it("switches conversations only when the old chat is idle", () => {
