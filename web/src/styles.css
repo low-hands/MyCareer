@@ -204,7 +204,11 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .client-action-card > span:last-child { display: grid; gap: 3px; }
 .client-action-card small { color: #68766f; }
 .client-action-card:hover { border-color: #396b57; background: #e4eee8; }
-.error-banner { padding: 13px 15px; color: #872d25; background: #f9e9e5; border-radius: 12px; }
+.error-banner { display: flex; align-items: flex-start; gap: 12px; padding: 13px 15px; color: #872d25; background: #f9e9e5; border-radius: 12px; }
+.error-banner > span { min-width: 0; flex: 1; }
+.error-banner.is-compact { max-width: 680px; margin: 10px auto 14px; padding: 9px 12px; font-size: 11px; line-height: 1.45; border: 1px solid #efd1cc; border-radius: 9px; }
+.error-banner-dismiss { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; color: #9a4a43; background: transparent; border: 0; border-radius: 6px; font-size: 18px; line-height: 1; cursor: pointer; }
+.error-banner-dismiss:hover { background: rgba(135,45,37,.08); }
 .error-banner-action { margin-left: 12px; padding: 5px 11px; color: #872d25; background: #fff; border: 1px solid #e3b7b0; border-radius: 8px; font-size: 12px; }
 .error-banner-action:hover { background: #fbf1ef; }
 .report-card { margin-top: 12px; border: 1px solid #ddd8cc; border-radius: 14px; background: #fff; overflow: hidden; }
@@ -536,6 +540,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .compact-list article { min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px 0; border-top: 1px solid #edf0f5; }
 .compact-list article:first-child { border-top: 0; }
 .compact-list article > div { min-width: 0; display: grid; flex: 1; gap: 3px; }
+.compact-list article > button.danger { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 5px 8px; color: #b5474c; background: #fdecef; border: 0; border-radius: 999px; font: inherit; font-size: 9px; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.compact-list article > button.danger:hover { color: #96353c; background: #f9dfe4; }
+.compact-list article > button.danger:focus-visible { outline: 2px solid #c77970; outline-offset: 2px; }
 .compact-list strong { overflow: hidden; color: #344054; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .compact-list small { overflow: hidden; color: #98a2b3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .list-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 10px; }

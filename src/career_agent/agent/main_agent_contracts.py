@@ -2962,6 +2962,10 @@ class OpenJobSearchToolArguments(ContractModel):
     platform: Literal["boss"] = "boss"
     keyword: str = Field(min_length=1, max_length=100)
     city: str | None = Field(default=None, min_length=1, max_length=40)
+    job_type: Literal["internship", "full_time", "part_time"] | None = Field(
+        default=None,
+        description="BOSS 求职类型筛选：实习、全职或兼职。不要把类型词重复放进 keyword。",
+    )
 
 
 class ReadConversationSpanToolArguments(ContractModel):
@@ -3229,6 +3233,12 @@ class ListTargetRolesToolArguments(ContractModel):
 class ListResumesToolArguments(ContractModel):
     target_role_id: str | None = Field(default=None, min_length=1)
     target_role_selection_index: SelectionIndex | None = None
+    query: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="用户提到的简历名称、方向或标签；优先用它缩小候选范围。",
+    )
 
 
 class GetResumeMetadataToolArguments(ContractModel):

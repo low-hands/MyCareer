@@ -365,6 +365,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 OpenAIResumeJobMatchWorker(resume_analysis_config),
                 match_store,
                 career_profile_store=context_store,
+                allow_unverified_evidence_downgrade=True,
             ),
             semantic_evidence_cache=semantic_retriever,
             working_notes_store=working_notes_store,
@@ -404,7 +405,12 @@ def _resume_payload(resume, versions=()) -> dict[str, object]:
 
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--agent-timeout-seconds", type=float, default=300.0, help="Model call timeout (default: 300).")
+    # Specialist calls are interactive (JD analysis, resume matching, etc.).
+    # A 300s default made one dropped upstream connection block the UI for
+    # five minutes before the bounded retry could finish. Keep the timeout
+    # aligned with the main-agent ceiling so failures return promptly while
+    # still allowing a normal structured response to complete.
+    parser.add_argument("--agent-timeout-seconds", type=float, default=120.0, help="Model call timeout (default: 120).")
     parser.add_argument(
         "--run-events-store",
         default="~/.career-agent/run-events.sqlite3",

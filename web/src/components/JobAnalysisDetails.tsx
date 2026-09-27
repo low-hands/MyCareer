@@ -152,7 +152,7 @@ export function JobAnalysisDetails({ analysis, version, stale }: JobAnalysisDeta
             <div className="analysis-section"><strong>HR 关注点</strong><PlainList items={analysis.hr_focus} /></div>
           ) : null}
           {analysis.hiring_manager_focus.length > 0 ? (
-            <div className="analysis-section"><strong>Hiring Manager 关注点</strong><PlainList items={analysis.hiring_manager_focus} /></div>
+            <div className="analysis-section"><strong>技术主管关注点</strong><PlainList items={analysis.hiring_manager_focus} /></div>
           ) : null}
           {analysis.likely_interview_topics.length > 0 ? (
             <div className="analysis-section"><strong>可能的面试话题</strong><PlainList items={analysis.likely_interview_topics} /></div>

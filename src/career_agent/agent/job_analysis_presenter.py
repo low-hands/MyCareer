@@ -44,7 +44,7 @@ def render_job_analysis(result: JobAnalysisResult) -> str:
     for title, items in (
         ("ATS 关键词", result.ats_keywords),
         ("HR 关注点", result.hr_focus),
-        ("Hiring Manager 关注点", result.hiring_manager_focus),
+        ("技术主管关注点", result.hiring_manager_focus),
         ("可能的面试话题", result.likely_interview_topics),
     ):
         if items:

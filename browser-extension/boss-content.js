@@ -52,6 +52,59 @@
   let dismissedFingerprint = "";
   let lastFingerprint = "";
   let timer = null;
+  let searchSubmitTimer = null;
+  let searchSubmittedFor = "";
+
+  // BOSS can hydrate the search input from the URL without submitting the
+  // search request. In that state the address bar and input look correct, but
+  // the result list may still be a cached/recommended list. Submit once after
+  // the SPA has mounted so an agent-opened search actually reflects its query.
+  // Keep this deliberately narrow: only pages with an explicit query opened
+  // through the BOSS search route are eligible, and each URL is submitted once.
+  function submitSearchIfReady() {
+    if (!/^\/web\/geek\/job\/?$/i.test(window.location.pathname)) return;
+    const query = new URLSearchParams(window.location.search).get("query")?.trim() || "";
+    if (!query || searchSubmittedFor === window.location.href) return;
+
+    const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    const expected = normalize(query);
+    const visible = (node) => {
+      if (!node || node.disabled || node.hidden || node.getAttribute?.("aria-hidden") === "true") return false;
+      const style = node.ownerDocument?.defaultView?.getComputedStyle?.(node);
+      return !style || (style.display !== "none" && style.visibility !== "hidden");
+    };
+    const inputs = [...document.querySelectorAll(
+      'input[type="search"], input[placeholder*="搜索"], input[placeholder*="职位"], input[placeholder*="关键词"], input:not([type])',
+    )].filter(visible);
+    const input = inputs.find((node) => normalize(node.value) === expected);
+    if (!input) return;
+
+    const buttons = [...document.querySelectorAll(
+      "button, [role='button'], a, [class*='search-btn'], [class*='searchBtn'], [class*='search-button']",
+    )].filter(visible);
+    const button = buttons.find((node) => {
+      const text = normalize(node.innerText || node.textContent);
+      const label = normalize(node.getAttribute?.("aria-label"));
+      return text === "搜索" || label === "搜索" || (text.includes("搜索") && text.length <= 12);
+    });
+
+    searchSubmittedFor = window.location.href;
+    if (button) {
+      button.click();
+    } else {
+      // Some BOSS builds render the submit control as a non-button element;
+      // the search input's native Enter path is the safest fallback there.
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+    }
+  }
+
+  function scheduleSearchSubmit() {
+    if (searchSubmitTimer !== null) return;
+    searchSubmitTimer = window.setTimeout(() => {
+      searchSubmitTimer = null;
+      submitSearchIfReady();
+    }, 350);
+  }
 
   function fingerprint(job) {
     return `${job.source_url}\u241f${job.title}\u241f${job.company_name}\u241f${job.description.length}`;
@@ -194,5 +247,11 @@
     subtree: true,
   });
   window.addEventListener("popstate", scheduleRefresh);
+  new MutationObserver(scheduleSearchSubmit).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  window.addEventListener("popstate", scheduleSearchSubmit);
+  scheduleSearchSubmit();
   refresh();
 })();

@@ -479,6 +479,10 @@ class LoopControl(TypedDict, total=False):
     # separately so a reversible local record and an external booking are not
     # competing for one slot.
     external_write_calls: int
+    # A first-time resume match may persist a prerequisite JD analysis before
+    # persisting the match itself. That specific local two-step chain is allowed
+    # to use one additional write slot; unrelated writes retain the normal cap.
+    job_analysis_write_used: bool
     projection_refusals: int
     authorization_refusals: int
     fingerprints: tuple[str, ...]
@@ -3670,11 +3674,10 @@ class MainAgentRuntime:
         external_used = control.get("external_write_calls", 0)
         if is_external_write(name):
             return "WRITE_EXTERNAL", external_used, self._max_external_write_calls
-        return (
-            "WRITE",
-            control.get("write_calls", 0) - external_used,
-            self._max_write_calls,
-        )
+        limit = self._max_write_calls
+        if name == "match_resume_to_job" and control.get("job_analysis_write_used", False):
+            limit += 1
+        return ("WRITE", control.get("write_calls", 0) - external_used, limit)
 
     def _seal_for_owner_confirmation(
         self, state: MainAgentState, *, name: str, arguments: dict[str, Any]
@@ -4276,6 +4279,8 @@ class MainAgentRuntime:
                 control["external_write_calls"] = (
                     control.get("external_write_calls", 0) + 1
                 )
+            if effect == "WRITE" and pending["name"] == "analyze_job":
+                control["job_analysis_write_used"] = True
             fingerprint = self._tool_call_fingerprint(state["decision"])
             fingerprints = control.get("fingerprints", ())
             if fingerprint not in fingerprints:

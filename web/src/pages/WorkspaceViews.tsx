@@ -229,8 +229,17 @@ function EmptyState({
   );
 }
 
-function ErrorBanner({ message }: { message: string | null }) {
-  return message ? <div className="error-banner" role="alert">{message}</div> : null;
+function ErrorBanner({ message, onDismiss, compact = false }: {
+  message: string | null;
+  onDismiss?: () => void;
+  compact?: boolean;
+}) {
+  return message ? (
+    <div className={`error-banner${compact ? " is-compact" : ""}`} role="alert">
+      <span>{message}</span>
+      {onDismiss ? <button type="button" className="error-banner-dismiss" onClick={onDismiss} aria-label="关闭提示">×</button> : null}
+    </div>
+  ) : null;
 }
 
 type DashboardSelection = { kind: "job"; item: SavedJobView } | { kind: "resume"; item: ResumeView };
@@ -1193,6 +1202,7 @@ export function CalendarPanel(props: PageProps) {
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<CalendarWorkspace["events"][number] | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showConnectionHelp, setShowConnectionHelp] = useState(false);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
   const selectedMonth = monthKey(cursor);
   const load = useCallback((signal: AbortSignal) => fetchCalendar({
@@ -1244,8 +1254,8 @@ export function CalendarPanel(props: PageProps) {
       </div>
       {activeSection === "schedule" ? <>
       <ErrorBanner message={state.error} />
-      <ErrorBanner message={connectionError} />
-      <details className="integration-help">
+      <ErrorBanner message={connectionError} compact onDismiss={() => setConnectionError(null)} />
+      <details className="integration-help" open={showConnectionHelp} onToggle={(event) => setShowConnectionHelp(event.currentTarget.open)}>
         <summary>如何连接 Google Calendar？</summary>
         <div>
           <p>这是可选功能；不连接时，项目内置月历仍可正常使用。</p>
@@ -1330,6 +1340,7 @@ export function EmailPanel(props: PageProps) {
   const [qqEmail, setQQEmail] = useState("");
   const [qqCode, setQQCode] = useState("");
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showConnectionHelp, setShowConnectionHelp] = useState(false);
 
   async function connectGoogle(): Promise<void> {
     try {
@@ -1355,24 +1366,28 @@ export function EmailPanel(props: PageProps) {
     <section className="management-page" hidden={props.hidden}>
       <PageHeader icon="mail" eyebrow="EMAIL TRACKING" title="邮件追踪" description="查看招聘邮箱账号、同步状态和 Agent 识别出的求职事件" loading={state.loading} onRefresh={state.reload} actions={<div className="management-actions"><button type="button" className="soft-button" onClick={() => void connectGoogle()}><AppIcon name="mail" size={16} /> 连接 Gmail</button><button type="button" className="soft-button" onClick={() => setShowQQ((open) => !open)} aria-expanded={showQQ}>{showQQ ? "收起 QQ 邮箱连接" : "连接 QQ 邮箱"}</button><button type="button" className="soft-button" onClick={() => props.onAskAgent("同步我已连接邮箱中的最新招聘邮件，并列出需要我确认的事件")}><AppIcon name="sparkles" size={16} /> 让 Agent 同步邮箱</button>{pending.length > 0 ? <button type="button" className="soft-button" onClick={() => props.onAskAgent("逐项处理邮箱里等待确认的求职事件")}>处理 {pending.length} 个待确认事件</button> : null}</div>} />
       <ErrorBanner message={state.error} />
-      <ErrorBanner message={connectionError} />
-      <details className="integration-help">
+      <ErrorBanner message={connectionError} compact onDismiss={() => setConnectionError(null)} />
+      <details
+        className="integration-help"
+        open={showConnectionHelp}
+        onToggle={(event) => setShowConnectionHelp(event.currentTarget.open)}
+      >
         <summary>Gmail / QQ 邮箱如何连接？</summary>
         <div className="integration-help-columns">
           <section>
             <strong>Gmail</strong>
             <ol>
-              <li>管理员在 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud Console</a> 启用 Gmail API，并创建 Web OAuth Client。</li>
+              <li>在 Google Cloud Console 启用 Gmail API，并创建 Web OAuth Client。</li>
               <li>配置项目根目录 <code>.env</code> 后重启后端。</li>
-              <li>点击“连接 Gmail”并在 Google 页面授权；这里只申请邮件只读权限。</li>
+              <li>点击“连接 Gmail”并在 Google 页面授权。</li>
             </ol>
           </section>
           <section>
             <strong>QQ 邮箱</strong>
             <ol>
-              <li>进入 QQ 邮箱网页版的“设置 → 账号与安全 → 安全设置”。</li>
+              <li>进入 QQ 邮箱“设置 → 账号与安全 → 安全设置”。</li>
               <li>开启 IMAP/SMTP 服务并生成第三方客户端授权码。</li>
-              <li>点击“连接 QQ 邮箱”，填写完整邮箱和授权码；不要填写 QQ 登录密码。</li>
+              <li>点击“连接 QQ 邮箱”，填写邮箱和授权码。</li>
             </ol>
           </section>
         </div>

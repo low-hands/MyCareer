@@ -107,6 +107,7 @@ def structured_response(
     code_prefix: str,
     subject: str,
     include_validation_feedback: bool = False,
+    protocol: str = "responses",
 ) -> T:
     """Ask for one JSON-schema-shaped answer, or raise a classified failure.
 
@@ -129,21 +130,48 @@ def structured_response(
                 + repair_detail
             )
         try:
-            response = client.responses.create(
-                model=model,
-                instructions=request_instructions,
-                input=[{"role": "user", "content": content}],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": schema_name,
-                        "schema": output_type.model_json_schema(),
-                        "strict": False,
-                    }
-                },
-                max_output_tokens=max_output_tokens,
-                timeout=timeout_seconds,
-            )
+            if protocol == "chat_completions":
+                # Some OpenAI-compatible relays accept Chat Completions but
+                # hang on the Responses endpoint. Keep this adapter narrow so
+                # capability workers can opt into the compatible path.
+                input_text = "\n".join(
+                    item.get("text", "")
+                    for item in content
+                    if isinstance(item, dict) and isinstance(item.get("text"), str)
+                )
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": request_instructions},
+                        {
+                            "role": "user",
+                            "content": (
+                                input_text
+                                + "\nReturn JSON matching this schema:\n"
+                                + json.dumps(output_type.model_json_schema(), ensure_ascii=False)
+                            ),
+                        },
+                    ],
+                    response_format={"type": "json_object"},
+                    max_tokens=max_output_tokens,
+                    timeout=timeout_seconds,
+                )
+            else:
+                response = client.responses.create(
+                    model=model,
+                    instructions=request_instructions,
+                    input=[{"role": "user", "content": content}],
+                    text={
+                        "format": {
+                            "type": "json_schema",
+                            "name": schema_name,
+                            "schema": output_type.model_json_schema(),
+                            "strict": False,
+                        }
+                    },
+                    max_output_tokens=max_output_tokens,
+                    timeout=timeout_seconds,
+                )
         except RateLimitError as error:
             raise AgentWorkerError(
                 f"{code_prefix}_RATE_LIMITED",
@@ -163,6 +191,10 @@ def structured_response(
             ) from error
 
         output_text = getattr(response, "output_text", None)
+        if output_text is None:
+            choices = getattr(response, "choices", None)
+            message = getattr(choices[0], "message", None) if choices else None
+            output_text = getattr(message, "content", None)
         if not isinstance(output_text, str) or not output_text.strip():
             raise AgentWorkerError(
                 f"{code_prefix}_EMPTY_RESPONSE",

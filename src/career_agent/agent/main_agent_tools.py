@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
+import re
 import threading
 import sqlite3
 from typing import Any, Literal
@@ -1129,8 +1130,9 @@ class MainAgentToolRegistry:
                             "a safe search URL for the client; it never reads results, "
                             "automates browsing, calls BOSS APIs, or saves a job. The user "
                             "browses normally and explicitly chooses which JD to save. "
-                            "After opening it, tell the user that browsing and saving are "
-                            "theirs, and never claim that jobs were found or saved."
+                            "Use job_type for 实习, 全职, or 兼职 instead of putting that "
+                            "word in keyword. After opening it, tell the user that browsing "
+                            "and saving are theirs, and never claim that jobs were found or saved."
                         ),
                         "parameters": OpenJobSearchToolArguments.model_json_schema(),
                     },
@@ -1328,7 +1330,7 @@ class MainAgentToolRegistry:
                         "type": "function",
                         "function": {
                             "name": "list_resumes",
-                            "description": "List the current user's resume families, optionally filtered with target_role_selection_index from list_target_roles. Returns numbered safe metadata only; never returns resume document content.",
+                            "description": "List the current user's resume families. If the user named a resume, direction, or tag, pass it as query so only matching candidates are returned; otherwise returns a small recent candidate set. Returns numbered safe metadata only; never returns resume document content.",
                             "parameters": ListResumesToolArguments.model_json_schema(),
                         },
                     },
@@ -3592,8 +3594,23 @@ class MainAgentToolRegistry:
         )
         keyword = model_arguments.keyword.strip()
         city = model_arguments.city.strip() if model_arguments.city else None
+        job_type = model_arguments.job_type
+        if job_type is None:
+            if re.search(r"实习生?", keyword):
+                job_type = "internship"
+            elif re.search(r"全职", keyword):
+                job_type = "full_time"
+            elif re.search(r"兼职", keyword):
+                job_type = "part_time"
+        if job_type:
+            # Keep the free-text query about the role itself. The employment
+            # type belongs to BOSS's structured 求职类型 filter.
+            keyword = re.sub(r"(?:\s*[-_/|、,，]?\s*)(?:实习生?|全职|兼职)(?=\s|$)", "", keyword).strip()
+            keyword = re.sub(r"\s{2,}", " ", keyword)
         query = keyword
         params = {"query": query}
+        if job_type:
+            params["jobType"] = {"internship": "1902", "full_time": "1901", "part_time": "1903"}[job_type]
         city_code = self._BOSS_CITY_CODES.get(city or "") or self._BOSS_CITY_CODES.get(
             (city or "").casefold()
         )
@@ -4058,12 +4075,28 @@ class MainAgentToolRegistry:
             user_id=user_id,
             target_role_id=model_arguments.target_role_id,
         )
+        total_count = len(resumes)
+        query = (model_arguments.query or "").strip().casefold()
+        if query:
+            terms = [part for part in query.replace("/", " ").split() if part]
+            resumes = tuple(
+                resume for resume in resumes
+                if all(term in resume.name.casefold() for term in terms)
+            )
+        else:
+            # Do not flood the model with a user's entire resume library. The
+            # user can name a resume (or a direction) and retry with `query`.
+            resumes = resumes[:8]
         return ToolObservation(
             tool_name="list_resumes",
             state="resumes_found" if resumes else "no_resumes_found",
             message=f"找到 {len(resumes)} 份简历。" if resumes else "没有找到匹配的简历。",
             payload={
                 "target_role_id": model_arguments.target_role_id,
+                "query": model_arguments.query,
+                "total_count": total_count,
+                "returned_count": len(resumes),
+                "has_more": not bool(query) and total_count > len(resumes),
                 "items": [
                     {
                         "selection_index": index,

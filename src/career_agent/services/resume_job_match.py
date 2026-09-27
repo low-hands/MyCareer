@@ -64,6 +64,7 @@ class ResumeJobMatchService:
         matcher_version: str = "resume-job-match-v4",
         career_profile_store: CareerProfileStore | None = None,
         job_analyzer_version: str = JOB_ANALYZER_VERSION,
+        allow_unverified_evidence_downgrade: bool = False,
     ) -> None:
         self._resume_store = resume_store
         self._job_repository = job_repository
@@ -73,6 +74,7 @@ class ResumeJobMatchService:
         self._matcher_version = matcher_version
         self._career_profile_store = career_profile_store
         self._job_analyzer_version = job_analyzer_version
+        self._allow_unverified_evidence_downgrade = allow_unverified_evidence_downgrade
 
     def match(
         self,
@@ -171,18 +173,43 @@ class ResumeJobMatchService:
         )
         if cached is not None:
             return cached
-        result = self._worker.match(
-            document=document,
-            jd_text=job.snapshot.content,
-            confirmed_facts=confirmed_facts,
-            intent_states=intent_states,
-            tiered_requirements=analysis.requirements,
-        )
-        result = self._bind_and_grade_requirements(
-            result=result,
-            requirements=analysis.requirements,
-        )
-        self._verify_resume_evidence(document=document, result=result)
+        # A provider can occasionally emit a near-match quote that is not
+        # literally present in the selected resume. Regenerate once before
+        # surfacing the integrity error; never weaken verification or persist
+        # an ungrounded match.
+        for attempt in range(2):
+            result = self._worker.match(
+                document=document,
+                jd_text=job.snapshot.content,
+                confirmed_facts=confirmed_facts,
+                intent_states=intent_states,
+                tiered_requirements=analysis.requirements,
+            )
+            result = self._bind_and_grade_requirements(
+                result=result,
+                requirements=analysis.requirements,
+            )
+            try:
+                self._verify_resume_evidence(document=document, result=result)
+                break
+            except AgentWorkerError as error:
+                if (
+                    error.code == "RESUME_JOB_MATCH_EVIDENCE_UNVERIFIED"
+                    and self._allow_unverified_evidence_downgrade
+                    and attempt == 1
+                ):
+                    result = self._downgrade_unverified_evidence(
+                        document=document, result=result
+                    )
+                    result = self._bind_and_grade_requirements(
+                        result=result, requirements=analysis.requirements
+                    )
+                    break
+                if (
+                    error.code != "RESUME_JOB_MATCH_EVIDENCE_UNVERIFIED"
+                    or attempt == 1
+                ):
+                    raise
         result = self._repair_stale_state(
             result=result,
             jd_text=job.snapshot.content,
@@ -333,6 +360,48 @@ class ResumeJobMatchService:
                         "A positive requirement assessment cited an unverified resume quote.",
                         retryable=True,
                     )
+
+    @staticmethod
+    def _downgrade_unverified_evidence(
+        *, document: StoredResumeDocument, result: ResumeJobMatchResult
+    ) -> ResumeJobMatchResult:
+        """Remove only unverifiable quotes and mark their requirement unclear."""
+        downgraded = []
+        for assessment in result.requirements:
+            verified = tuple(
+                evidence
+                for evidence in assessment.resume_evidence
+                if ResumeTailoringReviewGraph._check_evidence(
+                    document=document,
+                    quote=ResumeTailoringReviewGraph._normalize(evidence.source_quote),
+                    declared_quality="exact",
+                    page=evidence.page,
+                ).matched
+            )
+            if verified or not assessment.resume_evidence:
+                downgraded.append(assessment.model_copy(update={"resume_evidence": verified}))
+                continue
+            downgraded.append(
+                assessment.model_copy(
+                    update={
+                        "status": "unclear",
+                        "resume_evidence": (),
+                        "rationale": (
+                            assessment.rationale[:1700]
+                            + "；原引用无法在当前简历中核验，已降级为证据不足。"
+                        ),
+                    }
+                )
+            )
+        return result.model_copy(
+            update={
+                "overall_fit": "insufficient_evidence",
+                "requirements": tuple(downgraded),
+                "limitations": tuple(
+                    (*result.limitations, "部分匹配引用无法在当前简历原文中核验，相关结论已降级。")
+                )[:10],
+            }
+        )
 
     def _intent_state(
         self,

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Career Agent">
+  <defs>
+    <linearGradient id="background" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f7cff" />
+      <stop offset="1" stop-color="#7657e8" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#background)" />
+  <path
+    d="M43.5 18.5A18 18 0 1 0 43.5 45.5"
+    fill="none"
+    stroke="#fff"
+    stroke-linecap="round"
+    stroke-width="8"
+  />
+</svg>
