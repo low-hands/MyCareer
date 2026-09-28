@@ -225,6 +225,7 @@ class OpenAICompatibleAgentConfig:
     timeout_seconds: float = 30.0
     max_input_tokens: int = 32000
     prompt_cache: Literal["disabled", "implicit", "explicit"] = "implicit"
+    protocol: Literal["responses", "chat_completions"] = "responses"
 
     def __post_init__(self) -> None:
         if self.max_input_tokens < 1024:
@@ -232,6 +233,10 @@ class OpenAICompatibleAgentConfig:
         if self.prompt_cache not in {"disabled", "implicit", "explicit"}:
             raise ValueError(
                 "prompt_cache must be disabled, implicit, or explicit"
+            )
+        if self.protocol not in {"responses", "chat_completions"}:
+            raise ValueError(
+                "protocol must be responses or chat_completions"
             )
 
     @classmethod
@@ -273,12 +278,19 @@ class OpenAICompatibleAgentConfig:
                 "AGENT_CONFIGURATION_INVALID",
                 f"{prefix}_PROMPT_CACHE must be disabled, implicit, or explicit.",
             )
+        protocol = environ.get(f"{prefix}_PROTOCOL", "responses").strip().lower()
+        if protocol not in {"responses", "chat_completions"}:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_PROTOCOL must be responses or chat_completions.",
+            )
         return cls(
             endpoint=endpoint,
             api_key=api_key,
             model=model,
             max_input_tokens=max_input_tokens,
             prompt_cache=prompt_cache,
+            protocol=protocol,
         )
 
     @classmethod
@@ -308,6 +320,7 @@ class OpenAICompatibleAgentConfig:
             f"{prefix}_TIMEOUT_SECONDS",
             f"{prefix}_MAX_INPUT_TOKENS",
             f"{prefix}_PROMPT_CACHE",
+            f"{prefix}_PROTOCOL",
         }
         configured = {
             key
@@ -353,9 +366,24 @@ class OpenAICompatibleAgentConfig:
         timeout = fallback.timeout_seconds
         if raw_timeout:
             timeout = _lane_timeout(prefix, raw_timeout)
-        if model == fallback.model and timeout == fallback.timeout_seconds:
+        protocol = environ.get(f"{prefix}_PROTOCOL", "").strip().lower() or fallback.protocol
+        if protocol not in {"responses", "chat_completions"}:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_PROTOCOL must be responses or chat_completions.",
+            )
+        if (
+            model == fallback.model
+            and timeout == fallback.timeout_seconds
+            and protocol == fallback.protocol
+        ):
             return fallback
-        return replace(fallback, model=model, timeout_seconds=timeout)
+        return replace(
+            fallback,
+            model=model,
+            timeout_seconds=timeout,
+            protocol=protocol,
+        )
 
 
 def _lane_timeout(prefix: str, raw_timeout: str) -> float:

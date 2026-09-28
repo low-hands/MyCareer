@@ -157,11 +157,12 @@ JOB_RESEARCH_AGENT_TIMEOUT_SECONDS=120
 ```dotenv
 MOCK_INTERVIEW_AGENT_MODEL=更快的模型名
 MOCK_INTERVIEW_AGENT_TIMEOUT_SECONDS=60
+MOCK_INTERVIEW_AGENT_PROTOCOL=chat_completions
 RESUME_TAILORING_AGENT_MODEL=更强的模型名
 RESUME_TAILORING_AGENT_TIMEOUT_SECONDS=120
 ```
 
-如果某个能力要改用其他模型服务，则为该通道一起填写 `BASE_URL`、`API_KEY`、`MODEL`；不要只填半组：
+`*_PROTOCOL` 可选 `responses` 或 `chat_completions`。使用只提供 OpenAI 兼容 Chat Completions 的模型服务时要填 `chat_completions`，否则请求可能一直等到超时。若某个能力要改用其他模型服务，则为该通道一起填写 `BASE_URL`、`API_KEY`、`MODEL`；不要只填半组：
 
 ```dotenv
 RESUME_TAILORING_AGENT_BASE_URL=https://官方模型服务/v1

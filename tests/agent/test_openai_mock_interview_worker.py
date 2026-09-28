@@ -46,6 +46,14 @@ class FakeResponses:
 class FakeClient:
     def __init__(self, *outputs: dict[str, object] | str) -> None:
         self.responses = FakeResponses(list(outputs))
+        # The worker uses the compatible Chat Completions protocol in
+        # production. Keep the historical ``responses`` handle as an alias so
+        # the assertions below continue to inspect the same recorded calls.
+        self.chat = type(
+            "Chat",
+            (),
+            {"completions": self.responses},
+        )()
 
 
 def _session(*, max_primary_questions: int = 2) -> MockInterviewSession:
@@ -122,12 +130,17 @@ def _context() -> InterviewPreparationContext:
     )
 
 
-def _worker(client: FakeClient) -> OpenAIMockInterviewWorker:
+def _worker(
+    client: FakeClient,
+    *,
+    protocol: str = "responses",
+) -> OpenAIMockInterviewWorker:
     return OpenAIMockInterviewWorker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="multimodal-model",
+            protocol=protocol,  # type: ignore[arg-type]
         ),
         skill_loader=MockInterviewSkillLoader(Path("skills")),
         client=client,
@@ -247,6 +260,22 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     assert "recovery objectives" in content
     assert "session-secret" not in content
     assert "user-secret" not in content
+
+
+def test_plan_can_use_chat_completions_for_compatible_relays() -> None:
+    client = FakeClient(_plan_output())
+    result = _worker(client, protocol="chat_completions").plan(
+        session=_session(),
+        document=_document(),
+        context=_context(),
+    )
+
+    assert len(result.items) == 2
+    call = client.responses.calls[0]
+    assert call["model"] == "multimodal-model"
+    assert call["messages"][0]["role"] == "system"  # type: ignore[index]
+    assert call["messages"][1]["role"] == "user"  # type: ignore[index]
+    assert "<resume_document>" in call["messages"][1]["content"]  # type: ignore[index]
 
 
 @pytest.mark.parametrize(

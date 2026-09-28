@@ -94,7 +94,11 @@ class OpenAIMockInterviewWorker:
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
-            max_retries=3,
+            # The workflow owns retry policy and user-visible progress. The
+            # SDK's implicit retries multiply an interactive timeout before
+            # the graph can surface the failure or perform its one bounded
+            # retry.
+            max_retries=0,
         )
 
     @classmethod
@@ -502,6 +506,11 @@ class OpenAIMockInterviewWorker:
             max_output_tokens=max_output_tokens,
             code_prefix="MOCK_INTERVIEW",
             subject="Mock interview",
+            # The protocol is a connection property: compatible relays often
+            # expose Chat Completions only, while native OpenAI endpoints use
+            # Responses. Keep it configurable per lane instead of guessing
+            # from the model name.
+            protocol=self._config.protocol,
         )
 
 

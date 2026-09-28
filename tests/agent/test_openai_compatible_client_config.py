@@ -32,6 +32,29 @@ def test_model_lane_overlays_model_and_timeout_without_copying_credentials() -> 
     assert result.api_key == fallback.api_key
 
 
+def test_model_lane_can_override_protocol_for_a_compatible_relay() -> None:
+    fallback = _fallback()
+    result = OpenAICompatibleAgentConfig.with_env_overrides(
+        prefix="MOCK_INTERVIEW_AGENT",
+        fallback=fallback,
+        environ={"MOCK_INTERVIEW_AGENT_PROTOCOL": "chat_completions"},
+    )
+
+    assert result.protocol == "chat_completions"
+    assert result.endpoint == fallback.endpoint
+
+
+def test_model_lane_rejects_unknown_protocol() -> None:
+    with pytest.raises(AgentConfigurationError) as caught:
+        OpenAICompatibleAgentConfig.with_env_overrides(
+            prefix="MOCK_INTERVIEW_AGENT",
+            fallback=_fallback(),
+            environ={"MOCK_INTERVIEW_AGENT_PROTOCOL": "unknown"},
+        )
+
+    assert caught.value.code == "AGENT_CONFIGURATION_INVALID"
+
+
 def test_unset_model_lane_returns_same_fallback() -> None:
     fallback = _fallback()
 
