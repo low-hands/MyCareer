@@ -3,8 +3,7 @@
 Two failures leave a run holding the workflow slot with no way to advance: a
 deleted checkpoint thread and a run created by an incompatible graph version.
 Both told the candidate to restart long before a restart existed, and because the
-store allows one unfinished run per user, the stuck run had to be retired before
-any new interview could be created at all.
+the stuck run has to be retired before that same run can be replaced.
 """
 
 from __future__ import annotations
@@ -36,7 +35,12 @@ class _UnusedGateway:
     """The restart path never reaches job discovery."""
 
 
-def _stuck_run(tmp_path: Path, *, break_checkpoint: bool = True):
+def _stuck_run(
+    tmp_path: Path,
+    *,
+    break_checkpoint: bool = True,
+    conversation_id: str | None = None,
+):
     """A run awaiting an answer whose checkpoint thread is then deleted."""
     store = SQLiteMockInterviewStore(tmp_path / "mock.sqlite3")
     graph = MockInterviewGraph(
@@ -52,6 +56,7 @@ def _stuck_run(tmp_path: Path, *, break_checkpoint: bool = True):
             interview_type="technical",
             max_primary_questions=1,
             max_follow_ups_per_question=0,
+            conversation_id=conversation_id,
         )
     )
     if break_checkpoint:
@@ -247,9 +252,46 @@ def test_the_projection_passes_only_the_user_and_rejects_internal_ids() -> None:
         task=ConversationTaskState(active_application_id="app-1"),
     )
 
-    assert project_restart_mock_interview_arguments(context, {}) == {"user_id": "u1"}
+    assert project_restart_mock_interview_arguments(context, {}) == {
+        "user_id": "u1",
+        "conversation_id": "c1",
+    }
     with pytest.raises(ValueError):
         project_restart_mock_interview_arguments(context, {"session_id": "s-1"})
+
+
+def test_restart_only_replaces_the_stuck_run_in_the_current_conversation(
+    tmp_path,
+) -> None:
+    store, graph, conversation_a_id = _stuck_run(
+        tmp_path, conversation_id="conversation-a"
+    )
+    conversation_b = graph.start(
+        MockInterviewStartRequest(
+            user_id="u1",
+            application_id="app-2",
+            job_posting_id="job-2",
+            jd_snapshot_id="jd-2",
+            resume_version_id="rv-2",
+            interview_type="technical",
+            max_primary_questions=1,
+            max_follow_ups_per_question=0,
+            conversation_id="conversation-b",
+        )
+    )
+    graph.checkpointer.delete_thread(conversation_b.session_id)
+
+    result = _registry(store, graph).invoke_workflow(
+        "restart_mock_interview",
+        {"user_id": "u1", "conversation_id": "conversation-a"},
+    )
+
+    assert result.state == "mock_interview_answer_required"
+    assert store.get_session(user_id="u1", session_id=conversation_a_id).status == "cancelled"
+    assert store.get_session(user_id="u1", session_id=conversation_b.session_id).status == "active"
+    assert store.get_session(
+        user_id="u1", session_id=result.payload["session_id"]
+    ).conversation_id == "conversation-a"
 
 
 class _AlwaysRestart:

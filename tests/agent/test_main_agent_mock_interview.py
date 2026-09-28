@@ -101,6 +101,11 @@ class FakeMockInterviewGraph:
         return self.resume(user_id=user_id, session_id=session_id, answer=message)
 
 
+class InvalidStartGraph(FakeMockInterviewGraph):
+    def start(self, request):
+        raise ValueError("plan initialization failed")
+
+
 def _application_setup(tmp_path):
     resumes = ResumeStore(tmp_path / "resumes.sqlite3")
     role = resumes.create_target_role(user_id="u1", title="AI Engineer", priority=1)
@@ -181,6 +186,30 @@ def test_projection_selects_application_by_index_and_rejects_internal_ids() -> N
     assert projected["interview_type"] == "technical"
     with pytest.raises(ValueError, match="internal identifiers"):
         project_mock_interview_arguments(context, {"application_id": "app-2"})
+
+
+def test_projection_keeps_explicit_free_practice_free_with_one_application() -> None:
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        task=ConversationTaskState(
+            application_candidates=(
+                ApplicationCandidateContextItem(
+                    application_id="app-1",
+                    title="算法工程师",
+                    company_name="甲公司",
+                    status="submitted",
+                ),
+            ),
+        ),
+        user_message="做一场不针对这条投递的自由模拟",
+    )
+
+    projected = project_mock_interview_arguments(
+        context, {"practice_scope": "free", "interview_type": "behavioral"}
+    )
+
+    assert projected["application_id"] is None
 
 
 def test_free_practice_ignores_an_active_application_and_requires_type() -> None:
@@ -421,6 +450,20 @@ def _start_decision() -> AgentDecision:
             arguments={"interview_type": "technical", "max_primary_questions": 1},
         ),
     )
+
+
+def test_graph_start_value_error_is_not_reported_as_missing_material_binding(tmp_path) -> None:
+    runtime, _ = _runtime_with_graph(
+        tmp_path, InvalidStartGraph(), ReplayDecisions(_start_decision())
+    )
+
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="开始技术模拟面试"
+    )
+
+    assert result.tool_result.state == "failed"
+    assert result.tool_result.payload["error_detail"] == "plan initialization failed"
+    assert "不是投递或简历选择问题" in result.tool_result.message
 
 
 def test_a_dead_checkpoint_hands_the_conversation_back_with_a_trace(tmp_path) -> None:

@@ -5355,14 +5355,13 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     ).run_turn(user_id="u1", conversation_id="c1", user_message="记录并加日历")
 
     states = [item.state for item in result.context.tool_observations]
-    # The seal reads the proposal back to describe it to the owner; nothing
-    # external ran.
-    assert registry.calls == ["create_application", "get_calendar_proposal"]
+    # The calendar proposal executor is state-gated and was not exposed before
+    # a proposal existed, so the remembered call is refused without invoking it.
+    assert registry.calls == ["create_application"]
     assert states == [
         "application_ready",
         "authorization_refused",
         "tool_profile_switched",
-        "capability_confirmation_required",
     ]
     assert "本轮 WRITE 委派预算已经用完" in result.context.tool_observations[1].message
     assert result.delegated_write_count == 1

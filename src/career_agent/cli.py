@@ -186,6 +186,18 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         OpenAICompatibleAgentConfig.from_env(prefix="RESUME_ANALYSIS_AGENT"),
         timeout_seconds=args.agent_timeout_seconds,
     )
+    # Keep the legacy specialist connection as the fallback, while allowing
+    # the expensive domains to use their own model lane.  The overlay only
+    # changes MODEL/TIMEOUT_SECONDS, so operators do not have to duplicate
+    # endpoint credentials for every capability.
+    mock_interview_config = OpenAICompatibleAgentConfig.with_env_overrides(
+        prefix="MOCK_INTERVIEW_AGENT",
+        fallback=resume_analysis_config,
+    )
+    resume_tailoring_config = OpenAICompatibleAgentConfig.with_env_overrides(
+        prefix="RESUME_TAILORING_AGENT",
+        fallback=resume_analysis_config,
+    )
     career_history_store = CareerHistoryStore(Path(args.resume_store).expanduser())
     resume_text_service = ResumeTextService(
         resume_store, OpenAIResumeTranscriptionWorker(resume_analysis_config)
@@ -286,7 +298,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     mock_interview_graph = MockInterviewGraph(
         store=mock_interview_store,
         worker=OpenAIMockInterviewWorker(
-            resume_analysis_config,
+            mock_interview_config,
             skill_loader=MockInterviewSkillLoader(
                 Path(args.mock_interview_skills_dir)
             ),
@@ -376,14 +388,14 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 match_store,
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
                 DeepAgentResumeTailoringWorker(
-                    resume_analysis_config,
+                    resume_tailoring_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),
                 DeepAgentResumeFinalizationWorker(
-                    resume_analysis_config,
+                    resume_tailoring_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),
-                reviewer=OpenAIResumeTailoringReviewer(resume_analysis_config),
+                reviewer=OpenAIResumeTailoringReviewer(resume_tailoring_config),
             ),
         ),
     )

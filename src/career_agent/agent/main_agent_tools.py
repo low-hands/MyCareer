@@ -1637,10 +1637,19 @@ class MainAgentToolRegistry:
                 {
                     "type": "function",
                     "function": {
-                        "name": "start_mock_interview",
-                        "description": (
+                            "name": "start_mock_interview",
+                            "description": (
                             "Start one stateful mock interview for an application/interview or "
                             "as explicit free practice (practice_scope=free). Application runs "
+                            "must be selected from the visible application_candidates or "
+                            "interview_candidates when no active application is set: use the "
+                            "matching selection index. Those candidates are scoped to this "
+                            "conversation; do not list or infer a global recent application "
+                            "just because its role/company sounds similar. If no current "
+                            "application or visible selection exists, ask the user which one "
+                            "to use. Use free practice only when the user explicitly says "
+                            "it is not for a tracked application. Never omit the scope/selection "
+                            "and let the runtime guess between these meanings. "
                             "use the exact submitted resume and immutable JD. Free practice "
                             "runs only on a resume the user chose: a single resume attached "
                             "to this message, resume_version_selection_index from the resume "
@@ -1925,6 +1934,29 @@ class MainAgentToolRegistry:
         if self._mock_interview_graph is None or self._application_service is None:
             raise ValueError("Mock interview workflow is not configured")
         workflow_input = StartMockInterviewWorkflowInput.model_validate(arguments)
+        graph_start_attempted = False
+
+        def start_with_retry(request: MockInterviewStartRequest) -> MockInterviewGraphResult:
+            """Retry one failed start before surfacing a binding question.
+
+            ``MockInterviewGraph.start`` cancels a session when initialization
+            fails, so a second attempt cannot leave the first run active. This
+            covers transient model/validation failures without silently
+            switching the user's job or resume.
+            """
+            nonlocal graph_start_attempted
+            graph_start_attempted = True
+            for attempt in range(2):
+                try:
+                    return self._mock_interview_graph.start(request)
+                except AgentWorkerError as error:
+                    if not error.retryable or attempt == 1:
+                        raise
+                except ValueError:
+                    if attempt == 1:
+                        raise
+            raise AssertionError("unreachable: mock interview start retry loop")
+
         try:
             if workflow_input.application_id is None:
                 if workflow_input.job_choice == "check" and workflow_input.target_company:
@@ -1967,7 +1999,7 @@ class MainAgentToolRegistry:
                     if workflow_input.target_company and self._job_research_service is not None
                     else None
                 )
-                result = self._mock_interview_graph.start(
+                result = start_with_retry(
                     MockInterviewStartRequest(
                         user_id=workflow_input.user_id,
                         resume_version_id=workflow_input.resume_version_id,
@@ -2005,7 +2037,7 @@ class MainAgentToolRegistry:
                     raise InterviewApplicationConflictError(
                         "mock interview appointment belongs to another application"
                     )
-            result = self._mock_interview_graph.start(
+            result = start_with_retry(
                 MockInterviewStartRequest(
                     user_id=workflow_input.user_id,
                     application_id=application.id,
@@ -2022,21 +2054,64 @@ class MainAgentToolRegistry:
                 )
             )
         except (ApplicationInputNotFoundError, AgentWorkerError, ValueError) as error:
+            # A ValueError raised after graph.start was entered is an internal
+            # initialization/source/worker failure, not missing user input.
+            # Do not mislabel it as a binding confirmation request: that sends
+            # the Main Agent back to list_applications and loses the real cause.
+            if (
+                isinstance(error, ValueError)
+                and not isinstance(error, AgentWorkerError)
+                and not graph_start_attempted
+            ):
+                return ToolObservation(
+                    tool_name="start_mock_interview",
+                    state="mock_interview_input_retry_required",
+                    message=(
+                        "模拟面试启动前的投递、岗位或简历绑定需要确认。"
+                        "本轮没有创建模拟面试，请确认要使用的投递记录或简历后再开始。"
+                    ),
+                    next_action=(
+                        "如果用户确认使用刚才列出的材料，重试刚才的启动调用并保留相同的"
+                        "投递/岗位/简历选择；只有用户明确改选材料时才重新选择。"
+                        "不要把确认再次改写成同一个问题，也不要自动改用自由模拟。"
+                    ),
+                    payload={
+                        "error_code": type(error).__name__,
+                        "error_detail": str(error)[:240],
+                        "do_not_fallback_to_free_practice": True,
+                        "retryable": True,
+                        "automatic_retry_attempted": False,
+                    },
+                    execution_outcome="not_committed",
+                )
             return ToolObservation(
                 tool_name="start_mock_interview",
                 state="failed",
-                message="模拟面试暂时无法启动；请确认投递记录和对应材料仍然可用。",
+                message=(
+                    "模拟面试启动失败，系统已自动重试 1 次仍未成功。"
+                    "这不是投递或简历选择问题，内部错误详情已记录。"
+                ),
+                next_action=(
+                    "不要重新列出投递记录或询问材料确认；应先报告这个内部错误，"
+                    "等待修复或明确告诉用户暂时无法启动。"
+                ),
                 payload={
                     "error_code": (
                         error.code
                         if isinstance(error, AgentWorkerError)
                         else type(error).__name__
                     ),
+                    # Keep the safe domain error visible to the orchestrator;
+                    # the old response discarded every ValueError and made
+                    # distinct source-binding failures look identical.
+                    "error_detail": str(error)[:240],
+                    "do_not_fallback_to_free_practice": True,
                     "retryable": (
                         error.retryable
                         if isinstance(error, AgentWorkerError)
                         else False
                     ),
+                    "automatic_retry_attempted": True,
                 },
                 # Missing application input is rejected before graph start.
                 # Worker failure happens after graph start has created (and
@@ -2393,19 +2468,33 @@ class MainAgentToolRegistry:
     def _restart_mock_interview(self, arguments: dict[str, Any]) -> ToolObservation:
         """Retire a run that cannot continue and start a fresh one in its place.
 
-        Only reachable for the two phases that hold the slot without being able
-        to advance. The store allows one unfinished run per user, so without
-        retiring the stuck one first a new interview cannot be created at all.
-        The replacement reuses the stuck run's own application, resume version,
-        and JD snapshot, so a restart cannot silently change what is being
-        practised against.
+        Only reachable for the two phases that hold the conversation's slot
+        without being able to advance. The replacement reuses the stuck run's
+        own application, resume version, and JD snapshot, so a restart cannot
+        silently change what is being practised against.
         """
         if self._mock_interview_graph is None:
             raise ValueError("Mock interview workflow is not configured")
         if self._mock_interview_store is None:
             raise ValueError("Mock interview store is not configured")
         user_id = str(arguments["user_id"])
-        stuck = self._mock_interview_store.find_resumable(user_id=user_id)
+        session_id = arguments.get("session_id")
+        stuck = (
+            self._mock_interview_store.get_session(
+                user_id=user_id, session_id=str(session_id)
+            )
+            if session_id is not None
+            else self._mock_interview_store.find_resumable(
+                user_id=user_id,
+                conversation_id=(
+                    str(arguments["conversation_id"])
+                    if arguments.get("conversation_id") is not None
+                    else None
+                ),
+            )
+        )
+        if stuck is not None and stuck.status not in {"created", "active", "paused"}:
+            stuck = None
         if stuck is None:
             return ToolObservation(
                 tool_name="restart_mock_interview",
@@ -2467,6 +2556,7 @@ class MainAgentToolRegistry:
         return self._mock_interview_observation(
             result, "restart_mock_interview", user_id=user_id
         )
+
 
     def _get_mock_interview_result(self, arguments: dict[str, Any]) -> ToolObservation:
         """Read back a finished run the conversation only holds a reference to.

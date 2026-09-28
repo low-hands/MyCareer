@@ -9,9 +9,9 @@ persists the choice on ``ConversationTaskState.tool_profile`` and re-enters
 ("tailor my resume for this job and prepare the interview") is a sequence of
 routes, not one classification.
 
-Stability is the point. Within a profile the schema array and the prompt are
-byte-stable, so the cached request prefix survives every decision in the
-profile and is lost exactly once, at the switch.
+Most profile tools remain stable, while state-gated follow-up tools are removed
+or restored as their prerequisites change. The runtime caches each resulting
+state signature so ordinary turns still reuse the request prefix.
 
 This module is the single place that says where a tool lives. ``tool_effects``
 says what a tool does to the world and ``tool_reachability`` says what it needs
@@ -35,6 +35,7 @@ from career_agent.agent.tool_effects import TOOL_EFFECTS, effect_for
 from career_agent.agent.tool_reachability import (
     PRECONDITIONS,
     REQUIREMENTS,
+    STATE_GATED_TOOLS,
     reachable,
 )
 
@@ -204,7 +205,9 @@ def profile_tools(profile: ToolProfile) -> frozenset[str]:
 
 
 def profile_schemas(
-    profile: ToolProfile, schemas: tuple[Schema, ...]
+    profile: ToolProfile,
+    schemas: tuple[Schema, ...],
+    task: ConversationTaskState | None = None,
 ) -> tuple[Schema, ...]:
     offered = profile_tools(profile)
     return tuple(
@@ -212,6 +215,11 @@ def profile_schemas(
         for schema in schemas
         if isinstance(function := schema.get("function"), Mapping)
         and function.get("name") in offered
+        and (
+            task is None
+            or str(function.get("name")) not in STATE_GATED_TOOLS
+            or reachable(str(function.get("name")), task)
+        )
     )
 
 

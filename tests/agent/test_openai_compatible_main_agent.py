@@ -213,7 +213,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     assert "External report title" not in system_content
     assert "Do not apply automatically" not in system_content
     assert client.completions.kwargs["tools"][0]["function"]["name"] == "open_job_search"
-    assert set(client.completions.kwargs["tools"][0]["function"]["parameters"]["properties"]) == {"platform", "keyword", "city"}
+    assert set(client.completions.kwargs["tools"][0]["function"]["parameters"]["properties"]) == {"platform", "keyword", "city", "job_type"}
     raw_context = data_content
     assert "internal-run-do-not-leak" not in raw_context
     assert "opaque-selected-ref-do-not-leak" not in raw_context
@@ -1673,6 +1673,29 @@ def test_a_single_question_is_asked_in_prose_not_as_a_questionnaire() -> None:
     assert decision.questions == ()
     assert decision.message == (
         "还差一项信息。\n\n你想把这个岗位加入求职方向吗？（加入 / 不加入）"
+    )
+
+
+def test_legacy_ask_user_options_become_a_free_text_confirmation() -> None:
+    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
+        json.dumps(
+            {
+                "action": "ask_user",
+                "message": "请确认本次模拟面试使用这些材料，可以吗？",
+                "options": [
+                    {"value": "yes", "label": "可以"},
+                    {"value": "change", "label": "换一份简历"},
+                ],
+                "allow_free_text": True,
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert decision.action == "ask_user"
+    assert decision.questions == ()
+    assert decision.message == (
+        "请确认本次模拟面试使用这些材料，可以吗？（可以 / 换一份简历）"
     )
 
 

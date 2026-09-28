@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import sqlite3
 
 import pytest
 
@@ -21,7 +22,9 @@ def build_store(tmp_path) -> SQLiteMockInterviewStore:
     return SQLiteMockInterviewStore(tmp_path / "mock_interviews.sqlite3")
 
 
-def create_session(store, *, user_id="u1", application_id="app-1") -> MockInterviewSession:
+def create_session(
+    store, *, user_id="u1", application_id="app-1", conversation_id=None
+) -> MockInterviewSession:
     return store.create_session(
         user_id=user_id,
         application_id=application_id,
@@ -29,6 +32,7 @@ def create_session(store, *, user_id="u1", application_id="app-1") -> MockInterv
         jd_snapshot_id="jd-1",
         resume_version_id="resume-v1",
         interview_type="mixed",
+        conversation_id=conversation_id,
         max_primary_questions=3,
         max_follow_ups_per_question=1,
     )
@@ -72,16 +76,78 @@ def started(store, session):
     return store.start(session=session)
 
 
-def test_create_rejects_a_second_unfinished_session_per_user(tmp_path) -> None:
+def test_create_rejects_multiple_unfinished_sessions_without_conversation_scope(tmp_path) -> None:
     store = build_store(tmp_path)
     session = create_session(store)
 
-    with pytest.raises(ValueError, match="unfinished mock interview"):
+    with pytest.raises(ValueError, match="conversation already has"):
         create_session(store, application_id="app-2")
 
     other_user = create_session(store, user_id="u2")
     assert other_user.user_id == "u2"
     assert store.get_session(user_id="u2", session_id=session.id) is None
+
+
+def test_unfinished_sessions_can_be_selected_by_conversation(tmp_path) -> None:
+    store = build_store(tmp_path)
+    first = started(
+        store, create_session(store, conversation_id="conversation-a")
+    )
+
+    second = started(
+        store,
+        create_session(
+            store, application_id="app-2", conversation_id="conversation-b"
+        ),
+    )
+    assert second.id != first.id
+    assert first.status == second.status == "active"
+
+    with pytest.raises(ValueError, match="conversation already has"):
+        create_session(
+            store, application_id="app-3", conversation_id="conversation-a"
+        )
+
+    assert store.find_resumable(
+        user_id="u1", conversation_id="conversation-a"
+    ) is not None
+    assert {
+        session.id
+        for session in store.list_sessions(user_id="u1", statuses=("created", "active", "paused"))
+    } >= {first.id, second.id}
+
+
+def test_schema_migration_removes_session_locks(tmp_path) -> None:
+    store = build_store(tmp_path)
+    active = started(store, create_session(store, conversation_id="conversation-a"))
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE schema_versions SET version = 7 WHERE component = 'mock_interviews'"
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX mock_interview_sessions_active_idx "
+            "ON mock_interview_sessions(user_id) WHERE status = 'active'"
+        )
+
+    migrated = SQLiteMockInterviewStore(store.path)
+    with sqlite3.connect(store.path) as connection:
+        index_names = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            )
+        }
+
+    assert "mock_interview_sessions_active_idx" not in index_names
+    assert "mock_interview_sessions_resumable_idx" not in index_names
+    other = started(
+        migrated,
+        create_session(
+            migrated, application_id="app-2", conversation_id="conversation-b"
+        ),
+    )
+    assert migrated.get_session(user_id="u1", session_id=active.id).status == "active"
+    assert other.status == "active"
 
 
 def test_start_requires_a_plan_and_survives_reload(tmp_path) -> None:
@@ -290,7 +356,7 @@ def test_follow_ups_are_bounded_and_primary_questions_advance_the_plan(tmp_path)
     assert [turn.turn_type for turn in turns] == ["primary", "follow_up"]
 
 
-def test_pause_and_resume_keep_one_active_session_per_user(tmp_path) -> None:
+def test_pause_and_resume_are_scoped_to_the_session(tmp_path) -> None:
     store = build_store(tmp_path)
     active = started(store, create_session(store))
     paused = store.pause(session=active)
@@ -301,6 +367,14 @@ def test_pause_and_resume_keep_one_active_session_per_user(tmp_path) -> None:
 
     with pytest.raises(RuntimeError, match="changed concurrently"):
         store.pause(session=active)
+
+
+def test_paused_session_can_coexist_with_another_conversation(tmp_path) -> None:
+    store = build_store(tmp_path)
+    paused = store.pause(session=started(store, create_session(store, conversation_id="c1")))
+    other = started(store, create_session(store, application_id="app-2", conversation_id="c2"))
+    resumed = store.resume(session=paused)
+    assert other.status == resumed.status == "active"
 
 
 def test_report_must_be_grounded_in_evaluated_answers(tmp_path) -> None:

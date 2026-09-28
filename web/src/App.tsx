@@ -1134,7 +1134,7 @@ export default function App() {
 
             {state.error ? (
               <div className="error-banner" role="alert">
-                {state.error}
+                <span>{state.error}</span>
                 {state.phase === "failed" ? (
                   <button
                     type="button"

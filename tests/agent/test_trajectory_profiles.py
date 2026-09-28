@@ -6,6 +6,7 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     ToolCall,
     TOOL_PROFILE_NAMES,
+    ConversationTaskState,
     project_job_research_arguments,
 )
 from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
@@ -54,6 +55,15 @@ def test_registered_schemas_are_filtered_without_reordering(profile):
     )
 
 
+def test_state_gated_tools_are_hidden_until_their_prerequisite_exists():
+    schemas = _trajectory_tool_specs()
+    interview = ConversationTaskState(tool_profile="interview")
+    names = {schema["function"]["name"] for schema in profile_schemas("interview", schemas, interview)}
+    assert "execute_calendar_proposal" not in names
+    assert "restart_mock_interview" not in names
+    ready = interview.model_copy(update={"active_calendar_proposal_id": "proposal-1"})
+    ready_names = {schema["function"]["name"] for schema in profile_schemas("interview", schemas, ready)}
+    assert "execute_calendar_proposal" in ready_names
 @pytest.mark.parametrize("mode", ["record", "replay", "quality"])
 def test_every_request_uses_the_advanced_profile(mode, monkeypatch, tmp_path):
     profiles = ("core", "job", "job", "resume", "core")

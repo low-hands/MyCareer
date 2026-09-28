@@ -24,9 +24,10 @@ class SQLiteMockInterviewStore:
     """Durable state for multi-turn mock interview sessions.
 
     The store owns lifecycle and turn invariants so the graph never has to
-    reconstruct them from model context: one in-progress turn per session, one
-    active session per user, follow-ups bounded per primary question, and
-    reports grounded in evaluated turns.
+    reconstruct them from model context: one in-progress turn per session,
+    follow-ups bounded per primary question, and reports grounded in evaluated
+    turns. Multiple sessions may coexist for one user or conversation; routing
+    between them belongs to the Agent.
     """
 
     def __init__(self, path: Path) -> None:
@@ -38,7 +39,7 @@ class SQLiteMockInterviewStore:
             apply_schema(
                 connection,
                 "mock_interviews",
-                7,
+                8,
                 self._migrate,
                 {
                     2: self._upgrade_v2,
@@ -47,6 +48,7 @@ class SQLiteMockInterviewStore:
                     5: self._upgrade_v5,
                     6: self._upgrade_v6,
                     7: self._upgrade_v7,
+                    8: self._upgrade_v8,
                 },
             )
         os.chmod(self.path, 0o600)
@@ -92,7 +94,9 @@ class SQLiteMockInterviewStore:
         )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._require_no_resumable_session(connection, user_id)
+            self._require_no_resumable_session(
+                connection, user_id, conversation_id
+            )
             connection.execute(
                 """
                 INSERT INTO mock_interview_sessions(
@@ -175,7 +179,9 @@ class SQLiteMockInterviewStore:
         now = datetime.now(timezone.utc)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._require_no_active_session(connection, session.user_id)
+            self._require_no_active_session(
+                connection, session.user_id, session.conversation_id
+            )
             return self._apply(
                 connection,
                 session,
@@ -543,15 +549,39 @@ class SQLiteMockInterviewStore:
             ).fetchone()
         return self._session(row) if row else None
 
-    def find_resumable(self, *, user_id: str) -> MockInterviewSession | None:
+    def find_resumable(
+        self, *, user_id: str, conversation_id: str | None = None
+    ) -> MockInterviewSession | None:
+        scope = "user_id = ?"
+        params: list[object] = [user_id]
+        if conversation_id is not None:
+            scope += " AND conversation_id = ?"
+            params.append(conversation_id)
         with self._connect() as connection:
             row = connection.execute(
                 self._SESSION_SELECT
-                + """
-                  WHERE user_id = ? AND status IN ('created', 'active', 'paused')
+                + f"""
+                  WHERE {scope} AND status IN ('created', 'active', 'paused')
                   ORDER BY updated_at DESC LIMIT 1
                   """,
-                (user_id,),
+                tuple(params),
+            ).fetchone()
+        return self._session(row) if row else None
+
+    def get_resumable_session(
+        self, *, user_id: str, session_id: str
+    ) -> MockInterviewSession | None:
+        """Return one explicitly named unfinished run owned by the user.
+
+        Cross-conversation continuation must name the durable interview, while
+        the caller still owns the current conversation binding separately.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                self._SESSION_SELECT
+                + " WHERE id = ? AND user_id = ? "
+                "AND status IN ('created', 'active', 'paused')",
+                (session_id, user_id),
             ).fetchone()
         return self._session(row) if row else None
 
@@ -745,28 +775,55 @@ class SQLiteMockInterviewStore:
 
     @staticmethod
     def _require_no_resumable_session(
-        connection: sqlite3.Connection, user_id: str
+        connection: sqlite3.Connection,
+        user_id: str,
+        conversation_id: str | None,
     ) -> None:
+        scope = "user_id = ?"
+        params: list[object] = [user_id]
+        if conversation_id is None:
+            # Old import/CLI callers have no conversation scope. Keep their
+            # historical single-user guard while allowing real conversations
+            # to run independently.
+            scope += " AND conversation_id IS NULL"
+        else:
+            scope += " AND conversation_id = ?"
+            params.append(conversation_id)
         row = connection.execute(
-            """
+            f"""
             SELECT id FROM mock_interview_sessions
-            WHERE user_id = ? AND status IN ('created', 'active', 'paused') LIMIT 1
+            WHERE {scope} AND status IN ('created', 'active', 'paused') LIMIT 1
             """,
-            (user_id,),
+            tuple(params),
         ).fetchone()
         if row is not None:
-            raise ValueError(f"user already has an unfinished mock interview: {row[0]}")
+            raise ValueError(
+                "conversation already has an unfinished mock interview: "
+                f"{row[0]}"
+            )
 
     @staticmethod
     def _require_no_active_session(
-        connection: sqlite3.Connection, user_id: str
+        connection: sqlite3.Connection,
+        user_id: str,
+        conversation_id: str | None,
     ) -> None:
+        scope = "user_id = ?"
+        params: list[object] = [user_id]
+        if conversation_id is None:
+            scope += " AND conversation_id IS NULL"
+        else:
+            scope += " AND conversation_id = ?"
+            params.append(conversation_id)
         row = connection.execute(
-            "SELECT id FROM mock_interview_sessions WHERE user_id = ? AND status = 'active' LIMIT 1",
-            (user_id,),
+            "SELECT id FROM mock_interview_sessions WHERE "
+            f"{scope} AND status = 'active' LIMIT 1",
+            tuple(params),
         ).fetchone()
         if row is not None:
-            raise ValueError(f"user already has an active mock interview: {row[0]}")
+            raise ValueError(
+                "conversation already has an active mock interview: " f"{row[0]}"
+            )
 
     @staticmethod
     def _turn_row(
@@ -860,11 +917,19 @@ class SQLiteMockInterviewStore:
             )
             """
         )
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_active_idx")
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_resumable_idx")
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_conversation_resumable_idx")
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_legacy_resumable_idx")
         connection.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_active_idx
-            ON mock_interview_sessions(user_id) WHERE status = 'active'
-            """
+            "CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_conversation_resumable_idx "
+            "ON mock_interview_sessions(user_id, conversation_id) "
+            "WHERE conversation_id IS NOT NULL AND status IN ('created', 'active', 'paused')"
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_legacy_resumable_idx "
+            "ON mock_interview_sessions(user_id) "
+            "WHERE conversation_id IS NULL AND status IN ('created', 'active', 'paused')"
         )
         connection.execute(
             """
@@ -929,6 +994,9 @@ class SQLiteMockInterviewStore:
              paused_at,completed_at,updated_at FROM mock_interview_sessions""")
         connection.execute("DROP TABLE mock_interview_sessions")
         connection.execute("ALTER TABLE mock_interview_sessions_new RENAME TO mock_interview_sessions")
+        # Historical v4 schema. Version 8 replaces this user-wide index after
+        # conversation_id has been added; keep the old step for linear upgrades
+        # from databases that genuinely stop at v4.
         connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_active_idx ON mock_interview_sessions(user_id) WHERE status = 'active'")
         connection.execute("CREATE INDEX IF NOT EXISTS mock_interview_sessions_user_idx ON mock_interview_sessions(user_id, status, updated_at DESC)")
         connection.execute("PRAGMA foreign_keys=ON")
@@ -955,6 +1023,22 @@ class SQLiteMockInterviewStore:
         for column in ("target_company", "company_research_report_id"):
             if column not in columns:
                 connection.execute(f"ALTER TABLE mock_interview_sessions ADD COLUMN {column} TEXT")
+
+    @staticmethod
+    def _upgrade_v8(connection: sqlite3.Connection) -> None:
+        """Scope unfinished-session uniqueness to a conversation."""
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_active_idx")
+        connection.execute("DROP INDEX IF EXISTS mock_interview_sessions_resumable_idx")
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_conversation_resumable_idx "
+            "ON mock_interview_sessions(user_id, conversation_id) "
+            "WHERE conversation_id IS NOT NULL AND status IN ('created', 'active', 'paused')"
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS mock_interview_sessions_legacy_resumable_idx "
+            "ON mock_interview_sessions(user_id) "
+            "WHERE conversation_id IS NULL AND status IN ('created', 'active', 'paused')"
+        )
 
     def list_conversation_sessions(
         self, *, user_id: str, conversation_id: str

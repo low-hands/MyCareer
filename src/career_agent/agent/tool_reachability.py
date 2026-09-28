@@ -1,9 +1,9 @@
 """When a tool's prerequisites are met, stated as a table over task state.
 
-This no longer selects what the model is offered. The schema array is kept
-byte-stable across task-state changes so the cached request prefix survives,
-and the capability boundary is each handler's own argument projection, which
-answers an unmet precondition with a bounded soft refusal.
+State-gated follow-up tools are removed from the model's schema when their
+prerequisite is absent. The capability boundary remains each handler's own
+argument projection, which answers an unmet precondition with a bounded soft
+refusal if an old or concurrent decision still names one.
 
 What remains here is the declarative statement of those preconditions: one
 place to read what a tool needs, checked against the registry so it cannot name
@@ -34,6 +34,23 @@ _REFERENCE_READBACKS = frozenset(
         "get_job_research",
         "get_interview_preparation",
         "get_mock_interview_result",
+    }
+)
+
+STATE_GATED_TOOLS = frozenset(
+    {
+        "confirm_job_intent",
+        "confirm_free_text_preference",
+        "confirm_memory_amendment",
+        "confirm_memory_tombstone",
+        "confirm_career_fact",
+        "confirm_constraint_retirement",
+        "retry_job_research",
+        "restart_mock_interview",
+        "review_resume_tailoring",
+        "revise_resume_tailoring",
+        "finalize_resume_tailoring",
+        "execute_calendar_proposal",
     }
 )
 

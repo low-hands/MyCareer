@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, Mapping
 from urllib.parse import urlsplit
 
@@ -279,3 +280,95 @@ class OpenAICompatibleAgentConfig:
             max_input_tokens=max_input_tokens,
             prompt_cache=prompt_cache,
         )
+
+    @classmethod
+    def with_env_overrides(
+        cls,
+        *,
+        prefix: str,
+        fallback: "OpenAICompatibleAgentConfig",
+        environ: Mapping[str, str] | None = None,
+    ) -> "OpenAICompatibleAgentConfig":
+        """Overlay a model-specific lane on an existing provider connection.
+
+        Specialist lanes normally share the endpoint and credential of the
+        legacy specialist connection, but may choose a different model and
+        timeout.  A lane may also provide its own full BASE_URL/API_KEY/MODEL
+        group when it needs a different provider.  Leaving the lane unset
+        preserves the old single-model deployment.
+        """
+
+        if environ is None:
+            load_dotenv()
+            environ = os.environ
+        allowed = {
+            f"{prefix}_BASE_URL",
+            f"{prefix}_API_KEY",
+            f"{prefix}_MODEL",
+            f"{prefix}_TIMEOUT_SECONDS",
+            f"{prefix}_MAX_INPUT_TOKENS",
+            f"{prefix}_PROMPT_CACHE",
+        }
+        configured = {
+            key
+            for key, value in environ.items()
+            if key.startswith(f"{prefix}_") and value.strip()
+        }
+        unsupported = configured - allowed
+        if unsupported:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix} has an unsupported configuration field.",
+            )
+        has_independent_connection = any(
+            environ.get(f"{prefix}_{field}", "").strip()
+            for field in ("BASE_URL", "API_KEY")
+        )
+        if has_independent_connection:
+            connection_fields = {
+                field: environ.get(f"{prefix}_{field}", "").strip()
+                for field in ("BASE_URL", "API_KEY", "MODEL")
+            }
+            if not all(connection_fields.values()):
+                raise AgentConfigurationError(
+                    "AGENT_CONFIGURATION_MISSING",
+                    f"{prefix}_BASE_URL, {prefix}_API_KEY, and {prefix}_MODEL are required.",
+                )
+            independent = cls.from_env(environ=environ, prefix=prefix)
+            timeout = fallback.timeout_seconds
+            raw_timeout = environ.get(f"{prefix}_TIMEOUT_SECONDS", "").strip()
+            if raw_timeout:
+                timeout = _lane_timeout(prefix, raw_timeout)
+            return replace(independent, timeout_seconds=timeout)
+        if any(
+            environ.get(f"{prefix}_{field}", "").strip()
+            for field in ("MAX_INPUT_TOKENS", "PROMPT_CACHE")
+        ):
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"{prefix}_MAX_INPUT_TOKENS and PROMPT_CACHE require an independent connection.",
+            )
+        model = environ.get(f"{prefix}_MODEL", "").strip() or fallback.model
+        raw_timeout = environ.get(f"{prefix}_TIMEOUT_SECONDS", "").strip()
+        timeout = fallback.timeout_seconds
+        if raw_timeout:
+            timeout = _lane_timeout(prefix, raw_timeout)
+        if model == fallback.model and timeout == fallback.timeout_seconds:
+            return fallback
+        return replace(fallback, model=model, timeout_seconds=timeout)
+
+
+def _lane_timeout(prefix: str, raw_timeout: str) -> float:
+    try:
+        timeout = float(raw_timeout)
+    except ValueError as error:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            f"{prefix}_TIMEOUT_SECONDS must be between 1 and 120 seconds.",
+        ) from error
+    if not math.isfinite(timeout) or not 1 <= timeout <= 120:
+        raise AgentConfigurationError(
+            "AGENT_CONFIGURATION_INVALID",
+            f"{prefix}_TIMEOUT_SECONDS must be between 1 and 120 seconds.",
+        )
+    return timeout

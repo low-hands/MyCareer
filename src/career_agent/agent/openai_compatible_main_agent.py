@@ -864,6 +864,28 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 for alias in ("content", "text"):
                     if "message" in normalized_payload:
                         normalized_payload.pop(alias, None)
+                # A few compatible models still emit the pre-questionnaire
+                # ask_user shape (top-level ``options`` and
+                # ``allow_free_text``).  Those fields are rendered by the
+                # interaction layer, not accepted by AgentDecision.  Keep the
+                # choice visible in the prompt and fall back to the normal
+                # free-text interaction instead of turning a harmless
+                # confirmation into MAIN_AGENT_INVALID_RESPONSE.
+                legacy_options = normalized_payload.pop("options", None)
+                normalized_payload.pop("allow_free_text", None)
+                if isinstance(legacy_options, list):
+                    labels: list[str] = []
+                    for option in legacy_options:
+                        if isinstance(option, dict):
+                            label = option.get("label") or option.get("value")
+                        else:
+                            label = option
+                        if isinstance(label, str) and label.strip():
+                            labels.append(label.strip())
+                    if labels:
+                        message = normalized_payload.get("message")
+                        if isinstance(message, str) and "（" not in message:
+                            normalized_payload["message"] = f"{message.rstrip()}（{' / '.join(labels)}）"
                 try:
                     return AgentDecision.model_validate(normalized_payload)
                 except ValueError:

@@ -74,7 +74,7 @@ DECLARED_VERSIONS = {
     "calendar": 3,
     "email_tracking": 1,
     "oauth_flows": 2,
-    "mock_interviews": 7,
+    "mock_interviews": 8,
     "resume_tailoring": 1,
     "resume_artifacts": 1,
     "resume_job_matches": 2,

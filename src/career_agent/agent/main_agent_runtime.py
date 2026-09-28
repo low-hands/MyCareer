@@ -53,6 +53,7 @@ from career_agent.agent.delivery_policy import (
     delivers_body_elsewhere,
 )
 from career_agent.agent.tool_profiles import profile_schemas, profile_tools
+from career_agent.agent.tool_reachability import STATE_GATED_TOOLS, reachable
 from career_agent.agent.tool_effects import (
     ToolEffect,
     effect_for,
@@ -656,8 +657,7 @@ class MainAgentRuntime:
         self._owned_resources = owned_resources
         self._closed = False
         self._registered_tool_schemas: tuple[dict[str, Any], ...] | None = None
-        self._profile_tool_schemas: dict[ToolProfile, tuple[dict[str, Any], ...]] = {}
-        self._profile_tool_schema_chars: dict[ToolProfile, int] = {}
+        self._profile_tool_schemas: dict[tuple[ToolProfile, tuple[str, ...] | None], tuple[dict[str, Any], ...]] = {}
         request_token_usage = getattr(decision_maker, "request_token_usage", None)
         if callable(request_token_usage):
 
@@ -674,7 +674,9 @@ class MainAgentRuntime:
                         }
                     )
                 return request_token_usage(
-                    context, self._decision_tool_schemas(context.task.tool_profile)
+                    context, self._decision_tool_schemas(
+                        context.task.tool_profile, context.task
+                    )
                 )
 
             static_request_token_usage = getattr(
@@ -2733,7 +2735,7 @@ class MainAgentRuntime:
             return {}
         span = explicit_sequence_span(context.user_message)
         if span is None or not self._offers_tool(
-            "read_conversation_span", context.task.tool_profile
+            "read_conversation_span", context.task.tool_profile, context.task
         ):
             return {}
         arguments = {
@@ -2761,30 +2763,50 @@ class MainAgentRuntime:
         return self._registered_tool_schemas
 
     def _decision_tool_schemas(
-        self, profile: ToolProfile
+        self, profile: ToolProfile, task: ConversationTaskState | None = None
     ) -> tuple[dict[str, Any], ...]:
-        """The schemas offered under ``profile``: its tool set ∩ registered tools.
+        """The schemas offered under ``profile`` and current task state.
 
-        The tuple is built once per profile and the same object is handed to
-        the decision maker every time, so its request prefix cache stays warm
-        within a profile and is invalidated exactly at a switch.
+        State signatures keep the cache bounded while hiding tools whose
+        prerequisites are not currently met.
         """
 
-        cached = self._profile_tool_schemas.get(profile)
+        registered = self._registered_schemas()
+        reachable_names = (
+            tuple(sorted(
+                str(schema.get("function", {}).get("name"))
+                for schema in registered
+                if schema.get("function", {}).get("name") in profile_tools(profile)
+                and task is not None
+                and (
+                    str(schema.get("function", {}).get("name"))
+                    not in STATE_GATED_TOOLS
+                    or reachable(str(schema.get("function", {}).get("name")), task)
+                )
+            ))
+            if task is not None
+            else None
+        )
+        key = (profile, reachable_names)
+        cached = self._profile_tool_schemas.get(key)
         if cached is None:
-            cached = profile_schemas(profile, self._registered_schemas())
-            self._profile_tool_schemas[profile] = cached
-            self._profile_tool_schema_chars[profile] = len(
-                json.dumps(cached, ensure_ascii=False, sort_keys=True)
-            )
+            cached = profile_schemas(profile, registered, task)
+            self._profile_tool_schemas[key] = cached
         return cached
 
-    def _offers_tool(self, name: str, profile: ToolProfile = "core") -> bool:
+    def _offers_tool(
+        self,
+        name: str,
+        profile: ToolProfile = "core",
+        task: ConversationTaskState | None = None,
+    ) -> bool:
         """Whether ``name`` is among the tools the model is offered under ``profile``."""
-
-        return any(
-            schema.get("function", {}).get("name") == name
-            for schema in self._decision_tool_schemas(profile)
+        if name not in profile_tools(profile):
+            return False
+        return (
+            name not in STATE_GATED_TOOLS
+            or task is None
+            or reachable(name, task)
         )
 
     def _run_free_text_preference_confirmation(
@@ -3046,9 +3068,9 @@ class MainAgentRuntime:
             )
             control["episodes_marked"] = True
         tool_profile = context.task.tool_profile
-        schemas = self._decision_tool_schemas(tool_profile)
+        schemas = self._decision_tool_schemas(tool_profile, context.task)
         context_chars = decision_context_chars(context)
-        tool_schema_chars = self._profile_tool_schema_chars[tool_profile]
+        tool_schema_chars = len(json.dumps(schemas, ensure_ascii=False, sort_keys=True))
         details = {
             "conversation_id": context.conversation_id,
             "conversation_key": conversation_trace_key(
@@ -3429,7 +3451,9 @@ class MainAgentRuntime:
         # chosen against a profile and are exempt.
         model_selected = not (runtime_owned or owner_confirmed or policy_owned)
         tool_profile = state["context"].task.tool_profile
-        if model_selected and name not in profile_tools(tool_profile):
+        if model_selected and not self._offers_tool(
+            name, tool_profile, state["context"].task
+        ):
             return self._authorization_refusal(
                 state,
                 name=name,

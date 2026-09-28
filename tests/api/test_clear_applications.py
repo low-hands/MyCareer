@@ -80,7 +80,7 @@ def _seed_application(
         user_id=user_id, application_id=application.id,
         details=InterviewDetails(scheduled_start=NOW + timedelta(days=1)),
     )
-    # A user may hold one unfinished mock interview at a time.
+    # A conversation may hold multiple mock interview sessions.
     if mock:
         SQLiteMockInterviewStore(Path(paths.mock_interview_store)).create_session(
             user_id=user_id, application_id=application.id,

@@ -173,8 +173,19 @@ class OpenAIMockInterviewWorker:
             if inferred is not None and context.company_name.strip()
             else None
         )
+        # The workflow owns ordering; a model occasionally returns correct
+        # questions with duplicate or skipped sequence numbers. Normalize the
+        # transport-only numbering before the domain model validates the plan,
+        # rather than failing an otherwise usable interview start.
+        normalized_items = tuple(
+            item.model_copy(update={"sequence_number": index})
+            for index, item in enumerate(result.items, start=1)
+        )
         return result.model_copy(
-            update={"company_style_profile": profile.heading if profile is not None else None}
+            update={
+                "items": normalized_items,
+                "company_style_profile": profile.heading if profile is not None else None,
+            }
         )
 
     def route_input(

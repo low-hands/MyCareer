@@ -65,20 +65,28 @@
 
 <table>
 <tr>
-<td width="50%"><img src=".github/assets/dashboard.png" alt="工作台"></td>
-<td width="50%"><img src=".github/assets/jobs.png" alt="岗位库"></td>
+<td width="50%"><img src=".github/assets/readme-screenshots/dashboard-latest.png" alt="求职工作台"></td>
+<td width="50%"><img src=".github/assets/readme-screenshots/jobs-latest.png" alt="岗位库"></td>
 </tr>
 <tr>
-<td><b>工作台</b><br><sub>投递进度、最近保存的岗位和下一步行动。</sub></td>
+<td><b>求职工作台</b><br><sub>投递进度、最近保存的岗位和下一步行动。</sub></td>
 <td><b>岗位库</b><br><sub>完整 JD、结构化分析、简历匹配和投递状态。</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src=".github/assets/resumes.png" alt="简历管理"></td>
-<td width="50%"><img src=".github/assets/chat-research.png" alt="对话中的公司调研"></td>
+<td width="50%"><img src=".github/assets/readme-screenshots/match-summary-latest.png" alt="简历与岗位匹配"></td>
+<td width="50%"><img src=".github/assets/readme-screenshots/interview-center-latest.png" alt="面试中心"></td>
 </tr>
 <tr>
-<td><b>简历管理</b><br><sub>按目标岗位管理简历和版本，随时打开原文件。</sub></td>
-<td><b>对话</b><br><sub>让 Agent 做公司调研，结论附来源，并标出公开资料无法确认的部分。</sub></td>
+<td><b>简历与岗位匹配</b><br><sub>展示匹配结论、支持证据、未体现项和改进建议。</sub></td>
+<td><b>面试中心</b><br><sub>集中管理模拟面试、练习历史和复盘入口。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src=".github/assets/readme-screenshots/applications-latest.png" alt="投递记录"></td>
+<td width="50%"></td>
+</tr>
+<tr>
+<td><b>投递记录</b><br><sub>按岗位跟踪投递状态，并从投递进入面试练习。</sub></td>
+<td></td>
 </tr>
 </table>
 
@@ -109,13 +117,72 @@ MAIN_AGENT_API_KEY=你的密钥
 MAIN_AGENT_MODEL=你的模型名
 MAIN_AGENT_TIMEOUT_SECONDS=120
 
-# 专家模型：负责简历识别、匹配、定制、公司调研、邮件处理和模拟面试
+# 专家默认通道：负责简历识别、匹配、邮件处理和面试准备
 RESUME_ANALYSIS_AGENT_BASE_URL=https://你的服务/v1
 RESUME_ANALYSIS_AGENT_API_KEY=你的密钥
 RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 ```
 
 `BASE_URL` 填 `/v1` 基地址或完整的 `/chat/completions` 地址都可以。`.env` 已被 Git 忽略，不要提交真实密钥。
+
+模型选择建议：
+
+- **QwenCloud**：优先推荐。`qwen3.7-plus` 适合主 Agent、岗位分析、简历匹配和简历定制；`qwen3.8-flash` 适合摘要、邮件识别和模拟面试。QwenCloud 提供 OpenAI 兼容的 Chat Completions 接口，并支持函数调用和结构化数据。[官方模型选择](https://docs.qwencloud.com/developer-guides/getting-started/model-selection) · [官方兼容接口](https://docs.qwencloud.com/developer-guides/getting-started/first-api-call)
+- **DeepSeek**：`deepseek-flash` 适合成本敏感的普通对话、摘要和结构化分析；官方接口支持 JSON Output 和 Tool Calls。[官方模型与能力](https://api-docs.deepseek.com/quick_start/pricing/)
+- **岗位调研**：继续使用 GPT 通道，因为当前实现依赖 Responses `web_search`；不要把普通 Chat Completions 模型直接填到这个通道。
+
+对话摘要是独立的 Agent worker，但默认复用 `MAIN_AGENT_*` 的连接；只有需要单独模型时才填写完整配置：
+
+```dotenv
+CONVERSATION_SUMMARY_AGENT_BASE_URL=${MAIN_AGENT_BASE_URL}
+CONVERSATION_SUMMARY_AGENT_API_KEY=${MAIN_AGENT_API_KEY}
+CONVERSATION_SUMMARY_AGENT_MODEL=更快的摘要模型
+CONVERSATION_SUMMARY_AGENT_TIMEOUT_SECONDS=30
+CONVERSATION_SUMMARY_AGENT_MAX_INPUT_TOKENS=32000
+CONVERSATION_SUMMARY_AGENT_MAX_OUTPUT_TOKENS=1200
+CONVERSATION_SUMMARY_AGENT_CONTEXT_WINDOW_TOKENS=65536
+```
+
+岗位调研单独配置为支持 Responses `web_search` 的 GPT 通道；这里必须填写完整的 URL、密钥和模型：
+
+```dotenv
+JOB_RESEARCH_AGENT_BASE_URL=${RESUME_ANALYSIS_AGENT_BASE_URL}
+JOB_RESEARCH_AGENT_API_KEY=${RESUME_ANALYSIS_AGENT_API_KEY}
+JOB_RESEARCH_AGENT_MODEL=支持web_search的GPT模型
+JOB_RESEARCH_AGENT_TIMEOUT_SECONDS=120
+```
+
+模拟面试和简历定制可以单独换模型。简单配置只覆盖模型名和超时，复用 `RESUME_ANALYSIS_AGENT_*` 的连接：
+
+```dotenv
+MOCK_INTERVIEW_AGENT_MODEL=更快的模型名
+MOCK_INTERVIEW_AGENT_TIMEOUT_SECONDS=60
+RESUME_TAILORING_AGENT_MODEL=更强的模型名
+RESUME_TAILORING_AGENT_TIMEOUT_SECONDS=120
+```
+
+如果某个能力要改用其他模型服务，则为该通道一起填写 `BASE_URL`、`API_KEY`、`MODEL`；不要只填半组：
+
+```dotenv
+RESUME_TAILORING_AGENT_BASE_URL=https://官方模型服务/v1
+RESUME_TAILORING_AGENT_API_KEY=另一把密钥
+RESUME_TAILORING_AGENT_MODEL=官方快速模型
+```
+
+不填写时仍使用 `RESUME_ANALYSIS_AGENT_*`。当前尚未单独拆出的能力是简历解析、岗位分析、简历匹配、邮件识别和面试准备，它们继续共用这个专家默认通道。
+
+配置关系可以概括为：
+
+| 配置前缀 | 运行时职责 | 是否必须独立填写 |
+| --- | --- | --- |
+| `MAIN_AGENT_*` | 对话、工具选择和流程编排 | 必须 |
+| `RESUME_ANALYSIS_AGENT_*` | 专家默认通道 | 必须 |
+| `CONVERSATION_SUMMARY_AGENT_*` | 对话摘要 worker | 可选，默认复用主 Agent |
+| `JOB_RESEARCH_AGENT_*` | 岗位/公司调研和网页搜索 | 可选；启用时需完整填写 |
+| `MOCK_INTERVIEW_AGENT_*` | 模拟面试 | 可选，默认复用专家通道 |
+| `RESUME_TAILORING_AGENT_*` | 简历定制、定稿和评审 | 可选，默认复用专家通道 |
+
+`CAREER_EMBEDDING_*` 是可选的向量检索服务，不是对话 Agent；`CONTEXT_*` 只是上下文压缩参数。
 
 **3. 创建本地访问密钥**
 
@@ -154,6 +221,10 @@ cd web && npm run dev          # 终端二，前端默认 http://127.0.0.1:5173
 4. 打开 BOSS 岗位详情页，右下角会出现保存卡片，点击后才会写入岗位库。
 
 扩展不会自动搜索、滚动、投递或发消息，也不会读取 Cookie、绕过平台验证。详见 [browser-extension/README.md](browser-extension/README.md)。
+
+<p align="center">
+  <img src=".github/assets/readme-screenshots/06-boss-extension.png" alt="BOSS 岗位收藏扩展" width="900">
+</p>
 
 ## 怎么用
 
@@ -234,6 +305,10 @@ QQ 邮箱用 IMAP 授权码，不是登录密码：
 4. 在"邮件追踪"页面点击"连接 QQ 邮箱"，填写完整邮箱地址和授权码。
 
 授权码保存在系统钥匙串里，页面和接口都不会返回它。
+
+<p align="center">
+  <img src=".github/assets/readme-screenshots/07-email-tracking.png" alt="邮件追踪" width="900">
+</p>
 
 </details>
 

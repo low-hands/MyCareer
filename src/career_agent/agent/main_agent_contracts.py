@@ -627,6 +627,10 @@ class InterviewCandidateContextItem(ContractModel):
     scheduled_start: datetime | None = None
 
 
+
+
+
+
 class ActionCandidateContextItem(ContractModel):
     action_item_id: str
     action_type: ActionType
@@ -3621,6 +3625,8 @@ class RestartMockInterviewToolArguments(ContractModel):
     """
 
 
+
+
 class GetMockInterviewResultToolArguments(ContractModel):
     """Selectors for reading back one finished mock interview.
 
@@ -4765,9 +4771,21 @@ def project_restart_mock_interview_arguments(
 ) -> dict[str, Any]:
     _reject_internal_identifiers("restart_mock_interview", arguments)
     RestartMockInterviewToolArguments.model_validate(arguments)
-    # The stuck run is found by user, not named by the model: there is only one
-    # unfinished run per user, and naming it would mean exposing its id.
-    return {"user_id": context.profile.user_id}
+    # The stuck run is found by the harness-owned conversation scope, not named
+    # by the model: users may have several unfinished runs in other chats, and
+    # exposing a session id would let the model cross those boundaries.
+    return {
+        "user_id": context.profile.user_id,
+        "conversation_id": context.conversation_id,
+        **(
+            {"session_id": context.task.run_id}
+            if context.task.active_workflow == "mock_interview"
+            and context.task.run_id is not None
+            else {}
+        ),
+    }
+
+
 
 
 def project_mock_interview_result_arguments(
