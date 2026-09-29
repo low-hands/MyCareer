@@ -43,6 +43,67 @@ T = TypeVar("T", bound=BaseModel)
 _PROVIDER_CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 
 
+def _compact_chat_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Build the small JSON-Schema subset accepted by compatible providers.
+
+    Qwen's native Chat Completions structured-output mode accepts a JSON-Schema
+    subset.  Pydantic schemas contain titles, descriptions, defaults, and
+    ``$defs``/``$ref`` plumbing that add size or are not consistently supported
+    by compatible relays. Inline references and retain only generation-shape
+    constraints; the full Pydantic model still validates the returned value.
+    """
+
+    definitions = schema.get("$defs", {})
+    removable = frozenset(
+        {
+            "$defs",
+            "title",
+            "description",
+            "default",
+            "minLength",
+            "maxLength",
+            "minimum",
+            "maximum",
+            "minItems",
+            "maxItems",
+        }
+    )
+
+    def visit(node: Any, resolving: frozenset[str] = frozenset()) -> Any:
+        if isinstance(node, dict):
+            reference = node.get("$ref")
+            if isinstance(reference, str) and reference.startswith("#/$defs/"):
+                name = reference.removeprefix("#/$defs/")
+                if name in resolving:
+                    return {"type": "object"}
+                target = definitions.get(name)
+                return visit(
+                    target if isinstance(target, dict) else {},
+                    resolving | {name},
+                )
+            any_of = node.get("anyOf")
+            if isinstance(any_of, list):
+                branches = [visit(item, resolving) for item in any_of]
+                types = [
+                    branch["type"]
+                    for branch in branches
+                    if isinstance(branch, dict) and isinstance(branch.get("type"), str)
+                ]
+                if len(types) == len(branches) and types:
+                    return {"type": types}
+                return {"anyOf": branches}
+            return {
+                key: visit(value, resolving)
+                for key, value in node.items()
+                if key not in removable
+            }
+        if isinstance(node, list):
+            return [visit(item, resolving) for item in node]
+        return node
+
+    return visit(schema)
+
+
 def provider_code(error: APIStatusError) -> str:
     """The provider's own error code, when it sent one that is safe to echo.
 
@@ -108,6 +169,7 @@ def structured_response(
     subject: str,
     include_validation_feedback: bool = False,
     protocol: str = "responses",
+    schema: dict[str, Any] | None = None,
 ) -> T:
     """Ask for one JSON-schema-shaped answer, or raise a classified failure.
 
@@ -119,6 +181,7 @@ def structured_response(
     made six times.
     """
     repair_detail: str | None = None
+    response_schema = schema or output_type.model_json_schema()
 
     def request_once() -> T:
         nonlocal repair_detail
@@ -131,9 +194,10 @@ def structured_response(
             )
         try:
             if protocol == "chat_completions":
-                # Some OpenAI-compatible relays accept Chat Completions but
-                # hang on the Responses endpoint. Keep this adapter narrow so
-                # capability workers can opt into the compatible path.
+                # Qwen's compatible endpoint supports native JSON Schema, but
+                # structured output must run with thinking disabled. Otherwise
+                # a Qwen3 request can sit until the transport timeout without
+                # producing a constrained answer.
                 input_text = "\n".join(
                     item.get("text", "")
                     for item in content
@@ -145,14 +209,18 @@ def structured_response(
                         {"role": "system", "content": request_instructions},
                         {
                             "role": "user",
-                            "content": (
-                                input_text
-                                + "\nReturn JSON matching this schema:\n"
-                                + json.dumps(output_type.model_json_schema(), ensure_ascii=False)
-                            ),
+                            "content": input_text,
                         },
                     ],
-                    response_format={"type": "json_object"},
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name,
+                            "strict": True,
+                            "schema": _compact_chat_schema(response_schema),
+                        },
+                    },
+                    extra_body={"enable_thinking": False},
                     max_tokens=max_output_tokens,
                     timeout=timeout_seconds,
                 )
@@ -165,7 +233,7 @@ def structured_response(
                         "format": {
                             "type": "json_schema",
                             "name": schema_name,
-                            "schema": output_type.model_json_schema(),
+                            "schema": response_schema,
                             "strict": False,
                         }
                     },

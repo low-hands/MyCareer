@@ -102,6 +102,7 @@ class OpenAIResumeTranscriptionWorker:
             max_output_tokens=16_384,
             code_prefix="RESUME_TRANSCRIPTION",
             subject="Resume transcription",
+            protocol=self._config.protocol,
         )
         pages = sorted(result.pages, key=lambda page: page.page)
         numbers = [page.page for page in pages]

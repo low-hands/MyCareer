@@ -72,6 +72,7 @@ class OpenAIEmailTrackingWorker:
             max_output_tokens=2048,
             code_prefix="EMAIL_TRACKING",
             subject="Email tracking",
+            protocol=self._config.protocol,
         )
         allowed_ids = {item.application_id for item in applications}
         if assessment.application_id is not None and assessment.application_id not in allowed_ids:

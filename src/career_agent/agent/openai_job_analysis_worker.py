@@ -86,7 +86,7 @@ class OpenAIJobAnalysisWorker(JobAnalysisWorker):
             max_output_tokens=6144,
             code_prefix="JOB_ANALYSIS",
             subject="Job description analysis",
-            protocol="chat_completions",
+            protocol=self._config.protocol,
         )
         return generated.without_model_ids()
 

@@ -150,6 +150,9 @@ class DeepAgentResumeTailoringWorker(ResumeTailoringWorker):
             timeout=self._config.timeout_seconds,
             max_retries=0,
             use_responses_api=True,
+            # Qwen3 hybrid-thinking models can spend the whole gateway budget
+            # reasoning before emitting a constrained structured response.
+            extra_body={"enable_thinking": False},
             store=False,
             callbacks=[
                 CapabilityModelTraceCallback(
@@ -428,6 +431,7 @@ class DeepAgentResumeFinalizationWorker(ResumeFinalizationWorker):
             timeout=self._config.timeout_seconds,
             max_retries=0,
             use_responses_api=True,
+            extra_body={"enable_thinking": False},
             store=False,
             callbacks=[
                 CapabilityModelTraceCallback(

@@ -10,6 +10,10 @@ from pydantic import BaseModel
 from career_agent.agent.job_discovery_contracts import AgentWorker, T
 from career_agent.agent.openai_compatible_client import AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.harness.observability import traced_model_call
+from career_agent.agent.structured_responses import _compact_chat_schema
+
+
+_MAX_OUTPUT_TOKENS = 4096
 
 
 def _base_url(endpoint: str) -> str:
@@ -31,7 +35,10 @@ def _validation_detail(error: ValueError) -> str:
 class OpenAICompatibleAgentWorker(AgentWorker):
     def __init__(self, config: OpenAICompatibleAgentConfig, *, client: Any | None = None) -> None:
         self._config = config
-        self._client = client or OpenAI(api_key=config.api_key, base_url=_base_url(config.endpoint), max_retries=3)
+        # Retry policy belongs to the workflow boundary. SDK retries multiply
+        # an interactive timeout before the caller can classify the failure or
+        # perform its own bounded retry.
+        self._client = client or OpenAI(api_key=config.api_key, base_url=_base_url(config.endpoint), max_retries=0)
 
     @classmethod
     def from_env(cls, *, environ: Mapping[str, str] | None = None, client: Any | None = None, prefix: str = "JOB_DISCOVERY_AGENT") -> "OpenAICompatibleAgentWorker":
@@ -54,11 +61,21 @@ class OpenAICompatibleAgentWorker(AgentWorker):
         try:
             response = self._client.chat.completions.create(
                 model=self._config.model,
-                max_tokens=8192,
-                response_format={"type": "json_object"},
+                max_tokens=_MAX_OUTPUT_TOKENS,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": f"job_discovery_{stage}_result",
+                        "strict": True,
+                        "schema": _compact_chat_schema(
+                            output_type.model_json_schema()
+                        ),
+                    },
+                },
+                extra_body={"enable_thinking": False},
                 messages=[
                     {"role": "system", "content": self._system_prompt(stage)},
-                    {"role": "user", "content": json.dumps({"input": input, "schema": output_type.model_json_schema()}, ensure_ascii=False, sort_keys=True, default=lambda value: value.model_dump(mode="json") if isinstance(value, BaseModel) else str(value))},
+                    {"role": "user", "content": json.dumps({"input": input}, ensure_ascii=False, sort_keys=True, default=lambda value: value.model_dump(mode="json") if isinstance(value, BaseModel) else str(value))},
                 ],
                 timeout=self._config.timeout_seconds,
             )

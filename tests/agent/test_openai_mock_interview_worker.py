@@ -247,10 +247,10 @@ def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
     assert call["model"] == "multimodal-model"
     assert call["text"]["format"]["name"] == "mock_interview_plan_result"  # type: ignore[index]
     instructions = call["instructions"]
-    assert "# Loaded reference: technical" in instructions
-    assert "# Loaded reference: behavioral" in instructions
-    assert "# Loaded reference: hr" in instructions
-    assert "# Loaded reference: company" in instructions
+    assert "# Loaded reference: technical" not in instructions
+    assert "# Loaded reference: behavioral" not in instructions
+    assert "# Loaded reference: hr" not in instructions
+    assert "# Loaded reference: company" not in instructions
     content = call["input"][0]["content"][0]["text"]  # type: ignore[index]
     assert "<resume_document>" in content
     assert "Build reliable systems" in content
@@ -275,7 +275,16 @@ def test_plan_can_use_chat_completions_for_compatible_relays() -> None:
     assert call["model"] == "multimodal-model"
     assert call["messages"][0]["role"] == "system"  # type: ignore[index]
     assert call["messages"][1]["role"] == "user"  # type: ignore[index]
-    assert "<resume_document>" in call["messages"][1]["content"]  # type: ignore[index]
+    user_content = call["messages"][1]["content"]  # type: ignore[index]
+    assert "<resume_document>" in user_content
+    assert '"$defs"' not in user_content
+    response_format = call["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["name"] == "mock_interview_plan_result"
+    assert response_format["json_schema"]["strict"] is True
+    assert call["extra_body"] == {"enable_thinking": False}
+    item_schema = response_format["json_schema"]["schema"]["properties"]["items"]["items"]
+    assert "question" in item_schema["required"]
 
 
 @pytest.mark.parametrize(

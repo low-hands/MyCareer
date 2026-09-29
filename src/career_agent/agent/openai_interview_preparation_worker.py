@@ -64,6 +64,7 @@ class OpenAIInterviewPreparationWorker:
             max_output_tokens=8192,
             code_prefix="INTERVIEW_PREPARATION",
             subject="Interview preparation",
+            protocol=self._config.protocol,
         )
 
 

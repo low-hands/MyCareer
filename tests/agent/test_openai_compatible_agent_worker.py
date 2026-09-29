@@ -30,7 +30,15 @@ def test_agent_worker_parses_stage_output_with_openai_sdk_shape():
 
     assert result.query == "LLM Engineer"
     assert client.completions.kwargs["model"] == "openai-test"
+    assert client.completions.kwargs["max_tokens"] == 4096
     assert "search_strategy" in client.completions.kwargs["messages"][0]["content"]
+    user_payload = json.loads(client.completions.kwargs["messages"][1]["content"])
+    assert user_payload == {"input": {"target": "AI Engineer"}}
+    response_format = client.completions.kwargs["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert "$defs" not in json.dumps(response_format["json_schema"]["schema"])
+    assert client.completions.kwargs["extra_body"] == {"enable_thinking": False}
 
 
 class InvalidCompletions:

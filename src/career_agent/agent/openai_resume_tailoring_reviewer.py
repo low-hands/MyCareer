@@ -178,6 +178,7 @@ class OpenAIResumeTailoringReviewer(ResumeTailoringReviewer):
             max_output_tokens=6144,
             code_prefix="RESUME_REVIEW",
             subject="Resume review",
+            protocol=self._config.protocol,
             include_validation_feedback=True,
         )
 

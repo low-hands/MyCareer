@@ -481,6 +481,11 @@ class OpenAIMockInterviewWorker:
             output_type=output_type,
             result_name=f"mock_interview_{operation}_result",
             max_output_tokens=self._MAX_OUTPUT_TOKENS[operation],
+            max_plan_items=(
+                payload.get("max_primary_questions")
+                if operation == "plan"
+                else None
+            ),
         )
 
     @traced_model_call(
@@ -494,7 +499,37 @@ class OpenAIMockInterviewWorker:
         output_type: type[T],
         result_name: str,
         max_output_tokens: int,
+        max_plan_items: int | None = None,
     ) -> T:
+        schema = output_type.model_json_schema()
+        if result_name == "mock_interview_plan_result":
+            # New plans need their primary questions immediately. The domain
+            # model remains nullable for legacy persisted plans, so tighten
+            # only this response schema instead of changing storage behavior.
+            item = schema.get("$defs", {}).get("MockInterviewPlanItem")
+            if isinstance(item, dict):
+                properties = item.get("properties")
+                if isinstance(properties, dict):
+                    properties["question"] = {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000,
+                    }
+                required = item.setdefault("required", [])
+                if isinstance(required, list) and "question" not in required:
+                    required.append("question")
+            # Keep the model's output within the workflow's per-session limit.
+            # The domain schema allows up to 20 items for persisted plans, but
+            # a live session may request fewer and rejects surplus items.
+            if isinstance(max_plan_items, int) and max_plan_items >= 1:
+                properties = schema.get("properties")
+                items_schema = (
+                    properties.get("items")
+                    if isinstance(properties, dict)
+                    else None
+                )
+                if isinstance(items_schema, dict):
+                    items_schema["maxItems"] = max_plan_items
         return structured_response(
             self._client,
             model=self._config.model,
@@ -511,6 +546,7 @@ class OpenAIMockInterviewWorker:
             # Responses. Keep it configurable per lane instead of guessing
             # from the model name.
             protocol=self._config.protocol,
+            schema=schema,
         )
 
 

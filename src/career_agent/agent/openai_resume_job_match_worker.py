@@ -94,6 +94,7 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             max_output_tokens=6144,
             code_prefix="RESUME_JOB_MATCH",
             subject="Resume-job matching",
+            protocol=self._config.protocol,
         )
 
     @classmethod
@@ -252,6 +253,7 @@ class OpenAIResumeJobMatchWorker(ResumeJobMatchWorker):
             max_output_tokens=8192,
             code_prefix="RESUME_JOB_MATCH",
             subject="Resume-job match state audit",
+            protocol=self._config.protocol,
         )
 
     @staticmethod

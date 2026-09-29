@@ -69,15 +69,6 @@ class MockInterviewSkillLoader:
         "motivation": ("hr",),
         "career_planning": ("hr",),
     }
-    _INTERVIEW_REFERENCES: dict[
-        MockInterviewType, tuple[MockInterviewReferenceName, ...]
-    ] = {
-        "technical": ("technical",),
-        "role_specific": ("technical", "behavioral"),
-        "behavioral": ("behavioral",),
-        "hr": ("hr",),
-        "mixed": _CONTENT_REFERENCE_ORDER,
-    }
     _MAX_FILE_BYTES = 128_000
 
     def __init__(self, skills_root: Path) -> None:
@@ -133,11 +124,11 @@ class MockInterviewSkillLoader:
         if operation == "plan":
             if interview_type is None:
                 raise ValueError("plan skill loading requires interview_type")
-            return (
-                "planning",
-                "company",
-                *self._INTERVIEW_REFERENCES[interview_type],
-            )
+            # Planning only needs coverage and sequencing rules. Company and
+            # question-type references are loaded later by the exact `ask`
+            # operation; including them here makes lightweight compatible
+            # models spend their whole timeout before returning a bounded plan.
+            return ("planning",)
         if operation in {"ask", "follow_up", "evaluate"}:
             if question_type is None:
                 raise ValueError(
