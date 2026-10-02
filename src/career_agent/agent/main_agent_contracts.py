@@ -22,7 +22,12 @@ from career_agent.agent.conversation_memory_contracts import (
     ConversationSummaryContent,
 )
 from career_agent.agent.token_budget import serialized_token_count
-from career_agent.agent.tool_effects import is_external_write, owner_rule_capabilities
+from career_agent.agent.tool_effects import approval_policy, owner_rule_capabilities
+from career_agent.agent.capability_catalog import (
+    DOMAIN_TOOL_PROFILES,
+    TOOL_PROFILE_NAMES,
+    ToolProfile,
+)
 from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -426,14 +431,14 @@ def system_capability_verdict(capability: str) -> RuleVerdict:
     change that governs itself. Keeping this outside ``BehaviorPolicyContext``
     prevents a future owner-facing field from accidentally weakening it.
 
-    External writes sit on the same footing. Once an event is on the user's
-    calendar or a message has left the mailbox, no later turn can undo it, so
+    External writes and destructive local writes sit on the same footing. Once
+    an event is on the user's calendar, or a memory/constraint has been retired,
     the model's reading of "yes, go ahead" is not enough: the owner presses the
     button on the exact sealed arguments. Owner rules may only add restrictions
-    on top of this floor.
+    on top of this floor. The catalogue is the closed list of those operations.
     """
 
-    if capability == "update_owner_settings" or is_external_write(capability):
+    if approval_policy(capability) == "always":
         return "review"
     return "permit"
 
@@ -815,13 +820,6 @@ def confirmation_arguments_snapshot(
         "conversation_id": conversation_id,
         payload_key: proposal.model_dump(mode="json"),
     }
-
-
-ToolProfile = Literal["core", "job", "resume", "application", "interview", "memory"]
-TOOL_PROFILE_NAMES: tuple[ToolProfile, ...] = get_args(ToolProfile)
-DOMAIN_TOOL_PROFILES: tuple[ToolProfile, ...] = tuple(
-    name for name in TOOL_PROFILE_NAMES if name != "core"
-)
 
 
 class RouteToCapabilityToolArguments(ContractModel):

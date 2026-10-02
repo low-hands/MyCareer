@@ -34,6 +34,7 @@ from career_agent.agent.tool_profiles import (
     ROUTE_TOOL,
     TOOL_PROFILES,
     project_tool_availability,
+    profile_schemas,
     profile_tools,
 )
 from career_agent.agent.context_manager import ContextManager
@@ -397,7 +398,9 @@ def test_model_receives_exactly_the_profile_schemas_and_the_same_tuple_within_a_
 
     core, resume, resume_again, core_again = decisions.schemas
     assert _offered(core) == profile_tools("core") & registered
-    assert _offered(resume) == profile_tools("resume") & registered
+    assert _offered(resume) == _offered(
+        profile_schemas("resume", tools.schemas(), decisions.contexts[1].task)
+    )
     assert "export_resume_artifact" in _offered(resume)
     assert "export_resume_artifact" not in _offered(core)
     assert "match_resume_to_job" not in _offered(core)

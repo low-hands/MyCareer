@@ -23,8 +23,18 @@ _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))
 def _registered_handler_names() -> set[str]:
     """Read every registry assignment, including optional service branches."""
     tree = ast.parse(_TOOLS_SOURCE.read_text())
+    registry = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "MainAgentToolRegistry"
+    )
+    constructor = next(
+        node
+        for node in registry.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+    )
     names: set[str] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(constructor):
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values):
                 if not (

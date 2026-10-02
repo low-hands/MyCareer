@@ -28,6 +28,8 @@ from career_agent.agent.delivery_policy import (
     is_waiting,
     policy_for,
 )
+from career_agent.agent.authorization_engine import AuthorizationEngine
+from career_agent.agent.capability_executor import CapabilityExecutor
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.agent.main_agent_contracts import (
@@ -71,8 +73,13 @@ def _emitted_states() -> set[str]:
     # ``invalid_input`` is emitted by the runtime's projection-refusal path,
     # not spelled as a tool-layer state literal. It belongs to the same
     # single-source-of-truth check, so the runtime source joins the scan.
-    runtime_source = Path(inspect.getsourcefile(MainAgentRuntime)).read_text()
-    states.update(re.findall(r'state="([a-z_]+)"', runtime_source))
+    policy_sources = (
+        Path(inspect.getsourcefile(MainAgentRuntime)).read_text(),
+        Path(inspect.getsourcefile(AuthorizationEngine)).read_text(),
+        Path(inspect.getsourcefile(CapabilityExecutor)).read_text(),
+    )
+    for policy_source in policy_sources:
+        states.update(re.findall(r'state="([a-z_]+)"', policy_source))
     mapping = re.search(
         r'state = \{(.*?)\}\[result\.state\]', source, re.DOTALL
     )

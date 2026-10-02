@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 import json
 import hashlib
 import re
-from contextvars import ContextVar
 from time import perf_counter
 from dataclasses import dataclass
 from threading import Event, Lock, Thread
@@ -14,8 +13,9 @@ from typing import Any, ClassVar, Literal, TypedDict
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
-from pydantic_core import to_jsonable_python
-
+from career_agent.agent.authorization_engine import AuthorizationEngine
+from career_agent.agent.capability_executor import CapabilityExecutor
+from career_agent.agent.observation_reducer import ObservationReducer
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.career_context import CareerContextProjector
 from career_agent.agent.decision_attempts import (
@@ -27,7 +27,7 @@ from career_agent.harness.capability_steps import (
     CapabilityStep,
     observing_capability_steps,
 )
-from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DOMAIN_TOOL_PROFILES, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, LoadSkillToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, append_decision_observation, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
+from career_agent.agent.main_agent_contracts import ActiveSavedJobContextItem, AgentDecision, AttachedResumeContext, ConversationResourceReference, ConversationSpanView, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, TOOL_PROFILE_NAMES, ToolProfile, DecisionMaker, DecisionObservation, GetCareerMemoryDetailToolArguments, MainAgentContext, MAX_DECISION_OBSERVATIONS, ReadConversationSpanToolArguments, LoadSkillToolArguments, ResolveClaimSourceToolArguments, RouteToCapabilityToolArguments, SavedJobCandidateContextItem, SearchCareerEpisodesToolArguments, SearchCareerHistoryToolArguments, SearchCareerMemoryToolArguments, ToolCall, ToolObservation, UpdateOwnerSettingsToolArguments, decision_observation_chars, project_action_center_arguments, project_calendar_arguments, project_career_fact_arguments, project_free_text_preference_arguments, project_job_intent_arguments, project_constraint_retirement_arguments, project_memory_amendment_arguments, project_working_notes_arguments, project_memory_tombstone_arguments, project_email_arguments, project_interview_arguments, project_interview_preparation_arguments, project_job_research_arguments, project_mock_interview_arguments, project_mock_interview_result_arguments, project_open_job_search_arguments, project_restart_mock_interview_arguments, project_resume_arguments, project_saved_job_arguments
 from career_agent.agent.main_agent_contracts import (
     CONFIRMATION_SPECS,
     confirmation_arguments_snapshot,
@@ -37,7 +37,6 @@ from career_agent.agent.conversation_span_requests import explicit_sequence_span
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.services.free_text_preferences import is_explicit_confirmation
 from career_agent.harness.observability import (
-    ACTIVE_TRACE_CONTEXT,
     EventType,
     ModelCallCategory,
     TraceRecorder,
@@ -57,13 +56,9 @@ from career_agent.agent.tool_reachability import STATE_GATED_TOOLS, reachable
 from career_agent.agent.tool_effects import (
     ToolEffect,
     effect_for,
-    is_external_write,
     is_notes_guarded,
-    is_preference_bound,
-    replay_safe,
 )
 from career_agent.agent.working_notes_guard import (
-    remembered_preference_without_authority,
     working_notes_only_tokens,
 )
 from career_agent.storage.capability_confirmations import (
@@ -146,7 +141,6 @@ from career_agent.harness.streaming import (
     TurnCompletedEvent,
     TurnFailedEvent,
     TurnInputResource,
-    TurnStartedEvent,
     TurnSuspendedEvent,
     interaction_id,
     iter_content_deltas,
@@ -154,40 +148,25 @@ from career_agent.harness.streaming import (
     questionnaire_event,
 )
 from career_agent.storage.action_executions import (
-    ActionExecutionAlreadyFailedError,
-    ActionExecutionReconciliationRequiredError,
-    RESULT_STATE_RECEIPT_KEY,
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.context import DeliveredBodyDraft
 from career_agent.storage.intent_versions import intent_entry_id
 from career_agent.storage.turn_receipts import (
-    REPLAYED_EVENT_TYPES,
     SQLiteTurnReceiptStore,
-    TurnReceipt,
 )
-
-_STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
-    "main_agent_stream_sink",
-    default=None,
-)
-
-# Compatibility alias for focused runtime tests and callers that already bind
-# the turn context directly.  The owner moved to the harness so capability
-# workers can emit into the same run without importing this module.
-_TRACE_CONTEXT = ACTIVE_TRACE_CONTEXT
-
-_ACTION_INVOCATION: ContextVar[tuple[str, str | None] | None] = ContextVar(
-    "main_agent_action_invocation",
-    default=None,
+from career_agent.agent.turn_coordinator import (
+    ACTION_INVOCATION as _ACTION_INVOCATION,
+    STREAM_SINK as _STREAM_SINK,
+    TRACE_CONTEXT as _TRACE_CONTEXT,
+    ReplayedTurn,
+    TurnCoordinator,
+    TurnInProgressError,
 )
 
 ACTION_EXECUTION_POLICY_EPOCH = 1
 
 DEFAULT_MAX_READ_CALLS = 6
-_MAX_RECEIPT_KEYS = 20
-_MAX_RECEIPT_VALUE_CHARS = 500
-
 Originator = Literal["model", "user", "runtime"]
 """Who asked for a turn. Derived from its origin variant, never set beside it."""
 
@@ -210,14 +189,6 @@ explicit codec — and this is not one.
 """
 
 
-class TurnInProgressError(RuntimeError):
-    """The request's first attempt has not settled, so it cannot be replayed yet."""
-
-    def __init__(self, request_id: str) -> None:
-        super().__init__(f"request {request_id} is still running")
-        self.request_id = request_id
-
-
 _QUESTIONNAIRE_FAILURE_MESSAGES = {
     "questionnaire_not_pending": "这份问卷已提交或不再有效，请刷新会话后重新发起当前任务。",
     "questionnaire_expired": "这份问卷已过期，请重新发起当前任务。",
@@ -238,21 +209,6 @@ class QuestionnaireContinuationError(ValueError):
         super().__init__(reason)
         self.code = reason.upper()
         self.user_message = _QUESTIONNAIRE_FAILURE_MESSAGES[reason]
-
-
-@dataclass(frozen=True)
-class ReplayedTurn:
-    """A repeated request answered from its receipt; nothing executed."""
-
-    turn_id: str
-    request_id: str
-    events: tuple[PublicStreamEvent, ...]
-
-    @property
-    def assistant_message(self) -> str:
-        return "".join(
-            event.delta for event in self.events if isinstance(event, ContentDeltaEvent)
-        )
 
 
 @dataclass(frozen=True)
@@ -652,8 +608,38 @@ class MainAgentRuntime:
         self._trace_recorder = trace_recorder
         self._action_execution_store = action_execution_store
         self._capability_confirmation_store = capability_confirmation_store
+        # Transitional compatibility for startup recovery and focused tests.
+        # Turn lifecycle operations are owned by ``_turn_coordinator``; callers
+        # that enumerate orphaned receipts still need direct store access until
+        # recovery is moved to the ingress layer in the next extraction.
         self._turn_receipt_store = turn_receipt_store
         self._action_policy_epoch = action_policy_epoch
+        self._turn_coordinator = TurnCoordinator(
+            host=self,
+            receipt_store=turn_receipt_store,
+            trace_recorder=trace_recorder,
+        )
+        self._authorization_engine = AuthorizationEngine(
+            host=self,
+            tools=tools,
+            confirmation_store=capability_confirmation_store,
+            max_read_calls=max_read_calls,
+            max_write_calls=max_write_calls,
+            max_external_write_calls=max_external_write_calls,
+            max_projection_refusals=max_projection_refusals,
+            max_authorization_refusals=max_authorization_refusals,
+            max_failure_retries=max_failure_retries,
+        )
+        self._capability_executor = CapabilityExecutor(
+            host=self,
+            tools=tools,
+            action_execution_store=action_execution_store,
+            action_policy_epoch=action_policy_epoch,
+        )
+        self._observation_reducer = ObservationReducer(
+            host=self,
+            context_manager=context_manager,
+        )
         self._owned_resources = owned_resources
         self._closed = False
         self._registered_tool_schemas: tuple[dict[str, Any], ...] | None = None
@@ -879,238 +865,62 @@ class MainAgentRuntime:
         request whose key already committed is answered from its receipt and
         returns a ``ReplayedTurn`` without executing anything.
         """
-
-        turn_id = uuid4().hex
-        if request_id is not None:
-            request_id = request_id.strip()
-            if not request_id or len(request_id) > 200:
-                raise ValueError("request_id must contain 1 to 200 characters")
-        receipt_owner: tuple[SQLiteTurnReceiptStore, str] | None = None
-        if request_id is not None and self._turn_receipt_store is not None:
-            existing = self._turn_receipt_store.begin(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                request_id=request_id,
-                turn_id=turn_id,
-            )
-            if existing is not None:
-                return self._replay_turn(existing, event_sink=event_sink)
-            receipt_owner = (self._turn_receipt_store, request_id)
-        answered: list[PublicStreamEvent] = []
-        if receipt_owner is not None:
-            event_sink = self._answer_recording_sink(event_sink, answered)
-        sink_token = _STREAM_SINK.set(event_sink)
-        action_token = _ACTION_INVOCATION.set((turn_id, request_id))
-        trace_token = _TRACE_CONTEXT.set(
-            (self._trace_recorder, turn_id) if self._trace_recorder is not None else None
+        return self._turn_coordinator.run(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_message=user_message,
+            request_id=request_id,
+            interaction_response=interaction_response,
+            event_sink=event_sink,
+            input_resources=input_resources,
         )
-        self._emit(TurnStartedEvent(turn_id=turn_id))
-        self._emit(
-            ProgressEvent(
-                stage="loading_context",
-                message="正在读取对话和职业上下文……",
-            )
-        )
-        reply_delivered = False
 
-        def deliver_reply(result: MainAgentTurnResult) -> None:
-            nonlocal reply_delivered
-            self._deliver_reply(result=result, conversation_id=conversation_id)
-            reply_delivered = True
-
-        try:
-            result = self._run_and_commit_turn(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_message=user_message,
-                interaction_response=interaction_response,
-                before_commit=deliver_reply,
-                input_resources=input_resources,
-            )
-            self._record_turn(turn_id=turn_id, conversation_id=conversation_id, result=result)
-            self._deliver_stream_events(
-                result=result,
-                turn_id=turn_id,
-                conversation_id=conversation_id,
-            )
-            if receipt_owner is not None:
-                self._settle_turn_receipt(
-                    receipt_owner,
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    turn_id=turn_id,
-                    answered=tuple(answered),
-                    body_expires_at=None,
-                )
-            return result
-        except Exception as error:
-            self._invalidate_episode_reconciliation(user_id)
-            self._record_turn_failed(
-                turn_id=turn_id,
-                conversation_id=conversation_id,
-                error=error,
-                reply_delivered=reply_delivered,
-            )
-            if receipt_owner is not None:
-                self._settle_turn_receipt(
-                    receipt_owner,
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    turn_id=turn_id,
-                    answered=None,
-                )
-            if reply_delivered:
-                # The reader already has the reply; what failed is keeping it.
-                # Say so instead of a generic failure that reads as if the text
-                # on screen were wrong.
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code="TURN_COMMIT_FAILED",
-                        message="回复已生成，但本轮状态未能保存；刷新后这条回复可能不会保留。",
-                    )
-                )
-            elif isinstance(error, InputResourceNotFoundError):
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code="INPUT_RESOURCE_NOT_FOUND",
-                        message="附带的简历版本不存在或不属于当前用户，请重新选择后再发送。",
-                    )
-                )
-            elif isinstance(error, InputResourceRejectedError):
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code="INPUT_RESOURCE_REJECTED",
-                        message="当前模拟面试进行中，此时不会读取附带的简历。请完成或退出当前流程后再发送。",
-                    )
-                )
-            elif isinstance(error, QuestionnaireContinuationError):
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code=error.code,
-                        message=error.user_message,
-                    )
-                )
-            elif isinstance(error, AgentWorkerError):
-                code = public_error_code(error)
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code=code,
-                        message=f"本轮任务未完成：{worker_failure_reason(error)}",
-                    )
-                )
-            else:
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=turn_id,
-                        code="TURN_EXECUTION_FAILED",
-                        message="本轮处理失败，请稍后重试。",
-                    )
-                )
-            raise
-        finally:
-            _STREAM_SINK.reset(sink_token)
-            _TRACE_CONTEXT.reset(trace_token)
-            _ACTION_INVOCATION.reset(action_token)
-
-    @staticmethod
-    def _answer_recording_sink(
-        event_sink: StreamEventSink | None,
-        answered: list[PublicStreamEvent],
-    ) -> StreamEventSink:
-        """Keep the events that make up the answer before handing them on.
-
-        Recording happens ahead of the observer, so a client that disconnects
-        mid-stream still leaves a complete receipt behind.
-        """
-
-        def sink(event: PublicStreamEvent) -> None:
-            if isinstance(event, REPLAYED_EVENT_TYPES):
-                answered.append(event)
-            if event_sink is not None:
-                event_sink(event)
-
-        return sink
-
-    @staticmethod
-    def _settle_turn_receipt(
-        owner: tuple[SQLiteTurnReceiptStore, str],
-        *,
-        user_id: str,
-        conversation_id: str,
-        turn_id: str,
-        answered: tuple[PublicStreamEvent, ...] | None,
-        body_expires_at: datetime | None = None,
-    ) -> None:
-        store, request_id = owner
-        try:
-            if answered is None:
-                store.fail(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    request_id=request_id,
-                    turn_id=turn_id,
-                )
-            else:
-                store.commit(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    request_id=request_id,
-                    turn_id=turn_id,
-                    events=answered,
-                    body_expires_at=body_expires_at,
-                )
-        except Exception:
-            # The receipt is a convenience for a retrying client. Failing to
-            # write it must not undo a turn whose effects are already durable.
-            return
-
-    def _replay_turn(
+    def _emit_turn_failure(
         self,
-        receipt: TurnReceipt,
         *,
-        event_sink: StreamEventSink | None,
-    ) -> ReplayedTurn:
-        """Answer a repeated request from its receipt instead of executing."""
+        turn_id: str,
+        error: Exception,
+        reply_delivered: bool,
+    ) -> None:
+        """Map an execution failure to the stable public stream contract."""
 
-        sink_token = _STREAM_SINK.set(event_sink)
-        try:
-            if receipt.status == "RUNNING":
-                self._emit(
-                    TurnFailedEvent(
-                        turn_id=receipt.turn_id,
-                        code="TURN_IN_PROGRESS",
-                        message="这条请求仍在处理中；稍后重新读取对话即可看到结果。",
-                    )
-                )
-                raise TurnInProgressError(receipt.request_id)
-            self._emit(TurnStartedEvent(turn_id=receipt.turn_id))
-            events = receipt.events
-            if receipt.content_status != "available":
-                events = (
-                    ContentDeltaEvent(
-                        delta=(
-                            "内容已删除。"
-                            if receipt.content_status == "deleted"
-                            else "回执正文已过期，请查看历史对话。"
-                        ),
-                        delivery="synthetic",
-                    ),
-                    TurnCompletedEvent(turn_id=receipt.turn_id),
-                )
-            for event in events:
-                self._emit(event)
-        finally:
-            _STREAM_SINK.reset(sink_token)
-        return ReplayedTurn(
-            turn_id=receipt.turn_id,
-            request_id=receipt.request_id,
-            events=events,
-        )
+        if reply_delivered:
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code="TURN_COMMIT_FAILED",
+                message="回复已生成，但本轮状态未能保存；刷新后这条回复可能不会保留。",
+            )
+        elif isinstance(error, InputResourceNotFoundError):
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code="INPUT_RESOURCE_NOT_FOUND",
+                message="附带的简历版本不存在或不属于当前用户，请重新选择后再发送。",
+            )
+        elif isinstance(error, InputResourceRejectedError):
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code="INPUT_RESOURCE_REJECTED",
+                message="当前模拟面试进行中，此时不会读取附带的简历。请完成或退出当前流程后再发送。",
+            )
+        elif isinstance(error, QuestionnaireContinuationError):
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code=error.code,
+                message=error.user_message,
+            )
+        elif isinstance(error, AgentWorkerError):
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code=public_error_code(error),
+                message=f"本轮任务未完成：{worker_failure_reason(error)}",
+            )
+        else:
+            event = TurnFailedEvent(
+                turn_id=turn_id,
+                code="TURN_EXECUTION_FAILED",
+                message="本轮处理失败，请稍后重试。",
+            )
+        self._emit(event)
 
     @staticmethod
     def _emit_trace(
@@ -3372,536 +3182,16 @@ class MainAgentRuntime:
         results = state.get("tool_results", ())
         return results[-1] if results else None
 
-    def _authorization_refusal(
-        self,
-        state: MainAgentState,
-        *,
-        name: str,
-        kind: AuthorizationRefusalKind,
-        reason: str,
-        next_action: str,
-    ) -> MainAgentState:
-        control = self._control(state)
-        capped = (
-            control.get("authorization_refusals", 0)
-            >= self._max_authorization_refusals
-        )
-        # Recorded before the cap so the count is every refusal the gates
-        # reached, not only the ones the model was told about: a turn that
-        # gives up here is the most expensive outcome, not an absent one.
-        self._record_trace_event(
-            "authorization_refused",
-            "authorize",
-            outcome="failed",
-            details={
-                "tool_name": name,
-                "refusal_kind": kind,
-                "tool_profile": state["context"].task.tool_profile,
-                "capped": capped,
-            },
-            recoverable=not capped,
-        )
-        if capped:
-            return {"authorization_route": "present"}
-        result = ToolObservation(
-            tool_name=name,
-            state="authorization_refused",
-            message=reason,
-            next_action=next_action,
-        )
-        return {
-            "authorization_route": "observe",
-            "pending": {
-                "name": name,
-                "result": result,
-                "synthetic_kind": "authorization",
-                "runtime_owned": bool(
-                    state.get("pending", {}).get("runtime_owned")
-                ),
-            },
-        }
-
     def _authorize(self, state: MainAgentState) -> MainAgentState:
-        """Project and gate one action without choosing its successor.
-
-        Most actions are model-selected. A workflow-owned turn supplies one
-        bound runtime action instead; it receives the same budgets and effect
-        checks but uses a separate projector so private workflow input never
-        becomes model-authored arguments.
-        """
-
-        decision = state["decision"]
-        if decision.tool_call is None:
-            raise ValueError("tool_call action requires tool_call arguments")
-        name = decision.tool_call.name
-        runtime_owned = bool(state.get("pending", {}).get("runtime_owned"))
-        owner_confirmed = bool(state.get("pending", {}).get("owner_confirmed"))
-        policy_owned = bool(state.get("pending", {}).get("policy_owned"))
-        policy_prelude = bool(state.get("pending", {}).get("policy_prelude"))
-        if runtime_owned:
-            if name not in self._tools.runtime_workflow_names:
-                raise ValueError(f"Unknown runtime-owned workflow: {name}")
-            kind = "workflow"
-        else:
-            kind = self._tools.capability_kind(name)
-        effect = effect_for(name)
-        # Schema filtering only decides what the model sees; the profile is
-        # enforced here so a tool the model was never offered cannot run from a
-        # remembered name. Runtime-, policy- and owner-sealed actions were not
-        # chosen against a profile and are exempt.
-        model_selected = not (runtime_owned or owner_confirmed or policy_owned)
-        tool_profile = state["context"].task.tool_profile
-        if model_selected and not self._offers_tool(
-            name, tool_profile, state["context"].task
-        ):
-            return self._authorization_refusal(
-                state,
-                name=name,
-                kind="out_of_profile",
-                reason=f"{name} 不在当前 {tool_profile} 工具档内。",
-                next_action=(
-                    "先用 route_to_capability 切到该工具所属的领域，"
-                    "再从 task.available_now 中选择工具。"
-                ),
-            )
-        # Owner rules are an authority beside budgets and reachability, and a
-        # confirmed seal is the owner having already exercised it: re-judging
-        # here would refuse the very action they just approved, which is how
-        # ``review`` degenerates into ``deny``.
-        verdict = (
-            "permit"
-            if runtime_owned or owner_confirmed
-            else state["context"].preferences.capability_verdict(name)
-        )
-        confirmation_spec = CONFIRMATION_SPECS.get(name)
-        if (
-            confirmation_spec is not None
-            and confirmation_spec.requires_seal
-            and verdict == "permit"
-            and not owner_confirmed
-        ):
-            verdict = "review"
-        if verdict == "deny":
-            return self._authorization_refusal(
-                state,
-                name=name,
-                kind="preference_deny",
-                reason="你设置的偏好不允许这个操作。",
-                next_action="向用户说明这条设置，不要重试这次调用。",
-            )
-        # ``review`` is decided here but acted on after projection: what the
-        # owner approves has to be the concrete action, arguments included, and
-        # those do not exist yet.
-        control = self._control(state)
-        bucket, used, limit = self._budget_bucket(control, name=name, effect=effect)
-        if used >= limit:
-            return self._authorization_refusal(
-                state,
-                name=name,
-                kind="budget_exhausted",
-                reason=(
-                    f"本轮 {bucket} 委派预算已经用完；请基于已有结果作答，"
-                    "或说明需要下一轮继续。"
-                ),
-                next_action=(
-                    "本轮的委派预算已经用完。请基于已有结果作答，"
-                    "或者告诉用户还缺什么。"
-                ),
-            )
-
-        fingerprint = self._tool_call_fingerprint(decision)
-        fingerprints = control.get("fingerprints", ())
-        retry_counts = dict(control.get("retry_counts", {}))
-        if fingerprint in fingerprints:
-            retryable = fingerprint in control.get("retryable_fingerprints", ())
-            retries = retry_counts.get(fingerprint, 0)
-            if not retryable:
-                return self._authorization_refusal(
-                    state,
-                    name=name,
-                    kind="duplicate_call",
-                    reason="相同调用已经执行过，且上次结果没有声明为可重试。",
-                    next_action=(
-                        "这次调用和本轮之前那次完全一样，再调一次也不会有新结果。"
-                        "请用已有的观察作答，或者换一组参数。"
-                    ),
-                )
-            if retries >= self._max_failure_retries:
-                return self._authorization_refusal(
-                    state,
-                    name=name,
-                    kind="retry_limit",
-                    reason="相同失败调用已经达到本轮重试上限。",
-                    next_action=(
-                        "同一个失败调用已经重试到本轮上限。别再重试；"
-                        "把失败讲清楚，或者问用户要不要换个做法。"
-                    ),
-                )
-            retry_counts[fingerprint] = retries + 1
-            control = {**control, "retry_counts": retry_counts}
-        try:
-            arguments = (
-                # Taken from the seal, not re-projected. These arguments were
-                # projected once, hashed, and shown to the owner; re-deriving
-                # them from a decision the model did not make this turn would
-                # execute something other than what was approved.
-                state["pending"]["arguments"]
-                if owner_confirmed
-                else self._project_runtime_workflow_arguments(state, name)
-                if runtime_owned
-                else self._project_atomic_tool_arguments(
-                    state["context"],
-                    name,
-                    decision.tool_call.arguments,
-                )
-                if kind == "atomic_tool"
-                else self._project_workflow_arguments(
-                    state["context"],
-                    name,
-                    decision.tool_call.arguments,
-                )
-            )
-            if owner_confirmed and name == "update_owner_settings":
-                arguments = {
-                    **arguments,
-                    "confirmation_id": state["pending"]["confirmation_id"],
-                }
-        except ValueError as error:
-            MainAgentRuntime._reraise_security_refusal(error)
-            if (
-                control.get("projection_refusals", 0)
-                >= self._max_projection_refusals
-            ):
-                return {"authorization_route": "present"}
-            result = MainAgentRuntime._rejection_observation(name, error)
-            return {
-                "authorization_route": "observe",
-                "pending": {
-                    "name": name,
-                    "result": result,
-                    "synthetic_kind": "projection",
-                    "runtime_owned": runtime_owned,
-                    "policy_owned": policy_owned,
-                    "policy_prelude": policy_prelude,
-                },
-            }
-        # Runtime-owned input is execution data, not model-authored. A confirmed
-        # seal already passed this guard in the turn that produced it; the
-        # resumed turn has a different context, and re-judging would turn the
-        # owner's approval into a refusal.
-        note_only_tokens = (
-            working_notes_only_tokens(arguments=arguments, context=state["context"])
-            if is_notes_guarded(name) and not runtime_owned and not owner_confirmed
-            else ()
-        )
-        notes_refusal: ToolObservation | None = None
-        if note_only_tokens:
-            visible_tokens = [token[:32] for token in note_only_tokens[:8]]
-            notes_refusal = ToolObservation(
-                tool_name=name,
-                state="working_notes_derived_argument",
-                message=(
-                    "以下内容只出现在工作笔记、没有用户或权威记忆来源："
-                    + "、".join(visible_tokens)
-                    + "；请向用户确认或改用权威来源。"
-                ),
-                next_action=(
-                    "不要换个说法重试这次调用；请向用户确认这些内容，"
-                    "或改用用户消息、已确认记忆和工具结果中的权威来源。"
-                ),
-                payload={"tokens": visible_tokens, "tool_name": name},
-                execution_outcome="not_committed",
-            )
-        elif (
-            is_preference_bound(name)
-            and not runtime_owned
-            and not owner_confirmed
-            and remembered_preference_without_authority(state["context"])
-        ):
-            notes_refusal = ToolObservation(
-                tool_name=name,
-                state="working_notes_derived_argument",
-                message=(
-                    "用户要求按“你记得的偏好”做选择，但当前没有任何已确认的偏好来源，"
-                    "只有工作笔记里未确认的观察；据此比较或推荐会把猜测当作偏好。"
-                ),
-                next_action=(
-                    "先把工作笔记里的观察原样说给用户、请用户确认或修正，"
-                    "再根据确认后的偏好选择；不要先调用比较或推荐类工具。"
-                ),
-                payload={
-                    "tokens": [],
-                    "tool_name": name,
-                    "referent": "remembered_preference",
-                },
-                execution_outcome="not_committed",
-            )
-        if notes_refusal is not None:
-            if (
-                control.get("projection_refusals", 0)
-                >= self._max_projection_refusals
-            ):
-                return {"authorization_route": "present"}
-            return {
-                "authorization_route": "observe",
-                "pending": {
-                    "name": name,
-                    "result": notes_refusal,
-                    "synthetic_kind": "projection",
-                    "runtime_owned": runtime_owned,
-                    "policy_owned": policy_owned,
-                    "policy_prelude": policy_prelude,
-                },
-            }
-        if verdict == "review":
-            return self._seal_for_owner_confirmation(
-                state, name=name, arguments=arguments
-            )
-        return {
-            "authorization_route": "act",
-            "control": control,
-            "pending": {
-                "name": name,
-                "kind": kind,
-                "runtime_owned": runtime_owned,
-                "owner_confirmed": owner_confirmed,
-                "policy_owned": policy_owned,
-                "policy_prelude": policy_prelude,
-                "effect": effect,
-                "arguments": arguments,
-            },
-        }
+        return self._authorization_engine.authorize(state)
 
     def _budget_bucket(
         self, control: LoopControl, *, name: str, effect: ToolEffect
     ) -> tuple[str, int, int]:
-        """Which per-turn budget this call draws on: ``(label, used, limit)``.
-
-        Writes are two buckets, split by where the effect lives rather than by
-        how the tool is named. A reversible local record and an external
-        booking used to share one slot, so "record the application and put the
-        interview on the calendar" could never finish in a turn; a WRITE that
-        left the deployment now has its own slot and its own ceiling.
-        """
-
-        if effect == "READ":
-            return "READ", control.get("read_calls", 0), self._max_read_calls
-        if effect == "CONTROL":
-            # A compound request legitimately routes once per domain it
-            # touches; the profile count is the natural ceiling, and the
-            # repeated-call fingerprint already refuses the same route twice.
-            return (
-                "CONTROL",
-                control.get("control_calls", 0),
-                len(DOMAIN_TOOL_PROFILES),
-            )
-        external_used = control.get("external_write_calls", 0)
-        if is_external_write(name):
-            return "WRITE_EXTERNAL", external_used, self._max_external_write_calls
-        limit = self._max_write_calls
-        if name == "match_resume_to_job" and control.get("job_analysis_write_used", False):
-            limit += 1
-        return ("WRITE", control.get("write_calls", 0) - external_used, limit)
-
-    def _seal_for_owner_confirmation(
-        self, state: MainAgentState, *, name: str, arguments: dict[str, Any]
-    ) -> MainAgentState:
-        """Hold the action the owner asked to see, bound to these arguments.
-
-        Everything else has already passed at this point — budgets, repetition,
-        projection — so the sealed action is exactly the one that would have
-        run. That is what makes the owner's "yes" executable next turn without
-        consulting the model again: there is nothing left to decide.
-
-        Without a store this refuses instead of silently proceeding. A rule the
-        deployment cannot durably enforce must not read as permission.
-        """
-
-        external = is_external_write(name)
-        rule = (
-            "这个操作会写入外部系统，写入后无法由这里撤回，因此必须由你亲自确认"
-            if external
-            else "你设置了这个操作需要先经你确认"
+        # Compatibility shim for callers that inspect budget classification.
+        return self._authorization_engine.budget_bucket(
+            control, name=name, effect=effect
         )
-        if self._capability_confirmation_store is None:
-            return self._authorization_refusal(
-                state,
-                name=name,
-                kind="seal_unavailable",
-                reason=f"{rule}，但本次部署无法保存待确认动作。",
-                next_action="告诉用户这个操作需要确认，但当前无法记录确认请求。",
-            )
-        context = state["context"]
-        display_summary = (
-            self._external_write_summary(name=name, arguments=arguments)
-            if external
-            else self._owner_confirmation_summary(
-                context=context, name=name, arguments=arguments
-            )
-        )
-        sealed_arguments = (
-            confirmation_arguments_snapshot(
-                context.task,
-                name,
-                user_id=context.profile.user_id,
-                conversation_id=context.conversation_id,
-            )
-            if name in CONFIRMATION_SPECS
-            else to_jsonable_python(arguments)
-        )
-        if name == "confirm_free_text_preference":
-            sealed_arguments.update({
-                key: value for key, value in arguments.items()
-                if key in {"scope_choice", "scope_domain", "job_posting_id"}
-            })
-        confirmation = self._capability_confirmation_store.seal(
-            user_id=context.profile.user_id,
-            conversation_id=context.conversation_id,
-            capability=name,
-            display_summary=display_summary,
-            arguments=sealed_arguments,
-            policy_revision=context.preferences.behavior_policy.revision,
-        )
-        if confirmation.status == "APPLYING":
-            result = ToolObservation(
-                tool_name=name,
-                state="capability_confirmation_in_progress",
-                message="同一项已批准操作正在执行，没有再次发起确认或执行。",
-                next_action="告诉用户操作仍在处理中，不要重试。",
-            )
-            return {
-                "authorization_route": "observe",
-                "pending": {
-                    "name": name,
-                    "result": result,
-                    "synthetic_kind": "confirmation",
-                    "runtime_owned": False,
-                },
-            }
-        result = ToolObservation(
-            tool_name=name,
-            state="capability_confirmation_required",
-            message=(
-                f"{display_summary}\n"
-                + (
-                    "这是一次外部写入，执行后无法由这里撤回。是否执行？"
-                    if external
-                    else "你设置了此操作需要确认。是否执行？"
-                )
-            ),
-            # The id is deliberately absent from the message: it is a runtime
-            # identifier and the model has no use for it. It travels in the
-            # payload, which the harness reads and the model's observation does
-            # not, because binding a button to this action is the harness's job.
-            next_action="向用户说明将要执行什么并等待确认；本轮不要重试这个操作。",
-            payload={"confirmation_id": confirmation.confirmation_id},
-        )
-        return {
-            "authorization_route": "observe",
-            "pending": {
-                "name": name,
-                "result": result,
-                "synthetic_kind": "confirmation",
-                "runtime_owned": False,
-                "confirmation_id": confirmation.confirmation_id,
-            },
-        }
-
-    @staticmethod
-    def _owner_confirmation_summary(
-        *, context: MainAgentContext, name: str, arguments: dict[str, Any]
-    ) -> str:
-        """Render only owner-readable facts; never expose sealed internal ids."""
-
-        if name == "create_application":
-            job = next(
-                (
-                    item
-                    for item in context.task.saved_job_candidates
-                    if item.job_posting_id == arguments.get("job_posting_id")
-                ),
-                None,
-            )
-            resume = next(
-                (
-                    item
-                    for item in context.task.resume_version_candidates
-                    if item.resume_version_id == arguments.get("resume_version_id")
-                ),
-                None,
-            )
-            target = (
-                f"{job.company_name} · {job.title}"
-                if job is not None
-                else "当前选中的岗位"
-            )
-            version = f"，使用简历版本 v{resume.version_number}" if resume else ""
-            submitted = arguments.get("submitted_at")
-            when = f"，投递时间 {submitted}" if submitted is not None else ""
-            return f"准备创建投递记录：{target}{version}{when}。"
-        if name == "update_owner_settings":
-            changes = []
-            if arguments.get("boss_search") is not None:
-                changes.append(f"岗位搜索偏好 → {arguments['boss_search']}")
-            if arguments.get("application_confirmation") is not None:
-                changes.append(
-                    "投递记录确认规则 → "
-                    f"{arguments['application_confirmation']}"
-                )
-            if arguments.get("confirm_before") is not None:
-                listed = "、".join(arguments["confirm_before"]) or "（清空）"
-                changes.append(f"执行前需逐项确认的操作 → {listed}")
-            return "准备更新持久设置：" + "；".join(changes) + "。"
-        if name == "confirm_memory_tombstone":
-            proposal = arguments.get("proposal", {})
-            if hasattr(proposal, "model_dump"):
-                proposal = proposal.model_dump(mode="json")
-            return (
-                "准备永久删除刚才提案的职业声明。"
-                f"原因：{str(proposal.get('reason', '用户要求删除'))[:200]}"
-            )
-        if name == "confirm_constraint_retirement":
-            proposal = arguments.get("proposal", {})
-            if hasattr(proposal, "model_dump"):
-                proposal = proposal.model_dump(mode="json")
-            return f"准备停用对话约束：「{proposal.get('constraint', '当前提案')}」。"
-        return f"准备执行 {name}。"
-
-    def _external_write_summary(self, *, name: str, arguments: dict[str, Any]) -> str:
-        """What will land outside this deployment, in the owner's terms.
-
-        Read live from the store the write will act on, because the owner is
-        approving the concrete event and not the model's recollection of it.
-        A read that fails still yields a summary: the gate must never be
-        skipped because its description could not be rendered.
-        """
-
-        if name == "execute_calendar_proposal":
-            try:
-                proposal = self._tools.invoke_atomic_tool(
-                    "get_calendar_proposal", dict(arguments)
-                )
-            except Exception:  # noqa: BLE001 - rendering must not block the gate
-                proposal = None
-            if proposal is not None and proposal.state == "calendar_proposal_ready":
-                operation = proposal.payload.get("operation")
-                event = proposal.payload.get("payload")
-                expires_at = proposal.payload.get("expires_at")
-                if isinstance(event, dict):
-                    return (
-                        f"准备写入外部 Calendar（{operation}）："
-                        f"{event.get('title')}，"
-                        f"{event.get('start_at')} → {event.get('end_at')}"
-                        f"（{event.get('timezone')}），"
-                        f"地点 {event.get('location') or '未提供'}；"
-                        f"预览有效期至 {expires_at}。"
-                    )
-                return (
-                    f"准备在外部 Calendar 上执行 {operation}；"
-                    f"预览有效期至 {expires_at}。"
-                )
-            return "准备执行已预览的 Calendar 变更。"
-        return f"准备向外部系统写入：{name}。"
 
     @staticmethod
     def _after_authorize(
@@ -3910,208 +3200,7 @@ class MainAgentRuntime:
         return state["authorization_route"]
 
     def _act(self, state: MainAgentState) -> MainAgentState:
-        pending = state["pending"]
-        name = pending["name"]
-        self._emit_capability_started(name)
-        if pending.get("effect") == "WRITE" and self._action_execution_store is not None:
-            result = self._run_capability(
-                pending, lambda: self._act_request_anchored_write(state)
-            )
-        else:
-            result = self._run_capability(
-                pending, lambda: self._invoke_pending(pending)
-            )
-        if pending.get("effect") == "WRITE" and result.execution_outcome is None:
-            raise ValueError(
-                f"WRITE capability {name!r} returned without execution_outcome"
-            )
-        self._emit_capability_completed(name, result.state)
-        return {"pending": {**pending, "result": result}}
-
-    def _invoke_pending(self, pending: PendingAction) -> MainAgentToolOutput:
-        name = pending["name"]
-        arguments = pending["arguments"]
-        if pending.get("runtime_owned"):
-            return self._tools.invoke_runtime_workflow(name, arguments)
-        if pending["kind"] == "atomic_tool":
-            return self._tools.invoke_atomic_tool(name, arguments)
-        return self._tools.invoke_workflow(name, arguments)
-
-    def _act_request_anchored_write(
-        self, state: MainAgentState
-    ) -> MainAgentToolOutput:
-        """Prepare, execute, and settle every write in this turn.
-
-        Intent is recorded before the call and the outcome after it, so a
-        process that dies mid-flight leaves a row saying "this started and
-        nobody knows how it ended". Recording only after the fact cannot
-        express that state at all, which is the one state crash recovery cares
-        about.
-
-        Intent registration applies to every write so an interrupted effect is
-        enumerable. Only PENDING replay is capability-gated; Calendar retains
-        its proposal protocol underneath this correlation layer.
-        """
-
-        invocation = _ACTION_INVOCATION.get()
-        if invocation is None or self._action_execution_store is None:
-            raise RuntimeError("request-anchored action context is unavailable")
-        turn_id, request_id = invocation
-        context = state["context"]
-        pending = state["pending"]
-        name = pending["name"]
-        arguments = pending["arguments"]
-        anchor = request_id or turn_id
-        fingerprint = hashlib.sha256(
-            json.dumps(
-                {"tool": name, "arguments": arguments},
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-                default=str,
-            ).encode()
-        ).hexdigest()
-        try:
-            execution, created = self._action_execution_store.prepare(
-                user_id=context.profile.user_id,
-                conversation_id=context.conversation_id,
-                anchor=anchor,
-                request_id=request_id,
-                # Count writes, not all calls: preceding reads do not move the
-                # slot, while a deliberately larger write budget gets distinct
-                # durable identities instead of colliding at slot zero.
-                write_slot=self._control(state).get("write_calls", 0),
-                tool_name=name,
-                fingerprint=fingerprint,
-                policy_epoch=self._action_policy_epoch,
-                replay_allowed=replay_safe(name),
-            )
-        except ActionExecutionReconciliationRequiredError:
-            # Fed back rather than thrown. The slot holds an earlier write whose
-            # outcome nobody knows, so this turn must not start a different one —
-            # but killing the turn would leave the user with a crash and no way
-            # to learn what is stuck. A refusal the model can explain is the
-            # same treatment projection and authorization refusals already get.
-            #
-            # The action id stays out of the message: it is a runtime-generated
-            # internal identifier, and the operator reads it from
-            # ``career-agent actions reconcile`` rather than from the model.
-            return ToolObservation(
-                tool_name=name,
-                state="action_reconciliation_required",
-                message=(
-                    "上一次同类操作还没有确认结果，可能已经写入，也可能没有。"
-                    "在核对清楚之前不能再执行一次，否则可能重复。"
-                ),
-                next_action=(
-                    "告诉用户有一次未确认的操作需要先核对，不要重试这次调用。"
-                ),
-                execution_outcome="unknown",
-            )
-        if not created:
-            if execution.status == "SUCCEEDED":
-                # The receipt repairs task state; the model sees a distinct,
-                # synthetic observation and can read the durable result by its
-                # returned identifiers. Reusing the original result state here
-                # would invoke a presenter whose report body is intentionally
-                # absent from the ledger, or recreate a one-shot interaction.
-                receipt = dict(execution.output)
-                replayed_state = str(
-                    receipt.pop(RESULT_STATE_RECEIPT_KEY, "") or ""
-                )
-                state["pending"]["reducer_result"] = ToolObservation(
-                    tool_name=name,
-                    state=replayed_state or "failed",
-                    message="持久执行回执用于修复任务状态。",
-                    payload=receipt,
-                )
-                return ToolObservation(
-                    tool_name=name,
-                    state="action_execution_replayed",
-                    message="这一步此前已经完成，没有再次执行。",
-                    next_action="按回执中的引用或标识读取持久结果，不要重做写操作。",
-                    execution_outcome="committed",
-                )
-            if execution.status == "FAILED":
-                raise ActionExecutionAlreadyFailedError(
-                    execution.error_detail
-                    or "this action already ended unsuccessfully; use a new request id"
-                )
-            if not replay_safe(name):
-                return ToolObservation(
-                    tool_name=name,
-                    state="action_reconciliation_required",
-                    message=(
-                        "上一次这个操作没有确认结果，可能已经生效，也可能没有。"
-                        "这个操作重复执行无法撤销，所以在核对清楚之前不能再执行一次。"
-                    ),
-                    next_action="告诉用户有一次未确认的操作需要先核对，不要重试这次调用。",
-                    execution_outcome="unknown",
-                )
-
-        result = self._invoke_pending(pending)
-        # ``state``/``disposition`` say whether the
-        # capability and the control flow failed; ``execution_outcome`` says
-        # whether the side effect committed. They are independent axes, so
-        # ``committed`` with a failed state is a real situation and not a
-        # contradiction to reject: the external write landed and the local
-        # handling, receipt parse or presentation then failed. Settling that as
-        # FAILED because the state is failed would record that nothing happened
-        # when something did — the same class of lie, pointed the other way, as
-        # the delivery-derived ledger this replaced. Every WRITE producer must
-        # declare this axis; leaving the intent PENDING and failing loudly is
-        # safer than recreating state-derived settlement here.
-        if result.execution_outcome is None:
-            raise ValueError(
-                f"WRITE capability {name!r} returned without execution_outcome"
-            )
-        if result.execution_outcome == "unknown":
-            # The capability has returned, but the effect has not. PENDING is
-            # precisely the durable representation of that ambiguity; closing
-            # it as FAILED would make it disappear from reconciliation.
-            return result
-        if result.execution_outcome == "not_committed":
-            self._action_execution_store.fail(
-                action_id=execution.action_id,
-                error_code=result.state.upper(),
-                error_detail=result.message,
-            )
-            return result
-        self._action_execution_store.succeed(
-            action_id=execution.action_id,
-            output=MainAgentRuntime._execution_receipt(result),
-        )
-        return result
-
-    @staticmethod
-    def _execution_receipt(
-        result: MainAgentToolOutput,
-    ) -> dict[str, str | int | float | bool | None]:
-        """The identifiers a crashed turn would need to repair its task state.
-
-        Scalars only, which is a rule rather than a filter on names: a crashed
-        turn's reducer never ran, so ``active_*_id`` is empty and the ids are
-        what repairs it, while report bodies already live in their own stores
-        and a second copy here would be a second source of truth. Payloads for
-        writes are flat scalar dicts of exactly those ids plus a status, so the
-        rule keeps what is needed without knowing any capability's field names.
-
-        A capability whose payload yields nothing keeps an enumerable pending
-        row and no automatic repair — the coverage boundary, not a silent
-        failure.
-        """
-        receipt: dict[str, str | int | float | bool | None] = {
-            RESULT_STATE_RECEIPT_KEY: result.state
-        }
-        for key, value in result.payload.items():
-            if len(receipt) > _MAX_RECEIPT_KEYS:
-                break
-            if value is not None and not isinstance(value, (str, int, float, bool)):
-                continue
-            if isinstance(value, str) and len(value) > _MAX_RECEIPT_VALUE_CHARS:
-                continue
-            receipt[key] = value
-        return receipt
+        return self._capability_executor.act(state)
 
     @staticmethod
     def _project_runtime_workflow_arguments(
@@ -4211,168 +3300,7 @@ class MainAgentRuntime:
         )
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
-        context = state["context"]
-        pending = state["pending"]
-        result = pending["result"]
-        capability_name = pending["name"]
-        control = dict(self._control(state))
-        synthetic_kind = pending.get("synthetic_kind")
-        if result.disposition == "failed":
-            # The tool layer already classified this failure into an error_code
-            # and a retryability flag. Copy them into the durable trace so a
-            # failure that lasted one turn does not vanish with the payload.
-            MainAgentRuntime._emit_trace(
-                "capability_failed",
-                capability_name,
-                error_code=str(result.payload.get("error_code"))
-                if result.payload.get("error_code") is not None
-                else "CAPABILITY_FAILED",
-                recoverable=(
-                    bool(result.payload.get("retryable"))
-                    if "retryable" in result.payload
-                    else None
-                ),
-            )
-        if synthetic_kind == "confirmation":
-            # A seal is not a refusal. The action was allowed; the owner asked
-            # to see it first, and the turn ends waiting for them. Counting it
-            # against the refusal budget would make a rule the owner set look
-            # like the model misbehaving, and would end the conversation early
-            # after a few legitimate confirmations. No capability ran, so no
-            # effect budget moves either.
-            updated = context
-        elif synthetic_kind is not None:
-            updated = context
-            refusal_key = (
-                "projection_refusals"
-                if synthetic_kind == "projection"
-                else "authorization_refusals"
-            )
-            control[refusal_key] = control.get(refusal_key, 0) + 1
-        else:
-            if result.tool_name in {
-                "start_mock_interview",
-                "restart_mock_interview",
-                "handle_mock_interview_input",
-                "retry_mock_interview",
-            } and result.state not in {
-                "mock_interview_resume_choice_required",
-                "mock_interview_job_choice_required",
-            }:
-                # The resume choice starts nothing; its offered list is ordinary
-                # task state, applied by the atomic reducer below.
-                updated = self._update_mock_interview_task(context, result)
-            else:
-                updated = self._update_atomic_task(
-                    context,
-                    pending.get("reducer_result", result),
-                    now=self._context_manager.now(),
-                )
-            if result.state in {
-                "career_memory_amended",
-                "memory_tombstoned",
-                "memory_tombstone_cleanup_incomplete",
-                "free_text_preference_confirmed",
-                "free_text_preference_confirmed_structured_proposed",
-                "career_fact_confirmed",
-                "working_notes_stale",
-                "working_notes_updated",
-            }:
-                refreshed = self._context_manager.load_for_turn(
-                    user_id=context.profile.user_id,
-                    conversation_id=context.conversation_id,
-                    # The message as sent: reloading from the prompt's clipped
-                    # copy would lose the original, and the turn would store
-                    # the clipped one.
-                    user_message=context.stored_user_message(),
-                )
-                refresh_updates: dict[str, Any] = {
-                    "task": updated.task,
-                    "attached_resumes": context.attached_resumes,
-                    "attached_jobs": context.attached_jobs,
-                }
-                updated = refreshed.model_copy(update=refresh_updates)
-            effect = pending["effect"]
-            budget_key = {
-                "READ": "read_calls",
-                "WRITE": "write_calls",
-                "CONTROL": "control_calls",
-            }[effect]
-            control[budget_key] = control.get(budget_key, 0) + 1
-            if effect == "WRITE" and is_external_write(pending["name"]):
-                control["external_write_calls"] = (
-                    control.get("external_write_calls", 0) + 1
-                )
-            if effect == "WRITE" and pending["name"] == "analyze_job":
-                control["job_analysis_write_used"] = True
-            fingerprint = self._tool_call_fingerprint(state["decision"])
-            fingerprints = control.get("fingerprints", ())
-            if fingerprint not in fingerprints:
-                control["fingerprints"] = (*fingerprints, fingerprint)
-            retryable_fingerprints = tuple(control.get("retryable_fingerprints", ()))
-            if (
-                result.disposition == "failed"
-                and result.payload.get("retryable") is True
-            ):
-                if fingerprint not in retryable_fingerprints:
-                    retryable_fingerprints = (*retryable_fingerprints, fingerprint)
-            else:
-                retryable_fingerprints = tuple(
-                    item for item in retryable_fingerprints if item != fingerprint
-                )
-            control["retryable_fingerprints"] = retryable_fingerprints
-        # The model's own arguments, not ``pending["arguments"]``. Projection
-        # turns a selector into what the handler needs — including live domain
-        # objects and the internal ids the projection boundary exists to keep
-        # away from the model — so the projected form is neither safe to show
-        # nor the thing the model would recognize as its own call.
-        decision = state.get("decision")
-        written = (
-            decision.tool_call.arguments
-            if decision is not None and decision.tool_call is not None
-            else {}
-        )
-        observation = self._tool_observation(capability_name, result, written)
-        updated = updated.model_copy(
-            update={
-                "tool_observations": append_decision_observation(
-                    updated.tool_observations,
-                    observation,
-                )
-            }
-        )
-        artifact_ids = state.get("artifact_ids", ())
-        if result.state == "resume_artifact_ready":
-            artifact_id = result.payload.get("artifact_id")
-            if isinstance(artifact_id, str) and artifact_id not in artifact_ids:
-                artifact_ids = (*artifact_ids, artifact_id)
-        tool_results = state.get("tool_results", ())
-        # A refusal is an internal correction the model reads and moves past; a
-        # seal is this turn's actual outcome, and the interrupt path reads it
-        # from here to build the interaction the owner answers.
-        if synthetic_kind in (None, "confirmation"):
-            tool_results = (*tool_results, result)
-        career_memory_scope_keys = state.get("career_memory_scope_keys", ())
-        result_scope_key = result.payload.get(
-            "memory_entry_id",
-            result.payload.get("scope_key"),
-        )
-        if (
-            isinstance(result_scope_key, str)
-            and result_scope_key
-            and result_scope_key not in career_memory_scope_keys
-        ):
-            career_memory_scope_keys = (
-                *career_memory_scope_keys,
-                result_scope_key,
-            )
-        return {
-            "context": updated,
-            "tool_results": tool_results,
-            "control": control,
-            "artifact_ids": artifact_ids,
-            "career_memory_scope_keys": career_memory_scope_keys,
-        }
+        return self._observation_reducer.reduce(state)
 
     @staticmethod
     def _after_observe(
