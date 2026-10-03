@@ -2,12 +2,35 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import sqlite3
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import RetryPolicy
 
 from career_agent.agent.runtime.state import MainAgentState
+
+
+def retry_transient_hydration(error: Exception) -> bool:
+    """Retry only failures safe to repeat before the model/tool loop starts."""
+
+    if isinstance(error, (ConnectionError, TimeoutError)):
+        return True
+    if isinstance(error, sqlite3.OperationalError):
+        detail = str(error).lower()
+        return "locked" in detail or "busy" in detail
+    return False
+
+
+HYDRATION_RETRY_POLICY = RetryPolicy(
+    initial_interval=0.25,
+    backoff_factor=2.0,
+    max_interval=1.0,
+    max_attempts=2,
+    jitter=True,
+    retry_on=retry_transient_hydration,
+)
 
 
 @dataclass(frozen=True)
@@ -43,7 +66,15 @@ def build_main_graph(
     """Compile the main-agent topology without owning any node behavior."""
 
     graph = StateGraph(MainAgentState)
-    graph.add_node("hydrate", nodes.hydrate)
+    # Hydration is a read-only projection and is safe to repeat for narrowly
+    # classified transient failures. Decision providers already own their
+    # bounded retry loop, while act may cross an external side-effect boundary;
+    # neither is retried again by LangGraph.
+    graph.add_node(
+        "hydrate",
+        nodes.hydrate,
+        retry_policy=HYDRATION_RETRY_POLICY,
+    )
     graph.add_node("decide", nodes.decide)
     graph.add_node("authorize", nodes.authorize)
     graph.add_node("act", nodes.act)

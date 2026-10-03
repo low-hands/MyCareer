@@ -7,7 +7,11 @@ from typing import Any, Protocol
 from langgraph.types import Command
 
 from career_agent.agent.contracts.main_agent import AgentDecision, MainAgentContext
-from career_agent.agent.runtime.state import MainAgentState, PendingAction
+from career_agent.agent.runtime.state import (
+    MainAgentState,
+    PendingAction,
+    validate_main_agent_state,
+)
 from career_agent.agent.contracts.turn import (
     MainAgentTurnResult,
     ModelDecision,
@@ -108,22 +112,36 @@ class AgentLoop:
         pending: PendingAction | None = None,
         prelude: MainAgentState | None = None,
     ) -> MainAgentState:
-        return self._graph.invoke(
+        initial = validate_main_agent_state(
             self.initial_state(
                 context,
                 decision=decision,
                 pending=pending,
                 prelude=prelude,
             ),
-            config=self._config(context),
+            boundary="invoke",
+        )
+        return validate_main_agent_state(
+            self._graph.invoke(
+                initial,
+                config=self._config(context),
+            ),
+            boundary="result",
         )
 
     def resume_model(self, context: MainAgentContext) -> MainAgentTurnResult:
         """Resume a questionnaire suspension with validated fresh-turn state."""
 
-        state = self._graph.invoke(
-            Command(resume=self.initial_state(context)),
-            config=self._config(context),
+        resumed = validate_main_agent_state(
+            self.initial_state(context),
+            boundary="resume",
+        )
+        state = validate_main_agent_state(
+            self._graph.invoke(
+                Command(resume=resumed),
+                config=self._config(context),
+            ),
+            boundary="result",
         )
         decision = state.get("decision")
         if decision is None:

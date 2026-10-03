@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
+
+from pydantic import ConfigDict, TypeAdapter, ValidationError
+from typing_extensions import TypedDict
 
 from career_agent.agent.contracts.main_agent import (
     AgentDecision,
@@ -12,6 +15,8 @@ from career_agent.agent.capabilities.effects import ToolEffect
 
 class PendingAction(TypedDict, total=False):
     """One capability proposal as it moves through authorize → act → observe."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid")
 
     name: str
     kind: Literal["atomic_tool", "workflow"]
@@ -33,6 +38,8 @@ class PendingAction(TypedDict, total=False):
 class LoopControl(TypedDict, total=False):
     """Per-turn counters and replay guards shared by graph nodes."""
 
+    __pydantic_config__ = ConfigDict(extra="forbid")
+
     read_calls: int
     # Profile switches change the next offered tool set and consume no I/O slot.
     control_calls: int
@@ -50,8 +57,10 @@ class LoopControl(TypedDict, total=False):
     episodes_marked: bool
 
 
-class MainAgentState(TypedDict, total=False):
-    """The complete and intentionally small state persisted by LangGraph."""
+class MainAgentState(TypedDict):
+    """Complete checkpoint schema for every main-agent graph invocation."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid")
 
     context: MainAgentContext
     # ``None`` explicitly clears a prior checkpoint when a new turn starts.
@@ -65,3 +74,30 @@ class MainAgentState(TypedDict, total=False):
     model_message: str
     # Scopes shown before a later write reloads and invalidates the projection.
     career_memory_scope_keys: tuple[str, ...]
+
+
+_MAIN_AGENT_STATE = TypeAdapter(MainAgentState)
+
+
+class MainAgentStateValidationError(ValueError):
+    """A graph boundary received an incomplete or undeclared state channel."""
+
+
+def validate_main_agent_state(
+    state: object,
+    *,
+    boundary: Literal["invoke", "resume", "result"],
+) -> MainAgentState:
+    """Validate and normalize a complete state at a LangGraph boundary."""
+
+    candidate = state
+    if boundary == "result" and isinstance(state, dict) and "__interrupt__" in state:
+        # LangGraph adds this reserved envelope field to an interrupted invoke
+        # result. It is execution metadata, not a persisted application channel.
+        candidate = {key: value for key, value in state.items() if key != "__interrupt__"}
+    try:
+        return _MAIN_AGENT_STATE.validate_python(candidate)
+    except ValidationError as error:
+        raise MainAgentStateValidationError(
+            f"invalid main agent state at {boundary} boundary"
+        ) from error

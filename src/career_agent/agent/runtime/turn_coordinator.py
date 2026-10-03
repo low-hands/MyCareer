@@ -108,6 +108,7 @@ class TurnLifecycleOperations(Generic[TurnResultT]):
     prepare_questionnaire_continuation: Callable[..., MainAgentContext]
     run_loaded_context: Callable[..., TurnResultT]
     resume_questionnaire: Callable[[MainAgentContext], TurnResultT]
+    settle_checkpoint: Callable[[TurnResultT], None]
     run_interaction_response: Callable[..., TurnResultT]
     run_owned_workflow_turn: Callable[..., TurnResultT]
     commit_interrupted_turn: Callable[..., None]
@@ -212,6 +213,7 @@ class TurnCoordinator(Generic[TurnResultT]):
                 before_commit=deliver_reply,
                 input_resources=input_resources,
             )
+            self._operations.settle_checkpoint(result)
             self._operations.record_turn(
                 turn_id=turn_id,
                 conversation_id=conversation_id,

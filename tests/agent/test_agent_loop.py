@@ -1,7 +1,7 @@
-from types import SimpleNamespace
-
 from career_agent.agent.contracts.main_agent import (
     AgentDecision,
+    CareerProfileContext,
+    MainAgentContext,
     ToolCall,
     ToolObservation,
 )
@@ -40,9 +40,10 @@ class RecordingGraph:
 
 
 def _context():
-    return SimpleNamespace(
+    return MainAgentContext(
         conversation_id="c1",
-        profile=SimpleNamespace(user_id="u1"),
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="继续",
     )
 
 

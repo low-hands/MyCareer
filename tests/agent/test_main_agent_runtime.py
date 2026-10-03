@@ -225,7 +225,7 @@ def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None
     )
 
 
-def test_main_graph_checkpoints_by_conversation_without_leaking_turn_state(
+def test_settled_main_graph_turn_deletes_its_in_memory_checkpoint(
     tmp_path,
 ) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
@@ -250,21 +250,19 @@ def test_main_graph_checkpoints_by_conversation_without_leaking_turn_state(
 
     assert first.assistant_message == "第一轮"
     assert second.assistant_message == "第二轮"
-    snapshot = runtime._components.graph.get_state(
-        {
-            "configurable": {
-                "thread_id": main_graph_thread_id(
-                    user_id="u1", conversation_id="c1"
-                )
-            }
+    config = {
+        "configurable": {
+            "thread_id": main_graph_thread_id(
+                user_id="u1", conversation_id="c1"
+            )
         }
-    )
-    assert snapshot.values["decision"].message == "第二轮"
-    assert snapshot.values["pending"] == {}
-    assert not snapshot.values["tool_results"]
+    }
+    assert checkpointer.get_tuple(config) is None
 
 
-def test_main_graph_checkpoint_survives_runtime_restart(tmp_path) -> None:
+def test_settled_main_graph_checkpoint_is_deleted_before_runtime_restart(
+    tmp_path,
+) -> None:
     context_path = tmp_path / "context.sqlite3"
     checkpoint_path = tmp_path / "main-checkpoints.sqlite3"
     manager = ContextManager(CareerContextStore(context_path))
@@ -282,6 +280,14 @@ def test_main_graph_checkpoint_survives_runtime_restart(tmp_path) -> None:
     first_runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="重启前"
     )
+    config = {
+        "configurable": {
+            "thread_id": main_graph_thread_id(
+                user_id="u1", conversation_id="c1"
+            )
+        }
+    }
+    assert first_owner.saver.get_tuple(config) is None
     first_owner.close()
 
     second_owner = SQLiteCheckpointOwner(checkpoint_path)
@@ -299,17 +305,7 @@ def test_main_graph_checkpoint_survives_runtime_restart(tmp_path) -> None:
         )
 
         assert result.assistant_message == "重启后"
-        snapshot = second_runtime._components.graph.get_state(
-            {
-                "configurable": {
-                    "thread_id": main_graph_thread_id(
-                        user_id="u1", conversation_id="c1"
-                    )
-                }
-            }
-        )
-        assert snapshot.values["decision"].message == "重启后"
-        assert snapshot.values["pending"] == {}
+        assert second_owner.saver.get_tuple(config) is None
     finally:
         second_owner.close()
 
@@ -3450,6 +3446,14 @@ def test_questionnaire_resumes_from_a_persistent_graph_after_restart(tmp_path) -
     interaction = next(
         event for event in events if isinstance(event, InteractionRequiredEvent)
     )
+    checkpoint_config = {
+        "configurable": {
+            "thread_id": main_graph_thread_id(
+                user_id="u1", conversation_id="c1"
+            )
+        }
+    }
+    assert first_owner.saver.get_tuple(checkpoint_config) is not None
     first_owner.close()
 
     second_owner = SQLiteCheckpointOwner(checkpoint_path)
@@ -3481,15 +3485,7 @@ def test_questionnaire_resumes_from_a_persistent_graph_after_restart(tmp_path) -
         )
 
         assert result.assistant_message == "已从断点继续。"
-        assert second_runtime._components.graph.get_state(
-            {
-                "configurable": {
-                    "thread_id": main_graph_thread_id(
-                        user_id="u1", conversation_id="c1"
-                    )
-                }
-            }
-        ).next == ()
+        assert second_owner.saver.get_tuple(checkpoint_config) is None
     finally:
         second_owner.close()
 

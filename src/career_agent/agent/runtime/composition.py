@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from career_agent.agent.runtime.authorization_engine import AuthorizationEngine
+from career_agent.agent.runtime.checkpoint_lifecycle import CheckpointLifecycle
 from career_agent.agent.context.career import CareerContextProjector
 from career_agent.agent.context.turn_builder import TurnContextBuilder
 from career_agent.agent.context.manager import ContextManager
@@ -48,7 +49,7 @@ from career_agent.agent.runtime.turn_coordinator import (
     TurnLifecycleOperations,
     active_turn_id,
 )
-from career_agent.harness.agent_loop import AgentLoop
+from career_agent.harness.agent_loop import AgentLoop, main_graph_thread_id
 from career_agent.harness.confirmation_coordinator import (
     CapabilityConfirmationCoordinator,
 )
@@ -206,6 +207,7 @@ def build_main_runtime_components(
         decision_engine=decision_engine,
     )
 
+    effective_checkpointer = checkpointer or InMemorySaver()
     graph = build_main_graph(
         MainGraphNodes(
             hydrate=context_hydrator.hydrate,
@@ -224,7 +226,7 @@ def build_main_runtime_components(
             after_authorize=GraphRoutingPolicy.after_authorize,
             after_observe=GraphRoutingPolicy.after_observe,
         ),
-        checkpointer=checkpointer or InMemorySaver(),
+        checkpointer=effective_checkpointer,
     )
     agent_loop = AgentLoop(
         graph=graph,
@@ -233,6 +235,10 @@ def build_main_runtime_components(
         deliver_resume_artifact=lambda **kwargs: (
             tools.deliver_resume_artifact(**kwargs)
         ),
+    )
+    checkpoint_lifecycle = CheckpointLifecycle(
+        checkpointer=effective_checkpointer,
+        thread_id=main_graph_thread_id,
     )
     turn_router = TurnRouter(
         context_manager=context_manager,
@@ -257,6 +263,7 @@ def build_main_runtime_components(
             ),
             run_loaded_context=turn_router.run_loaded_context,
             resume_questionnaire=agent_loop.resume_model,
+            settle_checkpoint=checkpoint_lifecycle.settle,
             run_interaction_response=(
                 confirmation_coordinator.run_owner_confirmation
             ),
