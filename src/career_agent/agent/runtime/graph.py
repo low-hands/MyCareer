@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -21,6 +21,7 @@ class MainGraphNodes:
     observe: Callable[[MainAgentState], MainAgentState]
     present: Callable[[MainAgentState], MainAgentState]
     interrupt: Callable[[MainAgentState], MainAgentState]
+    suspend: Callable[[MainAgentState], MainAgentState]
     route_entry: Callable[
         [MainAgentState], Literal["hydrate", "authorize"]
     ]
@@ -34,7 +35,11 @@ class MainGraphNodes:
         [MainAgentState], Literal["hydrate", "decide", "present", "interrupt"]
     ]
 
-def build_main_graph(nodes: MainGraphNodes) -> CompiledStateGraph:
+def build_main_graph(
+    nodes: MainGraphNodes,
+    *,
+    checkpointer: Any | None = None,
+) -> CompiledStateGraph:
     """Compile the main-agent topology without owning any node behavior."""
 
     graph = StateGraph(MainAgentState)
@@ -45,6 +50,7 @@ def build_main_graph(nodes: MainGraphNodes) -> CompiledStateGraph:
     graph.add_node("observe", nodes.observe)
     graph.add_node("present", nodes.present)
     graph.add_node("interrupt", nodes.interrupt)
+    graph.add_node("suspend", nodes.suspend)
     graph.add_conditional_edges(
         START,
         nodes.route_entry,
@@ -85,5 +91,6 @@ def build_main_graph(nodes: MainGraphNodes) -> CompiledStateGraph:
         },
     )
     graph.add_edge("present", END)
-    graph.add_edge("interrupt", END)
-    return graph.compile()
+    graph.add_edge("interrupt", "suspend")
+    graph.add_edge("suspend", "hydrate")
+    return graph.compile(checkpointer=checkpointer)

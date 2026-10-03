@@ -9,6 +9,7 @@ import time
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import ValidationError
 
 from career_agent.agent.contracts.memory import ConversationSummaryContent
@@ -30,6 +31,7 @@ from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.runtime.turn_coordinator import STREAM_SINK as _STREAM_SINK
+from career_agent.harness.agent_loop import main_graph_thread_id
 from career_agent.harness.graph_routing import GraphRoutingPolicy
 
 
@@ -57,6 +59,7 @@ from career_agent.storage.action_executions import (
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
+from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
 from conftest import enter_tool_profile
 
@@ -178,6 +181,7 @@ def test_main_graph_uses_one_authorize_act_path_for_every_capability(tmp_path) -
         "observe",
         "present",
         "interrupt",
+        "suspend",
         "__end__",
     }
 
@@ -214,7 +218,100 @@ def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None
     graph = agent._components.graph.get_graph()
 
     ends = {edge.source for edge in graph.edges if edge.target == "__end__"}
-    assert ends == {"present", "interrupt"}
+    assert ends == {"present"}
+    assert any(
+        edge.source == "interrupt" and edge.target == "suspend"
+        for edge in graph.edges
+    )
+
+
+def test_main_graph_checkpoints_by_conversation_without_leaking_turn_state(
+    tmp_path,
+) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    checkpointer = InMemorySaver()
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(action="final", message="第一轮"),
+            AgentDecision(action="final", message="第二轮"),
+        ),
+        tools=MainAgentToolRegistry(),
+        checkpointer=checkpointer,
+    )
+
+    first = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="第一轮"
+    )
+    second = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="第二轮"
+    )
+
+    assert first.assistant_message == "第一轮"
+    assert second.assistant_message == "第二轮"
+    snapshot = runtime._components.graph.get_state(
+        {
+            "configurable": {
+                "thread_id": main_graph_thread_id(
+                    user_id="u1", conversation_id="c1"
+                )
+            }
+        }
+    )
+    assert snapshot.values["decision"].message == "第二轮"
+    assert snapshot.values["pending"] == {}
+    assert not snapshot.values["tool_results"]
+
+
+def test_main_graph_checkpoint_survives_runtime_restart(tmp_path) -> None:
+    context_path = tmp_path / "context.sqlite3"
+    checkpoint_path = tmp_path / "main-checkpoints.sqlite3"
+    manager = ContextManager(CareerContextStore(context_path))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+
+    first_owner = SQLiteCheckpointOwner(checkpoint_path)
+    first_runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(action="final", message="重启前")
+        ),
+        tools=MainAgentToolRegistry(),
+        checkpointer=first_owner.saver,
+    )
+    first_runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="重启前"
+    )
+    first_owner.close()
+
+    second_owner = SQLiteCheckpointOwner(checkpoint_path)
+    try:
+        second_runtime = MainAgentRuntime(
+            context_manager=ContextManager(CareerContextStore(context_path)),
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(action="final", message="重启后")
+            ),
+            tools=MainAgentToolRegistry(),
+            checkpointer=second_owner.saver,
+        )
+        result = second_runtime.run_turn(
+            user_id="u1", conversation_id="c1", user_message="重启后"
+        )
+
+        assert result.assistant_message == "重启后"
+        snapshot = second_runtime._components.graph.get_state(
+            {
+                "configurable": {
+                    "thread_id": main_graph_thread_id(
+                        user_id="u1", conversation_id="c1"
+                    )
+                }
+            }
+        )
+        assert snapshot.values["decision"].message == "重启后"
+        assert snapshot.values["pending"] == {}
+    finally:
+        second_owner.close()
 
 
 def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
@@ -1538,6 +1635,31 @@ def test_a_suspended_turn_replays_its_interaction(tmp_path) -> None:
     ]
     assert replayed[1] == next(e for e in live if e.type == "interaction_required")
     assert replayed[2] == live[-1]
+
+
+def test_free_text_reply_starts_a_new_turn_instead_of_resuming_questionnaire(
+    tmp_path,
+) -> None:
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(action="ask_user", message="你更偏向哪个方向？"),
+            AgentDecision(action="final", message="收到，你偏向平台工程。"),
+        ),
+        tools=MainAgentToolRegistry(),
+    )
+
+    first = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="帮我选方向"
+    )
+    second = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="平台工程"
+    )
+
+    assert first.model_decision.action == "ask_user"
+    assert second.assistant_message == "收到，你偏向平台工程。"
 
 
 def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None:
@@ -3250,6 +3372,14 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert interaction.kind == "questionnaire" and len(interaction.questions) == 5
     assert first_events[-1].type == "turn_suspended"
     assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is not None
+    graph_config = {
+        "configurable": {
+            "thread_id": main_graph_thread_id(
+                user_id="u1", conversation_id="c1"
+            )
+        }
+    }
+    assert runtime._components.graph.get_state(graph_config).next == ("suspend",)
 
     response = InteractionResponse(
         interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
@@ -3273,6 +3403,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert "已提交当前任务问卷" in stored.recent_messages[-2].content
     assert "question_id" not in stored.recent_messages[-2].content
     assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is None
+    assert runtime._components.graph.get_state(graph_config).next == ()
     replay_events = []
     with pytest.raises(ValueError, match="questionnaire_not_pending"):
         runtime.run_turn(user_id="u1", conversation_id="c1", user_message="已提交问卷",
@@ -3280,6 +3411,87 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert isinstance(replay_events[-1], TurnFailedEvent)
     assert replay_events[-1].code == "QUESTIONNAIRE_NOT_PENDING"
     assert "已提交" in replay_events[-1].message
+
+
+def test_questionnaire_resumes_from_a_persistent_graph_after_restart(tmp_path) -> None:
+    context_path = tmp_path / "context.sqlite3"
+    checkpoint_path = tmp_path / "main-checkpoints.sqlite3"
+    manager = ContextManager(CareerContextStore(context_path))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    questions = tuple(
+        UserQuestion(
+            question_id=f"q{index}",
+            prompt=f"问题 {index}",
+            kind="free_text",
+        )
+        for index in range(1, 6)
+    )
+
+    first_owner = SQLiteCheckpointOwner(checkpoint_path)
+    first_runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=SequenceDecisionMaker(
+            AgentDecision(
+                action="questionnaire",
+                message="请补充信息。",
+                questions=questions,
+            )
+        ),
+        tools=MainAgentToolRegistry(),
+        checkpointer=first_owner.saver,
+    )
+    events = []
+    first_runtime.run_turn(
+        user_id="u1",
+        conversation_id="c1",
+        user_message="开始",
+        event_sink=events.append,
+    )
+    interaction = next(
+        event for event in events if isinstance(event, InteractionRequiredEvent)
+    )
+    first_owner.close()
+
+    second_owner = SQLiteCheckpointOwner(checkpoint_path)
+    try:
+        second_runtime = MainAgentRuntime(
+            context_manager=ContextManager(CareerContextStore(context_path)),
+            decision_maker=SequenceDecisionMaker(
+                AgentDecision(action="final", message="已从断点继续。")
+            ),
+            tools=MainAgentToolRegistry(),
+            checkpointer=second_owner.saver,
+        )
+        result = second_runtime.run_turn(
+            user_id="u1",
+            conversation_id="c1",
+            user_message="已提交",
+            interaction_response=InteractionResponse(
+                interaction_id=interaction.interaction_id,
+                scope="questionnaire",
+                action="submit",
+                answers=tuple(
+                    QuestionAnswer(
+                        question_id=f"q{index}",
+                        free_text=f"答案 {index}",
+                    )
+                    for index in range(1, 6)
+                ),
+            ),
+        )
+
+        assert result.assistant_message == "已从断点继续。"
+        assert second_runtime._components.graph.get_state(
+            {
+                "configurable": {
+                    "thread_id": main_graph_thread_id(
+                        user_id="u1", conversation_id="c1"
+                    )
+                }
+            }
+        ).next == ()
+    finally:
+        second_owner.close()
 
 
 def test_question_after_earlier_failure_still_reports_the_failure() -> None:

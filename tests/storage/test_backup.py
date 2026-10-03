@@ -197,6 +197,7 @@ def _store_args(root: Path) -> list[str]:
         "--application-store", str(root / "applications.sqlite3"),
         "--job-store", str(root / "jobs.sqlite3"),
         "--job-research-store", str(root / "job-research.sqlite3"),
+        "--main-agent-checkpoint-store", str(root / "main-agent-checkpoints.sqlite3"),
         "--job-research-checkpoint-store", str(root / "job-research-checkpoints.sqlite3"),
         "--email-store", str(root / "email.sqlite3"),
         "--action-store", str(root / "actions.sqlite3"),

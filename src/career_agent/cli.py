@@ -290,6 +290,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     mock_checkpoint_owner = SQLiteCheckpointOwner(
         Path(args.mock_interview_checkpoint_store).expanduser()
     )
+    main_checkpoint_owner = SQLiteCheckpointOwner(
+        Path(args.main_agent_checkpoint_store).expanduser()
+    )
     # Shared with the read-back tool: one instance so the tool reads the same
     # file the workflow writes, and one place to change the path.
     mock_interview_store = SQLiteMockInterviewStore(
@@ -324,6 +327,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(
             main_config, max_output_tokens=main_output_tokens,
         ),
+        checkpointer=main_checkpoint_owner.saver,
         career_context_projector=CareerContextProjector(
             career_history_store,
             semantic_retriever=semantic_retriever,
@@ -340,7 +344,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             Path(args.context_store).expanduser()
         ),
         turn_receipt_store=turn_receipt_store,
-        owned_resources=(mock_checkpoint_owner, job_research_checkpoint_owner),
+        owned_resources=(
+            main_checkpoint_owner,
+            mock_checkpoint_owner,
+            job_research_checkpoint_owner,
+        ),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,
             job_capture_store=SQLiteJobCaptureStore(Path(args.job_store).expanduser()),
@@ -433,6 +441,11 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
         "--job-research-store",
         default="~/.career-agent/job-research.sqlite3",
         help="Local durable job-research run, source, and report store path.",
+    )
+    parser.add_argument(
+        "--main-agent-checkpoint-store",
+        default="~/.career-agent/main-agent-checkpoints.sqlite3",
+        help="Local durable LangGraph checkpoint store for the main agent.",
     )
     parser.add_argument(
         "--job-research-checkpoint-store",
@@ -1450,6 +1463,7 @@ def _backup_plan(args: argparse.Namespace) -> BackupPlan:
         Path(args.application_store),
         Path(args.job_store),
         Path(args.job_research_store),
+        Path(args.main_agent_checkpoint_store),
         Path(args.job_research_checkpoint_store),
         Path(args.email_store),
         Path(args.action_store),

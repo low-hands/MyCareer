@@ -7,7 +7,9 @@ depending on the ``MainAgentRuntime`` facade.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from career_agent.agent.runtime.authorization_engine import AuthorizationEngine
@@ -30,6 +32,7 @@ from career_agent.agent.runtime.observation_reducer import (
     tool_observation,
 )
 from career_agent.agent.runtime.ports import DecisionMakerSlot, RuntimePorts
+from career_agent.agent.runtime.suspension import suspend_for_interaction
 from career_agent.agent.presentation.engine import PresentationEngine
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
 from career_agent.agent.presentation.presenter import TurnPresenter
@@ -91,6 +94,7 @@ def build_main_runtime_components(
     tools: MainAgentToolRegistry,
     ports: RuntimePorts,
     decision_heartbeat_seconds: float,
+    checkpointer: Any | None,
     career_context_projector: CareerContextProjector | None,
     max_read_calls: int,
     max_write_calls: int,
@@ -214,11 +218,13 @@ def build_main_runtime_components(
                 renderer=turn_presenter,
             ),
             interrupt=interaction_renderer.interrupt,
+            suspend=suspend_for_interaction,
             route_entry=GraphRoutingPolicy.route_entry,
             route_decision=GraphRoutingPolicy.route_decision,
             after_authorize=GraphRoutingPolicy.after_authorize,
             after_observe=GraphRoutingPolicy.after_observe,
-        )
+        ),
+        checkpointer=checkpointer or InMemorySaver(),
     )
     agent_loop = AgentLoop(
         graph=graph,
@@ -250,6 +256,7 @@ def build_main_runtime_components(
                 interaction_coordinator.prepare_questionnaire_continuation
             ),
             run_loaded_context=turn_router.run_loaded_context,
+            resume_questionnaire=agent_loop.resume_model,
             run_interaction_response=(
                 confirmation_coordinator.run_owner_confirmation
             ),

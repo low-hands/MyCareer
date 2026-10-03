@@ -32,6 +32,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewReport,
 )
 from career_agent.harness.observability import InMemoryTraceRecorder
+from career_agent.harness.agent_loop import main_graph_thread_id
 from career_agent.services.applications import ApplicationService
 from career_agent.storage.applications import SQLiteApplicationStore
 from career_agent.storage.context import CareerContextStore
@@ -913,7 +914,14 @@ def test_runtime_workflow_action_obeys_the_standard_write_budget(tmp_path) -> No
                 "retryable_fingerprints": (),
                 "retry_counts": {},
             },
-        }
+        },
+        config={
+            "configurable": {
+                "thread_id": main_graph_thread_id(
+                    user_id="u1", conversation_id="c1"
+                )
+            }
+        },
     )
 
     assert graph.resumes == []

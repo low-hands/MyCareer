@@ -107,6 +107,7 @@ class TurnLifecycleOperations(Generic[TurnResultT]):
     owns_next_turn: Callable[[ConversationTaskState], bool]
     prepare_questionnaire_continuation: Callable[..., MainAgentContext]
     run_loaded_context: Callable[..., TurnResultT]
+    resume_questionnaire: Callable[[MainAgentContext], TurnResultT]
     run_interaction_response: Callable[..., TurnResultT]
     run_owned_workflow_turn: Callable[..., TurnResultT]
     commit_interrupted_turn: Callable[..., None]
@@ -454,7 +455,7 @@ class TurnCoordinator(Generic[TurnResultT]):
             task=task,
         )
         try:
-            result = self._operations.run_loaded_context(context)
+            result = self._operations.resume_questionnaire(context)
         except Exception as error:
             self._operations.commit_interrupted_turn(
                 context=context, error=error

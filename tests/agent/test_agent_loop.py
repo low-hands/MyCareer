@@ -6,16 +6,18 @@ from career_agent.agent.contracts.main_agent import (
     ToolObservation,
 )
 from career_agent.agent.contracts.turn import ModelDecision, RuntimePolicyAction
-from career_agent.harness.agent_loop import AgentLoop
+from career_agent.harness.agent_loop import AgentLoop, main_graph_thread_id
 
 
 class RecordingGraph:
     def __init__(self, *, artifact_ids=()) -> None:
         self.input = None
         self.artifact_ids = artifact_ids
+        self.config = None
 
-    def invoke(self, state):
+    def invoke(self, state, config=None):
         self.input = state
+        self.config = config
         terminal = dict(state)
         terminal.update(
             {
@@ -38,7 +40,10 @@ class RecordingGraph:
 
 
 def _context():
-    return SimpleNamespace(profile=SimpleNamespace(user_id="u1"))
+    return SimpleNamespace(
+        conversation_id="c1",
+        profile=SimpleNamespace(user_id="u1"),
+    )
 
 
 def test_agent_loop_owns_common_initial_state_and_model_result_conversion() -> None:
@@ -65,6 +70,11 @@ def test_agent_loop_owns_common_initial_state_and_model_result_conversion() -> N
     assert graph.input["career_memory_scope_keys"] == ("scope-1",)
     assert graph.input["artifact_ids"] == ()
     assert graph.input["tool_results"] == ()
+    assert graph.input["decision"] is prelude_decision
+    assert graph.input["pending"]["policy_prelude"] is True
+    assert graph.input["authorization_route"] is None
+    assert graph.input["assistant_message"] == ""
+    assert graph.input["model_message"] == ""
     assert graph.input["control"] == {
         "read_calls": 0,
         "write_calls": 0,
@@ -74,7 +84,11 @@ def test_agent_loop_owns_common_initial_state_and_model_result_conversion() -> N
         "retryable_fingerprints": (),
         "retry_counts": {},
     }
-    assert graph.input["decision"] is prelude_decision
+    assert graph.config == {
+        "configurable": {
+            "thread_id": main_graph_thread_id(user_id="u1", conversation_id="c1")
+        }
+    }
     assert isinstance(turn.origin, ModelDecision)
     assert turn.artifacts == ("file",)
     assert turn.delegated_read_count == 2
@@ -106,3 +120,19 @@ def test_agent_loop_preserves_runtime_owned_origin() -> None:
     assert graph.input["pending"]["policy_owned"] is True
     assert turn.origin is origin
     assert turn.model_decision is None
+
+
+def test_main_graph_thread_id_is_stable_scoped_and_opaque() -> None:
+    first = main_graph_thread_id(user_id="u1", conversation_id="conversation-a")
+
+    assert first == main_graph_thread_id(
+        user_id="u1", conversation_id="conversation-a"
+    )
+    assert first != main_graph_thread_id(
+        user_id="u2", conversation_id="conversation-a"
+    )
+    assert first != main_graph_thread_id(
+        user_id="u1", conversation_id="conversation-b"
+    )
+    assert "u1" not in first
+    assert "conversation-a" not in first

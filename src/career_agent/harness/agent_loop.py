@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
+from hashlib import sha256
+from typing import Any, Protocol
+
+from langgraph.types import Command
 
 from career_agent.agent.contracts.main_agent import AgentDecision, MainAgentContext
 from career_agent.agent.runtime.state import MainAgentState, PendingAction
@@ -16,7 +19,18 @@ from career_agent.domain.resume import ResumeArtifactDelivery
 class GraphInvoker(Protocol):
     """The narrow part of a compiled LangGraph used by the turn harness."""
 
-    def invoke(self, input: MainAgentState) -> MainAgentState: ...
+    def invoke(
+        self,
+        input: MainAgentState | Command[Any],
+        config: dict[str, object] | None = None,
+    ) -> MainAgentState: ...
+
+
+def main_graph_thread_id(*, user_id: str, conversation_id: str) -> str:
+    """Return a stable, opaque checkpoint namespace for one conversation."""
+
+    identity = f"{len(user_id)}:{user_id}{len(conversation_id)}:{conversation_id}"
+    return f"main-agent:{sha256(identity.encode('utf-8')).hexdigest()}"
 
 
 class ResumeArtifactDeliverer(Protocol):
@@ -56,9 +70,18 @@ class AgentLoop:
 
         state: MainAgentState = {
             "context": context,
+            # A new input on an existing LangGraph thread merges with its last
+            # checkpoint. Reset every per-turn channel explicitly so only the
+            # durable checkpoint history carries across turns, never stale
+            # execution state.
+            "decision": None,
+            "pending": {},
+            "authorization_route": None,
             "career_memory_scope_keys": self._memory_scope_keys(context),
             "artifact_ids": (),
             "tool_results": (),
+            "assistant_message": "",
+            "model_message": "",
             "control": {
                 "read_calls": 0,
                 "write_calls": 0,
@@ -91,8 +114,43 @@ class AgentLoop:
                 decision=decision,
                 pending=pending,
                 prelude=prelude,
-            )
+            ),
+            config=self._config(context),
         )
+
+    def resume_model(self, context: MainAgentContext) -> MainAgentTurnResult:
+        """Resume a questionnaire suspension with validated fresh-turn state."""
+
+        state = self._graph.invoke(
+            Command(resume=self.initial_state(context)),
+            config=self._config(context),
+        )
+        decision = state.get("decision")
+        if decision is None:
+            raise RuntimeError("resumed main agent graph completed without a decision")
+        artifacts = tuple(
+            self._deliver_resume_artifact(
+                user_id=context.profile.user_id,
+                artifact_id=artifact_id,
+            )
+            for artifact_id in state.get("artifact_ids", ())
+        )
+        return self.result_from_state(
+            state,
+            origin=ModelDecision(decision),
+            artifacts=artifacts,
+        )
+
+    @staticmethod
+    def _config(context: MainAgentContext) -> dict[str, object]:
+        return {
+            "configurable": {
+                "thread_id": main_graph_thread_id(
+                    user_id=context.profile.user_id,
+                    conversation_id=context.conversation_id,
+                )
+            }
+        }
 
     def run_model(
         self,

@@ -8,6 +8,22 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 
+_ALLOWED_CHECKPOINT_MODELS = (
+    (
+        "career_agent.agent.contracts.main_agent",
+        "MainAgentContext",
+    ),
+    (
+        "career_agent.agent.contracts.main_agent",
+        "AgentDecision",
+    ),
+    (
+        "career_agent.agent.contracts.main_agent",
+        "ToolResult",
+    ),
+)
+
+
 class SQLiteCheckpointOwner:
     """Owns one synchronous SQLite checkpointer and its connection lifecycle."""
 
@@ -27,7 +43,11 @@ class SQLiteCheckpointOwner:
             serde=JsonPlusSerializer(
                 pickle_fallback=False,
                 allowed_json_modules=None,
-                allowed_msgpack_modules=None,
+                # Main graph nodes require these outer contracts to retain
+                # their validated Pydantic types after a process restart.
+                # Keep the allowlist exact rather than enabling arbitrary
+                # constructor imports during checkpoint deserialization.
+                allowed_msgpack_modules=_ALLOWED_CHECKPOINT_MODELS,
             ),
         )
         self.saver.setup()

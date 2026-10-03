@@ -54,9 +54,10 @@ class MainAgentState(TypedDict, total=False):
     """The complete and intentionally small state persisted by LangGraph."""
 
     context: MainAgentContext
-    decision: AgentDecision
+    # ``None`` explicitly clears a prior checkpoint when a new turn starts.
+    decision: AgentDecision | None
     pending: PendingAction
-    authorization_route: Literal["act", "observe", "present", "interrupt"]
+    authorization_route: Literal["act", "observe", "present", "interrupt"] | None
     tool_results: tuple[ToolObservation, ...]
     control: LoopControl
     artifact_ids: tuple[str, ...]
