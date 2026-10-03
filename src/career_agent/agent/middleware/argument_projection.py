@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from career_agent.agent.main_agent_contracts import (
     GetCareerMemoryDetailToolArguments,
@@ -38,28 +39,6 @@ from career_agent.agent.main_agent_contracts import (
 from career_agent.agent.main_state import MainAgentState
 
 
-class ArgumentProjectionHost(Protocol):
-    """Projection hooks kept injectable for runtime variants and focused tests."""
-
-    def _project_runtime_workflow_arguments(
-        self, state: MainAgentState, name: str
-    ) -> dict[str, Any]: ...
-
-    def _project_atomic_tool_arguments(
-        self, context: MainAgentContext, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]: ...
-
-    def _project_workflow_arguments(
-        self, context: MainAgentContext, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]: ...
-
-    def _reraise_security_refusal(self, error: ValueError) -> None: ...
-
-    def _rejection_observation(
-        self, name: str, error: ValueError
-    ) -> ToolObservation: ...
-
-
 @dataclass(frozen=True)
 class ProjectedArguments:
     arguments: dict[str, Any]
@@ -82,9 +61,24 @@ class ArgumentProjectionMiddleware:
     """
 
     def __init__(
-        self, *, host: ArgumentProjectionHost, max_projection_refusals: int
+        self,
+        *,
+        project_runtime_workflow_arguments: Callable[
+            [MainAgentState, str], dict[str, Any]
+        ],
+        project_atomic_tool_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
+        project_workflow_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
+        max_projection_refusals: int,
     ) -> None:
-        self._host = host
+        self._project_runtime_workflow_arguments = (
+            project_runtime_workflow_arguments
+        )
+        self._project_atomic_tool_arguments = project_atomic_tool_arguments
+        self._project_workflow_arguments = project_workflow_arguments
         self._max_projection_refusals = max_projection_refusals
 
     def project(
@@ -105,13 +99,13 @@ class ArgumentProjectionMiddleware:
             arguments = (
                 state["pending"]["arguments"]
                 if owner_confirmed
-                else self._host._project_runtime_workflow_arguments(state, name)
+                else self._project_runtime_workflow_arguments(state, name)
                 if runtime_owned
-                else self._host._project_atomic_tool_arguments(
+                else self._project_atomic_tool_arguments(
                     state["context"], name, decision.tool_call.arguments
                 )
                 if kind == "atomic_tool"
-                else self._host._project_workflow_arguments(
+                else self._project_workflow_arguments(
                     state["context"], name, decision.tool_call.arguments
                 )
             )
@@ -122,7 +116,7 @@ class ArgumentProjectionMiddleware:
                 }
             return ProjectedArguments(arguments=arguments)
         except ValueError as error:
-            self._host._reraise_security_refusal(error)
+            self.reraise_security_refusal(error)
             control = state.get("control", {})
             if (
                 control.get("projection_refusals", 0)
@@ -131,7 +125,7 @@ class ArgumentProjectionMiddleware:
                 return ProjectionRefusal(
                     state_update={"authorization_route": "present"}
                 )
-            result = self._host._rejection_observation(name, error)
+            result = self.rejection_observation(name, error)
             return ProjectionRefusal(
                 state_update={
                     "authorization_route": "observe",
@@ -145,6 +139,32 @@ class ArgumentProjectionMiddleware:
                     },
                 }
             )
+
+    @staticmethod
+    def reraise_security_refusal(error: ValueError) -> None:
+        """Keep least-privilege violations hard instead of model-repairable."""
+
+        message = str(error)
+        if (
+            "cannot accept internal identifier" in message
+            or "Extra inputs are not permitted" in message
+            or message.startswith("Unknown ")
+        ):
+            raise error
+
+    @staticmethod
+    def rejection_observation(name: str, error: ValueError) -> ToolObservation:
+        """Represent an ordinary projection mismatch as a bounded observation."""
+
+        return ToolObservation(
+            tool_name=name,
+            state="invalid_input",
+            message=f"这步暂时做不到：{error}。",
+            next_action=(
+                "这不是失败，是选择或参数不成立。原样重试没有意义："
+                "换一个已经在上下文里的对象，或者向用户要一个只有他才有的信息。"
+            ),
+        )
 
 
 def project_runtime_owned_arguments(

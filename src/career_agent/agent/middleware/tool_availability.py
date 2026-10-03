@@ -1,18 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal
 
-from career_agent.agent.main_agent_contracts import ConversationTaskState
+from career_agent.agent.main_agent_contracts import (
+    ConversationTaskState,
+    ToolProfile,
+)
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 from career_agent.agent.tool_effects import ToolEffect, effect_for
-
-
-class ToolAvailabilityHost(Protocol):
-    def _offers_tool(
-        self, name: str, profile: str, task: ConversationTaskState
-    ) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -25,9 +23,12 @@ class ToolAvailabilityMiddleware:
     """Resolve execution kind and enforce the active profile's visible tools."""
 
     def __init__(
-        self, *, host: ToolAvailabilityHost, tools: MainAgentToolRegistry
+        self,
+        *,
+        offers_tool: Callable[[str, ToolProfile, ConversationTaskState], bool],
+        tools: MainAgentToolRegistry,
     ) -> None:
-        self._host = host
+        self._offers_tool = offers_tool
         self._tools = tools
 
     def resolve(
@@ -46,7 +47,7 @@ class ToolAvailabilityMiddleware:
         else:
             kind = self._tools.capability_kind(name)
         model_selected = not (runtime_owned or owner_confirmed or policy_owned)
-        if model_selected and not self._host._offers_tool(
+        if model_selected and not self._offers_tool(
             name, task.tool_profile, task
         ):
             return AuthorizationRefusal(

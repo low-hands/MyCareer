@@ -9,21 +9,21 @@ class Host:
         self.interaction = interaction
         self.card_backed = card_backed
 
-    def _interaction_event(self, *, result, conversation_id):
+    def event(self, *, result, conversation_id):
         return self.interaction
 
-    def _turn_resource_refs(self, results):
+    def turn_resource_refs(self, results):
         return ()
 
-    def _conversation_content(self, result, *, screen, composed):
+    def conversation_content(self, result, *, screen, composed):
         assert screen == "durable screen"
         assert composed is True
         return "durable content"
 
-    def _durable_screen(self, result):
+    def durable_screen(self, result):
         return "durable screen"
 
-    def _turn_is_card_backed(self, results):
+    def turn_is_card_backed(self, results):
         return self.card_backed
 
 
@@ -52,7 +52,12 @@ def test_stream_adapter_emits_client_action_before_turn_completion() -> None:
             }
         },
     )
-    adapter = StreamAdapter(host=Host(), emit=events.append)
+    host = Host()
+    adapter = StreamAdapter(
+        interaction_renderer=host,  # type: ignore[arg-type]
+        presenter=host,  # type: ignore[arg-type]
+        emit=events.append,
+    )
 
     adapter.deliver_events(
         result=_turn(results=(result,)),
@@ -72,7 +77,12 @@ def test_stream_adapter_suspends_without_emitting_completion() -> None:
         prompt="请补充信息。",
         allow_free_text=True,
     )
-    adapter = StreamAdapter(host=Host(interaction), emit=events.append)
+    host = Host(interaction)
+    adapter = StreamAdapter(
+        interaction_renderer=host,  # type: ignore[arg-type]
+        presenter=host,  # type: ignore[arg-type]
+        emit=events.append,
+    )
 
     adapter.deliver_events(
         result=_turn(),
@@ -94,7 +104,12 @@ def test_stream_adapter_uses_durable_card_content_for_synthetic_reply() -> None:
         state="job_research_ready",
         message="已读取。",
     )
-    adapter = StreamAdapter(host=Host(card_backed=True), emit=events.append)
+    host = Host(card_backed=True)
+    adapter = StreamAdapter(
+        interaction_renderer=host,  # type: ignore[arg-type]
+        presenter=host,  # type: ignore[arg-type]
+        emit=events.append,
+    )
 
     adapter.deliver_reply(
         result=_turn(results=(result,)),

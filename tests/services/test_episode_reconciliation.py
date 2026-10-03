@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from threading import Event, Lock
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +9,7 @@ from career_agent.agent.main_agent_contracts import (
     ConversationResourceReference,
     ToolObservation,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
 from career_agent.services.episode_consolidation import (
     EpisodeDraftCoverageError,
     drafts_from_tool_results,
@@ -165,7 +165,7 @@ def test_intent_and_tailoring_successes_become_episodes() -> None:
     ]
 
 
-def test_the_runtime_sweeps_each_user_once_per_process_not_once_per_turn() -> None:
+def test_the_coordinator_sweeps_each_user_once_per_process_not_once_per_turn() -> None:
     class CountingReconciler:
         def __init__(self) -> None:
             self.calls: list[str] = []
@@ -175,14 +175,14 @@ def test_the_runtime_sweeps_each_user_once_per_process_not_once_per_turn() -> No
             return EpisodeReconciliationResult(scanned=0, inserted=0)
 
     reconciler = CountingReconciler()
-    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
-    runtime._episode_reconciler = reconciler
-    runtime._reconciled_users = set()
-    runtime._episode_reconcile_guard = Lock()
-    runtime._episode_reconcile_locks = {}
+    coordinator = ReconciliationCoordinator(
+        context_manager=None,
+        action_execution_store=None,
+        episode_reconciler=reconciler,
+    )
 
     for user_id in ("u1", "u1", "u1", "u2", "u1"):
-        runtime._reconcile_episodes(user_id)
+        coordinator.reconcile_episodes(user_id)
 
     # The sweep is a full scan of four domain stores plus one report read per
     # mock session, so repeating it per turn would make every turn pay for the
@@ -190,14 +190,14 @@ def test_the_runtime_sweeps_each_user_once_per_process_not_once_per_turn() -> No
     assert reconciler.calls == ["u1", "u2"]
 
 
-def test_a_runtime_without_a_reconciler_still_takes_turns() -> None:
-    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
-    runtime._episode_reconciler = None
-    runtime._reconciled_users = set()
-    runtime._episode_reconcile_guard = Lock()
-    runtime._episode_reconcile_locks = {}
+def test_a_coordinator_without_a_reconciler_is_a_noop() -> None:
+    coordinator = ReconciliationCoordinator(
+        context_manager=None,
+        action_execution_store=None,
+        episode_reconciler=None,
+    )
 
-    runtime._reconcile_episodes("u1")
+    coordinator.reconcile_episodes("u1")
 
 
 def test_a_failed_turn_invalidates_the_user_sweep_guard() -> None:
@@ -210,15 +210,15 @@ def test_a_failed_turn_invalidates_the_user_sweep_guard() -> None:
             return EpisodeReconciliationResult(scanned=0, inserted=0)
 
     reconciler = CountingReconciler()
-    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
-    runtime._episode_reconciler = reconciler
-    runtime._reconciled_users = set()
-    runtime._episode_reconcile_guard = Lock()
-    runtime._episode_reconcile_locks = {}
+    coordinator = ReconciliationCoordinator(
+        context_manager=None,
+        action_execution_store=None,
+        episode_reconciler=reconciler,
+    )
 
-    runtime._reconcile_episodes("u1")
-    runtime._invalidate_episode_reconciliation("u1")
-    runtime._reconcile_episodes("u1")
+    coordinator.reconcile_episodes("u1")
+    coordinator.invalidate_episode_reconciliation("u1")
+    coordinator.reconcile_episodes("u1")
 
     assert reconciler.calls == ["u1", "u1"]
 
@@ -234,16 +234,16 @@ def test_one_users_sweep_does_not_block_another_user() -> None:
                 assert release_first.wait(timeout=2)
             return EpisodeReconciliationResult(scanned=0, inserted=0)
 
-    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
-    runtime._episode_reconciler = BlockingReconciler()
-    runtime._reconciled_users = set()
-    runtime._episode_reconcile_guard = Lock()
-    runtime._episode_reconcile_locks = {}
+    coordinator = ReconciliationCoordinator(
+        context_manager=None,
+        action_execution_store=None,
+        episode_reconciler=BlockingReconciler(),
+    )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        first = executor.submit(runtime._reconcile_episodes, "u1")
+        first = executor.submit(coordinator.reconcile_episodes, "u1")
         assert first_started.wait(timeout=2)
-        second = executor.submit(runtime._reconcile_episodes, "u2")
+        second = executor.submit(coordinator.reconcile_episodes, "u2")
         second.result(timeout=1)
         release_first.set()
         first.result(timeout=1)

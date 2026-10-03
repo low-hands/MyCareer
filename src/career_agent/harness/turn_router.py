@@ -24,7 +24,6 @@ from career_agent.services.free_text_preferences import is_explicit_confirmation
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
-from career_agent.storage.intent_versions import intent_entry_id
 
 
 PolicyName = Literal[
@@ -234,15 +233,4 @@ class TurnRouter:
                 "arguments": runtime_arguments,
             },
             origin=RuntimeAction(workflow=owned_workflow),
-        )
-
-    @staticmethod
-    def free_text_preference_scope_keys(
-        context: MainAgentContext,
-    ) -> tuple[str, ...]:
-        return tuple(
-            dict.fromkeys(
-                intent_entry_id(item.scope_key, item.pref_scope)
-                for item in context.free_text_preferences
-            )
         )

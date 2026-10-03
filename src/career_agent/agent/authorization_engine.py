@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import Callable
+from typing import Any
 
+from career_agent.agent.main_agent_contracts import (
+    ConversationTaskState,
+    MainAgentContext,
+    ToolProfile,
+)
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.main_state import LoopControl, MainAgentState
 from career_agent.agent.middleware.approval import ApprovalMiddleware
 from career_agent.agent.middleware.argument_projection import (
-    ArgumentProjectionHost,
     ArgumentProjectionMiddleware,
     ProjectionRefusal,
 )
@@ -21,12 +26,10 @@ from career_agent.agent.middleware.idempotency import (
 )
 from career_agent.agent.middleware.tool_availability import (
     AvailableCapability,
-    ToolAvailabilityHost,
     ToolAvailabilityMiddleware,
 )
 from career_agent.agent.middleware.tracing import (
     MiddlewareTracing,
-    MiddlewareTracingHost,
 )
 from career_agent.agent.middleware.working_notes_guard import (
     WorkingNotesGuardMiddleware,
@@ -35,15 +38,6 @@ from career_agent.agent.tool_effects import ToolEffect
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
-
-
-class AuthorizationHost(
-    ArgumentProjectionHost,
-    MiddlewareTracingHost,
-    ToolAvailabilityHost,
-    Protocol,
-):
-    """Runtime hooks consumed by the authorization middleware pipeline."""
 
 
 class AuthorizationEngine:
@@ -56,9 +50,19 @@ class AuthorizationEngine:
     def __init__(
         self,
         *,
-        host: AuthorizationHost,
         tools: MainAgentToolRegistry,
         confirmation_store: SQLiteCapabilityConfirmationStore | None,
+        offers_tool: Callable[[str, ToolProfile, ConversationTaskState], bool],
+        project_runtime_workflow_arguments: Callable[
+            [MainAgentState, str], dict[str, Any]
+        ],
+        project_atomic_tool_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
+        project_workflow_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
+        record_trace_event: Callable[..., None],
         max_read_calls: int,
         max_write_calls: int,
         max_external_write_calls: int,
@@ -66,8 +70,13 @@ class AuthorizationEngine:
         max_authorization_refusals: int,
         max_failure_retries: int,
     ) -> None:
-        self._availability = ToolAvailabilityMiddleware(host=host, tools=tools)
-        self._tracing = MiddlewareTracing(host=host)
+        self._availability = ToolAvailabilityMiddleware(
+            offers_tool=offers_tool,
+            tools=tools,
+        )
+        self._tracing = MiddlewareTracing(
+            record_trace_event=record_trace_event,
+        )
         self._authorization = AuthorizationMiddleware(
             tracing=self._tracing,
             max_refusals=max_authorization_refusals,
@@ -81,7 +90,9 @@ class AuthorizationEngine:
             max_failure_retries=max_failure_retries
         )
         self._argument_projection = ArgumentProjectionMiddleware(
-            host=host,
+            project_runtime_workflow_arguments=project_runtime_workflow_arguments,
+            project_atomic_tool_arguments=project_atomic_tool_arguments,
+            project_workflow_arguments=project_workflow_arguments,
             max_projection_refusals=max_projection_refusals,
         )
         self._working_notes_guard = WorkingNotesGuardMiddleware(

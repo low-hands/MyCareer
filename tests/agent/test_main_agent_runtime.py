@@ -19,6 +19,8 @@ from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferen
 from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
 from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
+from career_agent.agent.presentation.stream_adapter import StreamAdapter
 from career_agent.cli import main as cli_main
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -1298,7 +1300,7 @@ def test_a_key_whose_turn_is_still_running_is_refused_not_replayed(tmp_path) -> 
         tmp_path,
         SequenceDecisionMaker(AgentDecision(action="final", message="完成。")),
     )
-    receipts = runtime._turn_receipt_store
+    receipts = SQLiteTurnReceiptStore(tmp_path / "context.sqlite3")
     assert receipts.begin(
         user_id="u1", conversation_id="c1", request_id="request-1", turn_id="turn-elsewhere"
     ) is None
@@ -1401,7 +1403,8 @@ def test_a_stale_running_key_with_no_write_is_retried_after_recovery(tmp_path) -
     )
     assert ledger.list_for_anchor(user_id="u1", conversation_id="c1", anchor="request-1") == ()
 
-    recovered = runtime._turn_receipt_store.fail_orphaned_running()
+    receipts = SQLiteTurnReceiptStore(tmp_path / "context.sqlite3")
+    recovered = receipts.fail_orphaned_running()
     assert [item.turn_id for item in recovered] == ["turn-dead"]
 
     retried = runtime.run_turn(
@@ -1412,7 +1415,7 @@ def test_a_stale_running_key_with_no_write_is_retried_after_recovery(tmp_path) -
     assert registry.calls == 1
     assert retried.assistant_message == "这次完成了。"
     assert retried.context.task.active_application_id == "app-fresh"
-    receipt = runtime._turn_receipt_store.get(
+    receipt = receipts.get(
         user_id="u1", conversation_id="c1", request_id="request-1"
     )
     assert receipt.status == "COMMITTED"
@@ -1453,7 +1456,7 @@ def test_a_stale_running_key_whose_write_succeeded_replays_it_after_recovery(
         },
     )
 
-    runtime._turn_receipt_store.fail_orphaned_running()
+    SQLiteTurnReceiptStore(tmp_path / "context.sqlite3").fail_orphaned_running()
     retried = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记录投递", request_id="request-1"
     )
@@ -1494,7 +1497,7 @@ def test_a_stale_running_key_with_a_pending_write_demands_reconciliation(
         policy_epoch=1,
     )
 
-    runtime._turn_receipt_store.fail_orphaned_running()
+    SQLiteTurnReceiptStore(tmp_path / "context.sqlite3").fail_orphaned_running()
     retried = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记录投递", request_id="request-1"
     )
@@ -2906,7 +2909,16 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
         )
 
     events: list[object] = []
-    runtime = MainAgentRuntime.__new__(MainAgentRuntime)
+    presenter = MainAgentRuntime._presentation_adapter()
+    adapter = StreamAdapter(
+        interaction_renderer=InteractionRenderer(
+            active_turn_id=MainAgentRuntime._active_turn_id,
+            assistant_message=presenter._assistant_message,
+            has_interaction_renderer=MainAgentRuntime._has_interaction_renderer,
+        ),
+        presenter=presenter,
+        emit=MainAgentRuntime._emit,
+    )
     result = MainAgentTurnResult(
         origin=ModelDecision(AgentDecision(action="final", message="两份都给你了。")),
         context=MainAgentContext(
@@ -2935,7 +2947,7 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
 
     token = _STREAM_SINK.set(events.append)
     try:
-        runtime._deliver_stream_events(
+        adapter.deliver_events(
             result=result, turn_id="t1", conversation_id="c1"
         )
     finally:
@@ -5372,13 +5384,17 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
         tools=registry,
     )
     control = {"read_calls": 2, "write_calls": 3, "external_write_calls": 1}
-    assert runtime._budget_bucket(control, name="search_career_history", effect="READ") == (
+    assert runtime._authorization_engine.budget_bucket(
+        control, name="search_career_history", effect="READ"
+    ) == (
         "READ", 2, 6
     )
-    assert runtime._budget_bucket(control, name="create_application", effect="WRITE") == (
+    assert runtime._authorization_engine.budget_bucket(
+        control, name="create_application", effect="WRITE"
+    ) == (
         "WRITE", 2, 1
     )
-    assert runtime._budget_bucket(
+    assert runtime._authorization_engine.budget_bucket(
         control, name="execute_calendar_proposal", effect="WRITE"
     ) == ("WRITE_EXTERNAL", 1, 1)
     with pytest.raises(ValueError, match="max_external_write_calls"):

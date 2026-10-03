@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import Event
 from time import perf_counter
 from collections.abc import Callable
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 import hashlib
 import json
@@ -35,36 +35,6 @@ from career_agent.agent.main_agent_tools import MainAgentToolRegistry
 from career_agent.agent.main_state import MainAgentState
 
 
-class DecisionEngineHost(Protocol):
-    """Runtime presentation and projection hooks needed by model decisions."""
-
-    def _emit(self, event: PublicStreamEvent) -> None: ...
-
-    def _decision_heartbeat(self, sink: StreamEventSink | None) -> Event: ...
-
-    def _record_trace_event(
-        self,
-        event_type: str,
-        stage: str,
-        *,
-        outcome: str,
-        duration_ms: int | None = None,
-        error_code: str | None = None,
-        error_detail: str | None = None,
-        details: dict[str, Any] | None = None,
-        recoverable: bool | None = None,
-        model_call_category: str | None = None,
-    ) -> None: ...
-
-    def _project_atomic_tool_arguments(
-        self, context: MainAgentContext, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]: ...
-
-    def _project_workflow_arguments(
-        self, context: MainAgentContext, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]: ...
-
-
 class DecisionEngine:
     """Offer reachable schemas, invoke the orchestrator model, and trace its choice."""
 
@@ -76,13 +46,25 @@ class DecisionEngine:
     def __init__(
         self,
         *,
-        host: DecisionEngineHost,
+        emit: Callable[[PublicStreamEvent], None],
+        decision_heartbeat: Callable[[StreamEventSink | None], Event],
+        record_trace_event: Callable[..., None],
+        project_atomic_tool_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
+        project_workflow_arguments: Callable[
+            [MainAgentContext, str, dict[str, Any]], dict[str, Any]
+        ],
         context_manager: ContextManager,
         decision_maker_provider: Callable[[], DecisionMaker],
         tools: MainAgentToolRegistry,
         career_memory_enabled: bool,
     ) -> None:
-        self._host = host
+        self._emit = emit
+        self._decision_heartbeat = decision_heartbeat
+        self._record_trace_event = record_trace_event
+        self._project_atomic_tool_arguments = project_atomic_tool_arguments
+        self._project_workflow_arguments = project_workflow_arguments
         self._context_manager = context_manager
         self._decision_maker_provider = decision_maker_provider
         self._tools = tools
@@ -132,7 +114,7 @@ class DecisionEngine:
         return cached
 
     def decide(self, state: MainAgentState) -> MainAgentState:
-        self._host._emit(
+        self._emit(
             ProgressEvent(stage="deciding", message="正在判断下一步操作……")
         )
         context = state["context"]
@@ -148,7 +130,7 @@ class DecisionEngine:
         decision_maker = self._decision_maker_provider()
         details = self._trace_details(context, schemas, decision_maker)
         started = perf_counter()
-        self._host._record_trace_event(
+        self._record_trace_event(
             "model_attempt",
             "main_agent_decide",
             outcome="started",
@@ -159,16 +141,16 @@ class DecisionEngine:
         def on_attempt(attempt: DecisionAttempt) -> None:
             message = self._attempt_message(attempt)
             if message is not None:
-                self._host._emit(ProgressEvent(stage="deciding", message=message))
+                self._emit(ProgressEvent(stage="deciding", message=message))
 
-        heartbeat = self._host._decision_heartbeat(STREAM_SINK.get())
+        heartbeat = self._decision_heartbeat(STREAM_SINK.get())
         try:
             with observing_decision_attempts(on_attempt):
                 decision = decision_maker.decide(context, schemas)
         except Exception as error:
             self._record_memory_context(context, ())
             failure_details = self._with_cache_metrics(details, decision_maker)
-            self._host._record_trace_event(
+            self._record_trace_event(
                 "model_failed",
                 "main_agent_decide",
                 outcome="failed",
@@ -198,7 +180,7 @@ class DecisionEngine:
                     ).hexdigest(),
                 }
             )
-        self._host._record_trace_event(
+        self._record_trace_event(
             "model_succeeded",
             "main_agent_decide",
             outcome="succeeded",
@@ -216,11 +198,11 @@ class DecisionEngine:
             return ()
         try:
             arguments = (
-                self._host._project_atomic_tool_arguments(
+                self._project_atomic_tool_arguments(
                     context, call.name, call.arguments
                 )
                 if self._tools.capability_kind(call.name) == "atomic_tool"
-                else self._host._project_workflow_arguments(
+                else self._project_workflow_arguments(
                     context, call.name, call.arguments
                 )
             )
@@ -311,7 +293,7 @@ class DecisionEngine:
         context: MainAgentContext,
         note_only_tokens: tuple[str, ...],
     ) -> None:
-        self._host._record_trace_event(
+        self._record_trace_event(
             "memory_context_observed",
             "main_agent_decide",
             outcome="succeeded",

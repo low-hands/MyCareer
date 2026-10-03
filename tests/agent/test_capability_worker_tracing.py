@@ -24,6 +24,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime_observability import RuntimeObservability
 from career_agent.agent.openai_compatible_agent_worker import (
     OpenAICompatibleAgentWorker,
 )
@@ -254,14 +255,14 @@ def test_the_search_step_reads_as_progress_not_as_an_internal_name() -> None:
     from career_agent.harness.capability_steps import CapabilityStep
 
     step = CapabilityStep(stage="job_research.web_search", kind="io", index=2)
-    label = MainAgentRuntime._capability_step_label(step)
+    label = RuntimeObservability.capability_step_label(step)
     assert label == "正在检索公开资料"
     # An io step counts searches, so it must not borrow the model-call wording.
-    assert MainAgentRuntime._capability_step_message(label, step) == (
+    assert RuntimeObservability.capability_step_message(label, step) == (
         "正在检索公开资料（第 2 次）……"
     )
     first = CapabilityStep(stage="job_research.web_search", kind="io", index=1)
-    assert MainAgentRuntime._capability_step_message(label, first) == "正在检索公开资料……"
+    assert RuntimeObservability.capability_step_message(label, first) == "正在检索公开资料……"
 
 
 def test_capability_steps_reach_the_installed_observer_without_a_trace() -> None:

@@ -18,6 +18,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.result_presenter import ResultPresenter
 from career_agent.agent.openai_compatible_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
@@ -2151,7 +2152,10 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     assert observation.state == "resume_tailoring_draft_ready"
     assert [change["change_index"] for change in observation.payload["changes"]] == [1, 2]
     assert observation.payload["gap_mitigations"][0]["priority"] == "P1"
-    rebuilt_result = MainAgentRuntime._resume_tailoring_result(observation)
+    rebuilt_result = ResultPresenter.resume_tailoring_result(
+        observation,
+        report_degraded=MainAgentRuntime._emit_trace,
+    )
     assert rebuilt_result is not None
     assert rebuilt_result.gap_mitigations[0].learning_plan is not None
     assert (

@@ -23,6 +23,7 @@ from career_agent.agent.main_agent_contracts import (
 )
 from career_agent.agent.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
 from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.result_presenter import ResultPresenter
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.storage.context import CareerContextStore
@@ -203,7 +204,11 @@ def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:
     recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
     token = _TRACE_CONTEXT.set((recorder, "turn-presenter"))
     try:
-        assert MainAgentRuntime._validated(PresenterContract, {}) is None
+        assert ResultPresenter.validated(
+            PresenterContract,
+            {},
+            report_degraded=MainAgentRuntime._emit_trace,
+        ) is None
     finally:
         _TRACE_CONTEXT.reset(token)
 

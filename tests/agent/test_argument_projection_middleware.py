@@ -6,7 +6,6 @@ from career_agent.agent.main_agent_contracts import (
     AgentDecision,
     MainAgentContext,
     ToolCall,
-    ToolObservation,
 )
 from career_agent.agent.main_state import MainAgentState
 from career_agent.agent.middleware.argument_projection import (
@@ -41,22 +40,6 @@ class ProjectionHost:
         self.calls.append("workflow")
         return {"bound": "workflow"}
 
-    @staticmethod
-    def _reraise_security_refusal(error: ValueError) -> None:
-        if str(error).startswith("Unknown "):
-            raise error
-
-    @staticmethod
-    def _rejection_observation(
-        name: str, error: ValueError
-    ) -> ToolObservation:
-        return ToolObservation(
-            tool_name=name,
-            state="invalid_input",
-            message=str(error),
-        )
-
-
 def state(*, projection_refusals: int = 0) -> MainAgentState:
     return {
         "context": cast(MainAgentContext, object()),
@@ -68,13 +51,22 @@ def state(*, projection_refusals: int = 0) -> MainAgentState:
     }
 
 
-def test_projects_the_selected_capability_kind() -> None:
-    host = ProjectionHost()
-    middleware = ArgumentProjectionMiddleware(
-        host=host, max_projection_refusals=2
+def middleware(host: ProjectionHost) -> ArgumentProjectionMiddleware:
+    return ArgumentProjectionMiddleware(
+        project_runtime_workflow_arguments=(
+            host._project_runtime_workflow_arguments
+        ),
+        project_atomic_tool_arguments=host._project_atomic_tool_arguments,
+        project_workflow_arguments=host._project_workflow_arguments,
+        max_projection_refusals=2,
     )
 
-    outcome = middleware.project(
+
+def test_projects_the_selected_capability_kind() -> None:
+    host = ProjectionHost()
+    projection = middleware(host)
+
+    outcome = projection.project(
         state(),
         name="example",
         kind="atomic_tool",
@@ -89,12 +81,11 @@ def test_projects_the_selected_capability_kind() -> None:
 
 
 def test_soft_projection_error_becomes_an_observation_until_the_cap() -> None:
-    middleware = ArgumentProjectionMiddleware(
-        host=ProjectionHost(failure=ValueError("selection is unavailable")),
-        max_projection_refusals=2,
+    projection = middleware(
+        ProjectionHost(failure=ValueError("selection is unavailable")),
     )
 
-    retry = middleware.project(
+    retry = projection.project(
         state(projection_refusals=1),
         name="example",
         kind="atomic_tool",
@@ -103,7 +94,7 @@ def test_soft_projection_error_becomes_an_observation_until_the_cap() -> None:
         policy_owned=True,
         policy_prelude=True,
     )
-    capped = middleware.project(
+    capped = projection.project(
         state(projection_refusals=2),
         name="example",
         kind="atomic_tool",
@@ -122,13 +113,12 @@ def test_soft_projection_error_becomes_an_observation_until_the_cap() -> None:
 
 
 def test_security_projection_error_remains_a_hard_failure() -> None:
-    middleware = ArgumentProjectionMiddleware(
-        host=ProjectionHost(failure=ValueError("Unknown protected tool")),
-        max_projection_refusals=2,
+    projection = middleware(
+        ProjectionHost(failure=ValueError("Unknown protected tool")),
     )
 
     with pytest.raises(ValueError, match="Unknown protected tool"):
-        middleware.project(
+        projection.project(
             state(),
             name="example",
             kind="atomic_tool",

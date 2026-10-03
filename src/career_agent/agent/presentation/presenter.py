@@ -80,12 +80,19 @@ class TurnPresenter:
             and result.resource_ref is not None
         )
 
-    def _turn_is_card_backed(
+    def turn_is_card_backed(
         self, results: tuple[MainAgentToolOutput, ...]
     ) -> bool:
         """Whether every delivery in the turn is retrievable through a card."""
 
         return bool(results) and all(self.has_backed_card(item) for item in results)
+
+    def _turn_is_card_backed(
+        self, results: tuple[MainAgentToolOutput, ...]
+    ) -> bool:
+        """Compatibility alias for the original runtime-facing renderer port."""
+
+        return self.turn_is_card_backed(results)
 
     @staticmethod
     def durable_screen(result: MainAgentTurnResult) -> str:

@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Protocol
 
 from career_agent.agent.main_agent_contracts import (
     ConversationResourceReference,
     ToolObservation,
 )
+from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
+from career_agent.agent.presentation.presenter import TurnPresenter
 from career_agent.agent.turn_models import MainAgentTurnResult
 from career_agent.harness.streaming import (
     ArtifactReadyEvent,
     ClientActionEvent,
     ContentDeltaEvent,
-    InteractionRequiredEvent,
     JobResourceReadyEvent,
     ProgressEvent,
     PublicStreamEvent,
@@ -24,42 +24,18 @@ from career_agent.harness.streaming import (
 )
 
 
-class StreamPresentationHost(Protocol):
-    """Pure presentation choices needed to adapt a turn to stream events."""
-
-    def _interaction_event(
-        self, *, result: MainAgentTurnResult, conversation_id: str
-    ) -> InteractionRequiredEvent | None: ...
-
-    def _turn_resource_refs(
-        self, results: tuple[ToolObservation, ...]
-    ) -> tuple[ConversationResourceReference, ...]: ...
-
-    def _conversation_content(
-        self,
-        result: ToolObservation | None,
-        *,
-        screen: str,
-        composed: bool,
-    ) -> str: ...
-
-    def _durable_screen(self, result: MainAgentTurnResult) -> str: ...
-
-    def _turn_is_card_backed(
-        self, results: tuple[ToolObservation, ...]
-    ) -> bool: ...
-
-
 class StreamAdapter:
     """Translate a completed turn into the public streaming protocol."""
 
     def __init__(
         self,
         *,
-        host: StreamPresentationHost,
+        interaction_renderer: InteractionRenderer,
+        presenter: TurnPresenter,
         emit: Callable[[PublicStreamEvent], None],
     ) -> None:
-        self._host = host
+        self._interaction_renderer = interaction_renderer
+        self._presenter = presenter
         self._emit = emit
 
     def deliver_events(
@@ -71,7 +47,7 @@ class StreamAdapter:
     ) -> None:
         self._emit_client_actions(result)
 
-        interaction = self._host._interaction_event(
+        interaction = self._interaction_renderer.event(
             result=result,
             conversation_id=conversation_id,
         )
@@ -95,7 +71,7 @@ class StreamAdapter:
                     byte_size=reference.byte_size,
                 )
             )
-        for reference in self._host._turn_resource_refs(result.tool_results):
+        for reference in self._presenter.turn_resource_refs(result.tool_results):
             self._emit(self.resource_ready_event(reference))
         self._emit(TurnCompletedEvent(turn_id=turn_id))
 
@@ -107,7 +83,7 @@ class StreamAdapter:
     ) -> None:
         """Emit reply text before the coordinator commits the completed turn."""
 
-        interaction = self._host._interaction_event(
+        interaction = self._interaction_renderer.event(
             result=result,
             conversation_id=conversation_id,
         )
@@ -116,12 +92,12 @@ class StreamAdapter:
 
         self._emit(ProgressEvent(stage="presenting", message="正在整理交付内容……"))
         streamed_message = (
-            self._host._conversation_content(
+            self._presenter.conversation_content(
                 result.tool_result,
-                screen=self._host._durable_screen(result),
+                screen=self._presenter.durable_screen(result),
                 composed=bool(result.model_message),
             )
-            if self._host._turn_is_card_backed(result.tool_results)
+            if self._presenter.turn_is_card_backed(result.tool_results)
             else result.assistant_message
         )
         for delta in iter_content_deltas(streamed_message):

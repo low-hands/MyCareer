@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any
 
 from career_agent.agent.context_manager import ContextManager
 from career_agent.agent.main_agent_contracts import (
@@ -46,51 +46,30 @@ _MOCK_INTERVIEW_SELECTION_STATES = frozenset(
 )
 
 
-class ObservationReductionHost(Protocol):
-    """Runtime-owned reducers and renderers used by observation reduction."""
-
-    def _emit_trace(
-        self,
-        event_type: str,
-        stage: str,
-        *,
-        error_code: str | None = None,
-        recoverable: bool | None = None,
-    ) -> None: ...
-
-    def _update_mock_interview_task(
-        self, context: MainAgentContext, result: ToolObservation
-    ) -> MainAgentContext: ...
-
-    def _update_atomic_task(
-        self,
-        context: MainAgentContext,
-        result: ToolObservation,
-        *,
-        now: datetime | None = None,
-    ) -> MainAgentContext: ...
-
-    def _tool_call_fingerprint(self, decision: AgentDecision) -> str: ...
-
-    def _tool_observation(
-        self,
-        name: str,
-        result: MainAgentToolOutput,
-        arguments: dict[str, Any] | None = None,
-    ) -> DecisionObservation: ...
-
-
 class ObservationReducer:
     """Fold one capability result into graph control and conversation context."""
 
     def __init__(
         self,
         *,
-        host: ObservationReductionHost,
         context_manager: ContextManager,
+        emit_trace: Callable[..., None],
+        update_mock_interview_task: Callable[
+            [MainAgentContext, ToolObservation], MainAgentContext
+        ],
+        update_atomic_task: Callable[..., MainAgentContext],
+        tool_call_fingerprint: Callable[[AgentDecision], str],
+        tool_observation: Callable[
+            [str, MainAgentToolOutput, dict[str, Any] | None],
+            DecisionObservation,
+        ],
     ) -> None:
-        self._host = host
         self._context_manager = context_manager
+        self._emit_trace = emit_trace
+        self._update_mock_interview_task = update_mock_interview_task
+        self._update_atomic_task = update_atomic_task
+        self._tool_call_fingerprint = tool_call_fingerprint
+        self._tool_observation = tool_observation
 
     def reduce(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
@@ -101,7 +80,7 @@ class ObservationReducer:
         synthetic_kind = pending.get("synthetic_kind")
 
         if result.disposition == "failed":
-            self._host._emit_trace(
+            self._emit_trace(
                 "capability_failed",
                 capability_name,
                 error_code=(
@@ -149,7 +128,7 @@ class ObservationReducer:
             if decision is not None and decision.tool_call is not None
             else {}
         )
-        observation = self._host._tool_observation(
+        observation = self._tool_observation(
             capability_name, result, written
         )
         updated = updated.model_copy(
@@ -201,8 +180,8 @@ class ObservationReducer:
             result.tool_name in _MOCK_INTERVIEW_TOOLS
             and result.state not in _MOCK_INTERVIEW_SELECTION_STATES
         ):
-            return self._host._update_mock_interview_task(context, result)
-        return self._host._update_atomic_task(
+            return self._update_mock_interview_task(context, result)
+        return self._update_atomic_task(
             context,
             pending.get("reducer_result", result),
             now=self._context_manager.now(),
@@ -229,7 +208,7 @@ class ObservationReducer:
         if effect == "WRITE" and pending["name"] == "analyze_job":
             control["job_analysis_write_used"] = True
 
-        fingerprint = self._host._tool_call_fingerprint(state["decision"])
+        fingerprint = self._tool_call_fingerprint(state["decision"])
         fingerprints = control.get("fingerprints", ())
         if fingerprint not in fingerprints:
             control["fingerprints"] = (*fingerprints, fingerprint)

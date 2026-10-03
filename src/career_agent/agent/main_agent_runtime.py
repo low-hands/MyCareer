@@ -3,37 +3,20 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-import json
 from threading import Event
 from typing import Any, ClassVar, Literal
 
-from career_agent.agent.authorization_engine import AuthorizationEngine
-from career_agent.agent.execution.capability_executor import CapabilityExecutor
 from career_agent.agent.decision_engine import DecisionEngine
-from career_agent.agent.observation_reducer import ObservationReducer
 from career_agent.agent.presentation_engine import PresentationEngine
 from career_agent.agent.result_presenter import ResultPresenter
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
 from career_agent.agent.presentation.presenter import TurnPresenter
-from career_agent.agent.presentation.stream_adapter import StreamAdapter
-from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
 from career_agent.agent.runtime_observability import RuntimeObservability
-from career_agent.agent.interaction_coordinator import (
-    InteractionCoordinator,
-    QuestionnaireContinuationError,
-)
 from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.context_builder import (
-    TurnContextBuilder,
-    keyword_tool_profile,
-)
+from career_agent.agent.context_builder import keyword_tool_profile
 from career_agent.agent.career_context import CareerContextProjector
-from career_agent.harness.capability_steps import (
-    CapabilityStep,
-)
 from career_agent.agent.main_agent_contracts import (
     AgentDecision,
-    AttachedResumeContext,
     ConversationResourceReference,
     ConversationTaskState,
     DECISION_OBSERVATION_BODY_LIMIT,
@@ -41,8 +24,6 @@ from career_agent.agent.main_agent_contracts import (
     DecisionObservation,
     MainAgentContext,
     MAX_DECISION_OBSERVATIONS,
-    SavedJobCandidateContextItem,
-    TOOL_PROFILE_NAMES,
     ToolObservation,
     ToolProfile,
 )
@@ -53,56 +34,32 @@ from career_agent.harness.observability import (
     TraceRecorder,
 )
 from career_agent.agent.delivery_policy import condenses_message
-from career_agent.agent.tool_effects import (
-    ToolEffect,
-)
-from career_agent.agent.middleware.contracts import AuthorizationRefusalKind
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
 from career_agent.agent.main_agent_reducers import reduce_task_state
 from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
-from career_agent.agent.main_state import LoopControl, MainAgentState, PendingAction
-from career_agent.agent.main_graph import build_main_graph
+from career_agent.agent.main_state import MainAgentState, PendingAction
+from career_agent.agent.runtime_composition import install_main_runtime_components
 from career_agent.agent.turn_models import (
     InteractionReceipt,
     MainAgentTurnResult,
     ModelDecision,
-    OriginKind,
-    Originator,
     RuntimeAction,
     RuntimePolicyAction,
-    TurnOrigin,
 )
 from career_agent.agent.middleware.argument_projection import (
     project_atomic_arguments,
     project_runtime_owned_arguments,
     project_workflow_arguments,
 )
-from career_agent.agent.job_analysis_contracts import JobAnalysisResult
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
-from career_agent.domain.job_comparison import JobComparison
-from career_agent.domain.applications.models import ApplicationStatus
-from career_agent.agent.mock_interview_contracts import (
-    MockInterviewGraphResult,
-)
-from career_agent.domain.interview_preparation import InterviewPreparationResult
-from career_agent.domain.job_research import JobResearchDraft
 from career_agent.services.episode_reconciliation import EpisodeReconciler
-from career_agent.harness.agent_loop import AgentLoop
-from career_agent.harness.confirmation_coordinator import (
-    CapabilityConfirmationCoordinator,
-)
 from career_agent.harness.graph_routing import GraphRoutingPolicy
 from career_agent.harness.turn_router import TurnRouter
 from career_agent.harness.streaming import (
-    InteractionOption,
     InteractionRequiredEvent,
     InteractionResponse,
-    JobResourceReadyEvent,
     PublicStreamEvent,
-    ReportReadyEvent,
     StreamEventSink,
     TurnInputResource,
 )
@@ -118,7 +75,6 @@ from career_agent.agent.turn_coordinator import (
     STREAM_SINK as _STREAM_SINK,
     TRACE_CONTEXT as _TRACE_CONTEXT,
     ReplayedTurn,
-    TurnCoordinator,
     TurnInProgressError,
 )
 
@@ -172,7 +128,6 @@ class MainAgentRuntime:
         context_manager.on_compaction(self._announce_compaction)
         self._decision_maker = decision_maker
         self._tools = tools
-        self._career_context_projector = career_context_projector
         self._max_read_calls = max_read_calls
         self._max_write_calls = max_write_calls
         self._max_external_write_calls = max_external_write_calls
@@ -180,137 +135,28 @@ class MainAgentRuntime:
         self._max_authorization_refusals = max_authorization_refusals
         self._max_failure_retries = max_failure_retries
         self._trace_recorder = trace_recorder
-        self._runtime_observability = RuntimeObservability(
-            trace_recorder=trace_recorder,
-        )
         self._capability_confirmation_store = capability_confirmation_store
-        # Transitional compatibility for startup recovery and focused tests.
-        # Turn lifecycle operations are owned by ``_turn_coordinator``; callers
-        # that enumerate orphaned receipts still need direct store access until
-        # recovery is moved to the ingress layer in the next extraction.
-        self._turn_receipt_store = turn_receipt_store
         self._action_policy_epoch = action_policy_epoch
-        self._reconciliation = ReconciliationCoordinator(
+        self._owned_resources = owned_resources
+        self._closed = False
+        install_main_runtime_components(
+            self,
             context_manager=context_manager,
-            action_execution_store=action_execution_store,
-            episode_reconciler=episode_reconciler,
-        )
-        self._context_builder = TurnContextBuilder(
-            context_manager=context_manager,
+            decision_maker=decision_maker,
             tools=tools,
-            owns_next_turn=self._owns_next_turn,
-        )
-        self._turn_coordinator = TurnCoordinator(
-            host=self,
-            context_manager=context_manager,
-            context_builder=self._context_builder,
-            receipt_store=turn_receipt_store,
-            trace_recorder=trace_recorder,
-        )
-        self._authorization_engine = AuthorizationEngine(
-            host=self,
-            tools=tools,
-            confirmation_store=capability_confirmation_store,
+            career_context_projector=career_context_projector,
             max_read_calls=max_read_calls,
             max_write_calls=max_write_calls,
             max_external_write_calls=max_external_write_calls,
             max_projection_refusals=max_projection_refusals,
             max_authorization_refusals=max_authorization_refusals,
             max_failure_retries=max_failure_retries,
-        )
-        self._capability_executor = CapabilityExecutor(
-            host=self,
-            tools=tools,
+            trace_recorder=trace_recorder,
             action_execution_store=action_execution_store,
+            capability_confirmation_store=capability_confirmation_store,
+            turn_receipt_store=turn_receipt_store,
             action_policy_epoch=action_policy_epoch,
-        )
-        self._observation_reducer = ObservationReducer(
-            host=self,
-            context_manager=context_manager,
-        )
-        self._decision_engine = DecisionEngine(
-            host=self,
-            context_manager=context_manager,
-            decision_maker_provider=lambda: self._decision_maker,
-            tools=tools,
-            career_memory_enabled=career_context_projector is not None,
-        )
-        self._interaction_coordinator = InteractionCoordinator(
-            context_manager=context_manager,
-            tools=tools,
-            confirmation_store=capability_confirmation_store,
-        )
-        self._interaction_renderer = InteractionRenderer(
-            active_turn_id=self._active_turn_id,
-            assistant_message=self._assistant_message,
-            has_interaction_renderer=self._has_interaction_renderer,
-        )
-        self._stream_adapter = StreamAdapter(host=self, emit=self._emit)
-        self._owned_resources = owned_resources
-        self._closed = False
-        request_token_usage = getattr(decision_maker, "request_token_usage", None)
-        if callable(request_token_usage):
-
-            def estimate_complete_request(
-                context: MainAgentContext,
-            ) -> tuple[int, int]:
-                if self._career_context_projector is not None:
-                    context = context.model_copy(
-                        update={
-                            "career_memory": self._career_context_projector.project(
-                                user_id=context.profile.user_id,
-                                query=context.user_message,
-                            )
-                        }
-                    )
-                return request_token_usage(
-                    context, self._decision_tool_schemas(
-                        context.task.tool_profile, context.task
-                    )
-                )
-
-            static_request_token_usage = getattr(
-                decision_maker, "static_request_token_usage", None
-            )
-            if not callable(static_request_token_usage):
-                raise ValueError(
-                    "decision makers that report request token usage must also "
-                    "report static request token usage"
-                )
-            # The message and recent-window caps must not move with the
-            # profile, so they are derived from the largest profile's request.
-            static_tokens, max_input_tokens = max(
-                (
-                    static_request_token_usage(self._decision_tool_schemas(profile))
-                    for profile in TOOL_PROFILE_NAMES
-                ),
-                key=lambda usage: usage[0],
-            )
-            self._context_manager.configure_request_token_estimator(
-                estimate_complete_request,
-                static_input_tokens=static_tokens,
-                max_input_tokens=max_input_tokens,
-            )
-
-        self._graph = build_main_graph(self)
-        self._agent_loop = AgentLoop(
-            graph=self._graph,
-            memory_scope_keys=TurnRouter.free_text_preference_scope_keys,
-            # Keep artifact support lazy: several narrow registry doubles only
-            # implement the workflow surface they exercise, just as before.
-            deliver_resume_artifact=lambda **kwargs: (
-                self._tools.deliver_resume_artifact(**kwargs)
-            ),
-        )
-        self._turn_router = TurnRouter(
-            context_manager=context_manager,
-            confirmation_store=capability_confirmation_store,
-            agent_loop=self._agent_loop,
-        )
-        self._confirmation_coordinator = CapabilityConfirmationCoordinator(
-            confirmation_store=capability_confirmation_store,
-            interaction_coordinator=self._interaction_coordinator,
-            agent_loop=self._agent_loop,
+            episode_reconciler=episode_reconciler,
         )
 
     @staticmethod
@@ -329,14 +175,6 @@ class MainAgentRuntime:
     @staticmethod
     def _emit(event: PublicStreamEvent) -> None:
         RuntimeObservability.emit(event)
-
-    @staticmethod
-    def _public_capability(name: str) -> str:
-        return RuntimeObservability.public_capability(name)
-
-    _CAPABILITY_LABELS: ClassVar[dict[str, str]] = (
-        RuntimeObservability.CAPABILITY_LABELS
-    )
 
     @classmethod
     def _emit_capability_started(cls, name: str) -> None:
@@ -375,15 +213,6 @@ class MainAgentRuntime:
             event_sink=event_sink,
             input_resources=input_resources,
         )
-
-    def _observability_service(self) -> RuntimeObservability:
-        service = getattr(self, "_runtime_observability", None)
-        if service is None:
-            service = RuntimeObservability(
-                trace_recorder=getattr(self, "_trace_recorder", None),
-            )
-            self._runtime_observability = service
-        return service
 
     def _emit_turn_failure(
         self,
@@ -449,14 +278,14 @@ class MainAgentRuntime:
         conversation_id: str,
         result: MainAgentTurnResult,
     ) -> None:
-        self._observability_service().record_turn(
+        self._runtime_observability.record_turn(
             turn_id=turn_id,
             conversation_id=conversation_id,
             result=result,
         )
 
     def record_rejected_turn(self, *, user_id: str, conversation_id: str) -> None:
-        self._observability_service().record_rejected_turn(
+        self._runtime_observability.record_rejected_turn(
             user_id=user_id,
             conversation_id=conversation_id,
         )
@@ -472,7 +301,7 @@ class MainAgentRuntime:
         turn_id: str | None = None,
         error_code: str | None = None,
     ) -> None:
-        self._observability_service().record_capture_continuation(
+        self._runtime_observability.record_capture_continuation(
             user_id=user_id,
             conversation_id=conversation_id,
             capture_event_id=capture_event_id,
@@ -490,49 +319,26 @@ class MainAgentRuntime:
         error: Exception,
         reply_delivered: bool = False,
     ) -> None:
-        self._observability_service().record_turn_failed(
+        self._runtime_observability.record_turn_failed(
             turn_id=turn_id,
             conversation_id=conversation_id,
             error=error,
             reply_delivered=reply_delivered,
         )
 
-    def _reconciliation_service(self) -> ReconciliationCoordinator:
-        service = getattr(self, "_reconciliation", None)
-        if service is None:
-            # Compatibility for focused callers that construct the runtime
-            # without __init__ and inject the former fields directly.
-            service = ReconciliationCoordinator(
-                context_manager=getattr(self, "_context_manager", None),
-                action_execution_store=getattr(
-                    self, "_action_execution_store", None
-                ),
-                episode_reconciler=getattr(self, "_episode_reconciler", None),
-                reconciled_users=getattr(self, "_reconciled_users", None),
-                reconcile_guard=getattr(
-                    self, "_episode_reconcile_guard", None
-                ),
-                user_locks=getattr(self, "_episode_reconcile_locks", None),
-            )
-            self._reconciliation = service
-        return service
-
     def _commit_interrupted_turn(
         self, *, context: MainAgentContext, error: Exception
     ) -> None:
-        self._reconciliation_service().commit_interrupted_turn(
+        self._reconciliation.commit_interrupted_turn(
             context=context,
             error=error,
         )
 
     def _reconcile_episodes(self, user_id: str) -> None:
-        self._reconciliation_service().reconcile_episodes(user_id)
+        self._reconciliation.reconcile_episodes(user_id)
 
     def _invalidate_episode_reconciliation(self, user_id: str) -> None:
-        self._reconciliation_service().invalidate_episode_reconciliation(user_id)
-
-    def _episode_reconcile_user_lock(self, user_id: str):
-        return self._reconciliation_service().user_lock(user_id)
+        self._reconciliation.invalidate_episode_reconciliation(user_id)
 
     def _attach_destructive_confirmation(self, result: MainAgentTurnResult) -> None:
         self._confirmation_coordinator.attach_destructive_confirmation(result)
@@ -553,25 +359,6 @@ class MainAgentRuntime:
         )
 
     @staticmethod
-    def _attach_input_resources(
-        context: MainAgentContext,
-        attached_resumes: tuple[AttachedResumeContext, ...],
-        attached_jobs: tuple[SavedJobCandidateContextItem, ...] = (),
-        active_application: tuple[
-            str | None, ApplicationStatus | None
-        ] = (None, None),
-    ) -> MainAgentContext:
-        return TurnContextBuilder.attach_input_resources(
-            context,
-            attached_resumes,
-            attached_jobs,
-            active_application,
-        )
-
-    def _refresh_saved_job_focus(self, context: MainAgentContext) -> MainAgentContext:
-        return self._context_builder.refresh_saved_job_focus(context)
-
-    @staticmethod
     def _active_turn_id() -> str | None:
         invocation = _ACTION_INVOCATION.get()
         return invocation[0] if invocation is not None else None
@@ -583,24 +370,11 @@ class MainAgentRuntime:
         turn_id: str,
         conversation_id: str,
     ) -> None:
-        self._stream_delivery_adapter().deliver_events(
+        self._stream_adapter.deliver_events(
             result=result,
             turn_id=turn_id,
             conversation_id=conversation_id,
         )
-
-    def _stream_delivery_adapter(self) -> StreamAdapter:
-        adapter = getattr(self, "_stream_adapter", None)
-        if adapter is None:
-            adapter = StreamAdapter(host=self, emit=self._emit)
-            self._stream_adapter = adapter
-        return adapter
-
-    @staticmethod
-    def _resource_ready_event(
-        reference: ConversationResourceReference,
-    ) -> ReportReadyEvent | JobResourceReadyEvent:
-        return StreamAdapter.resource_ready_event(reference)
 
     def _deliver_reply(
         self,
@@ -608,7 +382,7 @@ class MainAgentRuntime:
         result: MainAgentTurnResult,
         conversation_id: str,
     ) -> None:
-        self._stream_delivery_adapter().deliver_reply(
+        self._stream_adapter.deliver_reply(
             result=result,
             conversation_id=conversation_id,
         )
@@ -640,49 +414,6 @@ class MainAgentRuntime:
             context=context, conversation_id=conversation_id, response=response
         )
 
-    def _run_owner_confirmation(
-        self,
-        *,
-        context: MainAgentContext,
-        conversation_id: str,
-        response: InteractionResponse,
-    ) -> MainAgentTurnResult:
-        return self._confirmation_coordinator.run_owner_confirmation(
-            context=context,
-            conversation_id=conversation_id,
-            response=response,
-        )
-
-    @staticmethod
-    def _settled_confirmation_turn(
-        context: MainAgentContext,
-        message: str,
-        *,
-        state: str,
-        action: str = "confirm",
-    ) -> MainAgentTurnResult:
-        return CapabilityConfirmationCoordinator.settled_turn(
-            context,
-            message,
-            state=state,
-            action=action,
-        )
-
-    @staticmethod
-    def _mock_interview_resume_choice_event(
-        event_id: str, prompt: str, task: ConversationTaskState
-    ) -> InteractionRequiredEvent:
-        return InteractionRenderer._mock_interview_resume_choice_event(
-            event_id, prompt, task
-        )
-
-    @staticmethod
-    def _selection_options(
-        tool_result: MainAgentToolOutput | None,
-        task: ConversationTaskState,
-    ) -> tuple[InteractionOption, ...]:
-        return InteractionRenderer._selection_options(tool_result, task)
-
     def accepts_background_turn(self, *, user_id: str, conversation_id: str) -> bool:
         return self._turn_router.accepts_background_turn(
             user_id=user_id,
@@ -708,12 +439,6 @@ class MainAgentRuntime:
             bare_confirmation_target=bare_confirmation_target,
         )
 
-    def _explicit_span_prelude(self, context: MainAgentContext) -> MainAgentState:
-        return self._turn_router.explicit_span_prelude(context)
-
-    def _registered_schemas(self) -> tuple[dict[str, Any], ...]:
-        return self._decision_engine.registered_schemas()
-
     def _decision_tool_schemas(
         self, profile: ToolProfile, task: ConversationTaskState | None = None
     ) -> tuple[dict[str, Any], ...]:
@@ -727,42 +452,7 @@ class MainAgentRuntime:
     ) -> bool:
         return TurnRouter.offers_tool(name, profile, task)
 
-    def _run_free_text_preference_confirmation(
-        self,
-        context: MainAgentContext,
-    ) -> MainAgentTurnResult:
-        return self._turn_router.run_runtime_policy_tool(
-            context,
-            policy="free_text_preference_confirmation",
-            tool_name="propose_free_text_preference_confirmation",
-            arguments={"selection_index": 1},
-        )
-
-    def _run_runtime_policy_tool(
-        self,
-        context: MainAgentContext,
-        *,
-        policy: Literal[
-            "free_text_preference_confirmation",
-            "free_text_preference_activation",
-            "career_fact_confirmation",
-            "job_intent_confirmation",
-        ],
-        tool_name: str,
-        arguments: dict[str, Any],
-    ) -> MainAgentTurnResult:
-        return self._turn_router.run_runtime_policy_tool(
-            context,
-            policy=policy,
-            tool_name=tool_name,
-            arguments=arguments,
-        )
-
     DECISION_HEARTBEAT_SECONDS: ClassVar[float] = 15.0
-    _COMPACTION_MESSAGES = RuntimeObservability.COMPACTION_MESSAGES
-    _CAPABILITY_STEP_MESSAGES = RuntimeObservability.CAPABILITY_STEP_MESSAGES
-    _CAPABILITY_TOOL_MESSAGES = RuntimeObservability.CAPABILITY_TOOL_MESSAGES
-
     def _announce_compaction(self, phase: str) -> None:
         RuntimeObservability.announce_compaction(phase)
 
@@ -789,14 +479,6 @@ class MainAgentRuntime:
             describe=lambda waited: f"仍在等待模型判断（已等待 {waited} 秒）……",
         )
 
-    @classmethod
-    def _capability_step_label(cls, step: CapabilityStep) -> str | None:
-        return RuntimeObservability.capability_step_label(step)
-
-    @staticmethod
-    def _capability_step_message(label: str, step: CapabilityStep) -> str:
-        return RuntimeObservability.capability_step_message(label, step)
-
     def _run_capability(
         self,
         pending: PendingAction,
@@ -811,11 +493,6 @@ class MainAgentRuntime:
     def _decide(self, state: MainAgentState) -> MainAgentState:
         return self._decision_engine.decide(state)
 
-    def _decision_note_only_tokens(
-        self, context: MainAgentContext, decision: AgentDecision
-    ) -> tuple[str, ...]:
-        return self._decision_engine.note_only_tokens(context, decision)
-
     def _run_owned_workflow_turn(
         self, *, context: MainAgentContext, user_message: str
     ) -> MainAgentTurnResult:
@@ -825,38 +502,7 @@ class MainAgentRuntime:
         )
 
     def _hydrate_career_context(self, state: MainAgentState) -> MainAgentState:
-        context = state["context"]
-        free_text_scope_keys = self._free_text_preference_scope_keys(context)
-        # A prelude read that brought the turn here has been observed; the
-        # model's first decision must not inherit its policy ownership.
-        pending: PendingAction = {}
-        if self._career_context_projector is None:
-            return {
-                "pending": pending,
-                "career_memory_scope_keys": free_text_scope_keys,
-            }
-        memory = self._career_context_projector.project(
-            user_id=context.profile.user_id,
-            query=context.user_message,
-        )
-        return {
-            "pending": pending,
-            "context": context.model_copy(update={"career_memory": memory}),
-            "career_memory_scope_keys": tuple(
-                dict.fromkeys(
-                    (
-                        *(binding.entry_id for binding in memory.telemetry_bindings),
-                        *free_text_scope_keys,
-                    )
-                )
-            ),
-        }
-
-    @staticmethod
-    def _free_text_preference_scope_keys(
-        context: MainAgentContext,
-    ) -> tuple[str, ...]:
-        return TurnRouter.free_text_preference_scope_keys(context)
+        return self._context_hydrator.hydrate(state)
 
     @staticmethod
     def _tool_call_fingerprint(decision: AgentDecision) -> str:
@@ -868,24 +514,8 @@ class MainAgentRuntime:
     ) -> Literal["authorize", "present", "interrupt"]:
         return GraphRoutingPolicy.route_decision(state)
 
-    @staticmethod
-    def _control(state: MainAgentState) -> LoopControl:
-        return state.get("control", {})
-
-    @staticmethod
-    def _last_result(state: MainAgentState) -> MainAgentToolOutput | None:
-        return AgentLoop.last_result(state)
-
     def _authorize(self, state: MainAgentState) -> MainAgentState:
         return self._authorization_engine.authorize(state)
-
-    def _budget_bucket(
-        self, control: LoopControl, *, name: str, effect: ToolEffect
-    ) -> tuple[str, int, int]:
-        # Compatibility shim for callers that inspect budget classification.
-        return self._authorization_engine.budget_bucket(
-            control, name=name, effect=effect
-        )
 
     @staticmethod
     def _after_authorize(
@@ -909,54 +539,6 @@ class MainAgentRuntime:
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
         return project_workflow_arguments(context, name, arguments)
-
-    @staticmethod
-    def _reraise_security_refusal(error: ValueError) -> None:
-        """Keep the least-privilege boundary hard, unlike a soft refusal.
-
-        A projection error says one of two things: the object the model named is
-        not there (a wrong but ordinary choice, softened below), or the model is
-        reaching for identifiers or argument shapes it must never be able to
-        touch. The second must still kill the turn before it commits anything:
-        softening it would turn the guard into a suggestion.
-        """
-        message = str(error)
-        if (
-            "cannot accept internal identifier" in message
-            or "Extra inputs are not permitted" in message
-            or message.startswith("Unknown ")
-        ):
-            raise error
-
-    @staticmethod
-    def _rejection_observation(name: str, error: ValueError) -> ToolObservation:
-        """The soft form of a projection refusal, safe to present.
-
-        A model-selected tool whose preconditions fail at projection used to
-        raise through the whole turn, killing it with a canned failure. That
-        gave the model no way to recover and the user no say. Now the refusal
-        returns as an ordinary result and the model decides what to do with it —
-        re-select, list what is available, or ask the user for the one thing
-        only the user has.
-
-        The state is unconditional. An earlier version chose between
-        ``needs_user`` and ``invalid_input`` by looking up the capability in a
-        reroute table; that decision now belongs to the model, and the counter
-        in ``_authorize`` bounds how many times it may take it.
-        """
-        return ToolObservation(
-            tool_name=name,
-            state="invalid_input",
-            message=f"这步暂时做不到：{error}。",
-            # The one thing the state cannot say: this is not a failure to retry
-            # but a selection that did not hold. Deleting ``REROUTE_FIELDS`` gave
-            # the model this decision; leaving the hint empty would have given it
-            # the decision without the knowledge the table used to carry.
-            next_action=(
-                "这不是失败，是选择或参数不成立。原样重试没有意义："
-                "换一个已经在上下文里的对象，或者向用户要一个只有他才有的信息。"
-            ),
-        )
 
     def _observe(self, state: MainAgentState) -> MainAgentState:
         return self._observation_reducer.reduce(state)
@@ -1065,62 +647,6 @@ class MainAgentRuntime:
         return ResultPresenter.present(
             result, report_degraded=MainAgentRuntime._emit_trace
         )
-
-    @staticmethod
-    def _validated(model, payload: object):
-        return ResultPresenter.validated(
-            model, payload, report_degraded=MainAgentRuntime._emit_trace
-        )
-
-    @staticmethod
-    def _mock_interview_result(
-        result: MainAgentToolOutput,
-    ) -> MockInterviewGraphResult | None:
-        return ResultPresenter.mock_interview_result(
-            result, report_degraded=MainAgentRuntime._emit_trace
-        )
-
-    @staticmethod
-    def _has_backed_card(result: MainAgentToolOutput) -> bool:
-        return TurnPresenter.has_backed_card(result)
-
-    @staticmethod
-    def _resume_job_match_result(
-        result: MainAgentToolOutput,
-    ) -> ResumeJobMatchResult | None:
-        return ResultPresenter.resume_job_match_result(
-            result, report_degraded=MainAgentRuntime._emit_trace
-        )
-
-    @staticmethod
-    def _job_analysis_result(
-        result: MainAgentToolOutput,
-    ) -> JobAnalysisResult | None:
-        return ResultPresenter.job_analysis_result(
-            result, report_degraded=MainAgentRuntime._emit_trace
-        )
-
-    @staticmethod
-    def _resume_tailoring_result(
-        result: MainAgentToolOutput,
-    ) -> ResumeTailoringResult | None:
-        return ResultPresenter.resume_tailoring_result(
-            result, report_degraded=MainAgentRuntime._emit_trace
-        )
-
-    @staticmethod
-    def _job_comparison(result: ToolObservation) -> JobComparison | None:
-        return ResultPresenter.job_comparison(result)
-
-    @staticmethod
-    def _interview_preparation_result(
-        result: ToolObservation,
-    ) -> InterviewPreparationResult | None:
-        return ResultPresenter.interview_preparation_result(result)
-
-    @staticmethod
-    def _job_research_draft(result: ToolObservation) -> JobResearchDraft | None:
-        return ResultPresenter.job_research_draft(result)
 
     @staticmethod
     def _project_atomic_tool_arguments(
