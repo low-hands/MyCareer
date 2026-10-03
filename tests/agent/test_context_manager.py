@@ -12,6 +12,7 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.runtime.decision_messages import project_decision_messages
 from career_agent.agent.providers.token_budget import budget_encoding, message_token_count
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.agent.contracts.main_agent import (
@@ -2153,7 +2154,7 @@ def test_conversation_span_recovers_resource_refs_from_returned_rows(
             "through_sequence": 2,
         },
     )
-    observation = MainAgentRuntime._tool_observation(
+    observation = tool_observation(
         "read_conversation_span",
         result,
     )

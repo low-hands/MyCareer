@@ -14,6 +14,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolObservation,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.episodes import CareerEpisodeDraft, EpisodeResourceRef
 from career_agent.storage.context import CareerContextStore
@@ -144,16 +145,17 @@ def _episode_runtime(tmp_path, *decisions):
     )
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
-
     decision_maker = _Decisions(*decisions)
-    runtime = Runtime(
+    runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decision_maker,
         tools=_NoteWritingRegistry(),
+        runtime_ports=RuntimePorts(
+            project_atomic_tool_arguments=lambda context, name, arguments: {
+                "user_id": context.profile.user_id,
+                **arguments,
+            }
+        ),
     )
     return runtime, manager, episode_store, stored, decision_maker
 
@@ -185,9 +187,9 @@ def test_a_turn_counts_one_exposure_however_many_times_it_decides(
     assert marked is not None
     assert marked.access_count == 1
 
-    runtime._decision_maker = _Decisions(
+    runtime.replace_decision_maker(_Decisions(
         AgentDecision(action="final", message="好的。")
-    )
+    ))
     runtime.run_turn(
         user_id="u1",
         conversation_id="new-conversation",

@@ -32,6 +32,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolObservation,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
+from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
 from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
@@ -431,7 +432,7 @@ def test_an_uncertain_calendar_write_stops_at_the_owner_and_is_not_reissued(
     assert stopped.tool_result.state == "capability_confirmation_required"
     assert "面试：ACME 二面" in stopped.tool_result.message
     assert "外部写入" in stopped.tool_result.message
-    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+    gate = interaction_event(result=stopped, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
 
     turn = runtime.run_turn(

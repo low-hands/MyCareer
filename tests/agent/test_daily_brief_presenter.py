@@ -1,5 +1,6 @@
 from career_agent.agent.contracts.main_agent import ToolObservation
-from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
+from career_agent.agent.presentation.presenter import TurnPresenter
 
 
 def test_daily_brief_delivers_the_full_ephemeral_body_but_keeps_a_summary_row() -> None:
@@ -23,12 +24,12 @@ def test_daily_brief_delivers_the_full_ephemeral_body_but_keeps_a_summary_row() 
         },
     )
 
-    screen = MainAgentRuntime._assistant_message(observation)
+    screen = render_tool_output(observation)
 
     assert screen.startswith("# 今日职业简报")
     assert "跟进投递" in screen
     assert "确认招聘方是否收到材料" in screen
     assert observation.resource_ref is None
-    assert MainAgentRuntime._conversation_content(
+    assert TurnPresenter.conversation_content(
         observation, screen=screen, composed=False
     ) == observation.message

@@ -28,6 +28,7 @@ from career_agent.agent.contracts.main_agent import (
     validate_decision_facts,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
 
@@ -187,7 +188,7 @@ def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
         }
         if state == "job_research_ready":
             facts["status"] = "current"
-        observation = MainAgentRuntime._tool_observation(
+        observation = tool_observation(
             "probe",
             ToolObservation(
                 tool_name="probe",

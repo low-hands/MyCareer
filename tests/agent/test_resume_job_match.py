@@ -17,6 +17,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolCall,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
@@ -1179,7 +1180,7 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     assert "PRIVATE JD" not in serialized
     assert result.context.task.active_resume_job_match_id == observation.payload["match_id"]
     assert result.context.task.resume_job_match_status == "ready"
-    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    rendered = render_tool_output(result.tool_result)
     assert rendered.startswith("# 简历与岗位匹配")
     assert "整体判断：中等匹配" in rendered
     assert "The resume demonstrates relevant RAG experience." in rendered

@@ -17,6 +17,8 @@ from career_agent.agent.contracts.main_agent import (
     project_mock_interview_arguments,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
+from career_agent.agent.presentation.factory import interaction_event
+from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
 from career_agent.agent.workflows.mock_interview.graph import (
@@ -416,7 +418,13 @@ class RoutingFailureGraph(FakeMockInterviewGraph):
         )
 
 
-def _runtime_with_graph(tmp_path, graph, decision_maker, runtime_class=MainAgentRuntime):
+def _runtime_with_graph(
+    tmp_path,
+    graph,
+    decision_maker,
+    *,
+    runtime_ports: RuntimePorts | None = None,
+):
     service, application = _application_setup(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -434,10 +442,11 @@ def _runtime_with_graph(tmp_path, graph, decision_maker, runtime_class=MainAgent
         application_service=service,
         mock_interview_graph=graph,
     )
-    runtime = runtime_class(
+    runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decision_maker,
         tools=tools,
+        runtime_ports=runtime_ports,
     )
     return runtime, manager
 
@@ -806,7 +815,9 @@ def test_the_origin_names_the_workflow_not_the_handler_that_advanced_it(
         user_message="[workflow-owned input withheld]",
     )
 
-    result = runtime._run_owned_workflow_turn(context=context, user_message="继续")
+    result = runtime._components.turn_router.run_owned_workflow_turn(
+        context=context, user_message="继续"
+    )
 
     assert result.origin == RuntimeAction(workflow="mock_interview")
     assert result.origin.label == "workflow:mock_interview"
@@ -838,7 +849,7 @@ def test_a_turn_the_model_never_decided_says_so(tmp_path) -> None:
         user_message="[workflow-owned input withheld]",
     )
 
-    result = runtime._run_owned_workflow_turn(
+    result = runtime._components.turn_router.run_owned_workflow_turn(
         context=context, user_message="我做过检索系统的端到端优化。"
     )
 
@@ -882,7 +893,7 @@ def test_runtime_workflow_action_obeys_the_standard_write_budget(tmp_path) -> No
         tool_call=ToolCall(name="handle_mock_interview_input", arguments={}),
     )
 
-    state = runtime._graph.invoke(
+    state = runtime._components.graph.invoke(
         {
             "context": context,
             "decision": decision,
@@ -921,18 +932,14 @@ def test_the_progress_events_name_the_entry_that_actually_ran(tmp_path) -> None:
     """The standard act node announces the runtime entry that actually ran."""
     announced: list[str] = []
 
-    class RecordingRuntime(MainAgentRuntime):
-        def _emit_capability_started(self, name):
-            announced.append(name)
-
-        def _emit_capability_completed(self, name, state):
-            announced.append(name)
-
     runtime, _ = _runtime_with_graph(
         tmp_path,
         FakeMockInterviewGraph(),
         ReplayDecisions(_start_decision()),
-        runtime_class=RecordingRuntime,
+        runtime_ports=RuntimePorts(
+            emit_capability_started=announced.append,
+            emit_capability_completed=lambda name, state: announced.append(name),
+        ),
     )
     runtime.run_turn(user_id="u1", conversation_id="c1", user_message="开始技术模拟面试")
     announced.clear()
@@ -999,7 +1006,7 @@ def test_free_practice_asks_which_resume_before_starting_anything(tmp_path) -> N
     # Nothing started: the latest resume is not picked on the user's behalf.
     assert graph.starts == []
     assert asked.context.task.active_workflow == "none"
-    card = MainAgentRuntime._interaction_event(result=asked, conversation_id="c1")
+    card = interaction_event(result=asked, conversation_id="c1")
     assert card is not None and card.kind == "single_selection"
     assert card.accepts_upload == "resume"
     assert [option.label for option in card.options] == [
@@ -1141,7 +1148,7 @@ def test_naming_a_company_offers_its_saved_jobs_then_practises_on_the_chosen_jd(
     _save_job(jobs, source_job_id="other", company="阿里巴巴", title="产品经理", jd="电商。")
 
     offered = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="模拟面试，字节")
-    job_card = MainAgentRuntime._interaction_event(result=offered, conversation_id="c1")
+    job_card = interaction_event(result=offered, conversation_id="c1")
     assert graph.starts == []
     assert [option.label for option in job_card.options] == [
         "字节跳动 · AI 产品经理", "不针对具体岗位，只按「字节」",

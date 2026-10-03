@@ -19,6 +19,7 @@ from career_agent.agent.runtime.reducers import reduce_task_state
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.presentation.job_research import render_job_research
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.domain.job_research import (
     JobResearchDraft,
     JobResearchFinding,
@@ -181,7 +182,7 @@ def test_main_agent_runs_research_and_delivers_full_report_outside_context(
         "finding_count": len(result.tool_result.payload["research"]["findings"]),
         "status": result.tool_result.payload["status"],
     }
-    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    rendered = render_tool_output(result.tool_result)
     assert rendered.startswith("# 公司调研")
     assert "[S1]" in rendered
     assert "https://example.com/product" in rendered
@@ -367,7 +368,7 @@ def test_a_report_handle_for_another_company_is_refused_before_it_is_read(
     assert result.tool_result.state == "job_research_ready"
     assert result.context.task.active_job_research_report_id == "report-job-s"
     assert result.assistant_message == "示例科技的竞争对手如上。"
-    assert "历史科技甲竞品" not in MainAgentRuntime._assistant_message(
+    assert "历史科技甲竞品" not in render_tool_output(
         result.tool_result
     )
 
@@ -512,7 +513,7 @@ def test_an_unselected_read_of_another_companys_report_is_refused(tmp_path) -> N
     assert result.tool_result is not None
     assert result.tool_result.state == "job_research_ready"
     assert result.context.task.active_job_research_report_id == "report-job-s"
-    assert "历史科技甲竞品" not in MainAgentRuntime._assistant_message(result.tool_result)
+    assert "历史科技甲竞品" not in render_tool_output(result.tool_result)
 
 
 def test_an_unselected_read_about_the_active_company_or_no_company_is_read() -> None:

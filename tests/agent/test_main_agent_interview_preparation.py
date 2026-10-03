@@ -12,6 +12,7 @@ from career_agent.agent.contracts.main_agent import (
     project_interview_preparation_arguments,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.interview_preparation import (
     GapPreparation,
@@ -120,7 +121,7 @@ def test_main_agent_selects_interview_and_persists_preparation_context(tmp_path)
     assert result.context.task.active_interview_preparation_id == "preparation-1"
     assert result.context.task.active_resume_version_id == "resume-version-1"
     assert tools.capability_kind("prepare_interview") == "atomic_tool"
-    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    rendered = render_tool_output(result.tool_result)
     assert rendered.startswith("# 面试准备\n\n重点准备 RAG 可靠性。")
     assert "## 可能的问题" in rendered
     assert "确认会议链接" in rendered

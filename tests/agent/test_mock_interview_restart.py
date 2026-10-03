@@ -22,6 +22,7 @@ from career_agent.agent.contracts.main_agent import (
     project_restart_mock_interview_arguments,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import update_mock_interview_task
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.workflows.mock_interview.contracts import MockInterviewStartRequest
 from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
@@ -177,7 +178,7 @@ def test_a_failed_replacement_releases_the_retired_workflow_slot(tmp_path) -> No
         user_message="重新开始",
     )
 
-    updated = MainAgentRuntime._update_mock_interview_task(context, result)
+    updated = update_mock_interview_task(context, result)
 
     assert result.state == "mock_interview_restart_failed"
     # Prose, because the one thing worth saying here is what NOT to do.
@@ -205,7 +206,7 @@ def test_no_stuck_business_run_clears_a_stale_mock_workflow_task(tmp_path) -> No
         user_message="重新开始",
     )
 
-    updated = MainAgentRuntime._update_mock_interview_task(context, result)
+    updated = update_mock_interview_task(context, result)
 
     assert result.state == "no_mock_interview_to_restart"
     assert updated.task.active_workflow == "none"

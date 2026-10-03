@@ -13,12 +13,36 @@ from pydantic import ValidationError
 
 from career_agent.agent.contracts.memory import ConversationSummaryContent
 from career_agent.agent.presentation.conversation_span import render_conversation_span
+from career_agent.agent.presentation.factory import (
+    build_interaction_renderer,
+    build_turn_presenter,
+    interaction_event,
+    present_turn,
+    render_tool_output,
+)
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.questionnaire import QuestionAnswer, QuestionOption, UserQuestion
 from career_agent.agent.contracts.main_agent import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
 from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
 from career_agent.agent.contracts.main_agent import ConversationMessageContext, ConversationResourceReference
-from career_agent.agent.runtime.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.runtime.ports import RuntimePorts
+from career_agent.agent.runtime.observation_reducer import tool_observation
+from career_agent.agent.runtime.observability import RuntimeObservability
+from career_agent.agent.runtime.turn_coordinator import STREAM_SINK as _STREAM_SINK
+from career_agent.harness.graph_routing import GraphRoutingPolicy
+
+
+def _runtime_with_user_id_projection(**kwargs):
+    return MainAgentRuntime(
+        runtime_ports=RuntimePorts(
+            project_atomic_tool_arguments=lambda context, name, arguments: {
+                "user_id": context.profile.user_id,
+                **arguments,
+            }
+        ),
+        **kwargs,
+    )
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
 from career_agent.agent.presentation.stream_adapter import StreamAdapter
 from career_agent.cli import main as cli_main
@@ -145,7 +169,7 @@ def _never_called_decision_maker():
 def test_main_graph_uses_one_authorize_act_path_for_every_capability(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
 
-    assert set(agent._graph.get_graph().nodes) == {
+    assert set(agent._components.graph.get_graph().nodes) == {
         "__start__",
         "hydrate",
         "decide",
@@ -187,7 +211,7 @@ def test_runtime_does_not_rewrite_a_model_question_from_prompt_wording(tmp_path)
 
 def test_main_graph_has_distinct_delivery_and_suspension_exits(tmp_path) -> None:
     agent, _, _ = build_runtime(tmp_path, AgentDecision(action="final", message="done"))
-    graph = agent._graph.get_graph()
+    graph = agent._components.graph.get_graph()
 
     ends = {edge.source for edge in graph.edges if edge.target == "__end__"}
     assert ends == {"present", "interrupt"}
@@ -221,10 +245,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -284,10 +305,7 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
             self.calls += 1
             raise AssertionError("a settled action must not be executed again")
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
@@ -388,10 +406,7 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
                 execution_outcome=execution_outcome,
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     database = tmp_path / f"{state}-{execution_outcome}.sqlite3"
     manager = ContextManager(CareerContextStore(database))
@@ -434,10 +449,7 @@ def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) ->
                 message="结果遗漏了执行轴。",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     database = tmp_path / "undeclared.sqlite3"
     manager = ContextManager(CareerContextStore(database))
@@ -513,10 +525,7 @@ def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> No
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
@@ -645,10 +654,7 @@ def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
         def request_token_usage(context, tool_specs):
             return 20_000, 32_000
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -712,10 +718,7 @@ def test_a_turns_first_estimate_pairs_with_its_first_provider_count(
         def consume_cache_metrics(self):
             return {"input_units": 9_100 + 100 * len(self.contexts)}
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
     manager = ContextManager(
@@ -1034,8 +1037,8 @@ def test_a_decision_retry_and_a_long_wait_are_announced_as_progress(
         context_manager=manager,
         decision_maker=RetryingDecisionMaker(),
         tools=CountingRegistry(),
+        decision_heartbeat_seconds=0.05,
     )
-    agent.DECISION_HEARTBEAT_SECONDS = 0.05
     events = []
 
     agent.run_turn(
@@ -1079,10 +1082,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -1097,8 +1097,8 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
             AgentDecision(action="final", message="完成。"),
         ),
         tools=Registry(),
+        decision_heartbeat_seconds=0.05,
     )
-    agent.DECISION_HEARTBEAT_SECONDS = 0.05
     events = []
 
     agent.run_turn(
@@ -1351,10 +1351,7 @@ def _crashed_process_runtime(tmp_path, *decisions, profile="application"):
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
@@ -1682,7 +1679,7 @@ def test_conversation_span_tells_the_model_when_its_body_is_clipped(
             "through_sequence": 2,
         },
     )
-    observation = MainAgentRuntime._tool_observation(
+    observation = tool_observation(
         "read_conversation_span", result
     )
     projected = MainAgentContext(
@@ -1759,7 +1756,7 @@ def test_conversation_span_body_clipping_is_exact_at_the_observation_limit(
             "through_sequence": 2,
         },
     )
-    exact_observation = MainAgentRuntime._tool_observation(
+    exact_observation = tool_observation(
         "read_conversation_span", exact
     )
 
@@ -1793,7 +1790,7 @@ def test_conversation_span_body_clipping_is_exact_at_the_observation_limit(
             "through_sequence": 2,
         },
     )
-    over_observation = MainAgentRuntime._tool_observation(
+    over_observation = tool_observation(
         "read_conversation_span", over
     )
 
@@ -1919,7 +1916,7 @@ def test_one_workflow_advance_is_one_main_loop_delegation(tmp_path) -> None:
         state="workflow_completed",
         message="内部执行了多个节点后完成。",
     )
-    observed = runtime._observe(
+    observed = runtime._components.observation_reducer.reduce(
         {
             "context": context,
             "decision": AgentDecision(
@@ -1986,10 +1983,10 @@ def test_projection_and_authorization_refusals_have_independent_budgets(
         },
     }
 
-    authorized = runtime._authorize(state)
+    authorized = runtime._components.authorization_engine.authorize(state)
     assert authorized["authorization_route"] == "observe"
     assert authorized["pending"]["synthetic_kind"] == "authorization"
-    observed = runtime._observe({**state, **authorized})
+    observed = runtime._components.observation_reducer.reduce({**state, **authorized})
 
     assert observed["control"]["projection_refusals"] == 2
     assert observed["control"]["authorization_refusals"] == 1
@@ -2110,7 +2107,7 @@ def test_saved_job_exposes_only_the_bounded_presenter_body_not_internal_payload(
         payload={"jd_snapshot": {"content": sentinel}, "job_posting_id": "secret-id"},
     )
 
-    observation = MainAgentRuntime._tool_observation("get_saved_job", result)
+    observation = tool_observation("get_saved_job", result)
 
     assert observation.model_dump() == {
         "tool_name": "get_saved_job",
@@ -2137,7 +2134,7 @@ def test_decision_observation_clamps_the_receipt_at_its_boundary() -> None:
         message="模拟面试题：" + "请说明你的设计。" * 200,
     )
 
-    observation = MainAgentRuntime._tool_observation(
+    observation = tool_observation(
         "start_mock_interview", result
     )
 
@@ -2172,8 +2169,8 @@ def test_condensed_result_body_is_bounded_and_matches_the_presenter() -> None:
         },
     )
 
-    observation = MainAgentRuntime._tool_observation("get_daily_brief", result)
-    rendered = MainAgentRuntime._assistant_message(result)
+    observation = tool_observation("get_daily_brief", result)
+    rendered = render_tool_output(result)
 
     assert observation.body is not None
     assert len(observation.body) == DECISION_OBSERVATION_BODY_LIMIT
@@ -2185,7 +2182,7 @@ def test_condensed_result_body_is_bounded_and_matches_the_presenter() -> None:
 
 
 def test_plain_result_does_not_carry_payload_as_body() -> None:
-    observation = MainAgentRuntime._tool_observation(
+    observation = tool_observation(
         "find_saved_jobs",
         ToolResult(
             tool_name="find_saved_jobs",
@@ -2243,7 +2240,7 @@ def test_only_newest_observation_retains_body_without_losing_receipt_or_facts() 
 
 
 def test_failed_observation_exposes_only_explicit_retryability() -> None:
-    retryable = MainAgentRuntime._tool_observation(
+    retryable = tool_observation(
         "research_job",
         ToolResult(
             tool_name="research_job",
@@ -2252,7 +2249,7 @@ def test_failed_observation_exposes_only_explicit_retryability() -> None:
             payload={"retryable": True, "error_code": "UPSTREAM_TIMEOUT"},
         ),
     )
-    unknown = MainAgentRuntime._tool_observation(
+    unknown = tool_observation(
         "research_job",
         ToolResult(
             tool_name="research_job",
@@ -2267,9 +2264,7 @@ def test_failed_observation_exposes_only_explicit_retryability() -> None:
     assert "error_code" not in retryable.model_dump_json()
 
 
-def test_non_streaming_interrupt_enforces_renderer_completeness(
-    tmp_path, monkeypatch
-) -> None:
+def test_non_streaming_interrupt_enforces_renderer_completeness(tmp_path) -> None:
     """CLI/run_turn cannot bypass the interaction contract checked by SSE."""
 
     class BrokenInteractionRegistry(CountingRegistry):
@@ -2295,12 +2290,11 @@ def test_non_streaming_interrupt_enforces_renderer_completeness(
             )
         ),
         tools=BrokenInteractionRegistry(),
-    )
-    monkeypatch.setattr(
-        MainAgentRuntime,
-        "_INTERACTION_RENDERER_STATES",
-        MainAgentRuntime._INTERACTION_RENDERER_STATES
-        - {"calendar_approval_required"},
+        runtime_ports=RuntimePorts(
+            has_interaction_renderer=lambda state: (
+                state != "calendar_approval_required"
+            )
+        ),
     )
 
     with pytest.raises(ValueError, match="has no interaction renderer"):
@@ -2390,7 +2384,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
 
 
 def test_blank_receipt_degrades_after_a_tool_result_instead_of_raising() -> None:
-    observation = MainAgentRuntime._tool_observation(
+    observation = tool_observation(
         "write_side_effect",
         ToolResult(
             tool_name="write_side_effect",
@@ -2480,12 +2474,15 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
                 ),
             )
 
-    class DirectRuntime(MainAgentRuntime):
-        """Argument projection is not what this test is about."""
-
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return dict(arguments)
+    def DirectRuntime(**kwargs):
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(
+                project_atomic_tool_arguments=lambda context, name, arguments: dict(
+                    arguments
+                )
+            ),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -2553,12 +2550,16 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
                 execution_outcome="committed",
             )
 
-    class DirectRuntime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
+    def DirectRuntime(**kwargs):
+        def project(context, name, arguments):
             if name == "get_daily_brief":
                 raise ValueError("Unknown capability: get_daily_brief")
             return dict(arguments)
+
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(project_atomic_tool_arguments=project),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -2641,9 +2642,14 @@ def test_the_mock_interview_graph_path_reports_its_write(tmp_path) -> None:
         def invoke_runtime_workflow(self, name, arguments):
             return self.handle_mock_interview_input(**arguments)
 
-    class ExplodingRuntime(MainAgentRuntime):
-        def _update_mock_interview_task(self, context, result):
+    def ExplodingRuntime(**kwargs):
+        def fail_update(context, result):
             raise RuntimeError("checkpoint store unavailable")
+
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(update_mock_interview_task=fail_update),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -2715,12 +2721,16 @@ def test_a_write_that_failed_is_not_reported_as_written(tmp_path) -> None:
                 execution_outcome="not_committed",
             )
 
-    class DirectRuntime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
+    def DirectRuntime(**kwargs):
+        def project(context, name, arguments):
             if name == "get_daily_brief":
                 raise ValueError("Unknown capability: get_daily_brief")
             return dict(arguments)
+
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(project_atomic_tool_arguments=project),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -2827,10 +2837,15 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
                 ),
             )
 
-    class DirectRuntime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return dict(arguments)
+    def DirectRuntime(**kwargs):
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(
+                project_atomic_tool_arguments=lambda context, name, arguments: dict(
+                    arguments
+                )
+            ),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -2909,15 +2924,15 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
         )
 
     events: list[object] = []
-    presenter = MainAgentRuntime._presentation_adapter()
+    presenter = build_turn_presenter(
+        report_degraded=RuntimeObservability.emit_trace
+    )
     adapter = StreamAdapter(
-        interaction_renderer=InteractionRenderer(
-            active_turn_id=MainAgentRuntime._active_turn_id,
-            assistant_message=presenter._assistant_message,
-            has_interaction_renderer=MainAgentRuntime._has_interaction_renderer,
+        interaction_renderer=build_interaction_renderer(
+            report_degraded=RuntimeObservability.emit_trace,
         ),
         presenter=presenter,
-        emit=MainAgentRuntime._emit,
+        emit=RuntimeObservability.emit,
     )
     result = MainAgentTurnResult(
         origin=ModelDecision(AgentDecision(action="final", message="两份都给你了。")),
@@ -2988,7 +3003,7 @@ def test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last() -> No
         },
     )
 
-    update = MainAgentRuntime._present(
+    update = present_turn(
         {
             "decision": AgentDecision(action="final", message="两件事都看过了。"),
             "tool_results": (jd, brief),
@@ -3012,7 +3027,7 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
     bound follows the whole turn: prose beside cards keeps the card ceiling,
     and an answer that *is* part of the delivery gets the message bound.
     """
-    plain = MainAgentRuntime._present(
+    plain = present_turn(
         {
             "decision": AgentDecision(action="final", message="长" * 5_000),
             "tool_results": (),
@@ -3020,7 +3035,7 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
     )
     assert len(plain["assistant_message"]) == 5_000
 
-    huge = MainAgentRuntime._present(
+    huge = present_turn(
         {
             "decision": AgentDecision(action="final", message="长" * 20_000),
             "tool_results": (),
@@ -3040,7 +3055,7 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
             anchored_by_other_job=False,
         ),
     )
-    carded = MainAgentRuntime._present(
+    carded = present_turn(
         {
             "decision": AgentDecision(action="final", message="长" * 5_000),
             "tool_results": (card,),
@@ -3051,7 +3066,7 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
     # A turn that mixes a card with a body nothing else delivers is no longer
     # "prose about a card": the reply has to introduce that body too, so the
     # ceiling follows the whole turn rather than its last result.
-    mixed = MainAgentRuntime._present(
+    mixed = present_turn(
         {
             "decision": AgentDecision(action="final", message="长" * 5_000),
             "tool_results": (
@@ -3086,7 +3101,7 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
         payload={"records": [{"title": "PRIVATE RESULT"}]},
     )
 
-    answered = MainAgentRuntime._present(
+    answered = present_turn(
         {
             "decision": AgentDecision(
                 action="final",
@@ -3103,7 +3118,7 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
     assert result.message in answered["assistant_message"]
 
     # No prose from the model — the authoritative presenter still delivers.
-    silent = MainAgentRuntime._present(
+    silent = present_turn(
         {
             "decision": AgentDecision(action="final", message=""),
             "tool_results": (result,),
@@ -3125,7 +3140,7 @@ def test_runtime_failure_receipt_cannot_be_rewritten_as_a_fake_network_or_file_e
             "retryable": False,
         },
     )
-    update = MainAgentRuntime._present(
+    update = present_turn(
         {
             "decision": AgentDecision(
                 action="final",
@@ -3151,7 +3166,7 @@ def test_runtime_adds_safe_error_code_only_to_the_user_receipt() -> None:
         },
     )
 
-    update = MainAgentRuntime._present(
+    update = present_turn(
         {
             "decision": AgentDecision(action="final", message="请检查上传文件。"),
             "tool_results": (result,),
@@ -3278,8 +3293,8 @@ def test_question_after_earlier_failure_still_reports_the_failure() -> None:
                                          kind="free_text") for index in range(1, 6))),
         "tool_results": (failed, succeeded),
     }
-    assert MainAgentRuntime._route_decision(state) == "present"
-    assert MainAgentRuntime._present(state)["assistant_message"] == failed.message
+    assert GraphRoutingPolicy.route_decision(state) == "present"
+    assert present_turn(state)["assistant_message"] == failed.message
 
 
 @pytest.mark.parametrize("resource,expected", [
@@ -3406,7 +3421,7 @@ def test_mixed_success_and_failure_keeps_guidance_after_authoritative_reason() -
     )
     guidance = "匹配结果显示应优先突出分布式系统经验。"
 
-    update = MainAgentRuntime._present(
+    update = present_turn(
         {
             "decision": AgentDecision(action="final", message=guidance),
             "tool_results": (matched, failed),
@@ -3436,7 +3451,7 @@ def test_a_card_state_whose_reference_was_dropped_still_delivers_its_body() -> N
         payload={},
     )
 
-    bodies = MainAgentRuntime._undelivered_bodies((backed, dropped))
+    bodies = build_turn_presenter()._undelivered_bodies((backed, dropped))
 
     assert "卡片丢失" in bodies
     assert "有卡片" not in bodies
@@ -3460,7 +3475,7 @@ def test_a_blank_reply_is_no_reply_at_all() -> None:
         payload={"records": []},
     )
 
-    blank = MainAgentRuntime._present(
+    blank = present_turn(
         {
             "decision": AgentDecision(action="final", message="   \n  "),
             "tool_results": (result,),
@@ -3472,7 +3487,7 @@ def test_a_blank_reply_is_no_reply_at_all() -> None:
     assert blank.get("model_message", "") == ""
     # Same delivery as an absent message: the presenter body alone, with no
     # blank line where a stripped-away reply used to sit.
-    assert blank["assistant_message"] == MainAgentRuntime._assistant_message(result)
+    assert blank["assistant_message"] == render_tool_output(result)
     assert not blank["assistant_message"].startswith("\n")
 
 
@@ -3904,7 +3919,7 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
     # Projection failed before the graph started, so candidates can still
     # repair the selector in the same turn.
     assert (
-        MainAgentRuntime._after_observe(
+        GraphRoutingPolicy.after_observe(
             state_for("start_mock_interview", "invalid_input")
         )
         == "decide"
@@ -3912,7 +3927,7 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
     # Once the workflow really starts, its typed interaction bypasses another
     # model call without relying on capability-name routing.
     assert (
-        MainAgentRuntime._after_observe(
+        GraphRoutingPolicy.after_observe(
             state_for(
                 "start_mock_interview",
                 "mock_interview_answer_required",
@@ -3924,7 +3939,7 @@ def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) ->
     # An observed refusal always returns once; authorize prevents a second
     # refusal from being appended after the configured synthetic limit.
     assert (
-        MainAgentRuntime._after_observe(
+        GraphRoutingPolicy.after_observe(
             state_for("start_mock_interview", "invalid_input", refusal_count=2)
         )
         == "decide"
@@ -3937,7 +3952,7 @@ def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
         "control": {"projection_refusals": 0, "authorization_refusals": 0},
     }
 
-    assert MainAgentRuntime._after_observe(
+    assert GraphRoutingPolicy.after_observe(
         {
             **base,
             "pending": {
@@ -3951,7 +3966,7 @@ def test_observe_routes_by_typed_disposition_not_tool_or_state_name() -> None:
             },
         }
     ) == "decide"
-    assert MainAgentRuntime._after_observe(
+    assert GraphRoutingPolicy.after_observe(
         {
             **base,
             "pending": {
@@ -4036,7 +4051,7 @@ def test_a_failed_mock_interview_step_retries_instead_of_taking_a_new_answer(
         user_message="随便说点别的",
     )
 
-    result = agent._run_owned_workflow_turn(
+    result = agent._components.turn_router.run_owned_workflow_turn(
         context=context,
         user_message="随便说点别的",
     )
@@ -4285,7 +4300,7 @@ def test_two_calls_to_one_capability_stay_distinct_after_the_body_is_cleared(
         )
         observations = append_decision_observation(
             observations,
-            MainAgentRuntime._tool_observation(
+            tool_observation(
                 "research_job", result, {"job_selection_index": index}
             ),
         )
@@ -4411,10 +4426,7 @@ def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
             self.calls += 1
             raise AssertionError("the blocked write must never reach the tool")
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -4489,10 +4501,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     outcomes = {}
     for tool, profile in (
@@ -4559,10 +4568,14 @@ def test_an_interrupted_turn_separates_confirmed_writes_from_unconfirmed_ones(
         def invoke_atomic_tool(self, name, arguments):  # pragma: no cover - unused
             raise AssertionError("this turn is seeded, not executed")
 
-    class DirectRuntime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
+    def DirectRuntime(**kwargs):
+        def project(context, name, arguments):
             raise ValueError("Unknown capability: get_daily_brief")
+
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(project_atomic_tool_arguments=project),
+            **kwargs,
+        )
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -4689,10 +4702,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
@@ -4755,10 +4765,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     def runtime(*decisions):
         return Runtime(
@@ -4790,7 +4797,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
 
     assert stopped.tool_result.state == "capability_confirmation_required"
     assert Registry.calls == []
-    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+    gate = interaction_event(result=stopped, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
 
     # 3. Another fresh process — nothing in memory — receives the owner's yes.
@@ -4866,10 +4873,7 @@ def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> No
                 tool_name=name, state="application_ready", message="已创建。"
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     Registry.calls = []
     stopped = Runtime(
@@ -4884,7 +4888,7 @@ def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> No
         tools=Registry(),
         capability_confirmation_store=store,
     ).run_turn(user_id="u1", conversation_id="c1", user_message="记一下")
-    gate = MainAgentRuntime._interaction_event(result=stopped, conversation_id="c1")
+    gate = interaction_event(result=stopped, conversation_id="c1")
 
     declined = Runtime(
         context_manager=ContextManager(CareerContextStore(database)),
@@ -4952,10 +4956,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     path = tmp_path / "context.sqlite3"
     context_store = CareerContextStore(path)
@@ -4985,7 +4986,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
     held = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="记录投递"
     )
-    event = runtime._interaction_event(result=held, conversation_id="c1")
+    event = interaction_event(result=held, conversation_id="c1")
     executed = runtime.run_turn(
         user_id="u1",
         conversation_id="c1",
@@ -5033,10 +5034,15 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
             self.calls += 1
             return ToolObservation(tool_name=name, state="application_ready", message="done")
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id}
+    def Runtime(**kwargs):
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(
+                project_atomic_tool_arguments=lambda context, name, arguments: {
+                    "user_id": context.profile.user_id
+                }
+            ),
+            **kwargs,
+        )
 
     path = tmp_path / "context.sqlite3"
     store = CareerContextStore(path)
@@ -5068,7 +5074,7 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
         capability_confirmation_store=confirmations,
     )
     held = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="记录")
-    event = runtime._interaction_event(result=held, conversation_id="c1")
+    event = interaction_event(result=held, conversation_id="c1")
     manager.update_owner_settings(
         user_id="u1",
         desired=guarded.model_copy(
@@ -5128,7 +5134,7 @@ def test_agent_can_only_propose_owner_settings_and_the_bound_confirmation_applie
     )
     assert proposal.tool_result.state == "capability_confirmation_required"
     assert manager.preferences(user_id="u1").application_confirmation == "on_user_report"
-    event = runtime._interaction_event(result=proposal, conversation_id="c1")
+    event = interaction_event(result=proposal, conversation_id="c1")
 
     applied = runtime.run_turn(
         user_id="u1",
@@ -5240,10 +5246,7 @@ def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
-            return {"user_id": context.profile.user_id, **arguments}
+    Runtime = _runtime_with_user_id_projection
 
     path = tmp_path / "context.sqlite3"
     store = CareerContextStore(path)
@@ -5324,14 +5327,20 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
                 execution_outcome="committed",
             )
 
-    class Runtime(MainAgentRuntime):
-        @staticmethod
-        def _project_atomic_tool_arguments(context, name, arguments):
+    default_ports = RuntimePorts()
+
+    def Runtime(**kwargs):
+        def project(context, name, arguments):
             if name == "route_to_capability":
-                return MainAgentRuntime._project_atomic_tool_arguments(
+                return default_ports.project_atomic_tool_arguments(
                     context, name, arguments
                 )
             return {"user_id": context.profile.user_id, **arguments}
+
+        return MainAgentRuntime(
+            runtime_ports=RuntimePorts(project_atomic_tool_arguments=project),
+            **kwargs,
+        )
 
     path = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(path))
@@ -5384,17 +5393,17 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
         tools=registry,
     )
     control = {"read_calls": 2, "write_calls": 3, "external_write_calls": 1}
-    assert runtime._authorization_engine.budget_bucket(
+    assert runtime._components.authorization_engine.budget_bucket(
         control, name="search_career_history", effect="READ"
     ) == (
         "READ", 2, 6
     )
-    assert runtime._authorization_engine.budget_bucket(
+    assert runtime._components.authorization_engine.budget_bucket(
         control, name="create_application", effect="WRITE"
     ) == (
         "WRITE", 2, 1
     )
-    assert runtime._authorization_engine.budget_bucket(
+    assert runtime._components.authorization_engine.budget_bucket(
         control, name="execute_calendar_proposal", effect="WRITE"
     ) == ("WRITE_EXTERNAL", 1, 1)
     with pytest.raises(ValueError, match="max_external_write_calls"):

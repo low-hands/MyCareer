@@ -6,6 +6,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolCall,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import InteractionResponse
 from career_agent.services.memory_review import MemoryReviewService
@@ -173,7 +174,7 @@ def test_tombstone_requires_readback_then_cleans_derived_memory(tmp_path) -> Non
         user_id="u1", career_evidence_id=evidence.id
     ) is not None
     assert proposed.context.task.pending_memory_tombstone is not None
-    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    gate = interaction_event(result=proposed, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
     sealed = SQLiteCapabilityConfirmationStore(
         tmp_path / "confirmations.sqlite3"
@@ -375,7 +376,7 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         conversation_id="c1",
         user_message="Delete this claim.",
     )
-    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    gate = interaction_event(result=proposed, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
 
     runtime, context, _ = _runtime(
@@ -415,7 +416,7 @@ def test_cleanup_failure_keeps_confirmation_for_idempotent_retry(
         conversation_id="c1",
         user_message="Retry the cleanup.",
     )
-    retry_gate = MainAgentRuntime._interaction_event(
+    retry_gate = interaction_event(
         result=retry_gate_turn, conversation_id="c1"
     )
     assert retry_gate is not None and retry_gate.scope == "capability_confirmation"
@@ -468,7 +469,7 @@ def test_working_notes_unlink_failure_is_a_retriable_cleanup_state(
         conversation_id="c1",
         user_message="Delete the private prototype.",
     )
-    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    gate = interaction_event(result=proposed, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
 
     def fail_clear(self, *, user_id):

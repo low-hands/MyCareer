@@ -10,7 +10,9 @@ from career_agent.agent.contracts.main_agent import (
     ToolObservation,
     ToolResult,
 )
-from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import build_turn_presenter
+from career_agent.agent.presentation.presenter import TurnPresenter
+from career_agent.agent.runtime.observation_reducer import tool_observation
 
 
 def test_only_snapshots_and_entity_handles_are_retained() -> None:
@@ -59,8 +61,9 @@ def test_none_retention_keeps_live_readback_without_a_second_persistent_copy(
     output = ToolResult(
         tool_name="read", state=state, message="已回读。", payload=payload
     )
-    assert body in MainAgentRuntime._undelivered_bodies((output,))
-    assert MainAgentRuntime._delivered_bodies((output,)) == ()
+    presenter = build_turn_presenter()
+    assert body in presenter._undelivered_bodies((output,))
+    assert presenter.delivered_bodies((output,)) == ()
 
 
 def test_a_saved_jd_is_the_models_observation_and_the_readers_card_only() -> None:
@@ -77,9 +80,10 @@ def test_a_saved_jd_is_the_models_observation_and_the_readers_card_only() -> Non
             description="JD 第 1 版 · test",
         ),
     )
-    observation = MainAgentRuntime._tool_observation("get_saved_job", output)
+    observation = tool_observation("get_saved_job", output)
     assert observation.body is not None and "LIVE JD BODY" in observation.body
-    assert "LIVE JD BODY" not in MainAgentRuntime._undelivered_bodies((output,))
-    assert MainAgentRuntime._delivered_bodies((output,)) == ()
-    assert MainAgentRuntime._turn_is_card_backed((output,))
-    assert MainAgentRuntime._turn_resource_refs((output,)) == (output.resource_ref,)
+    presenter = build_turn_presenter()
+    assert "LIVE JD BODY" not in presenter._undelivered_bodies((output,))
+    assert presenter.delivered_bodies((output,)) == ()
+    assert presenter.turn_is_card_backed((output,))
+    assert TurnPresenter.turn_resource_refs((output,)) == (output.resource_ref,)

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.main_agent import AgentDecision, CareerProfileContext, ToolCall
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.connectors.calendar import CalendarConnectorError
 from career_agent.domain.calendar import (
@@ -166,7 +167,7 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
     # The owner approves the concrete event, read live from the proposal.
     assert "面试 · Acme · AI Engineer" in sealed.tool_result.message
     assert "无法由这里撤回" in sealed.tool_result.message
-    gate = MainAgentRuntime._interaction_event(result=sealed, conversation_id="c1")
+    gate = interaction_event(result=sealed, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
 
     class NeverAsked:

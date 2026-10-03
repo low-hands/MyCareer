@@ -13,6 +13,7 @@ from career_agent.agent.contracts.main_agent import (
     project_interview_arguments,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.interviews import (
     InterviewRetroQuestion,
@@ -397,7 +398,7 @@ def test_main_agent_records_user_grounded_real_interview_retro(tmp_path) -> None
         }
     ]
     assert result.context.task.active_interview_round_id == "interview-1"
-    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    rendered = render_tool_output(result.tool_result)
     assert rendered.startswith("# 真实面试复盘")
     assert "如何评估 RAG？" in rendered
     assert result.tool_result.resource_ref is not None

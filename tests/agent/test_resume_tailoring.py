@@ -17,8 +17,10 @@ from career_agent.agent.contracts.main_agent import (
     ToolCall,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.presentation.result_presenter import ResultPresenter
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
@@ -2154,7 +2156,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     assert observation.payload["gap_mitigations"][0]["priority"] == "P1"
     rebuilt_result = ResultPresenter.resume_tailoring_result(
         observation,
-        report_degraded=MainAgentRuntime._emit_trace,
+        report_degraded=RuntimeObservability.emit_trace,
     )
     assert rebuilt_result is not None
     assert rebuilt_result.gap_mitigations[0].learning_plan is not None
@@ -2167,7 +2169,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     serialized = observation.model_dump_json()
     assert "PRIVATE RESUME" not in serialized
     assert "PRIVATE JD" not in serialized
-    rendered = MainAgentRuntime._assistant_message(result.tool_result)
+    rendered = render_tool_output(result.tool_result)
     assert rendered.startswith("# 简历定制草稿 · 修订 1")
     assert "Built production RAG systems for knowledge retrieval." in rendered
     assert "面试诚实表达" in rendered

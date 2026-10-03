@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import pytest
 
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.api.reads import WorkspaceReader
@@ -62,7 +63,7 @@ def test_the_agent_hands_back_the_stored_snapshot_without_restating_it(saved):
     observation = registry.invoke_atomic_tool(
         "get_saved_job", {"user_id": "u1", "job_posting_id": job_id}
     )
-    delivered = MainAgentRuntime._assistant_message(observation)
+    delivered = render_tool_output(observation)
 
     assert observation.state == "saved_job_ready"
     assert delivered == JD_TEXT
@@ -78,7 +79,7 @@ def test_both_surfaces_read_one_document_not_two_renderings_of_it(saved, tmp_pat
     store, job_id = saved
     registry = MainAgentToolRegistry(job_repository=store)
 
-    through_agent = MainAgentRuntime._assistant_message(
+    through_agent = render_tool_output(
         registry.invoke_atomic_tool(
             "get_saved_job", {"user_id": "u1", "job_posting_id": job_id}
         )

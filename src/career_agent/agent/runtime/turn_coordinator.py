@@ -53,6 +53,13 @@ ACTION_INVOCATION: ContextVar[tuple[str, str | None] | None] = ContextVar(
     default=None,
 )
 
+
+def active_turn_id() -> str | None:
+    """Return the turn bound to the current execution context, if any."""
+
+    invocation = ACTION_INVOCATION.get()
+    return invocation[0] if invocation is not None else None
+
 TurnResultT = TypeVar("TurnResultT")
 
 

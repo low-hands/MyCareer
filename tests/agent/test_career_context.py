@@ -20,6 +20,8 @@ from career_agent.agent.contracts.main_agent import (
 )
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
+from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
 
@@ -58,7 +60,7 @@ def test_historical_source_presenter_never_renders_a_missing_timestamp() -> None
         payload={"source_quote": "Historical quote"},
     )
 
-    rendered = MainAgentRuntime._assistant_message(result)
+    rendered = render_tool_output(result)
 
     assert "状态变更时间：未记录" in rendered
     assert "None" not in rendered
@@ -824,7 +826,7 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
     assert observation.facts["resume_version"] == "Primary · 第 1 版"
     assert observation.facts["claim_status"] == "current"
     assert "status_changed_at" not in observation.facts
-    turn_observation = MainAgentRuntime._tool_observation(
+    turn_observation = tool_observation(
         "resolve_claim_source",
         observation,
     )
@@ -842,7 +844,7 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
         "resolve_claim_source",
         {"user_id": "u1", "source_ref": highlight.source_ref},
     )
-    historical_turn = MainAgentRuntime._tool_observation(
+    historical_turn = tool_observation(
         "resolve_claim_source",
         historical,
     )
@@ -891,7 +893,7 @@ def test_resume_provenance_is_an_opaque_rereadable_ref_not_inline_text(
         "resolve_claim_source",
         {"user_id": "u1", "source_ref": long_evidence.source_ref},
     )
-    long_turn_observation = MainAgentRuntime._tool_observation(
+    long_turn_observation = tool_observation(
         "resolve_claim_source",
         long_result,
     )

@@ -21,7 +21,9 @@ from career_agent.agent.contracts.main_agent import (
     MainAgentContext,
     ToolCall,
 )
-from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.observability import RuntimeObservability
+from career_agent.agent.runtime.turn_coordinator import TRACE_CONTEXT as _TRACE_CONTEXT
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.presentation.result_presenter import ResultPresenter
 from career_agent.connectors.gmail_readonly import GmailAPIError
@@ -184,7 +186,7 @@ def test_observation_chars_measures_the_body_in_the_actual_prompt_shape(
     )
     token = _TRACE_CONTEXT.set((recorder, "body-trace"))
     try:
-        runtime._decide({"context": context})
+        runtime._components.decision_engine.decide({"context": context})
     finally:
         _TRACE_CONTEXT.reset(token)
 
@@ -207,7 +209,7 @@ def test_a_presenter_validation_failure_is_recorded(tmp_path: Path) -> None:
         assert ResultPresenter.validated(
             PresenterContract,
             {},
-            report_degraded=MainAgentRuntime._emit_trace,
+            report_degraded=RuntimeObservability.emit_trace,
         ) is None
     finally:
         _TRACE_CONTEXT.reset(token)

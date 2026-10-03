@@ -26,6 +26,7 @@ from career_agent.agent.contracts.main_agent import (
     WorkingNotesContext,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.effects import is_notes_guarded
 from career_agent.agent.middleware.working_notes import (
@@ -264,10 +265,15 @@ class _Registry(MainAgentToolRegistry):
         )
 
 
-class _IdentityProjectionRuntime(MainAgentRuntime):
-    @staticmethod
-    def _project_atomic_tool_arguments(context, name, arguments):
-        return dict(arguments)
+def _identity_projection_runtime(**kwargs):
+    return MainAgentRuntime(
+        runtime_ports=RuntimePorts(
+            project_atomic_tool_arguments=lambda context, name, arguments: dict(
+                arguments
+            )
+        ),
+        **kwargs,
+    )
 
 
 def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
@@ -275,7 +281,7 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
 ) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     registry = _Registry()
-    runtime = _IdentityProjectionRuntime(
+    runtime = _identity_projection_runtime(
         context_manager=manager,
         decision_maker=_NeverDecisionMaker(),
         tools=registry,
@@ -293,7 +299,7 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
         "pending": {},
     }
 
-    blocked = runtime._authorize(blocked_state)
+    blocked = runtime._components.authorization_engine.authorize(blocked_state)
     assert blocked["authorization_route"] == "observe"
     assert blocked["pending"]["result"].state == "working_notes_derived_argument"
     assert blocked["pending"]["result"].execution_outcome == "not_committed"
@@ -310,9 +316,9 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
             tool_call=ToolCall(name="get_saved_job", arguments={"query": "Rust"}),
         ),
     }
-    allowed = runtime._authorize(allowed_state)
+    allowed = runtime._components.authorization_engine.authorize(allowed_state)
     assert allowed["authorization_route"] == "act"
-    runtime._act({**allowed_state, **allowed})
+    runtime._components.capability_executor.act({**allowed_state, **allowed})
     assert len(registry.calls) == 1
 
 
@@ -482,7 +488,7 @@ def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
     itself can show that the choice would rest on the scratchpad.
     """
     registry = _ComparingRegistry()
-    runtime = _IdentityProjectionRuntime(
+    runtime = _identity_projection_runtime(
         context_manager=ContextManager(
             CareerContextStore(tmp_path / "context.sqlite3")
         ),
@@ -509,7 +515,7 @@ def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
         "pending": {},
     }
 
-    refused = runtime._authorize(state)
+    refused = runtime._components.authorization_engine.authorize(state)
     assert refused["authorization_route"] == "observe"
     result = refused["pending"]["result"]
     assert result.state == "working_notes_derived_argument"
@@ -528,13 +534,13 @@ def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
             update={"free_text_preferences": (_confirmed_preference(),)}
         ),
     }
-    assert runtime._authorize(confirmed)["authorization_route"] == "act"
+    assert runtime._components.authorization_engine.authorize(confirmed)["authorization_route"] == "act"
 
 
 def test_owner_confirmed_seal_is_not_rejudged_by_the_notes_guard(
     tmp_path,
 ) -> None:
-    runtime = _IdentityProjectionRuntime(
+    runtime = _identity_projection_runtime(
         context_manager=ContextManager(
             CareerContextStore(tmp_path / "context.sqlite3")
         ),
@@ -558,7 +564,7 @@ def test_owner_confirmed_seal_is_not_rejudged_by_the_notes_guard(
         },
     }
 
-    assert runtime._authorize(state)["authorization_route"] == "act"
+    assert runtime._components.authorization_engine.authorize(state)["authorization_route"] == "act"
 
 
 class _Decisions:

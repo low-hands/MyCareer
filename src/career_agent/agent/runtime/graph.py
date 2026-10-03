@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -34,33 +34,8 @@ class MainGraphNodes:
         [MainAgentState], Literal["hydrate", "decide", "present", "interrupt"]
     ]
 
-    @classmethod
-    def from_host(cls, host: object) -> MainGraphNodes:
-        """Adapt the former host API to the graph's explicit callable surface."""
-
-        legacy: Any = host
-        return cls(
-            hydrate=legacy._hydrate_career_context,
-            decide=legacy._decide,
-            authorize=legacy._authorize,
-            act=legacy._act,
-            observe=legacy._observe,
-            present=legacy._present,
-            interrupt=legacy._interrupt,
-            route_entry=legacy._route_entry,
-            route_decision=legacy._route_decision,
-            after_authorize=legacy._after_authorize,
-            after_observe=legacy._after_observe,
-        )
-
-
-def build_main_graph(
-    nodes: MainGraphNodes | object,
-) -> CompiledStateGraph:
+def build_main_graph(nodes: MainGraphNodes) -> CompiledStateGraph:
     """Compile the main-agent topology without owning any node behavior."""
-
-    if not isinstance(nodes, MainGraphNodes):
-        nodes = MainGraphNodes.from_host(nodes)
 
     graph = StateGraph(MainAgentState)
     graph.add_node("hydrate", nodes.hydrate)

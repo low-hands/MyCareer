@@ -14,6 +14,51 @@ from career_agent.agent.contracts.main_agent import (
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
 from career_agent.agent.runtime.state import LoopControl, MainAgentState, PendingAction
 from career_agent.agent.capabilities.effects import is_external_write
+from career_agent.agent.presentation.delivery_policy import condenses_message
+from career_agent.agent.presentation.result_presenter import ResultPresenter
+from career_agent.agent.runtime.observability import RuntimeObservability
+from career_agent.agent.support.summary_text import clamp
+from career_agent.agent.contracts.main_agent import DECISION_OBSERVATION_BODY_LIMIT
+
+
+def tool_observation(
+    name: str,
+    result: MainAgentToolOutput,
+    arguments: dict[str, Any] | None = None,
+) -> DecisionObservation:
+    """Project a capability result into the model's bounded observation."""
+
+    receipt = clamp(result.message) or "工具已返回，但没有提供结果摘要。"
+    body = None
+    if condenses_message(result.state):
+        rendered = ResultPresenter.present(
+            result,
+            report_degraded=RuntimeObservability.emit_trace,
+        )
+        body = clamp(rendered, limit=DECISION_OBSERVATION_BODY_LIMIT) or None
+    if isinstance(result, ToolObservation):
+        return DecisionObservation(
+            tool_name=result.tool_name,
+            state=result.state,
+            message=receipt,
+            body=body,
+            facts=dict(result.facts),
+            next_action=result.next_action,
+            arguments=dict(arguments or {}),
+            resource_ref=result.resource_ref,
+            resource_refs=result.resource_refs,
+        )
+    return DecisionObservation(
+        tool_name=name,
+        state=result.state,
+        message=receipt,
+        body=body,
+        facts=dict(result.facts),
+        next_action=result.next_action,
+        arguments=dict(arguments or {}),
+        resource_ref=result.resource_ref,
+        resource_refs=result.resource_refs,
+    )
 
 
 _REFRESH_STATES = frozenset(

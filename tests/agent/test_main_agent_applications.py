@@ -13,6 +13,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolResult,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import update_atomic_task
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.applications import ApplicationService
@@ -333,7 +334,7 @@ def test_get_application_selects_application_without_replacing_job_or_resume() -
         },
     )
 
-    updated = MainAgentRuntime._update_atomic_task(context, historical)
+    updated = update_atomic_task(context, historical)
 
     assert updated.task.active_application_id == "old-application"
     assert updated.task.active_application_status == "rejected"

@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from career_agent.agent.contracts.main_agent import AgentDecision
-from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import build_turn_presenter, present_turn
+from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
 SKILLS = Path(__file__).resolve().parents[2] / "skills"
@@ -29,14 +30,14 @@ def test_the_model_reads_the_instructions_without_their_frontmatter() -> None:
     body = result.payload["body"]
     assert body.startswith("# Resume Critique")
     assert "name: resume-critique" not in body
-    observation = MainAgentRuntime._tool_observation("load_skill", result)
+    observation = tool_observation("load_skill", result)
     assert observation.body is not None and "Read it three times" in observation.body
 
 
 def test_the_reply_carries_the_critique_not_the_skill() -> None:
     result = _loaded()
 
-    answered = MainAgentRuntime._present(
+    answered = present_turn(
         {
             "decision": AgentDecision(action="final", message="## 总体评价\n缺少成果。"),
             "tool_results": (result,),
@@ -44,4 +45,4 @@ def test_the_reply_carries_the_critique_not_the_skill() -> None:
     )
 
     assert answered["assistant_message"] == "## 总体评价\n缺少成果。"
-    assert "Read it three times" not in MainAgentRuntime._screen_message(result)
+    assert "Read it three times" not in build_turn_presenter()._screen_message(result)

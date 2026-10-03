@@ -8,6 +8,7 @@ from career_agent.agent.contracts.main_agent import (
     MainAgentContext,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import project_atomic_tool_arguments
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.episodes import CareerEpisodeDraft, EpisodeResourceRef
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
@@ -138,7 +139,7 @@ def test_projected_detail_ref_can_be_expanded_and_unprojected_ref_is_rejected(
         user_message="展开这次复盘",
     )
 
-    arguments = MainAgentRuntime._project_atomic_tool_arguments(
+    arguments = project_atomic_tool_arguments(
         context,
         "search_career_episodes",
         {"detail_ref": detail_ref},
@@ -154,7 +155,7 @@ def test_projected_detail_ref_can_be_expanded_and_unprojected_ref_is_rejected(
     assert refreshed is not None
     assert refreshed.access_count == 1
     with pytest.raises(ValueError, match="not projected"):
-        MainAgentRuntime._project_atomic_tool_arguments(
+        project_atomic_tool_arguments(
             context,
             "search_career_episodes",
             {"detail_ref": "episode:career_episode_" + "0" * 32},
@@ -168,12 +169,12 @@ def test_runtime_injects_the_owner_for_both_memory_search_layers() -> None:
         user_message="Why did I skip Acme?",
     )
 
-    episode_arguments = MainAgentRuntime._project_atomic_tool_arguments(
+    episode_arguments = project_atomic_tool_arguments(
         context,
         "search_career_episodes",
         {"query": "Acme", "top_k": 3},
     )
-    semantic_arguments = MainAgentRuntime._project_atomic_tool_arguments(
+    semantic_arguments = project_atomic_tool_arguments(
         context,
         "search_career_memory",
         {"query": "retrieval"},

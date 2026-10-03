@@ -15,6 +15,7 @@ from career_agent.agent.contracts.main_agent import (
     WorkingNotesContext,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.ports import project_atomic_tool_arguments
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
@@ -290,7 +291,7 @@ def test_invalid_expected_revision_is_rejected_during_projection(
     )
 
     with pytest.raises(ValueError):
-        MainAgentRuntime._project_atomic_tool_arguments(
+        project_atomic_tool_arguments(
             context,
             "update_working_notes",
             arguments,

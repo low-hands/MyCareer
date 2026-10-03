@@ -28,12 +28,16 @@ from career_agent.agent.presentation.delivery_policy import (
     is_waiting,
     policy_for,
 )
+from career_agent.agent.presentation.factory import interaction_event, render_tool_output
+from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
+from career_agent.agent.presentation.presenter import TurnPresenter
 from career_agent.agent.runtime.authorization_engine import AuthorizationEngine
 from career_agent.agent import middleware as agent_middleware
 from career_agent.agent.capabilities.executor import CapabilityExecutor
 from career_agent.agent.execution.action_ledger import ActionLedger
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.runtime.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.agent.contracts.main_agent import (
     AgentDecision,
@@ -155,19 +159,12 @@ def test_an_unregistered_state_is_delivered_plainly_rather_than_raising() -> Non
     assert not condenses_message("a_state_from_the_future")
 
 
-def test_body_eligibility_is_exactly_condensed_delivery_and_never_raw_payload(
-    monkeypatch,
-) -> None:
+def test_body_eligibility_is_exactly_condensed_delivery_and_never_raw_payload() -> None:
     """H reuses the presenter boundary; internal payload IDs never bypass it."""
 
     internal_id = "internal-job-posting-id-should-not-cross"
-    monkeypatch.setattr(
-        MainAgentRuntime,
-        "_assistant_message",
-        staticmethod(lambda result: "SAFE PRESENTER BODY"),
-    )
     for state, policy in DELIVERY_POLICIES.items():
-        observation = MainAgentRuntime._tool_observation(
+        observation = tool_observation(
             "probe",
             ToolObservation(
                 tool_name="probe",
@@ -458,7 +455,7 @@ def test_real_condensed_presenters_do_not_render_internal_identifiers() -> None:
 
     internal_id_pattern = re.compile(r"\b[0-9a-f]{32}\b")
     for state, (payload, marker) in cases.items():
-        observation = MainAgentRuntime._tool_observation(
+        observation = tool_observation(
             "probe",
             ToolObservation(
                 tool_name="probe",
@@ -590,7 +587,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
         state for state, policy in DELIVERY_POLICIES.items() if policy.waiting
     }
     expected = waiting
-    assert MainAgentRuntime._INTERACTION_RENDERER_STATES == expected
+    assert InteractionRenderer.RENDERER_STATES == expected
 
     for state in sorted(expected):
         task = ConversationTaskState()
@@ -619,7 +616,7 @@ def test_every_interaction_emitter_state_constructs_a_renderer() -> None:
             assistant_message="请继续。",
             tool_result=observation,
         )
-        assert MainAgentRuntime._interaction_event(
+        assert interaction_event(
             result=turn,
             conversation_id="c1",
         ) is not None, state
@@ -730,14 +727,14 @@ def test_a_card_policy_without_a_reference_fails_open_to_the_full_body() -> None
         message="已读取模拟面试（技术面，1 题）。整体表现稳定。",
         payload=_long_result_view().model_dump(mode="json"),
     )
-    screen = MainAgentRuntime._assistant_message(observation)
+    screen = render_tool_output(observation)
 
-    assert MainAgentRuntime._conversation_content(
+    assert TurnPresenter.conversation_content(
         observation, screen=screen, composed=False
     ) == screen
     # The writer's result is still the actual screen copy and can be stored.
     assert (
-        MainAgentRuntime._conversation_content(
+        TurnPresenter.conversation_content(
             observation, screen="写手的摘要。", composed=True
         )
         == "写手的摘要。"

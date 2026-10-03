@@ -1,6 +1,6 @@
 from typing import Literal
 
-from career_agent.agent.runtime.graph import build_main_graph
+from career_agent.agent.runtime.graph import MainGraphNodes, build_main_graph
 from career_agent.agent.runtime.state import MainAgentState
 
 
@@ -43,7 +43,22 @@ class GraphHost:
 
 
 def test_main_graph_topology_is_exact() -> None:
-    graph = build_main_graph(GraphHost()).get_graph()
+    host = GraphHost()
+    graph = build_main_graph(
+        MainGraphNodes(
+            hydrate=host._hydrate_career_context,
+            decide=host._decide,
+            authorize=host._authorize,
+            act=host._act,
+            observe=host._observe,
+            present=host._present,
+            interrupt=host._interrupt,
+            route_entry=host._route_entry,
+            route_decision=host._route_decision,
+            after_authorize=host._after_authorize,
+            after_observe=host._after_observe,
+        )
+    ).get_graph()
 
     assert {
         (edge.source, edge.target, edge.conditional) for edge in graph.edges

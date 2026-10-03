@@ -20,6 +20,7 @@ from career_agent.agent.contracts.main_agent import (
     project_mock_interview_result_arguments,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.workflows.mock_interview.contracts import MockInterviewStartRequest
 from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
@@ -42,7 +43,7 @@ def _screen(observation):
     transcript keeps. The two used to be one string; asserting content here
     and boundedness there is what keeps them from collapsing back together.
     """
-    return MainAgentRuntime._assistant_message(observation)
+    return render_tool_output(observation)
 
 
 def _planned_session(store, *, interview_type="technical"):

@@ -8,6 +8,7 @@ from career_agent.agent.contracts.main_agent import (
     ToolCall,
 )
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import InteractionResponse
 from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
@@ -120,7 +121,7 @@ def test_a_confirmed_retirement_stops_the_constraint_applying(tmp_path) -> None:
         conversation_id="c1",
         user_message="这条约束不用管了。",
     )
-    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    gate = interaction_event(result=proposed, conversation_id="c1")
     assert gate is not None and gate.scope == "capability_confirmation"
     assert (
         context.get_task("u1", "c1").pending_constraint_retirement is not None
@@ -190,7 +191,7 @@ def test_a_second_click_on_the_same_seal_does_not_retire_twice(tmp_path) -> None
     ).run_turn(
         user_id="u1", conversation_id="c1", user_message="这条约束不用管了。",
     )
-    gate = MainAgentRuntime._interaction_event(result=proposed, conversation_id="c1")
+    gate = interaction_event(result=proposed, conversation_id="c1")
     assert gate is not None
 
     def click():
@@ -237,7 +238,7 @@ def test_text_confirmation_only_reoffers_the_sealed_retirement(tmp_path) -> None
         _final(),
         profile="memory",
     ).run_turn(user_id="u1", conversation_id="c1", user_message="退掉这条约束")
-    original_gate = MainAgentRuntime._interaction_event(
+    original_gate = interaction_event(
         result=proposed, conversation_id="c1"
     )
     assert original_gate is not None
@@ -251,7 +252,7 @@ def test_text_confirmation_only_reoffers_the_sealed_retirement(tmp_path) -> None
             user_id="u1", conversation_id="c1", statuses=("active",)
         )
     ) == ("不接受 996",)
-    repeated_gate = MainAgentRuntime._interaction_event(
+    repeated_gate = interaction_event(
         result=text_turn, conversation_id="c1"
     )
     assert repeated_gate is not None
