@@ -29,7 +29,10 @@ from career_agent.agent.delivery_policy import (
     policy_for,
 )
 from career_agent.agent.authorization_engine import AuthorizationEngine
+from career_agent.agent import middleware as agent_middleware
 from career_agent.agent.capability_executor import CapabilityExecutor
+from career_agent.agent.execution.action_ledger import ActionLedger
+from career_agent.agent.interaction_coordinator import InteractionCoordinator
 from career_agent.agent.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
 from career_agent.agent.main_agent_contracts import (
@@ -77,6 +80,14 @@ def _emitted_states() -> set[str]:
         Path(inspect.getsourcefile(MainAgentRuntime)).read_text(),
         Path(inspect.getsourcefile(AuthorizationEngine)).read_text(),
         Path(inspect.getsourcefile(CapabilityExecutor)).read_text(),
+        Path(inspect.getsourcefile(ActionLedger)).read_text(),
+        Path(inspect.getsourcefile(InteractionCoordinator)).read_text(),
+        *(
+            path.read_text()
+            for path in sorted(
+                Path(inspect.getsourcefile(agent_middleware)).parent.glob("*.py")
+            )
+        ),
     )
     for policy_source in policy_sources:
         states.update(re.findall(r'state="([a-z_]+)"', policy_source))

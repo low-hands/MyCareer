@@ -12,6 +12,7 @@ from career_agent.agent.main_agent_contracts import (
     append_decision_observation,
 )
 from career_agent.agent.main_agent_tools import MainAgentToolOutput
+from career_agent.agent.main_state import LoopControl, MainAgentState, PendingAction
 from career_agent.agent.tool_effects import is_external_write
 
 
@@ -91,7 +92,7 @@ class ObservationReducer:
         self._host = host
         self._context_manager = context_manager
 
-    def reduce(self, state: dict[str, Any]) -> dict[str, Any]:
+    def reduce(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
         pending = state["pending"]
         result = pending["result"]
@@ -193,7 +194,7 @@ class ObservationReducer:
     def _reduce_task(
         self,
         context: MainAgentContext,
-        pending: dict[str, Any],
+        pending: PendingAction,
         result: MainAgentToolOutput,
     ) -> MainAgentContext:
         if (
@@ -209,10 +210,10 @@ class ObservationReducer:
 
     def _account_for_call(
         self,
-        state: dict[str, Any],
-        pending: dict[str, Any],
+        state: MainAgentState,
+        pending: PendingAction,
         result: MainAgentToolOutput,
-        control: dict[str, Any],
+        control: LoopControl,
     ) -> None:
         effect = pending["effect"]
         budget_key = {
