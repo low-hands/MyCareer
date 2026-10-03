@@ -9,11 +9,11 @@ from time import monotonic, sleep
 import pytest
 from fastapi.testclient import TestClient
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.session_manager import SessionManager
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.context.session_manager import SessionManager
 from career_agent.api.app import create_app
 from career_agent.storage.api_keys import (
     CAPTURE_WRITE, CHAT_WRITE, WORKSPACE_READ, WORKSPACE_WRITE,

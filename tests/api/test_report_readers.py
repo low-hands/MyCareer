@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
+from career_agent.agent.workflows.resume_tailoring.contracts import ResumeTailoringResult
 from career_agent.api.reads import WorkspaceReader
 from career_agent.domain.interviews import InterviewRetroReport
 from career_agent.storage.resume_job_matches import StoredResumeJobMatch

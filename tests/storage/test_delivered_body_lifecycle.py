@@ -4,14 +4,14 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.delivered_body_contracts import BodyDependency
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.presentation.body_contracts import BodyDependency
+from career_agent.agent.contracts.main_agent import (
     ConversationMessageContext,
     ConversationTaskState,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import ContentDeltaEvent, TurnCompletedEvent
 from career_agent.storage.context import CareerContextStore, DeliveredBodyDraft
 from career_agent.storage.turn_receipts import (

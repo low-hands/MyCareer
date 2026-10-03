@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     ActionCandidateContextItem,
     AgentDecision,
     CareerProfileContext,
@@ -11,8 +11,8 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     project_interview_preparation_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.interview_preparation import (
     GapPreparation,
     InterviewFocusArea,

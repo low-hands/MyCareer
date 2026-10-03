@@ -15,11 +15,11 @@ from __future__ import annotations
 from threading import Lock
 from typing import Protocol
 
-from career_agent.agent.local_resume_extraction import (
+from career_agent.agent.resources.resume_extraction import (
     cached_pdf_read,
     is_transient_pdf_failure,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.storage.resumes import (
     ResumeStore,
     StoredResumeDocument,

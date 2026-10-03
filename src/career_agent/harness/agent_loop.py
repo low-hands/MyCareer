@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-from career_agent.agent.main_agent_contracts import AgentDecision, MainAgentContext
-from career_agent.agent.main_state import MainAgentState, PendingAction
-from career_agent.agent.turn_models import (
+from career_agent.agent.contracts.main_agent import AgentDecision, MainAgentContext
+from career_agent.agent.runtime.state import MainAgentState, PendingAction
+from career_agent.agent.contracts.turn import (
     MainAgentTurnResult,
     ModelDecision,
     TurnOrigin,

@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import AgentDecision, CareerProfileContext, ToolCall
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.action_center import ActionItem, DailyBrief
 from career_agent.storage.context import CareerContextStore
 

@@ -22,13 +22,13 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     MAX_DECISION_FACTS,
     ToolObservation,
     validate_decision_facts,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
 
 _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))

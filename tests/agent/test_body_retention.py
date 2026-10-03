@@ -2,15 +2,15 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.delivery_policy import DELIVERY_POLICIES
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.presentation.delivery_policy import DELIVERY_POLICIES
+from career_agent.agent.contracts.main_agent import (
     ConversationResourceReference,
     ConversationSpanMessage,
     ConversationSpanView,
     ToolObservation,
     ToolResult,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 
 
 def test_only_snapshots_and_entity_handles_are_retained() -> None:

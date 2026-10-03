@@ -1,16 +1,16 @@
 import inspect
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CandidateContextItem,
     ConversationTaskState,
     EmailEventCandidateContextItem,
     ToolResult,
 )
-from career_agent.agent.main_agent_reducers import (
+from career_agent.agent.runtime.reducers import (
     ATOMIC_TASK_REDUCERS,
     reduce_task_state,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
 
 def _fully_wired_registry() -> MainAgentToolRegistry:

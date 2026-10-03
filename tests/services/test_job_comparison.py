@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.job_comparison_presenter import render_job_comparison
-from career_agent.agent.resume_job_match_contracts import (
+from career_agent.agent.presentation.job_comparison import render_job_comparison
+from career_agent.agent.contracts.resume_job_match import (
     RequirementAssessment,
     ResumeJobMatchResult,
     ResumeMatchEvidence,

@@ -2,12 +2,12 @@ from typing import Any, cast
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     MainAgentContext,
     ToolCall,
 )
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.argument_projection import (
     ArgumentProjectionMiddleware,
     ProjectedArguments,

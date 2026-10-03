@@ -4,17 +4,17 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.interview_preparation_presenter import (
+from career_agent.agent.presentation.interview_preparation import (
     summarize_interview_preparation,
 )
-from career_agent.agent.job_research_presenter import summarize_job_research
-from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
-from career_agent.agent.mock_interview_presenter import (
+from career_agent.agent.presentation.job_research import summarize_job_research
+from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
+from career_agent.agent.presentation.mock_interview import (
     render_mock_interview_report,
     render_mock_interview_turn,
     summarize_mock_interview_report,
 )
-from career_agent.agent.summary_text import SUMMARY_LIMIT, condense
+from career_agent.agent.support.summary_text import SUMMARY_LIMIT, condense
 from career_agent.domain.interview_preparation import (
     InterviewFocusArea,
     InterviewPreparationResult,
@@ -270,7 +270,7 @@ def test_the_presenter_is_the_only_place_that_names_a_run_s_states() -> None:
     """
     import inspect
 
-    from career_agent.agent import main_agent_tools
+    from career_agent.agent.capabilities import registry as main_agent_tools
 
     source = inspect.getsource(main_agent_tools)
     assert "模拟面试已取消。" not in source

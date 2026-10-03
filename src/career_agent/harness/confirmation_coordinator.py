@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from career_agent.agent.interaction_coordinator import InteractionCoordinator
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
+from career_agent.agent.contracts.main_agent import (
     CONFIRMATION_SPECS,
     AgentDecision,
     MainAgentContext,
@@ -9,8 +9,8 @@ from career_agent.agent.main_agent_contracts import (
     ToolObservation,
     confirmation_arguments_snapshot,
 )
-from career_agent.agent.main_state import MainAgentState
-from career_agent.agent.turn_models import InteractionReceipt, MainAgentTurnResult
+from career_agent.agent.runtime.state import MainAgentState
+from career_agent.agent.contracts.turn import InteractionReceipt, MainAgentTurnResult
 from career_agent.harness.agent_loop import AgentLoop
 from career_agent.harness.streaming import InteractionResponse
 from career_agent.storage.capability_confirmations import (

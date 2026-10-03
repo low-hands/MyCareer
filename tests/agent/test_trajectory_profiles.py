@@ -2,18 +2,18 @@ from dataclasses import replace
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ToolCall,
     TOOL_PROFILE_NAMES,
     ConversationTaskState,
     project_job_research_arguments,
 )
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
-from career_agent.agent.tool_profiles import profile_schemas, profile_tools
+from career_agent.agent.capabilities.profiles import profile_schemas, profile_tools
 from career_agent.cli import _trajectory_tool_specs
 from career_agent.evaluation import trajectory
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS

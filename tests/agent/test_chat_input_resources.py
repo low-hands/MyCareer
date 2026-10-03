@@ -14,21 +14,21 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.decision_messages import project_decision_messages
-from career_agent.agent.input_resources import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.runtime.decision_messages import project_decision_messages
+from career_agent.agent.resources.input import (
     InputResourceNotFoundError,
     InputResourceRejectedError,
     excerpt_budgets,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ATTACHED_RESUME_EXCERPT_CHARS,
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import TurnFailedEvent, TurnInputResource
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore

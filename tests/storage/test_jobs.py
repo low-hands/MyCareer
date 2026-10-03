@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 import pytest
 import sqlite3
 
-from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
-from career_agent.agent.job_discovery_contracts import JDAnalysis
+from career_agent.agent.contracts.job_analysis import JobAnalysisResult, TieredRequirement
+from career_agent.agent.contracts.job_discovery import JDAnalysis
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
 

@@ -18,15 +18,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.context_deployment_config import (
+from career_agent.agent.context.deployment import (
     DEFAULT_RECENT_MESSAGE_LIMIT,
     DEFAULT_SUMMARY_BATCH_SIZE,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     ConversationResourceReference,
     ConversationTaskState,

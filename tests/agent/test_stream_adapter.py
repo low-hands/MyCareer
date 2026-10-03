@@ -1,6 +1,6 @@
-from career_agent.agent.main_agent_contracts import AgentDecision, ToolObservation
+from career_agent.agent.contracts.main_agent import AgentDecision, ToolObservation
 from career_agent.agent.presentation.stream_adapter import StreamAdapter
-from career_agent.agent.turn_models import MainAgentTurnResult, ModelDecision
+from career_agent.agent.contracts.turn import MainAgentTurnResult, ModelDecision
 from career_agent.harness.streaming import InteractionRequiredEvent
 
 

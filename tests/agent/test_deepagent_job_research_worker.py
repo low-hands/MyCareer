@@ -2,11 +2,11 @@ from pathlib import Path
 
 from langchain.agents.structured_output import ProviderStrategy
 
-from career_agent.agent.deepagent_job_research_worker import (
+from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
 )
-from career_agent.agent.job_research_contracts import JobResearchWorkerRequest
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
+from career_agent.agent.workflows.job_research.contracts import JobResearchWorkerRequest
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 from career_agent.domain.job_research import JobResearchDraft, JobResearchScope
 
 

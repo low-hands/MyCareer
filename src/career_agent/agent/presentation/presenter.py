@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from career_agent.agent.delivered_body_contracts import (
+from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     SavedJobBodySource,
 )
-from career_agent.agent.delivery_policy import (
+from career_agent.agent.presentation.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
     policy_for,
 )
-from career_agent.agent.main_agent_contracts import ConversationResourceReference
-from career_agent.agent.main_agent_tools import MainAgentToolOutput
-from career_agent.agent.main_state import MainAgentState
-from career_agent.agent.openai_compatible_client import public_error_code
-from career_agent.agent.turn_models import MainAgentTurnResult
+from career_agent.agent.contracts.main_agent import ConversationResourceReference
+from career_agent.agent.capabilities.registry import MainAgentToolOutput
+from career_agent.agent.runtime.state import MainAgentState
+from career_agent.agent.providers.openai_client import public_error_code
+from career_agent.agent.contracts.turn import MainAgentTurnResult
 from career_agent.storage.context import DeliveredBodyDraft
 
 

@@ -4,16 +4,16 @@ from typing import Any
 
 from pydantic_core import to_jsonable_python
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CONFIRMATION_SPECS,
     MainAgentContext,
     ToolObservation,
     confirmation_arguments_snapshot,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
-from career_agent.agent.tool_effects import is_external_write
+from career_agent.agent.capabilities.effects import is_external_write
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )

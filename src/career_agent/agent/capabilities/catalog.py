@@ -1,0 +1,972 @@
+"""Single source of truth for Main Agent capability metadata.
+
+Handlers remain dependency-bound by :class:`MainAgentToolRegistry`, but every
+static fact used to expose, authorize, gate, and replay a capability lives in
+this catalogue.  The small compatibility modules ``tool_effects``,
+``tool_profiles``, and ``tool_reachability`` derive their public views from it.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Literal, Mapping, get_args
+
+if TYPE_CHECKING:
+    from career_agent.agent.contracts.main_agent import ConversationTaskState
+else:
+    ConversationTaskState = Any
+
+ToolProfile = Literal["core", "job", "resume", "application", "interview", "memory"]
+TOOL_PROFILE_NAMES: tuple[ToolProfile, ...] = get_args(ToolProfile)
+DOMAIN_TOOL_PROFILES: tuple[ToolProfile, ...] = tuple(
+    name for name in TOOL_PROFILE_NAMES if name != "core"
+)
+
+
+ToolEffect = Literal["READ", "WRITE", "CONTROL"]
+ExecutionKind = Literal["atomic_tool", "workflow", "runtime_workflow"]
+ApprovalPolicy = Literal["never", "owner_rule", "always"]
+ReplayPolicy = Literal["not_applicable", "never", "idempotent"]
+Precondition = Callable[[ConversationTaskState], bool]
+
+
+@dataclass(frozen=True)
+class CapabilityDescriptor:
+    name: str
+    description: str | None
+    arguments_model: str | None
+    effect: ToolEffect
+    profiles: frozenset[ToolProfile]
+    execution_kind: ExecutionKind = "atomic_tool"
+    approval_policy: ApprovalPolicy = "never"
+    replay_policy: ReplayPolicy = "not_applicable"
+    output_model: str = "ToolObservation"
+    external_write: bool = False
+    runtime_owned: bool = False
+    notes_guarded: bool = False
+    preference_bound: bool = False
+    reference_readback: bool = False
+    schema_gated: bool = False
+    precondition: Precondition | None = None
+    requirement: str | None = None
+
+    @property
+    def model_callable(self) -> bool:
+        return self.execution_kind != "runtime_workflow"
+
+    @property
+    def handler_name(self) -> str:
+        """Registry method bound for this capability by naming convention."""
+
+        return f"_{self.name}"
+
+    @property
+    def replay_safe(self) -> bool:
+        """Whether a durable receipt may safely return the prior result."""
+
+        return self.replay_policy == "idempotent"
+
+    def tool_schema(self) -> dict[str, object]:
+        """Build the provider-facing function schema from the declared contract."""
+
+        if not self.model_callable or self.description is None:
+            raise ValueError(f"runtime-only capability has no tool schema: {self.name}")
+        if self.arguments_model is None:
+            parameters: dict[str, object] = {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            }
+        else:
+            # Delayed to keep the catalogue importable while main_agent_contracts
+            # itself imports effect/profile views derived from this module.
+            from career_agent.agent.contracts import main_agent as main_agent_contracts
+
+            model = getattr(main_agent_contracts, self.arguments_model)
+            parameters = model.model_json_schema()
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": parameters,
+            },
+        }
+
+    def output_schema(self) -> dict[str, object]:
+        """Return the internal result-envelope schema for adapters and docs.
+
+        Function-calling providers currently receive only ``tool_schema``.
+        Keeping the output contract separate avoids claiming that providers
+        enforce a response schema which is actually enforced by our registry.
+        """
+
+        from career_agent.agent.contracts import main_agent as main_agent_contracts
+
+        model = getattr(main_agent_contracts, self.output_model)
+        return model.model_json_schema()
+
+    def validate_output(self, value: object) -> Any:
+        """Validate a handler result and bind it to the invoked capability."""
+
+        from career_agent.agent.contracts import main_agent as main_agent_contracts
+
+        model = getattr(main_agent_contracts, self.output_model)
+        result = model.model_validate(value)
+        if result.tool_name != self.name:
+            raise ValueError(
+                f"capability {self.name!r} returned result for {result.tool_name!r}"
+            )
+        return result
+
+
+def _reachable_via_job(task: ConversationTaskState) -> bool:
+    return bool(task.active_job_posting_id or task.saved_job_candidates)
+
+
+def _reachable_via_resume_version(task: ConversationTaskState) -> bool:
+    return bool(task.active_resume_version_id or task.resume_version_candidates)
+
+
+def _reachable_via_application(task: ConversationTaskState) -> bool:
+    return bool(task.active_application_id or task.application_candidates)
+
+
+def _reachable_via_interview(task: ConversationTaskState) -> bool:
+    return bool(task.active_interview_round_id or task.interview_candidates)
+
+
+def _reachable_via_action_item(task: ConversationTaskState) -> bool:
+    return bool(task.active_action_item_id or task.action_candidates)
+
+
+def _has_current_job_analysis(task: ConversationTaskState) -> bool:
+    return bool(
+        task.active_job_analysis_id
+        and task.job_analysis_status == "ready"
+        and task.active_job_analysis_jd_snapshot_id
+        and task.active_job_analysis_jd_snapshot_id == task.active_jd_snapshot_id
+    )
+
+
+_NEEDS_JOB = "先用 find_saved_jobs 列出或选定一个已收藏岗位"
+_NEEDS_APPLICATION = "先用 list_applications 列出或选定一条投递记录"
+_NEEDS_INTERVIEW = "先用 list_interviews 列出或选定一轮面试"
+_NEEDS_ACTION_ITEM = "先用 list_action_items 列出待办事项"
+_NEEDS_TAILORING_DRAFT = "先用 draft_resume_tailoring 生成定制草稿"
+_NEEDS_PROPOSAL = "先调用对应的 propose_* 工具向用户展示提案"
+
+_ALWAYS_CONFIRM = frozenset({
+    "update_owner_settings",
+    "execute_calendar_proposal",
+    "confirm_memory_tombstone",
+    "confirm_constraint_retirement",
+})
+
+# Model-facing schema metadata. The insertion order is part of the stable
+# tool-prefix contract sent to providers; append deliberately and do not sort.
+_SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
+    'route_to_capability': (
+        'RouteToCapabilityToolArguments',
+        (
+            'Expose a required tool outside the current profile by switching to its domain: job (save'
+            'd jobs, comparison, company research), resume (critique, experience import, job match, t'
+            'ailoring, export), application (applications, status, email events), interview (rounds, '
+            'preparation, retro, calendar, mock interview) or memory (career facts, preferences, amen'
+            'dments, deletions). task.tool_profile shows the current profile and task.available_now t'
+            'he tools usable in it. Core tools are shared by every profile. A tool already offered ne'
+            'eds no route; its missing inputs or approval must be supplied, not bypassed by routing. '
+            'Routing only changes the offered tool set, not business data, evidence, or authority.'
+        ),
+    ),
+    'read_conversation_span': (
+        'ReadConversationSpanToolArguments',
+        (
+            "The projection's through_sequence is the last message covered by conversation_summary, a"
+            'nd recent_from_sequence is the first raw recent message. Read an exact inclusive sequenc'
+            'e span from this same conversation only when those boundaries leave a relevant gap. For '
+            'long gaps, pass focused query terms to search message content instead of walking spans e'
+            'ight rows at a time. Without query it returns the oldest rows in the exact span. Returns'
+            ' at most 8 matching messages, clips each at 4000 characters, and reports returned/total '
+            'plus clipping honestly. It never searches another conversation or substitutes nearby row'
+            's when the requested span is empty.'
+        ),
+    ),
+    'fetch_archived_constraints': (
+        'FetchArchivedConstraintsToolArguments',
+        (
+            'Read the constraints this conversation recorded but conversation_summary is not showing.'
+            ' Call this when omitted_active_constraint_count is above zero and the reply depends on w'
+            'hich constraints apply; an archived constraint still applies. Read-only.'
+        ),
+    ),
+    'propose_constraint_retirement': (
+        'ProposeConstraintRetirementToolArguments',
+        (
+            'Prepare to stop applying one recorded constraint, passing its exact text from conversati'
+            'on_summary.active_constraints or from fetch_archived_constraints. Use this only when the'
+            ' user says a constraint no longer holds; never to make room for a new one, and never bec'
+            'ause a constraint looks stale. This only reads the target and shows a bounded proposal.'
+        ),
+    ),
+    'confirm_constraint_retirement': (
+        None,
+        (
+            'Execute the exact constraint retirement already shown to the user. Call only after expli'
+            'cit agreement. The constraint stops applying and will not return even if a later summary'
+            ' rewrite re-extracts the same text.'
+        ),
+    ),
+    'search_career_episodes': (
+        'SearchCareerEpisodesToolArguments',
+        (
+            'Search L1 memories of completed applications, job research, interviews, and mock intervi'
+            'ews across conversations, or expand one projected detail_ref. Supports an occurred-at wi'
+            'ndow and episode-type filters. Results are compact pointers and synopses; dereference re'
+            'source_refs before using an episode as factual evidence.'
+        ),
+    ),
+    'update_working_notes': (
+        'UpdateWorkingNotesToolArguments',
+        (
+            'Replace the complete per-user agent scratchpad. It is unconfirmed and may guide question'
+            's or response style only; never use it as a basis for filtering, ranking, applications, '
+            'scheduling, or authoritative state.'
+        ),
+    ),
+    'resolve_claim_source': (
+        'ResolveClaimSourceToolArguments',
+        (
+            'Read the original resume evidence for a confirmed career claim only when its projected s'
+            "ource_ref is relevant to the user's request. The quotation is returned as a bounded turn"
+            '-local result.'
+        ),
+    ),
+    'get_career_memory_detail': (
+        'GetCareerMemoryDetailToolArguments',
+        (
+            'Expand one current career claim only when its projected detail_ref is relevant. Returns '
+            'the current revision, direct support, and correction lineage without treating an old quo'
+            'tation as support for the corrected claim.'
+        ),
+    ),
+    'search_career_memory': (
+        'SearchCareerMemoryToolArguments',
+        (
+            'Search active confirmed career claims omitted from the bounded Tier-1 window. Use this l'
+            'ayered archive fetch when career_profile.memory_overflow names this tool; paginate with '
+            'the returned cursor.'
+        ),
+    ),
+    'search_career_history': (
+        'SearchCareerHistoryToolArguments',
+        (
+            'Search superseded or rolled-back career claims for historical questions. Pass focused te'
+            'rms expected inside the earlier claim; this is the query-indexed history path, not sourc'
+            'e_ref lookup. When next_cursor is returned, pass it back with the identical query to rea'
+            'd the next page.'
+        ),
+    ),
+    'propose_career_fact': (
+        'ProposeCareerFactToolArguments',
+        (
+            'Create a quarantined career-fact candidate for one projected career record and read the '
+            'exact claim back to the user. Use only for an explicit user statement; it is not active '
+            "until confirmed. Supply user_quote as an exact excerpt from the user's message or questi"
+            'onnaire answer to mark user_input provenance; omit it for inference.'
+        ),
+    ),
+    'confirm_career_fact': (
+        'ConfirmCareerFactToolArguments',
+        (
+            'Confirm the exact quarantined career-fact proposal shown on the preceding turn. Takes no'
+            ' arguments.'
+        ),
+    ),
+    'propose_memory_amendment': (
+        'ProposeMemoryAmendmentToolArguments',
+        (
+            'Prepare a field-level correction for one current career claim identified by detail_ref. '
+            'This only shows the exact replacement claim and reason; it does not write a revision.'
+        ),
+    ),
+    'confirm_memory_amendment': (
+        None,
+        (
+            'Write the exact correction proposal already shown to the user as a new revision. Call on'
+            'ly after explicit agreement.'
+        ),
+    ),
+    'propose_memory_tombstone': (
+        'ProposeMemoryTombstoneToolArguments',
+        (
+            'Prepare an irreversible field-level deletion for one current career claim identified by '
+            'detail_ref. This only reads the target and shows a bounded proposal; it never deletes an'
+            'ything.'
+        ),
+    ),
+    'confirm_memory_tombstone': (
+        None,
+        (
+            'Execute the exact memory deletion proposal already shown to the user. Call only after ex'
+            'plicit agreement; the write redacts the complete claim lineage and is not reversible.'
+        ),
+    ),
+    'open_job_search': (
+        'OpenJobSearchToolArguments',
+        (
+            'Open a BOSS recruitment search page when the user asks to find new jobs. If neither the '
+            'profile nor a target role supplies a city and the user did not give one this turn, ask f'
+            'or the city instead of guessing or searching nationwide. This only constructs a safe sea'
+            'rch URL for the client; it never reads results, automates browsing, calls BOSS APIs, or '
+            'saves a job. The user browses normally and explicitly chooses which JD to save. Use job_'
+            'type for 实习, 全职, or 兼职 instead of putting that word in keyword. After opening it, tell t'
+            'he user that browsing and saving are theirs, and never claim that jobs were found or sav'
+            'ed.'
+        ),
+    ),
+    'propose_free_text_preference_confirmation': (
+        'ProposeFreeTextPreferenceConfirmationToolArguments',
+        (
+            'Show one numbered quarantined free-text preference from the free_text_preferences Markdo'
+            'wn block back to the user and ask whether it should become a lasting active preference. '
+            "This never activates it and ends the turn waiting for the user's answer."
+        ),
+    ),
+    'confirm_free_text_preference': (
+        'ConfirmFreeTextPreferenceToolArguments',
+        (
+            'Promote the exact free-text preference previously shown by propose_free_text_preference_'
+            'confirmation. Call only on a later turn after explicit agreement.'
+        ),
+    ),
+    'propose_job_intent': (
+        'ProposeJobIntentToolArguments',
+        (
+            'Show the user what would be recorded as their stated job intent, without saving anything'
+            '. Send only the fields they just stated in their own words; never infer a city, salary, '
+            'or bracket from a job they looked at or from anything you concluded. Salary, experience,'
+            ' and education belong to one target role and require target_role_selection_index from li'
+            'st_target_roles, because a candidate pursuing two tracks wants different numbers for eac'
+            "h. A city sent without a selection index is the person's default; sent with one it overr"
+            'ides that default for that role alone. Person-level hard constraints may use only the de'
+            'clared work_arrangement, work_schedule, or company_scale relations and must preserve the'
+            " user's own wording (for example, 必须远程 or 不接受996); never infer one. This tool records in"
+            'tent only: skill and experience claims come from the resume, never from being told.'
+        ),
+    ),
+    'confirm_job_intent': (
+        'ConfirmJobIntentToolArguments',
+        (
+            'Save the update the user was just shown. Call it only after they explicitly agree to tha'
+            't specific readback; continuing the conversation is not agreement.'
+        ),
+    ),
+    'compare_saved_jobs': (
+        'CompareSavedJobsToolArguments',
+        (
+            'Lay two or more saved jobs out side by side on fixed dimensions, using only what is alre'
+            'ady on record. It never runs a new resume match and never scores, weights, or ranks the '
+            'jobs: a dimension the data does not answer is reported as unknown rather than filled in.'
+            ' Use it when the user asks which saved jobs to pursue or how they differ.'
+        ),
+    ),
+    'find_saved_jobs': (
+        'FindSavedJobsToolArguments',
+        (
+            "Search only the current user's previously saved or viewed jobs. Use this for historical "
+            'recall, not for discovering new online jobs. Results become numbered saved-job candidate'
+            's; complete JD text stays outside the decision context.'
+        ),
+    ),
+    'get_saved_job': (
+        'GetSavedJobToolArguments',
+        (
+            'Read the selected or active saved job. Pass selection_index after find_saved_jobs, or om'
+            'it it to use the active job. The complete JD is delivered outside the decision context.'
+        ),
+    ),
+    'research_job': (
+        'ResearchJobToolArguments',
+        (
+            'Optional current public-web research for the selected or active saved job. Call only whe'
+            'n the user explicitly asks to research company, product-line, business, market, competit'
+            'or, or related public context; never start it automatically during matching, tailoring, '
+            'application, or interview workflows. A generic JD cannot establish what a specific priva'
+            'te team works on. Results are source-grounded and persisted. If the user explicitly agre'
+            'es to investigate business clues they reported after an interview, pass only those relev'
+            'ant clues as user_provided_context; they remain unverified until supported by public sou'
+            'rces.'
+        ),
+    ),
+    'retry_job_research': (
+        'RetryJobResearchToolArguments',
+        (
+            'Resume the active failed job-research run from its checkpoint. Use only after a retryabl'
+            'e research failure and an explicit user request to retry.'
+        ),
+    ),
+    'get_job_research': (
+        'GetJobResearchToolArguments',
+        (
+            'Read a persisted job-research report without running web research again. When a complete'
+            'd tool result carries a title and reference, match the requested company to that same re'
+            'sult and pass its exact reference; never borrow a reference from an older chat resource '
+            "or a differently titled result. A grounded saved-job selection_index reads that company'"
+            's latest available report, not a specific historical version. Looking up a saved job can'
+            'not recover the identity of a missing historical report. If no selector identifies the r'
+            'equested report, explain that it cannot be read and ask the user to supply it. Omit both'
+            ' only when the user actually means the active one.'
+        ),
+    ),
+    'list_target_roles': (
+        'ListTargetRolesToolArguments',
+        (
+            "List the current user's resume target-role categories as numbered candidates. Never retu"
+            'rns resume document content.'
+        ),
+    ),
+    'list_resumes': (
+        'ListResumesToolArguments',
+        (
+            "List the current user's resume families. If the user named a resume, direction, or tag, "
+            'pass it as query so only matching candidates are returned; otherwise returns a small rec'
+            'ent candidate set. Returns numbered safe metadata only; never returns resume document co'
+            'ntent.'
+        ),
+    ),
+    'get_resume_metadata': (
+        'GetResumeMetadataToolArguments',
+        (
+            'Read a resume family selected by selection_index and list its immutable versions as numb'
+            'ered metadata. Never returns PDF, text, Markdown, extracted content, or file paths.'
+        ),
+    ),
+    'load_skill': (
+        'LoadSkillToolArguments',
+        (
+            'Load the working instructions (a skill) for a task you do yourself, then follow them in '
+            'your reply. The skill text is for you only; the user does not see it. Available skills: '
+            'resume-critique, for reviewing, critiquing or improving a resume as a document when the '
+            'user names no job (a resume compared with a job is match_resume_to_job). It works from t'
+            'he resume attached to the message, whose text is in attached_resumes; if none is attache'
+            'd, ask the user to attach the resume first instead of loading the skill.'
+        ),
+    ),
+    'analyze_job': (
+        'AnalyzeJobToolArguments',
+        (
+            "Analyze one saved job's complete JD on its own: core objective, inferred seniority, S/A/"
+            'B/C tiered requirements with JD quotes, core competencies, implicit requirements, ATS ke'
+            'ywords, HR / hiring-manager focus, likely interview topics, red flags, and information g'
+            'aps. Pass selection_index after find_saved_jobs, or omit it to use the active job. Reads'
+            ' only the JD text: no resume, no preferences, no online research. Use match_resume_to_jo'
+            'b instead when the user wants a comparison against a resume.'
+        ),
+    ),
+    'correct_job_requirement_tier': (
+        'CorrectJobRequirementTierToolArguments',
+        (
+            "After the user explicitly confirms or corrects one requirement's classification, create "
+            'a new immutable job-analysis revision. Never infer user confirmation.'
+        ),
+    ),
+    'match_resume_to_job': (
+        'MatchResumeToJobToolArguments',
+        (
+            "Compare an exact current-user resume version with one saved job's complete JD. Requires "
+            'both objects and reads their source documents itself. Use resume_version_selection_index'
+            ' and job_selection_index to choose directly from existing candidates, or omit either sel'
+            'ector to use its active object. Returns a grounded assessment outside the decision conte'
+            'xt; does not search online and never returns either original document.'
+        ),
+    ),
+    'get_resume_job_match': (
+        'GetResumeJobMatchToolArguments',
+        (
+            "Retrieve the current conversation's active persisted resume-job match. Returns only the "
+            'structured assessment, never the original resume or complete JD.'
+        ),
+    ),
+    'draft_resume_tailoring': (
+        'DraftResumeTailoringToolArguments',
+        (
+            'Create a reviewable tailoring draft from the active persisted resume-job match. May acce'
+            'pt a user tailoring goal. Grounded proposed changes are delivered outside decision conte'
+            'xt; this does not alter or create a resume version.'
+        ),
+    ),
+    'get_resume_tailoring_draft': (
+        'GetResumeTailoringDraftToolArguments',
+        (
+            'Retrieve the active unexpired tailoring draft. Returns proposed changes for review outsi'
+            'de decision context; it does not apply them.'
+        ),
+    ),
+    'review_resume_tailoring': (
+        'ReviewResumeTailoringToolArguments',
+        (
+            'Accept or reject specific 1-based change indices in an active tailoring draft. Use only '
+            'decisions the user explicitly made; never infer acceptance from vague approval. Decision'
+            's are persisted and may be completed across turns. This does not create a new resume ver'
+            'sion.'
+        ),
+    ),
+    'revise_resume_tailoring': (
+        'ReviseResumeTailoringToolArguments',
+        (
+            'Create a new child draft from the active tailoring draft using explicit user feedback. T'
+            'he new draft discards all prior accept/reject decisions, reruns the bounded Writer/Revie'
+            'wer loop, and must be reviewed again. It never overwrites the parent draft or creates a '
+            'ResumeVersion.'
+        ),
+    ),
+    'finalize_resume_tailoring': (
+        'FinalizeResumeTailoringToolArguments',
+        (
+            'Create one new immutable Markdown ResumeVersion from the explicitly accepted changes in '
+            'a fully reviewed tailoring draft. Call only when the user explicitly asks to generate/sa'
+            've the new version after reviewing every change. Repeated calls are idempotent. Never us'
+            'e vague approval as authorization.'
+        ),
+    ),
+    'export_resume_artifact': (
+        'ExportResumeArtifactToolArguments',
+        (
+            'Prepare the active owned immutable resume version for download and return only an opaque'
+            ' artifact reference plus safe file metadata. Call only when the user asks to download, e'
+            'xport, or receive the resume file. Never place file content or a local path in the conve'
+            'rsation.'
+        ),
+    ),
+    'create_application': (
+        'CreateApplicationToolArguments',
+        (
+            "Track a real externally submitted application against the saved job's current immutable "
+            'JD snapshot. Attach the exact owned resume version when known; it may be omitted for a r'
+            'eferral or an already-progressed process whose resume is unknown. Use selection indexes '
+            'to override active objects. Call only after the user explicitly reports that they actual'
+            'ly applied; planning or preparing is not sufficient, but do not lecture about this rule '
+            'unless the user says they have not applied yet. Identify the job from what the user name'
+            'd: call find_saved_jobs with that company or title, use the job if exactly one matches, '
+            'and ask the user to choose only among the matches if several do. Never offer the whole s'
+            'aved-job library as options; if the user named no job, ask which company or role in plai'
+            'n text. Repeated calls for the same job return the original application.'
+        ),
+    ),
+    'update_application_status': (
+        'UpdateApplicationStatusToolArguments',
+        (
+            'Update the active or specified application to a valid pipeline status, or add a note by '
+            'supplying the unchanged status with a note. Use only status changes or facts explicitly '
+            'supplied by the user.'
+        ),
+    ),
+    'list_applications': (
+        'ListApplicationsToolArguments',
+        (
+            "List the current user's tracked applications, optionally filtered by pipeline statuses. "
+            'Returns safe job and application metadata, not resume or JD contents.'
+        ),
+    ),
+    'get_application': (
+        'GetApplicationToolArguments',
+        (
+            'Read a tracked application selected by selection_index, or use the active application, i'
+            'ncluding its append-only event timeline.'
+        ),
+    ),
+    'update_owner_settings': (
+        'UpdateOwnerSettingsToolArguments',
+        (
+            'Propose a persistent owner setting change. The runtime always stops this call and shows '
+            'the exact change to the owner; it takes effect only after the owner confirms the bound i'
+            'nteraction. Never claim it changed before confirmation.'
+        ),
+    ),
+    'sync_application_emails': (
+        'SyncApplicationEmailsToolArguments',
+        (
+            'Run the read-only Gmail/QQ recruiting-email synchronization workflow. It fetches metadat'
+            'a first, reads only candidate bodies in an isolated worker, links events to tracked appl'
+            'ications, and returns safe summaries. Use when the user asks to check or refresh employe'
+            'r email progress.'
+        ),
+    ),
+    'list_email_events': (
+        'ListEmailEventsToolArguments',
+        (
+            'List safe structured recruiting-email events, optionally only those awaiting confirmatio'
+            'n. Never returns email bodies or credentials.'
+        ),
+    ),
+    'resolve_email_event': (
+        'ResolveEmailEventToolArguments',
+        (
+            'Approve or dismiss one pending email event. Approval may explicitly correct its applicat'
+            'ion link and updates the application only when the transition is valid. Use only after c'
+            'lear user confirmation.'
+        ),
+    ),
+    'list_interviews': (
+        'ListInterviewsToolArguments',
+        (
+            'List real interview appointments, optionally for one application or by status. sequence_'
+            "number is only the system's chronological appointment number, not an employer-confirmed "
+            'round label.'
+        ),
+    ),
+    'get_interview': (
+        'GetInterviewToolArguments',
+        (
+            'Read one interview appointment and its append-only invitation, reschedule, detail-update'
+            ', cancellation, and completion history.'
+        ),
+    ),
+    'create_interview': (
+        'CreateInterviewToolArguments',
+        (
+            'Create a user-reported real interview appointment after explicit tracking authority. It '
+            'uses the uniquely focused active application when present; otherwise the runtime may cre'
+            'ate a minimal tracked application from the uniquely focused active saved job, without in'
+            'venting a resume, and move it to interviewing. Never attach it to an unrelated historica'
+            'l JD. employer_label may be provided only when the employer explicitly used that label; '
+            'never infer 一面/二面 from sequence.'
+        ),
+    ),
+    'update_interview': (
+        'UpdateInterviewToolArguments',
+        (
+            'Apply an explicitly user-reported reschedule, added detail, or cancellation to one exist'
+            'ing interview. A reschedule updates the same appointment rather than creating another on'
+            'e.'
+        ),
+    ),
+    'complete_interview': (
+        'CompleteInterviewToolArguments',
+        (
+            'Mark one real interview completed only after the user explicitly confirms they attended '
+            'it. Time passing alone is never confirmation.'
+        ),
+    ),
+    'record_interview_retro': (
+        'RecordInterviewRetroToolArguments',
+        (
+            'Create a versioned post-interview report for one user-confirmed completed real interview'
+            '. Use only facts the user just provided: preserve their source notes, structure remember'
+            'ed questions and answers, and put missing information in limitations. Never invent inter'
+            "viewer feedback or present self-assessment as the employer's decision."
+        ),
+    ),
+    'prepare_interview': (
+        'PrepareInterviewToolArguments',
+        (
+            'Generate or reuse a grounded preparation guide for one real upcoming interview from its '
+            'exact JD snapshot, submitted resume version, confirmed evidence, and logistics. This is '
+            'preparation, not a mock interview and not employer inside information.'
+        ),
+    ),
+    'get_interview_preparation': (
+        'GetInterviewPreparationToolArguments',
+        (
+            'Read one persisted interview preparation result without re-reading full source documents'
+            '. Pass reference to read the material a specific earlier message produced, or omit it to'
+            ' use the active preparation.'
+        ),
+    ),
+    'start_mock_interview': (
+        'StartMockInterviewToolArguments',
+        (
+            'Start one stateful mock interview for an application/interview or as explicit free pract'
+            'ice (practice_scope=free). Application runs must be selected from the visible applicatio'
+            'n_candidates or interview_candidates when no active application is set: use the matching'
+            ' selection index. Those candidates are scoped to this conversation; do not list or infer'
+            ' a global recent application just because its role/company sounds similar. If no current'
+            ' application or visible selection exists, ask the user which one to use. Use free practi'
+            'ce only when the user explicitly says it is not for a tracked application. Never omit th'
+            'e scope/selection and let the runtime guess between these meanings. use the exact submit'
+            'ted resume and immutable JD. Free practice runs only on a resume the user chose: a singl'
+            'e resume attached to this message, resume_version_selection_index from the resume choice'
+            ' this tool offered, or without_resume=true when the user said not to use one. With none '
+            'of these the tool starts nothing and shows the user a resume choice; never pick one your'
+            'self. For a specific job, pass job_selection_index from a saved-job list or the job choi'
+            'ce this tool offered; a single job attached to this message is used as is. When the user'
+            ' names only a company, pass company_name exactly as they said it: the tool offers that c'
+            "ompany's saved jobs first, and without_job=true is the user's answer that they want comp"
+            'any-only practice. Optionally bind a numbered real interview appointment for context. Af'
+            'ter the first question, user answers are routed directly to the active mock-interview wo'
+            'rkflow; do not call this tool again to answer.'
+        ),
+    ),
+    'restart_mock_interview': (
+        'RestartMockInterviewToolArguments',
+        (
+            'Retire a mock interview that reported mock_interview_checkpoint_missing or mock_intervie'
+            'w_graph_incompatible and start a replacement against the same application, resume versio'
+            'n, and JD. Call this only after the user agrees to abandon the stuck run: its answers st'
+            'ay readable but it can never be finished. Takes no arguments.'
+        ),
+    ),
+    'get_mock_interview_result': (
+        'GetMockInterviewResultToolArguments',
+        (
+            'Read back a finished mock interview. Pass reference to read the exact run a specific ear'
+            'lier message reported, application_selection_index for the latest run on a numbered appl'
+            'ication, or omit both for the latest run on the active application. Without a question n'
+            'umber this lists the questions with their ratings; with one it returns that question, th'
+            "e user's full answer, its evaluation, and any follow-ups. Use this whenever the user ask"
+            's about a past mock interview, since the conversation only keeps a reference to the repo'
+            'rt.'
+        ),
+    ),
+    'get_daily_brief': (
+        'GetDailyBriefToolArguments',
+        (
+            "Generate the current user's source-grounded daily career brief from applications, recrui"
+            'ting email events, real interviews, and unresolved resume-tailoring gaps. The report is '
+            'computed on demand and is not stored as stale narrative memory.'
+        ),
+    ),
+    'list_action_items': (
+        'ListActionItemsToolArguments',
+        (
+            'Refresh and list persisted career action items such as follow-ups, pending email confirm'
+            'ations, interview preparation, reminders, material requests, and retrospectives.'
+        ),
+    ),
+    'complete_action_item': (
+        'ResolveActionItemToolArguments',
+        (
+            'Mark one action item completed only after the user explicitly reports completing it.'
+        ),
+    ),
+    'dismiss_action_item': (
+        'ResolveActionItemToolArguments',
+        (
+            'Dismiss one action item only after the user explicitly says it is not applicable or shou'
+            'ld be ignored.'
+        ),
+    ),
+    'snooze_action_item': (
+        'SnoozeActionItemToolArguments',
+        (
+            'Snooze one action item until an explicit future timestamp requested by the user.'
+        ),
+    ),
+    'list_calendar_accounts': (
+        'ListCalendarAccountsToolArguments',
+        (
+            'List safe Google Calendar account metadata. Credentials are never returned.'
+        ),
+    ),
+    'list_calendar_links': (
+        'ListCalendarLinksToolArguments',
+        (
+            "List the user's interview-to-calendar synchronization links and current sync status."
+        ),
+    ),
+    'prepare_interview_calendar_sync': (
+        'PrepareInterviewCalendarSyncToolArguments',
+        (
+            'Prepare a fixed create, update, or cancel preview for one real InterviewRound. This does'
+            ' not write to an external calendar and must be shown to the user for approval.'
+        ),
+    ),
+    'get_calendar_proposal': (
+        'GetCalendarProposalToolArguments',
+        (
+            'Read one pending or historical fixed calendar-change proposal without executing it.'
+        ),
+    ),
+    'execute_calendar_proposal': (
+        'ExecuteCalendarProposalToolArguments',
+        (
+            'Execute exactly one unchanged, unexpired calendar proposal only after the user explicitl'
+            'y approves that displayed proposal. This is an external write. A failed or outcome-unkno'
+            'wn execution must not be repeated or claimed successful; reconcile it, then prepare and '
+            'approve a new preview.'
+        ),
+    ),
+})
+MODEL_SCHEMA_ORDER: tuple[str, ...] = tuple(_SCHEMA_SPECS)
+
+
+def _capability(
+    name: str,
+    effect: ToolEffect,
+    *profiles: ToolProfile,
+    execution_kind: ExecutionKind = "atomic_tool",
+    external_write: bool = False,
+    replay_safe: bool = False,
+    runtime_owned: bool = False,
+    notes_guarded: bool | None = None,
+    preference_bound: bool = False,
+    reference_readback: bool = False,
+    schema_gated: bool = False,
+    precondition: Precondition | None = None,
+    requirement: str | None = None,
+) -> CapabilityDescriptor:
+    schema_spec = _SCHEMA_SPECS.get(name)
+    approval_policy: ApprovalPolicy
+    if runtime_owned or effect != "WRITE":
+        approval_policy = "never"
+    elif name in _ALWAYS_CONFIRM:
+        approval_policy = "always"
+    else:
+        approval_policy = "owner_rule"
+    replay_policy: ReplayPolicy = (
+        "not_applicable"
+        if effect != "WRITE"
+        else ("idempotent" if replay_safe else "never")
+    )
+    return CapabilityDescriptor(
+        name=name,
+        arguments_model=schema_spec[0] if schema_spec is not None else None,
+        description=schema_spec[1] if schema_spec is not None else None,
+        effect=effect,
+        profiles=frozenset(profiles),
+        execution_kind=execution_kind,
+        approval_policy=approval_policy,
+        replay_policy=replay_policy,
+        external_write=external_write,
+        runtime_owned=runtime_owned,
+        notes_guarded=(effect == "WRITE" if notes_guarded is None else notes_guarded),
+        preference_bound=preference_bound,
+        reference_readback=reference_readback,
+        schema_gated=schema_gated,
+        precondition=precondition,
+        requirement=requirement,
+    )
+
+
+def _descriptors() -> Iterable[CapabilityDescriptor]:
+    # Core tools are exposed in every profile.  Domain-only tools list each
+    # profile in which they are visible.
+    yield _capability("route_to_capability", "CONTROL", "core")
+    yield _capability("load_skill", "READ", "core")
+    yield _capability("read_conversation_span", "READ", "core")
+    yield _capability("update_working_notes", "WRITE", "core", notes_guarded=False)
+    yield _capability("fetch_archived_constraints", "READ", "core")
+    yield _capability("search_career_memory", "READ", "core")
+    yield _capability("update_owner_settings", "WRITE", "core", replay_safe=True)
+    yield _capability("get_daily_brief", "READ", "core")
+    yield _capability("list_action_items", "READ", "core")
+    yield _capability("complete_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("dismiss_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("snooze_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("open_job_search", "WRITE", "core")
+    yield _capability("find_saved_jobs", "READ", "core", notes_guarded=True)
+    yield _capability("list_resumes", "READ", "core")
+    yield _capability("list_applications", "READ", "core")
+    yield _capability("list_interviews", "READ", "core")
+
+    yield _capability("get_saved_job", "READ", "job", "resume", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("analyze_job", "WRITE", "job", "resume", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("correct_job_requirement_tier", "WRITE", "job")
+    yield _capability("compare_saved_jobs", "READ", "job", notes_guarded=True, preference_bound=True, precondition=lambda task: bool(task.saved_job_candidates), requirement="先用 find_saved_jobs 列出可比较的岗位")
+    yield _capability("research_job", "WRITE", "job", execution_kind="workflow", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("retry_job_research", "WRITE", "job", execution_kind="workflow", schema_gated=True, precondition=lambda task: bool(task.active_job_research_run_id), requirement="只能重试当前会话里已发起的公司调研")
+    yield _capability("get_job_research", "READ", "job", reference_readback=True)
+    yield _capability("list_target_roles", "READ", "job", "resume")
+    yield _capability("propose_job_intent", "READ", "job", "memory")
+    yield _capability("confirm_job_intent", "WRITE", "job", "memory", schema_gated=True, precondition=lambda task: task.pending_job_intent_update is not None, requirement="先用 propose_job_intent 展示意图变更")
+
+    yield _capability("get_resume_metadata", "READ", "resume", precondition=lambda task: bool(task.resume_candidates), requirement="先用 list_resumes 列出简历")
+    yield _capability("match_resume_to_job", "WRITE", "resume", preference_bound=True, precondition=lambda task: _reachable_via_job(task) and _reachable_via_resume_version(task) and _has_current_job_analysis(task), requirement="先用 analyze_job 分析当前 JD，并同时选定一个岗位和一个简历版本")
+    yield _capability("get_resume_job_match", "READ", "resume", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="先用 match_resume_to_job 完成岗位匹配")
+    yield _capability("draft_resume_tailoring", "WRITE", "resume", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="定制前需先用 match_resume_to_job 完成岗位匹配")
+    yield _capability("get_resume_tailoring_draft", "READ", "resume", precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("review_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("revise_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("finalize_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("export_resume_artifact", "WRITE", "resume", precondition=lambda task: bool(task.active_resume_version_id), requirement="先选定一个简历版本（定制完成后自动选定）")
+
+    yield _capability("get_application", "READ", "application", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
+    yield _capability("create_application", "WRITE", "application", replay_safe=True, preference_bound=True, precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("update_application_status", "WRITE", "application", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
+    yield _capability("sync_application_emails", "WRITE", "application", execution_kind="workflow")
+    yield _capability("list_email_events", "READ", "application")
+    yield _capability("resolve_email_event", "WRITE", "application", precondition=lambda task: bool(task.email_event_candidates), requirement="先用 list_email_events 列出邮件事件")
+
+    yield _capability("get_interview", "READ", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("create_interview", "WRITE", "interview", precondition=lambda task: _reachable_via_application(task) or _reachable_via_job(task), requirement="需要上下文唯一指向一条投递记录或一个已保存岗位；若都没有，先询问是否纳入跟踪，并请用户提供或选择公司与岗位，不能关联无关 JD")
+    yield _capability("update_interview", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("complete_interview", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("record_interview_retro", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("prepare_interview", "WRITE", "interview", precondition=lambda task: _reachable_via_interview(task) or bool(task.action_candidates), requirement="先选定一轮面试或一条待办事项")
+    yield _capability("get_interview_preparation", "READ", "interview", reference_readback=True)
+    yield _capability("list_calendar_accounts", "READ", "interview")
+    yield _capability("list_calendar_links", "READ", "interview")
+    yield _capability("prepare_interview_calendar_sync", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("get_calendar_proposal", "READ", "interview", precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
+    yield _capability("execute_calendar_proposal", "WRITE", "interview", external_write=True, replay_safe=True, schema_gated=True, precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
+    yield _capability("start_mock_interview", "WRITE", "interview", execution_kind="workflow", precondition=lambda task: True, requirement="可直接自由练习，也可选择一条投递或面试")
+    yield _capability("restart_mock_interview", "WRITE", "interview", execution_kind="workflow", schema_gated=True, precondition=lambda task: task.active_workflow == "mock_interview" and task.phase in {"mock_interview_checkpoint_missing", "mock_interview_graph_incompatible"}, requirement="只有模拟面试检查点丢失或不兼容时才能重启")
+    yield _capability("get_mock_interview_result", "READ", "interview", reference_readback=True)
+
+    yield _capability("search_career_history", "READ", "memory")
+    yield _capability("search_career_episodes", "READ", "memory")
+    yield _capability("get_career_memory_detail", "READ", "memory")
+    yield _capability("resolve_claim_source", "READ", "memory")
+    yield _capability("propose_free_text_preference_confirmation", "READ", "memory")
+    yield _capability("confirm_free_text_preference", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_free_text_preference is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_memory_amendment", "READ", "memory")
+    yield _capability("confirm_memory_amendment", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_memory_amendment is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_memory_tombstone", "READ", "memory")
+    yield _capability("confirm_memory_tombstone", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_memory_tombstone is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_career_fact", "WRITE", "memory")
+    yield _capability("confirm_career_fact", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_career_fact is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_constraint_retirement", "READ", "memory")
+    yield _capability("confirm_constraint_retirement", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_constraint_retirement is not None, requirement=_NEEDS_PROPOSAL)
+
+    yield _capability("handle_mock_interview_input", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
+    yield _capability("retry_mock_interview", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
+
+
+def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
+    result: dict[str, CapabilityDescriptor] = {}
+    for descriptor in _descriptors():
+        if descriptor.name in result:
+            raise RuntimeError(f"duplicate Main Agent capability: {descriptor.name}")
+        if descriptor.external_write and descriptor.effect != "WRITE":
+            raise RuntimeError(f"external capability must be WRITE: {descriptor.name}")
+        if descriptor.replay_policy == "idempotent" and descriptor.effect != "WRITE":
+            raise RuntimeError(f"replay-safe capability must be WRITE: {descriptor.name}")
+        if descriptor.effect != "WRITE" and descriptor.replay_policy != "not_applicable":
+            raise RuntimeError(f"non-WRITE capability cannot declare replay: {descriptor.name}")
+        if descriptor.effect == "WRITE" and descriptor.replay_policy == "not_applicable":
+            raise RuntimeError(f"WRITE capability needs a replay policy: {descriptor.name}")
+        if descriptor.approval_policy != "never" and descriptor.effect != "WRITE":
+            raise RuntimeError(f"only WRITE capabilities may require approval: {descriptor.name}")
+        if descriptor.runtime_owned and descriptor.approval_policy != "never":
+            raise RuntimeError(f"runtime-owned capability cannot await owner approval: {descriptor.name}")
+        if descriptor.external_write and descriptor.approval_policy != "always":
+            raise RuntimeError(f"external write must always require approval: {descriptor.name}")
+        if descriptor.runtime_owned != (descriptor.execution_kind == "runtime_workflow"):
+            raise RuntimeError(f"runtime ownership and execution kind disagree: {descriptor.name}")
+        if descriptor.model_callable and not descriptor.profiles:
+            raise RuntimeError(f"model-callable capability needs a profile: {descriptor.name}")
+        if descriptor.model_callable and descriptor.name not in _SCHEMA_SPECS:
+            raise RuntimeError(f"model-callable capability needs a tool schema: {descriptor.name}")
+        if not descriptor.model_callable and descriptor.name in _SCHEMA_SPECS:
+            raise RuntimeError(f"runtime-only capability cannot expose a tool schema: {descriptor.name}")
+        if not descriptor.model_callable and descriptor.profiles:
+            raise RuntimeError(f"runtime-only capability cannot have a model profile: {descriptor.name}")
+        if (descriptor.precondition is None) != (descriptor.requirement is None):
+            raise RuntimeError(f"precondition and requirement must be declared together: {descriptor.name}")
+        if descriptor.schema_gated and descriptor.precondition is None:
+            raise RuntimeError(f"schema-gated capability needs a precondition: {descriptor.name}")
+        result[descriptor.name] = descriptor
+    return MappingProxyType(result)
+
+
+CAPABILITIES: Mapping[str, CapabilityDescriptor] = _build_catalog()
+
+
+def capability(name: str) -> CapabilityDescriptor:
+    try:
+        return CAPABILITIES[name]
+    except KeyError as error:
+        raise ValueError(f"Unknown Main Agent capability: {name}") from error

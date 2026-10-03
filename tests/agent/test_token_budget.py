@@ -4,13 +4,13 @@ from pathlib import Path
 import pytest
 import tiktoken.load
 
-from career_agent.agent.tiktoken_assets import (
+from career_agent.agent.providers.tiktoken_assets import (
     CL100K_BLOB_URL,
     bundled_cl100k_vocab_path,
     populate_bundled_tiktoken_cache,
     tiktoken_cache_key,
 )
-from career_agent.agent.token_budget import (
+from career_agent.agent.providers.token_budget import (
     BUDGET_ENCODING,
     budget_encoding,
     clip_to_tokens,
@@ -95,7 +95,7 @@ def test_missing_bundled_vocab_fails_without_fetching(
     budget_encoding.cache_clear()
     monkeypatch.delenv("TIKTOKEN_CACHE_DIR", raising=False)
     monkeypatch.setattr(
-        "career_agent.agent.token_budget.bundled_cl100k_vocab_path",
+        "career_agent.agent.providers.token_budget.bundled_cl100k_vocab_path",
         lambda: tmp_path / "missing",
     )
 

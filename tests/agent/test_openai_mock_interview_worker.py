@@ -7,16 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.interview_preparation_contracts import (
+from career_agent.agent.contracts.interview_preparation import (
     InterviewPreparationContext,
     PriorInterviewRetroContext,
 )
-from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.workflows.mock_interview.skill_loader import MockInterviewSkillLoader
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_mock_interview_worker import OpenAIMockInterviewWorker
+from career_agent.agent.workflows.mock_interview.worker import OpenAIMockInterviewWorker
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlan,

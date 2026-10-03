@@ -349,7 +349,7 @@ uv run career-agent backup restore --source ~/.career-agent-backups/20260914T120
 
 **公司调研使用独立模型（可选）**
 
-设置 `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）。三项都不设置时复用 `RESUME_ANALYSIS_AGENT_*`；只要设置了其中一项，就必须三项都填。该接口需要支持 Responses 的 `web_search` 工具，可以先运行 `python -m career_agent.agent.job_research_provider_smoke --work-root <目录> --report <新文件>` 检查。
+设置 `JOB_RESEARCH_AGENT_BASE_URL` / `_API_KEY` / `_MODEL`（可选 `_TIMEOUT_SECONDS`，默认 30，范围 1–120）。三项都不设置时复用 `RESUME_ANALYSIS_AGENT_*`；只要设置了其中一项，就必须三项都填。该接口需要支持 Responses 的 `web_search` 工具，可以先运行 `python -m career_agent.agent.workflows.job_research.provider_smoke --work-root <目录> --report <新文件>` 检查。
 
 **对话历史压缩**
 

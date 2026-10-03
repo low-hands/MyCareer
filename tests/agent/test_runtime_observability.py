@@ -1,7 +1,7 @@
 import pytest
 
-from career_agent.agent.runtime_observability import RuntimeObservability
-from career_agent.agent.turn_coordinator import STREAM_SINK
+from career_agent.agent.runtime.observability import RuntimeObservability
+from career_agent.agent.runtime.turn_coordinator import STREAM_SINK
 
 
 @pytest.mark.parametrize(

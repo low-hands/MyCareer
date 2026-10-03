@@ -1,8 +1,8 @@
 import pytest
 
-from career_agent.agent.deepagent_job_research_worker import _base_url
-from career_agent.agent.job_research_config import job_research_config_from_env
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.workflows.job_research.worker import _base_url
+from career_agent.agent.workflows.job_research.config import job_research_config_from_env
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     OpenAICompatibleAgentConfig,
 )

@@ -11,10 +11,10 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
-from career_agent.agent.job_analysis_contracts import TieredRequirement
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.contracts.job_analysis import TieredRequirement
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
+from career_agent.agent.providers.resume_job_match import OpenAIResumeJobMatchWorker
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
 from career_agent.services.resume_job_match import ResumeJobMatchService
 from career_agent.storage.resumes import StoredResumeDocument
 

@@ -123,7 +123,7 @@ def test_tailoring_draft_link_is_user_scoped(tmp_path) -> None:
         content=b"source resume",
         document_format="text",
     )
-    from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+    from career_agent.agent.workflows.resume_tailoring.contracts import ResumeTailoringResult
     from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
     drafts = SQLiteResumeTailoringDraftStore(tmp_path / "resumes.sqlite3")

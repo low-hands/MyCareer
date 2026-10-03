@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
-from career_agent.agent.conversation_span_requests import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import ConversationSummaryContent
+from career_agent.agent.resources.conversation_span import (
     ExplicitSequenceSpan,
     explicit_sequence_span,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, ModelDecision
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ModelDecision
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
 
 

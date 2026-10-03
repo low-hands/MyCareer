@@ -48,7 +48,7 @@ from fastapi import (
 from fastapi import Path as FastAPIPath
 from pydantic import BaseModel, ConfigDict, Field
 
-from career_agent.agent.delivered_body_contracts import (
+from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
     SavedJobBodySource,
@@ -67,8 +67,8 @@ from career_agent.services.applications import (
 )
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.resume_text import ResumeTextService
-from career_agent.agent.openai_resume_transcription_worker import OpenAIResumeTranscriptionWorker
-from career_agent.agent.openai_compatible_client import AgentConfigurationError
+from career_agent.agent.providers.resume_transcription import OpenAIResumeTranscriptionWorker
+from career_agent.agent.providers.openai_client import AgentConfigurationError
 from career_agent.services.interviews import InterviewService
 from career_agent.services.resume_import import (
     MAX_RESUME_IMPORT_BYTES,
@@ -98,35 +98,35 @@ from career_agent.storage.resumes import (
 )
 from career_agent.domain.mock_interviews import MockInterviewSession
 from career_agent.domain.resume import ResumeVersion
-from career_agent.agent.interview_preparation_presenter import (
+from career_agent.agent.presentation.interview_preparation import (
     render_interview_preparation,
 )
-from career_agent.agent.interview_retro_presenter import render_interview_retro
-from career_agent.agent.job_analysis_contracts import (
+from career_agent.agent.presentation.interview_retro import render_interview_retro
+from career_agent.agent.contracts.job_analysis import (
     SENIORITY_LABELS,
     JobAnalysisResult,
 )
-from career_agent.agent.resume_job_match_contracts import IntentAlignment
-from career_agent.agent.job_analysis_presenter import render_job_analysis
-from career_agent.agent.job_research_presenter import render_job_research
-from career_agent.agent.mock_interview_presenter import (
+from career_agent.agent.contracts.resume_job_match import IntentAlignment
+from career_agent.agent.presentation.job_analysis import render_job_analysis
+from career_agent.agent.presentation.job_research import render_job_research
+from career_agent.agent.presentation.mock_interview import (
     INTERVIEW_TYPE_LABELS,
     mock_interview_question_view,
     render_mock_interview_question,
     render_mock_interview_report,
     practice_basis,
 )
-from career_agent.agent.resume_job_match_presenter import render_resume_job_match
+from career_agent.agent.presentation.resume_job_match import render_resume_job_match
 from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     capability_confirmation_event,
     questionnaire_event,
 )
-from career_agent.agent.resume_tailoring_presenter import (
+from career_agent.agent.presentation.resume_tailoring import (
     TailoringChangeReviewView,
     render_resume_tailoring,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CONFIRMATION_SPECS,
     ConversationResourceReference,
     ConversationTaskState,

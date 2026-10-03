@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from career_agent.agent.interview_preparation_contracts import (
+from career_agent.agent.contracts.interview_preparation import (
     InterviewLogisticsContext,
     InterviewPreparationContext,
     PreparationConfirmedFact,

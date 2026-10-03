@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.context.manager import ContextManager
 from career_agent.api.reads import WorkspaceReader
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore

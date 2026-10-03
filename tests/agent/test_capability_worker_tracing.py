@@ -8,36 +8,36 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.deepagent_job_research_worker import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
 )
-from career_agent.agent.deepagent_resume_tailoring_worker import (
+from career_agent.agent.workflows.resume_tailoring.worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ToolCall,
     ToolObservation,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.runtime_observability import RuntimeObservability
-from career_agent.agent.openai_compatible_agent_worker import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.runtime.observability import RuntimeObservability
+from career_agent.agent.providers.agent_worker import (
     OpenAICompatibleAgentWorker,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
-from career_agent.agent.openai_interview_preparation_worker import (
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.providers.email_tracking import OpenAIEmailTrackingWorker
+from career_agent.agent.providers.interview_preparation import (
     OpenAIInterviewPreparationWorker,
 )
-from career_agent.agent.openai_mock_interview_worker import OpenAIMockInterviewWorker
-from career_agent.agent.openai_resume_job_match_worker import (
+from career_agent.agent.workflows.mock_interview.worker import OpenAIMockInterviewWorker
+from career_agent.agent.providers.resume_job_match import (
     OpenAIResumeJobMatchWorker,
 )
-from career_agent.agent.openai_resume_tailoring_reviewer import (
+from career_agent.agent.workflows.resume_tailoring.reviewer import (
     OpenAIResumeTailoringReviewer,
 )
 from career_agent.harness.observability import (

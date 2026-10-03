@@ -16,8 +16,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     ProviderErrorMetadata,
 )

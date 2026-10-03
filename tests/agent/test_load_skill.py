@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from career_agent.agent.main_agent_contracts import AgentDecision
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
 SKILLS = Path(__file__).resolve().parents[2] / "skills"
 

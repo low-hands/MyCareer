@@ -1,6 +1,6 @@
 import pytest
 
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     OpenAICompatibleAgentConfig,
 )

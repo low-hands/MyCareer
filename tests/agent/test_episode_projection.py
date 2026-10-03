@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent import main_agent_contracts
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts import main_agent as main_agent_contracts
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     PREFERENCE_EPISODE_CHAR_BUDGET,
     AgentDecision,
     CareerProfileContext,
@@ -13,8 +13,8 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     ToolObservation,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.episodes import CareerEpisodeDraft, EpisodeResourceRef
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore

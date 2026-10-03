@@ -11,11 +11,11 @@ from openai import APIStatusError
 from openai.types.responses import Response
 import pytest
 
-from career_agent.agent.deepagent_job_research_worker import DeepAgentJobResearchWorker, _base_url
-from career_agent.agent.job_research_contracts import JobResearchWorkerRequest
-from career_agent.agent.job_research_provider_diagnostics import ProviderRequestStructure
-from career_agent.agent import job_research_provider_smoke as smoke
-from career_agent.agent.openai_compatible_client import AgentWorkerError, OpenAICompatibleAgentConfig
+from career_agent.agent.workflows.job_research.worker import DeepAgentJobResearchWorker, _base_url
+from career_agent.agent.workflows.job_research.contracts import JobResearchWorkerRequest
+from career_agent.agent.workflows.job_research.provider_diagnostics import ProviderRequestStructure
+from career_agent.agent.workflows.job_research import provider_smoke as smoke
+from career_agent.agent.providers.openai_client import AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.domain.job_research import JobResearchDraft, JobResearchScope
 
 

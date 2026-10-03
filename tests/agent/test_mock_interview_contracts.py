@@ -3,12 +3,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from career_agent.agent.mock_interview_contracts import (
+from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewPlanDraft,
     MockInterviewQuestionDraft,
     MockInterviewReportDraft,
 )
-from career_agent.agent.mock_interview_skill_loader import (
+from career_agent.agent.workflows.mock_interview.skill_loader import (
     MockInterviewSkillLoader,
 )
 from career_agent.domain.mock_interviews import (

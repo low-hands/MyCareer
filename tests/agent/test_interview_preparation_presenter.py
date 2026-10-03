@@ -1,4 +1,4 @@
-from career_agent.agent.interview_preparation_presenter import (
+from career_agent.agent.presentation.interview_preparation import (
     render_interview_preparation,
 )
 from career_agent.domain.interview_preparation import (

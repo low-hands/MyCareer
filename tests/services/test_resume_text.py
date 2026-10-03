@@ -7,8 +7,8 @@ import sqlite3
 
 from pypdf import PdfReader, PdfWriter
 
-from career_agent.agent.local_resume_extraction import extract_resume_source
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.resources.resume_extraction import extract_resume_source
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.services.resume_text import ResumeTextService
 from career_agent.storage.resumes import ResumeStore
 from tests.agent.test_resume_093_extraction import synthetic_pdf

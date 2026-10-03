@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from career_agent.agent.execution.capability_executor import CapabilityExecutor
-from career_agent.agent.main_agent_contracts import ToolObservation
+from career_agent.agent.contracts.main_agent import ToolObservation
 
 
 def test_executor_uses_explicit_progress_and_runner_dependencies() -> None:

@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from career_agent.agent.mock_interview_graph import StoredMockInterviewSourceProvider
-from career_agent.agent.mock_interview_presenter import practice_basis_line
+from career_agent.agent.workflows.mock_interview.graph import StoredMockInterviewSourceProvider
+from career_agent.agent.presentation.mock_interview import practice_basis_line
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.interview_context import InterviewPreparationContextFactory
 from career_agent.storage.jobs import SQLiteJobPostingRepository
@@ -131,7 +131,7 @@ def test_every_style_profile_has_its_section_in_the_skill_and_back() -> None:
     import re
     from pathlib import Path
 
-    from career_agent.agent.mock_interview_company_styles import COMPANY_STYLE_PROFILES
+    from career_agent.agent.workflows.mock_interview.company_styles import COMPANY_STYLE_PROFILES
 
     text = Path("skills/mock-interview/references/company.md").read_text(encoding="utf-8")
     section = text.split("## Preparation profiles", 1)[1].split("\n## ", 1)[0]

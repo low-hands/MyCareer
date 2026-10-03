@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 
-from career_agent.agent.job_analysis_contracts import TieredRequirement
-from career_agent.agent.resume_job_match_contracts import (
+from career_agent.agent.contracts.job_analysis import TieredRequirement
+from career_agent.agent.contracts.resume_job_match import (
     ConfirmedResumeFact,
     IntentStateAnchor,
     IntentStateTransition,
@@ -13,9 +13,9 @@ from career_agent.agent.resume_job_match_contracts import (
     ResumeJobMatchWorker,
     IntentAlignment,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.resume_job_fit import derive_overall_fit
-from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.capabilities.resume_job_fit import derive_overall_fit
+from career_agent.agent.workflows.resume_tailoring.review_graph import ResumeTailoringReviewGraph
 from career_agent.services.job_analysis import JOB_ANALYZER_VERSION
 from career_agent.storage.context import CareerProfileStore
 from career_agent.storage.career_history import CareerHistoryStore

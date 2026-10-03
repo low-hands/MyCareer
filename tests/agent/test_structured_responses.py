@@ -21,12 +21,12 @@ import pytest
 from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 from pydantic import BaseModel
 
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.structured_response_retry import (
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.providers.structured_response_retry import (
     INVALID_RESPONSE_RETRIES,
     retry_invalid_response,
 )
-from career_agent.agent.structured_responses import structured_response
+from career_agent.agent.providers.structured_responses import structured_response
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     InMemoryTraceRecorder,
@@ -339,13 +339,13 @@ def test_each_capability_keeps_its_own_error_vocabulary() -> None:
 
 
 _MIGRATED_WORKERS = {
-    "openai_resume_job_match_worker": "RESUME_JOB_MATCH",
-    "openai_job_analysis_worker": "JOB_ANALYSIS",
-    "openai_email_tracking_worker": "EMAIL_TRACKING",
-    "openai_interview_preparation_worker": "INTERVIEW_PREPARATION",
-    "openai_resume_tailoring_reviewer": "RESUME_REVIEW",
-    "openai_mock_interview_worker": "MOCK_INTERVIEW",
-    "openai_resume_transcription_worker": "RESUME_TRANSCRIPTION",
+    "providers/resume_job_match": "RESUME_JOB_MATCH",
+    "providers/job_analysis": "JOB_ANALYSIS",
+    "providers/email_tracking": "EMAIL_TRACKING",
+    "providers/interview_preparation": "INTERVIEW_PREPARATION",
+    "workflows/resume_tailoring/reviewer": "RESUME_REVIEW",
+    "workflows/mock_interview/worker": "MOCK_INTERVIEW",
+    "providers/resume_transcription": "RESUME_TRANSCRIPTION",
 }
 """Each worker and the error vocabulary its capability owns."""
 
@@ -373,9 +373,10 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
     # Chat Completions JSON Schema plus the explicit Responses text adapter
     # (``structured_chat_completions``). Only they may call the provider.
     helpers = {"structured_responses"}
-    for source in agent.glob("*.py"):
+    for source in agent.rglob("*.py"):
         if source.stem in helpers:
             continue
+        source_key = str(source.relative_to(agent).with_suffix(""))
         tree = ast.parse(source.read_text())
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -395,12 +396,12 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
                     if keyword.arg == "code_prefix"
                 ]
                 if prefixes:
-                    wired[source.stem] = prefixes[0]
+                        wired[source_key] = prefixes[0]
 
     assert wired == _MIGRATED_WORKERS
     # The operator smoke probes provider capabilities stage by stage and must
     # see the raw response; it is a diagnostic entry point, not a worker.
-    assert direct_callers == ["job_research_provider_smoke"]
+    assert direct_callers == ["provider_smoke"]
 
 
 @pytest.mark.parametrize("prefix", sorted(set(_MIGRATED_WORKERS.values())))

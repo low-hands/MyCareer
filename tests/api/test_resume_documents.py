@@ -16,8 +16,8 @@ import sqlite3
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,

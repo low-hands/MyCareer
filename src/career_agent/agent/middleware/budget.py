@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from career_agent.agent.main_agent_contracts import DOMAIN_TOOL_PROFILES
-from career_agent.agent.main_state import LoopControl
+from career_agent.agent.contracts.main_agent import DOMAIN_TOOL_PROFILES
+from career_agent.agent.runtime.state import LoopControl
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
-from career_agent.agent.tool_effects import ToolEffect, is_external_write
+from career_agent.agent.capabilities.effects import ToolEffect, is_external_write
 
 
 class BudgetMiddleware:

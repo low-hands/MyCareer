@@ -10,7 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.storage.schema import apply_schema
-from career_agent.agent.resume_tailoring_contracts import (
+from career_agent.agent.workflows.resume_tailoring.contracts import (
     ResumeReviewTrace,
     ResumeTailoringResult,
 )

@@ -20,13 +20,13 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.contracts.main_agent import (
     ConfirmBefore,
     OwnerSettingsContext,
     canonical_confirm_before,
 )
-from career_agent.agent.openai_compatible_client import AgentConfigurationError
+from career_agent.agent.providers.openai_client import AgentConfigurationError
 from career_agent.cli import build_main_agent_runtime, build_parser
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.api.reads import (

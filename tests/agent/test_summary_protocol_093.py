@@ -7,15 +7,15 @@ import httpx
 import pytest
 from openai import OpenAI
 
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.contracts.memory import (
     HARNESS_SUMMARY_COUNTER_FIELDS,
     SummaryMessage,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_conversation_summary_worker import (
+from career_agent.agent.providers.conversation_summary import (
     OpenAIConversationSummaryWorker,
     summary_response_format,
 )

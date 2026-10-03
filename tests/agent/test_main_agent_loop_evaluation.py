@@ -19,23 +19,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.decision_messages import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.runtime.decision_messages import (
     CONTROL_CONTEXT_LABEL,
     CONTROL_REMINDER_TAG,
     TURN_OBSERVATION_LABEL,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
     ToolObservation,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, RuntimeAction
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
 from career_agent.evaluation.trajectory import ReplayClient

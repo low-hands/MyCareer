@@ -3,9 +3,9 @@ import pytest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
@@ -15,10 +15,10 @@ from career_agent.agent.main_agent_contracts import (
     ToolResult,
     project_job_research_arguments,
 )
-from career_agent.agent.main_agent_reducers import reduce_task_state
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.job_research_presenter import render_job_research
+from career_agent.agent.runtime.reducers import reduce_task_state
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.presentation.job_research import render_job_research
 from career_agent.domain.job_research import (
     JobResearchDraft,
     JobResearchFinding,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from career_agent.agent.resume_job_match_contracts import ConfirmedResumeFact
-from career_agent.agent.resume_tailoring_contracts import (
+from career_agent.agent.contracts.resume_job_match import ConfirmedResumeFact
+from career_agent.agent.workflows.resume_tailoring.contracts import (
     AcceptedTailoringChange,
     GapMitigation,
     ResumeFinalizationWorker,
@@ -17,7 +17,7 @@ from career_agent.agent.resume_tailoring_contracts import (
     canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
-from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
+from career_agent.agent.workflows.resume_tailoring.review_graph import ResumeTailoringReviewGraph
 from career_agent.domain.resume import Resume, ResumeVersion
 from career_agent.services.resume_job_match import ResumeJobMatchInputNotFoundError
 from career_agent.storage.career_history import CareerHistoryStore

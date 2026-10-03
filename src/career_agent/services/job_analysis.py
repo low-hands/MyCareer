@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from career_agent.agent.job_analysis_contracts import (
+from career_agent.agent.contracts.job_analysis import (
     ClassificationStatus,
     JobAnalysisResult,
     JobAnalysisWorker,

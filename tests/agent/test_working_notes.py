@@ -7,15 +7,15 @@ from threading import Event
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.decision_messages import project_decision_messages
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.runtime.decision_messages import project_decision_messages
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     MainAgentContext,
     WorkingNotesContext,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     InMemoryTraceRecorder,

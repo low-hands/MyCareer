@@ -6,11 +6,11 @@ from time import perf_counter
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationMessageContext,
@@ -25,10 +25,10 @@ from career_agent.agent.main_agent_contracts import (
     ToolObservation,
     WorkingNotesContext,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_effects import is_notes_guarded
-from career_agent.agent.working_notes_guard import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.effects import is_notes_guarded
+from career_agent.agent.middleware.working_notes import (
     remembered_preference_without_authority,
     working_notes_only_tokens,
 )

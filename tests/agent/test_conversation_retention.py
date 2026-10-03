@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from career_agent.agent.main_agent_contracts import ConversationTaskState
+from career_agent.agent.contracts.main_agent import ConversationTaskState
 
 from test_context_manager import RecordingSummaryWorker, manager
 

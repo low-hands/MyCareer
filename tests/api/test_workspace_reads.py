@@ -46,7 +46,7 @@ from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from career_agent.storage.resumes import ResumeStore
 
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.workflows.resume_tailoring.contracts import ResumeTailoringResult
 from career_agent.storage.resume_tailoring import SQLiteResumeTailoringDraftStore
 
 

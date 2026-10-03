@@ -20,7 +20,7 @@ import ast
 import inspect
 from pathlib import Path
 
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent import cli as cli_module
 
 

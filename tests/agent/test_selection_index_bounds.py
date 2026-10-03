@@ -21,8 +21,8 @@ from annotated_types import Ge
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
-from career_agent.agent import main_agent_contracts as contracts
-from career_agent.agent.main_agent_contracts import CompareSavedJobsToolArguments
+from career_agent.agent.contracts import main_agent as contracts
+from career_agent.agent.contracts.main_agent import CompareSavedJobsToolArguments
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 
 

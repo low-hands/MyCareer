@@ -4,13 +4,13 @@ import httpx
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 import pytest
 
-from career_agent.agent.job_research_provider_diagnostics import (
+from career_agent.agent.workflows.job_research.provider_diagnostics import (
     ProviderRequestObserver,
     ProviderRequestStructure,
     request_structure,
     trace_research_request,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     ProviderErrorCategory,
     ProviderErrorMetadata,
@@ -287,7 +287,7 @@ def test_the_failure_observation_handed_to_the_model_carries_no_error_code() -> 
     this red, and the code must still reach the caller through the payload.
     """
 
-    from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
     from career_agent.services.job_research import JobResearchExecutionError
 
     error = JobResearchExecutionError(

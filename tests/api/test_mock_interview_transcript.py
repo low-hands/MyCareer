@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from career_agent.agent.context_manager import ContextManager
+from career_agent.agent.context.manager import ContextManager
 from career_agent.api.reads import WorkspaceReader
 from career_agent.domain.mock_interviews import MockInterviewPlan, MockInterviewPlanItem
 from career_agent.storage.context import CareerContextStore

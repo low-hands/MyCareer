@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
@@ -21,11 +21,11 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     project_restart_mock_interview_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.mock_interview_contracts import MockInterviewStartRequest
-from career_agent.agent.mock_interview_graph import MockInterviewGraph
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.workflows.mock_interview.contracts import MockInterviewStartRequest
+from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from conftest import FixedSources, OneQuestionWorker

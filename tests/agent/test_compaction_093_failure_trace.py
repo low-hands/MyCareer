@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     SummaryMessage,
 )
-from career_agent.agent.main_agent_contracts import ConversationTaskState
-from career_agent.agent.openai_compatible_client import AgentWorkerError, ProviderErrorMetadata
+from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.providers.openai_client import AgentWorkerError, ProviderErrorMetadata
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 from career_agent.storage.context import CareerContextStore
 

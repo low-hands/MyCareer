@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from career_agent.agent.job_analysis_contracts import TieredRequirement
-from career_agent.agent.resume_job_fit import derive_overall_fit
-from career_agent.agent.resume_job_match_contracts import (
+from career_agent.agent.contracts.job_analysis import TieredRequirement
+from career_agent.agent.capabilities.resume_job_fit import derive_overall_fit
+from career_agent.agent.contracts.resume_job_match import (
     RequirementAssessment,
     ResumeMatchEvidence,
 )

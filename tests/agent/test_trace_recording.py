@@ -13,17 +13,17 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     DecisionObservation,
     MainAgentContext,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.result_presenter import ResultPresenter
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, _TRACE_CONTEXT
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.presentation.result_presenter import ResultPresenter
 from career_agent.connectors.gmail_readonly import GmailAPIError
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.storage.context import CareerContextStore
@@ -117,7 +117,7 @@ def test_a_capability_failure_is_recorded_with_its_error_code(tmp_path: Path) ->
 def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
     """A decision-maker failure raises through run_turn and records turn_failed."""
 
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     class ExplodingDecisionMaker:
         def decide(self, context, tool_specs):

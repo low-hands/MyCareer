@@ -8,11 +8,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, ConversationTaskState
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.session_manager import SessionManager
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import AgentDecision, ConversationTaskState
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.context.session_manager import SessionManager
 from career_agent.api.app import create_app
 from career_agent.harness.observability import InMemoryTraceRecorder
 from career_agent.harness.streaming import TurnInputResource

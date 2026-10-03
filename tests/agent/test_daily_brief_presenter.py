@@ -1,5 +1,5 @@
-from career_agent.agent.main_agent_contracts import ToolObservation
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 
 
 def test_daily_brief_delivers_the_full_ephemeral_body_but_keeps_a_summary_row() -> None:

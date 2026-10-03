@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.job_research_contracts import JobResearchWorkerRequest
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.workflows.job_research.contracts import JobResearchWorkerRequest
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     ProviderErrorMetadata,
 )

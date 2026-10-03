@@ -1,7 +1,7 @@
 from typing import Literal
 
-from career_agent.agent.main_graph import build_main_graph
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.runtime.graph import build_main_graph
+from career_agent.agent.runtime.state import MainAgentState
 
 
 class GraphHost:

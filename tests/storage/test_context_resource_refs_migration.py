@@ -126,7 +126,7 @@ def test_the_upgraded_rows_answer_the_predicates_that_index_them(tmp_path) -> No
 
 
 def _summary():
-    from career_agent.agent.conversation_memory_contracts import (
+    from career_agent.agent.contracts.memory import (
         ConversationSummaryContent,
     )
 

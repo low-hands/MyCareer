@@ -11,14 +11,14 @@ from pypdf.generic import (
     TextStringObject,
 )
 
-from career_agent.agent import resume_document_prompt as prompts
-from career_agent.agent.deepagent_resume_tailoring_worker import (
+from career_agent.agent.resources import resume_document_prompt as prompts
+from career_agent.agent.workflows.resume_tailoring.worker import (
     DeepAgentResumeTailoringWorker, DeepAgentResumeFinalizationWorker,
 )
-from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
-from career_agent.agent.openai_resume_tailoring_reviewer import OpenAIResumeTailoringReviewer
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.providers.resume_job_match import OpenAIResumeJobMatchWorker
+from career_agent.agent.workflows.resume_tailoring.reviewer import OpenAIResumeTailoringReviewer
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
 from career_agent.storage.resumes import StoredResumeDocument
 from tests.agent.test_resume_093_extraction import synthetic_pdf
 
@@ -115,7 +115,7 @@ def test_all_pipeline_stages_share_text_or_original_pdf_route(text_pdf):
 
 
 def test_prompt_cache_is_bounded(monkeypatch):
-    from career_agent.agent.local_resume_extraction import ExtractedResumeSource, ResumeSourceParagraph
+    from career_agent.agent.resources.resume_extraction import ExtractedResumeSource, ResumeSourceParagraph
     calls = []
     def extract(doc, **kwargs):
         calls.append(doc.raw_bytes)

@@ -32,23 +32,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from career_agent.agent.decision_messages import project_decision_messages
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.decision_messages import project_decision_messages
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     DecisionObservation,
     MainAgentContext,
     TOOL_PROFILE_NAMES,
     append_decision_observation,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
-from career_agent.agent.tool_profiles import profile_schemas
+from career_agent.agent.capabilities.profiles import profile_schemas
 
 CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
 # Offline replay is judged against the checked-in recording baseline. A

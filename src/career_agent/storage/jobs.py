@@ -11,7 +11,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from career_agent.agent.job_analysis_contracts import (
+from career_agent.agent.contracts.job_analysis import (
     JobAnalysisResult,
     QuotedFinding,
     Seniority,

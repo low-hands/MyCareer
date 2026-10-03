@@ -26,17 +26,17 @@ from typing import Any, Literal, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter
 
-from career_agent.agent.job_analysis_contracts import (
+from career_agent.agent.contracts.job_analysis import (
     JobAnalysisResult,
     QuotedFinding,
     TieredRequirement,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     BehaviorPolicyContext,
     OwnerSettingsContext,
     UserPreferencesContext,
 )
-from career_agent.agent.questionnaire_contracts import QuestionAnswer, QuestionOption, UserQuestion
+from career_agent.agent.contracts.questionnaire import QuestionAnswer, QuestionOption, UserQuestion
 from career_agent.api.app import (
     BrowserJobCaptureResponse,
     ChatStreamRequest,

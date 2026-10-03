@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ApplicationCandidateContextItem,
     CareerProfileContext,
     ConversationMessageContext,
@@ -28,7 +28,7 @@ from career_agent.agent.main_agent_contracts import (
     project_job_research_arguments,
     project_mock_interview_result_arguments,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_research.models import company_key
 
 NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)

@@ -2,13 +2,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     EpisodeProjectionContext,
     MainAgentContext,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.episodes import CareerEpisodeDraft, EpisodeResourceRef
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 

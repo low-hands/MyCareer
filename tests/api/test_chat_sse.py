@@ -17,7 +17,7 @@ from career_agent.api.app import (
     _sse_stream,
     create_app,
 )
-from career_agent.agent.openai_compatible_client import AgentConfigurationError
+from career_agent.agent.providers.openai_client import AgentConfigurationError
 from career_agent.harness.streaming import (
     ContentDeltaEvent,
     InteractionResponse,

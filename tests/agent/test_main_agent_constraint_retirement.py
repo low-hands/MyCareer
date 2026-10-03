@@ -1,14 +1,14 @@
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ConstraintRetirementProposal,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import InteractionResponse
 from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.context import CareerContextStore

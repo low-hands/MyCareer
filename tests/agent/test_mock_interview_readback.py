@@ -12,17 +12,17 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ApplicationCandidateContextItem,
     CareerProfileContext,
     ConversationTaskState,
     MainAgentContext,
     project_mock_interview_result_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.mock_interview_contracts import MockInterviewStartRequest
-from career_agent.agent.mock_interview_graph import MockInterviewGraph
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.workflows.mock_interview.contracts import MockInterviewStartRequest
+from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
 from career_agent.domain.mock_interviews import (
     MockInterviewPlan,
     MockInterviewPlanItem,

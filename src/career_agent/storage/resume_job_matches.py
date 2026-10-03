@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
 from career_agent.storage.schema import apply_schema
 
 

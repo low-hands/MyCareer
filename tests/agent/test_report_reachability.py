@@ -17,8 +17,8 @@ import inspect
 
 import pytest
 
-from career_agent.agent import main_agent_contracts as contracts
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts import main_agent as contracts
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     ConversationTaskState,
     GetInterviewPreparationToolArguments,

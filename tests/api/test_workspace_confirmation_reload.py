@@ -1,9 +1,9 @@
 import argparse
 from datetime import datetime, timedelta, timezone
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import OwnerSettingsContext
-from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, UserQuestion
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import OwnerSettingsContext
+from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.api.reads import WorkspaceReader
 from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.context import CareerContextStore

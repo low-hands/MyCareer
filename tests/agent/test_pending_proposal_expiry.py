@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     CONFIRMATION_SPECS,
     PENDING_PROPOSAL_SLOTS,
     PENDING_PROPOSAL_TTL,
@@ -22,11 +22,11 @@ from career_agent.agent.main_agent_contracts import (
     pending_confirmation_proposal,
     project_job_intent_arguments,
 )
-from career_agent.agent.main_agent_reducers import (
+from career_agent.agent.runtime.reducers import (
     ATOMIC_TASK_REDUCERS,
     reduce_task_state,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     InMemoryTraceRecorder,

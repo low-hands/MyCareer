@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     DecisionObservation,
@@ -8,7 +8,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     ToolObservation,
 )
-from career_agent.agent.observation_reducer import ObservationReducer
+from career_agent.agent.runtime.observation_reducer import ObservationReducer
 
 
 def test_synthetic_refusal_reduces_without_runtime_host_or_task_mutation() -> None:

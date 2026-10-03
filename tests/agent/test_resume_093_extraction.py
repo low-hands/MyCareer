@@ -14,11 +14,11 @@ from pypdf.generic import (
     TextStringObject,
 )
 
-from career_agent.agent.local_resume_extraction import (
+from career_agent.agent.resources.resume_extraction import (
     ResumeExtractionLimits,
     extract_resume_source,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.storage.resumes import StoredResumeDocument
 
 
@@ -279,7 +279,7 @@ def test_child_limits_skip_address_space_only_on_darwin(
     import resource
     import sys
 
-    from career_agent.agent import local_resume_extraction as module
+    from career_agent.agent.resources import resume_extraction as module
 
     names = {resource.RLIMIT_AS: "RLIMIT_AS", resource.RLIMIT_CPU: "RLIMIT_CPU"}
     applied: list[str] = []
@@ -294,7 +294,7 @@ def test_child_limits_skip_address_space_only_on_darwin(
 def test_child_exits_with_sandbox_status_when_limits_cannot_apply(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from career_agent.agent import local_resume_extraction as module
+    from career_agent.agent.resources import resume_extraction as module
 
     def refuse() -> None:
         raise ValueError("current limit exceeds maximum limit")
@@ -319,7 +319,7 @@ def test_child_exit_status_maps_to_distinct_codes(
 ) -> None:
     import subprocess
 
-    from career_agent.agent import local_resume_extraction as module
+    from career_agent.agent.resources import resume_extraction as module
 
     monkeypatch.setattr(
         module.subprocess,

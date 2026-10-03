@@ -3,13 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-from career_agent.agent.interaction_coordinator import ConfirmationResolution
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.interaction_coordinator import ConfirmationResolution
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     MainAgentContext,
     ToolObservation,
 )
-from career_agent.agent.turn_models import InteractionReceipt
+from career_agent.agent.contracts.turn import InteractionReceipt
 from career_agent.harness.confirmation_coordinator import (
     CapabilityConfirmationCoordinator,
 )

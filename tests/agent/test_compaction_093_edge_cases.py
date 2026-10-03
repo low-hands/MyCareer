@@ -9,31 +9,31 @@ import pytest
 from openai import OpenAI
 
 from compaction_smoke_093 import FactSummaryWorker, MeteredSummaryWorker, run_trajectory
-from career_agent.agent.context_deployment_config import (
+from career_agent.agent.context.deployment import (
     ContextDeploymentConfig,
     ConversationSummaryAgentConfig,
     validate_model_window,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     SummaryMessage,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     DECISION_OBSERVATION_BODY_LIMIT,
     ConversationTaskState,
     DecisionObservation,
     MainAgentContext,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
-from career_agent.agent.token_budget import message_token_count
+from career_agent.agent.providers.token_budget import message_token_count
 from career_agent.storage.context import CareerContextStore
 
 

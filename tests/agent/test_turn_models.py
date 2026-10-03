@@ -1,6 +1,6 @@
-from career_agent.agent.main_agent_contracts import AgentDecision
-from career_agent.agent import main_agent_runtime
-from career_agent.agent.turn_models import (
+from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.runtime import main_agent_runtime
+from career_agent.agent.contracts.turn import (
     InteractionReceipt,
     MainAgentTurnResult,
     ModelDecision,
@@ -33,4 +33,3 @@ def test_turn_accountability_is_derived_from_origin_variant() -> None:
     assert model_turn.model_decision is decision
     assert policy_turn.requested_by == "runtime"
     assert policy_turn.model_decision is None
-

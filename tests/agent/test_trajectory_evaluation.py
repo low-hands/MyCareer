@@ -34,22 +34,22 @@ import pytest
 
 import career_agent.evaluation.trajectory as trajectory_module
 from career_agent.cli import _trajectory_tool_specs
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileBudgets,
     ConversationMessageContext,
     ToolCall,
 )
-from career_agent.agent.questionnaire_contracts import UserQuestion
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.contracts.questionnaire import UserQuestion
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
-from career_agent.agent.delivery_policy import (
+from career_agent.agent.presentation.delivery_policy import (
     condenses_message,
     delivers_body_elsewhere,
 )

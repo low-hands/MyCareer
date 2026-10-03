@@ -8,7 +8,7 @@ from typing import Annotated, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from career_agent.agent.questionnaire_contracts import PendingQuestionnaire, QuestionAnswer, UserQuestion
+from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, QuestionAnswer, UserQuestion
 
 
 class StreamContract(BaseModel):

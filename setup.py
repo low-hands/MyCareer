@@ -12,7 +12,9 @@ def _vendor_tiktoken_cache() -> None:
     src = ROOT / "src"
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
-    from career_agent.agent.tiktoken_assets import populate_bundled_tiktoken_cache
+    from career_agent.agent.providers.tiktoken_assets import (
+        populate_bundled_tiktoken_cache,
+    )
 
     populate_bundled_tiktoken_cache()
 

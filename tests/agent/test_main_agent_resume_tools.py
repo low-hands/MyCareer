@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import AgentDecision, CareerProfileContext, ToolCall
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, InteractionReceipt
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import AgentDecision, CareerProfileContext, ToolCall
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, InteractionReceipt
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import (
     ContentDeltaEvent,
     InteractionRequiredEvent,

@@ -3,9 +3,9 @@ from __future__ import annotations
 from threading import Lock
 from typing import Any
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import MainAgentContext
-from career_agent.agent.turn_coordinator import ACTION_INVOCATION
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import MainAgentContext
+from career_agent.agent.runtime.turn_coordinator import ACTION_INVOCATION
 from career_agent.services.episode_reconciliation import EpisodeReconciler
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
 

@@ -1,7 +1,7 @@
 from typing import get_type_hints
 
-from career_agent.agent.main_agent_runtime import MainAgentState as RuntimeState
-from career_agent.agent.main_state import LoopControl, MainAgentState, PendingAction
+from career_agent.agent.runtime.main_agent_runtime import MainAgentState as RuntimeState
+from career_agent.agent.runtime.state import LoopControl, MainAgentState, PendingAction
 
 
 def test_runtime_reexports_the_canonical_graph_state() -> None:

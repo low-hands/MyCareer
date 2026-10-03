@@ -18,11 +18,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ConversationTaskState,
     ToolObservation,
 )
-from career_agent.agent.main_agent_reducers import reduce_task_state
+from career_agent.agent.runtime.reducers import reduce_task_state
 
 _NOW = datetime(2026, 8, 31, 12, tzinfo=timezone.utc)
 
@@ -115,7 +115,7 @@ def test_the_pending_set_and_the_registered_states_stay_in_step() -> None:
     Three of them did exactly that before this change — not_found, invalid, and
     write_failed were unregistered, so the slot survived them.
     """
-    from career_agent.agent.main_agent_reducers import (
+    from career_agent.agent.runtime.reducers import (
         _PENDING_CALENDAR_PROPOSAL_STATES,
         ATOMIC_TASK_REDUCERS,
     )

@@ -1,6 +1,6 @@
 import pytest
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     MainAgentContext,
@@ -8,7 +8,7 @@ from career_agent.agent.main_agent_contracts import (
     ToolObservation,
 )
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
-from career_agent.agent.turn_models import MainAgentTurnResult, ModelDecision
+from career_agent.agent.contracts.turn import MainAgentTurnResult, ModelDecision
 
 
 def _renderer(**kwargs) -> InteractionRenderer:

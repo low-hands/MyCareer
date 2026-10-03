@@ -5,20 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.input_resources import InputResourceRejectedError
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.resources.input import InputResourceRejectedError
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
     MainAgentContext,
 )
-from career_agent.agent.main_agent_runtime import (
+from career_agent.agent.runtime.main_agent_runtime import (
     MainAgentRuntime,
     MainAgentTurnResult,
     ReplayedTurn,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.harness.streaming import PublicStreamEvent, TurnInputResource
 from career_agent.storage.context import CareerContextStore

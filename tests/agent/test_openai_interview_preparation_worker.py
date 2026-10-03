@@ -2,13 +2,13 @@ import base64
 import json
 from datetime import datetime, timezone
 
-from career_agent.agent.interview_preparation_contracts import (
+from career_agent.agent.contracts.interview_preparation import (
     InterviewLogisticsContext,
     InterviewPreparationContext,
     PriorInterviewRetroContext,
 )
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
+from career_agent.agent.providers.interview_preparation import OpenAIInterviewPreparationWorker
 from career_agent.storage.resumes import StoredResumeDocument
 
 

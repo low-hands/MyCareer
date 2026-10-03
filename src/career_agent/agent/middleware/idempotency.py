@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 
-from career_agent.agent.main_agent_contracts import AgentDecision
-from career_agent.agent.main_state import LoopControl
+from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.runtime.state import LoopControl
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 
 

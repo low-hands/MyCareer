@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ApplicationCandidateContextItem,
     CareerProfileContext,
@@ -12,8 +12,8 @@ from career_agent.agent.main_agent_contracts import (
     ActiveSavedJobContextItem,
     project_interview_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.interviews import (
     InterviewRetroQuestion,
     InterviewRetroReport,

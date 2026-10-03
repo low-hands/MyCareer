@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     GetCareerMemoryDetailToolArguments,
     LoadSkillToolArguments,
     MainAgentContext,
@@ -36,7 +36,7 @@ from career_agent.agent.main_agent_contracts import (
     project_saved_job_arguments,
     project_working_notes_arguments,
 )
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.runtime.state import MainAgentState
 
 
 @dataclass(frozen=True)

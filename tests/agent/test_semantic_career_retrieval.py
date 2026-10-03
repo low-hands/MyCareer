@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from career_agent.agent.semantic_career_retrieval import (
+from career_agent.agent.context.semantic_retrieval import (
     CareerEmbeddingConfig,
     OpenAICompatibleEmbeddingClient,
     SQLiteCareerEvidenceSemanticRetriever,
@@ -288,7 +288,7 @@ def test_embedding_client_bounds_timeout_and_does_not_retry(monkeypatch) -> None
             captured.update(kwargs)
 
     monkeypatch.setattr(
-        "career_agent.agent.semantic_career_retrieval.OpenAI",
+        "career_agent.agent.context.semantic_retrieval.OpenAI",
         FakeOpenAI,
     )
     OpenAICompatibleEmbeddingClient(

@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.job_discovery_contracts import JobDiscoveryRecommendation, RecommendationItem, TargetRoleProposal
-from career_agent.agent.job_discovery_promotion import JobDiscoveryPromotionFacade
+from career_agent.agent.contracts.job_discovery import JobDiscoveryRecommendation, RecommendationItem, TargetRoleProposal
+from career_agent.agent.capabilities.job_discovery_promotion import JobDiscoveryPromotionFacade
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.job_discovery import JobDiscoveryService, PromotionSuccess
 from career_agent.storage.memory import InMemoryJobRepository

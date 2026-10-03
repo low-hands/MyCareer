@@ -6,8 +6,8 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.contracts.job_analysis import JobAnalysisResult, TieredRequirement
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
 from career_agent.api.app import create_app
 from career_agent.api.reads import WorkspaceReader
 from career_agent.domain.job_discovery import JobDetail, Provenance

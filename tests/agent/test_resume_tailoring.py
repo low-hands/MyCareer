@@ -10,32 +10,32 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.result_presenter import ResultPresenter
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.presentation.result_presenter import ResultPresenter
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_resume_tailoring_reviewer import (
+from career_agent.agent.workflows.resume_tailoring.reviewer import (
     OpenAIResumeTailoringReviewer,
 )
-from career_agent.agent.deepagent_resume_tailoring_worker import (
+from career_agent.agent.workflows.resume_tailoring.worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
-from career_agent.agent.resume_job_match_contracts import (
+from career_agent.agent.contracts.resume_job_match import (
     ConfirmedResumeFact,
     RequirementAssessment,
     ResumeJobMatchResult,
 )
-from career_agent.agent.resume_tailoring_contracts import (
+from career_agent.agent.workflows.resume_tailoring.contracts import (
     AcceptedTailoringChange,
     GapMitigationPayload,
     GapLearningPlan,
@@ -47,9 +47,9 @@ from career_agent.agent.resume_tailoring_contracts import (
     canonicalize_gap_mitigations,
     gap_mitigation_errors,
 )
-from career_agent.agent.resume_tailoring_presenter import render_resume_tailoring
-from career_agent.agent.resume_tailoring_review_graph import ResumeTailoringReviewGraph
-from career_agent.agent.resume_tailoring_review_graph import EvidenceCheck
+from career_agent.agent.presentation.resume_tailoring import render_resume_tailoring
+from career_agent.agent.workflows.resume_tailoring.review_graph import ResumeTailoringReviewGraph
+from career_agent.agent.workflows.resume_tailoring.review_graph import EvidenceCheck
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.resume_export import ResumeExportService
 from career_agent.services.resume_tailoring import (
@@ -2403,7 +2403,7 @@ def test_compound_effort_cannot_hide_invalid_or_unbounded_duration(effort):
 
 
 def test_partial_coverage_uses_optional_evidence_without_becoming_a_missing_skill():
-    from career_agent.agent.resume_job_match_contracts import ResumeMatchEvidence
+    from career_agent.agent.contracts.resume_job_match import ResumeMatchEvidence
     match = VALID_MATCH.model_copy(update={'requirements': (
         VALID_MATCH.requirements[0].model_copy(update={
             'status': 'partial',
@@ -2458,7 +2458,7 @@ def test_effort_repair_feedback_includes_actual_failure_not_only_generic_instruc
 def test_writer_and_reviewer_receive_the_same_authoritative_mitigation_rules(
     tier, status, expected_type, expected_priorities,
 ):
-    from career_agent.agent.resume_tailoring_contracts import mitigation_policy
+    from career_agent.agent.workflows.resume_tailoring.contracts import mitigation_policy
     match = VALID_MATCH.model_copy(update={'requirements': (
         VALID_MATCH.requirements[0].model_copy(update={'tier': tier, 'status': status}),
     )})

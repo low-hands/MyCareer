@@ -7,13 +7,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.delivered_body_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
     SavedJobBodySource,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationTaskState,

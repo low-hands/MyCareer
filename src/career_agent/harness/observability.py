@@ -12,7 +12,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
 
 from career_agent.harness.capability_steps import notify_capability_step
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     provider_error_metadata,
 )

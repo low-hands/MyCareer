@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
-from career_agent.agent.questionnaire_contracts import (
+from career_agent.agent.contracts.questionnaire import (
     PendingQuestionnaire, QuestionAnswer, QuestionOption, UserQuestion,
 )
 

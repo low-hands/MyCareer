@@ -23,23 +23,23 @@ from openai import APIConnectionError, APIStatusError, OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.shared_params import ResponseFormatJSONSchema
 
-from career_agent.agent.context_deployment_config import (
+from career_agent.agent.context.deployment import (
     ContextDeploymentConfig,
     ConversationSummaryAgentConfig,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     ConversationSummaryWorker,
     SummaryMessage,
 )
-from career_agent.agent.main_agent_contracts import ConversationTaskState
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
     provider_worker_error,
 )
-from career_agent.agent.openai_conversation_summary_worker import (
+from career_agent.agent.providers.conversation_summary import (
     OpenAIConversationSummaryWorker,
     summary_response_format,
 )

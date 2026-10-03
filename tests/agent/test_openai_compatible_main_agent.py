@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.decision_messages import (
+from career_agent.agent.runtime.decision_messages import (
     CONTROL_CONTEXT_LABEL,
     CONTROL_REMINDER_TAG,
     DATA_CONTEXT_LABEL,
@@ -12,14 +12,14 @@ from career_agent.agent.decision_messages import (
     TURN_OBSERVATION_LABEL,
     project_decision_messages,
 )
-from career_agent.agent.main_agent_contracts import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments, SavedJobCandidateContextItem
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.contracts.main_agent import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments, SavedJobCandidateContextItem
+from career_agent.agent.contracts.memory import ConversationSummaryContent
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
 )
-from career_agent.agent.openai_compatible_main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
 
 
 def _spotlight_json(content: str, *, label: str) -> dict:
@@ -658,7 +658,7 @@ def test_static_request_serialization_is_memoized_for_the_tool_universe(
         return original_dumps(value, *args, **kwargs)
 
     monkeypatch.setattr(
-        "career_agent.agent.openai_compatible_main_agent.json.dumps",
+        "career_agent.agent.providers.main_agent.json.dumps",
         counting_dumps,
     )
 
@@ -744,7 +744,7 @@ def test_a_rejected_decision_carries_the_provider_error_code(body, expected) -> 
     import httpx
     from openai import APIStatusError
 
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     error = APIStatusError(
         "rejected",
@@ -793,7 +793,7 @@ def _maker_over_transport(
     import httpx
 
     monkeypatch.setattr(
-        "career_agent.agent.openai_compatible_main_agent.DefaultHttpxClient",
+        "career_agent.agent.providers.main_agent.DefaultHttpxClient",
         lambda **kwargs: httpx.Client(
             transport=httpx.MockTransport(handler), **kwargs
         ),
@@ -873,7 +873,7 @@ def test_a_decision_that_never_got_a_response_still_reports_its_attempts(
 ) -> None:
     import httpx
 
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     def handler(request):
         raise httpx.ReadTimeout("stalled", request=request)
@@ -899,8 +899,8 @@ def test_a_decision_that_never_got_a_response_still_reports_its_attempts(
 def test_each_retry_is_announced_with_the_previous_failure(monkeypatch) -> None:
     import httpx
 
-    from career_agent.agent.decision_attempts import observing_decision_attempts
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.runtime.decision_attempts import observing_decision_attempts
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     def handler(request):
         raise httpx.ReadTimeout("stalled", request=request)
@@ -987,7 +987,7 @@ def test_other_provider_rejections_are_not_retried(monkeypatch, status: int) -> 
 def test_a_non_retryable_rejection_is_not_retried(monkeypatch) -> None:
     import httpx
 
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     calls = []
 
@@ -1015,7 +1015,7 @@ def test_a_decision_cut_off_by_the_output_budget_is_reported_as_truncated(
 ) -> None:
     import httpx
 
-    from career_agent.agent.openai_compatible_client import AgentWorkerError
+    from career_agent.agent.providers.openai_client import AgentWorkerError
 
     def handler(request):
         return httpx.Response(
@@ -1542,8 +1542,8 @@ def test_a_single_tool_call_still_decides_without_a_reprompt() -> None:
 
 
 def test_a_long_final_answer_within_the_budget_is_delivered_whole() -> None:
-    from career_agent.agent.openai_compatible_main_agent import DEFAULT_MAX_OUTPUT_TOKENS
-    from career_agent.agent.token_budget import count_tokens
+    from career_agent.agent.providers.main_agent import DEFAULT_MAX_OUTPUT_TOKENS
+    from career_agent.agent.providers.token_budget import count_tokens
 
     # 8000 CJK characters: the product's MODEL_REPLY_LIMIT, and the longest
     # answer the model is expected to produce in one decision. Mixed prose
@@ -1586,7 +1586,7 @@ def test_a_long_answer_cut_off_by_the_budget_delivers_nothing_partial() -> None:
 
 
 def test_output_budget_is_read_from_the_environment() -> None:
-    from career_agent.agent.openai_compatible_main_agent import (
+    from career_agent.agent.providers.main_agent import (
         DEFAULT_MAX_OUTPUT_TOKENS,
         max_output_tokens_from_env,
     )

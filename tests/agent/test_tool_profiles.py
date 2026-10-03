@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from career_agent.agent.decision_messages import project_decision_messages
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.decision_messages import project_decision_messages
+from career_agent.agent.contracts.main_agent import (
     DOMAIN_TOOL_PROFILES,
     TOOL_PROFILE_NAMES,
     AgentDecision,
@@ -24,11 +24,11 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     ToolResult,
 )
-from career_agent.agent.main_agent_reducers import reduce_task_state
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.tool_effects import effect_for
-from career_agent.agent.tool_reachability import REQUIREMENTS, reachable
-from career_agent.agent.tool_profiles import (
+from career_agent.agent.runtime.reducers import reduce_task_state
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.effects import effect_for
+from career_agent.agent.capabilities.reachability import REQUIREMENTS, reachable
+from career_agent.agent.capabilities.profiles import (
     CORE_TOOLS,
     MAX_NEXT_REQUIREMENTS,
     ROUTE_TOOL,
@@ -37,9 +37,9 @@ from career_agent.agent.tool_profiles import (
     profile_schemas,
     profile_tools,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import CareerProfileContext
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import CareerProfileContext
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 

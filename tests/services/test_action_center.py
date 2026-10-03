@@ -5,7 +5,7 @@ import pytest
 
 from career_agent.domain.email_tracking import EmailEvent
 from career_agent.domain.interviews import InterviewRound
-from career_agent.agent.resume_tailoring_contracts import ResumeTailoringResult
+from career_agent.agent.workflows.resume_tailoring.contracts import ResumeTailoringResult
 from career_agent.services.action_center import (
     ActionCenterService,
     InvalidActionTransitionError,

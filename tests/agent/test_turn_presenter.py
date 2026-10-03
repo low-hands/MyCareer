@@ -1,4 +1,4 @@
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     ConversationResourceReference,
     ToolObservation,
 )

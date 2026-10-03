@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from career_agent.agent.main_agent_contracts import ToolObservation
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 from career_agent.agent.middleware.tracing import MiddlewareTracing
 

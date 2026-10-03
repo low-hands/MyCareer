@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ApplicationCandidateContextItem,
     AttachedResumeContext,
@@ -16,10 +16,10 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     project_mock_interview_arguments,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, RuntimeAction
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
-from career_agent.agent.mock_interview_graph import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
+from career_agent.agent.workflows.mock_interview.graph import (
     MockInterviewCheckpointMissingError,
     MockInterviewInputRoutingError,
 )

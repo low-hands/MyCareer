@@ -6,11 +6,11 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.career_context import (
+from career_agent.agent.context.career import (
     CareerContextProjector,
     reciprocal_rank_fusion,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CareerProfileBudgets,
     CareerProfileContext,
     CurrentTargetContext,
@@ -18,8 +18,8 @@ from career_agent.agent.main_agent_contracts import (
     MainAgentContext,
     ToolObservation,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
 

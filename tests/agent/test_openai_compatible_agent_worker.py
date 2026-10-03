@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from career_agent.agent.openai_compatible_agent_worker import OpenAICompatibleAgentWorker
-from career_agent.agent.job_discovery_contracts import JDAnalysis, QueryProposal
-from career_agent.agent.openai_compatible_client import AgentWorkerError, OpenAICompatibleAgentConfig
+from career_agent.agent.providers.agent_worker import OpenAICompatibleAgentWorker
+from career_agent.agent.contracts.job_discovery import JDAnalysis, QueryProposal
+from career_agent.agent.providers.openai_client import AgentWorkerError, OpenAICompatibleAgentConfig
 
 
 class FakeCompletions:

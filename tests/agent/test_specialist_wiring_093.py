@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from career_agent import cli
-from career_agent.agent.openai_compatible_client import AgentConfigurationError
+from career_agent.agent.providers.openai_client import AgentConfigurationError
 
 
 class Observed(Exception):
@@ -46,8 +46,12 @@ def _args(tmp_path: Path):
 def _build(tmp_path: Path, env: dict[str, str], **patches):
     with ExitStack() as stack:
         stack.enter_context(patch.dict(os.environ, env, clear=True))
-        for module in ("context_deployment_config", "openai_compatible_client", "job_research_config"):
-            stack.enter_context(patch(f"career_agent.agent.{module}.load_dotenv"))
+        for module in (
+            "career_agent.agent.context.deployment",
+            "career_agent.agent.providers.openai_client",
+            "career_agent.agent.workflows.job_research.config",
+        ):
+            stack.enter_context(patch(f"{module}.load_dotenv"))
         for name, effect in patches.items():
             stack.enter_context(patch.object(cli, name, side_effect=effect))
         cli.build_main_agent_runtime(_args(tmp_path))

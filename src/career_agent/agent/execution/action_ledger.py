@@ -5,11 +5,11 @@ from collections.abc import Callable
 import hashlib
 import json
 
-from career_agent.agent.main_agent_contracts import ToolObservation
-from career_agent.agent.main_agent_tools import MainAgentToolOutput
-from career_agent.agent.main_state import MainAgentState, PendingAction
-from career_agent.agent.tool_effects import replay_safe
-from career_agent.agent.turn_coordinator import ACTION_INVOCATION
+from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.capabilities.registry import MainAgentToolOutput
+from career_agent.agent.runtime.state import MainAgentState, PendingAction
+from career_agent.agent.capabilities.effects import replay_safe
+from career_agent.agent.runtime.turn_coordinator import ACTION_INVOCATION
 from career_agent.storage.action_executions import (
     ActionExecutionAlreadyFailedError,
     ActionExecutionReconciliationRequiredError,

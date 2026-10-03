@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 import pytest
 
-from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.career import CareerContextProjector
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerFactProposal,
     ConversationTaskState,
@@ -11,9 +11,9 @@ from career_agent.agent.main_agent_contracts import (
     ToolCall,
     project_career_fact_arguments,
 )
-from career_agent.agent.questionnaire_contracts import QuestionAnswer, UserQuestion
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.contracts.questionnaire import QuestionAnswer, UserQuestion
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.harness.streaming import InteractionResponse

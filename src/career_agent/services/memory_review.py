@@ -9,7 +9,7 @@ from typing import Any, Literal, Protocol, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     FreeTextPreferenceConfirmationProposal,
     MemoryAmendmentProposal,
     MemoryTombstoneProposal,

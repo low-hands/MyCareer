@@ -5,15 +5,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
 from career_agent.services.job_comparison import JobComparisonService
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import StoredJobSummary

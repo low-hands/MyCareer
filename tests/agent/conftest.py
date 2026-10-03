@@ -9,20 +9,20 @@ by path and stays importable.
 
 from __future__ import annotations
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     ConversationTaskState,
     ToolProfile,
 )
-from career_agent.agent.mock_interview_contracts import (
+from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewFollowUpDecision,
     MockInterviewInputDecision,
     MockInterviewPlanDraft,
     MockInterviewQuestionDraft,
     MockInterviewReportDraft,
 )
-from career_agent.agent.mock_interview_graph import MockInterviewSources
-from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
+from career_agent.agent.workflows.mock_interview.graph import MockInterviewSources
+from career_agent.agent.contracts.interview_preparation import InterviewPreparationContext
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlanItem,

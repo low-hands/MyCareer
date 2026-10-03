@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_span_requests import explicit_sequence_span
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.resources.conversation_span import explicit_sequence_span
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ConversationTaskState,
     MainAgentContext,
     ToolCall,
     ToolProfile,
 )
-from career_agent.agent.main_state import MainAgentState
-from career_agent.agent.tool_profiles import profile_tools
-from career_agent.agent.tool_reachability import STATE_GATED_TOOLS, reachable
-from career_agent.agent.turn_models import (
+from career_agent.agent.runtime.state import MainAgentState
+from career_agent.agent.capabilities.profiles import profile_tools
+from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
+from career_agent.agent.contracts.turn import (
     MainAgentTurnResult,
     RuntimeAction,
     RuntimePolicyAction,

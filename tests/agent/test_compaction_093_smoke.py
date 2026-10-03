@@ -11,8 +11,8 @@ import pytest
 from openai import OpenAI
 
 from compaction_smoke_093 import main, probe_summary_provider
-from career_agent.agent.context_deployment_config import ConversationSummaryAgentConfig
-from career_agent.agent.openai_compatible_client import OpenAICompatibleAgentConfig
+from career_agent.agent.context.deployment import ConversationSummaryAgentConfig
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 
 
 @pytest.fixture(autouse=True)

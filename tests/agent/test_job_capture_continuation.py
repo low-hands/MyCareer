@@ -9,15 +9,15 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.input_resources import InputResourceNotFoundError
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.resources.input import InputResourceNotFoundError
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.harness.streaming import ClientActionEvent, TurnInputResource
 from career_agent.storage.context import CareerContextStore

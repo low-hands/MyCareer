@@ -11,18 +11,18 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from pydantic import ValidationError
 
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
-from career_agent.agent.conversation_span_presenter import render_conversation_span
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.questionnaire_contracts import QuestionAnswer, QuestionOption, UserQuestion
-from career_agent.agent.main_agent_contracts import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
-from career_agent.agent.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
-from career_agent.agent.main_agent_contracts import ConversationMessageContext, ConversationResourceReference
-from career_agent.agent.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.contracts.memory import ConversationSummaryContent
+from career_agent.agent.presentation.conversation_span import render_conversation_span
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.questionnaire import QuestionAnswer, QuestionOption, UserQuestion
+from career_agent.agent.contracts.main_agent import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
+from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
+from career_agent.agent.contracts.main_agent import ConversationMessageContext, ConversationResourceReference
+from career_agent.agent.runtime.main_agent_runtime import _STREAM_SINK, InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
 from career_agent.agent.presentation.stream_adapter import StreamAdapter
 from career_agent.cli import main as cli_main
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import JDAnalysisPayload, SQLiteJobPostingRepository
@@ -551,7 +551,7 @@ def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> No
 
 
 def test_loop_state_and_budget_window_are_structurally_bounded(tmp_path) -> None:
-    from career_agent.agent.main_agent_runtime import (
+    from career_agent.agent.runtime.main_agent_runtime import (
         DEFAULT_MAX_AUTHORIZATION_REFUSALS,
         DEFAULT_MAX_EXTERNAL_WRITE_CALLS,
         DEFAULT_MAX_PROJECTION_REFUSALS,
@@ -617,7 +617,7 @@ def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
 ) -> None:
     """A memory write reloads the context from the message as sent, not its
     prompt copy, so the turn still stores what the user typed."""
-    from career_agent.agent.token_budget import message_token_count
+    from career_agent.agent.providers.token_budget import message_token_count
 
     long_message = (
         "负责大模型推理服务的性能优化与稳定性建设，熟悉分布式训练框架，"
@@ -963,7 +963,7 @@ def test_a_failure_before_any_reply_stays_a_plain_turn_failure(tmp_path) -> None
 
 
 def test_a_worker_failure_before_any_reply_keeps_its_public_code(tmp_path) -> None:
-    from career_agent.agent.openai_compatible_client import (
+    from career_agent.agent.providers.openai_client import (
         AgentWorkerError,
         ProviderErrorMetadata,
     )
@@ -1007,7 +1007,7 @@ def test_a_worker_failure_before_any_reply_keeps_its_public_code(tmp_path) -> No
 def test_a_decision_retry_and_a_long_wait_are_announced_as_progress(
     tmp_path,
 ) -> None:
-    from career_agent.agent.decision_attempts import (
+    from career_agent.agent.runtime.decision_attempts import (
         DecisionAttempt,
         notify_decision_attempt,
     )
@@ -3854,14 +3854,14 @@ def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> 
 
 def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) -> None:
     """A selector refusal is not a workflow entry; its question does not exist."""
-    from career_agent.agent.main_agent_contracts import (
+    from career_agent.agent.contracts.main_agent import (
         ApplicationCandidateContextItem,
         ConversationTaskState,
         MainAgentContext,
         AgentDecision,
         CareerProfileContext,
     )
-    from career_agent.agent.main_agent_tools import ToolObservation
+    from career_agent.agent.capabilities.registry import ToolObservation
 
     def state_for(
         capability,
@@ -5174,7 +5174,7 @@ def test_external_writes_default_to_review_below_any_owner_rule() -> None:
 
 
 def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> None:
-    from career_agent.agent.main_agent_contracts import (
+    from career_agent.agent.contracts.main_agent import (
         BehaviorPolicyContext,
         UpdateOwnerSettingsToolArguments,
         canonical_confirm_before,

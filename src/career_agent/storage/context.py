@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from career_agent.agent.delivered_body_contracts import (
+from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     DeliveredBodySource,
 )
@@ -22,7 +22,7 @@ from career_agent.storage.turn_receipts import (
     redact_turn_receipts_on,
 )
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     MAX_CONVERSATION_SPAN_MESSAGES,
     MAX_CONVERSATION_SPAN_RESOURCE_REFS,
     CareerProfileContext,
@@ -32,14 +32,14 @@ from career_agent.agent.main_agent_contracts import (
     ConversationTaskState,
     OwnerSettingsContext,
 )
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     DistilledFreeTextPreferenceCandidate,
     SUMMARY_SOURCE_MAX_CHARS,
     StoredConversationSummary,
     SummaryMessage,
 )
-from career_agent.agent.session_contracts import AgentSession
+from career_agent.agent.contracts.session import AgentSession
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.intent_memory import IntentMemoryVersion
 from career_agent.storage.episodes import (

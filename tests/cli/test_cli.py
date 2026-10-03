@@ -6,10 +6,10 @@ from io import StringIO
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
-from career_agent.agent.main_agent_contracts import AgentDecision, ToolCall, ToolObservation
-from career_agent.agent.main_agent_runtime import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.memory import ConversationSummaryContent
+from career_agent.agent.contracts.main_agent import AgentDecision, ToolCall, ToolObservation
+from career_agent.agent.runtime.main_agent_runtime import (
     InteractionReceipt,
     MainAgentRuntime,
     MainAgentTurnResult,
@@ -17,8 +17,8 @@ from career_agent.agent.main_agent_runtime import (
     ReplayedTurn,
     RuntimeAction,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
 from career_agent.cli import EXIT_WORKFLOW_ERROR, _trajectory_tool_specs, build_parser, main
 from career_agent.evaluation import trajectory

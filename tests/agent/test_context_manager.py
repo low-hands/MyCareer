@@ -4,17 +4,17 @@ import sqlite3
 import pytest
 from pydantic import ValidationError
 
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     DistilledFreeTextPreferenceCandidate,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.decision_messages import project_decision_messages
-from career_agent.agent.token_budget import budget_encoding, message_token_count
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.openai_compatible_client import AgentWorkerError
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.runtime.decision_messages import project_decision_messages
+from career_agent.agent.providers.token_budget import budget_encoding, message_token_count
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.contracts.main_agent import (
     AgentPreferencesContext,
     CareerProfileBudgets,
     CareerProfileContext,

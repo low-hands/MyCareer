@@ -6,11 +6,11 @@ import json
 
 import pytest
 
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_resume_transcription_worker import (
+from career_agent.agent.providers.resume_transcription import (
     OpenAIResumeTranscriptionWorker,
 )
 

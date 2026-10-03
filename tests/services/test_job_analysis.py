@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.job_analysis_contracts import (
+from career_agent.agent.contracts.job_analysis import (
     JobAnalysisGenerationResult,
     JobAnalysisResult,
     TieredRequirement,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_discovery import JobDetail, Provenance
 from career_agent.services.job_analysis import (
     JobAnalysisInputNotFoundError,

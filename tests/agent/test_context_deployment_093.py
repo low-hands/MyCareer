@@ -7,16 +7,16 @@ from unittest.mock import patch
 
 import pytest
 
-from career_agent.agent.context_deployment_config import (
+from career_agent.agent.context.deployment import (
     ContextDeploymentConfig,
     ConversationSummaryAgentConfig,
     validate_model_window,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
+from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
 
 PREFIX = "CONVERSATION_SUMMARY_AGENT"
 
@@ -189,8 +189,8 @@ def test_production_factory_passes_independent_summary_and_context_settings(tmp_
     )
     with (
         patch.dict(os.environ, env, clear=True),
-        patch("career_agent.agent.context_deployment_config.load_dotenv"),
-        patch("career_agent.agent.openai_compatible_client.load_dotenv"),
+        patch("career_agent.agent.context.deployment.load_dotenv"),
+        patch("career_agent.agent.providers.openai_client.load_dotenv"),
         patch.object(cli, "ContextManager", side_effect=capture_context),
         pytest.raises(FactoryObserved),
     ):

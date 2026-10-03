@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from career_agent.agent.conversation_memory_contracts import ConversationSummaryContent
-from career_agent.agent.conversation_span_presenter import render_conversation_span
-from career_agent.agent.main_agent_contracts import AttachedResumeContext
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.memory import ConversationSummaryContent
+from career_agent.agent.presentation.conversation_span import render_conversation_span
+from career_agent.agent.contracts.main_agent import AttachedResumeContext
+from career_agent.agent.contracts.main_agent import (
     ApplicationCandidateContextItem,
     BehaviorPolicyContext,
     CareerMemoryContext,
@@ -36,7 +36,7 @@ from career_agent.agent.main_agent_contracts import (
     SavedJobCandidateContextItem,
     WorkingNotesContext,
 )
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     TargetRoleCandidateContextItem,
 )
 from career_agent.evaluation.trajectory import TrajectoryScenario, TrajectoryStep

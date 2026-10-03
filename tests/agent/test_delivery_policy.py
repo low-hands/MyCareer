@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.delivery_policy import (
+from career_agent.agent.presentation.delivery_policy import (
     DELIVERY_POLICIES,
     DeliveryPolicy,
     condenses_message,
@@ -28,35 +28,35 @@ from career_agent.agent.delivery_policy import (
     is_waiting,
     policy_for,
 )
-from career_agent.agent.authorization_engine import AuthorizationEngine
+from career_agent.agent.runtime.authorization_engine import AuthorizationEngine
 from career_agent.agent import middleware as agent_middleware
-from career_agent.agent.capability_executor import CapabilityExecutor
+from career_agent.agent.capabilities.executor import CapabilityExecutor
 from career_agent.agent.execution.action_ledger import ActionLedger
-from career_agent.agent.interaction_coordinator import InteractionCoordinator
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_runtime import MainAgentTurnResult, ModelDecision
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.runtime.main_agent_runtime import MainAgentTurnResult, ModelDecision
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
     MainAgentContext,
     ToolObservation,
 )
-from career_agent.agent.job_comparison_presenter import DIMENSION_ORDER
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.mock_interview_contracts import (
+from career_agent.agent.presentation.job_comparison import DIMENSION_ORDER
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewExchange,
     MockInterviewQuestionSummary,
     MockInterviewQuestionView,
     MockInterviewResultView,
 )
-from career_agent.agent.mock_interview_presenter import (
+from career_agent.agent.presentation.mock_interview import (
     render_mock_interview_question,
     render_mock_interview_result,
     summarize_mock_interview_question,
     summarize_mock_interview_result,
 )
-from career_agent.agent.summary_text import SUMMARY_LIMIT
+from career_agent.agent.support.summary_text import SUMMARY_LIMIT
 
 # Located from the module object rather than a hardcoded path, so moving the
 # tool layer fails this test loudly instead of silently checking nothing.
@@ -722,7 +722,7 @@ def test_mock_interview_readbacks_use_restricted_markdown_for_dynamic_text() -> 
 
 def test_a_card_policy_without_a_reference_fails_open_to_the_full_body() -> None:
     """A broken observation must not turn a completed report into a receipt."""
-    from career_agent.agent.main_agent_contracts import ToolObservation
+    from career_agent.agent.contracts.main_agent import ToolObservation
 
     observation = ToolObservation(
         tool_name="get_mock_interview_result",
@@ -782,8 +782,8 @@ def _graph_states_with_a_reference() -> set[str]:
     which is the kind of maintained list this file exists to avoid — the
     observation is actually built and asked whether it carries a reference.
     """
-    from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-    from career_agent.agent.mock_interview_contracts import MockInterviewGraphResult
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+    from career_agent.agent.workflows.mock_interview.contracts import MockInterviewGraphResult
     from career_agent.domain.mock_interviews import (
         MockInterviewQuestionResult,
         MockInterviewReport,

@@ -7,11 +7,11 @@ import json
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
 
-from career_agent.agent.job_research_contracts import (
+from career_agent.agent.workflows.job_research.contracts import (
     JobResearchWorker,
     JobResearchWorkerRequest,
 )
-from career_agent.agent.openai_compatible_client import ProviderErrorMetadata
+from career_agent.agent.providers.openai_client import ProviderErrorMetadata
 from career_agent.domain.job_research import (
     company_key,
     JobResearchDraft,

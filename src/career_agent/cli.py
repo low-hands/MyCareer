@@ -10,52 +10,52 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence, TextIO
 
-from career_agent.agent.context_deployment_config import (
+from career_agent.agent.context.deployment import (
     ContextDeploymentConfig,
     ConversationSummaryAgentConfig,
     validate_model_window,
 )
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.career_context import CareerContextProjector
-from career_agent.agent.semantic_career_retrieval import optional_semantic_retriever
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.context.career import CareerContextProjector
+from career_agent.agent.context.semantic_retrieval import optional_semantic_retriever
+from career_agent.agent.contracts.main_agent import (
     ToolObservation,
     canonical_confirm_before,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime, ReplayedTurn
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ReplayedTurn
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import (
     InteractionRequiredEvent,
     InteractionResponse,
     capability_confirmation_event,
     scoped_interaction_message,
 )
-from career_agent.agent.mock_interview_graph import (
+from career_agent.agent.workflows.mock_interview.graph import (
     MockInterviewGraph,
     StoredMockInterviewSourceProvider,
 )
-from career_agent.agent.mock_interview_skill_loader import MockInterviewSkillLoader
-from career_agent.agent.openai_compatible_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
-from career_agent.agent.job_research_config import job_research_config_from_env
-from career_agent.agent.openai_compatible_main_agent import (
+from career_agent.agent.workflows.mock_interview.skill_loader import MockInterviewSkillLoader
+from career_agent.agent.providers.openai_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
+from career_agent.agent.workflows.job_research.config import job_research_config_from_env
+from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
     max_output_tokens_from_env,
 )
-from career_agent.agent.openai_conversation_summary_worker import OpenAIConversationSummaryWorker
-from career_agent.agent.openai_job_analysis_worker import OpenAIJobAnalysisWorker
-from career_agent.agent.openai_resume_job_match_worker import OpenAIResumeJobMatchWorker
-from career_agent.agent.openai_resume_transcription_worker import OpenAIResumeTranscriptionWorker
-from career_agent.agent.openai_resume_tailoring_reviewer import (
+from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
+from career_agent.agent.providers.job_analysis import OpenAIJobAnalysisWorker
+from career_agent.agent.providers.resume_job_match import OpenAIResumeJobMatchWorker
+from career_agent.agent.providers.resume_transcription import OpenAIResumeTranscriptionWorker
+from career_agent.agent.workflows.resume_tailoring.reviewer import (
     OpenAIResumeTailoringReviewer,
 )
-from career_agent.agent.openai_interview_preparation_worker import OpenAIInterviewPreparationWorker
-from career_agent.agent.openai_mock_interview_worker import OpenAIMockInterviewWorker
-from career_agent.agent.openai_email_tracking_worker import OpenAIEmailTrackingWorker
-from career_agent.agent.deepagent_resume_tailoring_worker import (
+from career_agent.agent.providers.interview_preparation import OpenAIInterviewPreparationWorker
+from career_agent.agent.workflows.mock_interview.worker import OpenAIMockInterviewWorker
+from career_agent.agent.providers.email_tracking import OpenAIEmailTrackingWorker
+from career_agent.agent.workflows.resume_tailoring.worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
-from career_agent.agent.deepagent_job_research_worker import (
+from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
 )
 from career_agent.connectors.email_accounts import EnvironmentEmailConnectorResolver
@@ -1303,7 +1303,7 @@ def _trajectory_tool_specs():
     """
     import inspect
 
-    from career_agent.agent.main_agent_tools import MainAgentToolRegistry
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 
     parameters = tuple(
         name

@@ -4,16 +4,16 @@ import json
 
 import pytest
 
-from career_agent.agent.conversation_memory_contracts import (
+from career_agent.agent.contracts.memory import (
     HARNESS_SUMMARY_COUNTER_FIELDS,
     ConversationSummaryContent,
     SummaryMessage,
 )
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_conversation_summary_worker import (
+from career_agent.agent.providers.conversation_summary import (
     OpenAIConversationSummaryWorker,
 )
 
@@ -165,7 +165,7 @@ def test_summary_worker_client_does_not_retry(monkeypatch) -> None:
             captured.update(kwargs)
 
     monkeypatch.setattr(
-        "career_agent.agent.openai_conversation_summary_worker.OpenAI",
+        "career_agent.agent.providers.conversation_summary.OpenAI",
         RecordingOpenAI,
     )
 

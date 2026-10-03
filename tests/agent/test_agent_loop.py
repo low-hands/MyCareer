@@ -1,11 +1,11 @@
 from types import SimpleNamespace
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     ToolCall,
     ToolObservation,
 )
-from career_agent.agent.turn_models import ModelDecision, RuntimePolicyAction
+from career_agent.agent.contracts.turn import ModelDecision, RuntimePolicyAction
 from career_agent.harness.agent_loop import AgentLoop
 
 

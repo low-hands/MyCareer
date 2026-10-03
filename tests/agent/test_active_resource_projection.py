@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CareerProfileContext,
     ConversationTaskState,
     MainAgentContext,
@@ -95,7 +95,7 @@ def test_the_prompt_tells_the_model_these_flags_are_the_only_signal() -> None:
     the flags present but unmentioned, a model could still read absence of an id
     as absence of the object, which is exactly the wrong inference.
     """
-    from career_agent.agent.openai_compatible_main_agent import (
+    from career_agent.agent.providers.main_agent import (
         OpenAICompatibleMainAgentDecisionMaker,
     )
 

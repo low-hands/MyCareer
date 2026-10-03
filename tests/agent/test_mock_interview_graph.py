@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.mock_interview_contracts import (
+from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewFollowUpDecision,
     MockInterviewGraphResult,
     MockInterviewInputDecision,
@@ -12,15 +12,15 @@ from career_agent.agent.mock_interview_contracts import (
     MockInterviewReportDraft,
     MockInterviewStartRequest,
 )
-from career_agent.agent.interview_preparation_contracts import InterviewPreparationContext
-from career_agent.agent.mock_interview_graph import (
+from career_agent.agent.contracts.interview_preparation import InterviewPreparationContext
+from career_agent.agent.workflows.mock_interview.graph import (
     MockInterviewCheckpointMissingError,
     MockInterviewGraph,
     MockInterviewGraphVersionError,
     MockInterviewInputRoutingError,
     MockInterviewSources,
 )
-from career_agent.agent.openai_compatible_client import AgentWorkerError
+from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlanItem,

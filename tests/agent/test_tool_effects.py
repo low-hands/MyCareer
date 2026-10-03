@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.main_agent_contracts import ToolObservation
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_effects import (
+from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.effects import (
     TOOL_EFFECTS,
     declared_write_capabilities,
     effect_for,
@@ -242,7 +242,7 @@ def test_owner_rules_cannot_name_a_write_the_runtime_invokes_on_its_own() -> Non
     would tell the owner they are protected when nothing will ever stop the
     call. The declared set must mirror the registry, both directions.
     """
-    from career_agent.agent.tool_effects import is_runtime_owned, owner_rule_capabilities
+    from career_agent.agent.capabilities.effects import is_runtime_owned, owner_rule_capabilities
 
     runtime_owned = {name for name in TOOL_EFFECTS if is_runtime_owned(name)}
 

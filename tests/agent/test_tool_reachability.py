@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from career_agent.agent.main_agent_contracts import ConversationTaskState
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_reachability import (
+from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.reachability import (
     PRECONDITIONS,
     _REFERENCE_READBACKS,
     reachable,
@@ -106,7 +106,7 @@ def test_conversation_span_is_offered_on_every_turn_including_a_cold_one() -> No
 def test_a_selected_candidate_makes_the_detail_tool_reachable() -> None:
     task = ConversationTaskState(
         saved_job_candidates=(
-            __import__("career_agent.agent.main_agent_contracts", fromlist=["SavedJobCandidateContextItem"]).SavedJobCandidateContextItem(
+            __import__("career_agent.agent.contracts.main_agent", fromlist=["SavedJobCandidateContextItem"]).SavedJobCandidateContextItem(
                 job_posting_id="job-1",
                 title="AI Engineer",
                 company_name="Acme",

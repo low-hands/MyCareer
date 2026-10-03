@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from career_agent.agent.capability_catalog import CAPABILITIES, capability
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.tool_effects import (
+from career_agent.agent.capabilities.catalog import CAPABILITIES, capability
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.effects import (
     TOOL_EFFECTS,
     approval_policy,
     effect_for,
@@ -10,8 +10,8 @@ from career_agent.agent.tool_effects import (
     is_runtime_owned,
     replay_safe,
 )
-from career_agent.agent.tool_profiles import ROUTABLE_TOOLS, profile_tools
-from career_agent.agent.tool_reachability import (
+from career_agent.agent.capabilities.profiles import ROUTABLE_TOOLS, profile_tools
+from career_agent.agent.capabilities.reachability import (
     PRECONDITIONS,
     REQUIREMENTS,
     STATE_GATED_TOOLS,
@@ -111,7 +111,7 @@ def test_approval_and_replay_policies_are_explicit() -> None:
 
 
 def test_output_contract_rejects_a_result_for_another_capability() -> None:
-    from career_agent.agent.main_agent_contracts import ToolObservation
+    from career_agent.agent.contracts.main_agent import ToolObservation
 
     registry = MainAgentToolRegistry()
     result = ToolObservation(

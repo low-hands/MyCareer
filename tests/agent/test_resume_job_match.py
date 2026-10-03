@@ -7,8 +7,8 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.context_manager import ContextManager
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.context.manager import ContextManager
+from career_agent.agent.contracts.main_agent import (
     AgentDecision,
     CareerProfileContext,
     ConversationTaskState,
@@ -16,18 +16,18 @@ from career_agent.agent.main_agent_contracts import (
     SavedJobCandidateContextItem,
     ToolCall,
 )
-from career_agent.agent.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.main_agent_tools import MainAgentToolRegistry
-from career_agent.agent.openai_compatible_client import (
+from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
 )
-from career_agent.agent.openai_resume_job_match_worker import (
+from career_agent.agent.providers.resume_job_match import (
     OpenAIResumeJobMatchWorker,
 )
-from career_agent.agent.job_analysis_contracts import JobAnalysisResult, TieredRequirement
-from career_agent.agent.resume_job_match_contracts import ResumeJobMatchResult
-from career_agent.agent.resume_job_match_contracts import (
+from career_agent.agent.contracts.job_analysis import JobAnalysisResult, TieredRequirement
+from career_agent.agent.contracts.resume_job_match import ResumeJobMatchResult
+from career_agent.agent.contracts.resume_job_match import (
     ResumeJobMatchAuditProposal,
     ResumeJobMatchStateFinding,
 )

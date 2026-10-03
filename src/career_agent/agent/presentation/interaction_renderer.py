@@ -4,15 +4,15 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from career_agent.agent.main_agent_contracts import (
+from career_agent.agent.contracts.main_agent import (
     CONFIRMATION_SPECS,
     ConversationTaskState,
     ToolObservation,
 )
-from career_agent.agent.main_agent_tools import MainAgentToolOutput
-from career_agent.agent.main_state import MainAgentState
-from career_agent.agent.questionnaire_contracts import PendingQuestionnaire
-from career_agent.agent.turn_models import MainAgentTurnResult
+from career_agent.agent.capabilities.registry import MainAgentToolOutput
+from career_agent.agent.runtime.state import MainAgentState
+from career_agent.agent.contracts.questionnaire import PendingQuestionnaire
+from career_agent.agent.contracts.turn import MainAgentTurnResult
 from career_agent.harness.streaming import (
     InteractionOption,
     InteractionRequiredEvent,

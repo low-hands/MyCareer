@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from career_agent.agent.execution.action_ledger import ActionLedger
-from career_agent.agent.main_agent_tools import MainAgentToolOutput, MainAgentToolRegistry
-from career_agent.agent.main_state import MainAgentState, PendingAction
+from career_agent.agent.capabilities.registry import MainAgentToolOutput, MainAgentToolRegistry
+from career_agent.agent.runtime.state import MainAgentState, PendingAction
 from career_agent.storage.action_executions import SQLiteActionExecutionStore
 
 

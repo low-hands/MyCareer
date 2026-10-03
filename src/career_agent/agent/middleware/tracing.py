@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from career_agent.agent.main_state import MainAgentState
+from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.contracts import AuthorizationRefusalKind
 
 
