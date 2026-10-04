@@ -61,6 +61,12 @@ def active_turn_id() -> str | None:
 TurnResultT = TypeVar("TurnResultT")
 
 
+def _ignore_completed_operations(
+    *, user_id: str, conversation_id: str, anchor: str
+) -> None:
+    return None
+
+
 class CommittableTurnResult(Protocol):
     context: MainAgentContext
     assistant_message: str
@@ -126,6 +132,7 @@ class TurnLifecycleOperations(Generic[TurnResultT]):
     deliver_stream_events: Callable[..., None]
     record_turn_failed: Callable[..., None]
     emit_turn_failure: Callable[..., None]
+    complete_operations: Callable[..., None] = _ignore_completed_operations
 
 
 class TurnCoordinator(Generic[TurnResultT]):
@@ -216,6 +223,11 @@ class TurnCoordinator(Generic[TurnResultT]):
                 turn_id=turn_id,
                 conversation_id=conversation_id,
                 result=result,
+            )
+            self._operations.complete_operations(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                anchor=request_id or turn_id,
             )
             self._operations.deliver_stream_events(
                 result=result,

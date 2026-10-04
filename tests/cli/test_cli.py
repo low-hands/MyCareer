@@ -92,10 +92,14 @@ def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
     assert payload["state"] == "action_reconciliation_required"
     assert payload["items"] == [
         {
+            "operation_id": execution.operation_id,
             "action_id": execution.action_id,
+            "turn_id": execution.turn_id,
             "conversation_id": "c1",
             "tool": "create_application",
             "status": "PENDING",
+            "phase": "PREPARED",
+            "attempt_count": 0,
             "retry_safe": True,
             "started_at": execution.started_at.isoformat(),
         }

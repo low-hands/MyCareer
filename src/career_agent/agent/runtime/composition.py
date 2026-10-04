@@ -56,7 +56,7 @@ from career_agent.harness.graph_routing import GraphRoutingPolicy
 from career_agent.harness.observability import TraceRecorder
 from career_agent.harness.turn_router import TurnRouter
 from career_agent.services.episode_reconciliation import EpisodeReconciler
-from career_agent.storage.action_executions import SQLiteActionExecutionStore
+from career_agent.storage.operation_journal import SQLiteActionExecutionStore
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
@@ -277,6 +277,7 @@ def build_main_runtime_components(
             ),
             deliver_reply=stream_adapter.deliver_reply,
             record_turn=runtime_observability.record_turn,
+            complete_operations=reconciliation.complete_operations,
             deliver_stream_events=stream_adapter.deliver_events,
             record_turn_failed=runtime_observability.record_turn_failed,
             emit_turn_failure=RuntimeObservability.emit_turn_failure,

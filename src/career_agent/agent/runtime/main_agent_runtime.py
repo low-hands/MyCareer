@@ -27,7 +27,7 @@ from career_agent.agent.contracts.turn import (
 )
 from career_agent.services.episode_reconciliation import EpisodeReconciler
 from career_agent.harness.streaming import InteractionResponse, StreamEventSink, TurnInputResource
-from career_agent.storage.action_executions import (
+from career_agent.storage.operation_journal import (
     SQLiteActionExecutionStore,
 )
 from career_agent.storage.turn_receipts import (

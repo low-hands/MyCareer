@@ -66,7 +66,7 @@ def test_a_confirmed_effect_is_recorded_with_the_ids_that_repair_task_state(
 
     code, settled = _settle(
         tmp_path,
-        "--action-id",
+        "--operation-id",
         execution.action_id,
         "--executed",
         "--output",
@@ -80,6 +80,7 @@ def test_a_confirmed_effect_is_recorded_with_the_ids_that_repair_task_state(
     )
 
     assert code == 0
+    assert settled["operation_id"] == execution.operation_id
     assert settled["status"] == "SUCCEEDED"
     assert settled["output"] == {
         "__result_state__": "application_ready",

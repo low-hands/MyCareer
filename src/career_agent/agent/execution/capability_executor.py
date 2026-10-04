@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from career_agent.agent.execution.action_ledger import ActionLedger
+from career_agent.agent.execution.operation_journal import OperationJournal
 from career_agent.agent.capabilities.registry import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.runtime.state import MainAgentState, PendingAction
-from career_agent.storage.action_executions import SQLiteActionExecutionStore
+from career_agent.storage.operation_journal import SQLiteActionExecutionStore
 
 
 class CapabilityExecutor:
@@ -28,7 +28,7 @@ class CapabilityExecutor:
         self._emit_capability_started = emit_capability_started
         self._emit_capability_completed = emit_capability_completed
         self._run_capability = run_capability
-        self._action_ledger = ActionLedger(
+        self._operation_journal = OperationJournal(
             store=action_execution_store,
             policy_epoch=action_policy_epoch,
         )
@@ -37,7 +37,7 @@ class CapabilityExecutor:
         pending = state["pending"]
         name = pending["name"]
         self._emit_capability_started(name)
-        if pending.get("effect") == "WRITE" and self._action_ledger.enabled:
+        if pending.get("effect") == "WRITE" and self._operation_journal.enabled:
             result = self._run_capability(
                 pending,
                 lambda: self._act_request_anchored_write(state),
@@ -66,6 +66,6 @@ class CapabilityExecutor:
     def _act_request_anchored_write(
         self, state: MainAgentState
     ) -> MainAgentToolOutput:
-        return self._action_ledger.execute(state, self._invoke_pending)
+        return self._operation_journal.execute(state, self._invoke_pending)
 
-    execution_receipt = staticmethod(ActionLedger.execution_receipt)
+    execution_receipt = staticmethod(OperationJournal.execution_receipt)

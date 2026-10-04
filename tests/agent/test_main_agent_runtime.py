@@ -348,13 +348,19 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
         def __init__(self):
             super().__init__()
             self.calls = 0
+            self.operation_ids = []
 
         def capability_kind(self, name):
             assert name == "create_application"
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
+            from career_agent.agent.execution.operation_journal import (
+                active_operation_id,
+            )
+
             self.calls += 1
+            self.operation_ids.append(active_operation_id())
             return ToolObservation(
                 tool_name=name,
                 state="application_ready",
@@ -408,6 +414,15 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
     assert replay.tool_result.state == "action_execution_replayed"
     assert replay.tool_result.payload == {}
     assert ledger.list_pending(user_id="u1") == ()
+    operation = ledger.list_for_anchor(
+        user_id="u1", conversation_id="c1", anchor="request-1"
+    )[0]
+    assert operation.operation_id == operation.action_id
+    assert operation.capability == "create_application"
+    assert operation.turn_id != operation.request_id
+    assert operation.phase == "COMPLETED"
+    assert operation.attempt_count == 1
+    assert registry.operation_ids == [operation.operation_id]
 
     with pytest.raises(ActionExecutionConflictError):
         run_once("内推投递")
@@ -599,9 +614,12 @@ def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) ->
             request_id="request-1",
         )
 
-    assert ledger.list_for_anchor(
+    operation = ledger.list_for_anchor(
         user_id="u1", conversation_id="c1", anchor="request-1"
-    )[0].status == "PENDING"
+    )[0]
+    assert operation.status == "PENDING"
+    assert operation.phase == "RECONCILIATION_REQUIRED"
+    assert operation.error_code == "MISSING_EXECUTION_OUTCOME"
 
 
 @pytest.mark.parametrize(
@@ -4783,7 +4801,9 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
         run()
         with sqlite3.connect(tmp_path / f"{tool}.sqlite3") as connection:
             connection.execute(
-                "UPDATE action_executions SET status='PENDING', settled_at=NULL"
+                "UPDATE action_executions "
+                "SET status='PENDING', phase='RUNNING', settled_at=NULL, "
+                "effect_committed_at=NULL, completed_at=NULL"
             )
         before = registry.calls
         replayed = run()

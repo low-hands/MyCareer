@@ -107,7 +107,7 @@ from career_agent.storage.capability_confirmations import (
 from career_agent.storage.turn_receipts import (
     SQLiteTurnReceiptStore,
 )
-from career_agent.storage.action_executions import (
+from career_agent.storage.operation_journal import (
     RESULT_STATE_RECEIPT_KEY,
     SQLiteActionExecutionStore,
 )
@@ -552,14 +552,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     actions = subparsers.add_parser(
         "actions",
-        help="Inspect durable write actions that require reconciliation.",
+        help="Inspect durable operation-journal entries that require reconciliation.",
     )
     action_subparsers = actions.add_subparsers(
         dest="actions_command", required=True
     )
     reconcile = action_subparsers.add_parser(
         "reconcile",
-        help="List uncertain actions without automatically replaying them.",
+        help="List uncertain operations without automatically replaying them.",
     )
     reconcile.add_argument("--user-id", required=True)
     reconcile.add_argument(
@@ -578,7 +578,13 @@ def build_parser() -> argparse.ArgumentParser:
             "honest operations are to look and to write down what was seen."
         ),
     )
-    settle.add_argument("--action-id", required=True)
+    settle.add_argument(
+        "--operation-id",
+        "--action-id",
+        dest="action_id",
+        required=True,
+        help="Operation id to settle (--action-id remains as a compatibility alias).",
+    )
     settle_outcome = settle.add_mutually_exclusive_group(required=True)
     settle_outcome.add_argument(
         "--executed",
@@ -1428,8 +1434,10 @@ def _run_action_settle(args, stdout) -> int:
 
     json.dump(
         {
+            "operation_id": settled.operation_id,
             "action_id": settled.action_id,
             "status": settled.status,
+            "phase": settled.phase,
             "output": settled.output,
             "error_code": settled.error_code,
             "settled_at": (
@@ -2518,7 +2526,7 @@ def _dispatch(
         try:
             pending = SQLiteActionExecutionStore(
                 Path(args.context_store).expanduser()
-            ).list_pending(user_id=args.user_id)
+            ).list_incomplete(user_id=args.user_id)
             json.dump(
                 {
                     "state": "action_reconciliation_required"
@@ -2526,10 +2534,14 @@ def _dispatch(
                     else "no_action_reconciliation_required",
                     "items": [
                         {
+                            "operation_id": item.operation_id,
                             "action_id": item.action_id,
+                            "turn_id": item.turn_id,
                             "conversation_id": item.conversation_id,
                             "tool": item.tool_name,
                             "status": item.status,
+                            "phase": item.phase,
+                            "attempt_count": item.attempt_count,
                             "retry_safe": item.retry_safe,
                             "started_at": item.started_at.isoformat(),
                         }

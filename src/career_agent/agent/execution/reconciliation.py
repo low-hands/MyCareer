@@ -7,7 +7,7 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.runtime.turn_coordinator import ACTION_INVOCATION
 from career_agent.services.episode_reconciliation import EpisodeReconciler
-from career_agent.storage.action_executions import SQLiteActionExecutionStore
+from career_agent.storage.operation_journal import SQLiteActionExecutionStore
 
 
 class ReconciliationCoordinator:
@@ -97,6 +97,23 @@ class ReconciliationCoordinator:
             self._episode_reconciler.reconcile_user(user_id=user_id)
             with self._reconcile_guard:
                 self._reconciled_users.add(user_id)
+
+    def complete_operations(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        anchor: str,
+    ) -> None:
+        """Close journal entries only after the durable turn projection commits."""
+
+        if self._action_execution_store is None:
+            return
+        self._action_execution_store.complete_for_anchor(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            anchor=anchor,
+        )
 
     def invalidate_episode_reconciliation(self, user_id: str) -> None:
         if self._episode_reconciler is None:

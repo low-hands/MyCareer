@@ -13,6 +13,14 @@ from career_agent.storage.schema import apply_schema
 
 
 ActionExecutionStatus = Literal["PENDING", "SUCCEEDED", "FAILED"]
+OperationPhase = Literal[
+    "PREPARED",
+    "RUNNING",
+    "RECONCILIATION_REQUIRED",
+    "EFFECT_COMMITTED",
+    "COMPLETED",
+    "FAILED",
+]
 RESULT_STATE_RECEIPT_KEY = "__result_state__"
 """Reserved receipt field carrying the original reducer result state."""
 
@@ -77,6 +85,7 @@ class ActionExecutionAlreadyFailedError(RuntimeError):
 @dataclass(frozen=True)
 class ActionExecution:
     action_id: str
+    turn_id: str
     user_id: str
     conversation_id: str
     anchor: str
@@ -87,11 +96,26 @@ class ActionExecution:
     policy_epoch: int
     retry_safe: bool
     status: ActionExecutionStatus
+    phase: OperationPhase
+    attempt_count: int
     output: dict[str, str | int | float | bool | None]
     error_code: str | None
     error_detail: str | None
     started_at: datetime
+    last_attempt_at: datetime | None
+    effect_committed_at: datetime | None
+    completed_at: datetime | None
     settled_at: datetime | None
+
+    @property
+    def operation_id(self) -> str:
+        """Stable operation identity shared by retries and recovery."""
+
+        return self.action_id
+
+    @property
+    def capability(self) -> str:
+        return self.tool_name
 
 
 class SQLiteActionExecutionStore:
@@ -111,8 +135,9 @@ class SQLiteActionExecutionStore:
             apply_schema(
                 connection,
                 "action_executions",
-                1,
+                2,
                 self._migrate,
+                {2: self._upgrade_to_v2},
             )
         os.chmod(self.path, 0o600)
 
@@ -121,6 +146,7 @@ class SQLiteActionExecutionStore:
         *,
         user_id: str,
         conversation_id: str,
+        turn_id: str | None = None,
         anchor: str,
         request_id: str | None,
         write_slot: int,
@@ -165,6 +191,7 @@ class SQLiteActionExecutionStore:
                 return existing, False
             execution = ActionExecution(
                 action_id=action_id,
+                turn_id=turn_id or anchor,
                 user_id=user_id,
                 conversation_id=conversation_id,
                 anchor=anchor,
@@ -175,24 +202,87 @@ class SQLiteActionExecutionStore:
                 policy_epoch=policy_epoch,
                 retry_safe=request_id is not None and replay_allowed,
                 status="PENDING",
+                phase="PREPARED",
+                attempt_count=0,
                 output={},
                 error_code=None,
                 error_detail=None,
                 started_at=started_at,
+                last_attempt_at=None,
+                effect_committed_at=None,
+                completed_at=None,
                 settled_at=None,
             )
             connection.execute(
                 """
                 INSERT INTO action_executions(
-                    action_id, user_id, conversation_id, anchor, request_id,
+                    action_id, turn_id, user_id, conversation_id, anchor, request_id,
                     write_slot, tool_name, fingerprint, policy_epoch, retry_safe,
-                    status, output_json, error_code, error_detail,
-                    started_at, settled_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, phase, attempt_count, output_json, error_code, error_detail,
+                    started_at, last_attempt_at, effect_committed_at, completed_at,
+                    settled_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._values(execution),
             )
         return execution, True
+
+    def mark_running(
+        self,
+        *,
+        action_id: str,
+        now: datetime | None = None,
+    ) -> ActionExecution:
+        """Record one physical attempt before any side effect is invoked."""
+
+        attempted_at = now or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            changed = connection.execute(
+                """
+                UPDATE action_executions
+                SET phase = 'RUNNING', attempt_count = attempt_count + 1,
+                    last_attempt_at = ?
+                WHERE action_id = ? AND status = 'PENDING'
+                  AND phase IN ('PREPARED', 'RUNNING')
+                """,
+                (attempted_at.isoformat(), action_id),
+            )
+            if changed.rowcount != 1:
+                raise ValueError("operation is not available for execution")
+            row = connection.execute(
+                self._SELECT + " WHERE action_id = ?", (action_id,)
+            ).fetchone()
+        return self._execution(row)
+
+    def require_reconciliation(
+        self,
+        *,
+        action_id: str,
+        error_code: str,
+        error_detail: str,
+    ) -> ActionExecution:
+        """Make an uncertain effect explicit without pretending it failed."""
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            changed = connection.execute(
+                """
+                UPDATE action_executions
+                SET phase = 'RECONCILIATION_REQUIRED', error_code = ?,
+                    error_detail = ?
+                WHERE action_id = ? AND status = 'PENDING'
+                """,
+                (error_code[:100], error_detail[:2000], action_id),
+            )
+            row = connection.execute(
+                self._SELECT + " WHERE action_id = ?", (action_id,)
+            ).fetchone()
+        if row is None:
+            raise ValueError("operation not found")
+        if changed.rowcount != 1:
+            raise ValueError("operation is no longer pending")
+        return self._execution(row)
 
     def succeed(
         self,
@@ -208,12 +298,14 @@ class SQLiteActionExecutionStore:
             changed = connection.execute(
                 """
                 UPDATE action_executions
-                SET status = 'SUCCEEDED', output_json = ?, settled_at = ?,
+                SET status = 'SUCCEEDED', phase = 'EFFECT_COMMITTED',
+                    output_json = ?, effect_committed_at = ?, settled_at = ?,
                     error_code = NULL, error_detail = NULL
                 WHERE action_id = ? AND status = 'PENDING'
                 """,
                 (
                     json.dumps(output, ensure_ascii=False, sort_keys=True),
+                    settled_at.isoformat(),
                     settled_at.isoformat(),
                     action_id,
                 ),
@@ -239,7 +331,8 @@ class SQLiteActionExecutionStore:
             changed = connection.execute(
                 """
                 UPDATE action_executions
-                SET status = 'FAILED', error_code = ?, error_detail = ?, settled_at = ?
+                SET status = 'FAILED', phase = 'FAILED', error_code = ?,
+                    error_detail = ?, settled_at = ?
                 WHERE action_id = ? AND status = 'PENDING'
                 """,
                 (error_code, error_detail[:2000], settled_at.isoformat(), action_id),
@@ -257,10 +350,60 @@ class SQLiteActionExecutionStore:
             raise ValueError("action execution is no longer pending")
         return self._execution(row)
 
+    def complete_for_anchor(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        anchor: str,
+        now: datetime | None = None,
+    ) -> tuple[ActionExecution, ...]:
+        """Close effects after their reducer projection and turn commit succeed."""
+
+        completed_at = now or datetime.now(timezone.utc)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                UPDATE action_executions
+                SET phase = 'COMPLETED', completed_at = ?
+                WHERE user_id = ? AND conversation_id = ? AND anchor = ?
+                  AND status = 'SUCCEEDED' AND phase = 'EFFECT_COMMITTED'
+                """,
+                (
+                    completed_at.isoformat(),
+                    user_id,
+                    conversation_id,
+                    anchor,
+                ),
+            )
+            rows = connection.execute(
+                self._SELECT
+                + " WHERE user_id = ? AND conversation_id = ? AND anchor = ?"
+                " ORDER BY write_slot, started_at",
+                (user_id, conversation_id, anchor),
+            ).fetchall()
+        return tuple(self._execution(row) for row in rows)
+
     def list_pending(
         self, *, user_id: str | None = None
     ) -> tuple[ActionExecution, ...]:
         query = self._SELECT + " WHERE status = 'PENDING'"
+        params: tuple[object, ...] = ()
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params = (user_id,)
+        query += " ORDER BY started_at, action_id"
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return tuple(self._execution(row) for row in rows)
+
+    def list_incomplete(
+        self, *, user_id: str | None = None
+    ) -> tuple[ActionExecution, ...]:
+        """Return operations that still need execution, recovery, or projection."""
+
+        query = self._SELECT + " WHERE phase NOT IN ('COMPLETED', 'FAILED')"
         params: tuple[object, ...] = ()
         if user_id is not None:
             query += " AND user_id = ?"
@@ -314,9 +457,10 @@ class SQLiteActionExecutionStore:
         return "action_" + hashlib.sha256(material.encode()).hexdigest()
 
     _SELECT = (
-        "SELECT action_id, user_id, conversation_id, anchor, request_id, "
+        "SELECT action_id, turn_id, user_id, conversation_id, anchor, request_id, "
         "write_slot, tool_name, fingerprint, policy_epoch, retry_safe, status, "
-        "output_json, error_code, error_detail, started_at, settled_at "
+        "phase, attempt_count, output_json, error_code, error_detail, started_at, "
+        "last_attempt_at, effect_committed_at, completed_at, settled_at "
         "FROM action_executions"
     )
 
@@ -326,6 +470,7 @@ class SQLiteActionExecutionStore:
             """
             CREATE TABLE IF NOT EXISTS action_executions (
                 action_id TEXT PRIMARY KEY,
+                turn_id TEXT NOT NULL,
                 user_id TEXT NOT NULL,
                 conversation_id TEXT NOT NULL,
                 anchor TEXT NOT NULL,
@@ -336,15 +481,66 @@ class SQLiteActionExecutionStore:
                 policy_epoch INTEGER NOT NULL,
                 retry_safe INTEGER NOT NULL,
                 status TEXT NOT NULL,
+                phase TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL,
                 output_json TEXT NOT NULL,
                 error_code TEXT,
                 error_detail TEXT,
                 started_at TEXT NOT NULL,
+                last_attempt_at TEXT,
+                effect_committed_at TEXT,
+                completed_at TEXT,
                 settled_at TEXT,
                 UNIQUE(user_id, conversation_id, anchor, write_slot)
             );
             CREATE INDEX IF NOT EXISTS action_executions_pending_idx
                 ON action_executions(status, started_at);
+            """
+        )
+
+    @staticmethod
+    def _upgrade_to_v2(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(action_executions)")
+        }
+        additions = (
+            ("turn_id", "TEXT"),
+            ("phase", "TEXT"),
+            ("attempt_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_attempt_at", "TEXT"),
+            ("effect_committed_at", "TEXT"),
+            ("completed_at", "TEXT"),
+        )
+        for name, declaration in additions:
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE action_executions ADD COLUMN {name} {declaration}"
+                )
+        connection.execute(
+            """
+            UPDATE action_executions
+            SET turn_id = COALESCE(turn_id, anchor),
+                phase = COALESCE(
+                    phase,
+                    CASE status
+                        WHEN 'SUCCEEDED' THEN 'COMPLETED'
+                        WHEN 'FAILED' THEN 'FAILED'
+                        ELSE 'RECONCILIATION_REQUIRED'
+                    END
+                ),
+                attempt_count = CASE
+                    WHEN attempt_count = 0 THEN 1 ELSE attempt_count
+                END,
+                effect_committed_at = CASE
+                    WHEN status = 'SUCCEEDED'
+                    THEN COALESCE(effect_committed_at, settled_at)
+                    ELSE effect_committed_at
+                END,
+                completed_at = CASE
+                    WHEN status = 'SUCCEEDED'
+                    THEN COALESCE(completed_at, settled_at)
+                    ELSE completed_at
+                END
             """
         )
 
@@ -366,23 +562,38 @@ class SQLiteActionExecutionStore:
     @staticmethod
     def _execution(row) -> ActionExecution:
         return ActionExecution(
-            action_id=row[0], user_id=row[1], conversation_id=row[2],
-            anchor=row[3], request_id=row[4], write_slot=row[5],
-            tool_name=row[6], fingerprint=row[7], policy_epoch=row[8],
-            retry_safe=bool(row[9]), status=row[10], output=json.loads(row[11]),
-            error_code=row[12], error_detail=row[13], started_at=datetime.fromisoformat(row[14]),
-            settled_at=datetime.fromisoformat(row[15]) if row[15] else None,
+            action_id=row[0], turn_id=row[1], user_id=row[2], conversation_id=row[3],
+            anchor=row[4], request_id=row[5], write_slot=row[6],
+            tool_name=row[7], fingerprint=row[8], policy_epoch=row[9],
+            retry_safe=bool(row[10]), status=row[11], phase=row[12],
+            attempt_count=row[13], output=json.loads(row[14]),
+            error_code=row[15], error_detail=row[16], started_at=datetime.fromisoformat(row[17]),
+            last_attempt_at=datetime.fromisoformat(row[18]) if row[18] else None,
+            effect_committed_at=datetime.fromisoformat(row[19]) if row[19] else None,
+            completed_at=datetime.fromisoformat(row[20]) if row[20] else None,
+            settled_at=datetime.fromisoformat(row[21]) if row[21] else None,
         )
 
     @staticmethod
     def _values(execution: ActionExecution) -> tuple[object, ...]:
         return (
-            execution.action_id, execution.user_id, execution.conversation_id,
-            execution.anchor, execution.request_id, execution.write_slot,
+            execution.action_id, execution.turn_id, execution.user_id,
+            execution.conversation_id, execution.anchor, execution.request_id,
+            execution.write_slot,
             execution.tool_name, execution.fingerprint, execution.policy_epoch,
-            int(execution.retry_safe), execution.status,
+            int(execution.retry_safe), execution.status, execution.phase,
+            execution.attempt_count,
             json.dumps(execution.output, ensure_ascii=False, sort_keys=True),
             execution.error_code, execution.error_detail,
             execution.started_at.isoformat(),
+            execution.last_attempt_at.isoformat() if execution.last_attempt_at else None,
+            execution.effect_committed_at.isoformat() if execution.effect_committed_at else None,
+            execution.completed_at.isoformat() if execution.completed_at else None,
             execution.settled_at.isoformat() if execution.settled_at else None,
         )
+
+
+# New code uses the operation terminology. The old names remain stable for CLI,
+# persisted data, and integrations compiled against the previous API.
+OperationRecord = ActionExecution
+SQLiteOperationJournal = SQLiteActionExecutionStore
