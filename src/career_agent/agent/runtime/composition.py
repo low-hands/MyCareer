@@ -20,6 +20,7 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.agent.execution.capability_executor import CapabilityExecutor
 from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
+from career_agent.agent.execution.recovery import OperationReconcilerRegistry
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
 from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
 from career_agent.agent.contracts.context import MainAgentContext
@@ -117,6 +118,9 @@ def build_main_runtime_components(
         context_manager=context_manager,
         action_execution_store=action_execution_store,
         episode_reconciler=episode_reconciler,
+        operation_reconcilers=OperationReconcilerRegistry(
+            getattr(tools, "operation_reconcilers", lambda: {})()
+        ),
     )
     context_builder = TurnContextBuilder(
         context_manager=context_manager,
@@ -278,6 +282,7 @@ def build_main_runtime_components(
             deliver_reply=stream_adapter.deliver_reply,
             record_turn=runtime_observability.record_turn,
             complete_operations=reconciliation.complete_operations,
+            recover_operations=reconciliation.recover_operations,
             deliver_stream_events=stream_adapter.deliver_events,
             record_turn_failed=runtime_observability.record_turn_failed,
             emit_turn_failure=RuntimeObservability.emit_turn_failure,

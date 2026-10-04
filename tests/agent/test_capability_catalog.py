@@ -108,6 +108,10 @@ def test_approval_and_replay_policies_are_explicit() -> None:
     assert capability("get_saved_job").replay_policy == "not_applicable"
     assert capability("update_application_status").replay_policy == "never"
     assert capability("create_application").replay_policy == "idempotent"
+    assert capability("get_saved_job").recovery_policy == "not_applicable"
+    assert capability("create_application").recovery_policy == "retry"
+    assert capability("update_application_status").recovery_policy == "reconcile"
+    assert capability("execute_calendar_proposal").recovery_policy == "reconcile"
 
 
 def test_output_contract_rejects_a_result_for_another_capability() -> None:

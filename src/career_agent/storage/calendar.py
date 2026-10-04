@@ -344,6 +344,7 @@ class SQLiteCalendarStore:
         proposal: CalendarChangeProposal,
         now: datetime,
         lease_duration: timedelta,
+        operation_id: str | None = None,
     ) -> tuple[CalendarChangeProposal, CalendarOperationExecution, bool]:
         """Persist intent before I/O and exclusively claim one external attempt.
 
@@ -393,7 +394,7 @@ class SQLiteCalendarStore:
                     external_event_id=proposal.external_event_id,
                     payload_hash=proposal.payload_hash,
                     prior_payload_hash=prior_payload_hash,
-                    idempotency_key=proposal.id,
+                    idempotency_key=operation_id or proposal.id,
                     status="applying",
                     attempt_count=1,
                     started_at=now,

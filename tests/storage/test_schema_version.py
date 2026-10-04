@@ -67,7 +67,7 @@ DECLARED_VERSIONS = {
     "resumes": 10,
     "career_history": 8,
     "action_center": 2,
-    "action_executions": 2,
+    "action_executions": 3,
     "turn_receipts": 2,
     "applications": 2,
     "interviews": 2,

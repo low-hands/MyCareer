@@ -9,7 +9,7 @@ import json
 from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
 from career_agent.agent.runtime.state import MainAgentState, PendingAction
-from career_agent.agent.capabilities.effects import replay_safe
+from career_agent.agent.capabilities.catalog import capability
 from career_agent.agent.runtime.turn_coordinator import ACTION_INVOCATION
 from career_agent.storage.operation_journal import (
     ActionExecutionAlreadyFailedError,
@@ -73,7 +73,8 @@ class OperationJournal:
                 default=str,
             ).encode()
         ).hexdigest()
-        retry_allowed = replay_safe(name)
+        descriptor = capability(name)
+        retry_allowed = descriptor.replay_safe
         try:
             execution, created = self._store.prepare(
                 user_id=context.profile.user_id,
@@ -86,6 +87,8 @@ class OperationJournal:
                 fingerprint=fingerprint,
                 policy_epoch=self._policy_epoch,
                 replay_allowed=retry_allowed,
+                recovery_policy=descriptor.recovery_policy,
+                input_references=self.references(arguments),
             )
         except ActionExecutionReconciliationRequiredError:
             return ToolObservation(
@@ -179,9 +182,13 @@ class OperationJournal:
                 error_detail=result.message,
             )
             return result
+        receipt = self.execution_receipt(result)
+        references = self.references(receipt)
         self._store.succeed(
             action_id=execution.action_id,
-            output=self.execution_receipt(result),
+            output=receipt,
+            output_references=references,
+            external_reference=self.external_reference(references),
         )
         return result
 
@@ -203,6 +210,33 @@ class OperationJournal:
                 continue
             receipt[key] = value
         return receipt
+
+    @staticmethod
+    def references(
+        values: dict[str, object],
+    ) -> dict[str, str | int | float | bool | None]:
+        """Keep non-secret identifiers needed to locate a domain effect."""
+
+        references: dict[str, str | int | float | bool | None] = {}
+        for key, value in values.items():
+            if key == "user_id" or not (key == "id" or key.endswith("_id")):
+                continue
+            if value is not None and not isinstance(value, (str, int, float, bool)):
+                continue
+            if isinstance(value, str) and len(value) > _MAX_RECEIPT_VALUE_CHARS:
+                continue
+            references[key] = value
+        return references
+
+    @staticmethod
+    def external_reference(
+        references: dict[str, str | int | float | bool | None],
+    ) -> str | None:
+        for key in ("external_event_id", "external_id"):
+            value = references.get(key)
+            if value is not None:
+                return str(value)
+        return None
 
 
 # Compatibility for callers and persisted documentation that still use the

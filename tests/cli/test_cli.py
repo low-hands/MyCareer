@@ -101,6 +101,10 @@ def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
             "phase": "PREPARED",
             "attempt_count": 0,
             "retry_safe": True,
+            "recovery_policy": "reconcile",
+            "input_references": {},
+            "output_references": {},
+            "external_reference": None,
             "started_at": execution.started_at.isoformat(),
         }
     ]

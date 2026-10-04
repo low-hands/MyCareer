@@ -19,6 +19,8 @@ def test_operation_journal_records_the_execution_lifecycle(tmp_path) -> None:
         fingerprint="fingerprint-1",
         policy_epoch=1,
         replay_allowed=True,
+        recovery_policy="retry",
+        input_references={"job_posting_id": "job-1"},
     )
 
     assert created is True
@@ -26,6 +28,8 @@ def test_operation_journal_records_the_execution_lifecycle(tmp_path) -> None:
     assert operation.attempt_count == 0
     assert operation.operation_id == operation.action_id
     assert operation.turn_id == "turn-1"
+    assert operation.recovery_policy == "retry"
+    assert operation.input_references == {"job_posting_id": "job-1"}
 
     running = journal.mark_running(action_id=operation.operation_id)
     assert running.phase == "RUNNING"
@@ -35,11 +39,13 @@ def test_operation_journal_records_the_execution_lifecycle(tmp_path) -> None:
     committed = journal.succeed(
         action_id=operation.operation_id,
         output={"application_id": "application-1"},
+        output_references={"application_id": "application-1"},
     )
     assert committed.status == "SUCCEEDED"
     assert committed.phase == "EFFECT_COMMITTED"
     assert committed.effect_committed_at is not None
     assert committed.completed_at is None
+    assert committed.output_references == {"application_id": "application-1"}
     assert journal.list_incomplete(user_id="user-1") == (committed,)
 
     completed = journal.complete_for_anchor(
@@ -133,3 +139,6 @@ def test_version_one_action_rows_upgrade_in_place(tmp_path) -> None:
     assert operation.attempt_count == 1
     assert operation.effect_committed_at == datetime.fromisoformat(settled_at)
     assert operation.completed_at == datetime.fromisoformat(settled_at)
+    assert operation.recovery_policy == "reconcile"
+    assert operation.input_references == {}
+    assert operation.output_references == {}

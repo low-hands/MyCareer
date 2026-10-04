@@ -67,6 +67,10 @@ def _ignore_completed_operations(
     return None
 
 
+def _ignore_operation_recovery(user_id: str) -> None:
+    return None
+
+
 class CommittableTurnResult(Protocol):
     context: MainAgentContext
     assistant_message: str
@@ -133,6 +137,7 @@ class TurnLifecycleOperations(Generic[TurnResultT]):
     record_turn_failed: Callable[..., None]
     emit_turn_failure: Callable[..., None]
     complete_operations: Callable[..., None] = _ignore_completed_operations
+    recover_operations: Callable[[str], None] = _ignore_operation_recovery
 
 
 class TurnCoordinator(Generic[TurnResultT]):
@@ -291,6 +296,7 @@ class TurnCoordinator(Generic[TurnResultT]):
         before_commit: Callable[[TurnResultT], None] | None,
         input_resources: tuple[TurnInputResource, ...],
     ) -> TurnResultT:
+        self._operations.recover_operations(user_id)
         self._operations.reconcile_episodes(user_id)
         prepared = self._context_builder.prepare(
             user_id=user_id,

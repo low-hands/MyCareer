@@ -29,6 +29,7 @@ ToolEffect = Literal["READ", "WRITE", "CONTROL"]
 ExecutionKind = Literal["atomic_tool", "workflow", "runtime_workflow"]
 ApprovalPolicy = Literal["never", "owner_rule", "always"]
 ReplayPolicy = Literal["not_applicable", "never", "idempotent"]
+RecoveryPolicy = Literal["not_applicable", "retry", "reconcile"]
 Precondition = Callable[[ConversationTaskState], bool]
 
 
@@ -42,6 +43,7 @@ class CapabilityDescriptor:
     execution_kind: ExecutionKind = "atomic_tool"
     approval_policy: ApprovalPolicy = "never"
     replay_policy: ReplayPolicy = "not_applicable"
+    recovery_policy: RecoveryPolicy = "not_applicable"
     output_model: str = "ToolObservation"
     external_write: bool = False
     runtime_owned: bool = False
@@ -821,6 +823,11 @@ def _capability(
         if effect != "WRITE"
         else ("idempotent" if replay_safe else "never")
     )
+    recovery_policy: RecoveryPolicy = (
+        "not_applicable"
+        if effect != "WRITE"
+        else ("reconcile" if external_write or not replay_safe else "retry")
+    )
     return CapabilityDescriptor(
         name=name,
         arguments_model=schema_spec[0] if schema_spec is not None else None,
@@ -830,6 +837,7 @@ def _capability(
         execution_kind=execution_kind,
         approval_policy=approval_policy,
         replay_policy=replay_policy,
+        recovery_policy=recovery_policy,
         external_write=external_write,
         runtime_owned=runtime_owned,
         notes_guarded=(effect == "WRITE" if notes_guarded is None else notes_guarded),
@@ -938,6 +946,12 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"non-WRITE capability cannot declare replay: {descriptor.name}")
         if descriptor.effect == "WRITE" and descriptor.replay_policy == "not_applicable":
             raise RuntimeError(f"WRITE capability needs a replay policy: {descriptor.name}")
+        if descriptor.effect != "WRITE" and descriptor.recovery_policy != "not_applicable":
+            raise RuntimeError(f"non-WRITE capability cannot declare recovery: {descriptor.name}")
+        if descriptor.effect == "WRITE" and descriptor.recovery_policy == "not_applicable":
+            raise RuntimeError(f"WRITE capability needs a recovery policy: {descriptor.name}")
+        if descriptor.external_write and descriptor.recovery_policy != "reconcile":
+            raise RuntimeError(f"external write must reconcile: {descriptor.name}")
         if descriptor.approval_policy != "never" and descriptor.effect != "WRITE":
             raise RuntimeError(f"only WRITE capabilities may require approval: {descriptor.name}")
         if descriptor.runtime_owned and descriptor.approval_policy != "never":

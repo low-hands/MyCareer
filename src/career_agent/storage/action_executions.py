@@ -21,6 +21,7 @@ OperationPhase = Literal[
     "COMPLETED",
     "FAILED",
 ]
+OperationRecoveryPolicy = Literal["retry", "reconcile"]
 RESULT_STATE_RECEIPT_KEY = "__result_state__"
 """Reserved receipt field carrying the original reducer result state."""
 
@@ -95,6 +96,10 @@ class ActionExecution:
     fingerprint: str
     policy_epoch: int
     retry_safe: bool
+    recovery_policy: OperationRecoveryPolicy
+    input_references: dict[str, str | int | float | bool | None]
+    output_references: dict[str, str | int | float | bool | None]
+    external_reference: str | None
     status: ActionExecutionStatus
     phase: OperationPhase
     attempt_count: int
@@ -135,9 +140,9 @@ class SQLiteActionExecutionStore:
             apply_schema(
                 connection,
                 "action_executions",
-                2,
+                3,
                 self._migrate,
-                {2: self._upgrade_to_v2},
+                {2: self._upgrade_to_v2, 3: self._upgrade_to_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -154,9 +159,15 @@ class SQLiteActionExecutionStore:
         fingerprint: str,
         policy_epoch: int,
         replay_allowed: bool = False,
+        recovery_policy: OperationRecoveryPolicy = "reconcile",
+        input_references: dict[str, str | int | float | bool | None] | None = None,
         now: datetime | None = None,
     ) -> tuple[ActionExecution, bool]:
         started_at = now or datetime.now(timezone.utc)
+        if recovery_policy not in {"retry", "reconcile"}:
+            raise ValueError("operation recovery policy must be retry or reconcile")
+        references = dict(input_references or {})
+        self._validate_output(references)
         action_id = self.action_id(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -201,6 +212,10 @@ class SQLiteActionExecutionStore:
                 fingerprint=fingerprint,
                 policy_epoch=policy_epoch,
                 retry_safe=request_id is not None and replay_allowed,
+                recovery_policy=recovery_policy,
+                input_references=references,
+                output_references={},
+                external_reference=None,
                 status="PENDING",
                 phase="PREPARED",
                 attempt_count=0,
@@ -217,11 +232,12 @@ class SQLiteActionExecutionStore:
                 """
                 INSERT INTO action_executions(
                     action_id, turn_id, user_id, conversation_id, anchor, request_id,
-                    write_slot, tool_name, fingerprint, policy_epoch, retry_safe,
-                    status, phase, attempt_count, output_json, error_code, error_detail,
+                    write_slot, tool_name, fingerprint, policy_epoch, retry_safe, status,
+                    recovery_policy, input_references_json, output_references_json,
+                    external_reference, phase, attempt_count, output_json, error_code, error_detail,
                     started_at, last_attempt_at, effect_committed_at, completed_at,
                     settled_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._values(execution),
             )
@@ -289,9 +305,13 @@ class SQLiteActionExecutionStore:
         *,
         action_id: str,
         output: dict[str, str | int | float | bool | None],
+        output_references: dict[str, str | int | float | bool | None] | None = None,
+        external_reference: str | None = None,
         now: datetime | None = None,
     ) -> ActionExecution:
         self._validate_output(output)
+        references = dict(output_references or {})
+        self._validate_output(references)
         settled_at = now or datetime.now(timezone.utc)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -299,12 +319,15 @@ class SQLiteActionExecutionStore:
                 """
                 UPDATE action_executions
                 SET status = 'SUCCEEDED', phase = 'EFFECT_COMMITTED',
-                    output_json = ?, effect_committed_at = ?, settled_at = ?,
+                    output_json = ?, output_references_json = ?, external_reference = ?,
+                    effect_committed_at = ?, settled_at = ?,
                     error_code = NULL, error_detail = NULL
                 WHERE action_id = ? AND status = 'PENDING'
                 """,
                 (
                     json.dumps(output, ensure_ascii=False, sort_keys=True),
+                    json.dumps(references, ensure_ascii=False, sort_keys=True),
+                    external_reference,
                     settled_at.isoformat(),
                     settled_at.isoformat(),
                     action_id,
@@ -459,6 +482,7 @@ class SQLiteActionExecutionStore:
     _SELECT = (
         "SELECT action_id, turn_id, user_id, conversation_id, anchor, request_id, "
         "write_slot, tool_name, fingerprint, policy_epoch, retry_safe, status, "
+        "recovery_policy, input_references_json, output_references_json, external_reference, "
         "phase, attempt_count, output_json, error_code, error_detail, started_at, "
         "last_attempt_at, effect_committed_at, completed_at, settled_at "
         "FROM action_executions"
@@ -480,6 +504,10 @@ class SQLiteActionExecutionStore:
                 fingerprint TEXT NOT NULL,
                 policy_epoch INTEGER NOT NULL,
                 retry_safe INTEGER NOT NULL,
+                recovery_policy TEXT NOT NULL,
+                input_references_json TEXT NOT NULL,
+                output_references_json TEXT NOT NULL,
+                external_reference TEXT,
                 status TEXT NOT NULL,
                 phase TEXT NOT NULL,
                 attempt_count INTEGER NOT NULL,
@@ -544,6 +572,23 @@ class SQLiteActionExecutionStore:
             """
         )
 
+    @staticmethod
+    def _upgrade_to_v3(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(action_executions)")
+        }
+        additions = (
+            ("recovery_policy", "TEXT NOT NULL DEFAULT 'reconcile'"),
+            ("input_references_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ("output_references_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ("external_reference", "TEXT"),
+        )
+        for name, declaration in additions:
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE action_executions ADD COLUMN {name} {declaration}"
+                )
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")
@@ -565,13 +610,15 @@ class SQLiteActionExecutionStore:
             action_id=row[0], turn_id=row[1], user_id=row[2], conversation_id=row[3],
             anchor=row[4], request_id=row[5], write_slot=row[6],
             tool_name=row[7], fingerprint=row[8], policy_epoch=row[9],
-            retry_safe=bool(row[10]), status=row[11], phase=row[12],
-            attempt_count=row[13], output=json.loads(row[14]),
-            error_code=row[15], error_detail=row[16], started_at=datetime.fromisoformat(row[17]),
-            last_attempt_at=datetime.fromisoformat(row[18]) if row[18] else None,
-            effect_committed_at=datetime.fromisoformat(row[19]) if row[19] else None,
-            completed_at=datetime.fromisoformat(row[20]) if row[20] else None,
-            settled_at=datetime.fromisoformat(row[21]) if row[21] else None,
+            retry_safe=bool(row[10]), status=row[11],
+            recovery_policy=row[12], input_references=json.loads(row[13]),
+            output_references=json.loads(row[14]), external_reference=row[15],
+            phase=row[16], attempt_count=row[17], output=json.loads(row[18]),
+            error_code=row[19], error_detail=row[20], started_at=datetime.fromisoformat(row[21]),
+            last_attempt_at=datetime.fromisoformat(row[22]) if row[22] else None,
+            effect_committed_at=datetime.fromisoformat(row[23]) if row[23] else None,
+            completed_at=datetime.fromisoformat(row[24]) if row[24] else None,
+            settled_at=datetime.fromisoformat(row[25]) if row[25] else None,
         )
 
     @staticmethod
@@ -581,7 +628,10 @@ class SQLiteActionExecutionStore:
             execution.conversation_id, execution.anchor, execution.request_id,
             execution.write_slot,
             execution.tool_name, execution.fingerprint, execution.policy_epoch,
-            int(execution.retry_safe), execution.status, execution.phase,
+            int(execution.retry_safe), execution.status, execution.recovery_policy,
+            json.dumps(execution.input_references, ensure_ascii=False, sort_keys=True),
+            json.dumps(execution.output_references, ensure_ascii=False, sort_keys=True),
+            execution.external_reference, execution.phase,
             execution.attempt_count,
             json.dumps(execution.output, ensure_ascii=False, sort_keys=True),
             execution.error_code, execution.error_detail,

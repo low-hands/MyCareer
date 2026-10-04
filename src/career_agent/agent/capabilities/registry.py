@@ -663,6 +663,27 @@ class MainAgentToolRegistry:
                         f"{name} must bind registry method {descriptor.handler_name}"
                     )
 
+    def operation_reconcilers(self) -> dict[str, Callable[[Any], ToolObservation]]:
+        """Return recovery handlers only for configured external capabilities."""
+
+        if self._calendar_service is None:
+            return {}
+        return {"execute_calendar_proposal": self._reconcile_calendar_operation}
+
+    def _reconcile_calendar_operation(self, operation: Any) -> ToolObservation:
+        from career_agent.agent.execution.operation_journal import ACTIVE_OPERATION_ID
+
+        proposal_id = operation.input_references.get("proposal_id")
+        if not isinstance(proposal_id, str) or not proposal_id:
+            raise ValueError("calendar operation is missing proposal_id")
+        token = ACTIVE_OPERATION_ID.set(operation.operation_id)
+        try:
+            return self._execute_calendar_proposal(
+                {"user_id": operation.user_id, "proposal_id": proposal_id}
+            )
+        finally:
+            ACTIVE_OPERATION_ID.reset(token)
+
     @staticmethod
     def _resource_title(*parts: str | None) -> str:
         """Join producer-selected identity fields into one bounded title."""
@@ -2542,6 +2563,8 @@ class MainAgentToolRegistry:
         )
 
     def _execute_calendar_proposal(self, arguments: dict[str, Any]) -> ToolObservation:
+        from career_agent.agent.execution.operation_journal import active_operation_id
+
         if self._calendar_service is None:
             raise ValueError("Calendar service is not configured")
         user_id = str(arguments["user_id"])
@@ -2551,9 +2574,14 @@ class MainAgentToolRegistry:
         if model_arguments.proposal_id is None:
             raise ValueError("execute_calendar_proposal requires proposal_id")
         try:
-            execution = self._calendar_service.execute_proposal(
-                user_id=user_id, proposal_id=model_arguments.proposal_id
-            )
+            execution_arguments = {
+                "user_id": user_id,
+                "proposal_id": model_arguments.proposal_id,
+            }
+            operation_id = active_operation_id()
+            if operation_id is not None:
+                execution_arguments["operation_id"] = operation_id
+            execution = self._calendar_service.execute_proposal(**execution_arguments)
         except CalendarProposalNotFoundError:
             return ToolObservation(
                 tool_name="execute_calendar_proposal",

@@ -158,6 +158,7 @@ class CalendarService:
         *,
         user_id: str,
         proposal_id: str,
+        operation_id: str | None = None,
         now: datetime | None = None,
     ) -> CalendarExecution:
         current = now or datetime.now(timezone.utc)
@@ -230,6 +231,7 @@ class CalendarService:
                 proposal=proposal,
                 now=current,
                 lease_duration=self._execution_lease,
+                operation_id=operation_id,
             )
         except CalendarExecutionLeaseActiveError as error:
             raise CalendarConnectorError(

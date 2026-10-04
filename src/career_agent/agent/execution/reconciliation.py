@@ -7,6 +7,7 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.runtime.turn_coordinator import ACTION_INVOCATION
 from career_agent.services.episode_reconciliation import EpisodeReconciler
+from career_agent.agent.execution.recovery import OperationReconcilerRegistry
 from career_agent.storage.operation_journal import SQLiteActionExecutionStore
 
 
@@ -19,6 +20,7 @@ class ReconciliationCoordinator:
         context_manager: ContextManager | None,
         action_execution_store: SQLiteActionExecutionStore | None,
         episode_reconciler: EpisodeReconciler | None,
+        operation_reconcilers: OperationReconcilerRegistry | None = None,
         reconciled_users: set[str] | None = None,
         reconcile_guard: Any | None = None,
         user_locks: dict[str, Any] | None = None,
@@ -26,6 +28,7 @@ class ReconciliationCoordinator:
         self._context_manager = context_manager
         self._action_execution_store = action_execution_store
         self._episode_reconciler = episode_reconciler
+        self._operation_reconcilers = operation_reconcilers
         self._reconciled_users = (
             set() if reconciled_users is None else reconciled_users
         )
@@ -97,6 +100,16 @@ class ReconciliationCoordinator:
             self._episode_reconciler.reconcile_user(user_id=user_id)
             with self._reconcile_guard:
                 self._reconciled_users.add(user_id)
+
+    def recover_operations(self, user_id: str) -> None:
+        """Resolve uncertain external effects before planning another turn."""
+
+        if self._action_execution_store is None or self._operation_reconcilers is None:
+            return
+        self._operation_reconcilers.recover(
+            store=self._action_execution_store,
+            user_id=user_id,
+        )
 
     def complete_operations(
         self,

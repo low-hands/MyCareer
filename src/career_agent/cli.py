@@ -1403,7 +1403,15 @@ def _run_action_settle(args, stdout) -> int:
                         f"{execution.tool_name}: {', '.join(sorted(missing))}"
                     )
             output[RESULT_STATE_RECEIPT_KEY] = result_state
-            settled = store.succeed(action_id=args.action_id, output=output)
+            from career_agent.agent.execution.operation_journal import OperationJournal
+
+            references = OperationJournal.references(output)
+            settled = store.succeed(
+                action_id=args.action_id,
+                output=output,
+                output_references=references,
+                external_reference=OperationJournal.external_reference(references),
+            )
         else:
             if not args.reason:
                 return refuse(
@@ -2543,6 +2551,10 @@ def _dispatch(
                             "phase": item.phase,
                             "attempt_count": item.attempt_count,
                             "retry_safe": item.retry_safe,
+                            "recovery_policy": item.recovery_policy,
+                            "input_references": item.input_references,
+                            "output_references": item.output_references,
+                            "external_reference": item.external_reference,
                             "started_at": item.started_at.isoformat(),
                         }
                         for item in pending

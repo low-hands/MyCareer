@@ -90,6 +90,12 @@ def test_a_confirmed_effect_is_recorded_with_the_ids_that_repair_task_state(
         "status": "submitted",
     }
     assert store.list_pending() == ()
+    recorded = store.get(action_id=execution.operation_id)
+    assert recorded.output_references == {
+        "application_id": "app-1",
+        "job_posting_id": "job-1",
+        "resume_version_id": "resume-1",
+    }
 
 
 def test_a_success_without_identifiers_is_refused(tmp_path: Path) -> None:

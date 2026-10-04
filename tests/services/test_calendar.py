@@ -182,6 +182,25 @@ def test_calendar_requires_proposal_then_reuses_event_for_updates_and_cancel(tmp
     )] == ["proposed", "execution_started", "executed"]
 
 
+def test_operation_id_is_the_external_idempotency_key(tmp_path) -> None:
+    service, store, _, _, connector = build_service(tmp_path)
+    proposal = service.prepare_interview_sync(
+        user_id="u1", interview_round_id="interview-1", now=NOW,
+    )
+
+    service.execute_proposal(
+        user_id="u1",
+        proposal_id=proposal.id,
+        operation_id="operation-1",
+        now=NOW + timedelta(minutes=1),
+    )
+
+    execution = store.get_execution(user_id="u1", proposal_id=proposal.id)
+    assert execution is not None
+    assert execution.idempotency_key == "operation-1"
+    assert connector.calls[0]["idempotency_key"] == "operation-1"
+
+
 def test_ambiguous_write_is_reconciled_without_applying_twice(tmp_path) -> None:
     service, store, _, _, connector = build_service(tmp_path)
     proposal = service.prepare_interview_sync(

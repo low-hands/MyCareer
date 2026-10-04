@@ -422,6 +422,12 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
     assert operation.turn_id != operation.request_id
     assert operation.phase == "COMPLETED"
     assert operation.attempt_count == 1
+    assert operation.recovery_policy == "retry"
+    assert operation.output_references == {
+        "application_id": "application_123456",
+        "job_posting_id": "job_123456",
+        "resume_version_id": "resume_version_123456",
+    }
     assert registry.operation_ids == [operation.operation_id]
 
     with pytest.raises(ActionExecutionConflictError):
