@@ -17,24 +17,42 @@ from datetime import datetime, timedelta, timezone
 
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.profile import CareerProfileContext
-from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.task_state import (
+    ACTIVE_RESOURCE_ID_FIELDS,
+    ConversationTaskState,
+)
 
 _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 
-
-def _active_id_fields() -> tuple[str, ...]:
-    return tuple(
-        name
-        for name in ConversationTaskState.model_fields
-        if name.startswith("active_") and name.endswith("_id")
-    )
-
-
 def _populated_task() -> ConversationTaskState:
     """Every active object set, so a leak has something to leak."""
-    return ConversationTaskState(
-        **{name: f"secret-{name}" for name in _active_id_fields()},
-        active_calendar_proposal_expires_at=_NOW + timedelta(minutes=30),
+    task = ConversationTaskState().update_application_context(
+        active_id="secret-active_application_id"
+    )
+    task = task.update_interview_context(
+        active_round_id="secret-active_interview_round_id",
+        active_preparation_id="secret-active_interview_preparation_id",
+        active_calendar_proposal_id="secret-active_calendar_proposal_id",
+        calendar_proposal_expires_at=_NOW + timedelta(minutes=30),
+    )
+    task = task.update_action_center_context(
+        active_id="secret-active_action_item_id"
+    )
+    task = task.update_job_context(
+        active_posting_id="secret-active_job_posting_id",
+        active_jd_snapshot_id="secret-active_jd_snapshot_id",
+        active_analysis_id="secret-active_job_analysis_id",
+        active_analysis_jd_snapshot_id=(
+            "secret-active_job_analysis_jd_snapshot_id"
+        ),
+        active_research_run_id="secret-active_job_research_run_id",
+        active_research_report_id="secret-active_job_research_report_id",
+    )
+    return task.update_resume_context(
+        active_job_match_id="secret-active_resume_job_match_id",
+        active_tailoring_draft_id="secret-active_resume_tailoring_draft_id",
+        active_version_id="secret-active_resume_version_id",
+        active_artifact_id="secret-active_resume_artifact_id",
     )
 
 
@@ -48,9 +66,9 @@ def _projection(task: ConversationTaskState) -> dict:
 
 
 def test_every_active_object_reports_whether_it_exists() -> None:
-    """Derived from the field names, so a new one cannot be forgotten."""
+    """Every compatibility reference has a corresponding projected flag."""
     projected = _projection(_populated_task())["task"]
-    fields = _active_id_fields()
+    fields = ACTIVE_RESOURCE_ID_FIELDS
     assert len(fields) >= 13
     for name in fields:
         flag = f"has_{name[: -len('_id')]}"
@@ -64,7 +82,7 @@ def test_an_absent_object_reports_false_rather_than_being_omitted() -> None:
     on, which is the difference between asking a needless question and not.
     """
     projected = _projection(ConversationTaskState())["task"]
-    for name in _active_id_fields():
+    for name in ACTIVE_RESOURCE_ID_FIELDS:
         assert projected[f"has_{name[: -len('_id')]}"] is False
 
 
@@ -72,7 +90,7 @@ def test_no_internal_identifier_reaches_the_model() -> None:
     """The half that was already right, held while the other half changed."""
     task = _populated_task()
     raw = json.dumps(_projection(task), ensure_ascii=False, sort_keys=True)
-    for name in _active_id_fields():
+    for name in ACTIVE_RESOURCE_ID_FIELDS:
         assert f"secret-{name}" not in raw
     assert "active_calendar_proposal_id" not in raw
 

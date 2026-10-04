@@ -256,22 +256,20 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
     )
     manager.commit_turn(
         context=seeded,
-        task=seeded.task.model_copy(
-            update={
-                "active_job_posting_id": job.posting.id,
-                "active_resume_version_id": tailored_version.id,
-                "tool_profile": "resume",
-                "resume_candidates": (
-                    ResumeCandidateContextItem(
-                        resume_id=other_resume.id,
-                        target_role_id=other_resume.target_role_id,
-                        name=other_resume.name,
-                        status=other_resume.status,
-                        latest_version_id=other_version.id,
-                    ),
+        task=seeded.task.update_job_context(
+            active_posting_id=job.posting.id
+        ).update_resume_context(
+            active_version_id=tailored_version.id,
+            candidates=(
+                ResumeCandidateContextItem(
+                    resume_id=other_resume.id,
+                    target_role_id=other_resume.target_role_id,
+                    name=other_resume.name,
+                    status=other_resume.status,
+                    latest_version_id=other_version.id,
                 ),
-            }
-        ),
+            ),
+        ).model_copy(update={"tool_profile": "resume"}),
         assistant_message="seeded",
     )
     decisions.decisions.extend(

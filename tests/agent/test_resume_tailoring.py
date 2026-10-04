@@ -2020,12 +2020,9 @@ def test_main_agent_regenerates_active_draft_from_user_feedback(tmp_path) -> Non
     )
     manager.commit_turn(
         context=seeded,
-        task=seeded.task.model_copy(
-            update={
-                "active_resume_job_match_id": stored_match.id,
-                "tool_profile": "resume",
-            }
-        ),
+        task=seeded.task.update_resume_context(
+            active_job_match_id=stored_match.id
+        ).model_copy(update={"tool_profile": "resume"}),
         assistant_message="seeded",
     )
     tools = MainAgentToolRegistry(
@@ -2103,12 +2100,9 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
     )
     manager.commit_turn(
         context=seeded,
-        task=seeded.task.model_copy(
-            update={
-                "active_resume_job_match_id": stored_match.id,
-                "tool_profile": "resume",
-            }
-        ),
+        task=seeded.task.update_resume_context(
+            active_job_match_id=stored_match.id
+        ).model_copy(update={"tool_profile": "resume"}),
         assistant_message="seeded",
     )
     decisions = SequenceDecisionMaker(

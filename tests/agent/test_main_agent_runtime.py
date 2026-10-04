@@ -3592,10 +3592,16 @@ def test_questionnaire_resource_removed_before_submit_fails_closed(tmp_path, res
     task = task.with_pending_questionnaire(
         pending.model_copy(update={bound_field: "deleted-resource"})
     )
+    if resource == "active_resume_version_id":
+        task = task.update_resume_context(active_version_id="deleted-resource")
+    elif resource == "active_job_posting_id":
+        task = task.update_job_context(active_posting_id="deleted-resource")
+    else:
+        task = task.update_job_context(active_jd_snapshot_id="deleted-resource")
     store.upsert_task(
         user_id="u1",
         conversation_id="c1",
-        task=task.model_copy(update={resource: "deleted-resource"}),
+        task=task,
     )
     response = InteractionResponse(
         interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
@@ -3649,7 +3655,7 @@ def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_pat
         expected = "QUESTIONNAIRE_EXPIRED"
         message_part = "已过期"
     else:
-        task = task.model_copy(update={"active_resume_version_id": "other-resume"})
+        task = task.update_resume_context(active_version_id="other-resume")
         expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
         message_part = "已变化"
     store.upsert_task(user_id="u1", conversation_id="c1", task=task)

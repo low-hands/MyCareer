@@ -269,12 +269,19 @@ def _authoritative_text(context: MainAgentContext) -> tuple[str, ...]:
 def _candidate_titles(context: MainAgentContext) -> tuple[str, ...]:
     titles: list[str] = []
     task = context.task
-    for field_name in type(task).model_fields:
-        if field_name != "candidates" and not field_name.endswith("_candidates"):
-            continue
-        candidates = getattr(task, field_name)
-        if not isinstance(candidates, Sequence):
-            continue
+    candidate_groups = (
+        task.candidates,
+        task.application_candidates,
+        task.email_event_candidates,
+        task.saved_job_candidates,
+        task.target_role_candidates,
+        task.resume_candidates,
+        task.resume_version_candidates,
+        task.interview_candidates,
+        task.calendar_account_candidates,
+        task.action_candidates,
+    )
+    for candidates in candidate_groups:
         for candidate in candidates:
             title = (
                 candidate.get("title")

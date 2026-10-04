@@ -238,15 +238,14 @@ class TurnContextBuilder:
             and active_application[0] is None
         ):
             return context
-        task_updates: dict[str, object] = {}
+        task = context.task
         if attached_resumes:
-            task_updates["active_resume_version_id"] = attached_resumes[
-                -1
-            ].resume_version_id
+            task = task.update_resume_context(
+                active_version_id=attached_resumes[-1].resume_version_id
+            )
         if attached_jobs:
             attached_ids = {item.job_posting_id for item in attached_jobs}
             focused = attached_jobs[-1]
-            task_updates["active_job_posting_id"] = focused.job_posting_id
             pinned = (
                 ActiveSavedJobContextItem(
                     job_posting_id=focused.job_posting_id,
@@ -259,21 +258,26 @@ class TurnContextBuilder:
                 and focused.jd_version is not None
                 else None
             )
-            task_updates["active_jd_snapshot_id"] = (
-                pinned.jd_snapshot_id if pinned is not None else None
-            )
-            task_updates["active_saved_job"] = pinned
-            task_updates["saved_job_candidates"] = (
-                *attached_jobs,
-                *(
-                    item
-                    for item in context.task.saved_job_candidates
-                    if item.job_posting_id not in attached_ids
+            task = task.update_job_context(
+                active_posting_id=focused.job_posting_id,
+                active_jd_snapshot_id=(
+                    pinned.jd_snapshot_id if pinned is not None else None
+                ),
+                active_saved_job=pinned,
+                saved_job_candidates=(
+                    *attached_jobs,
+                    *(
+                        item
+                        for item in context.task.saved_job_candidates
+                        if item.job_posting_id not in attached_ids
+                    ),
                 ),
             )
         if active_application[0] is not None:
-            task_updates["active_application_id"] = active_application[0]
-            task_updates["active_application_status"] = active_application[1]
+            task = task.update_application_context(
+                active_id=active_application[0],
+                active_status=active_application[1],
+            )
         return context.model_copy(
             update={
                 **(
@@ -282,7 +286,7 @@ class TurnContextBuilder:
                     else {}
                 ),
                 **({"attached_jobs": attached_jobs} if attached_jobs else {}),
-                "task": context.task.model_copy(update=task_updates),
+                "task": task,
             }
         )
 

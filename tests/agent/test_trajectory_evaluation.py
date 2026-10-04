@@ -912,8 +912,8 @@ def test_changing_task_state_does_not_change_the_tool_prefix_fingerprint(offered
     before = trajectory_prompt_fingerprint(scenario, schemas)
     context = scenario.context.model_copy(
         update={
-            "task": scenario.context.task.model_copy(
-                update={"active_job_posting_id": "job-1"}
+            "task": scenario.context.task.update_job_context(
+                active_posting_id="job-1"
             )
         }
     )

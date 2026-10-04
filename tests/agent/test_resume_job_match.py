@@ -1110,10 +1110,8 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
     )
     manager.commit_turn(
         context=seeded,
-        task=seeded.task.model_copy(
-            update={
-                "tool_profile": "resume",
-                "resume_version_candidates": (
+        task=seeded.task.update_resume_context(
+                version_candidates=(
                     ResumeVersionCandidateContextItem(
                         resume_version_id=version.id,
                         version_number=version.version_number,
@@ -1122,7 +1120,8 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
                         byte_size=version.byte_size,
                     ),
                 ),
-                "saved_job_candidates": (
+        ).update_job_context(
+                saved_job_candidates=(
                     SavedJobCandidateContextItem(
                         job_posting_id=saved.posting.id,
                         title=saved.posting.title,
@@ -1131,8 +1130,7 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
                         salary=saved.salary,
                     ),
                 ),
-            }
-        ),
+        ).model_copy(update={"tool_profile": "resume"}),
         assistant_message="seeded",
     )
     decisions = SequenceDecisionMaker(
@@ -1403,9 +1401,8 @@ def test_main_agent_match_reads_the_snapshot_the_capture_attached(tmp_path) -> N
     seeded = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="seed")
     manager.commit_turn(
         context=seeded,
-        task=seeded.task.model_copy(
-            update={
-                "resume_version_candidates": (
+        task=seeded.task.update_resume_context(
+                version_candidates=(
                     ResumeVersionCandidateContextItem(
                         resume_version_id=version.id,
                         version_number=version.version_number,
@@ -1414,7 +1411,6 @@ def test_main_agent_match_reads_the_snapshot_the_capture_attached(tmp_path) -> N
                         byte_size=version.byte_size,
                     ),
                 ),
-            }
         ),
         assistant_message="seeded",
     )

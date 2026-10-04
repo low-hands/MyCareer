@@ -78,25 +78,23 @@ def _sync_application_emails(
     # Email sync finishes in one turn and has no run to resume, so it records its
     # own phase instead of taking the workflow slot away from a job-discovery run
     # the user has not finished yet.
-    return task.model_copy(update={"email_sync_phase": result.state})
+    return task.update_application_context(email_sync_phase=result.state)
 
 
 def _find_saved_jobs(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "saved_job_candidates": tuple(
-                SavedJobCandidateContextItem(
-                    job_posting_id=item["job_posting_id"],
-                    title=item["title"],
-                    company_name=item["company_name"],
-                    city=item.get("city"),
-                    salary=item.get("salary"),
-                )
-                for item in _items(result)
+    return task.update_job_context(
+        saved_job_candidates=tuple(
+            SavedJobCandidateContextItem(
+                job_posting_id=item["job_posting_id"],
+                title=item["title"],
+                company_name=item["company_name"],
+                city=item.get("city"),
+                salary=item.get("salary"),
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
@@ -121,12 +119,10 @@ def _get_saved_job(
         else None
     )
     if focus is None:
-        return task.model_copy(
-            update={
-                "active_job_posting_id": job.get("job_posting_id")
-                if isinstance(job, dict)
-                else None
-            }
+        return task.update_job_context(
+            active_posting_id=(
+                job.get("job_posting_id") if isinstance(job, dict) else None
+            )
         )
     return task.focus_saved_job(focus)
 
@@ -134,26 +130,23 @@ def _get_saved_job(
 def _job_research_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_job_posting_id": result.payload.get("job_posting_id"),
-            "active_job_research_run_id": result.payload.get("run_id"),
-            "active_job_research_report_id": result.payload.get("report_id"),
-            "job_research_status": result.payload.get("status") or "current",
-        }
+    return task.update_job_context(
+        active_posting_id=result.payload.get("job_posting_id"),
+        active_research_run_id=result.payload.get("run_id"),
+        active_research_report_id=result.payload.get("report_id"),
+        research_status=result.payload.get("status") or "current",
     )
 
 
 def _job_research_failed(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_job_posting_id": result.payload.get("job_posting_id")
-            or task.active_job_posting_id,
-            "active_job_research_run_id": result.payload.get("run_id"),
-            "job_research_status": "failed",
-        }
+    return task.update_job_context(
+        active_posting_id=(
+            result.payload.get("job_posting_id") or task.active_job_posting_id
+        ),
+        active_research_run_id=result.payload.get("run_id"),
+        research_status="failed",
     )
 
 
@@ -168,41 +161,37 @@ def _job_research_result(
 def _list_target_roles(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "target_role_candidates": tuple(
-                TargetRoleCandidateContextItem(
-                    target_role_id=item["target_role_id"],
-                    title=item["title"],
-                    priority=item["priority"],
-                    status=item["status"],
-                    city=item.get("city"),
-                    salary_expectation=item.get("salary_expectation"),
-                    experience=item.get("experience"),
-                    education=item.get("education"),
-                )
-                for item in _items(result)
+    return task.update_job_context(
+        target_role_candidates=tuple(
+            TargetRoleCandidateContextItem(
+                target_role_id=item["target_role_id"],
+                title=item["title"],
+                priority=item["priority"],
+                status=item["status"],
+                city=item.get("city"),
+                salary_expectation=item.get("salary_expectation"),
+                experience=item.get("experience"),
+                education=item.get("education"),
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
 def _list_resumes(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "resume_candidates": tuple(
-                ResumeCandidateContextItem(
-                    resume_id=item["resume_id"],
-                    target_role_id=item["target_role_id"],
-                    name=item["name"],
-                    status=item["status"],
-                    latest_version_id=item.get("latest_version_id"),
-                )
-                for item in _items(result)
+    return task.update_resume_context(
+        candidates=tuple(
+            ResumeCandidateContextItem(
+                resume_id=item["resume_id"],
+                target_role_id=item["target_role_id"],
+                name=item["name"],
+                status=item["status"],
+                latest_version_id=item.get("latest_version_id"),
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
@@ -210,19 +199,17 @@ def _get_resume_metadata(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     # Listing versions offers a choice; it does not make any of them active.
-    return task.model_copy(
-        update={
-            "resume_version_candidates": tuple(
-                ResumeVersionCandidateContextItem(
-                    resume_version_id=item["resume_version_id"],
-                    version_number=item["version_number"],
-                    source_type=item["source_type"],
-                    document_format=item["document_format"],
-                    byte_size=item["byte_size"],
-                )
-                for item in _items(result, "versions")
+    return task.update_resume_context(
+        version_candidates=tuple(
+            ResumeVersionCandidateContextItem(
+                resume_version_id=item["resume_version_id"],
+                version_number=item["version_number"],
+                source_type=item["source_type"],
+                document_format=item["document_format"],
+                byte_size=item["byte_size"],
             )
-        }
+            for item in _items(result, "versions")
+        )
     )
 
 
@@ -232,20 +219,18 @@ def _mock_interview_choice(
     if result.state == "mock_interview_job_choice_required":
         # The offered jobs become the numbered choice the next start call
         # picks from, each pinned to the JD version that was offered.
-        return task.model_copy(
-            update={
-                "saved_job_candidates": tuple(
-                    SavedJobCandidateContextItem(
-                        job_posting_id=item["job_posting_id"],
-                        title=item["title"],
-                        company_name=item["company_name"],
-                        city=item.get("city"),
-                        salary=item.get("salary"),
-                        jd_snapshot_id=item.get("jd_snapshot_id"),
-                    )
-                    for item in _items(result)
+        return task.update_job_context(
+            saved_job_candidates=tuple(
+                SavedJobCandidateContextItem(
+                    job_posting_id=item["job_posting_id"],
+                    title=item["title"],
+                    company_name=item["company_name"],
+                    city=item.get("city"),
+                    salary=item.get("salary"),
+                    jd_snapshot_id=item.get("jd_snapshot_id"),
                 )
-            }
+                for item in _items(result)
+            )
         )
     return _mock_interview_resume_choice(task, result)
 
@@ -255,38 +240,34 @@ def _mock_interview_resume_choice(
 ) -> ConversationTaskState:
     # The offered resumes become the numbered choice the next start call picks
     # from; offering them does not make any of them active.
-    return task.model_copy(
-        update={
-            "resume_version_candidates": tuple(
-                ResumeVersionCandidateContextItem(
-                    resume_version_id=item["resume_version_id"],
-                    version_number=item["version_number"],
-                    source_type=item["source_type"],
-                    document_format=item["document_format"],
-                    byte_size=item["byte_size"],
-                    resume_name=item["resume_name"],
-                )
-                for item in _items(result, "versions")
+    return task.update_resume_context(
+        version_candidates=tuple(
+            ResumeVersionCandidateContextItem(
+                resume_version_id=item["resume_version_id"],
+                version_number=item["version_number"],
+                source_type=item["source_type"],
+                document_format=item["document_format"],
+                byte_size=item["byte_size"],
+                resume_name=item["resume_name"],
             )
-        }
+            for item in _items(result, "versions")
+        )
     )
 
 
 def _list_email_events(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "email_event_candidates": tuple(
-                EmailEventCandidateContextItem(
-                    email_event_id=item["email_event_id"],
-                    event_type=item["event_type"],
-                    status=item["status"],
-                    summary=item["summary"],
-                )
-                for item in _items(result)
+    return task.update_application_context(
+        email_event_candidates=tuple(
+            EmailEventCandidateContextItem(
+                email_event_id=item["email_event_id"],
+                event_type=item["event_type"],
+                status=item["status"],
+                summary=item["summary"],
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
@@ -297,32 +278,28 @@ def _resolve_email_event(
     # Keeping it would advertise a stale status and let the same event be
     # resolved twice under a shifted index.
     event_id = result.payload.get("email_event_id")
-    return task.model_copy(
-        update={
-            "email_event_candidates": tuple(
-                candidate
-                for candidate in task.email_event_candidates
-                if candidate.email_event_id != event_id
-            )
-        }
+    return task.update_application_context(
+        email_event_candidates=tuple(
+            candidate
+            for candidate in task.email_event_candidates
+            if candidate.email_event_id != event_id
+        )
     )
 
 
 def _list_calendar_accounts(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "calendar_account_candidates": tuple(
-                CalendarAccountCandidateContextItem(
-                    calendar_account_id=item["calendar_account_id"],
-                    provider=item["provider"],
-                    email_address=item["email_address"],
-                    calendar_id=item["calendar_id"],
-                )
-                for item in _items(result)
+    return task.update_interview_context(
+        calendar_account_candidates=tuple(
+            CalendarAccountCandidateContextItem(
+                calendar_account_id=item["calendar_account_id"],
+                provider=item["provider"],
+                email_address=item["email_address"],
+                calendar_id=item["calendar_id"],
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
@@ -352,28 +329,24 @@ def _calendar_proposal(
         result.payload.get("interview_round_id") or task.active_interview_round_id
     )
     if result.state not in _PENDING_CALENDAR_PROPOSAL_STATES:
-        return task.model_copy(
-            update={
-                "active_calendar_proposal_id": None,
-                "active_calendar_proposal_expires_at": None,
-                "active_interview_round_id": interview_round_id,
-            }
+        return task.update_interview_context(
+            active_calendar_proposal_id=None,
+            calendar_proposal_expires_at=None,
+            active_round_id=interview_round_id,
         )
     expires_at = result.payload.get("expires_at")
-    return task.model_copy(
-        update={
-            "active_calendar_proposal_id": result.payload.get("proposal_id"),
-            # Carried alongside the id because the model is shown the expiry and
-            # not the id: a lapsed preview has to be prepared again rather than
-            # executed, and without this the flag would read as "pending" long
-            # after the preview stopped being executable.
-            "active_calendar_proposal_expires_at": (
-                datetime.fromisoformat(expires_at)
-                if isinstance(expires_at, str)
-                else None
-            ),
-            "active_interview_round_id": interview_round_id,
-        }
+    return task.update_interview_context(
+        active_calendar_proposal_id=result.payload.get("proposal_id"),
+        # Carried alongside the id because the model is shown the expiry and
+        # not the id: a lapsed preview has to be prepared again rather than
+        # executed, and without this the flag would read as "pending" long
+        # after the preview stopped being executable.
+        calendar_proposal_expires_at=(
+            datetime.fromisoformat(expires_at)
+            if isinstance(expires_at, str)
+            else None
+        ),
+        active_round_id=interview_round_id,
     )
 
 
@@ -385,20 +358,16 @@ def _get_daily_brief(
         for section in ("overdue", "due_today", "upcoming", "no_due_date")
         for item in _items(result, section)
     )
-    return task.model_copy(
-        update={"action_candidates": tuple(_action_candidate(item) for item in items)}
+    return task.update_action_center_context(
+        candidates=tuple(_action_candidate(item) for item in items)
     )
 
 
 def _list_action_items(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "action_candidates": tuple(
-                _action_candidate(item) for item in _items(result)
-            )
-        }
+    return task.update_action_center_context(
+        candidates=tuple(_action_candidate(item) for item in _items(result))
     )
 
 
@@ -406,73 +375,70 @@ def _resolve_action_item(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
     action_item_id = result.payload.get("action_item_id")
-    return task.model_copy(
-        update={
-            "active_action_item_id": action_item_id,
-            "action_candidates": tuple(
-                candidate
-                for candidate in task.action_candidates
-                if candidate.action_item_id != action_item_id
-            ),
-        }
+    return task.update_action_center_context(
+        active_id=action_item_id,
+        candidates=tuple(
+            candidate
+            for candidate in task.action_candidates
+            if candidate.action_item_id != action_item_id
+        ),
     )
 
 
 def _list_interviews(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "interview_candidates": tuple(
-                InterviewCandidateContextItem(
-                    interview_round_id=item["interview_round_id"],
-                    application_id=item["application_id"],
-                    sequence_number=item["sequence_number"],
-                    employer_label=item.get("employer_label"),
-                    status=item["status"],
-                    scheduled_start=item.get("scheduled_start"),
-                )
-                for item in _items(result)
+    return task.update_interview_context(
+        candidates=tuple(
+            InterviewCandidateContextItem(
+                interview_round_id=item["interview_round_id"],
+                application_id=item["application_id"],
+                sequence_number=item["sequence_number"],
+                employer_label=item.get("employer_label"),
+                status=item["status"],
+                scheduled_start=item.get("scheduled_start"),
             )
-        }
+            for item in _items(result)
+        )
     )
 
 
 def _interview_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_interview_round_id": result.payload.get("interview_round_id"),
-            "active_application_id": result.payload.get("application_id"),
-        }
+    updated = task.update_interview_context(
+        active_round_id=result.payload.get("interview_round_id")
+    )
+    return updated.update_application_context(
+        active_id=result.payload.get("application_id")
     )
 
 
 def _interview_preparation_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_interview_preparation_id": result.payload.get("preparation_id"),
-            "active_interview_round_id": result.payload.get("interview_round_id"),
-            "active_application_id": result.payload.get("application_id"),
-            "active_job_posting_id": result.payload.get("job_posting_id"),
-            "active_resume_version_id": result.payload.get("resume_version_id"),
-        }
+    updated = task.update_interview_context(
+        active_preparation_id=result.payload.get("preparation_id"),
+        active_round_id=result.payload.get("interview_round_id"),
+    ).update_job_context(
+        active_posting_id=result.payload.get("job_posting_id")
+    ).update_resume_context(
+        active_version_id=result.payload.get("resume_version_id")
+    )
+    return updated.update_application_context(
+        active_id=result.payload.get("application_id")
     )
 
 
 def _resume_job_match_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_resume_job_match_id": result.payload.get("match_id"),
-            "resume_job_match_status": "ready",
-            "active_job_posting_id": result.payload.get("job_posting_id"),
-            "active_resume_version_id": result.payload.get("resume_version_id"),
-        }
+    return task.update_resume_context(
+        active_job_match_id=result.payload.get("match_id"),
+        job_match_status="ready",
+        active_version_id=result.payload.get("resume_version_id"),
+    ).update_job_context(
+        active_posting_id=result.payload.get("job_posting_id")
     )
 
 
@@ -490,61 +456,54 @@ def _job_analysis_ready(
         )
     ):
         focus = None
-    return task.model_copy(
-        update={
-            "active_job_analysis_id": result.payload.get("analysis_id"),
-            "active_job_analysis_jd_snapshot_id": snapshot_id,
-            "job_analysis_status": "ready",
-            "active_job_posting_id": job_posting_id,
-            "active_jd_snapshot_id": snapshot_id,
-            "active_saved_job": focus,
-        }
+    return task.update_job_context(
+        active_analysis_id=result.payload.get("analysis_id"),
+        active_analysis_jd_snapshot_id=snapshot_id,
+        analysis_status="ready",
+        active_posting_id=job_posting_id,
+        active_jd_snapshot_id=snapshot_id,
+        active_saved_job=focus,
     )
 
 
 def _tailoring_draft_ready(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_resume_tailoring_draft_id": result.payload.get("draft_id"),
-            "resume_tailoring_status": result.payload.get("status"),
-        }
+    return task.update_resume_context(
+        active_tailoring_draft_id=result.payload.get("draft_id"),
+        tailoring_status=result.payload.get("status"),
     )
 
 
 def _finalize_resume_tailoring(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "resume_tailoring_status": "finalized",
-            "active_resume_version_id": result.payload.get("resume_version_id"),
-        }
+    return task.update_resume_context(
+        tailoring_status="finalized",
+        active_version_id=result.payload.get("resume_version_id"),
     )
 
 
 def _export_resume_artifact(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_resume_version_id": result.payload.get("resume_version_id"),
-            "active_resume_artifact_id": result.payload.get("artifact_id"),
-        }
+    return task.update_resume_context(
+        active_version_id=result.payload.get("resume_version_id"),
+        active_artifact_id=result.payload.get("artifact_id"),
     )
 
 
 def _create_application(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "active_application_id": result.payload.get("application_id"),
-            "active_application_status": result.payload.get("status"),
-            "active_job_posting_id": result.payload.get("job_posting_id"),
-            "active_resume_version_id": result.payload.get("resume_version_id"),
-        }
+    updated = task.update_job_context(
+        active_posting_id=result.payload.get("job_posting_id")
+    ).update_resume_context(
+        active_version_id=result.payload.get("resume_version_id")
+    )
+    return updated.update_application_context(
+        active_id=result.payload.get("application_id"),
+        active_status=result.payload.get("status"),
     )
 
 
@@ -553,29 +512,25 @@ def _application_ready(
 ) -> ConversationTaskState:
     # Reading or restatusing an application says nothing about which job posting
     # or resume version the user is working on, so those stay put.
-    return task.model_copy(
-        update={
-            "active_application_id": result.payload.get("application_id"),
-            "active_application_status": result.payload.get("status"),
-        }
+    return task.update_application_context(
+        active_id=result.payload.get("application_id"),
+        active_status=result.payload.get("status"),
     )
 
 
 def _list_applications(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    return task.model_copy(
-        update={
-            "application_candidates": tuple(
-                ApplicationCandidateContextItem(
-                    application_id=item["application_id"],
-                    title=item["title"],
-                    company_name=item["company_name"],
-                    status=item["status"],
-                )
-                for item in _items(result)
+    return task.update_application_context(
+        candidates=tuple(
+            ApplicationCandidateContextItem(
+                application_id=item["application_id"],
+                title=item["title"],
+                company_name=item["company_name"],
+                status=item["status"],
             )
-        }
+            for item in _items(result)
+        )
     )
 
 

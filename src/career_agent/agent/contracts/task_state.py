@@ -29,8 +29,8 @@ from career_agent.agent.capabilities.catalog import (
     ToolProfile,
 )
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
-from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
+from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.email_tracking import EmailEventStatus
 from career_agent.domain.interviews import (
     InterviewDetails,
@@ -51,6 +51,7 @@ from career_agent.agent.contracts.interactions import (
     _PENDING_SLOT_BY_KIND,
 )
 from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.contracts.domain_context import DomainTaskContext
 
 
 class WorkflowStateBase(ContractModel):
@@ -76,6 +77,24 @@ WorkflowState = Annotated[
     JobDiscoveryWorkflowState | MockInterviewWorkflowState,
     Field(discriminator="kind"),
 ]
+
+ACTIVE_RESOURCE_ID_FIELDS = (
+    "active_application_id",
+    "active_interview_round_id",
+    "active_interview_preparation_id",
+    "active_action_item_id",
+    "active_calendar_proposal_id",
+    "active_job_posting_id",
+    "active_jd_snapshot_id",
+    "active_job_analysis_id",
+    "active_job_analysis_jd_snapshot_id",
+    "active_job_research_run_id",
+    "active_job_research_report_id",
+    "active_resume_job_match_id",
+    "active_resume_tailoring_draft_id",
+    "active_resume_version_id",
+    "active_resume_artifact_id",
+)
 
 
 class RouteToCapabilityToolArguments(ContractModel):
@@ -110,48 +129,16 @@ class ConversationTaskState(ContractModel):
     ``pending_interaction`` is the only durable wait-for-user slot. Its
     discriminator prevents a questionnaire and a confirmation proposal, or two
     different proposals, from being active at the same time.
+
+    ``domain_context`` keeps bounded references grouped by their owning domain.
+    Compatibility properties retain the former flat read API while persisted
+    state has one authoritative location for each migrated field.
     """
 
     workflow: WorkflowState | None = None
     tool_profile: ToolProfile = "core"
     pending_interaction: PendingInteraction | None = None
-    active_resume_job_match_id: str | None = None
-    resume_job_match_status: Literal["ready"] | None = None
-    active_job_analysis_id: str | None = None
-    active_job_analysis_jd_snapshot_id: str | None = None
-    job_analysis_status: Literal["ready"] | None = None
-    active_resume_tailoring_draft_id: str | None = None
-    resume_tailoring_status: Literal[
-        "pending", "in_review", "reviewed", "finalized", "superseded"
-    ] | None = None
-    active_resume_version_id: str | None = None
-    active_resume_artifact_id: str | None = None
-    active_job_posting_id: str | None = None
-    active_jd_snapshot_id: str | None = None
-    active_saved_job: ActiveSavedJobContextItem | None = None
-    active_job_research_run_id: str | None = None
-    active_job_research_report_id: str | None = None
-    job_research_status: Literal["current", "outdated", "failed"] | None = None
-    active_application_id: str | None = None
-    active_application_status: ApplicationStatus | None = None
-    application_candidates: tuple[ApplicationCandidateContextItem, ...] = ()
-    active_interview_round_id: str | None = None
-    interview_candidates: tuple[InterviewCandidateContextItem, ...] = ()
-    active_interview_preparation_id: str | None = None
-    active_action_item_id: str | None = None
-    action_candidates: tuple[ActionCandidateContextItem, ...] = ()
-    active_calendar_proposal_id: str | None = None
-    # Projected to the model, unlike the id beside it: whether a preview is
-    # still live decides between executing it and preparing a new one, and
-    # a timestamp names no object the model could act on.
-    active_calendar_proposal_expires_at: datetime | None = None
-    calendar_account_candidates: tuple[CalendarAccountCandidateContextItem, ...] = ()
-    saved_job_candidates: tuple[SavedJobCandidateContextItem, ...] = ()
-    target_role_candidates: tuple[TargetRoleCandidateContextItem, ...] = ()
-    resume_candidates: tuple[ResumeCandidateContextItem, ...] = ()
-    resume_version_candidates: tuple[ResumeVersionCandidateContextItem, ...] = ()
-    email_event_candidates: tuple[EmailEventCandidateContextItem, ...] = ()
-    email_sync_phase: str | None = None
+    domain_context: DomainTaskContext = Field(default_factory=DomainTaskContext)
 
     @model_validator(mode="before")
     @classmethod
@@ -162,9 +149,118 @@ class ConversationTaskState(ContractModel):
             value = dict(value)
             value.pop("active_resume_analysis_id", None)
             value.pop("resume_analysis_status", None)
+            value = cls._migrate_domain_context(value)
             value = cls._migrate_pending_interaction(value)
             value = cls._migrate_workflow(value)
         return value
+
+    @classmethod
+    def _migrate_domain_context(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Fold former flat domain fields into their owned contexts."""
+
+        raw = value.get("domain_context")
+        if isinstance(raw, DomainTaskContext):
+            domain = raw.model_dump(mode="python")
+        elif isinstance(raw, Mapping):
+            domain = dict(raw)
+        else:
+            domain = {}
+        raw_application = domain.get("application")
+        application = (
+            dict(raw_application) if isinstance(raw_application, Mapping) else {}
+        )
+        aliases = {
+            "active_application_id": "active_id",
+            "active_application_status": "active_status",
+            "application_candidates": "candidates",
+            "email_event_candidates": "email_event_candidates",
+            "email_sync_phase": "email_sync_phase",
+        }
+        for legacy, current in aliases.items():
+            legacy_value = value.pop(legacy, None)
+            if current not in application and legacy_value is not None:
+                application[current] = legacy_value
+        if application:
+            domain["application"] = application
+        cls._fold_legacy_domain(
+            value,
+            domain,
+            "interview",
+            {
+                "active_interview_round_id": "active_round_id",
+                "interview_candidates": "candidates",
+                "active_interview_preparation_id": "active_preparation_id",
+                "active_calendar_proposal_id": "active_calendar_proposal_id",
+                "active_calendar_proposal_expires_at": "calendar_proposal_expires_at",
+                "calendar_account_candidates": "calendar_account_candidates",
+            },
+        )
+        cls._fold_legacy_domain(
+            value,
+            domain,
+            "action_center",
+            {
+                "active_action_item_id": "active_id",
+                "action_candidates": "candidates",
+            },
+        )
+        cls._fold_legacy_domain(
+            value,
+            domain,
+            "job",
+            {
+                "active_job_posting_id": "active_posting_id",
+                "active_jd_snapshot_id": "active_jd_snapshot_id",
+                "active_saved_job": "active_saved_job",
+                "saved_job_candidates": "saved_job_candidates",
+                "target_role_candidates": "target_role_candidates",
+                "active_job_analysis_id": "active_analysis_id",
+                "active_job_analysis_jd_snapshot_id": "active_analysis_jd_snapshot_id",
+                "job_analysis_status": "analysis_status",
+                "active_job_research_run_id": "active_research_run_id",
+                "active_job_research_report_id": "active_research_report_id",
+                "job_research_status": "research_status",
+            },
+        )
+        cls._fold_legacy_domain(
+            value,
+            domain,
+            "resume",
+            {
+                "active_resume_job_match_id": "active_job_match_id",
+                "resume_job_match_status": "job_match_status",
+                "active_resume_tailoring_draft_id": "active_tailoring_draft_id",
+                "resume_tailoring_status": "tailoring_status",
+                "active_resume_version_id": "active_version_id",
+                "active_resume_artifact_id": "active_artifact_id",
+                "resume_candidates": "candidates",
+                "resume_version_candidates": "version_candidates",
+            },
+        )
+        if domain:
+            value["domain_context"] = domain
+        return value
+
+    @staticmethod
+    def _fold_legacy_domain(
+        value: dict[str, Any],
+        domain: dict[str, Any],
+        name: str,
+        aliases: Mapping[str, str],
+    ) -> None:
+        raw_context = domain.get(name)
+        if isinstance(raw_context, Mapping):
+            context = dict(raw_context)
+        elif hasattr(raw_context, "model_dump"):
+            context = raw_context.model_dump(mode="python")
+        else:
+            context = {}
+        for legacy, current in aliases.items():
+            legacy_value = value.pop(legacy, None)
+            if current not in context and legacy_value is not None:
+                context[current] = legacy_value
+        if context:
+            domain[name] = context
 
     @classmethod
     def _migrate_workflow(cls, value: dict[str, Any]) -> dict[str, Any]:
@@ -263,6 +359,186 @@ class ConversationTaskState(ContractModel):
     @property
     def active_workflow(self) -> Literal["job_discovery", "mock_interview", "none"]:
         return self.workflow.kind if self.workflow is not None else "none"
+
+    @property
+    def active_application_id(self) -> str | None:
+        return self.domain_context.application.active_id
+
+    @property
+    def active_application_status(self) -> ApplicationStatus | None:
+        return self.domain_context.application.active_status
+
+    @property
+    def application_candidates(self) -> tuple[ApplicationCandidateContextItem, ...]:
+        return self.domain_context.application.candidates
+
+    @property
+    def email_event_candidates(self) -> tuple[EmailEventCandidateContextItem, ...]:
+        return self.domain_context.application.email_event_candidates
+
+    @property
+    def email_sync_phase(self) -> str | None:
+        return self.domain_context.application.email_sync_phase
+
+    def update_application_context(self, **updates: Any) -> "ConversationTaskState":
+        application = self.domain_context.application.model_copy(update=updates)
+        return self.model_copy(
+            update={
+                "domain_context": self.domain_context.model_copy(
+                    update={"application": application}
+                )
+            }
+        )
+
+    @property
+    def active_job_posting_id(self) -> str | None:
+        return self.domain_context.job.active_posting_id
+
+    @property
+    def active_jd_snapshot_id(self) -> str | None:
+        return self.domain_context.job.active_jd_snapshot_id
+
+    @property
+    def active_saved_job(self) -> ActiveSavedJobContextItem | None:
+        return self.domain_context.job.active_saved_job
+
+    @property
+    def saved_job_candidates(self) -> tuple[SavedJobCandidateContextItem, ...]:
+        return self.domain_context.job.saved_job_candidates
+
+    @property
+    def target_role_candidates(self) -> tuple[TargetRoleCandidateContextItem, ...]:
+        return self.domain_context.job.target_role_candidates
+
+    @property
+    def active_job_analysis_id(self) -> str | None:
+        return self.domain_context.job.active_analysis_id
+
+    @property
+    def active_job_analysis_jd_snapshot_id(self) -> str | None:
+        return self.domain_context.job.active_analysis_jd_snapshot_id
+
+    @property
+    def job_analysis_status(self) -> Literal["ready"] | None:
+        return self.domain_context.job.analysis_status
+
+    @property
+    def active_job_research_run_id(self) -> str | None:
+        return self.domain_context.job.active_research_run_id
+
+    @property
+    def active_job_research_report_id(self) -> str | None:
+        return self.domain_context.job.active_research_report_id
+
+    @property
+    def job_research_status(self) -> Literal["current", "outdated", "failed"] | None:
+        return self.domain_context.job.research_status
+
+    def update_job_context(self, **updates: Any) -> "ConversationTaskState":
+        job = self.domain_context.job.model_copy(update=updates)
+        return self.model_copy(
+            update={
+                "domain_context": self.domain_context.model_copy(update={"job": job})
+            }
+        )
+
+    @property
+    def active_resume_job_match_id(self) -> str | None:
+        return self.domain_context.resume.active_job_match_id
+
+    @property
+    def resume_job_match_status(self) -> Literal["ready"] | None:
+        return self.domain_context.resume.job_match_status
+
+    @property
+    def active_resume_tailoring_draft_id(self) -> str | None:
+        return self.domain_context.resume.active_tailoring_draft_id
+
+    @property
+    def resume_tailoring_status(self) -> Literal[
+        "pending", "in_review", "reviewed", "finalized", "superseded"
+    ] | None:
+        return self.domain_context.resume.tailoring_status
+
+    @property
+    def active_resume_version_id(self) -> str | None:
+        return self.domain_context.resume.active_version_id
+
+    @property
+    def active_resume_artifact_id(self) -> str | None:
+        return self.domain_context.resume.active_artifact_id
+
+    @property
+    def resume_candidates(self) -> tuple[ResumeCandidateContextItem, ...]:
+        return self.domain_context.resume.candidates
+
+    @property
+    def resume_version_candidates(self) -> tuple[ResumeVersionCandidateContextItem, ...]:
+        return self.domain_context.resume.version_candidates
+
+    def update_resume_context(self, **updates: Any) -> "ConversationTaskState":
+        resume = self.domain_context.resume.model_copy(update=updates)
+        return self.model_copy(
+            update={
+                "domain_context": self.domain_context.model_copy(
+                    update={"resume": resume}
+                )
+            }
+        )
+
+    @property
+    def active_interview_round_id(self) -> str | None:
+        return self.domain_context.interview.active_round_id
+
+    @property
+    def interview_candidates(self) -> tuple[InterviewCandidateContextItem, ...]:
+        return self.domain_context.interview.candidates
+
+    @property
+    def active_interview_preparation_id(self) -> str | None:
+        return self.domain_context.interview.active_preparation_id
+
+    @property
+    def active_calendar_proposal_id(self) -> str | None:
+        return self.domain_context.interview.active_calendar_proposal_id
+
+    @property
+    def active_calendar_proposal_expires_at(self) -> datetime | None:
+        return self.domain_context.interview.calendar_proposal_expires_at
+
+    @property
+    def calendar_account_candidates(
+        self,
+    ) -> tuple[CalendarAccountCandidateContextItem, ...]:
+        return self.domain_context.interview.calendar_account_candidates
+
+    def update_interview_context(self, **updates: Any) -> "ConversationTaskState":
+        interview = self.domain_context.interview.model_copy(update=updates)
+        return self.model_copy(
+            update={
+                "domain_context": self.domain_context.model_copy(
+                    update={"interview": interview}
+                )
+            }
+        )
+
+    @property
+    def active_action_item_id(self) -> str | None:
+        return self.domain_context.action_center.active_id
+
+    @property
+    def action_candidates(self) -> tuple[ActionCandidateContextItem, ...]:
+        return self.domain_context.action_center.candidates
+
+    def update_action_center_context(self, **updates: Any) -> "ConversationTaskState":
+        action_center = self.domain_context.action_center.model_copy(update=updates)
+        return self.model_copy(
+            update={
+                "domain_context": self.domain_context.model_copy(
+                    update={"action_center": action_center}
+                )
+            }
+        )
 
     @property
     def run_id(self) -> str | None:
@@ -461,29 +737,25 @@ class ConversationTaskState(ContractModel):
             focus is not None
             and self.active_job_analysis_jd_snapshot_id == focus.jd_snapshot_id
         )
-        return self.model_copy(
-            update={
-                "active_job_posting_id": (
-                    focus.job_posting_id
-                    if focus is not None
-                    else self.active_job_posting_id
-                ),
-                "active_jd_snapshot_id": (
-                    focus.jd_snapshot_id if focus is not None else None
-                ),
-                "active_saved_job": focus,
-                "active_job_analysis_id": (
-                    self.active_job_analysis_id if analysis_matches else None
-                ),
-                "active_job_analysis_jd_snapshot_id": (
-                    self.active_job_analysis_jd_snapshot_id
-                    if analysis_matches
-                    else None
-                ),
-                "job_analysis_status": (
-                    self.job_analysis_status if analysis_matches else None
-                ),
-            }
+        return self.update_job_context(
+            active_posting_id=(
+                focus.job_posting_id
+                if focus is not None
+                else self.active_job_posting_id
+            ),
+            active_jd_snapshot_id=(
+                focus.jd_snapshot_id if focus is not None else None
+            ),
+            active_saved_job=focus,
+            active_analysis_id=(
+                self.active_job_analysis_id if analysis_matches else None
+            ),
+            active_analysis_jd_snapshot_id=(
+                self.active_job_analysis_jd_snapshot_id
+                if analysis_matches
+                else None
+            ),
+            analysis_status=(self.job_analysis_status if analysis_matches else None),
         )
 
     def pending_proposal_is_live(
@@ -581,21 +853,14 @@ class ConversationTaskState(ContractModel):
     def active_resource_flags(self) -> dict[str, bool]:
         """Whether each active object exists, without naming any of them.
 
-        Derived from the ``active_*_id`` field names rather than listed by hand.
-        Thirteen such fields existed and none reached the model: the projection
-        withheld the ids, which is right, and withheld their existence with
-        them, which is not. The system prompt repeatedly directs the model at
-        "the active object", so a run could prepare a Calendar preview and then
-        be unable to tell, on the next turn, that one was pending — the approval
-        gate was unreachable rather than merely awkward.
-
-        Deriving it means a new active object is covered the moment it is
-        declared, and that a value can never leak: only ``is not None`` crosses.
+        The explicit projection boundary is intentional: domain context may
+        retain opaque identifiers, while the model receives only booleans. A
+        test audits every compatibility reference against this allowlist so a
+        newly introduced active object cannot silently lose its existence flag.
         """
         return {
             f"has_{name[: -len('_id')]}": getattr(self, name) is not None
-            for name in type(self).model_fields
-            if name.startswith("active_") and name.endswith("_id")
+            for name in ACTIVE_RESOURCE_ID_FIELDS
         }
 
     def hold_entry_message(

@@ -61,7 +61,9 @@ def test_state_gated_tools_are_hidden_until_their_prerequisite_exists():
     names = {schema["function"]["name"] for schema in profile_schemas("interview", schemas, interview)}
     assert "execute_calendar_proposal" not in names
     assert "restart_mock_interview" not in names
-    ready = interview.model_copy(update={"active_calendar_proposal_id": "proposal-1"})
+    ready = interview.update_interview_context(
+        active_calendar_proposal_id="proposal-1"
+    )
     ready_names = {schema["function"]["name"] for schema in profile_schemas("interview", schemas, ready)}
     assert "execute_calendar_proposal" in ready_names
 @pytest.mark.parametrize("mode", ["record", "replay", "quality"])
@@ -202,9 +204,11 @@ def test_report_handle_pair_has_no_alternative_grounded_job_selector():
     )["report_id"] == "report-b"
     routed = next(s for s in SCENARIOS if s.name == "a_core_request_routes_before_job_analysis")
     with_candidate = numbered.context.model_copy(
-        update={"task": numbered.context.task.model_copy(update={
-            "saved_job_candidates": routed.context.task.saved_job_candidates,
-        })}
+        update={
+            "task": numbered.context.task.update_job_context(
+                saved_job_candidates=routed.context.task.saved_job_candidates,
+            )
+        }
     )
     assert project_job_research_arguments(
         with_candidate, "get_job_research", {"selection_index": 1}
