@@ -141,7 +141,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
         conversation_id="c1",
         profile=CareerProfileContext(user_id="u1", default_city="Shanghai"),
         task=ConversationTaskState(
-            active_workflow="mock_interview",
+            active_workflow="job_discovery",
             run_id="internal-run-do-not-leak",
             selected_result_ref="opaque-selected-ref-do-not-leak",
             candidates=(CandidateContextItem(result_ref="opaque-candidate-ref-do-not-leak", title="AI Engineer", company_name="Acme", city="Shanghai"),),
@@ -207,7 +207,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
     ) in system_content
     assert CONTROL_CONTEXT_LABEL not in system_content
     assert "mock_interview" not in system_content
-    assert control["task"]["active_workflow"] == "mock_interview"
+    assert control["task"]["active_workflow"] == "job_discovery"
     assert "candidates" not in control["task"]
     assert "Acme" not in system_content
     assert "External report title" not in system_content

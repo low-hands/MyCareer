@@ -3534,10 +3534,14 @@ def test_questionnaire_resource_removed_before_submit_fails_closed(tmp_path, res
         "active_job_posting_id": "job_posting_id",
         "active_jd_snapshot_id": "jd_snapshot_id",
     }[resource]
-    store.upsert_task(user_id="u1", conversation_id="c1", task=task.model_copy(update={
-        resource: "deleted-resource",
-        "pending_questionnaire": pending.model_copy(update={bound_field: "deleted-resource"}),
-    }))
+    task = task.with_pending_questionnaire(
+        pending.model_copy(update={bound_field: "deleted-resource"})
+    )
+    store.upsert_task(
+        user_id="u1",
+        conversation_id="c1",
+        task=task.model_copy(update={resource: "deleted-resource"}),
+    )
     response = InteractionResponse(
         interaction_id=interaction.interaction_id, scope="questionnaire", action="submit",
         answers=(QuestionAnswer(question_id="q1", free_text="答一"),
@@ -3579,10 +3583,14 @@ def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_pat
     assert pending is not None
     if failure == "expired":
         now = datetime.now(timezone.utc)
-        task = task.model_copy(update={"pending_questionnaire": pending.model_copy(update={
-            "created_at": now - timedelta(days=2),
-            "expires_at": now - timedelta(days=1),
-        })})
+        task = task.with_pending_questionnaire(
+            pending.model_copy(
+                update={
+                    "created_at": now - timedelta(days=2),
+                    "expires_at": now - timedelta(days=1),
+                }
+            )
+        )
         expected = "QUESTIONNAIRE_EXPIRED"
         message_part = "已过期"
     else:

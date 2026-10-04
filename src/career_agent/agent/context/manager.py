@@ -622,9 +622,7 @@ class ContextManager:
 
         if task.bare_confirmation_target is None:
             return task
-        disarmed = task.model_copy(
-            update={"bare_confirmation_target": None}
-        )
+        disarmed = task.disarm_bare_confirmation()
         self._store.upsert_task(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1275,13 +1273,7 @@ class ContextManager:
                 }
             ),
             user_resource_refs=entry_refs,
-            task=task.model_copy(
-                update={
-                    "workflow_entry_message": None,
-                    "workflow_entry_resource_refs": (),
-                    "workflow_entry_at": None,
-                }
-            ),
+            task=task.clear_workflow_entry_message(),
             user_message_at=context.task.workflow_entry_at,
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,

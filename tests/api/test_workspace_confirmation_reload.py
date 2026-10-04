@@ -73,7 +73,7 @@ def test_reload_restores_the_same_pending_questionnaire(tmp_path):
     task = manager.get_task(user_id="u1", conversation_id="c1")
     context_store.upsert_task(
         user_id="u1", conversation_id="c1",
-        task=task.model_copy(update={"pending_questionnaire": pending}),
+        task=task.with_pending_questionnaire(pending),
     )
     first = WorkspaceReader(args).conversation_messages(user_id="u1", conversation_id="c1")
     second = WorkspaceReader(args).conversation_messages(user_id="u1", conversation_id="c1")

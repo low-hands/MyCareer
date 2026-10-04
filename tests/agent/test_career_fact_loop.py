@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import pytest
 
 from career_agent.agent.context.career import CareerContextProjector
@@ -340,7 +340,7 @@ def test_career_fact_pending_reuse_keeps_user_and_inference_sources_separate(tmp
     assert confirmed_inference.verification_status == "confirmed"
 
 
-def test_bare_confirmation_uses_last_shown_pending_type_not_fixed_priority(
+def test_legacy_multiple_pending_types_restore_only_the_unique_latest(
     tmp_path,
 ) -> None:
     context = CareerContextStore(tmp_path / "context.sqlite3")
@@ -370,7 +370,8 @@ def test_bare_confirmation_uses_last_shown_pending_type_not_fixed_priority(
             pending_career_fact=fact,
             pending_job_intent_update=JobIntentUpdate(city="上海"),
             pending_proposed_at={
-                "pending_career_fact": datetime.now(timezone.utc),
+                "pending_career_fact": datetime.now(timezone.utc)
+                - timedelta(seconds=1),
                 "pending_job_intent_update": datetime.now(timezone.utc),
             },
             bare_confirmation_target="job_intent",
@@ -403,4 +404,4 @@ def test_bare_confirmation_uses_last_shown_pending_type_not_fixed_priority(
     )
     assert still_pending is not None
     assert still_pending.verification_status == "pending"
-    assert result.context.task.pending_career_fact == fact
+    assert result.context.task.pending_career_fact is None

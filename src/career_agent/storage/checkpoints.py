@@ -9,6 +9,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 
 _ALLOWED_CHECKPOINT_MODELS = (
+    # Legacy module identities remain allowed so checkpoints written before
+    # the contracts package was split can still resume.
     (
         "career_agent.agent.contracts.main_agent",
         "MainAgentContext",
@@ -21,6 +23,9 @@ _ALLOWED_CHECKPOINT_MODELS = (
         "career_agent.agent.contracts.main_agent",
         "ToolResult",
     ),
+    ("career_agent.agent.contracts.context", "MainAgentContext"),
+    ("career_agent.agent.contracts.decisions", "AgentDecision"),
+    ("career_agent.agent.contracts.observations", "ToolResult"),
 )
 
 

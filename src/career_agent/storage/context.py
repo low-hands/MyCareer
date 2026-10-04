@@ -988,7 +988,10 @@ class CareerContextStore:
                               )),
                        -- A workflow's opening request is held, not written,
                        -- until the run ends; it still names the conversation.
-                       (SELECT json_extract(task.payload, '$.workflow_entry_message')
+                       (SELECT COALESCE(
+                                   json_extract(task.payload, '$.workflow.entry_message'),
+                                   json_extract(task.payload, '$.workflow_entry_message')
+                               )
                         FROM conversation_task_state AS task
                         WHERE task.user_id = s.user_id
                           AND task.conversation_id = s.session_id)
@@ -1011,7 +1014,10 @@ class CareerContextStore:
                           SELECT 1 FROM conversation_task_state AS task
                           WHERE task.user_id = s.user_id
                             AND task.conversation_id = s.session_id
-                            AND json_extract(task.payload, '$.workflow_entry_message') IS NOT NULL
+                            AND COALESCE(
+                                  json_extract(task.payload, '$.workflow.entry_message'),
+                                  json_extract(task.payload, '$.workflow_entry_message')
+                                ) IS NOT NULL
                       )
                       __RUNNING__
                   )
@@ -2199,8 +2205,14 @@ class CareerContextStore:
                 """
                 SELECT conversation_id FROM conversation_task_state
                 WHERE user_id = ?
-                  AND json_extract(payload, '$.active_workflow') = ?
-                  AND json_extract(payload, '$.run_id') = ?
+                  AND COALESCE(
+                        json_extract(payload, '$.workflow.kind'),
+                        json_extract(payload, '$.active_workflow')
+                      ) = ?
+                  AND COALESCE(
+                        json_extract(payload, '$.workflow.run_id'),
+                        json_extract(payload, '$.run_id')
+                      ) = ?
                 ORDER BY updated_at DESC
                 LIMIT 1
                 """,

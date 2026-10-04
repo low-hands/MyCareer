@@ -22,6 +22,10 @@ from career_agent.agent.contracts.main_agent import (
     pending_confirmation_proposal,
     project_job_intent_arguments,
 )
+from career_agent.agent.contracts.questionnaire import (
+    PendingQuestionnaire,
+    UserQuestion,
+)
 from career_agent.agent.runtime.reducers import (
     ATOMIC_TASK_REDUCERS,
     reduce_task_state,
@@ -125,33 +129,37 @@ def test_structured_follow_up_starts_its_own_clock() -> None:
     }
 
 
-def _all_slots_task(stamp: datetime) -> ConversationTaskState:
-    return ConversationTaskState(
-        pending_job_intent_update=JobIntentUpdate(city="上海"),
-        pending_free_text_preference=FreeTextPreferenceConfirmationProposal(
+_PROPOSALS = {
+    "pending_job_intent_update": JobIntentUpdate(city="上海"),
+    "pending_free_text_preference": FreeTextPreferenceConfirmationProposal(
             update_id="intent_update_" + "a" * 32,
             topic_key="company_scale",
             statement="不去大厂",
         ),
-        pending_memory_amendment=MemoryAmendmentProposal(
+    "pending_memory_amendment": MemoryAmendmentProposal(
             target_kind="career_evidence",
             detail_ref="detail_" + "a" * 24,
             new_claim="了解 Rust",
             reason="用户更正熟练度。",
         ),
-        pending_memory_tombstone=MemoryTombstoneProposal(
+    "pending_memory_tombstone": MemoryTombstoneProposal(
             target_kind="career_evidence",
             detail_ref="detail_" + "b" * 24,
             reason="用户要求删除。",
         ),
-        pending_career_fact=CareerFactProposal(
+    "pending_career_fact": CareerFactProposal(
             career_evidence_id="career_evidence_" + "a" * 32,
             career_record_id="career_record_" + "a" * 32,
             claim="曾带领 5 人团队。",
             reason="用户补充。",
         ),
-        pending_constraint_retirement=_RETIREMENT,
-        pending_proposed_at={slot: stamp for slot in PENDING_PROPOSAL_SLOTS},
+    "pending_constraint_retirement": _RETIREMENT,
+}
+
+
+def _task_for_slot(slot: str, stamp: datetime) -> ConversationTaskState:
+    return ConversationTaskState().with_pending_proposal(
+        slot, _PROPOSALS[slot], proposed_at=stamp
     )
 
 
@@ -175,6 +183,76 @@ def test_all_six_confirmation_slots_have_one_policy() -> None:
     } == {"confirm_memory_tombstone", "confirm_constraint_retirement"}
 
 
+def test_pending_confirmation_is_a_single_discriminated_value() -> None:
+    first = _task_for_slot("pending_job_intent_update", _NOW)
+    second = first.with_pending_proposal(
+        "pending_constraint_retirement", _RETIREMENT, proposed_at=_NOW
+    )
+
+    assert second.pending_job_intent_update is None
+    assert second.pending_constraint_retirement == _RETIREMENT
+    payload = second.model_dump(mode="json")
+    assert payload["pending_interaction"]["kind"] == "constraint_retirement"
+    assert "pending_confirmation" not in payload
+    assert all(slot not in payload for slot in PENDING_PROPOSAL_SLOTS)
+
+
+def test_ambiguous_legacy_pending_confirmations_are_not_restored() -> None:
+    task = ConversationTaskState(
+        pending_job_intent_update=_PROPOSALS["pending_job_intent_update"],
+        pending_constraint_retirement=_RETIREMENT,
+        pending_proposed_at={
+            "pending_job_intent_update": _NOW,
+            "pending_constraint_retirement": _NOW,
+        },
+    )
+
+    assert task.pending_confirmation is None
+
+
+def test_questionnaire_and_confirmation_share_one_interaction_slot() -> None:
+    questionnaire = PendingQuestionnaire(
+        interaction_id="interaction_1234567890abcdef1234",
+        prompt="请补充信息",
+        questions=(
+            UserQuestion(question_id="q1", prompt="问题一", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="问题二", kind="free_text"),
+        ),
+        created_at=_NOW,
+        expires_at=_NOW + timedelta(days=7),
+        active_workflow="none",
+    )
+    confirmation = _task_for_slot("pending_job_intent_update", _NOW)
+    task = confirmation.with_pending_questionnaire(questionnaire)
+
+    assert task.pending_questionnaire == questionnaire
+    assert task.pending_confirmation is None
+    assert task.pending_job_intent_update is None
+    assert task.model_dump(mode="json")["pending_interaction"]["kind"] == "questionnaire"
+
+
+def test_legacy_questionnaire_wins_over_a_parallel_confirmation() -> None:
+    questionnaire = PendingQuestionnaire(
+        interaction_id="interaction_1234567890abcdef1234",
+        prompt="请补充信息",
+        questions=(
+            UserQuestion(question_id="q1", prompt="问题一", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="问题二", kind="free_text"),
+        ),
+        created_at=_NOW,
+        expires_at=_NOW + timedelta(days=7),
+        active_workflow="none",
+    )
+    task = ConversationTaskState(
+        pending_questionnaire=questionnaire,
+        pending_job_intent_update=_PROPOSALS["pending_job_intent_update"],
+        pending_proposed_at={"pending_job_intent_update": _NOW},
+    )
+
+    assert task.pending_questionnaire == questionnaire
+    assert task.pending_confirmation is None
+
+
 @pytest.mark.parametrize("tool_name", _CONFIRMATION_TOOLS)
 def test_shared_confirmation_gate_requires_a_live_shown_proposal(tool_name: str) -> None:
     slot = "pending_job_intent_update" if tool_name == "confirm_job_intent" else {
@@ -187,7 +265,7 @@ def test_shared_confirmation_gate_requires_a_live_shown_proposal(tool_name: str)
     with pytest.raises(ValueError, match="requires a proposed|requires a proposal"):
         pending_confirmation_proposal(ConversationTaskState(), tool_name)
 
-    fresh = _all_slots_task(datetime.now(timezone.utc))
+    fresh = _task_for_slot(slot, datetime.now(timezone.utc))
     assert pending_confirmation_proposal(fresh, tool_name) == getattr(fresh, slot)
     snapshot = confirmation_arguments_snapshot(
         fresh, tool_name, user_id="u1", conversation_id="c1"
@@ -198,7 +276,8 @@ def test_shared_confirmation_gate_requires_a_live_shown_proposal(tool_name: str)
     payload_key = "update" if tool_name == "confirm_job_intent" else "proposal"
     assert snapshot[payload_key] == getattr(fresh, slot).model_dump(mode="json")
 
-    expired = _all_slots_task(
+    expired = _task_for_slot(
+        slot,
         datetime.now(timezone.utc) - PENDING_PROPOSAL_TTL - timedelta(seconds=1)
     )
     with pytest.raises(ValueError, match="expired"):
@@ -207,7 +286,7 @@ def test_shared_confirmation_gate_requires_a_live_shown_proposal(tool_name: str)
 
 def _stamp_bytes(task: ConversationTaskState) -> dict[str, str]:
     return {
-        slot: task.model_dump_json(include={"pending_proposed_at": {slot}})
+        slot: task.model_dump_json(include={"pending_confirmation"})
         for slot in task.pending_proposed_at
     }
 
@@ -227,7 +306,7 @@ def test_no_reducer_renews_a_slot_it_did_not_fill(tool_name, state) -> None:
     # no reducer has a proposal to put anywhere, so any surviving slot whose
     # stamp moved was renewed by a rebuild.
     old = _NOW - timedelta(days=6)
-    task = _all_slots_task(old)
+    task = _task_for_slot("pending_constraint_retirement", old)
     reduced = reduce_task_state(
         task,
         ToolResult(tool_name=tool_name, state=state, message="结果。"),
@@ -243,33 +322,28 @@ def test_no_reducer_renews_a_slot_it_did_not_fill(tool_name, state) -> None:
             assert after[slot] == before[slot], slot
 
 
-def test_filling_one_slot_leaves_every_other_stamp_byte_identical() -> None:
+def test_filling_one_slot_replaces_the_previous_pending_confirmation() -> None:
     old = _NOW - timedelta(days=6)
-    task = _all_slots_task(old)
+    task = _task_for_slot("pending_job_intent_update", old)
     replacement = _RETIREMENT.model_copy(update={"reason": "用户换了说法。"})
 
     reduced = reduce_task_state(task, _proposed(replacement), now=_NOW)
 
-    before = _stamp_bytes(task)
-    after = _stamp_bytes(reduced)
+    assert reduced.pending_job_intent_update is None
+    assert reduced.pending_constraint_retirement == replacement
     assert reduced.pending_proposed_at["pending_constraint_retirement"] == _NOW
-    for slot in PENDING_PROPOSAL_SLOTS:
-        if slot != "pending_constraint_retirement":
-            assert after[slot] == before[slot], slot
 
 
-def test_a_rebuilt_task_is_indistinguishable_from_reshowing_every_proposal() -> None:
+def test_a_rebuilt_task_is_indistinguishable_from_reshowing_the_proposal() -> None:
     # Pins the premise the guard above depends on: if this ever stops renewing,
     # the guard can no longer detect a rebuilding reducer and must be revisited.
     old = _NOW - timedelta(days=6)
-    task = _all_slots_task(old)
+    task = _task_for_slot("pending_constraint_retirement", old)
     rebuilt = ConversationTaskState.model_validate(task.model_dump())
 
     stamped = rebuilt.stamp_new_proposals(task, _NOW)
 
-    assert stamped.pending_proposed_at == {
-        slot: _NOW for slot in PENDING_PROPOSAL_SLOTS
-    }
+    assert stamped.pending_proposed_at == {"pending_constraint_retirement": _NOW}
 
 
 def test_load_for_turn_expires_stale_and_unstamped_proposals_only(tmp_path) -> None:
@@ -326,10 +400,6 @@ def test_load_for_turn_expires_stale_and_unstamped_proposals_only(tmp_path) -> N
         if event.event_type == "memory_proposal_expired"
     ]
     assert expired == [
-        {
-            "conversation_key": conversation_trace_key("u1", "c1"),
-            "slots": ["pending_constraint_retirement"],
-        },
         {
             "conversation_key": conversation_trace_key("u1", "legacy"),
             "slots": ["pending_job_intent_update"],

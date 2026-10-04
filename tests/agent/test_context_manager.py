@@ -468,7 +468,11 @@ def test_workflow_turn_updates_routing_without_loading_or_writing_main_memory(
     )
     context_manager.commit_workflow_turn(
         context=workflow_context,
-        task=task.model_copy(update={"phase": "mock_interview_running"}),
+        task=task.enter_workflow(
+            "mock_interview",
+            run_id="mock-session-1",
+            phase="mock_interview_running",
+        ),
     )
 
     assert workflow_context.recent_messages == ()
@@ -1766,9 +1770,9 @@ def test_workflow_exit_writes_the_held_request_not_this_turns_source(
     )
     exiting = context.model_copy(
         update={
-            "task": context.task.model_copy(
-                update={"workflow_entry_message": "开始模拟面试"}
-            )
+            "task": context.task.enter_workflow(
+                "mock_interview", run_id="mock-session-1"
+            ).hold_entry_message("开始模拟面试")
         }
     )
 

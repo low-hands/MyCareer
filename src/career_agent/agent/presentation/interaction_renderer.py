@@ -168,9 +168,7 @@ class InteractionRenderer:
                 "assistant_message": decision.message or "请补充以下信息。",
                 "context": context.model_copy(
                     update={
-                        "task": task.model_copy(
-                            update={"pending_questionnaire": questionnaire}
-                        )
+                        "task": task.with_pending_questionnaire(questionnaire)
                     }
                 ),
             }

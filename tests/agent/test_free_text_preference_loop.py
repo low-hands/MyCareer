@@ -55,7 +55,7 @@ def test_free_text_preference_cannot_be_confirmed_before_readback(tmp_path) -> N
     )
 
     assert result.tool_result is None
-    assert result.context.tool_observations[-1].state == "invalid_input"
+    assert result.context.tool_observations[-1].state == "authorization_refused"
     assert store.list_free_text_preferences(
         user_id="u1", statuses=("active",)
     ) == ()

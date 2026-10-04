@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.contracts import main_agent as main_agent_contracts
+from career_agent.agent.contracts import context as main_agent_contracts
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.main_agent import (
     PREFERENCE_EPISODE_CHAR_BUDGET,

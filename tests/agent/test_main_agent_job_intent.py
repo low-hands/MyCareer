@@ -223,16 +223,11 @@ def test_confirming_without_a_readback_is_refused(tmp_path) -> None:
 
     result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="好的")
 
-    # A consumed-or-missing confirmation is a grounded soft result, not a
-    # turn-killing exception; nothing was written either way.
+    # A consumed-or-missing confirmation is rejected before execution; nothing
+    # was written either way.
     assert result.tool_result is None
-    assert result.context.tool_observations[-1].state == "invalid_input"
-    # The reason goes to the model, not to the user: it is the model that turns
-    # "no proposal the user has seen" into a sentence worth reading.
-    assert (
-        "proposed update the user has seen"
-        in decisions.contexts[-1].tool_observations[-1].message
-    )
+    assert result.context.tool_observations[-1].state == "authorization_refused"
+    assert "propose_job_intent" in decisions.contexts[-1].tool_observations[-1].message
     assert result.assistant_message == "我还没给你看过要记的内容，先说一下？"
     assert store.get_profile("u1") is None
 

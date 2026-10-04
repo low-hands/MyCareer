@@ -142,9 +142,7 @@ class InteractionCoordinator:
         )
         return context.model_copy(
             update={
-                "task": context.task.model_copy(
-                    update={"pending_questionnaire": None}
-                ),
+                "task": context.task.clear_pending_questionnaire(),
                 "user_message_source": "已提交当前任务问卷：\n"
                 + "\n".join(visible_answers),
                 "user_interaction_id": pending.interaction_id,

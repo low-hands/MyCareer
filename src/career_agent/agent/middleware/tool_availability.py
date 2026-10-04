@@ -11,6 +11,11 @@ from career_agent.agent.contracts.main_agent import (
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 from career_agent.agent.capabilities.effects import ToolEffect, effect_for
+from career_agent.agent.capabilities.reachability import (
+    REQUIREMENTS,
+    STATE_GATED_TOOLS,
+    reachable,
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +55,13 @@ class ToolAvailabilityMiddleware:
         if model_selected and not self._offers_tool(
             name, task.tool_profile, task
         ):
+            if name in STATE_GATED_TOOLS and not reachable(name, task):
+                requirement = REQUIREMENTS[name]
+                return AuthorizationRefusal(
+                    kind="precondition",
+                    reason=f"{name} 当前不可执行：{requirement}。",
+                    next_action=requirement,
+                )
             return AuthorizationRefusal(
                 kind="out_of_profile",
                 reason=f"{name} 不在当前 {task.tool_profile} 工具档内。",
