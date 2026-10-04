@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
     ToolCall,
-    ToolObservation,
 )
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.harness.graph_routing import GraphRoutingPolicy
 
 

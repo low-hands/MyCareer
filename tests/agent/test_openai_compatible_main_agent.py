@@ -12,7 +12,22 @@ from career_agent.agent.runtime.decision_messages import (
     TURN_OBSERVATION_LABEL,
     project_decision_messages,
 )
-from career_agent.agent.contracts.main_agent import CandidateContextItem, CareerProfileContext, ConversationMessageContext, ConversationResourceReference, ConversationTaskState, CurrentTargetContext, DecisionObservation, MainAgentContext, OpenJobSearchToolArguments, SavedJobCandidateContextItem
+from career_agent.agent.contracts.candidates import (
+    CandidateContextItem,
+    SavedJobCandidateContextItem,
+)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import DecisionObservation
+from career_agent.agent.contracts.profile import (
+    CareerProfileContext,
+    CurrentTargetContext,
+)
+from career_agent.agent.contracts.resources import (
+    ConversationMessageContext,
+    ConversationResourceReference,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.tools.core_memory import OpenJobSearchToolArguments
 from career_agent.agent.contracts.memory import ConversationSummaryContent
 from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 from career_agent.agent.providers.openai_client import (

@@ -8,7 +8,11 @@ import pytest
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import ConversationSummaryContent
-from career_agent.agent.contracts.main_agent import AgentDecision, ToolCall, ToolObservation
+from career_agent.agent.contracts.decisions import (
+    AgentDecision,
+    ToolCall,
+)
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.runtime.main_agent_runtime import (
     InteractionReceipt,
     MainAgentRuntime,

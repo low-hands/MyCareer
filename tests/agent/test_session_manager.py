@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.context.session_manager import SessionManager
 from career_agent.storage.context import CareerContextStore
 

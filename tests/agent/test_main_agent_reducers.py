@@ -1,11 +1,11 @@
 import inspect
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.candidates import (
     CandidateContextItem,
-    ConversationTaskState,
     EmailEventCandidateContextItem,
-    ToolResult,
 )
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.reducers import (
     ATOMIC_TASK_REDUCERS,
     reduce_task_state,

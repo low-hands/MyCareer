@@ -11,7 +11,7 @@ from career_agent.agent.capabilities.catalog import (
     TOOL_PROFILE_NAMES,
     ToolProfile,
 )
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.reachability import (
     PRECONDITIONS,
     REQUIREMENTS,

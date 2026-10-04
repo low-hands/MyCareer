@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.profile import (
     ConfirmBefore,
     OwnerSettingsContext,
     canonical_confirm_before,

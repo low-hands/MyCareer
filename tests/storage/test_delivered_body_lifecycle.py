@@ -6,10 +6,8 @@ import pytest
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.presentation.body_contracts import BodyDependency
-from career_agent.agent.contracts.main_agent import (
-    ConversationMessageContext,
-    ConversationTaskState,
-)
+from career_agent.agent.contracts.resources import ConversationMessageContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import ContentDeltaEvent, TurnCompletedEvent

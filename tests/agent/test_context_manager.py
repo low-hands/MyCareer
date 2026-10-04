@@ -15,18 +15,20 @@ from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import AgentWorkerError
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import _bounded_markdown
+from career_agent.agent.contracts.profile import (
     AgentPreferencesContext,
-    CareerProfileBudgets,
     CareerProfileContext,
-    ConversationResourceReference,
-    ConversationTaskState,
     FreeTextPreferenceContext,
     HardConstraintContext,
-    MainAgentContext,
-    _bounded_markdown,
+)
+from career_agent.agent.contracts.resources import (
+    CareerProfileBudgets,
+    ConversationResourceReference,
     confirmation_recency_label,
 )
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.harness.memory_telemetry import memory_context_observation
 from career_agent.services.intent_capture import IntentCaptureCandidate
 from career_agent.harness.observability import (

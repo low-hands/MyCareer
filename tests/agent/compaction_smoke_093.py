@@ -33,7 +33,7 @@ from career_agent.agent.contracts.memory import (
     ConversationSummaryWorker,
     SummaryMessage,
 )
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,

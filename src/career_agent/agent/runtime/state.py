@@ -5,11 +5,9 @@ from typing import Any, Literal
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 from typing_extensions import TypedDict
 
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.effects import ToolEffect
 
 

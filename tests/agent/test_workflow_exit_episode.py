@@ -1,5 +1,5 @@
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 

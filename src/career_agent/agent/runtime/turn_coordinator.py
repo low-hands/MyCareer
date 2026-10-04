@@ -17,12 +17,10 @@ from uuid import uuid4
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, TraceRecorder
 from career_agent.agent.context.turn_builder import TurnContextBuilder
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    ConversationResourceReference,
-    ConversationTaskState,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.services.episode_consolidation import drafts_from_tool_results
 from career_agent.harness.streaming import (
     ContentDeltaEvent,

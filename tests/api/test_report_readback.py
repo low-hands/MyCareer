@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from career_agent.api.app import create_app
 from career_agent.api.reads import build_workspace_reader
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.presentation.mock_interview import render_mock_interview_report
 from career_agent.agent.contracts.session import AgentSession
 from career_agent.domain.interview_preparation import (

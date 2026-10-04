@@ -8,7 +8,7 @@ from career_agent.agent.resources.resume_document_prompt import pdf_text_prompt
 
 from openai import OpenAI
 
-from career_agent.agent.contracts.main_agent import confirmation_recency_label
+from career_agent.agent.contracts.resources import confirmation_recency_label
 from career_agent.agent.contracts.job_analysis import TieredRequirement
 from career_agent.agent.providers.openai_client import (
     AgentWorkerError,

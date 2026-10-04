@@ -39,13 +39,11 @@ from career_agent.agent.runtime.interaction_coordinator import InteractionCoordi
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.runtime.main_agent_runtime import MainAgentTurnResult, ModelDecision
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.presentation.job_comparison import DIMENSION_ORDER
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.workflows.mock_interview.contracts import (
@@ -719,7 +717,7 @@ def test_mock_interview_readbacks_use_restricted_markdown_for_dynamic_text() -> 
 
 def test_a_card_policy_without_a_reference_fails_open_to_the_full_body() -> None:
     """A broken observation must not turn a completed report into a receipt."""
-    from career_agent.agent.contracts.main_agent import ToolObservation
+    from career_agent.agent.contracts.observations import ToolObservation
 
     observation = ToolObservation(
         tool_name="get_mock_interview_result",

@@ -16,12 +16,12 @@ from career_agent.agent.workflows.resume_tailoring.worker import (
     DeepAgentResumeFinalizationWorker,
     DeepAgentResumeTailoringWorker,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
     ToolCall,
-    ToolObservation,
 )
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.observability import RuntimeObservability

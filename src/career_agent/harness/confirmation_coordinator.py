@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
-from career_agent.agent.contracts.main_agent import (
-    CONFIRMATION_SPECS,
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    MainAgentContext,
     ToolCall,
-    ToolObservation,
+)
+from career_agent.agent.contracts.interactions import (
+    CONFIRMATION_SPECS,
     confirmation_arguments_snapshot,
 )
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.contracts.turn import InteractionReceipt, MainAgentTurnResult
 from career_agent.harness.agent_loop import AgentLoop

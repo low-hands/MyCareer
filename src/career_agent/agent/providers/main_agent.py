@@ -32,10 +32,10 @@ from career_agent.agent.runtime.decision_messages import (
     CONTROL_REMINDER_TAG,
 )
 from career_agent.agent.contracts.job_discovery import ContractModel
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
     DecisionMaker,
-    MainAgentContext,
     ToolCall,
 )
 from career_agent.agent.providers.openai_client import (

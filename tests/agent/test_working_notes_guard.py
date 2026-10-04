@@ -10,21 +10,25 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.candidates import SavedJobCandidateContextItem
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationMessageContext,
-    ConversationTaskState,
-    CurrentTargetContext,
-    DecisionObservation,
-    FreeTextPreferenceContext,
-    HardConstraintContext,
-    MainAgentContext,
-    SavedJobCandidateContextItem,
     ToolCall,
+)
+from career_agent.agent.contracts.observations import (
+    DecisionObservation,
     ToolObservation,
     WorkingNotesContext,
 )
+from career_agent.agent.contracts.profile import (
+    CareerProfileContext,
+    CurrentTargetContext,
+    FreeTextPreferenceContext,
+    HardConstraintContext,
+)
+from career_agent.agent.contracts.resources import ConversationMessageContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import AgentDecision, ToolCall
+from career_agent.agent.contracts.decisions import (
+    AgentDecision,
+    ToolCall,
+)
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import PublicStreamEvent

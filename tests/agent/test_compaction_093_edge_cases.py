@@ -19,12 +19,12 @@ from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     SummaryMessage,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import (
     DECISION_OBSERVATION_BODY_LIMIT,
-    ConversationTaskState,
     DecisionObservation,
-    MainAgentContext,
 )
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,

@@ -12,14 +12,14 @@ from career_agent.agent.resources.input import (
     resolve_input_resources,
     resolve_job_input_resources,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.candidates import (
     ActiveSavedJobContextItem,
-    AttachedResumeContext,
-    ConversationTaskState,
-    MainAgentContext,
     SavedJobCandidateContextItem,
-    ToolProfile,
 )
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import AttachedResumeContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.applications.models import ApplicationStatus
 from career_agent.harness.streaming import TurnInputResource

@@ -5,7 +5,7 @@ from collections.abc import Callable
 import hashlib
 import json
 
-from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
 from career_agent.agent.runtime.state import MainAgentState, PendingAction
 from career_agent.agent.capabilities.effects import replay_safe

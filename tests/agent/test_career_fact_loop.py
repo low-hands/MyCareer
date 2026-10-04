@@ -3,14 +3,16 @@ import pytest
 
 from career_agent.agent.context.career import CareerContextProjector
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerFactProposal,
-    ConversationTaskState,
-    JobIntentUpdate,
     ToolCall,
-    project_career_fact_arguments,
 )
+from career_agent.agent.contracts.profile import (
+    CareerFactProposal,
+    JobIntentUpdate,
+)
+from career_agent.agent.contracts.projections.memory import project_career_fact_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.questionnaire import QuestionAnswer, UserQuestion
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

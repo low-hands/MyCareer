@@ -2,11 +2,11 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    ConstraintRetirementProposal,
     ToolCall,
 )
+from career_agent.agent.contracts.profile import ConstraintRetirementProposal
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

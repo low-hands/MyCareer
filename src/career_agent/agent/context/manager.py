@@ -18,20 +18,24 @@ from career_agent.agent.contracts.memory import (
     SummaryMessage,
 )
 from career_agent.agent.context.career import reciprocal_rank_fusion
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileBudgets,
-    CareerProfileContext,
-    ConversationMessageContext,
-    ConversationResourceReference,
-    ConversationTaskState,
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import (
     EpisodeProjectionContext,
-    MainAgentContext,
+    WorkingNotesContext,
+)
+from career_agent.agent.contracts.profile import (
+    CareerProfileContext,
     CurrentTargetContext,
     FreeTextPreferenceContext,
     MemoryTelemetryBinding,
     OwnerSettingsContext,
-    WorkingNotesContext,
 )
+from career_agent.agent.contracts.resources import (
+    CareerProfileBudgets,
+    ConversationMessageContext,
+    ConversationResourceReference,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.agent.providers.token_budget import clip_to_tokens, message_token_count
 from career_agent.agent.context.session_manager import SessionManager

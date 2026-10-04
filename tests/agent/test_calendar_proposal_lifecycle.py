@@ -18,10 +18,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-    ToolObservation,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.reducers import reduce_task_state
 
 _NOW = datetime(2026, 8, 31, 12, tzinfo=timezone.utc)

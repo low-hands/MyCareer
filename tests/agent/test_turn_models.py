@@ -1,4 +1,4 @@
-from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.runtime import main_agent_runtime
 from career_agent.agent.contracts.turn import (
     InteractionReceipt,

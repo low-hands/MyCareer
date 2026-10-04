@@ -4,12 +4,12 @@ from typing import Any
 
 from pydantic_core import to_jsonable_python
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.interactions import (
     CONFIRMATION_SPECS,
-    MainAgentContext,
-    ToolObservation,
     confirmation_arguments_snapshot,
 )
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.contracts import AuthorizationRefusal

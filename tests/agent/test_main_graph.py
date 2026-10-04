@@ -4,7 +4,7 @@ import sqlite3
 from langgraph.checkpoint.memory import InMemorySaver
 import pytest
 
-from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.runtime.graph import (
     MainGraphNodes,
     build_main_graph,

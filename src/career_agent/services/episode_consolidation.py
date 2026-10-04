@@ -4,10 +4,8 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Iterable
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationResourceReference,
-    ToolObservation,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.domain.episodes import (
     CareerEpisodeDraft,
     EPISODE_SUMMARY_MAX_CHARS,

@@ -31,7 +31,7 @@ from career_agent.agent.contracts.job_analysis import (
     QuotedFinding,
     TieredRequirement,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.profile import (
     BehaviorPolicyContext,
     OwnerSettingsContext,
     UserPreferencesContext,

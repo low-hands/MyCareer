@@ -7,7 +7,7 @@ import os
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from career_agent.agent.contracts.main_agent import MainAgentContext
+from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.capabilities.profiles import project_tool_availability
 
 

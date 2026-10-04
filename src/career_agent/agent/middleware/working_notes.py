@@ -4,10 +4,8 @@ from collections.abc import Mapping, Sequence
 import re
 from typing import Any
 
-from career_agent.agent.contracts.main_agent import (
-    MainAgentContext,
-    career_profile_memory_files,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.resources import career_profile_memory_files
 from career_agent.harness.memory_telemetry import (
     normalized_surface,
     surface_contains_token,

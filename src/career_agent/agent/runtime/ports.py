@@ -7,11 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from career_agent.agent.contracts.main_agent import (
-    DecisionMaker,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import DecisionMaker
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.middleware.argument_projection import project_atomic_arguments
 from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.runtime.reducers import reduce_task_state

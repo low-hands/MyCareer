@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from career_agent.agent.contracts.main_agent import ConversationSpanView
+from career_agent.agent.contracts.resources import ConversationSpanView
 
 
 def render_conversation_span(view: ConversationSpanView) -> str:

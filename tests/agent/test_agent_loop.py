@@ -1,10 +1,10 @@
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    MainAgentContext,
     ToolCall,
-    ToolObservation,
 )
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.turn import ModelDecision, RuntimePolicyAction
 from career_agent.harness.agent_loop import AgentLoop, main_graph_thread_id
 

@@ -4,11 +4,9 @@ from types import SimpleNamespace
 from typing import Any
 
 from career_agent.agent.runtime.interaction_coordinator import ConfirmationResolution
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.turn import InteractionReceipt
 from career_agent.harness.confirmation_coordinator import (
     CapabilityConfirmationCoordinator,

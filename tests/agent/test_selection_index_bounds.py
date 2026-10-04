@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 from career_agent.agent.contracts import main_agent as contracts
-from career_agent.agent.contracts.main_agent import CompareSavedJobsToolArguments
+from career_agent.agent.contracts.tools.job import CompareSavedJobsToolArguments
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 
 

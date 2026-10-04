@@ -4,11 +4,9 @@ from typing import Any
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.turn import RuntimeAction
 from career_agent.harness.turn_router import TurnRouter
 

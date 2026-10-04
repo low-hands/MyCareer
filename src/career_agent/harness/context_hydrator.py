@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from career_agent.agent.context.career import CareerContextProjector
-from career_agent.agent.contracts.main_agent import MainAgentContext
+from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.runtime.state import MainAgentState, PendingAction
 from career_agent.storage.intent_versions import intent_entry_id
 

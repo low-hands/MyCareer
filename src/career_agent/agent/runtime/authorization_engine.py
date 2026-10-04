@@ -3,11 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-    MainAgentContext,
-    ToolProfile,
-)
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.state import LoopControl, MainAgentState
 from career_agent.agent.middleware.approval import ApprovalMiddleware

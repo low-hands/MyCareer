@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    DecisionObservation,
-    MainAgentContext,
     ToolCall,
+)
+from career_agent.agent.contracts.observations import (
+    DecisionObservation,
     ToolObservation,
 )
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.runtime.observation_reducer import ObservationReducer
 
 

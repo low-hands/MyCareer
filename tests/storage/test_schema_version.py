@@ -8,7 +8,7 @@ import pytest
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.contracts.main_agent import CareerProfileContext
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.storage.calendar import SQLiteCalendarStore
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore

@@ -3,10 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationResourceReference,
-    ToolObservation,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
 from career_agent.agent.presentation.presenter import TurnPresenter
 from career_agent.agent.contracts.turn import MainAgentTurnResult

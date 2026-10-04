@@ -5,17 +5,19 @@ from datetime import datetime, timezone
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
+from career_agent.agent.contracts.candidates import (
     ApplicationCandidateContextItem,
-    AttachedResumeContext,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
     ResumeVersionCandidateContextItem,
-    ToolCall,
-    project_mock_interview_arguments,
 )
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
+    AgentDecision,
+    ToolCall,
+)
+from career_agent.agent.contracts.observations import AttachedResumeContext
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.projections.interview import project_mock_interview_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
 from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.runtime.ports import RuntimePorts

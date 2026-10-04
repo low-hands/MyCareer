@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from career_agent.agent.contracts.main_agent import AgentDecision
+from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.presentation.factory import build_turn_presenter, present_turn
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

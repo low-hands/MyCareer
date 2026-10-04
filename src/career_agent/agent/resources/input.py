@@ -14,10 +14,10 @@ across everything attached, so eight resumes cannot project eight budgets.
 
 from __future__ import annotations
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.candidates import SavedJobCandidateContextItem
+from career_agent.agent.contracts.observations import (
     ATTACHED_RESUME_EXCERPT_CHARS,
     AttachedResumeContext,
-    SavedJobCandidateContextItem,
 )
 from career_agent.agent.support.summary_text import condense
 from career_agent.harness.streaming import TurnInputResource

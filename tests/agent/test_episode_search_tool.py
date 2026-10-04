@@ -2,11 +2,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    EpisodeProjectionContext,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import EpisodeProjectionContext
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import project_atomic_tool_arguments
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

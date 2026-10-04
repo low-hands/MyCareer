@@ -3,12 +3,14 @@ from datetime import datetime, timezone
 import pytest
 
 from career_agent.agent.presentation.delivery_policy import DELIVERY_POLICIES
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.observations import (
+    ToolObservation,
+    ToolResult,
+)
+from career_agent.agent.contracts.resources import (
     ConversationResourceReference,
     ConversationSpanMessage,
     ConversationSpanView,
-    ToolObservation,
-    ToolResult,
 )
 from career_agent.agent.presentation.factory import build_turn_presenter
 from career_agent.agent.presentation.presenter import TurnPresenter

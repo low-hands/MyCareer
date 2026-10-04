@@ -18,10 +18,8 @@ from career_agent.agent.context.deployment import (
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.context.career import CareerContextProjector
 from career_agent.agent.context.semantic_retrieval import optional_semantic_retriever
-from career_agent.agent.contracts.main_agent import (
-    ToolObservation,
-    canonical_confirm_before,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import canonical_confirm_before
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ReplayedTurn
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import (

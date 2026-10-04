@@ -5,10 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationResourceReference,
-    ToolObservation,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
 from career_agent.services.episode_consolidation import (
     EpisodeDraftCoverageError,

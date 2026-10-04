@@ -2,10 +2,8 @@ from datetime import datetime, timezone
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import ConversationSummaryContent
-from career_agent.agent.contracts.main_agent import (
-    ConversationMessageContext,
-    ConversationTaskState,
-)
+from career_agent.agent.contracts.resources import ConversationMessageContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore

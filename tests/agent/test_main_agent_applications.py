@@ -3,15 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.candidates import ResumeCandidateContextItem
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-    ResumeCandidateContextItem,
     ToolCall,
-    ToolResult,
 )
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import update_atomic_task
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

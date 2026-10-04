@@ -26,12 +26,10 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
 )
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    ConversationResourceReference,
-    ConversationTaskState,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.storage.context import CareerContextStore
 
 _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)

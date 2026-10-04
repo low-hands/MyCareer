@@ -8,7 +8,7 @@ from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     SummaryMessage,
 )
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import AgentWorkerError, ProviderErrorMetadata
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 from career_agent.storage.context import CareerContextStore

@@ -10,12 +10,12 @@ from career_agent.agent.resources.conversation_span import (
     ExplicitSequenceSpan,
     explicit_sequence_span,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
     ToolCall,
 )
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ModelDecision
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore

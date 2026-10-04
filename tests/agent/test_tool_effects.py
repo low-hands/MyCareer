@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.effects import (
     TOOL_EFFECTS,

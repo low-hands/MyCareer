@@ -2,15 +2,15 @@ from datetime import datetime, timedelta, timezone
 
 from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    ActionCandidateContextItem,
+from career_agent.agent.contracts.candidates import ActionCandidateContextItem
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
     ToolCall,
-    project_interview_preparation_arguments,
 )
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.projections.interview import project_interview_preparation_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

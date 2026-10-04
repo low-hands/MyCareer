@@ -2,13 +2,13 @@ from dataclasses import replace
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
     ToolCall,
-    TOOL_PROFILE_NAMES,
-    ConversationTaskState,
-    project_job_research_arguments,
 )
+from career_agent.agent.contracts.projections.job import project_job_research_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,

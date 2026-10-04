@@ -3,11 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar, Literal
 
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    MainAgentContext,
-    ToolObservation,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.domain.resume import ResumeArtifactDelivery
 
 

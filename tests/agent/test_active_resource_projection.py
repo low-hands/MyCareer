@@ -15,11 +15,9 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 
 _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)
 

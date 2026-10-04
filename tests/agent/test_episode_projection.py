@@ -4,15 +4,19 @@ import pytest
 
 from career_agent.agent.contracts import context as main_agent_contracts
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    PREFERENCE_EPISODE_CHAR_BUDGET,
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    FreeTextPreferenceContext,
     ToolCall,
+)
+from career_agent.agent.contracts.observations import (
+    PREFERENCE_EPISODE_CHAR_BUDGET,
     ToolObservation,
 )
+from career_agent.agent.contracts.profile import (
+    CareerProfileContext,
+    FreeTextPreferenceContext,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

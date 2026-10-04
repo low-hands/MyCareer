@@ -16,7 +16,7 @@ from career_agent.agent.runtime.decision_messages import (
     decision_context_chars,
     project_decision_messages,
 )
-from career_agent.agent.contracts.main_agent import DECISION_OBSERVATION_BODY_LIMIT
+from career_agent.agent.contracts.observations import DECISION_OBSERVATION_BODY_LIMIT
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.evaluation.main_agent_scenarios import (
     SCENARIOS,

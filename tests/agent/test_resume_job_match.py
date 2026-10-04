@@ -8,14 +8,16 @@ import sqlite3
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
+from career_agent.agent.contracts.candidates import (
     ResumeVersionCandidateContextItem,
     SavedJobCandidateContextItem,
+)
+from career_agent.agent.contracts.decisions import (
+    AgentDecision,
     ToolCall,
 )
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

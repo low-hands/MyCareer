@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.observations import (
     MAX_DECISION_FACTS,
     ToolObservation,
     validate_decision_facts,

@@ -10,14 +10,14 @@ from career_agent.agent.context.career import (
     CareerContextProjector,
     reciprocal_rank_fusion,
 )
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileBudgets,
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import (
     CareerProfileContext,
     CurrentTargetContext,
     HardConstraintContext,
-    MainAgentContext,
-    ToolObservation,
 )
+from career_agent.agent.contracts.resources import CareerProfileBudgets
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.presentation.factory import render_tool_output

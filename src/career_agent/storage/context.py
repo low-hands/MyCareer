@@ -22,16 +22,18 @@ from career_agent.storage.turn_receipts import (
     redact_turn_receipts_on,
 )
 
-from career_agent.agent.contracts.main_agent import (
-    MAX_CONVERSATION_SPAN_MESSAGES,
-    MAX_CONVERSATION_SPAN_RESOURCE_REFS,
+from career_agent.agent.contracts.profile import (
     CareerProfileContext,
+    OwnerSettingsContext,
+)
+from career_agent.agent.contracts.resources import (
     ConversationMessageContext,
     ConversationSpanMessage,
     ConversationSpanView,
-    ConversationTaskState,
-    OwnerSettingsContext,
+    MAX_CONVERSATION_SPAN_MESSAGES,
+    MAX_CONVERSATION_SPAN_RESOURCE_REFS,
 )
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
     DistilledFreeTextPreferenceCandidate,

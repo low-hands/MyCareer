@@ -7,12 +7,10 @@ import pytest
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.resources.input import InputResourceRejectedError
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import (
     MainAgentRuntime,
     MainAgentTurnResult,

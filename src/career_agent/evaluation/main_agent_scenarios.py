@@ -16,29 +16,33 @@ from datetime import datetime, timezone
 
 from career_agent.agent.contracts.memory import ConversationSummaryContent
 from career_agent.agent.presentation.conversation_span import render_conversation_span
-from career_agent.agent.contracts.main_agent import AttachedResumeContext
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.observations import AttachedResumeContext
+from career_agent.agent.contracts.candidates import (
     ApplicationCandidateContextItem,
+    InterviewCandidateContextItem,
+    SavedJobCandidateContextItem,
+)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import (
+    DecisionObservation,
+    WorkingNotesContext,
+)
+from career_agent.agent.contracts.profile import (
     BehaviorPolicyContext,
+    CareerProfileContext,
+    JobIntentUpdate,
+    OwnerSettingsContext,
+)
+from career_agent.agent.contracts.resources import (
     CareerMemoryContext,
     CareerMemoryRecord,
-    CareerProfileContext,
     ConversationMessageContext,
     ConversationResourceReference,
     ConversationSpanMessage,
     ConversationSpanView,
-    ConversationTaskState,
-    DecisionObservation,
-    InterviewCandidateContextItem,
-    JobIntentUpdate,
-    MainAgentContext,
-    OwnerSettingsContext,
-    SavedJobCandidateContextItem,
-    WorkingNotesContext,
 )
-from career_agent.agent.contracts.main_agent import (
-    TargetRoleCandidateContextItem,
-)
+from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.candidates import TargetRoleCandidateContextItem
 from career_agent.evaluation.trajectory import TrajectoryScenario, TrajectoryStep
 
 _NOW = datetime(2026, 8, 31, tzinfo=timezone.utc)

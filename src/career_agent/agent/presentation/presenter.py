@@ -11,7 +11,7 @@ from career_agent.agent.presentation.delivery_policy import (
     delivers_body_elsewhere,
     policy_for,
 )
-from career_agent.agent.contracts.main_agent import ConversationResourceReference
+from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.providers.openai_client import public_error_code

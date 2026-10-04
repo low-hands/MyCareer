@@ -12,22 +12,28 @@ from datetime import datetime, timezone
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.candidates import (
     ApplicationCandidateContextItem,
-    CareerProfileContext,
-    ConversationMessageContext,
-    ConversationResourceReference,
-    ConversationTaskState,
-    DecisionObservation,
-    GetInterviewPreparationToolArguments,
-    GetJobResearchToolArguments,
-    GetMockInterviewResultToolArguments,
-    MainAgentContext,
     SavedJobCandidateContextItem,
+)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import DecisionObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.projections.interview import (
     project_interview_preparation_arguments,
-    project_job_research_arguments,
     project_mock_interview_result_arguments,
 )
+from career_agent.agent.contracts.projections.job import project_job_research_arguments
+from career_agent.agent.contracts.resources import (
+    ConversationMessageContext,
+    ConversationResourceReference,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.tools.interview import (
+    GetInterviewPreparationToolArguments,
+    GetMockInterviewResultToolArguments,
+)
+from career_agent.agent.contracts.tools.job import GetJobResearchToolArguments
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.domain.job_research.models import company_key
 

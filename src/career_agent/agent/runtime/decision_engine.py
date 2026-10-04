@@ -14,14 +14,14 @@ from career_agent.agent.runtime.decision_attempts import (
     observing_decision_attempts,
 )
 from career_agent.agent.runtime.decision_messages import decision_context_chars
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    ConversationTaskState,
     DecisionMaker,
-    MainAgentContext,
-    ToolProfile,
-    decision_observation_chars,
 )
+from career_agent.agent.contracts.observations import decision_observation_chars
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.profiles import profile_schemas, profile_tools
 from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
 from career_agent.agent.capabilities.effects import is_notes_guarded

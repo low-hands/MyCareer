@@ -1,13 +1,15 @@
 from datetime import datetime, timezone
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import (
+    CareerProfileContext,
+    HardConstraintContext,
+)
+from career_agent.agent.contracts.resources import (
     CareerMemoryClaim,
     CareerMemoryContext,
     CareerMemoryRecord,
     CareerProfileBudgets,
-    CareerProfileContext,
-    HardConstraintContext,
-    MainAgentContext,
 )
 from career_agent.evaluation.memory_metrics import summarize_memory_metrics
 from career_agent.harness.memory_telemetry import memory_context_observation

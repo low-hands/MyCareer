@@ -126,12 +126,10 @@ from career_agent.agent.presentation.resume_tailoring import (
     TailoringChangeReviewView,
     render_resume_tailoring,
 )
-from career_agent.agent.contracts.main_agent import (
-    CONFIRMATION_SPECS,
-    ConversationResourceReference,
-    ConversationTaskState,
-    OwnerSettingsContext,
-)
+from career_agent.agent.contracts.interactions import CONFIRMATION_SPECS
+from career_agent.agent.contracts.profile import OwnerSettingsContext
+from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.domain.job_research import (
     JobResearchDraft,
     JobResearchFindingDraft,

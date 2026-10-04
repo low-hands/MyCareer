@@ -34,11 +34,13 @@ import pytest
 
 import career_agent.evaluation.trajectory as trajectory_module
 from career_agent.cli import _trajectory_tool_specs
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
+    ToolCall,
+)
+from career_agent.agent.contracts.resources import (
     CareerProfileBudgets,
     ConversationMessageContext,
-    ToolCall,
 )
 from career_agent.agent.contracts.questionnaire import UserQuestion
 from career_agent.agent.providers.openai_client import (

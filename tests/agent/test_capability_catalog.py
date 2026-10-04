@@ -111,7 +111,7 @@ def test_approval_and_replay_policies_are_explicit() -> None:
 
 
 def test_output_contract_rejects_a_result_for_another_capability() -> None:
-    from career_agent.agent.contracts.main_agent import ToolObservation
+    from career_agent.agent.contracts.observations import ToolObservation
 
     registry = MainAgentToolRegistry()
     result = ToolObservation(

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from career_agent.agent.contracts.main_agent import (
-    CareerMemoryContext,
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import (
     CareerProfileContext,
     FreeTextPreferenceContext,
-    MainAgentContext,
     MemoryTelemetryBinding,
 )
+from career_agent.agent.contracts.resources import CareerMemoryContext
 from career_agent.harness.context_hydrator import ContextHydrator
 from career_agent.storage.intent_versions import intent_entry_id
 

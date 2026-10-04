@@ -2,9 +2,9 @@ from typing import Any, cast
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    MainAgentContext,
     ToolCall,
 )
 from career_agent.agent.runtime.state import MainAgentState

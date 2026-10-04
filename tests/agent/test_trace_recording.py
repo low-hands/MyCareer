@@ -14,13 +14,13 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    DecisionObservation,
-    MainAgentContext,
     ToolCall,
 )
+from career_agent.agent.contracts.observations import DecisionObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.runtime.turn_coordinator import TRACE_CONTEXT as _TRACE_CONTEXT

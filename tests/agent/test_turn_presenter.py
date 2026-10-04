@@ -1,7 +1,5 @@
-from career_agent.agent.contracts.main_agent import (
-    ConversationResourceReference,
-    ToolObservation,
-)
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.agent.presentation.presenter import TurnPresenter
 
 

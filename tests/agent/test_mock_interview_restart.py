@@ -13,14 +13,14 @@ from pathlib import Path
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    MainAgentContext,
     ToolCall,
-    project_restart_mock_interview_arguments,
 )
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.projections.interview import project_restart_mock_interview_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import update_mock_interview_task
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry

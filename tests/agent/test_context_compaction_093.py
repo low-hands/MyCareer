@@ -6,7 +6,8 @@ import pytest
 
 from compaction_smoke_093 import FactSummaryWorker, MeteredSummaryWorker, run_trajectory
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import ConversationTaskState, MainAgentContext
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.token_budget import message_token_count
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 from career_agent.storage.context import CareerContextStore

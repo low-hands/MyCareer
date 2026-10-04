@@ -4,10 +4,10 @@ from collections.abc import Callable
 from typing import Any
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import (
     DecisionObservation,
-    MainAgentContext,
     ToolObservation,
     append_decision_observation,
 )
@@ -18,7 +18,7 @@ from career_agent.agent.presentation.delivery_policy import condenses_message
 from career_agent.agent.presentation.result_presenter import ResultPresenter
 from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.support.summary_text import clamp
-from career_agent.agent.contracts.main_agent import DECISION_OBSERVATION_BODY_LIMIT
+from career_agent.agent.contracts.observations import DECISION_OBSERVATION_BODY_LIMIT
 
 
 def tool_observation(

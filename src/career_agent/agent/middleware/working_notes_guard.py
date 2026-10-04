@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.capabilities.effects import is_notes_guarded, is_preference_bound
 from career_agent.agent.middleware.working_notes import (

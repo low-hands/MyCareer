@@ -13,11 +13,11 @@ from career_agent.agent.presentation.body_contracts import (
     MockInterviewBodySource,
     SavedJobBodySource,
 )
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.resources import (
     ConversationMessageContext,
     ConversationResourceReference,
-    ConversationTaskState,
 )
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.api.app import create_app
 from career_agent.api.reads import WorkspaceReader
 from career_agent.domain.job_discovery import JobDetail, Provenance

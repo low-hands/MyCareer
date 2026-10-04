@@ -4,10 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-    ToolProfile,
-)
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 from career_agent.agent.capabilities.effects import ToolEffect, effect_for

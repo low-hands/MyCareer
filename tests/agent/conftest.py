@@ -10,10 +10,8 @@ by path and stays importable.
 from __future__ import annotations
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-    ToolProfile,
-)
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewFollowUpDecision,
     MockInterviewInputDecision,

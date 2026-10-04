@@ -4,24 +4,26 @@ import json
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.interactions import (
     CONFIRMATION_SPECS,
     PENDING_PROPOSAL_SLOTS,
     PENDING_PROPOSAL_TTL,
+    confirmation_arguments_snapshot,
+    pending_confirmation_proposal,
+)
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.profile import (
     CareerFactProposal,
     CareerProfileContext,
     ConstraintRetirementProposal,
-    ConversationTaskState,
     FreeTextPreferenceConfirmationProposal,
     JobIntentUpdate,
-    MainAgentContext,
     MemoryAmendmentProposal,
     MemoryTombstoneProposal,
-    ToolResult,
-    confirmation_arguments_snapshot,
-    pending_confirmation_proposal,
-    project_job_intent_arguments,
 )
+from career_agent.agent.contracts.projections.memory import project_job_intent_arguments
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.questionnaire import (
     PendingQuestionnaire,
     UserQuestion,

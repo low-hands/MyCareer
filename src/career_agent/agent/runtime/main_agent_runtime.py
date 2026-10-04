@@ -7,12 +7,10 @@ from career_agent.agent.runtime.ports import DecisionMakerSlot, RuntimePorts
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.context.turn_builder import keyword_tool_profile
 from career_agent.agent.context.career import CareerContextProjector
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-    DecisionMaker,
-    MainAgentContext,
-    MAX_DECISION_OBSERVATIONS,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import DecisionMaker
+from career_agent.agent.contracts.observations import MAX_DECISION_OBSERVATIONS
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.harness.observability import TraceRecorder
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,

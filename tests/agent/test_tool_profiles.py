@@ -15,14 +15,18 @@ import pytest
 from pydantic import ValidationError
 
 from career_agent.agent.runtime.decision_messages import project_decision_messages
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import (
     DOMAIN_TOOL_PROFILES,
     TOOL_PROFILE_NAMES,
+)
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
+    ToolCall,
+)
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.task_state import (
     ConversationTaskState,
     RouteToCapabilityToolArguments,
-    ToolCall,
-    ToolResult,
 )
 from career_agent.agent.runtime.reducers import reduce_task_state
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
@@ -38,7 +42,7 @@ from career_agent.agent.capabilities.profiles import (
     profile_tools,
 )
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import CareerProfileContext
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore

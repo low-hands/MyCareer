@@ -16,7 +16,8 @@ from career_agent.agent.contracts.job_analysis import JobAnalysisResult
 from career_agent.agent.presentation.job_analysis import render_job_analysis
 from career_agent.agent.presentation.job_comparison import render_job_comparison
 from career_agent.agent.presentation.job_research import render_job_research
-from career_agent.agent.contracts.main_agent import ConversationSpanView, ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationSpanView
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
 from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewGraphResult,

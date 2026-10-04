@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 import pytest
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import AgentDecision, ConversationTaskState
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.context.session_manager import SessionManager

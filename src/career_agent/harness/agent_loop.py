@@ -6,7 +6,8 @@ from typing import Any, Protocol
 
 from langgraph.types import Command
 
-from career_agent.agent.contracts.main_agent import AgentDecision, MainAgentContext
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.runtime.state import (
     MainAgentState,
     PendingAction,

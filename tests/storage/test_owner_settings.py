@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import OwnerSettingsContext
+from career_agent.agent.contracts.profile import OwnerSettingsContext
 from career_agent.storage.context import CareerContextStore, OwnerSettingsConflictError
 
 

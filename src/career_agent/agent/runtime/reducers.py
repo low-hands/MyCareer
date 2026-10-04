@@ -13,27 +13,29 @@ from datetime import datetime, timezone
 
 from typing import Any, Callable
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
+from career_agent.agent.contracts.candidates import (
     ActionCandidateContextItem,
     ActiveSavedJobContextItem,
     ApplicationCandidateContextItem,
     CalendarAccountCandidateContextItem,
-    CareerFactProposal,
-    ConstraintRetirementProposal,
-    FreeTextPreferenceConfirmationProposal,
-    JobIntentUpdate,
-    MemoryAmendmentProposal,
-    MemoryTombstoneProposal,
-    ConversationTaskState,
     EmailEventCandidateContextItem,
     InterviewCandidateContextItem,
     ResumeCandidateContextItem,
     ResumeVersionCandidateContextItem,
     SavedJobCandidateContextItem,
     TargetRoleCandidateContextItem,
-    TOOL_PROFILE_NAMES,
-    ToolResult,
 )
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.profile import (
+    CareerFactProposal,
+    ConstraintRetirementProposal,
+    FreeTextPreferenceConfirmationProposal,
+    JobIntentUpdate,
+    MemoryAmendmentProposal,
+    MemoryTombstoneProposal,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
 
 TaskReducer = Callable[[ConversationTaskState, ToolResult], ConversationTaskState]
 

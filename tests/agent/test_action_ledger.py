@@ -1,7 +1,7 @@
 from career_agent.agent.capabilities.executor import CapabilityExecutor as LegacyExecutor
 from career_agent.agent.execution.action_ledger import ActionLedger
 from career_agent.agent.execution.capability_executor import CapabilityExecutor
-from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.storage.action_executions import RESULT_STATE_RECEIPT_KEY
 
 

@@ -4,38 +4,44 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.projections.action_center import project_action_center_arguments
+from career_agent.agent.contracts.projections.calendar import project_calendar_arguments
+from career_agent.agent.contracts.projections.common import project_saved_job_arguments
+from career_agent.agent.contracts.projections.email import project_email_arguments
+from career_agent.agent.contracts.projections.interview import (
+    project_interview_arguments,
+    project_interview_preparation_arguments,
+    project_mock_interview_arguments,
+    project_mock_interview_result_arguments,
+    project_restart_mock_interview_arguments,
+)
+from career_agent.agent.contracts.projections.job import (
+    project_job_research_arguments,
+    project_open_job_search_arguments,
+)
+from career_agent.agent.contracts.projections.memory import (
+    project_career_fact_arguments,
+    project_constraint_retirement_arguments,
+    project_free_text_preference_arguments,
+    project_job_intent_arguments,
+    project_memory_amendment_arguments,
+    project_memory_tombstone_arguments,
+    project_working_notes_arguments,
+)
+from career_agent.agent.contracts.projections.resume import project_resume_arguments
+from career_agent.agent.contracts.task_state import RouteToCapabilityToolArguments
+from career_agent.agent.contracts.tools.application import UpdateOwnerSettingsToolArguments
+from career_agent.agent.contracts.tools.core_memory import (
     GetCareerMemoryDetailToolArguments,
-    LoadSkillToolArguments,
-    MainAgentContext,
     ReadConversationSpanToolArguments,
     ResolveClaimSourceToolArguments,
-    RouteToCapabilityToolArguments,
     SearchCareerEpisodesToolArguments,
     SearchCareerHistoryToolArguments,
     SearchCareerMemoryToolArguments,
-    ToolObservation,
-    UpdateOwnerSettingsToolArguments,
-    project_action_center_arguments,
-    project_calendar_arguments,
-    project_career_fact_arguments,
-    project_constraint_retirement_arguments,
-    project_email_arguments,
-    project_free_text_preference_arguments,
-    project_interview_arguments,
-    project_interview_preparation_arguments,
-    project_job_intent_arguments,
-    project_job_research_arguments,
-    project_memory_amendment_arguments,
-    project_memory_tombstone_arguments,
-    project_mock_interview_arguments,
-    project_mock_interview_result_arguments,
-    project_open_job_search_arguments,
-    project_restart_mock_interview_arguments,
-    project_resume_arguments,
-    project_saved_job_arguments,
-    project_working_notes_arguments,
 )
+from career_agent.agent.contracts.tools.job import LoadSkillToolArguments
 from career_agent.agent.runtime.state import MainAgentState
 
 

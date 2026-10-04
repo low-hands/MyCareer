@@ -5,11 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    ConversationMessageContext,
-    ConversationTaskState,
-    MemoryTombstoneProposal,
-)
+from career_agent.agent.contracts.profile import MemoryTombstoneProposal
+from career_agent.agent.contracts.resources import ConversationMessageContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.services.memory_review import (
     _EMPTY_RECORD_PLACEHOLDER,

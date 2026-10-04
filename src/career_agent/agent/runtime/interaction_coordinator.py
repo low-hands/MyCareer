@@ -8,9 +8,7 @@ from typing import Any
 import json
 
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.contracts.main_agent import (
-    ConversationTaskState,
-)
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolOutput, MainAgentToolRegistry
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire

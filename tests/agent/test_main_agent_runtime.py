@@ -23,9 +23,40 @@ from career_agent.agent.presentation.factory import (
 )
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.questionnaire import QuestionAnswer, QuestionOption, UserQuestion
-from career_agent.agent.contracts.main_agent import AgentDecision, AgentPreferencesContext, CareerMemoryClaim, CareerMemoryContext, CareerMemoryRecord, CareerProfileContext, ConversationTaskState, DECISION_OBSERVATION_BODY_LIMIT, DECISION_OBSERVATION_RECEIPT_LIMIT, MAX_DECISION_OBSERVATION_BODIES, MAX_DECISION_OBSERVATION_CHARS, DecisionObservation, MainAgentContext, MAX_DECISION_OBSERVATIONS, OBSERVATION_ARGUMENTS_LIMIT, ToolCall, ToolObservation, ToolResult, append_decision_observation, decision_observation_chars, decision_observation_projection
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
+    AgentDecision,
+    ToolCall,
+)
+from career_agent.agent.contracts.observations import (
+    DECISION_OBSERVATION_BODY_LIMIT,
+    DECISION_OBSERVATION_RECEIPT_LIMIT,
+    DecisionObservation,
+    MAX_DECISION_OBSERVATIONS,
+    MAX_DECISION_OBSERVATION_BODIES,
+    MAX_DECISION_OBSERVATION_CHARS,
+    OBSERVATION_ARGUMENTS_LIMIT,
+    ToolObservation,
+    ToolResult,
+    append_decision_observation,
+    decision_observation_chars,
+    decision_observation_projection,
+)
+from career_agent.agent.contracts.profile import (
+    AgentPreferencesContext,
+    CareerProfileContext,
+)
+from career_agent.agent.contracts.resources import (
+    CareerMemoryClaim,
+    CareerMemoryContext,
+    CareerMemoryRecord,
+)
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT, MODEL_REPLY_LIMIT, clamp
-from career_agent.agent.contracts.main_agent import ConversationMessageContext, ConversationResourceReference
+from career_agent.agent.contracts.resources import (
+    ConversationMessageContext,
+    ConversationResourceReference,
+)
 from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.observation_reducer import tool_observation
@@ -4085,13 +4116,11 @@ def test_internal_arguments_are_rejected_without_commit(tmp_path, forbidden) -> 
 
 def test_mock_interview_refusal_can_reroute_before_a_run_is_entered(tmp_path) -> None:
     """A selector refusal is not a workflow entry; its question does not exist."""
-    from career_agent.agent.contracts.main_agent import (
-        ApplicationCandidateContextItem,
-        ConversationTaskState,
-        MainAgentContext,
-        AgentDecision,
-        CareerProfileContext,
-    )
+    from career_agent.agent.contracts.candidates import ApplicationCandidateContextItem
+    from career_agent.agent.contracts.context import MainAgentContext
+    from career_agent.agent.contracts.decisions import AgentDecision
+    from career_agent.agent.contracts.profile import CareerProfileContext
+    from career_agent.agent.contracts.task_state import ConversationTaskState
     from career_agent.agent.capabilities.registry import ToolObservation
 
     def state_for(
@@ -5396,11 +5425,11 @@ def test_external_writes_default_to_review_below_any_owner_rule() -> None:
 
 
 def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> None:
-    from career_agent.agent.contracts.main_agent import (
+    from career_agent.agent.contracts.profile import (
         BehaviorPolicyContext,
-        UpdateOwnerSettingsToolArguments,
         canonical_confirm_before,
     )
+    from career_agent.agent.contracts.tools.application import UpdateOwnerSettingsToolArguments
 
     assert canonical_confirm_before(
         ("update_application_status", "create_application", "create_application")

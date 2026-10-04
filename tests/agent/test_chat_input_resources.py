@@ -21,12 +21,10 @@ from career_agent.agent.resources.input import (
     InputResourceRejectedError,
     excerpt_budgets,
 )
-from career_agent.agent.contracts.main_agent import (
-    ATTACHED_RESUME_EXCERPT_CHARS,
-    AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-)
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import ATTACHED_RESUME_EXCERPT_CHARS
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import TurnFailedEvent, TurnInputResource

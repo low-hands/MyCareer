@@ -1,4 +1,4 @@
-from career_agent.agent.contracts.main_agent import ToolObservation
+from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.presentation.factory import render_tool_output
 from career_agent.agent.presentation.presenter import TurnPresenter
 

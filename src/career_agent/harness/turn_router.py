@@ -4,13 +4,13 @@ from typing import Any, Literal
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.resources.conversation_span import explicit_sequence_span
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
-    ConversationTaskState,
-    MainAgentContext,
     ToolCall,
-    ToolProfile,
 )
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.capabilities.profiles import profile_tools
 from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable

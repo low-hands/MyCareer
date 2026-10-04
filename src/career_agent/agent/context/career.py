@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.profile import MemoryTelemetryBinding
+from career_agent.agent.contracts.resources import (
     CareerMemoryClaim,
     CareerMemoryContext,
     CareerMemoryRecord,
-    MemoryTelemetryBinding,
 )
 from career_agent.domain.career_history import CareerEvidence
 from career_agent.storage.career_history import CareerHistoryStore

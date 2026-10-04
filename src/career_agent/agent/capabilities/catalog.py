@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Mapping, get_args
 
 if TYPE_CHECKING:
-    from career_agent.agent.contracts.main_agent import ConversationTaskState
+    from career_agent.agent.contracts.task_state import ConversationTaskState
 else:
     ConversationTaskState = Any
 

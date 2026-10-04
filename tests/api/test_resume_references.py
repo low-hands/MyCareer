@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import ConversationTaskState
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.api.reads import WorkspaceReader
 from career_agent.services.applications import ApplicationInputNotFoundError
 from career_agent.storage.applications import SQLiteApplicationStore

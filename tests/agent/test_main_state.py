@@ -2,10 +2,8 @@ from typing import get_type_hints
 
 import pytest
 
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.runtime.main_agent_runtime import MainAgentState as RuntimeState
 from career_agent.agent.runtime.state import (
     LoopControl,

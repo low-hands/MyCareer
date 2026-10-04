@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.runtime.decision_messages import project_decision_messages
-from career_agent.agent.contracts.main_agent import (
+from career_agent.agent.contracts.decisions import (
     AgentDecision,
     ToolCall,
 )

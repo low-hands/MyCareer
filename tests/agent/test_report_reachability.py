@@ -18,13 +18,11 @@ import inspect
 import pytest
 
 from career_agent.agent.contracts import main_agent as contracts
-from career_agent.agent.contracts.main_agent import (
-    CareerProfileContext,
-    ConversationTaskState,
-    GetInterviewPreparationToolArguments,
-    InterviewCandidateContextItem,
-    MainAgentContext,
-)
+from career_agent.agent.contracts.candidates import InterviewCandidateContextItem
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.tools.interview import GetInterviewPreparationToolArguments
 
 _ENTITY_SELECTORS = {
     "GetJobResearchToolArguments": "selection_index",

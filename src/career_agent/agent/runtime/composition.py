@@ -21,11 +21,9 @@ from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.agent.execution.capability_executor import CapabilityExecutor
 from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
-from career_agent.agent.contracts.main_agent import (
-    DecisionMaker,
-    MainAgentContext,
-    TOOL_PROFILE_NAMES,
-)
+from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.graph import MainGraphNodes, build_main_graph
 from career_agent.agent.runtime.observation_reducer import (

@@ -25,12 +25,10 @@ from career_agent.agent.runtime.decision_messages import (
     CONTROL_REMINDER_TAG,
     TURN_OBSERVATION_LABEL,
 )
-from career_agent.agent.contracts.main_agent import (
-    AgentDecision,
-    CareerProfileContext,
-    ConversationTaskState,
-    ToolObservation,
-)
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.profile import CareerProfileContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, RuntimeAction
 from career_agent.agent.presentation.factory import interaction_event
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
