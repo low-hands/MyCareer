@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import fcntl
 import hashlib
 import logging
 import os
+import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 
 WORKING_NOTES_MAX_CHARS = 2000
@@ -80,8 +85,17 @@ class WorkingNotesStore:
         lock_path = path.with_suffix(".lock")
         lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         with os.fdopen(lock_fd, "a+b") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-            yield
+            if sys.platform == "win32":
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if sys.platform == "win32":
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
 
     def _read_path(self, path: Path) -> WorkingNotesSnapshot:
         try:

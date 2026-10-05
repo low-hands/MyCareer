@@ -12,12 +12,12 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
     "python-dotenv>=1.0",
+    "tzdata>=2025.2; sys_platform == 'win32'",
     "langgraph>=0.2",
     "langgraph-checkpoint-sqlite>=3.1.1,<4",
     "openai>=1.66",
     "pypdfium2>=5.13,<6",
     "tiktoken>=0.7,<1",
-    "deepagents>=0.7.6,<0.8",
     "deepagents>=0.7.6,<0.8",
     "langchain-openai>=1.1,<2",
     "fastapi>=0.115,<1",

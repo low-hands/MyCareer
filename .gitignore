@@ -11,6 +11,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+/.pytest-tmp*/
+/.pytest-*.log
+/pytest-cache-files-*/
 *.egg-info/
 /papers/pdf/*.pdf
 /.cursor/
