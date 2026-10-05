@@ -44,6 +44,11 @@ from career_agent.agent.capabilities.profiles import (
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.middleware.contracts import AuthorizationRefusal
+from career_agent.agent.middleware.tool_availability import (
+    AvailableCapability,
+    ToolAvailabilityMiddleware,
+)
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 
@@ -465,13 +470,8 @@ class _EmailService:
         return ()
 
 
-def test_a_tool_outside_the_current_profile_is_refused_before_it_runs(tmp_path) -> None:
-    """Filtering the schemas hides a tool; authorization has to refuse it too.
-
-    A model can name a tool from memory that its current profile never offered.
-    The refusal is a soft observation so the model can route and retry, and the
-    same name runs once the profile is right.
-    """
+def test_a_tool_not_offered_to_the_model_is_refused_before_it_runs(tmp_path) -> None:
+    """Execution rejects a model-selected tool absent from its call's schemas."""
 
     manager = _manager(tmp_path)
     service = _EmailService()
@@ -490,6 +490,39 @@ def test_a_tool_outside_the_current_profile_is_refused_before_it_runs(tmp_path) 
     refusal = result.context.tool_observations[-1]
     assert refusal.tool_name == "sync_application_emails"
     assert refusal.state == "authorization_refused"
-    assert "core" in refusal.message
+    assert "未在本次模型调用中提供" in refusal.message
     assert ROUTE_TOOL in (refusal.next_action or "")
     assert "sync_application_emails" not in _offered(decisions.schemas[0])
+
+
+def test_offered_tool_can_cross_profile_without_bypassing_schema_gate() -> None:
+    availability = ToolAvailabilityMiddleware(tools=_registry())
+    task = ConversationTaskState(tool_profile="job")
+    flags = dict(runtime_owned=False, owner_confirmed=False, policy_owned=False)
+
+    offered = availability.resolve(
+        name="list_calendar_accounts",
+        task=task,
+        offered_tool_names=("list_calendar_accounts",),
+        **flags,
+    )
+    assert isinstance(offered, AvailableCapability)
+    assert offered.kind == "atomic_tool"
+
+    unoffered = availability.resolve(
+        name="list_calendar_accounts",
+        task=task,
+        offered_tool_names=(),
+        **flags,
+    )
+    assert isinstance(unoffered, AuthorizationRefusal)
+    assert unoffered.kind == "not_offered"
+
+    blocked = availability.resolve(
+        name="confirm_job_intent",
+        task=task,
+        offered_tool_names=("confirm_job_intent",),
+        **flags,
+    )
+    assert isinstance(blocked, AuthorizationRefusal)
+    assert blocked.kind == "precondition"

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from career_agent.agent.capabilities.catalog import ToolProfile
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
@@ -23,15 +21,13 @@ class AvailableCapability:
 
 
 class ToolAvailabilityMiddleware:
-    """Resolve execution kind and enforce the active profile's visible tools."""
+    """Resolve execution kind and enforce the model's offered tool set."""
 
     def __init__(
         self,
         *,
-        offers_tool: Callable[[str, ToolProfile, ConversationTaskState], bool],
         tools: MainAgentToolRegistry,
     ) -> None:
-        self._offers_tool = offers_tool
         self._tools = tools
 
     def resolve(
@@ -39,6 +35,7 @@ class ToolAvailabilityMiddleware:
         *,
         name: str,
         task: ConversationTaskState,
+        offered_tool_names: tuple[str, ...],
         runtime_owned: bool,
         owner_confirmed: bool,
         policy_owned: bool,
@@ -50,22 +47,20 @@ class ToolAvailabilityMiddleware:
         else:
             kind = self._tools.capability_kind(name)
         model_selected = not (runtime_owned or owner_confirmed or policy_owned)
-        if model_selected and not self._offers_tool(
-            name, task.tool_profile, task
-        ):
-            if name in STATE_GATED_TOOLS and not reachable(name, task):
-                requirement = REQUIREMENTS[name]
-                return AuthorizationRefusal(
-                    kind="precondition",
-                    reason=f"{name} 当前不可执行：{requirement}。",
-                    next_action=requirement,
-                )
+        if model_selected and name in STATE_GATED_TOOLS and not reachable(name, task):
+            requirement = REQUIREMENTS[name]
             return AuthorizationRefusal(
-                kind="out_of_profile",
-                reason=f"{name} 不在当前 {task.tool_profile} 工具档内。",
+                kind="precondition",
+                reason=f"{name} 当前不可执行：{requirement}。",
+                next_action=requirement,
+            )
+        if model_selected and name not in offered_tool_names:
+            return AuthorizationRefusal(
+                kind="not_offered",
+                reason=f"{name} 未在本次模型调用中提供。",
                 next_action=(
-                    "先用 route_to_capability 切到该工具所属的领域，"
-                    "再从 task.available_now 中选择工具。"
+                    "请从本次提供的工具中选择；如果所需工具不在其中，"
+                    "先使用 route_to_capability 切换当前工具档。"
                 ),
             )
         return AvailableCapability(kind=kind, effect=effect_for(name))

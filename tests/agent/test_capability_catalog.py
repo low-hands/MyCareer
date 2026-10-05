@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import replace
+import hashlib
+import json
+
+import pytest
+
+import career_agent.agent.capabilities.catalog as catalog_module
 from career_agent.agent.capabilities.catalog import CAPABILITIES, capability
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.effects import (
@@ -11,11 +19,100 @@ from career_agent.agent.capabilities.effects import (
     replay_safe,
 )
 from career_agent.agent.capabilities.profiles import ROUTABLE_TOOLS, profile_tools
+from career_agent.agent.contracts.tools.job import FindSavedJobsToolArguments
 from career_agent.agent.capabilities.reachability import (
     PRECONDITIONS,
     REQUIREMENTS,
     STATE_GATED_TOOLS,
 )
+from career_agent.evaluation.main_agent_scenarios import SCENARIOS
+from career_agent.evaluation.trajectory import (
+    prompt_fingerprint,
+    trajectory_prompt_fingerprint,
+    trajectory_tool_specs,
+)
+
+
+def test_discovery_metadata_covers_the_model_catalogue() -> None:
+    model_tools = [descriptor for descriptor in CAPABILITIES.values() if descriptor.model_callable]
+    assert len(model_tools) == 71
+    assert len({descriptor.name for descriptor in model_tools}) == 71
+    assert max(Counter(descriptor.namespace for descriptor in model_tools).values()) <= 10
+    aliases = [alias for descriptor in model_tools for alias in descriptor.aliases_zh]
+    assert len(aliases) == len(set(aliases))
+    for descriptor in model_tools:
+        assert descriptor.namespace
+        assert descriptor.summary
+        assert 2 <= len(descriptor.aliases_zh) <= 5
+        assert all(
+            successor != descriptor.name and CAPABILITIES[successor].model_callable
+            for successor in descriptor.successors
+        )
+    assert all(
+        not (descriptor.namespace or descriptor.summary or descriptor.aliases_zh or descriptor.successors)
+        for descriptor in CAPABILITIES.values()
+        if not descriptor.model_callable
+    )
+    assert "research_job" not in capability("analyze_job").successors
+
+
+def test_a_read_never_suggests_an_ungated_write() -> None:
+    for descriptor in CAPABILITIES.values():
+        if descriptor.effect == "WRITE":
+            continue
+        for successor in descriptor.successors:
+            target = CAPABILITIES[successor]
+            assert target.effect != "WRITE" or target.schema_gated, (
+                f"{descriptor.name} -> {successor}"
+            )
+    # Reading a job or an interview is not a request to act on it.
+    assert "create_application" not in capability("get_saved_job").successors
+    assert "analyze_job" not in capability("get_saved_job").successors
+    assert "prepare_interview_calendar_sync" not in capability("get_interview").successors
+    # A flow that is already under way keeps its next step.
+    assert "match_resume_to_job" in capability("analyze_job").successors
+    assert "confirm_memory_amendment" in capability("propose_memory_amendment").successors
+
+
+@pytest.mark.parametrize(
+    ("changes", "error"),
+    [
+        ({"namespace": ""}, "needs a namespace"),
+        ({"summary": ""}, "needs a summary"),
+        ({"aliases_zh": ("加载技能",)}, "needs 2-5 Chinese aliases"),
+        ({"aliases_zh": ("一", "二", "三", "四", "五", "六")}, "needs 2-5 Chinese aliases"),
+        ({"aliases_zh": ("列出简历", "另一种加载")}, "belongs to both"),
+        ({"namespace": "memory.proposals"}, "exceeds ten tools"),
+        ({"successors": ("load_skill",)}, "invalid capability successor"),
+        ({"successors": ("missing_tool",)}, "invalid capability successor"),
+        ({"successors": ("handle_mock_interview_input",)}, "invalid capability successor"),
+        ({"successors": ("create_application",)}, "a read cannot suggest an ungated write"),
+    ],
+)
+def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error) -> None:
+    descriptors = tuple(
+        replace(descriptor, **changes) if descriptor.name == "load_skill" else descriptor
+        for descriptor in CAPABILITIES.values()
+    )
+    monkeypatch.setattr(catalog_module, "_descriptors", lambda: iter(descriptors))
+    with pytest.raises(RuntimeError, match=error):
+        catalog_module._build_catalog()
+
+
+def test_discovery_metadata_does_not_change_model_schemas_or_prompt_fingerprint() -> None:
+    schemas = trajectory_tool_specs()
+    encoded = json.dumps(
+        schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    assert hashlib.sha256(encoded).hexdigest() == (
+        "f801c8fd86e99a8704f1d5f1189099598f37134703dd285078bec64b013ffdef"
+    )
+    assert prompt_fingerprint(schemas) == (
+        "077b9db3d56cdd8b7f07e8b364b875e5a7db6dbcbc3f448b5500d4f1edf2fe40"
+    )
+    assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
+        "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38"
+    )
 
 
 def test_compatibility_views_are_derived_from_the_catalog() -> None:
@@ -89,6 +186,12 @@ def test_every_model_capability_owns_its_complete_tool_schema() -> None:
         assert schema["function"]["name"] == descriptor.name
         assert schema["function"]["description"] == descriptor.description
         assert schema["function"]["parameters"]["type"] == "object"
+
+
+def test_saved_job_search_can_list_recent_jobs_without_a_filter() -> None:
+    assert FindSavedJobsToolArguments.model_validate({}).query == ""
+    schema = capability("find_saved_jobs").tool_schema()["function"]["parameters"]
+    assert "query" not in schema.get("required", ())
 
 
 def test_every_capability_declares_an_enforced_output_envelope() -> None:

@@ -3,9 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from career_agent.agent.capabilities.catalog import ToolProfile
 from career_agent.agent.contracts.context import MainAgentContext
-from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.state import LoopControl, MainAgentState
 from career_agent.agent.middleware.approval import ApprovalMiddleware
@@ -50,7 +48,6 @@ class AuthorizationEngine:
         *,
         tools: MainAgentToolRegistry,
         confirmation_store: SQLiteCapabilityConfirmationStore | None,
-        offers_tool: Callable[[str, ToolProfile, ConversationTaskState], bool],
         project_runtime_workflow_arguments: Callable[
             [MainAgentState, str], dict[str, Any]
         ],
@@ -69,7 +66,6 @@ class AuthorizationEngine:
         max_failure_retries: int,
     ) -> None:
         self._availability = ToolAvailabilityMiddleware(
-            offers_tool=offers_tool,
             tools=tools,
         )
         self._tracing = MiddlewareTracing(
@@ -128,6 +124,7 @@ class AuthorizationEngine:
         capability = self._availability.resolve(
             name=name,
             task=state["context"].task,
+            offered_tool_names=state.get("control", {}).get("offered_tool_names", ()),
             runtime_owned=runtime_owned,
             owner_confirmed=owner_confirmed,
             policy_owned=policy_owned,

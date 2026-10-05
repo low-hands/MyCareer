@@ -95,6 +95,7 @@ class AgentLoop:
                 "fingerprints": (),
                 "retryable_fingerprints": (),
                 "retry_counts": {},
+                "offered_tool_names": (),
             },
         }
         if prelude:

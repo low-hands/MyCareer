@@ -47,14 +47,16 @@ from career_agent.agent.providers.openai_client import (
 )
 from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
+    main_model_options,
 )
+from career_agent.agent.providers.interaction_output import interaction_schemas
 from career_agent.agent.capabilities.profiles import profile_schemas
 
 CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
 # Offline replay is judged against the checked-in recording baseline. A
 # deployment can use another model; the CLI compares its configured model
 # separately and reports those cassettes as stale until that model is recorded.
-EVALUATION_BASELINE_MODEL = "gpt-5.6-sol"
+EVALUATION_BASELINE_MODEL = "qwen3.7-plus"
 _MAX_RECORD_JOBS = 32
 _RECORD_MAKERS = threading.local()
 
@@ -269,21 +271,20 @@ class _ReplayChat:
 def _as_response(recorded: Mapping[str, Any]) -> Any:
     """Rebuild the duck-typed shape the decision maker reads off a response."""
     call = recorded.get("tool_call")
-    if call is not None:
-        function = type(
-            "Function",
-            (),
-            {
-                "name": call["name"],
-                "arguments": json.dumps(call.get("arguments", {}), ensure_ascii=False),
-            },
-        )()
-        tool_call = type("ToolCall", (), {"function": function})()
-        message = type("Message", (), {"content": None, "tool_calls": [tool_call]})()
-    else:
-        message = type(
-            "Message", (), {"content": recorded.get("content", ""), "tool_calls": []}
-        )()
+    if call is None:
+        decision = AgentDecision.model_validate_json(recorded["content"])
+        arguments = decision.model_dump(mode="json", exclude_none=True)
+        action = arguments.pop("action")
+        if action != "questionnaire":
+            arguments.pop("questions", None)
+        call = {"name": "final_response" if action == "final" else action,
+                "arguments": arguments}
+    function = type("Function", (), {
+        "name": call["name"],
+        "arguments": json.dumps(call.get("arguments", {}), ensure_ascii=False),
+    })()
+    tool_call = type("ToolCall", (), {"function": function})()
+    message = type("Message", (), {"content": None, "tool_calls": [tool_call]})()
     choice = type("Choice", (), {"message": message})()
     return type("Response", (), {"choices": [choice]})()
 
@@ -327,6 +328,47 @@ class TrajectoryCassette:
         return len(self.recordings)
 
 
+def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[str, Any]:
+    """Summarize measured completed decisions; legacy reasons remain unknown."""
+    steps = [step for cassette in cassettes for sample in cassette.recordings for step in sample]
+    covered = [step for step in steps if step.get("decision_retry_telemetry_version") == 1]
+    reason_counts: dict[str, int] = {}
+    terminal_counts: dict[str, int] = {}
+    for step in covered:
+        for event in step.get("decision_retry_events", ()):
+            counts = reason_counts if event["retried"] else terminal_counts
+            reason = event["reason"]
+            counts[reason] = counts.get(reason, 0) + 1
+
+    def is_interaction(step: dict[str, Any]) -> bool:
+        if "content" not in step:
+            return False
+        try:
+            return json.loads(step["content"]).get("action") in {"ask_user", "questionnaire", "final"}
+        except (ValueError, AttributeError):
+            return False
+
+    interactions = [step for step in covered if is_interaction(step)]
+    def with_retries(items: Sequence[dict[str, Any]]) -> int:
+        return sum(
+            any(event["retried"] for event in step.get("decision_retry_events", ()))
+            for step in items
+        )
+    return {
+        "completed_decisions": len(steps),
+        "covered_decisions": len(covered),
+        "unknown_decisions": len(steps) - len(covered),
+        "decisions_with_retries": with_retries(covered),
+        "interaction_decisions": sum(is_interaction(step) for step in steps),
+        "covered_interaction_decisions": len(interactions),
+        "interaction_decisions_with_retries": with_retries(interactions),
+        "interaction_retry_rate": with_retries(interactions) / len(interactions) if interactions else None,
+        "retry_reason_counts": reason_counts,
+        "terminal_rejection_reason_counts": terminal_counts,
+        "note": "Counts cover completed decisions in fresh cassettes only; terminal failed recordings are reported separately. Legacy request counts do not identify retry reasons.",
+    }
+
+
 @dataclass(frozen=True)
 class PairedBudgetCassetteReplay:
     """Direct paired replay result for one explicit budget change."""
@@ -352,7 +394,7 @@ def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
     """Hash the exact system prompt and schemas sent for one decision."""
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
     encoded = json.dumps(
-        {"system_prompt": prompt, "tool_specs": tool_specs},
+        {"system_prompt": prompt, "tool_specs": tool_specs + interaction_schemas()},
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -370,7 +412,7 @@ def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
     context = scenario.context
     step_shapes = []
     for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
         projection = project_decision_messages(context, clock=_FINGERPRINT_CLOCK)
         messages = projection.messages(
             system_prompt="[policy]", spotlight_nonce="0" * 32
@@ -425,7 +467,7 @@ def load_cassette(
     path = cassette_path(name, root=root)
     if not path.exists():
         return None
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     raw_samples = payload.get("samples")
     samples = (
         tuple(
@@ -517,7 +559,7 @@ def check_contract(
                 f"{scenario.name}[{index}]: expect_user_input and expect_action "
                 "cannot both be set"
             )
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
         offered = {
             spec["function"]["name"]
             for spec in profile_schemas(context.task.tool_profile, tool_specs)
@@ -707,7 +749,7 @@ def trajectory_prompt_fingerprint(
     step_fingerprints = []
     context = scenario.context
     for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
         profile = context.task.tool_profile
         step_fingerprints.append(
             {
@@ -753,9 +795,16 @@ def replay(
         profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
     }
     for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
         schemas = schemas_by_profile[context.task.tool_profile]
         offered_names = {spec["function"]["name"] for spec in schemas}
+        recorded_call = responses[index].get("tool_call")
+        if recorded_call is not None and recorded_call["name"] not in offered_names:
+            failures.append(
+                f"{scenario.name}[{index}]: cassette returned unavailable "
+                f"tool '{recorded_call['name']}'"
+            )
+            continue
         decision = maker.decide(context, schemas)
         called = (
             decision.tool_call.name if decision.tool_call is not None else None
@@ -814,7 +863,7 @@ def replay_quality(
         failures: list[str] = []
         context = scenario.context
         for index, step in enumerate(scenario.steps):
-            context = _advance(context, step)
+            context = advance_trajectory_context(context, step)
             decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
             failures.extend(
                 check_step_quality(
@@ -992,7 +1041,7 @@ def known_gap_reproduction(
     return "intermittent"
 
 
-def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContext:
+def advance_trajectory_context(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContext:
     """Apply what the runtime would have carried into this step."""
     update: dict[str, Any] = {}
     if step.user_message is not None:
@@ -1007,6 +1056,20 @@ def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContex
     return context.model_copy(update=update) if update else context
 
 
+def trajectory_tool_specs() -> tuple[dict[str, Any], ...]:
+    """Registered model tool schemas for offline trajectory evaluation."""
+    import inspect
+
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+
+    parameters = tuple(
+        name
+        for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
+        if name != "self"
+    )
+    return tuple(MainAgentToolRegistry(**{name: object() for name in parameters}).schemas())
+
+
 def _decision_maker(
     config: OpenAICompatibleAgentConfig,
 ) -> OpenAICompatibleMainAgentDecisionMaker:
@@ -1017,7 +1080,7 @@ def _decision_maker(
         or cached_config is not config
         or type(maker) is not OpenAICompatibleMainAgentDecisionMaker
     ):
-        maker = OpenAICompatibleMainAgentDecisionMaker(config)
+        maker = OpenAICompatibleMainAgentDecisionMaker(config, **main_model_options())
         _RECORD_MAKERS.maker = maker
         _RECORD_MAKERS.config = config
     return maker
@@ -1087,20 +1150,58 @@ def _record_one_sample(
 ) -> dict[str, Any]:
     maker = _decision_maker(config)
     steps = []
-    context = scenario.context
-    schemas_by_profile = {
-        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
-    }
+    sample_started = time.perf_counter()
+    context = scenario.context.model_copy(update={"received_at": datetime.now(timezone.utc)})
     for step in scenario.steps:
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
+        schemas = profile_schemas(context.task.tool_profile, tool_specs)
         decision = None
+        step_started = time.perf_counter()
+        model_request_count = 0
+        retry_events: list[dict[str, Any]] = []
+        retry_telemetry_available = False
+        recording_retry_events: list[dict[str, Any]] = []
+
+        def collect_metrics(invocation: int) -> None:
+            nonlocal model_request_count, retry_telemetry_available
+            consume_metrics = getattr(maker, "consume_cache_metrics", None)
+            if callable(consume_metrics):
+                model_request_count += int(consume_metrics().get("attempt_count", 0))
+            consume_retries = getattr(maker, "consume_decision_retry_metrics", None)
+            if callable(consume_retries):
+                metrics = consume_retries()
+                retry_telemetry_available = retry_telemetry_available or bool(
+                    metrics.get("decision_retry_telemetry_version")
+                )
+                retry_events.extend(
+                    {**event, "decision_invocation": invocation}
+                    for event in metrics.get("decision_retry_events", ())
+                )
+
         for attempt in range(1, max_attempts + 1):
             try:
-                decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
+                decision = maker.decide(context, schemas)
+                collect_metrics(attempt)
                 break
             except AgentWorkerError as error:
+                collect_metrics(attempt)
                 if not _recording_can_retry(error) or attempt == max_attempts:
+                    error.recording_trace = {
+                        "step": len(steps), "completed_steps": list(steps),
+                        "offered_tools": [spec["function"]["name"] for spec in schemas],
+                        "error_code": error.code,
+                        "model_request_count": model_request_count,
+                        "decision_retry_telemetry_version": 1 if retry_telemetry_available else None,
+                        "decision_retry_events": retry_events,
+                        "recording_retry_events": recording_retry_events,
+                        "error_detail": (
+                            error.detail
+                            if error.code == "MAIN_AGENT_INVALID_TOOL_ARGUMENTS"
+                            else None
+                        ),
+                    }
                     raise
+                recording_retry_events.append({"error_code": error.code, "decision_invocation": attempt})
                 sleeper(_retry_wait(retry_delay_seconds, attempt, jitter=jitter))
         if decision is None:
             raise RuntimeError("trajectory record produced no decision")
@@ -1114,8 +1215,17 @@ def _record_one_sample(
             if decision.tool_call is not None
             else {"content": decision.model_dump_json(exclude_none=True)}
         )
+        steps[-1]["selected_schema_fingerprint"] = prompt_fingerprint(schemas)
+        steps[-1]["decision_invocations"] = attempt
+        steps[-1]["model_request_count"] = model_request_count
+        if retry_telemetry_available:
+            steps[-1]["decision_retry_telemetry_version"] = 1
+            steps[-1]["decision_retry_events"] = retry_events
+        steps[-1]["recording_retry_events"] = recording_retry_events
+        steps[-1]["elapsed_ms"] = round((time.perf_counter() - step_started) * 1000, 1)
     return {
         "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "elapsed_ms": round((time.perf_counter() - sample_started) * 1000, 1),
         "steps": steps,
     }
 
@@ -1150,7 +1260,8 @@ def _write_cassette(
             ensure_ascii=False,
             indent=2,
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
     return path
 
@@ -1295,6 +1406,7 @@ def record_catalogue(
     }
     failed: set[str] = set()
     first_error: Exception | None = None
+    recording_failures: list[dict[str, Any]] = []
     written: dict[str, Path] = {}
     jitter = jobs > 1
     workers = min(jobs, len(work))
@@ -1336,6 +1448,8 @@ def record_catalogue(
                 sample = capture(scenario)
             except Exception as error:
                 failed.add(scenario.name)
+                recording_failures.append({"scenario": scenario.name, "sample": index + 1,
+                    **getattr(error, "recording_trace", {"error_type": type(error).__name__})})
                 if first_error is None:
                     first_error = error
                 continue
@@ -1352,11 +1466,14 @@ def record_catalogue(
                     sample = future.result()
                 except Exception as error:
                     failed.add(scenario.name)
+                    recording_failures.append({"scenario": scenario.name, "sample": index + 1,
+                        **getattr(error, "recording_trace", {"error_type": type(error).__name__})})
                     if first_error is None:
                         first_error = error
                     continue
                 accept(scenario, index, sample)
 
     if first_error is not None:
+        first_error.recording_failures = recording_failures
         raise first_error
     return tuple(written[scenario.name] for scenario in to_record if scenario.name in written)

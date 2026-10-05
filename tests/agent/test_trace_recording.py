@@ -161,6 +161,27 @@ def test_an_escalated_turn_failure_is_traced(tmp_path: Path) -> None:
     assert model_failure[0].error_code == "MAIN_AGENT_TRANSPORT_ERROR"
 
 
+def test_decision_retry_reasons_reach_the_durable_model_trace(tmp_path: Path) -> None:
+    class MeasuredDecisionMaker(Decisions):
+        def consume_decision_retry_metrics(self):
+            return {"decision_retry_telemetry_version": 1, "decision_retry_events": [
+                {"reason": "text_rejected", "retried": True},
+            ]}
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    recorder = SQLiteTraceRecorder(tmp_path / "run-events.sqlite3")
+    runtime = MainAgentRuntime(
+        context_manager=manager,
+        decision_maker=MeasuredDecisionMaker(AgentDecision(action="ask_user", message="城市？")),
+        tools=MainAgentToolRegistry(), trace_recorder=recorder,
+    )
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="找工作")
+    event = next(event for event in _all_events(recorder) if event.event_type == "model_succeeded")
+    assert event.details["decision_retry_telemetry_version"] == 1
+    assert event.details["decision_retry_events"] == [{"reason": "text_rejected", "retried": True}]
+
+
 def test_observation_chars_measures_the_body_in_the_actual_prompt_shape(
     tmp_path: Path,
 ) -> None:
@@ -274,7 +295,7 @@ def test_a_refused_action_is_counted_by_gate_without_recording_its_prose(
     assert event.outcome == "failed"
     assert event.details == {
         "tool_name": "sync_application_emails",
-        "refusal_kind": "out_of_profile",
+        "refusal_kind": "not_offered",
         "tool_profile": "core",
         "capped": False,
     }

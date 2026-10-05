@@ -5,7 +5,7 @@ from typing import Literal
 
 
 AuthorizationRefusalKind = Literal[
-    "out_of_profile",
+    "not_offered",
     "preference_deny",
     "budget_exhausted",
     "duplicate_call",

@@ -37,6 +37,7 @@ from career_agent.agent.providers.openai_client import AgentConfigurationError, 
 from career_agent.agent.workflows.job_research.config import job_research_config_from_env
 from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
+    main_model_options,
     max_output_tokens_from_env,
 )
 from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
@@ -324,6 +325,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         ),
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(
             main_config, max_output_tokens=main_output_tokens,
+            **main_model_options(),
         ),
         checkpointer=main_checkpoint_owner.saver,
         career_context_projector=CareerContextProjector(
@@ -1312,24 +1314,6 @@ def _failure_exit_code(result: ToolObservation) -> int:
     return EXIT_WORKFLOW_ERROR
 
 
-def _trajectory_tool_specs():
-    """Every tool the registry can offer, wired with placeholder services.
-
-    Scenarios never execute a tool, so the services only have to exist.
-    The trajectory harness filters this registry by each step's active profile.
-    """
-    import inspect
-
-    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
-
-    parameters = tuple(
-        name
-        for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
-        if name != "self"
-    )
-    return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
-
-
 def _run_action_settle(args, stdout) -> int:
     """Write down what an investigation found about one pending action.
 
@@ -1931,11 +1915,13 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         replay_quality,
         known_gap_reproduction,
         minimum_detectable_regression,
+        summarize_decision_retries,
         quality_shortfall,
+        trajectory_tool_specs,
     )
 
     try:
-        schemas = _trajectory_tool_specs()
+        schemas = trajectory_tool_specs()
         selected = (
             tuple(item for item in SCENARIOS if item.name in set(args.scenario))
             if args.scenario
@@ -1968,6 +1954,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 
         config = None
         recording_error: str | None = None
+        recording_failures = []
         if args.record:
             config = _replace(
                 OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
@@ -1988,12 +1975,14 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 # scenario that failed shows up below as stale or unrecorded,
                 # and the exit status stays non-zero.
                 recording_error = f"{error.code}: {error}"
+                recording_failures = getattr(error, "recording_failures", [])
         from dotenv import load_dotenv
 
         load_dotenv()
         expected_model = config.model if config is not None else os.environ.get("MAIN_AGENT_MODEL", "").strip()
 
         results = []
+        retry_cassettes = []
         for scenario in selected:
             contract = check_contract(scenario, tool_specs=schemas)
             cassette = load_cassette(scenario.name)
@@ -2031,6 +2020,8 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 else ()
             )
             replayable = cassette is not None and stale is None and not contract
+            if replayable:
+                retry_cassettes.append(cassette)
             shortfall = (
                 quality_shortfall(scenario, graded)
                 if replayable and scenario.has_quality_assertions
@@ -2123,7 +2114,8 @@ def _run_trajectory_evaluation(args, stdout) -> int:
             ),
             "stale": sum(1 for item in results if item["behaviour"] == "stale"),
             "unrecorded": unrecorded,
-            **({"recording_error": recording_error} if recording_error else {}),
+            "retry_measurement": summarize_decision_retries(retry_cassettes),
+            **({"recording_error": recording_error, "recording_failures": recording_failures} if recording_error else {}),
             # Said outright rather than left to be inferred from the counts: a
             # run with no cassettes is green and proves nothing about the model.
             "note": (

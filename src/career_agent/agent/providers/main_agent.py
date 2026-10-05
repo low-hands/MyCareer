@@ -32,6 +32,9 @@ from career_agent.agent.runtime.decision_messages import (
     CONTROL_REMINDER_TAG,
 )
 from career_agent.agent.contracts.job_discovery import ContractModel
+from career_agent.agent.providers.interaction_output import (
+    INTERACTION_NAMES, interaction_schemas, parse_interaction,
+)
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
@@ -286,69 +289,18 @@ def _request_envelope_token_count(
     return count_tokens(serialized_prefix + serialized_suffix)
 
 
-_OPTION_VALUE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
-def _repair_question_shape(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """Fit a question-asking decision to the questionnaire contract, or None.
 
-    Models reliably ask the right questions but not always in the right
-    envelope: ``ask_user`` carrying a question list, ids out of order, or
-    option values such as ``"1"``. Every one of those failed the whole turn.
-    The repair only reshapes a decision that asks the user something, so it
-    can never turn into a tool call; anything it cannot fit stays invalid.
-    """
-    if payload.get("action") not in {"ask_user", "questionnaire"}:
-        return None
-    questions = payload.get("questions")
-    if not isinstance(questions, list) or not questions:
-        return None
-    if not all(isinstance(item, dict) for item in questions):
-        return None
-    repaired_questions = []
-    for index, question in enumerate(questions, start=1):
-        fixed = dict(question)
-        fixed["question_id"] = f"q{index}"
-        options = fixed.get("options")
-        if isinstance(options, list):
-            fixed_options = []
-            for position, option in enumerate(options, start=1):
-                if not isinstance(option, dict):
-                    return None
-                fixed_option = dict(option)
-                value = fixed_option.get("value")
-                if not (isinstance(value, str) and _OPTION_VALUE.fullmatch(value)):
-                    fixed_option["value"] = f"option_{position}"
-                fixed_options.append(fixed_option)
-            fixed["options"] = fixed_options
-        repaired_questions.append(fixed)
-    repaired = dict(payload)
-    if 2 <= len(repaired_questions) <= 8:
-        repaired["action"] = "questionnaire"
-        repaired["questions"] = repaired_questions
-        repaired.pop("selection_source", None)
-        return repaired
-    if len(repaired_questions) != 1:
-        return None
-    # One question is not a questionnaire: ask it in prose instead.
-    only = repaired_questions[0]
-    prompt = only.get("prompt")
-    if not isinstance(prompt, str) or not prompt.strip():
-        return None
-    labels = [
-        option.get("label")
-        for option in only.get("options") or ()
-        if isinstance(option.get("label"), str)
-    ]
-    asked = prompt.strip() + (f"（{' / '.join(labels)}）" if labels else "")
-    message = payload.get("message")
-    message = message.strip() if isinstance(message, str) else ""
-    repaired["action"] = "ask_user"
-    repaired["message"] = asked if not message else (
-        message if prompt.strip() in message else f"{message}\n\n{asked}"
-    )
-    repaired.pop("questions", None)
-    return repaired
+
+def main_model_options(environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+    values = os.environ if environ is None else environ
+    setting = values.get("MAIN_AGENT_ENABLE_THINKING", "").strip().lower()
+    if not setting:
+        return {}
+    if setting not in {"true", "false"}:
+        raise AgentConfigurationError("MAIN_AGENT_INVALID_ENABLE_THINKING", "MAIN_AGENT_ENABLE_THINKING must be true or false")
+    return {"model_extra_body": {"enable_thinking": setting == "true"}}
 
 
 class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
@@ -360,10 +312,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         max_attempts: int = DEFAULT_MAX_DECISION_ATTEMPTS,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         sleep: Callable[[float], None] = time.sleep,
+        model_extra_body: Mapping[str, Any] | None = None,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least one")
         self._config = config
+        self._model_extra_body = dict(model_extra_body or {})
         self._max_attempts = max_attempts
         self._max_output_tokens = max_output_tokens
         self._sleep = sleep
@@ -383,7 +337,10 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._cache_metrics: ContextVar[dict[str, Any] | None] = (
             ContextVar(f"main_agent_cache_metrics_{id(self)}", default=None)
         )
-        # One entry per offered tool set (one per tool profile), keyed by the
+        self._decision_retry_events: ContextVar[tuple[dict[str, Any], ...] | None] = (
+            ContextVar(f"main_agent_decision_retries_{id(self)}", default=None)
+        )
+        # One entry per offered capability set, keyed by the
         # identity of the specs tuple the runtime hands over unchanged.
         self._static_request_cache: dict[int, _StaticRequestMetadata] = {}
         self._static_request_lock = Lock()
@@ -399,6 +356,17 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         if finish_reason is not None:
             metrics = {**metrics, "finish_reason": finish_reason}
         return {**metrics, **self._attempts.consume()}
+
+    def consume_decision_retry_metrics(self) -> dict[str, Any]:
+        events = self._decision_retry_events.get()
+        self._decision_retry_events.set(None)
+        if events is None:
+            return {}
+        return {"decision_retry_telemetry_version": 1, "decision_retry_events": list(events)}
+
+    def _record_decision_rejection(self, reason: str, *, retried: bool) -> None:
+        events = self._decision_retry_events.get() or ()
+        self._decision_retry_events.set((*events, {"reason": reason, "retried": retried}))
 
     def cache_configuration(self) -> dict[str, Any]:
         mode = self._config.prompt_cache
@@ -505,7 +473,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             cached = self._static_request_cache.get(id(tool_specs))
             if cached is not None and cached.source_specs is tool_specs:
                 return cached
-            tools = _normalize_tool_specs(tool_specs)
+            tools = _normalize_tool_specs(tool_specs) + interaction_schemas()
             system_prompt = self._system_prompt()
             system_message: dict[str, Any] = {
                 "role": "system",
@@ -634,10 +602,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     @classmethod
     def from_env(cls, *, environ: Mapping[str, str] | None = None, client: Any | None = None) -> "OpenAICompatibleMainAgentDecisionMaker":
         prefix = "MAIN_AGENT"
+        config = OpenAICompatibleAgentConfig.from_env(environ=environ, prefix=prefix)
         return cls(
-            OpenAICompatibleAgentConfig.from_env(environ=environ, prefix=prefix),
+            config,
             client=client,
             max_output_tokens=max_output_tokens_from_env(environ, prefix=prefix),
+            **main_model_options(environ),
         )
 
     def decide(
@@ -646,6 +616,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         tool_specs: tuple[dict[str, Any] | str, ...],
     ) -> AgentDecision:
         self._cache_metrics.set(None)
+        self._decision_retry_events.set(())
         self._finish_reason.set(None)
         self._attempts.start()
         capture_receipt = self._capture_receipt_decision(context)
@@ -676,6 +647,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "ttl": "30m",
                 }
         reprompts = 0
+        proposal_reprompts = 0
+        if self._model_extra_body:
+            request_options.setdefault("extra_body", {}).update(self._model_extra_body)
         while True:
             response = self._request_with_retries(
                 messages=messages, tools=tools, request_options=request_options
@@ -696,12 +670,101 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "Main Agent model ran out of output tokens before finishing its decision.",
                 )
             tool_calls = tuple(getattr(message, "tool_calls", None) or ())
+            offered_names = {spec["function"]["name"] for spec in tools}
+            unknown_names = [
+                getattr(getattr(call, "function", None), "name", None) or "?"
+                for call in tool_calls
+                if getattr(getattr(call, "function", None), "name", None) not in offered_names
+            ]
+            if unknown_names:
+                self._record_decision_rejection(
+                    "unavailable_tool", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
+                )
+                if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                    raise AgentWorkerError(
+                        "MAIN_AGENT_UNAVAILABLE_TOOL",
+                        "Main Agent requested a tool outside the disclosed capability set.",
+                        detail=", ".join(unknown_names),
+                    )
+                reprompts += 1
+                _add_control_state(messages, {"rejected_tool_calls": {
+                    "tool_calls": unknown_names, "executed": False,
+                    "reason": "These functions were not offered and nothing executed. Choose exactly one offered native tool, or choose ask_user, questionnaire or final_response. An action field is not a function name.",
+                }})
+                continue
             if len(tool_calls) <= 1:
+                if not tool_calls:
+                    self._record_decision_rejection(
+                        "text_rejected", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
+                    )
+                    if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                        raise AgentWorkerError(
+                            "MAIN_AGENT_NATIVE_DECISION_REQUIRED",
+                            "Main Agent did not return a native decision output.",
+                        )
+                    reprompts += 1
+                    request_options["tool_choice"] = {
+                        "type": "function", "function": {"name": "respond_to_user"},
+                    }
+                    _add_control_state(messages, {"rejected_text_decision": {
+                        "executed": False,
+                        "reason": "The text output was not accepted. Return a native respond_to_user call. Explicitly decide whether the current goal needs the user's answer or confirmation before proceeding; that is requires_user_input=true, not a final answer.",
+                    }})
+                    continue
+                if tool_calls and tool_calls[0].function.name in INTERACTION_NAMES:
+                    function = tool_calls[0].function
+                    try:
+                        arguments = json.loads(function.arguments or "{}")
+                        if not isinstance(arguments, dict):
+                            raise ValueError("interaction arguments must be an object")
+                        return parse_interaction(function.name, arguments)
+                    except ValueError as error:
+                        self._record_decision_rejection(
+                            "invalid_interaction", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
+                        )
+                        if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                            raise AgentWorkerError(
+                                "MAIN_AGENT_INVALID_INTERACTION",
+                                "Main Agent returned invalid interaction arguments.",
+                            ) from error
+                        reprompts += 1
+                        _add_control_state(messages, {"rejected_interaction": {
+                            "function": function.name, "executed": False,
+                            "reason": "Interaction arguments failed validation. ask_user accepts message and optional selection_source ONLY; final_response accepts message ONLY (omit questions, action and tool_call). questionnaire requires message and 2-8 questions with ordered q1..qN ids. respond_to_user requires message and a boolean requires_user_input; omit questions unless asking 2-8 structured questions. Follow the native schema exactly.",
+                        }})
+                        continue
+                from career_agent.agent.middleware.proposal_validation import proposal_rejection
+                function = tool_calls[0].function
+                try:
+                    arguments = json.loads(function.arguments or "{}")
+                    if not isinstance(arguments, dict):
+                        raise ValueError("tool arguments must be an object")
+                    rejection = proposal_rejection(context, function.name, arguments)
+                except ValueError:
+                    rejection = "Tool arguments must be a valid JSON object. Nothing executed."
+                if rejection is not None:
+                    self._record_decision_rejection(
+                        "invalid_tool_arguments", retried=proposal_reprompts < MAX_SINGLE_CALL_REPROMPTS
+                    )
+                    if proposal_reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                        raise AgentWorkerError(
+                            "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+                            "Main Agent repeated an invalid tool proposal.",
+                            detail=f"{function.name}: {rejection}",
+                        )
+                    proposal_reprompts += 1
+                    _add_control_state(messages, {"rejected_tool_arguments": {
+                        "function": function.name, "executed": False, "reason": rejection,
+                    }})
+                    continue
                 break
             names = [
                 getattr(getattr(call, "function", None), "name", None) or "?"
                 for call in tool_calls
             ]
+            self._record_decision_rejection(
+                "multiple_tool_calls", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
+            )
             if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
                 raise AgentWorkerError(
                     "MAIN_AGENT_PARALLEL_TOOL_CALLS",
@@ -738,10 +801,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             except json.JSONDecodeError as error:
                 raise AgentWorkerError("MAIN_AGENT_INVALID_TOOL_ARGUMENTS", "Main Agent returned invalid tool arguments.") from error
             return AgentDecision(action="tool_call", tool_call=ToolCall(name=function.name, arguments=arguments))
-        content = getattr(message, "content", None)
-        if not content:
-            raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
-        return self._parse_text_decision(content)
+        raise AgentWorkerError("MAIN_AGENT_NATIVE_DECISION_REQUIRED", "Main Agent did not return a native decision output.")
 
     @staticmethod
     def _capture_receipt_decision(
@@ -792,6 +852,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             except AgentWorkerError as error:
                 if not error.retryable or attempt >= self._max_attempts:
                     raise
+                self._record_decision_rejection("provider_retry", retried=True)
                 previous_error = error
                 self._sleep(_retry_delay_seconds(attempt))
         raise AssertionError("unreachable: the loop returns or raises")
@@ -804,15 +865,17 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         request_options: dict[str, Any],
     ) -> Any:
         try:
+            options = dict(request_options)
+            tool_choice = options.pop("tool_choice", "auto")
             return self._client.chat.completions.create(
                 model=self._config.model,
                 max_tokens=self._max_output_tokens,
                 tools=list(tools),
-                tool_choice="auto",
+                tool_choice=tool_choice,
                 parallel_tool_calls=False,
                 messages=messages,
                 timeout=self._config.timeout_seconds,
-                **request_options,
+                **options,
             )
         except RateLimitError as error:
             raise AgentWorkerError("MAIN_AGENT_RATE_LIMITED", "Main Agent model is rate limited.", retryable=True) from error
@@ -828,92 +891,22 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 retryable=status in _RETRYABLE_STATUS_CODES,
             ) from error
 
-    @staticmethod
-    def _parse_text_decision(content: str) -> AgentDecision:
-        normalized_content = content.strip()
-        # Compatible providers sometimes wrap an otherwise valid JSON decision
-        # in a Markdown code fence. Strip only the fence; do not attempt to
-        # repair arbitrary prose or malformed JSON because that could turn an
-        # incomplete tool request into an executable decision.
-        if normalized_content.startswith("```") and normalized_content.endswith("```"):
-            lines = normalized_content.splitlines()
-            if len(lines) >= 3:
-                normalized_content = "\n".join(lines[1:-1]).strip()
-        try:
-            return AgentDecision.model_validate_json(normalized_content)
-        except ValueError as error:
-            # Some OpenAI-compatible models use the chat-completions envelope
-            # name ``content``, or a generic ``text`` key, for the prose field
-            # inside an otherwise valid decision. Those spellings are
-            # unambiguous for non-tool decisions, so normalize them narrowly
-            # without making arbitrary malformed JSON displayable as assistant
-            # prose.
-            try:
-                payload = json.loads(normalized_content)
-            except json.JSONDecodeError:
-                payload = None
-            if isinstance(payload, dict) and payload.get("action") in {
-                "ask_user", "questionnaire", "final"
-            }:
-                normalized_payload = dict(payload)
-                if "message" not in normalized_payload:
-                    for alias in ("content", "text"):
-                        if isinstance(normalized_payload.get(alias), str):
-                            normalized_payload["message"] = normalized_payload.pop(alias)
-                            break
-                for alias in ("content", "text"):
-                    if "message" in normalized_payload:
-                        normalized_payload.pop(alias, None)
-                # A few compatible models still emit the pre-questionnaire
-                # ask_user shape (top-level ``options`` and
-                # ``allow_free_text``).  Those fields are rendered by the
-                # interaction layer, not accepted by AgentDecision.  Keep the
-                # choice visible in the prompt and fall back to the normal
-                # free-text interaction instead of turning a harmless
-                # confirmation into MAIN_AGENT_INVALID_RESPONSE.
-                legacy_options = normalized_payload.pop("options", None)
-                normalized_payload.pop("allow_free_text", None)
-                if isinstance(legacy_options, list):
-                    labels: list[str] = []
-                    for option in legacy_options:
-                        if isinstance(option, dict):
-                            label = option.get("label") or option.get("value")
-                        else:
-                            label = option
-                        if isinstance(label, str) and label.strip():
-                            labels.append(label.strip())
-                    if labels:
-                        message = normalized_payload.get("message")
-                        if isinstance(message, str) and "（" not in message:
-                            normalized_payload["message"] = f"{message.rstrip()}（{' / '.join(labels)}）"
-                try:
-                    return AgentDecision.model_validate(normalized_payload)
-                except ValueError:
-                    pass
-                repaired = _repair_question_shape(normalized_payload)
-                if repaired is not None:
-                    try:
-                        return AgentDecision.model_validate(repaired)
-                    except ValueError:
-                        pass
-            # OpenAI-compatible providers do not all honor structured-output
-            # hints consistently. Plain assistant prose is nevertheless an
-            # unambiguous final action when the response contains no native
-            # tool call. Keep malformed JSON fail-closed: it may have been an
-            # incomplete decision or tool request and must not be shown as an
-            # ordinary answer.
-            if not normalized_content.startswith(("{", "[")):
-                return AgentDecision(action="final", message=normalized_content)
-            detail = str(error).replace("\n", " ")[:1000]
-            raise AgentWorkerError(
-                "MAIN_AGENT_INVALID_RESPONSE",
-                "Main Agent model returned an invalid decision.",
-                detail=f"decision validation failed: {detail}; content_prefix={normalized_content[:240]!r}",
-            ) from error
 
     @staticmethod
     def _system_prompt() -> str:
         return (
+            "Return exactly one offered native business or interaction function. "
+            "Use capability contracts and authoritative runtime state to determine "
+            "prerequisites, current bindings and confirmation requirements. "
+            "Reuse valid bound inputs rather than rediscovering them. "
+            "Unavailable or ambiguous evidence needs an honest "
+            "explanation or clarification, not a substitute source. "
+            "EvidenceEnvelope describes an excerpt or a receipt and whether readback is "
+            "possible. A receipt is not the report contents; an excerpt is not proof of "
+            "completeness. Source kinds and resource identities are not interchangeable. "
+            "Use ask_user for one required answer or confirmation, questionnaire for "
+            "2-8 independent questions, and final_response to answer or conclude. "
+            "Unconfirmed working notes cannot authorize decisions or tool arguments. "
             "You are a Career Agent. Decide exactly one next action using only "
             "the supplied context and the descriptions of the tools offered. "
             "Use no unlisted tool. A listed tool can still be unavailable in "
@@ -1071,14 +1064,14 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "tool that can supply it with the available inputs and authority. "
             "If it cannot be retrieved, explain what is missing and ask the "
             "user to supply it. For two to eight independent missing facts "
-            "needed for the current task, return a top-level JSON decision "
-            "with action='questionnaire', message, and questions as an ARRAY "
+            "needed for the current task, call questionnaire with "
+            "message and questions as an ARRAY "
             "of 2-8 objects. Each question has question_id='q1'..'qN' in order, "
             "prompt, kind='single'|'multiple'|'free_text', options as an ARRAY, "
             "allow_free_text and allow_skip. For free_text use options=[]. "
             "For selection questions each option has value, label, and "
             "meaning='choice'|'none'|'other'. Example shape: "
-            "{\"action\":\"questionnaire\",\"message\":\"请逐题回答\","
+            "{\"message\":\"请逐题回答\","
             "\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的经验？\","
             "\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,"
             "\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过吗？\","
@@ -1113,16 +1106,18 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "or let the user select or update an existing application. Creating an "
             "interview from a uniquely focused saved job may create the minimal "
             "tracking application and move it to interviewing; a resume is optional. "
-            "For action='ask_user', set "
+            "For ask_user, set "
             "selection_source='latest_tool_result' only when the question "
             "explicitly asks the user to choose one item from the immediately "
             "preceding list tool result. Omit selection_source for dates, times, "
             "roles, explanations, confirmations, and every other free-text "
             "question. "
-            "Prefer JSON action='final' with ordinary "
-            "assistant prose when no tool is needed; use action='ask_user' "
+            "Prefer final_response with ordinary "
+            "assistant prose when the goal can be answered; use ask_user "
             "before an action that depends on missing information or "
-            "unconfirmed authority. Never wrap decision "
-            "JSON in Markdown. Plain prose is allowed only for an unambiguous "
-            "final response, never for a tool call or ask_user decision."
+            "unconfirmed authority. Use questionnaire for multiple independent "
+            "required answers. When using respond_to_user, set requires_user_input "
+            "to true whenever progress depends on the user's answer, selection "
+            "or confirmation; do not classify a required follow-up as a final answer. "
+            "Always return a native function call. "
         )

@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -266,7 +261,9 @@ DECISION_OBSERVATION_BODY_LIMIT = 6_000
 # budget; the declared worst shape then measures 18_367. Measured reality is
 # far below either figure — a real turn's whole context was 1_340 chars
 # against 11_979 of tool schemas.
-MAX_DECISION_OBSERVATION_CHARS = 18_400
+# The evidence envelope adds 864 characters to the eleven-result worst shape.
+# Keep the bound explicit and measured, without expanding receipt/body limits.
+MAX_DECISION_OBSERVATION_CHARS = 19_300
 
 
 class DecisionObservation(ContractModel):
@@ -377,6 +374,17 @@ def append_decision_observation(
     )
 
 
+class EvidenceEnvelope(ContractModel):
+    """Runtime-authored limits of the evidence currently visible to the model.
+
+    A body is an excerpt, not proof of a complete report. A receipt is not its
+    contents. Readback requires a resolvable handle, never a success message.
+    """
+
+    body_status: Literal["excerpt", "receipt_only"]
+    readback_status: Literal["available", "unavailable"]
+
+
 def decision_observation_projection(
     observations: tuple[DecisionObservation, ...],
     reference_handles: Mapping[str, str] | None = None,
@@ -434,6 +442,13 @@ def decision_observation_projection(
                 )
             if resources:
                 line.setdefault("facts", {})["resource_refs"] = resources
+        line["evidence"] = EvidenceEnvelope(
+            body_status="excerpt" if observation.body else "receipt_only",
+            readback_status=(
+                "available" if "reference" in line or line.get("facts", {}).get("resource_refs")
+                else "unavailable"
+            ),
+        ).model_dump(mode="json")
         projected.append(line)
     return tuple(projected)
 

@@ -9,7 +9,7 @@ this catalogue.  The small compatibility modules ``tool_effects``,
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Mapping, get_args
 
@@ -40,6 +40,10 @@ class CapabilityDescriptor:
     arguments_model: str | None
     effect: ToolEffect
     profiles: frozenset[ToolProfile]
+    namespace: str | None = None
+    summary: str | None = None
+    aliases_zh: tuple[str, ...] = ()
+    successors: tuple[str, ...] = ()
     execution_kind: ExecutionKind = "atomic_tool"
     approval_policy: ApprovalPolicy = "never"
     replay_policy: ReplayPolicy = "not_applicable"
@@ -53,6 +57,21 @@ class CapabilityDescriptor:
     schema_gated: bool = False
     precondition: Precondition | None = None
     requirement: str | None = None
+
+    def validate_arguments(self, context: Any, arguments: dict[str, Any]) -> None:
+        """Run the same pure input binding used before execution."""
+        from career_agent.agent.contracts import main_agent as contracts
+        from career_agent.agent.contracts.decisions import _reject_internal_identifiers
+        from career_agent.agent.middleware.argument_projection import project_atomic_arguments, project_workflow_arguments
+        _reject_internal_identifiers(self.name, arguments)
+        if self.arguments_model is not None:
+            getattr(contracts, self.arguments_model).model_validate(arguments)
+        elif arguments:
+            raise ValueError("this capability accepts no model arguments")
+        if self.execution_kind == "workflow":
+            project_workflow_arguments(context, self.name, arguments)
+        elif self.execution_kind == "atomic_tool":
+            project_atomic_arguments(context, self.name, arguments, source_turn_id=None)
 
     @property
     def model_callable(self) -> bool:
@@ -260,6 +279,9 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
             'Search active confirmed career claims omitted from the bounded Tier-1 window. Use this l'
             'ayered archive fetch when career_profile.memory_overflow names this tool; paginate with '
             'the returned cursor.'
+            ' This store contains confirmed career claims only: it does not contain conversation '
+            'transcripts or generated research reports. Do not use it to reconstruct a missing '
+            'report or the exact words of an old message.'
         ),
     ),
     'search_career_history': (
@@ -269,6 +291,10 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
             'rms expected inside the earlier claim; this is the query-indexed history path, not sourc'
             'e_ref lookup. When next_cursor is returned, pass it back with the identical query to rea'
             'd the next page.'
+            ' Historical means changed career claims, not conversation history. This tool cannot '
+            'retrieve old messages, company research reports or their competitor analysis. For '
+            'a missing message use read_conversation_span if available; otherwise explain the '
+            'missing context. For an inaccessible report explain that it cannot be retrieved.'
         ),
     ),
     'propose_career_fact': (
@@ -379,7 +405,7 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         'FindSavedJobsToolArguments',
         (
             "Search only the current user's previously saved or viewed jobs. Use this for historical "
-            'recall, not for discovering new online jobs. Results become numbered saved-job candidate'
+            'recall, not for discovering new online jobs. Omit query to list recent saved jobs. Results become numbered saved-job candidate'
             's; complete JD text stays outside the decision context.'
         ),
     ),
@@ -479,7 +505,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         'MatchResumeToJobToolArguments',
         (
             "Compare an exact current-user resume version with one saved job's complete JD. Requires "
-            'both objects and reads their source documents itself. Use resume_version_selection_index'
+            'both objects AND a ready analysis of the current JD; call analyze_job first when that '
+            'analysis is missing. Reads their source documents itself. Use resume_version_selection_index'
             ' and job_selection_index to choose directly from existing candidates, or omit either sel'
             'ector to use its active object. Returns a grounded assessment outside the decision conte'
             'xt; does not search online and never returns either original document.'
@@ -780,6 +807,9 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         'GetCalendarProposalToolArguments',
         (
             'Read one pending or historical fixed calendar-change proposal without executing it.'
+            ' When the user confirms a bound proposal, read this proposal or request its execution; '
+            'do not list unrelated action items. An expired proposal can still be read to explain '
+            'its status, but cannot be executed.'
         ),
     ),
     'execute_calendar_proposal': (
@@ -849,7 +879,7 @@ def _capability(
     )
 
 
-def _descriptors() -> Iterable[CapabilityDescriptor]:
+def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     # Core tools are exposed in every profile.  Domain-only tools list each
     # profile in which they are visible.
     yield _capability("route_to_capability", "CONTROL", "core")
@@ -933,8 +963,158 @@ def _descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("retry_mock_interview", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
 
 
+def _descriptors() -> Iterable[CapabilityDescriptor]:
+    """Attach discovery metadata without changing provider-facing schemas.
+
+    Namespaces are loading units, not authorization grants. Successors only
+    suggest likely next tools after a completed call; execution checks still
+    apply to each call independently.
+
+    A read never suggests an ungated write: having looked at a job does not
+    make creating an application a likely next step, and offering it invites
+    acting instead of asking. A read may lead to a write only when that write
+    is schema-gated, i.e. offered only while a pending proposal or draft exists.
+    """
+    groups = {
+        "context": (
+            ("load_skill", "读取当前任务所需的操作说明。", ("加载技能", "读取操作指南"), ()),
+            ("read_conversation_span", "读取当前对话中摘要遗漏的消息片段。", ("读取对话片段", "找回聊天原文"), ()),
+            ("update_working_notes", "更新未确认的工作便笺，仅供提问和表达参考。", ("更新工作便笺", "记录临时笔记"), ()),
+            ("fetch_archived_constraints", "取回摘要未展示但仍有效的对话约束。", ("取回归档约束", "查看旧约束"), ()),
+            ("search_career_memory", "分页查找当前窗口外的已确认职业事实。", ("搜索已确认经历", "查找职业记忆"), ()),
+            ("update_owner_settings", "按用户要求更新助手的持久设置。", ("修改助手设置", "更新主人偏好设置"), ()),
+        ),
+        "actions": (
+            ("get_daily_brief", "读取今天的行动摘要。", ("查看今日简报", "今天做什么"), ()),
+            ("list_action_items", "列出待办事项并取得后续操作所需的选择项。", ("列出待办", "查看行动事项"), ()),
+            ("complete_action_item", "把已选待办标记为完成。", ("完成待办", "标记行动完成"), ()),
+            ("dismiss_action_item", "撤销已选的不再需要的待办。", ("忽略待办", "移除行动事项"), ()),
+            ("snooze_action_item", "推迟已选待办的提醒时间。", ("暂缓待办", "待办稍后提醒"), ()),
+        ),
+        "job.library": (
+            ("open_job_search", "按用户给定的条件打开招聘网站搜索页，结果由用户浏览。", ("打开岗位搜索", "去招聘网站找职位"), ()),
+            ("find_saved_jobs", "查找已收藏岗位；用于定位或选择岗位。", ("查找收藏岗位", "列出保存的职位"), ("get_saved_job", "compare_saved_jobs")),
+            ("get_saved_job", "读取已选岗位的职位信息。", ("查看收藏岗位详情", "读取职位描述"), ()),
+            ("compare_saved_jobs", "比较多条已收藏岗位，不创建投递。", ("比较收藏岗位", "多个职位对比"), ()),
+            ("list_target_roles", "列出用户已记录的目标岗位方向和选择项。", ("查看目标职位", "列出求职方向"), ()),
+        ),
+        "job.analysis": (
+            ("analyze_job", "分析已选岗位的职位要求；已有分析时先检查是否仍对应当前 JD。", ("分析岗位要求", "解析职位描述"), ("match_resume_to_job",)),
+            ("correct_job_requirement_tier", "修正岗位分析中某项要求的优先级。", ("修正岗位要求等级", "调整职位要求层级"), ()),
+        ),
+        "job.research": (
+            ("research_job", "用户需要公司或岗位调研时启动调研。", ("调研公司", "研究岗位背景"), ("get_job_research",)),
+            ("retry_job_research", "重试当前会话中失败的岗位调研。", ("重试公司调研", "重新运行岗位研究"), ("get_job_research",)),
+            ("get_job_research", "按可用引用读取已生成的岗位调研报告。", ("读取公司调研报告", "查看岗位研究结果"), ()),
+        ),
+        "job.intent": (
+            ("propose_job_intent", "先展示用户明确表达的求职意向变更，等待确认。", ("提出求职意向", "预览目标岗位变更"), ("confirm_job_intent",)),
+            ("confirm_job_intent", "用户明确同意后保存已展示的求职意向。", ("确认求职意向", "保存目标岗位意向"), ()),
+        ),
+        "resume.library": (
+            ("list_resumes", "列出简历供选择；已有绑定简历时无需再次列出。", ("列出简历", "选择简历版本"), ("get_resume_metadata",)),
+            ("get_resume_metadata", "读取已列出简历的版本和元数据。", ("查看简历信息", "读取简历元数据"), ()),
+            ("export_resume_artifact", "导出已选或已完成定制的简历文件。", ("导出简历", "下载简历文件"), ()),
+        ),
+        "resume.match": (
+            ("match_resume_to_job", "已有当前岗位分析和简历版本时，直接计算匹配。", ("简历匹配", "对比简历和岗位", "匹配度"), ("get_resume_job_match", "draft_resume_tailoring")),
+            ("get_resume_job_match", "读取已生成的简历与岗位匹配结果。", ("查看简历匹配结果", "读取岗位匹配报告"), ()),
+        ),
+        "resume.tailoring": (
+            ("draft_resume_tailoring", "根据已有匹配结果生成定制简历草稿。", ("起草定制简历", "生成针对岗位的简历"), ("get_resume_tailoring_draft", "review_resume_tailoring")),
+            ("get_resume_tailoring_draft", "读取当前定制简历草稿。", ("查看定制简历草稿", "读取简历修改稿"), ("review_resume_tailoring",)),
+            ("review_resume_tailoring", "检查定制草稿的证据和质量。", ("审查定制简历", "检查简历草稿"), ("revise_resume_tailoring", "finalize_resume_tailoring")),
+            ("revise_resume_tailoring", "根据反馈修改当前定制简历草稿。", ("修改定制简历", "调整简历草稿"), ("review_resume_tailoring", "finalize_resume_tailoring")),
+            ("finalize_resume_tailoring", "确认并生成定制简历的最终版本。", ("完成定制简历", "定稿岗位简历"), ("export_resume_artifact",)),
+        ),
+        "application.tracking": (
+            ("list_applications", "列出投递记录并取得选择项。", ("列出投递记录", "查看已投岗位"), ("get_application",)),
+            ("get_application", "读取已选投递记录的当前状态。", ("查看投递详情", "读取申请记录"), ("list_email_events",)),
+            ("create_application", "经用户授权后为已选岗位创建投递记录。", ("创建投递", "登记求职申请"), ("get_application",)),
+            ("update_application_status", "更新已选投递记录的状态。", ("更新投递状态", "修改申请进度"), ()),
+        ),
+        "application.email": (
+            ("sync_application_emails", "同步与投递相关的邮件事件。", ("同步投递邮件", "抓取申请邮件"), ("list_email_events",)),
+            ("list_email_events", "列出可关联的投递邮件事件。", ("列出邮件事件", "查看投递邮件"), ()),
+            ("resolve_email_event", "处理已选邮件事件与投递的关联。", ("处理邮件事件", "确认投递邮件关联"), ()),
+        ),
+        "interview.schedule": (
+            ("list_interviews", "列出面试轮次并取得选择项。", ("列出面试", "查看面试安排"), ("get_interview",)),
+            ("get_interview", "读取已选面试轮次的信息。", ("查看面试详情", "读取面试轮次"), ()),
+            ("create_interview", "为有明确关联的岗位或投递创建面试轮次。", ("创建面试", "记录新面试"), ("get_interview",)),
+            ("update_interview", "修改已选面试轮次的信息。", ("更新面试", "调整面试记录"), ()),
+            ("complete_interview", "将已选面试轮次标记为完成。", ("完成面试", "标记面试结束"), ("record_interview_retro",)),
+            ("record_interview_retro", "记录已选面试轮次的复盘。", ("记录面试复盘", "写面试回顾"), ()),
+        ),
+        "interview.prep": (
+            ("prepare_interview", "为已选面试或待办生成面试准备材料。", ("准备面试", "生成面试准备"), ("get_interview_preparation",)),
+            ("get_interview_preparation", "读取已生成的面试准备材料。", ("查看面试准备", "读取面试准备报告"), ()),
+        ),
+        "interview.calendar": (
+            ("list_calendar_accounts", "列出可用的日历账户。", ("列出日历账户", "查看可用日历"), ()),
+            ("list_calendar_links", "查看面试与日历事件的现有关联。", ("查看日历关联", "列出面试日历链接"), ()),
+            ("prepare_interview_calendar_sync", "为已选面试生成日历变更预览，不执行写入。", ("预览面试日历同步", "准备日历变更"), ("get_calendar_proposal", "execute_calendar_proposal")),
+            ("get_calendar_proposal", "读取指定的日历变更提案及其有效状态。", ("查看日历提案", "读取日历预览"), ("execute_calendar_proposal",)),
+            ("execute_calendar_proposal", "用户批准具体提案后执行日历变更。", ("执行日历同步", "确认写入日历"), ()),
+        ),
+        "interview.mock": (
+            ("start_mock_interview", "启动一场模拟面试练习。", ("开始模拟面试", "练习面试问答"), ("get_mock_interview_result",)),
+            ("restart_mock_interview", "仅在模拟面试检查点丢失或不兼容时重启。", ("重启模拟面试", "恢复面试练习"), ()),
+            ("get_mock_interview_result", "读取已完成的模拟面试结果。", ("查看模拟面试结果", "读取练习反馈"), ()),
+        ),
+        "memory.search": (
+            ("search_career_history", "查找被修订或撤销的历史职业事实。", ("搜索职业事实历史", "查找旧版经历"), ()),
+            ("search_career_episodes", "查找跨对话的已完成求职事件摘要。", ("搜索求职事件", "查找历史投递面试"), ()),
+            ("get_career_memory_detail", "读取当前职业事实的细节和修订链。", ("查看职业事实详情", "读取经历修订记录"), ("resolve_claim_source",)),
+            ("resolve_claim_source", "读取已确认职业事实所引用的原始简历证据。", ("追溯经历来源", "查看事实原文"), ()),
+        ),
+        "memory.proposals": (
+            ("propose_free_text_preference_confirmation", "展示待确认的自由文本偏好，不立即启用。", ("提出偏好确认", "预览长期偏好"), ("confirm_free_text_preference",)),
+            ("confirm_free_text_preference", "用户同意后启用已展示的自由文本偏好。", ("确认自由文本偏好", "保存长期偏好"), ()),
+            ("propose_memory_amendment", "展示对当前职业事实的字段级修订提案。", ("提出记忆修订", "预览经历更正"), ("confirm_memory_amendment",)),
+            ("confirm_memory_amendment", "用户同意后写入已展示的职业事实修订。", ("确认记忆修订", "保存经历更正"), ()),
+            ("propose_memory_tombstone", "展示职业事实的删除提案，不立即删除。", ("提出记忆删除", "预览经历删除"), ("confirm_memory_tombstone",)),
+            ("confirm_memory_tombstone", "用户同意后执行已展示的职业事实删除。", ("确认记忆删除", "删除职业事实"), ()),
+            ("propose_career_fact", "把用户明确陈述的职业事实作为待确认提案展示。", ("提出职业事实", "预览新增经历"), ("confirm_career_fact",)),
+            ("confirm_career_fact", "用户同意后保存已展示的职业事实。", ("确认职业事实", "保存新增经历"), ()),
+            ("propose_constraint_retirement", "展示停用现有对话约束的提案。", ("提出约束退役", "预览取消限制"), ("confirm_constraint_retirement",)),
+            ("confirm_constraint_retirement", "用户同意后停用已展示的对话约束。", ("确认约束退役", "取消旧限制"), ()),
+        ),
+        "control": (
+            ("route_to_capability", "迁移期间切换旧工具组以暴露所需工具。", ("切换工具组", "路由到能力"), ()),
+        ),
+    }
+    metadata = {
+        name: (namespace, summary, aliases, successors)
+        for namespace, rows in groups.items()
+        for name, summary, aliases, successors in rows
+    }
+    if len(metadata) != sum(len(rows) for rows in groups.values()):
+        raise RuntimeError("duplicate capability discovery metadata")
+    declared_names: set[str] = set()
+    for descriptor in _declared_descriptors():
+        if not descriptor.model_callable:
+            yield descriptor
+            continue
+        declared_names.add(descriptor.name)
+        if descriptor.name not in metadata:
+            raise RuntimeError(f"capability lacks discovery metadata: {descriptor.name}")
+        namespace, summary, aliases, successors = metadata[descriptor.name]
+        yield replace(
+            descriptor,
+            namespace=namespace,
+            summary=summary,
+            aliases_zh=aliases,
+            successors=successors,
+        )
+    if extra := metadata.keys() - declared_names:
+        raise RuntimeError(f"discovery metadata names unknown capabilities: {sorted(extra)}")
+
+
 def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
     result: dict[str, CapabilityDescriptor] = {}
+    namespace_sizes: dict[str, int] = {}
+    alias_owners: dict[str, str] = {}
     for descriptor in _descriptors():
         if descriptor.name in result:
             raise RuntimeError(f"duplicate Main Agent capability: {descriptor.name}")
@@ -962,6 +1142,27 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"runtime ownership and execution kind disagree: {descriptor.name}")
         if descriptor.model_callable and not descriptor.profiles:
             raise RuntimeError(f"model-callable capability needs a profile: {descriptor.name}")
+        if descriptor.model_callable:
+            if not descriptor.namespace or not descriptor.namespace.strip():
+                raise RuntimeError(f"model-callable capability needs a namespace: {descriptor.name}")
+            if not descriptor.summary or not descriptor.summary.strip():
+                raise RuntimeError(f"model-callable capability needs a summary: {descriptor.name}")
+            if not 2 <= len(descriptor.aliases_zh) <= 5:
+                raise RuntimeError(f"model-callable capability needs 2-5 Chinese aliases: {descriptor.name}")
+            namespace_sizes[descriptor.namespace] = namespace_sizes.get(descriptor.namespace, 0) + 1
+            if namespace_sizes[descriptor.namespace] > 10:
+                raise RuntimeError(f"capability namespace exceeds ten tools: {descriptor.namespace}")
+            for alias in descriptor.aliases_zh:
+                normalized = alias.strip()
+                if not normalized:
+                    raise RuntimeError(f"empty Chinese alias: {descriptor.name}")
+                owner = alias_owners.setdefault(normalized, descriptor.name)
+                if owner != descriptor.name:
+                    raise RuntimeError(
+                        f"Chinese alias {normalized!r} belongs to both {owner} and {descriptor.name}"
+                    )
+        elif descriptor.namespace or descriptor.summary or descriptor.aliases_zh or descriptor.successors:
+            raise RuntimeError(f"runtime-only capability has discovery metadata: {descriptor.name}")
         if descriptor.model_callable and descriptor.name not in _SCHEMA_SPECS:
             raise RuntimeError(f"model-callable capability needs a tool schema: {descriptor.name}")
         if not descriptor.model_callable and descriptor.name in _SCHEMA_SPECS:
@@ -973,6 +1174,21 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
         if descriptor.schema_gated and descriptor.precondition is None:
             raise RuntimeError(f"schema-gated capability needs a precondition: {descriptor.name}")
         result[descriptor.name] = descriptor
+    for descriptor in result.values():
+        for successor in descriptor.successors:
+            target = result.get(successor)
+            if target is None or not target.model_callable or successor == descriptor.name:
+                raise RuntimeError(
+                    f"invalid capability successor {descriptor.name} -> {successor}"
+                )
+            if (
+                descriptor.effect != "WRITE"
+                and target.effect == "WRITE"
+                and not target.schema_gated
+            ):
+                raise RuntimeError(
+                    f"a read cannot suggest an ungated write: {descriptor.name} -> {successor}"
+                )
     return MappingProxyType(result)
 
 

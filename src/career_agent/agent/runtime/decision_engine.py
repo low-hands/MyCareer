@@ -127,6 +127,9 @@ class DecisionEngine:
             control["episodes_marked"] = True
 
         schemas = self.tool_schemas(context.task.tool_profile, context.task)
+        control["offered_tool_names"] = tuple(
+            str(schema["function"]["name"]) for schema in schemas
+        )
         decision_maker = self._decision_maker_provider()
         details = self._trace_details(context, schemas, decision_maker)
         started = perf_counter()
@@ -286,6 +289,9 @@ class DecisionEngine:
         )
         if callable(consume_cache_metrics):
             enriched.update(consume_cache_metrics())
+        consume_retry_metrics = getattr(decision_maker, "consume_decision_retry_metrics", None)
+        if callable(consume_retry_metrics):
+            enriched.update(consume_retry_metrics())
         return enriched
 
     def _record_memory_context(

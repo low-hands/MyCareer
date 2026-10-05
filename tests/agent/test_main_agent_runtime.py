@@ -92,15 +92,31 @@ from career_agent.storage.action_executions import (
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
-from conftest import enter_tool_profile
+from conftest import CatalogSchemaRegistry, enter_tool_profile
 
 
 class DecisionMaker:
-    def __init__(self, decision: AgentDecision) -> None:
+    """Returns one decision; by default pins the bare registry's two schemas.
+
+    Pass ``offered=None`` with a catalogue-schema registry: the check is then
+    that the decided tool was among the schemas actually offered.
+    """
+
+    def __init__(
+        self,
+        decision: AgentDecision,
+        *,
+        offered: tuple[str, ...] | None = ("route_to_capability", "open_job_search"),
+    ) -> None:
         self.decision = decision
+        self.offered = offered
 
     def decide(self, context, tool_names):
-        assert tuple(spec["function"]["name"] for spec in tool_names) == ("route_to_capability", "open_job_search")
+        names = tuple(spec["function"]["name"] for spec in tool_names)
+        if self.offered is not None:
+            assert names == self.offered
+        elif self.decision.tool_call is not None:
+            assert self.decision.tool_call.name in names
         return self.decision
 
 
@@ -344,7 +360,7 @@ def test_settled_main_graph_checkpoint_is_deleted_before_runtime_restart(
 def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -438,7 +454,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
 def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> None:
     """A CLI finding becomes a reducer receipt, not arbitrary audit payload."""
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -539,7 +555,7 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
 def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
     tmp_path, state, execution_outcome, expected_status
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -583,7 +599,7 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
 
 
 def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -660,7 +676,7 @@ def test_accountability_is_derived_from_the_origin_and_cannot_be_stated(origin) 
 
 
 def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -781,7 +797,7 @@ def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
         "具备鑫龘饕餮等生僻字处理经验；" * 800
     )[:32_000]
 
-    class NoteWritingRegistry(MainAgentToolRegistry):
+    class NoteWritingRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -842,7 +858,7 @@ def test_a_turns_first_estimate_pairs_with_its_first_provider_count(
     """
     from career_agent.storage.run_events import SQLiteTraceRecorder
 
-    class NoteWritingRegistry(MainAgentToolRegistry):
+    class NoteWritingRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -1211,7 +1227,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
 ) -> None:
     from career_agent.harness.capability_steps import notify_capability_step
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -1475,7 +1491,7 @@ def _crashed_process_runtime(tmp_path, *decisions, profile="application"):
     before ``fail_orphaned_running`` runs as it would at startup.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -1739,6 +1755,7 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
         # The projected form is not shown: it carries what the handler needs,
         # including the ids the projection boundary keeps from the model.
         "arguments": {"keyword": "AI Engineer"},
+        "evidence": {"body_status": "receipt_only", "readback_status": "unavailable"},
     }
     serialized = str(observation)
     assert "zhipin.com" not in serialized
@@ -2544,7 +2561,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
         MAX_DECISION_OBSERVATION_BODIES * DECISION_OBSERVATION_BODY_LIMIT
         + MAX_DECISION_OBSERVATIONS * DECISION_OBSERVATION_RECEIPT_LIMIT
     ) == 12_600
-    assert decision_observation_chars(observations) == 18_367
+    assert decision_observation_chars(observations) == 19_231
     assert decision_observation_chars(observations) <= (
         MAX_DECISION_OBSERVATION_CHARS
     )
@@ -2617,7 +2634,7 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
     regression impossible to reintroduce quietly.
     """
 
-    class TwoReportRegistry(MainAgentToolRegistry):
+    class TwoReportRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -2711,7 +2728,7 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
     path, not a synthetic error.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -2882,7 +2899,7 @@ def test_a_write_that_failed_is_not_reported_as_written(tmp_path) -> None:
     to look up something ``result.disposition`` already answered.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -2984,7 +3001,7 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
     jd_body = "职业记忆\n\n" + "负责端到端的检索系统。" * 60
     reply = "先说记忆：" + "这个岗位要求的是检索与排序的工程能力。" * 40
 
-    class MixedRegistry(MainAgentToolRegistry):
+    class MixedRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -3356,7 +3373,7 @@ def test_runtime_adds_safe_error_code_only_to_the_user_receipt() -> None:
 
 
 def test_failed_capability_cannot_turn_into_a_user_question(tmp_path) -> None:
-    class FailingRegistry(CountingRegistry):
+    class FailingRegistry(CatalogSchemaRegistry, CountingRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -4689,7 +4706,7 @@ def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
     is also why the action id stays out of the reply — it is a runtime-generated
     internal identifier.
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -4757,7 +4774,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
     ``create_application`` is replay-safe. ``create_interview`` still has a
     durable PENDING row but cannot be reissued without reconciliation.
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self, tool: str) -> None:
             super().__init__()
             self.tool = tool
@@ -4838,7 +4855,7 @@ def test_an_interrupted_turn_separates_confirmed_writes_from_unconfirmed_ones(
     Conflating the two either invites a duplicate (treating unknown as done) or
     hides a real effect (treating done as nothing happened).
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -4961,7 +4978,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
 ) -> None:
     """``review`` stops the action before any side effect and seals it."""
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -5026,7 +5043,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
 
     database = tmp_path / "context.sqlite3"
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         calls: list[dict] = []
 
         def capability_kind(self, name):
@@ -5138,7 +5155,7 @@ def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> No
         preferences=AgentPreferencesContext(application_confirmation="always_ask"),
     )
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         calls: list[dict] = []
 
         def capability_kind(self, name):
@@ -5215,7 +5232,7 @@ def test_default_owner_rule_does_not_expand_the_model_context() -> None:
 def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -5253,7 +5270,8 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="create_application", arguments={}),
-            )
+            ),
+            offered=None,
         ),
         tools=registry,
         capability_confirmation_store=confirmations,
@@ -5299,7 +5317,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
 
 
 def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_path):
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -5345,7 +5363,8 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
     runtime = Runtime(
         context_manager=manager,
         decision_maker=DecisionMaker(
-            AgentDecision(action="tool_call", tool_call=ToolCall(name="create_application", arguments={}))
+            AgentDecision(action="tool_call", tool_call=ToolCall(name="create_application", arguments={})),
+            offered=None,
         ),
         tools=registry,
         capability_confirmation_store=confirmations,
@@ -5505,7 +5524,7 @@ def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> N
 def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[str] = []
@@ -5584,7 +5603,7 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     still refuses internal writes and never borrows the external slot.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[str] = []

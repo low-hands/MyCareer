@@ -2176,4 +2176,113 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         recording_samples=3,
     ),
+    TrajectoryScenario(
+        name="tool_selection_switches_from_resume_to_job_research",
+        policy=(
+            "When the current tool profile lacks the domain capability needed by "
+            "the user's new request, route to that capability and continue the "
+            "same task after the switch."
+        ),
+        known_gap=(
+            "qwen3.7-plus passed 2/3 on 2026-10-04 and 0/3 after the 2026-10-05 "
+            "re-record: no sample routed to the job profile before calling "
+            "research_job (get_saved_job -> research_job, list_resumes -> "
+            "ask_user, get_saved_job -> get_saved_job). The offline selection "
+            "baseline shows research_job not offered before the route. Expected "
+            "fix: the working-set selector (tool-selection step 3); remove this "
+            "marker when all samples pass."
+        ),
+        context=_context(
+            user_message="现在研究一下当前岗位公司的主要竞争对手。",
+            task=ConversationTaskState(
+                tool_profile="resume",
+                saved_job_candidates=(_SAVED_JOB,),
+                active_job_posting_id="job-1",
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="user", content="先帮我看简历。", created_at=_NOW,
+                ),
+            ),
+        ),
+        decisive_facts=("task.tool_profile", "task.has_active_job_posting", "user_message"),
+        steps=(
+            TrajectoryStep(
+                expect_tool="route_to_capability",
+                expect_arguments={"domain": "job"},
+                forbid_tools=frozenset({"research_job"}),
+            ),
+            TrajectoryStep(
+                observation=DecisionObservation(
+                    tool_name="route_to_capability",
+                    state="tool_profile_switched",
+                    message="已切换到岗位能力。",
+                    arguments={"domain": "job"},
+                ),
+                task_update={"tool_profile": "job"},
+                expect_tool="research_job",
+            ),
+        ),
+        recording_samples=3,
+    ),
+    TrajectoryScenario(
+        name="tool_selection_combines_job_analysis_and_resume_match",
+        policy=(
+            "For a request that needs job analysis followed by resume matching, "
+            "complete the job step, switch to the resume capability, and use "
+            "the analysis result without asking the user to restart."
+        ),
+        known_gap=(
+            "qwen3.7-plus passed 0/3 on 2026-10-04 and again 0/3 after the "
+            "2026-10-05 re-record: after the job step every sample calls "
+            "list_resumes instead of routing, and in the post-route snapshot it "
+            "still calls list_resumes although match_resume_to_job is offered "
+            "and a resume version is bound. The working-set selector "
+            "(tool-selection step 3) closes the offer gap, but the model-choice "
+            "error means it may not fix this alone; remove this marker when all "
+            "samples pass."
+        ),
+        context=_context(
+            user_message="先分析这个岗位，再和我当前的简历比较匹配程度。",
+            task=ConversationTaskState(
+                tool_profile="job",
+                saved_job_candidates=(_SAVED_JOB,),
+                active_job_posting_id="job-1",
+                active_jd_snapshot_id="jd-1",
+                active_resume_version_id="rv-1",
+            ),
+        ),
+        decisive_facts=(
+            "task.tool_profile", "task.has_active_job_posting", "task.has_active_resume_version",
+        ),
+        steps=(
+            TrajectoryStep(expect_tool="analyze_job"),
+            TrajectoryStep(
+                observation=DecisionObservation(
+                    tool_name="analyze_job",
+                    state="job_analysis_ready",
+                    message="岗位 JD 分析已完成。",
+                    arguments={},
+                ),
+                task_update={
+                    "active_job_analysis_id": "analysis-1",
+                    "active_job_analysis_jd_snapshot_id": "jd-1",
+                    "job_analysis_status": "ready",
+                },
+                expect_tool="route_to_capability",
+                expect_arguments={"domain": "resume"},
+            ),
+            TrajectoryStep(
+                observation=DecisionObservation(
+                    tool_name="route_to_capability",
+                    state="tool_profile_switched",
+                    message="已切换到简历能力。",
+                    arguments={"domain": "resume"},
+                ),
+                task_update={"tool_profile": "resume"},
+                expect_tool="match_resume_to_job",
+            ),
+        ),
+        recording_samples=3,
+    ),
 )

@@ -130,7 +130,6 @@ def build_main_runtime_components(
     authorization_engine = AuthorizationEngine(
         tools=tools,
         confirmation_store=capability_confirmation_store,
-        offers_tool=TurnRouter.offers_tool,
         project_runtime_workflow_arguments=project_runtime_owned_arguments,
         project_atomic_tool_arguments=ports.project_atomic_tool_arguments,
         project_workflow_arguments=project_workflow_arguments,

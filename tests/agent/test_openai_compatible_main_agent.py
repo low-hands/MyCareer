@@ -35,6 +35,71 @@ from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
 )
 from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.providers.main_agent import main_model_options
+
+
+@pytest.mark.parametrize("setting, expected", [("false", False), ("true", True)])
+def test_explicit_main_thinking_setting_reaches_every_request(setting, expected):
+    maker, completions = _scripted_maker(
+        _response(content="城市？", raw_text=True),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？"}')]),
+    )
+    maker._model_extra_body = main_model_options({"MAIN_AGENT_ENABLE_THINKING": setting})["model_extra_body"]
+    maker.decide(_context(), ())
+    assert len(completions.requests) == 2
+    assert all(request["extra_body"]["enable_thinking"] is expected for request in completions.requests)
+
+
+def test_main_thinking_setting_is_explicit_and_validated():
+    assert main_model_options({}) == {}
+    with pytest.raises(AgentConfigurationError):
+        main_model_options({"MAIN_AGENT_ENABLE_THINKING": "automatic"})
+
+
+@pytest.mark.parametrize("text", ["城市？", '{"action":"ask_user","text":"城市？"}', '```json\n{"action":"final","message":"完成"}\n```', '{"action":"tool_call"'])
+def test_text_outputs_are_never_coerced_into_decisions(text):
+    maker, completions = _scripted_maker(
+        _response(content=text, raw_text=True), _response(content=text, raw_text=True),
+    )
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ())
+    assert raised.value.code == "MAIN_AGENT_NATIVE_DECISION_REQUIRED"
+    assert len(completions.requests) == 2
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "text_rejected", "retried": True},
+        {"reason": "text_rejected", "retried": False},
+    ]
+
+
+@pytest.mark.parametrize("reason", [
+    "text_rejected", "invalid_interaction", "unavailable_tool",
+    "invalid_tool_arguments", "multiple_tool_calls",
+])
+def test_retry_measurement_identifies_the_cause_without_changing_the_decision(reason):
+    responses = {
+        "text_rejected": _response(content="城市？", raw_text=True),
+        "invalid_interaction": _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？","extra":true}')]),
+        "unavailable_tool": _response(tool_calls=[_tool_call("unknown_tool", '{}')]),
+        "invalid_tool_arguments": _response(tool_calls=[_tool_call("open_job_search", '{"unexpected":true}')]),
+        "multiple_tool_calls": _response(tool_calls=[
+            _tool_call("ask_user", '{"message":"城市？"}'),
+            _tool_call("final_response", '{"message":"完成"}'),
+        ]),
+    }
+    maker, completions = _scripted_maker(
+        responses[reason], _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？"}')]),
+        _response(tool_calls=[_tool_call("final_response", '{"message":"完成"}')]),
+    )
+    decision = maker.decide(_context(), ("open_job_search",))
+    assert decision.action == "ask_user"
+    assert len(completions.requests) == 2
+    assert maker.consume_decision_retry_metrics() == {
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [{"reason": reason, "retried": True}],
+    }
+    assert maker.consume_decision_retry_metrics() == {}
+    assert maker.decide(_context(), ()).action == "final"
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == []
 
 
 def _spotlight_json(content: str, *, label: str) -> dict:
@@ -60,7 +125,7 @@ class Completions:
 
     def create(self, **kwargs):
         self.kwargs = kwargs
-        message = type("Message", (), {"content": json.dumps({"action": "ask_user", "message": "Which city should I search?"})})()
+        message = _response(content=json.dumps({"action": "ask_user", "message": "Which city should I search?"})).choices[0].message
         choice = type("Choice", (), {"message": message})()
         return type("Response", (), {"choices": [choice]})()
 
@@ -221,7 +286,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
         "single <system-reminder> after native prior turns"
     ) in system_content
     assert CONTROL_CONTEXT_LABEL not in system_content
-    assert "mock_interview" not in system_content
+    assert '"active_workflow": "mock_interview"' not in system_content
     assert control["task"]["active_workflow"] == "job_discovery"
     assert "candidates" not in control["task"]
     assert "Acme" not in system_content
@@ -850,9 +915,8 @@ def test_decide_records_every_http_attempt_including_retries(
                         "finish_reason": "stop",
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps(
-                                {"action": "final", "message": "done"}
-                            ),
+                            "content": None,
+                            "tool_calls": [{"id": "call-1", "type": "function", "function": {"name": "final_response", "arguments": json.dumps({"message": "done"})}}],
                         },
                     }
                 ],
@@ -1238,142 +1302,6 @@ def test_observation_control_and_readable_text_are_split_by_authority() -> None:
     assert "MODEL AUTHORED ARGUMENT" in assistant_call["tool_calls"][0]["function"]["arguments"]
 
 
-def test_main_agent_treats_plain_prose_without_tool_call_as_final() -> None:
-    client = Client()
-    message = type(
-        "Message",
-        (),
-        {"content": "Hi! What would you like help with today?", "tool_calls": []},
-    )()
-    choice = type("Choice", (), {"message": message})()
-    client.completions.create = lambda **kwargs: type(
-        "Response", (), {"choices": [choice]}
-    )()
-    maker = OpenAICompatibleMainAgentDecisionMaker(
-        OpenAICompatibleAgentConfig(
-            endpoint="https://example.test/v1/chat/completions",
-            api_key="test",
-            model="test-model",
-        ),
-        client=client,
-    )
-
-    decision = maker.decide(
-        MainAgentContext(
-            conversation_id="c1",
-            profile=CareerProfileContext(user_id="u1"),
-            user_message="hi",
-        ),
-        (),
-    )
-
-    assert decision.action == "final"
-    assert decision.message == "Hi! What would you like help with today?"
-
-
-@pytest.mark.parametrize("action", ("ask_user", "questionnaire", "final"))
-@pytest.mark.parametrize("alias", ("content", "text"))
-def test_main_agent_accepts_content_as_the_prose_field_for_non_tool_decisions(
-    action,
-    alias,
-) -> None:
-    client = Client()
-    message = type(
-        "Message",
-        (),
-        {
-            "content": json.dumps(
-                {
-                    "action": action,
-                    alias: "本轮读取额度已用完。",
-                    **({"questions": [
-                        {"question_id": "q1", "prompt": "城市？", "kind": "free_text"},
-                        {"question_id": "q2", "prompt": "岗位？", "kind": "free_text"},
-                    ]} if action == "questionnaire" else {}),
-                }
-            ),
-            "tool_calls": [],
-        },
-    )()
-    choice = type("Choice", (), {"message": message})()
-    client.completions.create = lambda **kwargs: type(
-        "Response", (), {"choices": [choice]}
-    )()
-    maker = OpenAICompatibleMainAgentDecisionMaker(
-        OpenAICompatibleAgentConfig(
-            endpoint="https://example.test/v1/chat/completions",
-            api_key="test",
-            model="test-model",
-        ),
-        client=client,
-    )
-
-    decision = maker.decide(
-        MainAgentContext(
-            conversation_id="c1",
-            profile=CareerProfileContext(user_id="u1"),
-            user_message="继续",
-        ),
-        (),
-    )
-
-    assert decision.action == action
-    assert decision.message == "本轮读取额度已用完。"
-
-
-def test_main_agent_rejects_malformed_json_instead_of_showing_it_as_prose() -> None:
-    client = Client()
-    message = type(
-        "Message",
-        (),
-        {"content": '{"action":"tool_call"', "tool_calls": []},
-    )()
-    choice = type("Choice", (), {"message": message})()
-    client.completions.create = lambda **kwargs: type(
-        "Response", (), {"choices": [choice]}
-    )()
-    maker = OpenAICompatibleMainAgentDecisionMaker(
-        OpenAICompatibleAgentConfig(
-            endpoint="https://example.test/v1/chat/completions",
-            api_key="test",
-            model="test-model",
-        ),
-        client=client,
-    )
-
-    with pytest.raises(AgentWorkerError) as captured:
-        maker.decide(
-            MainAgentContext(
-                conversation_id="c1",
-                profile=CareerProfileContext(user_id="u1"),
-                user_message="hi",
-            ),
-            (),
-        )
-
-    assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"
-    assert "decision validation failed" in (captured.value.detail or "")
-
-
-def test_main_agent_accepts_json_decision_inside_markdown_fence() -> None:
-    client = Client()
-    message = type(
-        "Message",
-        (),
-        {"content": '```json\n{"action":"final","message":"可以"}\n```', "tool_calls": []},
-    )()
-    choice = type("Choice", (), {"message": message, "finish_reason": "stop"})()
-    client.completions.create = lambda **kwargs: type(
-        "Response", (), {"choices": [choice]}
-    )()
-    maker = OpenAICompatibleMainAgentDecisionMaker(_config(), client=client)
-
-    decision = maker.decide(_context(), ())
-
-    assert decision.action == "final"
-    assert decision.message == "可以"
-
-
 def _config() -> OpenAICompatibleAgentConfig:
     return OpenAICompatibleAgentConfig(
         endpoint="https://example.test/v1/chat/completions",
@@ -1395,10 +1323,18 @@ def _tool_call(name: str, arguments: str = "{}"):
     return type("ToolCall", (), {"function": function})()
 
 
-def _response(*, tool_calls=(), content=None, finish_reason="stop", usage=None):
-    message = type(
-        "Message", (), {"content": content, "tool_calls": list(tool_calls)}
-    )()
+def _response(*, tool_calls=(), content=None, finish_reason="stop", usage=None, raw_text=False):
+    if content and not tool_calls and not raw_text:
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict) and payload.get("action") in {"ask_user", "questionnaire", "final"}:
+            arguments = dict(payload)
+            action = arguments.pop("action")
+            tool_calls = (_tool_call("final_response" if action == "final" else action, json.dumps(arguments)),)
+            content = None
+    message = type("Message", (), {"content": content, "tool_calls": list(tool_calls)})()
     choice = type(
         "Choice", (), {"message": message, "finish_reason": finish_reason}
     )()
@@ -1437,9 +1373,45 @@ def _scripted_maker(*responses):
     return OpenAICompatibleMainAgentDecisionMaker(_config(), client=client), completions
 
 
+def test_note_only_search_proposal_is_corrected_before_returning():
+    from career_agent.agent.contracts.observations import WorkingNotesContext
+    context = _context().model_copy(update={"working_notes": WorkingNotesContext(
+        markdown="unconfirmed preference: Rust", revision="a" * 12, stale_days=30,
+    )})
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Rust"}')]),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"Do you want Rust jobs?"}')]),
+    )
+    assert maker.decide(context, ("open_job_search",)).action == "ask_user"
+    assert len(completions.requests) == 2
+    assert _control_state(completions.requests[-1]["messages"])["rejected_tool_arguments"]["executed"] is False
+
+
+def test_user_confirmed_search_is_not_rejected_as_note_only():
+    from career_agent.agent.contracts.observations import WorkingNotesContext
+    context = _context().model_copy(update={
+        "user_message": "Find Rust jobs",
+        "working_notes": WorkingNotesContext(markdown="Rust", revision="a" * 12),
+    })
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Rust"}')]),
+    )
+    assert maker.decide(context, ("open_job_search",)).action == "tool_call"
+    assert len(completions.requests) == 1
+
+
+def test_repeated_unresolvable_report_selector_fails_closed():
+    response = _response(tool_calls=[_tool_call("get_job_research", '{"selection_index":1}')])
+    maker, completions = _scripted_maker(response, response)
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ("get_job_research",))
+    assert raised.value.code == "MAIN_AGENT_INVALID_TOOL_ARGUMENTS"
+    assert len(completions.requests) == 2
+
+
 def test_the_request_disables_parallel_tool_calls() -> None:
     maker, completions = _scripted_maker(
-        _response(tool_calls=[_tool_call("open_job_search")])
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"AI Engineer"}')])
     )
 
     maker.decide(_context(), ("open_job_search",))
@@ -1556,6 +1528,130 @@ def test_a_single_tool_call_still_decides_without_a_reprompt() -> None:
     assert len(completions.requests) == 1
 
 
+def test_an_unlisted_function_is_rejected_before_a_valid_interaction():
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("action", '{"action":"ask_user"}')]),
+        _response(content='{"action":"ask_user","message":"请选择岗位"}'),
+    )
+    decision = maker.decide(_context(), ("open_job_search",))
+    assert decision.action == "ask_user"
+    assert decision.tool_call is None
+    assert len(completions.requests) == 2
+    assert "rejected_tool_calls" in str(completions.requests[1]["messages"])
+
+
+def test_repeated_unlisted_functions_fail_closed_without_a_third_request():
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("action")]),
+        _response(tool_calls=[_tool_call("action")]),
+    )
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ("open_job_search",))
+    assert raised.value.code == "MAIN_AGENT_UNAVAILABLE_TOOL"
+    assert len(completions.requests) == 2
+
+
+@pytest.mark.parametrize("name,action", [("ask_user", "ask_user"), ("final_response", "final")])
+def test_native_interaction_outputs_do_not_enter_the_tool_executor(name, action):
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call(name, '{"message":"请选择岗位"}')]),
+    )
+    decision = maker.decide(_context(), ("open_job_search",))
+    assert decision.action == action
+    assert decision.tool_call is None
+    offered = {spec["function"]["name"] for spec in completions.requests[0]["tools"]}
+    assert {"ask_user", "questionnaire", "final_response"} <= offered
+
+
+def test_native_questionnaire_is_validated_as_an_interaction():
+    arguments = {"message": "补充信息", "questions": [
+        {"question_id": "q1", "prompt": "城市？", "kind": "free_text", "options": []},
+        {"question_id": "q2", "prompt": "岗位？", "kind": "free_text", "options": []},
+    ]}
+    maker, _ = _scripted_maker(_response(tool_calls=[_tool_call("questionnaire", json.dumps(arguments))]))
+    decision = maker.decide(_context(), ())
+    assert decision.action == "questionnaire"
+    assert len(decision.questions) == 2
+    assert decision.tool_call is None
+
+
+@pytest.mark.parametrize("name", ["questionnaire", "respond_to_user"])
+def test_questionnaire_identifiers_are_normalized_without_an_extra_request(name):
+    arguments = {"message": "补充信息", "questions": [
+        {"question_id": "city", "prompt": "城市？", "kind": "single", "options": [
+            {"value": "1", "label": "上海"}, {"value": "beijing", "label": "北京"},
+        ]},
+        {"question_id": "q1", "prompt": "岗位？", "kind": "free_text", "options": []},
+    ]}
+    if name == "respond_to_user":
+        arguments["requires_user_input"] = True
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call(name, json.dumps(arguments))])
+    )
+    decision = maker.decide(_context(), ())
+    assert decision.action == "questionnaire"
+    assert tuple(question.question_id for question in decision.questions) == ("q1", "q2")
+    assert [(option.value, option.label) for option in decision.questions[0].options] == [
+        ("option_1", "上海"), ("beijing", "北京"),
+    ]
+    assert len(completions.requests) == 1
+    assert decision.tool_call is None
+
+
+@pytest.mark.parametrize("options", [
+    [{"value": "1", "label": "上海"}, {"value": "option_1", "label": "北京"}],
+    [{"value": "city", "label": "上海"}, {"value": "city", "label": "北京"}],
+    [{"value": "1", "label": ""}],
+])
+def test_identifier_normalization_does_not_accept_collisions_or_invalid_labels(options):
+    from career_agent.agent.providers.interaction_output import parse_interaction
+
+    arguments = {"message": "补充信息", "questions": [
+        {"question_id": "city", "prompt": "城市？", "kind": "single", "options": options},
+        {"question_id": "role", "prompt": "岗位？", "kind": "free_text", "options": []},
+    ]}
+    original = json.dumps(arguments)
+    with pytest.raises(ValueError):
+        parse_interaction("questionnaire", arguments)
+    assert json.dumps(arguments) == original
+
+
+def test_invalid_native_interaction_is_repaired_with_one_extra_request():
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？","tool_call":{"name":"create_application"}}')]),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？"}')]),
+    )
+    decision = maker.decide(_context(), ())
+    assert decision.action == "ask_user"
+    assert decision.tool_call is None
+    assert len(completions.requests) == 2
+
+
+def test_production_text_fallback_is_reasked_as_a_typed_interaction():
+    maker, completions = _scripted_maker(
+        _response(content='{"action":"final","message":"你希望哪座城市？"}', raw_text=True),
+        _response(tool_calls=[_tool_call("respond_to_user", '{"requires_user_input":true,"message":"你希望哪座城市？"}')]),
+    )
+    decision = maker.decide(_context(), ())
+    assert decision.action == "ask_user"
+    assert decision.tool_call is None
+    assert len(completions.requests) == 2
+    assert completions.requests[1]["tool_choice"] == {
+        "type": "function", "function": {"name": "respond_to_user"},
+    }
+
+
+def test_persistent_text_fallback_fails_closed_in_production():
+    maker, completions = _scripted_maker(
+        _response(content='{"action":"final","message":"城市？"}', raw_text=True),
+        _response(content='{"action":"final","message":"城市？"}', raw_text=True),
+    )
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ())
+    assert raised.value.code == "MAIN_AGENT_NATIVE_DECISION_REQUIRED"
+    assert len(completions.requests) == 2
+
+
 def test_a_long_final_answer_within_the_budget_is_delivered_whole() -> None:
     from career_agent.agent.providers.main_agent import DEFAULT_MAX_OUTPUT_TOKENS
     from career_agent.agent.providers.token_budget import count_tokens
@@ -1644,116 +1740,3 @@ def _q(question_id, prompt, *, options=None):
         "allow_free_text": False,
         "allow_skip": True,
     }
-
-
-def test_ask_user_carrying_several_questions_becomes_a_questionnaire() -> None:
-    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
-        json.dumps(
-            {
-                "action": "ask_user",
-                "message": "请补充",
-                "questions": [_q("q2", "目标城市？"), _q("q7", "期望薪资？")],
-            },
-            ensure_ascii=False,
-        )
-    )
-
-    assert decision.action == "questionnaire"
-    assert [item.question_id for item in decision.questions] == ["q1", "q2"]
-    assert [item.prompt for item in decision.questions] == ["目标城市？", "期望薪资？"]
-
-
-def test_a_single_question_is_asked_in_prose_not_as_a_questionnaire() -> None:
-    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
-        json.dumps(
-            {
-                "action": "ask_user",
-                "message": "还差一项信息。",
-                "questions": [
-                    _q(
-                        "q1",
-                        "你想把这个岗位加入求职方向吗？",
-                        options=[
-                            {"value": "yes", "label": "加入", "meaning": "choice"},
-                            {"value": "no", "label": "不加入", "meaning": "none"},
-                        ],
-                    )
-                ],
-            },
-            ensure_ascii=False,
-        )
-    )
-
-    assert decision.action == "ask_user"
-    assert decision.questions == ()
-    assert decision.message == (
-        "还差一项信息。\n\n你想把这个岗位加入求职方向吗？（加入 / 不加入）"
-    )
-
-
-def test_legacy_ask_user_options_become_a_free_text_confirmation() -> None:
-    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
-        json.dumps(
-            {
-                "action": "ask_user",
-                "message": "请确认本次模拟面试使用这些材料，可以吗？",
-                "options": [
-                    {"value": "yes", "label": "可以"},
-                    {"value": "change", "label": "换一份简历"},
-                ],
-                "allow_free_text": True,
-            },
-            ensure_ascii=False,
-        )
-    )
-
-    assert decision.action == "ask_user"
-    assert decision.questions == ()
-    assert decision.message == (
-        "请确认本次模拟面试使用这些材料，可以吗？（可以 / 换一份简历）"
-    )
-
-
-def test_option_values_outside_the_pattern_are_renamed_not_rejected() -> None:
-    decision = OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
-        json.dumps(
-            {
-                "action": "questionnaire",
-                "message": "请逐题回答",
-                "questions": [
-                    _q(
-                        "q1",
-                        "偏好哪种？",
-                        options=[
-                            {"value": "1", "label": "远程", "meaning": "choice"},
-                            {"value": "2", "label": "坐班", "meaning": "choice"},
-                        ],
-                    ),
-                    _q("q2", "补充说明"),
-                ],
-            },
-            ensure_ascii=False,
-        )
-    )
-
-    assert decision.action == "questionnaire"
-    assert [option.value for option in decision.questions[0].options] == [
-        "option_1",
-        "option_2",
-    ]
-    assert [option.label for option in decision.questions[0].options] == ["远程", "坐班"]
-
-
-def test_question_repair_never_applies_to_a_tool_call() -> None:
-    with pytest.raises(AgentWorkerError) as captured:
-        OpenAICompatibleMainAgentDecisionMaker._parse_text_decision(
-            json.dumps(
-                {
-                    "action": "tool_call",
-                    "tool_call": {"name": "find_saved_jobs", "arguments": {}},
-                    "questions": [_q("q1", "a"), _q("q2", "b")],
-                }
-            )
-        )
-
-    assert captured.value.code == "MAIN_AGENT_INVALID_RESPONSE"

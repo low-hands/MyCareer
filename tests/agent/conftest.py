@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.capabilities.catalog import ToolProfile
+from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewFollowUpDecision,
@@ -21,6 +22,7 @@ from career_agent.agent.workflows.mock_interview.contracts import (
 )
 from career_agent.agent.workflows.mock_interview.graph import MockInterviewSources
 from career_agent.agent.contracts.interview_preparation import InterviewPreparationContext
+from career_agent.evaluation.trajectory import trajectory_tool_specs
 from career_agent.domain.mock_interviews import (
     MockInterviewAnswerEvaluation,
     MockInterviewPlanItem,
@@ -53,6 +55,20 @@ def enter_tool_profile(
         conversation_id=conversation_id,
         task=task.model_copy(update={"tool_profile": profile}),
     )
+
+
+class CatalogSchemaRegistry(MainAgentToolRegistry):
+    """A registry double that offers every catalogue schema, as production does.
+
+    Runtime tests fake handlers without wiring the services that install their
+    schemas. Execution is limited to the schemas offered to the model, so a
+    double with handlers but no schemas has every call refused as not offered.
+    Offering the full catalogue lets the decide-time profile filter choose the
+    offer exactly as a fully wired registry would.
+    """
+
+    def schemas(self) -> tuple[dict, ...]:
+        return trajectory_tool_specs()
 
 
 def evaluation(

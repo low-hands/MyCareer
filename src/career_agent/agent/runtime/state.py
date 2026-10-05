@@ -53,6 +53,9 @@ class LoopControl(TypedDict, total=False):
     retry_counts: dict[str, int]
     # Re-entering ``decide`` must not stamp the same projected episodes twice.
     episodes_marked: bool
+    # Exact schemas supplied to the most recent model decision. This is a
+    # per-turn execution boundary, independent of the legacy tool profile.
+    offered_tool_names: tuple[str, ...]
 
 
 class MainAgentState(TypedDict):

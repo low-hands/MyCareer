@@ -299,7 +299,8 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
                 name="find_saved_jobs", arguments={"query": "Rust"}
             ),
         ),
-        "control": {},
+        # As decide records them: execution is limited to the offered schemas.
+        "control": {"offered_tool_names": ("find_saved_jobs", "get_saved_job")},
         "pending": {},
     }
 
@@ -515,7 +516,7 @@ def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
                 arguments={"selection_indexes": [1, 2]},
             ),
         ),
-        "control": {},
+        "control": {"offered_tool_names": ("compare_saved_jobs",)},
         "pending": {},
     }
 
