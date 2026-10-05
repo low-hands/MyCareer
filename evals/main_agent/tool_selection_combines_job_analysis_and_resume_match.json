@@ -1,0 +1,155 @@
+{
+  "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+  "policy": "For a request that needs job analysis followed by resume matching, complete the job step, switch to the resume capability, and use the analysis result without asking the user to restart.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "b3da41d4191100144bd0d4d3275e493f8eb4ce9785490669ac8ae432af54aaf7",
+  "context_shape_fingerprint": "e243716dfcf55f4ffc8458ce29f65dac483c4a636efaabf9ecd16b8ce25a43e9",
+  "recorded_at": "2026-10-05T08:53:05.392044+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 4541.2
+    },
+    {
+      "tool_call": {
+        "name": "list_resumes",
+        "arguments": {}
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 2631.9
+    },
+    {
+      "tool_call": {
+        "name": "list_resumes",
+        "arguments": {}
+      },
+      "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 1682.6
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-05T08:52:59.552291+00:00",
+      "elapsed_ms": 8856.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 4541.2
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2631.9
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 1682.6
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T08:52:59.325863+00:00",
+      "elapsed_ms": 6880.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2157.2
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2492.7
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2230.3
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T08:53:05.392044+00:00",
+      "elapsed_ms": 8687.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3886.6
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2581.1
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2219.6
+        }
+      ]
+    }
+  ]
+}

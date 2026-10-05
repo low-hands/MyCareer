@@ -1,32 +1,37 @@
 {
   "scenario": "research_is_not_started_as_part_of_matching",
   "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "c780c5d5ffc4343ccd934d1772e23887666fa64ae4cf886f7cd4042883896457",
   "context_shape_fingerprint": "5c52532e010f7baf46eddebcb9374855916fae74a8aab6845ae923c179839849",
-  "recorded_at": "2026-09-26T04:00:29.060216+00:00",
+  "recorded_at": "2026-10-05T08:51:52.365192+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "route_to_capability",
-        "arguments": {
-          "domain": "resume"
-        }
-      }
+        "name": "analyze_job",
+        "arguments": {}
+      },
+      "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 3455.0
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:00:29.060216+00:00",
+      "recorded_at": "2026-10-05T08:51:52.365192+00:00",
+      "elapsed_ms": 3455.1,
       "steps": [
         {
           "tool_call": {
-            "name": "route_to_capability",
-            "arguments": {
-              "domain": "resume"
-            }
-          }
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3455.0
         }
       ]
     }

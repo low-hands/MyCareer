@@ -1,22 +1,31 @@
 {
   "scenario": "clear_brief_finishes_without_opening_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "c4e49df6e6a19544bc40239e8e22d8d372a72cb0793c55459164a3905f480b4e",
-  "context_shape_fingerprint": "2b9757cf573d75eab40487a00b7bb7d8d3578ac3e1cf1701c2d189222131e518",
-  "recorded_at": "2026-09-26T04:01:30.469468+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "66e0f306564168faa8e2c54412025577c83f7913b9e9e86f124e932a26237e9b",
+  "context_shape_fingerprint": "c547767bf215cc05183c91e7a641047c667d22f3507d958123f81e741a44a857",
+  "recorded_at": "2026-10-05T08:52:15.793591+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"刚才的简报显示没有逾期事项（逾期 0 项），无需打开行动清单。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今天到期的待办事项，但没有逾期事项。根据你的要求，无需打开行动清单，流程结束。\",\"questions\":[]}",
+      "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 3184.3
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:01:30.469468+00:00",
+      "recorded_at": "2026-10-05T08:52:15.793591+00:00",
+      "elapsed_ms": 3184.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"刚才的简报显示没有逾期事项（逾期 0 项），无需打开行动清单。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今天到期的待办事项，但没有逾期事项。根据你的要求，无需打开行动清单，流程结束。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3184.3
         }
       ]
     }

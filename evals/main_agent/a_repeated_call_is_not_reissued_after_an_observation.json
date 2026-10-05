@@ -1,40 +1,51 @@
 {
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "f8918b92108e0c80415f584c059829f13a5fa1de271b8509559dc5a93d773eb0",
-  "context_shape_fingerprint": "02557d5f3c07d56671134ef6030c66ba9e7cf3b76e2509e0fe11abf2922ccb05",
-  "recorded_at": "2026-09-26T04:01:50.048232+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "33a6972f07fe140f5339821ccebdbfc61b6f5ea23e4a0c3b8e5a85d1c5a63d12",
+  "context_shape_fingerprint": "7f5c6d4a9ca242e8225c8c12b5a9dc0f019f86d12c93d5df2a10fbf6b11e2a42",
+  "recorded_at": "2026-10-05T08:52:30.894847+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
-        "arguments": {
-          "limit": 20,
-          "query": "岗位"
-        }
-      }
+        "arguments": {}
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 2087.9
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"找到了 1 个已保存岗位。需要查看该岗位的详细信息吗？\",\"questions\":[]}",
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 2,
+      "model_request_count": 4,
+      "elapsed_ms": 11689.5
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:01:50.048232+00:00",
+      "recorded_at": "2026-10-05T08:52:30.894847+00:00",
+      "elapsed_ms": 13777.6,
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
-            "arguments": {
-              "limit": 20,
-              "query": "岗位"
-            }
-          }
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2087.9
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **示例科技｜算法工程师**\\n   - 城市：上海\\n   - 薪资：30–50K\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"找到了 1 个已保存岗位。需要查看该岗位的详细信息吗？\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 2,
+          "model_request_count": 4,
+          "elapsed_ms": 11689.5
         }
       ]
     }

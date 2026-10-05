@@ -33,7 +33,6 @@ from pathlib import Path
 import pytest
 
 import career_agent.evaluation.trajectory as trajectory_module
-from career_agent.cli import _trajectory_tool_specs
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
     ToolCall,
@@ -57,6 +56,8 @@ from career_agent.agent.presentation.delivery_policy import (
 )
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.trajectory import (
+    summarize_decision_retries,
+    trajectory_tool_specs,
     EVALUATION_BASELINE_MODEL,
     TrajectoryCassette,
     TrajectoryStep,
@@ -80,6 +81,34 @@ from career_agent.evaluation.trajectory import (
 )
 
 
+def test_retry_summary_keeps_legacy_reasons_unknown_and_terminal_events_separate():
+    cassette = TrajectoryCassette(
+        steps=(
+            {"content": '{"action":"final","message":"done"}', "model_request_count": 4},
+            {"content": '{"action":"ask_user","message":"city?"}',
+             "decision_retry_telemetry_version": 1, "decision_retry_events": [
+                 {"reason": "text_rejected", "retried": True},
+                 {"reason": "text_rejected", "retried": False},
+             ]},
+            {"tool_call": {"name": "list_resumes", "arguments": {}},
+             "decision_retry_telemetry_version": 1, "decision_retry_events": []},
+        ), prompt_fingerprint=None, context_shape_fingerprint=None, model="test",
+    )
+    summary = summarize_decision_retries([cassette])
+    assert summary["completed_decisions"] == 3
+    assert summary["covered_decisions"] == 2
+    assert summary["unknown_decisions"] == 1
+    assert summary["decisions_with_retries"] == 1
+    assert summary["interaction_decisions"] == 2
+    assert summary["covered_interaction_decisions"] == 1
+    assert summary["interaction_decisions_with_retries"] == 1
+    assert summary["interaction_retry_rate"] == 1.0
+    assert summary["retry_reason_counts"] == {"text_rejected": 1}
+    assert summary["terminal_rejection_reason_counts"] == {"text_rejected": 1}
+    legacy = replace(cassette, steps=(cassette.steps[0],))
+    assert summarize_decision_retries([legacy])["interaction_retry_rate"] is None
+
+
 @pytest.fixture(scope="module")
 def offered() -> tuple[frozenset[str], tuple[dict, ...]]:
     """Every tool the registry can offer, wired with placeholder services.
@@ -94,7 +123,7 @@ def offered() -> tuple[frozenset[str], tuple[dict, ...]]:
     every fresh cassette read as stale under pytest while replaying cleanly
     from the CLI.
     """
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     return frozenset(spec["function"]["name"] for spec in schemas), schemas
 
 
@@ -508,7 +537,7 @@ def test_record_captures_independent_samples_and_retries_transport_errors(
     class FlakyMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -549,6 +578,10 @@ def test_record_captures_independent_samples_and_retries_transport_errors(
     assert cassette is not None
     assert cassette.sample_count == 3
     assert [len(sample) for sample in cassette.recordings] == [1, 1, 1]
+    assert cassette.recordings[0][0]["recording_retry_events"] == [
+        {"error_code": "MAIN_AGENT_TRANSPORT_ERROR", "decision_invocation": 1}
+    ]
+    assert "decision_retry_telemetry_version" not in cassette.recordings[0][0]
     monkeypatch.setattr(
         "career_agent.evaluation.trajectory."
         "OpenAICompatibleMainAgentDecisionMaker",
@@ -569,7 +602,7 @@ def test_record_does_not_retry_a_nonretryable_model_failure(
     calls = 0
 
     class BrokenMaker:
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -618,7 +651,7 @@ def test_record_runs_independent_samples_concurrently(
     class GatedMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -663,7 +696,7 @@ def test_record_adds_retry_jitter_when_requested(
     class FlakyMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -716,7 +749,7 @@ def test_record_catalogue_skips_a_current_cassette(
     class CountingMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -774,7 +807,7 @@ def test_record_catalogue_keeps_finished_neighbours_when_one_scenario_fails(
     class MixedMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -801,7 +834,7 @@ def test_record_catalogue_keeps_finished_neighbours_when_one_scenario_fails(
 
     # Invalid decisions are retried while recording; the broken maker keeps
     # returning them, so the scenario still fails once attempts run out.
-    with pytest.raises(AgentWorkerError, match="invalid"):
+    with pytest.raises(AgentWorkerError, match="invalid") as raised:
         record_catalogue(
             (healthy, broken),
             tool_specs=schemas,
@@ -814,6 +847,13 @@ def test_record_catalogue_keeps_finished_neighbours_when_one_scenario_fails(
     assert (tmp_path / f"{healthy.name}.json").exists()
     assert not (tmp_path / f"{broken.name}.json").exists()
 
+
+    failed = raised.value.recording_failures[0]
+    assert failed["scenario"] == broken.name
+    assert failed["sample"] == 1
+    assert failed["step"] == 0
+    assert failed["error_code"] == "MAIN_AGENT_INVALID_RESPONSE"
+    assert failed["offered_tools"]
 
 def test_record_retries_one_invalid_decision_instead_of_failing_the_sample(
     offered, monkeypatch, tmp_path: Path
@@ -834,7 +874,7 @@ def test_record_retries_one_invalid_decision_instead_of_failing_the_sample(
     class FlakyMaker:
         _system_prompt = staticmethod(real_maker._system_prompt)
 
-        def __init__(self, config) -> None:
+        def __init__(self, config, **selector_options) -> None:
             pass
 
         def decide(self, context, tool_specs):
@@ -867,7 +907,11 @@ def test_record_retries_one_invalid_decision_instead_of_failing_the_sample(
 
     assert calls == 2
     assert waits == [1.0]
-    assert json.loads(path.read_text())["sample_count"] == 1
+    recorded = json.loads(path.read_text(encoding="utf-8"))
+    assert recorded["sample_count"] == 1
+    assert recorded["steps"][0]["recording_retry_events"] == [
+        {"error_code": "MAIN_AGENT_INVALID_RESPONSE", "decision_invocation": 1}
+    ]
 
     class MisconfiguredMaker(FlakyMaker):
         def decide(self, context, tool_specs):
@@ -1241,7 +1285,7 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
     assert numbered.context.task.saved_job_candidates == ()
     positive = numbered.context.model_context()
     negative = unnumbered.context.model_context()
-    # One key differs, and inside it one field: the handle itself.
+    # Reference metadata and its derived readback status differ together.
     assert [key for key in positive if positive[key] != negative[key]] == [
         "tool_observations"
     ]
@@ -1261,6 +1305,11 @@ def test_in_turn_handle_pair_is_causal_and_has_fresh_model_evidence(offered) -> 
         # would be in.
         shown.pop("title")
         shown.pop("description")
+        shown_evidence = shown.pop("evidence")
+        hidden_evidence = hidden.pop("evidence")
+        assert shown_evidence["body_status"] == hidden_evidence["body_status"]
+        assert shown_evidence["readback_status"] == "available"
+        assert hidden_evidence["readback_status"] == "unavailable"
         assert (
             numbered.context.resolve_reference(
                 reference=handle, kind="job_research_report"

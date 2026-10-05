@@ -1,10 +1,10 @@
 {
   "scenario": "a_resume_critique_loads_its_skill",
   "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "c780c5d5ffc4343ccd934d1772e23887666fa64ae4cf886f7cd4042883896457",
   "context_shape_fingerprint": "b09d2bef75d280fb7d6056d72ff1347f05902033d73fc169f0c69baac6a025e6",
-  "recorded_at": "2026-09-26T04:04:40.110876+00:00",
+  "recorded_at": "2026-10-05T08:52:47.025503+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,13 +12,18 @@
         "arguments": {
           "skill": "resume-critique"
         }
-      }
+      },
+      "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 3624.2
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:04:40.110876+00:00",
+      "recorded_at": "2026-10-05T08:52:47.025503+00:00",
+      "elapsed_ms": 3624.3,
       "steps": [
         {
           "tool_call": {
@@ -26,7 +31,11 @@
             "arguments": {
               "skill": "resume-critique"
             }
-          }
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3624.2
         }
       ]
     }

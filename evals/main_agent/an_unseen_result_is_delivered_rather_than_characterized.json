@@ -1,10 +1,10 @@
 {
   "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
   "policy": "An observation without body exposes only a bounded receipt and selected flat decision facts, not the internal payload. Use values explicitly present there, but never expand them into omitted details; when the user asks only for the brief, the runtime presenter remains the authoritative delivery.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "8517da1ff1a6f9027e69c075e7596c91cb1181d02a7b8c7f24ddfb4fa5da516c",
-  "context_shape_fingerprint": "f138f4f8888d631a340d4dbdf773154a7553e8dd9aa38bc18473608e54e2d374",
-  "recorded_at": "2026-09-26T04:01:38.432955+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "44eefbcad5e748c8896798473669d242dda2492249e9161c1a364e2ff6a34f24",
+  "context_shape_fingerprint": "62f6a07a05e2ccc8488522d58a4aa517ffa9d45cab9a71538eb469fd6ac25e22",
+  "recorded_at": "2026-10-05T08:52:19.362589+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,16 +12,25 @@
         "arguments": {
           "timezone": "Asia/Shanghai"
         }
-      }
+      },
+      "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 2562.4
     },
     {
-      "content": "{\"action\":\"final\",\"message\":\"今日职业简报：有 3 个待办事项，其中 2 个今天到期，1 个已逾期，暂无等待中的事项。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成。\\n\\n**摘要：**\\n- 今日到期事项：2 项\\n- 逾期事项：1 项\\n- 等待中事项：0 项\\n\\n简报内容已通过卡片形式交付，请查看随回复附带的每日职业简报报告。\",\"questions\":[]}",
+      "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 3068.6
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:01:40.144868+00:00",
+      "recorded_at": "2026-10-05T08:52:15.004680+00:00",
+      "elapsed_ms": 5631.2,
       "steps": [
         {
           "tool_call": {
@@ -29,15 +38,24 @@
             "arguments": {
               "timezone": "Asia/Shanghai"
             }
-          }
+          },
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2562.4
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：有 3 个待办事项，其中 2 个今天到期，1 个已逾期，暂无等待中的事项。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成。\\n\\n**摘要：**\\n- 今日到期事项：2 项\\n- 逾期事项：1 项\\n- 等待中事项：0 项\\n\\n简报内容已通过卡片形式交付，请查看随回复附带的每日职业简报报告。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3068.6
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:03:08.682865+00:00",
+      "recorded_at": "2026-10-05T08:52:16.397999+00:00",
+      "elapsed_ms": 5323.0,
       "steps": [
         {
           "tool_call": {
@@ -45,26 +63,41 @@
             "arguments": {
               "timezone": "Asia/Shanghai"
             }
-          }
+          },
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2296.5
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成，包含 3 个待办事项：今日到期 2 项，逾期 1 项，等待中 0 项。未打开行动清单。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成，包含 3 个待办事项（2 项今天到期，1 项逾期）。\\n\\n简报内容通过卡片形式呈现，请查看界面中的日报卡片获取详细信息。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3026.3
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:01:38.432955+00:00",
+      "recorded_at": "2026-10-05T08:52:19.362589+00:00",
+      "elapsed_ms": 7807.0,
       "steps": [
         {
           "tool_call": {
             "name": "get_daily_brief",
-            "arguments": {
-              "timezone": "Asia/Shanghai"
-            }
-          }
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2024.0
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日职业简报：有 3 个待办事项，其中 2 个今天到期、1 个已逾期、0 个等待中。未打开行动清单。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成，包含 3 个待办事项（2 项今天到期，1 项逾期）。由于简报内容以卡片形式交付，请查看系统返回的每日简报卡片获取详细信息。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 5782.6
         }
       ]
     }

@@ -1,60 +1,117 @@
 {
   "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
   "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
-  "context_shape_fingerprint": "79aceabc26ee767c0ff3b492f34dad27a5aee22c920b398ece2d03f1202477eb",
-  "recorded_at": "2026-09-26T04:01:03.866590+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38",
+  "context_shape_fingerprint": "d8eb506e4868cb7d0991faa79997b1f9b3f71bcc9bc9f044191060ca209ca8b8",
+  "recorded_at": "2026-10-05T08:52:09.365160+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前可见的上个月调研记录中没有 Shopee，且无法通过现有引用取回这份报告。请提供该报告的引用编号，或粘贴其中关于竞争对手的段落。\",\"questions\":[]}"
+      "tool_call": {
+        "name": "search_career_memory",
+        "arguments": {
+          "query": "Shopee 竞争对手",
+          "limit": 8
+        }
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 3090.3
     }
   ],
   "sample_count": 5,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:02:32.331296+00:00",
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前可见的上个月调研记录中没有 Shopee，且无法通过现有引用取回这份报告。请提供该报告的引用编号，或粘贴其中关于竞争对手的段落。\",\"questions\":[]}"
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-26T04:02:28.440811+00:00",
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"我无法取回上个月的 Shopee 调研：当前可见的历史报告列表中没有 Shopee，事件检索也未找到匹配记录。因此不能可靠判断其主要竞争对手。请提供那份调研的内容或报告引用，我再帮你确认。\",\"questions\":[]}"
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-09-26T04:02:05.525969+00:00",
+      "recorded_at": "2026-10-05T08:52:06.601062+00:00",
+      "elapsed_ms": 3090.4,
       "steps": [
         {
           "tool_call": {
-            "name": "find_saved_jobs",
+            "name": "search_career_memory",
             "arguments": {
-              "limit": 20,
-              "query": "Shopee"
+              "query": "Shopee 竞争对手",
+              "limit": 8
             }
-          }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3090.3
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:00:53.394413+00:00",
+      "recorded_at": "2026-10-05T08:52:07.361598+00:00",
+      "elapsed_ms": 3802.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我目前无法读取你说的那份 Shopee 历史调研：现有归档列表中没有它，也没有对应的报告引用，因此不能可靠回答其中认定的主要竞争对手。请把那份调研的报告卡片、引用编号或相关段落发给我，我可以据此直接提取并总结。\",\"questions\":[]}"
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 竞争对手",
+              "limit": 8
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3802.0
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:01:03.866590+00:00",
+      "recorded_at": "2026-10-05T08:52:06.355371+00:00",
+      "elapsed_ms": 2783.5,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我没有找到上个月 Shopee 的调研记录，因此无法可靠确认其中提到的主要竞争对手。当前可见的归档报告里没有 Shopee；另有 3 份更早调研未列出，也无法按引用取回。\",\"questions\":[]}"
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 竞争对手",
+              "limit": 8
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2783.4
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T08:52:08.196243+00:00",
+      "elapsed_ms": 2782.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_9ca510"
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2782.8
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T08:52:09.365160+00:00",
+      "elapsed_ms": 3943.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 调研 竞争对手"
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 3943.0
         }
       ]
     }

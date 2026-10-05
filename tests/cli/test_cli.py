@@ -24,8 +24,9 @@ from career_agent.agent.runtime.main_agent_runtime import (
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_WORKFLOW_ERROR, _trajectory_tool_specs, build_parser, main
+from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
 from career_agent.evaluation import trajectory
+from career_agent.evaluation.trajectory import trajectory_tool_specs
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.harness.observability import conversation_trace_key
@@ -131,14 +132,15 @@ def test_trajectory_cli_reports_quality_as_an_independent_axis(monkeypatch) -> N
     payload = json.loads(output.getvalue())
     result = payload["results"][0]
 
-    assert code == 0
-    assert payload["behaviour_failed"] == 0
-    assert payload["quality_failed"] == 0
-    assert result["quality_status"] == "passed"
+    assert code == 2
+    assert payload["behaviour_failed"] == 1
+    assert payload["quality_failed"] == 1
+    assert result["behaviour"] == "failed"
+    assert result["quality_status"] == "failed"
     assert result["quality_sample_count"] == 5
     assert result["quality_min_pass_rate"] == 0.6
     assert result["quality_min_detectable_regression"] == 0.4
-    assert result["quality_samples_passed"] >= 3
+    assert result["quality_samples_passed"] == 0
     assert result["quality_pass_rate"] == (
         result["quality_samples_passed"] / result["quality_sample_count"]
     )
@@ -450,7 +452,7 @@ def test_trajectory_cli_maps_sample_failures_to_exit_status(
         steps=samples[0],
         samples=samples,
         prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
-            scenario, _trajectory_tool_specs()
+            scenario, trajectory_tool_specs()
         ),
         context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
         model="offline",
@@ -491,7 +493,7 @@ def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> Non
     cassette = trajectory.TrajectoryCassette(
         steps=({"content": '{"action":"ask_user","message":"请补充城市。"}'},),
         prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
-            scenario, _trajectory_tool_specs()
+            scenario, trajectory_tool_specs()
         ),
         context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
         model="recording-model",

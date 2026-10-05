@@ -1,22 +1,31 @@
 {
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38",
   "context_shape_fingerprint": "6f1a5132d9df1753a7075f5d117316f621de61057c0b38d22854e191aed79aa4",
-  "recorded_at": "2026-09-26T04:00:17.986788+00:00",
+  "recorded_at": "2026-10-05T08:51:54.342026+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你开始找工作，请先补充以下信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位或关键词？例如：前端开发、产品经理、数据分析、Java 后端\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的职位关键词（例如\\\"Java工程师\\\"、\\\"产品经理\\\"等）以及期望的工作城市。\",\"questions\":[]}",
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 5434.4
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:00:17.986788+00:00",
+      "recorded_at": "2026-10-05T08:51:54.342026+00:00",
+      "elapsed_ms": 5434.5,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你开始找工作，请先补充以下信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么职位或关键词？例如：前端开发、产品经理、数据分析、Java 后端\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的职位关键词（例如\\\"Java工程师\\\"、\\\"产品经理\\\"等）以及期望的工作城市。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 5434.4
         }
       ]
     }

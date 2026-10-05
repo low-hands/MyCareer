@@ -1,38 +1,57 @@
 {
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
-  "context_shape_fingerprint": "2d6e388a8fc6d22b691c159273f9862517aafa353b973481f1ab470ed974cbbf",
-  "recorded_at": "2026-09-26T04:02:42.163700+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38",
+  "context_shape_fingerprint": "ab01c6d0fe88d080ea5deb0e35bb0ca620e9a3ca446d0225a3814c22731db6fb",
+  "recorded_at": "2026-10-05T08:52:38.280692+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位序号 2 不存在。当前列表只有 1 个岗位：1. 示例科技｜算法工程师。\",\"questions\":[]}"
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。请确认要查看的岗位序号，或先保存更多岗位后再查询。\",\"questions\":[]}",
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 2,
+      "elapsed_ms": 6223.5
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:02:28.529911+00:00",
+      "recorded_at": "2026-10-05T08:52:36.061109+00:00",
+      "elapsed_ms": 6223.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位序号 2 不存在。当前列表只有 1 个岗位：1. 示例科技｜算法工程师。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前只保存了 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。请确认要查看的岗位序号，或先保存更多岗位后再查询。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 6223.5
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:02:27.167215+00:00",
+      "recorded_at": "2026-10-05T08:52:36.769773+00:00",
+      "elapsed_ms": 6440.1,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位序号 2 不存在，当前列表只有 1 个岗位。请确认是否打开第 1 个岗位的完整 JD。\",\"questions\":[]}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前保存的岗位列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。\\n\\n请确认您想查看的是否是序号 1 的岗位，或者您可以先使用\\\"查找已保存岗位\\\"功能查看更多已保存的岗位。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 6440.0
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:02:42.163700+00:00",
+      "recorded_at": "2026-10-05T08:52:38.280692+00:00",
+      "elapsed_ms": 7385.8,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位序号 2 不存在，当前列表只有 1 个岗位。请选择有效序号：1（示例科技｜算法工程师）。\",\"questions\":[],\"selection_source\":\"latest_tool_result\"}"
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前保存的岗位列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2。请确认您想查看的是哪个岗位，或者先浏览并保存更多岗位后再查看。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 7385.7
         }
       ]
     }

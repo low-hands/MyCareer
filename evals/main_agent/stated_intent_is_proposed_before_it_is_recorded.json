@@ -1,50 +1,32 @@
 {
   "scenario": "stated_intent_is_proposed_before_it_is_recorded",
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "f8918b92108e0c80415f584c059829f13a5fa1de271b8509559dc5a93d773eb0",
-  "context_shape_fingerprint": "03e30afdbe7679f72450973b743212ea19f021d2a74cb195ace376aa8d298ead",
-  "recorded_at": "2026-09-26T04:00:24.588341+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "706a9a267818b21b7e99fa47a0768db50e65d11bb23716498e6ea95ad4f6d9c6",
+  "context_shape_fingerprint": "cc20a09492d03e2c018d69661a415aa18feab8d01f3681451b92e0b6c1c90658",
+  "recorded_at": "2026-10-05T05:41:45.111206+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_target_roles",
-        "arguments": {}
-      }
+      "content": "{\"action\":\"questionnaire\",\"message\":\"为了准确记录你的求职意向，请回答以下问题：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的工作经验年限？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你的最高学历？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+      "selected_schema_fingerprint": "51e570ad042a4e42fff5a47b7b6337f6220d98668cadee15f1c1e189b46ff4b5"
     },
     {
-      "tool_call": {
-        "name": "propose_job_intent",
-        "arguments": {
-          "city": "上海",
-          "salary_expectation": "40K 以上",
-          "target_role_selection_index": 1,
-          "timescale": "permanent"
-        }
-      }
+      "content": "{\"action\":\"questionnaire\",\"message\":\"目前系统中没有已记录的目标岗位类别。要记录求职意向，需要先选择一个目标岗位。\\n\\n请问您是否有已创建的目标岗位？如果没有，我需要先了解更多信息才能帮您创建。\\n\\n另外，关于您的求职意向：\\n- 城市：上海\\n- 岗位方向：算法岗\\n- 期望薪资：40K 以上\\n\\n在确认之前，我还需要了解：\\n1. 这是全职、兼职还是实习岗位？\\n2. 您的工作年限是多少？\\n3. 您的学历背景是什么？\\n\\n这些信息将帮助我更准确地记录您的求职意向。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"求职类型是什么？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"您的工作年限是多少？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"您的最高学历是什么？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+      "selected_schema_fingerprint": "51e570ad042a4e42fff5a47b7b6337f6220d98668cadee15f1c1e189b46ff4b5"
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:00:24.588341+00:00",
+      "recorded_at": "2026-10-05T05:41:45.111206+00:00",
       "steps": [
         {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          }
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了准确记录你的求职意向，请回答以下问题：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的工作经验年限？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你的最高学历？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "selected_schema_fingerprint": "51e570ad042a4e42fff5a47b7b6337f6220d98668cadee15f1c1e189b46ff4b5"
         },
         {
-          "tool_call": {
-            "name": "propose_job_intent",
-            "arguments": {
-              "city": "上海",
-              "salary_expectation": "40K 以上",
-              "target_role_selection_index": 1,
-              "timescale": "permanent"
-            }
-          }
+          "content": "{\"action\":\"questionnaire\",\"message\":\"目前系统中没有已记录的目标岗位类别。要记录求职意向，需要先选择一个目标岗位。\\n\\n请问您是否有已创建的目标岗位？如果没有，我需要先了解更多信息才能帮您创建。\\n\\n另外，关于您的求职意向：\\n- 城市：上海\\n- 岗位方向：算法岗\\n- 期望薪资：40K 以上\\n\\n在确认之前，我还需要了解：\\n1. 这是全职、兼职还是实习岗位？\\n2. 您的工作年限是多少？\\n3. 您的学历背景是什么？\\n\\n这些信息将帮助我更准确地记录您的求职意向。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"求职类型是什么？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"您的工作年限是多少？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"您的最高学历是什么？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "selected_schema_fingerprint": "51e570ad042a4e42fff5a47b7b6337f6220d98668cadee15f1c1e189b46ff4b5"
         }
       ]
     }

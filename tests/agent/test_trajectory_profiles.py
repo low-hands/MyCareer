@@ -14,10 +14,11 @@ from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
 from career_agent.agent.capabilities.profiles import profile_schemas, profile_tools
-from career_agent.cli import _trajectory_tool_specs
+from career_agent.agent.providers.interaction_output import INTERACTION_NAMES
 from career_agent.evaluation import trajectory
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.trajectory import (
+    trajectory_tool_specs,
     ReplayClient,
     TrajectoryCassette,
     TrajectoryStep,
@@ -41,7 +42,7 @@ def _in_profile(profile):
 
 @pytest.mark.parametrize("profile", TOOL_PROFILE_NAMES)
 def test_registered_schemas_are_filtered_without_reordering(profile):
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     selected = profile_schemas(profile, schemas)
     assert selected == tuple(
         schema for schema in schemas
@@ -56,7 +57,7 @@ def test_registered_schemas_are_filtered_without_reordering(profile):
 
 
 def test_state_gated_tools_are_hidden_until_their_prerequisite_exists():
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     interview = ConversationTaskState(tool_profile="interview")
     names = {schema["function"]["name"] for schema in profile_schemas("interview", schemas, interview)}
     assert "execute_calendar_proposal" not in names
@@ -92,7 +93,7 @@ def test_every_request_uses_the_advanced_profile(mode, monkeypatch, tmp_path):
         api_key="offline",
         model="offline",
     )
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     if mode == "record":
         maker = OpenAICompatibleMainAgentDecisionMaker(config, client=client)
         monkeypatch.setattr(trajectory, "_decision_maker", lambda config: maker)
@@ -116,7 +117,7 @@ def test_every_request_uses_the_advanced_profile(mode, monkeypatch, tmp_path):
     registered = {schema["function"]["name"] for schema in schemas}
     assert len(client.requests) == len(profiles)
     for request, profile in zip(client.requests, profiles, strict=True):
-        assert {schema["function"]["name"] for schema in request["tools"]} == (
+        assert {schema["function"]["name"] for schema in request["tools"]} - INTERACTION_NAMES == (
             profile_tools(profile) & registered
         )
     assert client.requests[1]["tools"] == client.requests[2]["tools"]
@@ -128,7 +129,7 @@ def test_contract_and_replay_reject_a_tool_outside_the_current_profile():
         _in_profile("core"),
         steps=(TrajectoryStep(expect_tool="analyze_job"),),
     )
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     assert "core profile" in check_contract(scenario, tool_specs=schemas)[0]
     failures = trajectory.replay(
         scenario,
@@ -144,7 +145,7 @@ def test_contract_and_replay_reject_a_tool_outside_the_current_profile():
 
 
 def test_fingerprints_track_profile_transitions_and_only_visible_schemas():
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     without_analysis = tuple(
         schema for schema in schemas if schema["function"]["name"] != "analyze_job"
     )
@@ -174,7 +175,7 @@ def test_fixture_values_invalidate_a_recording_without_changing_the_tool_prefix(
         scenario,
         context=scenario.context.model_copy(update={"user_message": "请分析另一家公司"}),
     )
-    schemas = _trajectory_tool_specs()
+    schemas = trajectory_tool_specs()
     assert trajectory_prompt_fingerprint(scenario, schemas) == (
         trajectory_prompt_fingerprint(changed, schemas)
     )

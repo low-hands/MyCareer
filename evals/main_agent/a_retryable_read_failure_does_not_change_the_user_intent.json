@@ -1,38 +1,57 @@
 {
   "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
-  "context_shape_fingerprint": "08a3d819f976ef439c2cac939f77ae8bf93bee97d66f7aeb87b7371c7cd53042",
-  "recorded_at": "2026-09-26T04:01:50.039520+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38",
+  "context_shape_fingerprint": "e8e407834f0b196af3090f1bc8af4de01629a6d35210a90486c51181549c07bf",
+  "recorded_at": "2026-10-05T08:52:24.516085+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，目前无法检索你保存过的 RAG 岗位。你可以稍后让我重试。\",\"questions\":[]}"
+      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查询已保存的 RAG 岗位。请稍后重试或检查系统状态。\",\"questions\":[]}",
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 2,
+      "elapsed_ms": 5564.1
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:01:46.410638+00:00",
+      "recorded_at": "2026-10-05T08:52:22.839719+00:00",
+      "elapsed_ms": 5564.2,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，目前无法检索你保存过的 RAG 岗位。你可以稍后让我重试。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查询已保存的 RAG 岗位。请稍后重试或检查系统状态。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 5564.1
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:02:01.508620+00:00",
+      "recorded_at": "2026-10-05T08:52:25.193422+00:00",
+      "elapsed_ms": 6225.5,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"岗位库暂时不可用，未能查询你保存过的 RAG 岗位。请回复“重试”，我再执行一次查询。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查询已保存的 RAG 岗位。请稍后再试。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 6225.4
         }
       ]
     },
     {
-      "recorded_at": "2026-09-26T04:01:50.039520+00:00",
+      "recorded_at": "2026-10-05T08:52:24.516085+00:00",
+      "elapsed_ms": 5408.9,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，当前无法查找你保存过的 RAG 岗位。你可以稍后让我重试。\",\"questions\":[]}"
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法检索已保存的 RAG 岗位。请稍后再试或检查网络连接后重试查询。\",\"questions\":[]}",
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 2,
+          "elapsed_ms": 5408.8
         }
       ]
     }

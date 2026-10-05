@@ -1,28 +1,37 @@
 {
   "scenario": "weak_match_routes_to_resume_tailoring",
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "101379d46ddec53b45c0fac4547707b6cf281b91753f53137f95d79a8d611a46",
-  "context_shape_fingerprint": "d72ae95bf9a6e2ca25f5e99b3c9d54b648489cb1b3f035facb0b191fa0a4890e",
-  "recorded_at": "2026-09-26T04:01:32.893169+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "c780c5d5ffc4343ccd934d1772e23887666fa64ae4cf886f7cd4042883896457",
+  "context_shape_fingerprint": "48127acd5d7d7d804baa714a50514a28595bd0b397b93b9638659889babcd279",
+  "recorded_at": "2026-10-05T08:52:17.116991+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "draft_resume_tailoring",
         "arguments": {}
-      }
+      },
+      "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 2979.3
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:01:32.893169+00:00",
+      "recorded_at": "2026-10-05T08:52:17.116991+00:00",
+      "elapsed_ms": 2979.4,
       "steps": [
         {
           "tool_call": {
             "name": "draft_resume_tailoring",
             "arguments": {}
-          }
+          },
+          "selected_schema_fingerprint": "66648a9d69e7197a58d5b61585d6a86641cdaae769ea46ce017675e7c66a2462",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2979.3
         }
       ]
     }

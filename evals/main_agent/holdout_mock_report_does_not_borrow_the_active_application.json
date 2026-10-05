@@ -1,0 +1,97 @@
+{
+  "scenario": "holdout_mock_report_does_not_borrow_the_active_application",
+  "policy": "Reading a specified past mock report binds its exact resource, not the current application's newest report.",
+  "model": "qwen3.7-plus",
+  "capability_selector": {
+    "model": "qwen3.7-plus",
+    "protocol": "responses",
+    "reasoning_effort": "none"
+  },
+  "prompt_fingerprint": "c0103b48a53e250ce497e1259d3e59a539e8b6fd31fd01a8b09c23a77643f0f9",
+  "context_shape_fingerprint": "887b21c006d403e7bfcf448b55db3b491064bed275a39ba5dbc39f71102ab3c5",
+  "recorded_at": "2026-10-05T03:12:38.423799+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_mock_interview_result",
+        "arguments": {
+          "reference": "mock_c790f8"
+        }
+      },
+      "capability_selection": {
+        "tools": [
+          "get_mock_interview_result"
+        ],
+        "reason": "official_tool_selection",
+        "error_code": null
+      },
+      "selected_schema_fingerprint": "f0a2e091bc9c1cdc7ada870711492edf52ba6cced9b1a33f52c4c57f09cbe95a"
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-05T03:12:32.175703+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_mock_interview_result",
+            "arguments": {
+              "reference": "mock_c790f8"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_mock_interview_result"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "f0a2e091bc9c1cdc7ada870711492edf52ba6cced9b1a33f52c4c57f09cbe95a"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T03:12:36.193175+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_mock_interview_result",
+            "arguments": {
+              "reference": "mock_c790f8"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_mock_interview_result"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "f0a2e091bc9c1cdc7ada870711492edf52ba6cced9b1a33f52c4c57f09cbe95a"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T03:12:38.423799+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_mock_interview_result",
+            "arguments": {
+              "reference": "mock_c790f8"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_mock_interview_result"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "f0a2e091bc9c1cdc7ada870711492edf52ba6cced9b1a33f52c4c57f09cbe95a"
+        }
+      ]
+    }
+  ]
+}

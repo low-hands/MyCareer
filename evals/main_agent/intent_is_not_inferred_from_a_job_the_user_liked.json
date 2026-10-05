@@ -1,22 +1,41 @@
 {
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "05c9bf3e9acf69a18fe64943e4e7b7e7b151cfa5f5de7caf9eab4fcaa958f6e6",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38",
   "context_shape_fingerprint": "a97be95ebba4699377ee436852b8ae2c22933334659838bccade17959a635d87",
-  "recorded_at": "2026-09-26T04:00:27.317984+00:00",
+  "recorded_at": "2026-10-05T08:51:54.036888+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步？\\n\\n请选择下一步操作（分析岗位要求、面试重点和风险 / 调研公司和业务背景 / 与其他已保存岗位对比 / 记录为求职意向 / 其他）\",\"questions\":[]}"
+      "tool_call": {
+        "name": "find_saved_jobs",
+        "arguments": {
+          "limit": 5
+        }
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 5124.7
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:00:27.317984+00:00",
+      "recorded_at": "2026-10-05T08:51:54.036888+00:00",
+      "elapsed_ms": 5124.7,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个岗位做哪一步？\\n\\n请选择下一步操作（分析岗位要求、面试重点和风险 / 调研公司和业务背景 / 与其他已保存岗位对比 / 记录为求职意向 / 其他）\",\"questions\":[]}"
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "limit": 5
+            }
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 5124.7
         }
       ]
     }

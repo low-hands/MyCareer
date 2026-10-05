@@ -1,10 +1,10 @@
 {
   "scenario": "a_core_request_routes_before_job_analysis",
   "policy": "When the current profile lacks a required domain tool, route to that domain first, then use the tool under the updated profile.",
-  "model": "gpt-5.6-sol",
-  "prompt_fingerprint": "d6b63619460a782c7fb3e965daf6560246d093429b062fc95d1ea291d99244e0",
-  "context_shape_fingerprint": "0cd09d62c859ce1c89537203681eb69ed4b6e156ad286775b891876ff81d07d3",
-  "recorded_at": "2026-09-26T04:05:07.775804+00:00",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "36b60cad25fd2c7cc177325ea057165e4ba92761d8481ad1c16f97c8d793b42f",
+  "context_shape_fingerprint": "6e5fd0b9a4c7f9cf5af726ed7090d38da66ae0abba2f27dda36e0fde02a4d167",
+  "recorded_at": "2026-10-05T08:52:50.696308+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,21 +12,28 @@
         "arguments": {
           "domain": "job"
         }
-      }
+      },
+      "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 4914.6
     },
     {
       "tool_call": {
         "name": "analyze_job",
-        "arguments": {
-          "selection_index": 1
-        }
-      }
+        "arguments": {}
+      },
+      "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+      "decision_invocations": 1,
+      "model_request_count": 1,
+      "elapsed_ms": 2390.9
     }
   ],
   "sample_count": 1,
   "samples": [
     {
-      "recorded_at": "2026-09-26T04:05:07.775804+00:00",
+      "recorded_at": "2026-10-05T08:52:50.696308+00:00",
+      "elapsed_ms": 7305.7,
       "steps": [
         {
           "tool_call": {
@@ -34,15 +41,21 @@
             "arguments": {
               "domain": "job"
             }
-          }
+          },
+          "selected_schema_fingerprint": "f23b9b76b08ba6ca68c10b53726bb5e975a21ea412125d6ae3e1f515481edfc6",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 4914.6
         },
         {
           "tool_call": {
             "name": "analyze_job",
-            "arguments": {
-              "selection_index": 1
-            }
-          }
+            "arguments": {}
+          },
+          "selected_schema_fingerprint": "31bcadb6eba962cdc4f9ae9b5465beb0496498a843e900971be7d80013ff0572",
+          "decision_invocations": 1,
+          "model_request_count": 1,
+          "elapsed_ms": 2390.9
         }
       ]
     }

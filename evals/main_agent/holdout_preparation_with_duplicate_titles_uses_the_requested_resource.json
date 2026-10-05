@@ -1,0 +1,97 @@
+{
+  "scenario": "holdout_preparation_with_duplicate_titles_uses_the_requested_resource",
+  "policy": "A requested stored preparation is selected by its provenance, never by another active preparation or display-title equality.",
+  "model": "qwen3.7-plus",
+  "capability_selector": {
+    "model": "qwen3.7-plus",
+    "protocol": "responses",
+    "reasoning_effort": "none"
+  },
+  "prompt_fingerprint": "c0103b48a53e250ce497e1259d3e59a539e8b6fd31fd01a8b09c23a77643f0f9",
+  "context_shape_fingerprint": "5e573602c1e36509207df36a1943fa1cf968ec4d7b80b37448ca19305407dd98",
+  "recorded_at": "2026-10-05T03:12:25.292734+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_interview_preparation",
+        "arguments": {
+          "reference": "preparation_2131be"
+        }
+      },
+      "capability_selection": {
+        "tools": [
+          "get_interview_preparation"
+        ],
+        "reason": "official_tool_selection",
+        "error_code": null
+      },
+      "selected_schema_fingerprint": "8d31a67a4725ac0d094dda417157e6338f989b600df365813d678cc310858569"
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-05T03:12:12.389999+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview_preparation",
+            "arguments": {
+              "reference": "preparation_2131be"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_interview_preparation"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "8d31a67a4725ac0d094dda417157e6338f989b600df365813d678cc310858569"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T03:12:18.534496+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview_preparation",
+            "arguments": {
+              "reference": "preparation_2131be"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_interview_preparation"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "8d31a67a4725ac0d094dda417157e6338f989b600df365813d678cc310858569"
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-05T03:12:25.292734+00:00",
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview_preparation",
+            "arguments": {
+              "reference": "preparation_2131be"
+            }
+          },
+          "capability_selection": {
+            "tools": [
+              "get_interview_preparation"
+            ],
+            "reason": "official_tool_selection",
+            "error_code": null
+          },
+          "selected_schema_fingerprint": "8d31a67a4725ac0d094dda417157e6338f989b600df365813d678cc310858569"
+        }
+      ]
+    }
+  ]
+}
