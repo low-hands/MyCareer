@@ -250,6 +250,48 @@ def test_approval_and_replay_policies_are_explicit() -> None:
     assert capability("execute_calendar_proposal").recovery_policy == "reconcile"
 
 
+def test_every_write_has_the_review_policy_from_the_inventory() -> None:
+    from career_agent.agent.contracts.profile import system_capability_verdict
+    from career_agent.agent.capabilities.effects import owner_rule_capabilities
+
+    runtime_owned = {
+        "handle_mock_interview_input", "retry_mock_interview",
+    }
+    mandatory_review = {
+        "update_owner_settings", "execute_calendar_proposal",
+        "confirm_memory_tombstone", "confirm_constraint_retirement",
+    }
+    writes = {name: item for name, item in CAPABILITIES.items() if item.effect == "WRITE"}
+    assert set(writes) == runtime_owned | mandatory_review | {
+        "update_working_notes", "open_job_search", "analyze_job",
+        "research_job", "retry_job_research", "match_resume_to_job",
+        "draft_resume_tailoring", "review_resume_tailoring",
+        "revise_resume_tailoring", "export_resume_artifact",
+        "prepare_interview", "prepare_interview_calendar_sync",
+        "start_mock_interview", "propose_career_fact",
+        "complete_action_item", "dismiss_action_item", "snooze_action_item",
+        "correct_job_requirement_tier", "confirm_job_intent",
+        "finalize_resume_tailoring", "create_application",
+        "update_application_status", "sync_application_emails",
+        "resolve_email_event", "create_interview", "update_interview",
+        "complete_interview", "record_interview_retro",
+        "restart_mock_interview", "confirm_free_text_preference",
+        "confirm_memory_amendment", "confirm_career_fact",
+    }
+    for name, item in writes.items():
+        expected = (
+            "always" if name in mandatory_review else
+            "never" if name in runtime_owned else "owner_rule"
+        )
+        assert item.approval_policy == expected, name
+        assert system_capability_verdict(name) == (
+            "review" if expected == "always" else "permit"
+        )
+        if item.external_write:
+            assert item.approval_policy == "always"
+    assert owner_rule_capabilities() == set(writes) - runtime_owned
+
+
 def test_output_contract_rejects_a_result_for_another_capability() -> None:
     from career_agent.agent.contracts.observations import ToolObservation
 

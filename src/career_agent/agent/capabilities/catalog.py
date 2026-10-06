@@ -29,6 +29,8 @@ DOMAIN_TOOL_PROFILES: tuple[ToolProfile, ...] = tuple(
 
 ToolEffect = Literal["READ", "WRITE", "CONTROL"]
 ExecutionKind = Literal["atomic_tool", "workflow", "runtime_workflow"]
+# `never` is reserved for non-WRITE and runtime-owned capabilities. Every
+# model-callable WRITE is owner-rule confirmable or unconditionally reviewed.
 ApprovalPolicy = Literal["never", "owner_rule", "always"]
 ReplayPolicy = Literal["not_applicable", "never", "idempotent"]
 RecoveryPolicy = Literal["not_applicable", "retry", "reconcile"]
@@ -1151,6 +1153,8 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"only WRITE capabilities may require approval: {descriptor.name}")
         if descriptor.runtime_owned and descriptor.approval_policy != "never":
             raise RuntimeError(f"runtime-owned capability cannot await owner approval: {descriptor.name}")
+        if descriptor.model_callable and descriptor.effect == "WRITE" and descriptor.approval_policy == "never":
+            raise RuntimeError(f"model-callable WRITE must honor owner approval rules: {descriptor.name}")
         if descriptor.external_write and descriptor.approval_policy != "always":
             raise RuntimeError(f"external write must always require approval: {descriptor.name}")
         if descriptor.runtime_owned != (descriptor.execution_kind == "runtime_workflow"):
