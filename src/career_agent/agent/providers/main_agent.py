@@ -314,11 +314,16 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         sleep: Callable[[float], None] = time.sleep,
         model_extra_body: Mapping[str, Any] | None = None,
+        capture_rejected_output: bool = False,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least one")
         self._config = config
         self._model_extra_body = dict(model_extra_body or {})
+        self._capture_rejected_output = capture_rejected_output
+        self._rejected_output: ContextVar[dict[str, Any] | None] = ContextVar(
+            f"main_agent_rejected_output_{id(self)}", default=None
+        )
         self._max_attempts = max_attempts
         self._max_output_tokens = max_output_tokens
         self._sleep = sleep
@@ -368,7 +373,10 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
 
     def _record_decision_rejection(self, reason: str, *, retried: bool) -> None:
         events = self._decision_retry_events.get() or ()
-        self._decision_retry_events.set((*events, {"reason": reason, "retried": retried}))
+        event: dict[str, Any] = {"reason": reason, "retried": retried}
+        if self._capture_rejected_output:
+            event["raw_output"] = self._rejected_output.get()
+        self._decision_retry_events.set((*events, event))
 
     def cache_configuration(self) -> dict[str, Any]:
         mode = self._config.prompt_cache
@@ -619,6 +627,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
     ) -> AgentDecision:
         self._cache_metrics.set(None)
         self._decision_retry_events.set(())
+        self._rejected_output.set(None)
         self._finish_reason.set(None)
         self._attempts.start()
         capture_receipt = self._capture_receipt_decision(context)
@@ -672,6 +681,17 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "Main Agent model ran out of output tokens before finishing its decision.",
                 )
             tool_calls = tuple(getattr(message, "tool_calls", None) or ())
+            if self._capture_rejected_output:
+                self._rejected_output.set({
+                    "content": getattr(message, "content", None),
+                    "tool_calls": [
+                        {
+                            "name": getattr(getattr(call, "function", None), "name", None),
+                            "arguments": getattr(getattr(call, "function", None), "arguments", None),
+                        }
+                        for call in tool_calls
+                    ],
+                })
             offered_names = {spec["function"]["name"] for spec in tools}
             unknown_names = [
                 getattr(getattr(call, "function", None), "name", None) or "?"

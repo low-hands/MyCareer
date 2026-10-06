@@ -102,6 +102,20 @@ def test_retry_measurement_identifies_the_cause_without_changing_the_decision(re
     assert maker.consume_decision_retry_metrics()["decision_retry_events"] == []
 
 
+def test_evaluation_can_capture_rejected_output_verbatim() -> None:
+    maker, _ = _scripted_maker(
+        _response(tool_calls=[_tool_call("unknown_tool", '{"original":"原话"}')]),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"请确认"}')]),
+    )
+    maker._capture_rejected_output = True
+    assert maker.decide(_context(), ()).action == "ask_user"
+    event = maker.consume_decision_retry_metrics()["decision_retry_events"][0]
+    assert event["reason"] == "unavailable_tool"
+    assert event["raw_output"]["tool_calls"] == [
+        {"name": "unknown_tool", "arguments": '{"original":"原话"}'},
+    ]
+
+
 def _spotlight_json(content: str, *, label: str) -> dict:
     lines = content.splitlines()
     assert lines[0] == label

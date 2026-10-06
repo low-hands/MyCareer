@@ -131,7 +131,9 @@ def _record_sample(scenario: TrajectoryScenario,
                    *, tool_specs: tuple[dict[str, Any], ...],
                    config: OpenAICompatibleAgentConfig,
                    max_attempts: int = 3) -> dict[str, Any]:
-    maker = OpenAICompatibleMainAgentDecisionMaker(config, **main_model_options())
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        config, capture_rejected_output=True, **main_model_options(),
+    )
     strategy = SearchStrategy()
     maker.configure_tool_selection(strategy)
     context = scenario.context.model_copy(update={"received_at": datetime.now(timezone.utc)})
