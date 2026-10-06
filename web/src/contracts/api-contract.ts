@@ -10,6 +10,98 @@
 
 export const API_CONTRACT = {
   "reads": {
+    "ActionItemView": {
+      "examples": [
+        {
+          "action_type": "follow_up",
+          "application_id": "app-1",
+          "due_at": "2026-09-12T12:00:00Z",
+          "id": "action-1",
+          "snoozed_until": null,
+          "source_type": "application",
+          "status": "open",
+          "summary": "投递已满 7 天没有回音。",
+          "title": "跟进示例科技的投递"
+        }
+      ],
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action_type": {
+            "title": "Action Type",
+            "type": "string"
+          },
+          "application_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Application Id"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Due At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "snoozed_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snoozed Until"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action_type",
+          "source_type",
+          "title",
+          "summary",
+          "status"
+        ],
+        "title": "ActionItemView",
+        "type": "object"
+      }
+    },
     "ApplicationMockInterviewsResponse": {
       "examples": [
         {
@@ -3606,6 +3698,94 @@ export const API_CONTRACT = {
           "authorization_url"
         ],
         "title": "GoogleAuthorizationResponse",
+        "type": "object"
+      }
+    },
+    "InterviewRecordView": {
+      "examples": [
+        {
+          "application_id": "app-1",
+          "company_name": "示例科技",
+          "employer_label": "技术面",
+          "id": "interview-1",
+          "job_title": "AI 产品经理",
+          "scheduled_start": "2026-09-12T12:00:00Z",
+          "sequence_number": 1,
+          "status": "scheduled"
+        },
+        {
+          "application_id": "app-1",
+          "company_name": "示例科技",
+          "employer_label": null,
+          "id": "interview-2",
+          "job_title": "AI 产品经理",
+          "scheduled_start": null,
+          "sequence_number": 2,
+          "status": "unscheduled"
+        }
+      ],
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "application_id": {
+            "title": "Application Id",
+            "type": "string"
+          },
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "employer_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Employer Label"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "job_title": {
+            "title": "Job Title",
+            "type": "string"
+          },
+          "scheduled_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Start"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "company_name",
+          "job_title",
+          "sequence_number",
+          "status"
+        ],
+        "title": "InterviewRecordView",
         "type": "object"
       }
     },

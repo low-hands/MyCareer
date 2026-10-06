@@ -85,6 +85,7 @@ from career_agent.api.reads import (
     SavedJobSnapshotView,
     SavedJobView,
     JobMatchHistoryResponse,
+    InterviewRecordView,
     ResumeJobMatchView,
     TargetRoleView,
 )
@@ -450,6 +451,19 @@ def _read_examples() -> dict[str, list[BaseModel]]:
         pending_interaction_body=None,
     )
     examples: list[BaseModel] = [
+        _action_item(),
+        InterviewRecordView(
+            id="interview-1", application_id="app-1",
+            company_name="示例科技", job_title="AI 产品经理",
+            sequence_number=1, employer_label="技术面",
+            status="scheduled", scheduled_start=_AT,
+        ),
+        InterviewRecordView(
+            id="interview-2", application_id="app-1",
+            company_name="示例科技", job_title="AI 产品经理",
+            sequence_number=2, employer_label=None,
+            status="unscheduled", scheduled_start=None,
+        ),
         DailyBriefResponse(
             timezone="Asia/Shanghai",
             generated_at=_AT,
