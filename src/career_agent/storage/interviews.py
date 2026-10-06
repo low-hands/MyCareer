@@ -644,6 +644,26 @@ class SQLiteInterviewStore:
                 "DELETE FROM interview_rounds WHERE user_id = ?", (user_id,)
             ).rowcount
 
+    def delete(self, *, user_id: str, interview_round_id: str) -> bool:
+        """Remove one mistaken round and its local event/retro history."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (interview_round_id, user_id),
+            ).fetchone() is None:
+                return False
+            for table in ("interview_retro_reports", "interview_round_events"):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE interview_round_id = ? AND user_id = ?",
+                    (interview_round_id, user_id),
+                )
+            connection.execute(
+                "DELETE FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (interview_round_id, user_id),
+            )
+        return True
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")

@@ -185,6 +185,17 @@ class ActionCenterService:
             status="dismissed",
         )
 
+    def restore_dismissed_action(self, *, user_id: str, action_item_id: str) -> ActionItem:
+        item = self._store.get(user_id=user_id, action_item_id=action_item_id)
+        if item is None:
+            raise ActionItemNotFoundError(action_item_id)
+        if item.status != "dismissed":
+            raise InvalidActionTransitionError("only dismissed actions can be restored")
+        restored = self._transition(user_id=user_id, action_item_id=action_item_id, status="open")
+        if restored.status != "open":
+            raise InvalidActionTransitionError("action changed before it could be restored")
+        return restored
+
     def complete_source_action(
         self,
         *,

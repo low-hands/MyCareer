@@ -208,7 +208,9 @@ class SQLiteActionItemStore:
             if row is None:
                 return None
             item = self._item(row)
-            if item.status in USER_RESOLVED_ACTION_STATUSES:
+            if item.status in USER_RESOLVED_ACTION_STATUSES and not (
+                item.status == "dismissed" and status == "open"
+            ):
                 return item
             resolved_at = changed_at if status in RESOLVED_ACTION_STATUSES else None
             updated = item.model_copy(
@@ -331,6 +333,34 @@ class SQLiteActionItemStore:
             )
             return connection.execute(
                 f"DELETE FROM action_items WHERE {condition}", (user_id,)
+            ).rowcount
+
+    def clear_for_application(self, *, user_id: str, application_id: str) -> int:
+        condition = "user_id = ? AND application_id = ?"
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM action_item_events WHERE action_item_id IN "
+                f"(SELECT id FROM action_items WHERE {condition})",
+                (user_id, application_id),
+            )
+            return connection.execute(
+                f"DELETE FROM action_items WHERE {condition}",
+                (user_id, application_id),
+            ).rowcount
+
+    def clear_for_interview(self, *, user_id: str, interview_round_id: str) -> int:
+        condition = "user_id = ? AND source_type = 'interview_round' AND source_id = ?"
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM action_item_events WHERE action_item_id IN "
+                f"(SELECT id FROM action_items WHERE {condition})",
+                (user_id, interview_round_id),
+            )
+            return connection.execute(
+                f"DELETE FROM action_items WHERE {condition}",
+                (user_id, interview_round_id),
             ).rowcount
 
     def _connect(self) -> sqlite3.Connection:

@@ -24,9 +24,9 @@ class SQLiteApplicationStore:
             apply_schema(
                 connection,
                 "applications",
-                2,
+                3,
                 self._migrate,
-                upgrades={2: self._allow_unknown_resume},
+                upgrades={2: self._allow_unknown_resume, 3: self._add_event_reason},
             )
         os.chmod(self.path, 0o600)
 
@@ -168,7 +168,7 @@ class SQLiteApplicationStore:
             rows = connection.execute(
                 """
                 SELECT id, application_id, user_id, source, event_type,
-                       previous_status, new_status, note, occurred_at
+                       previous_status, new_status, note, occurred_at, reason
                 FROM application_events
                 WHERE application_id = ? AND user_id = ?
                 ORDER BY occurred_at, rowid
@@ -187,6 +187,7 @@ class SQLiteApplicationStore:
         submitted_at: datetime,
         note: str | None,
         source: str = "user_reported",
+        reason: str | None = None,
     ) -> Application | None:
         now = datetime.now(timezone.utc)
         event_type = "note_added" if expected_status == new_status else "status_changed"
@@ -199,6 +200,7 @@ class SQLiteApplicationStore:
             previous_status=expected_status,
             new_status=new_status,
             note=note,
+            reason=reason,
             occurred_at=now,
         )
         with self._connect() as connection:
@@ -246,6 +248,25 @@ class SQLiteApplicationStore:
             connection.execute("DELETE FROM applications WHERE user_id = ?", (user_id,))
         return len(ids)
 
+    def delete(self, *, user_id: str, application_id: str) -> bool:
+        """Remove one mistaken local record and its status history."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM applications WHERE id = ? AND user_id = ?",
+                (application_id, user_id),
+            ).fetchone() is None:
+                return False
+            connection.execute(
+                "DELETE FROM application_events WHERE application_id = ? AND user_id = ?",
+                (application_id, user_id),
+            )
+            connection.execute(
+                "DELETE FROM applications WHERE id = ? AND user_id = ?",
+                (application_id, user_id),
+            )
+        return True
+
     def _migrate(self, connection: sqlite3.Connection) -> None:
         connection.execute(
             """
@@ -274,7 +295,8 @@ class SQLiteApplicationStore:
                 previous_status TEXT,
                 new_status TEXT NOT NULL,
                 note TEXT,
-                occurred_at TEXT NOT NULL
+                occurred_at TEXT NOT NULL,
+                reason TEXT
             )
             """
         )
@@ -358,6 +380,20 @@ class SQLiteApplicationStore:
         return connection
 
     @staticmethod
+    def _add_event_reason(connection: sqlite3.Connection) -> None:
+        connection.execute("ALTER TABLE application_events ADD COLUMN reason TEXT")
+        # One-time compatibility for rounds recorded before the structured field.
+        connection.execute(
+            """UPDATE application_events SET reason = 'interview_created'
+               WHERE event_type = 'status_changed'
+                 AND source = 'user_reported'
+                 AND previous_status IN ('submitted', 'acknowledged')
+                 AND new_status = 'interviewing'
+                 AND note = ?""",
+            ("用户已报告收到面试安排。",),
+        )
+
+    @staticmethod
     def _insert_event(
         connection: sqlite3.Connection, event: ApplicationEvent
     ) -> None:
@@ -365,8 +401,8 @@ class SQLiteApplicationStore:
             """
             INSERT INTO application_events(
                 id, application_id, user_id, source, event_type,
-                previous_status, new_status, note, occurred_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                previous_status, new_status, note, occurred_at, reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event.id,
@@ -378,6 +414,7 @@ class SQLiteApplicationStore:
                 event.new_status,
                 event.note,
                 event.occurred_at.isoformat(),
+                event.reason,
             ),
         )
 
@@ -407,4 +444,5 @@ class SQLiteApplicationStore:
             new_status=row[6],
             note=row[7],
             occurred_at=row[8],
+            reason=row[9],
         )

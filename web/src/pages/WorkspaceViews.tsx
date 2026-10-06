@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   type ApplicationView,
   type ApplicationMockInterviews,
+  type InterviewRecordView,
+  type MockInterviewSessionView,
   type CalendarWorkspace,
   type CompanyResearchView,
   type Dashboard,
@@ -10,7 +12,10 @@ import {
   type ResumeView,
   type SavedJobView,
   createApplication,
+  correctApplicationStatus,
   clearApplications,
+  deleteApplication,
+  deleteInterview,
   deleteResume,
   fetchTargetRoles,
   moveResume,
@@ -20,6 +25,7 @@ import {
   fetchApplicationMockInterviews,
   fetchMockInterviews,
   fetchCalendar,
+  fetchInterviews,
   connectQQ,
   disconnectIntegration,
   fetchCompanyResearch,
@@ -559,6 +565,9 @@ export function ApplicationsPanel(props: PageProps) {
   const [editedVersion, setEditedVersion] = useState("");
   const [savingResume, setSavingResume] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [deletingApplication, setDeletingApplication] = useState<string | null>(null);
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
+  const [savingStatus, setSavingStatus] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   useEffect(() => {
     const open = (event: Event) => { const job = (event as CustomEvent<string>).detail; setJobId(job); setResumeVersionId(""); setShowForm(true); };
@@ -587,6 +596,40 @@ export function ApplicationsPanel(props: PageProps) {
     if (!(await confirm({ title: "清空全部投递记录？", body: "所有投递和进度都会删除，无法恢复。岗位和简历不受影响。", confirmLabel: "清空" }))) return;
     setClearing(true); setActionError(null);
     try { await clearApplications({ apiBaseUrl: props.apiBaseUrl }); state.reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "清空失败"); } finally { setClearing(false); }
+  }
+
+  async function removeApplication(item: ApplicationView): Promise<void> {
+    if (!(await confirm({
+      title: `删除误记的投递「${item.company_name} · ${item.title}」？`,
+      body: "只删除本项目里的记录，不会撤回外部平台的真实投递。有关联面试、练习或邮件时会阻止删除。",
+      confirmLabel: "删除这条记录",
+    }))) return;
+    setDeletingApplication(item.id);
+    setActionError(null);
+    try {
+      await deleteApplication(item.id, { apiBaseUrl: props.apiBaseUrl });
+      if (practiceApplication?.id === item.id) setPracticeApplication(null);
+      state.reload();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "删除投递记录失败。");
+    } finally {
+      setDeletingApplication(null);
+    }
+  }
+
+  async function saveStatus(item: ApplicationView): Promise<void> {
+    const status = statusDrafts[item.id] ?? item.status;
+    if (status === item.status) return;
+    setSavingStatus(item.id);
+    setActionError(null);
+    try {
+      await correctApplicationStatus(item.id, status, { apiBaseUrl: props.apiBaseUrl });
+      state.reload();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "更正投递状态失败。");
+    } finally {
+      setSavingStatus(null);
+    }
   }
 
   async function submitApplication(): Promise<void> {
@@ -628,6 +671,34 @@ export function ApplicationsPanel(props: PageProps) {
       <ErrorBanner message={formError} />
       {showForm ? <section className="surface-card application-create-form"><div><SearchableSelect label="已保存岗位" placeholder="请选择岗位" searchPlaceholder="搜索公司或岗位" value={jobId} onChange={setJobId} disabled={saving} options={(state.data?.jobs ?? []).map((job) => ({ value: job.id, label: job.title, description: job.company_name }))} /><SearchableSelect label="使用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={resumeVersionId} onChange={setResumeVersionId} disabled={saving} options={resumeVersionOptions(state.data?.resumes ?? [])} /><label>实际投递时间<input type="datetime-local" value={submittedAt} onChange={(event) => setSubmittedAt(event.target.value)} /></label><label>备注（可选）<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} placeholder="例如：官网投递、内推人等" /></label></div>{state.data && state.data.jobs.length === 0 ? <p>记录前需要至少一个已保存岗位。可以先前往岗位库，或让 Agent 协助。</p> : null}<button type="button" disabled={saving || !jobId || !resumeVersionId || !submittedAt} onClick={() => void submitApplication()}>{saving ? "正在保存…" : "确认已在外部平台投递并记录"}</button></section> : null}
       {state.data && state.data.applications.length > 0 ? <div className="data-table-card"><div className="data-table-head"><span>岗位</span><span>状态</span><span>地点 / 薪资</span><span>投递时间</span></div>{state.data.applications.map((item) => <article className={`data-table-row ${practiceApplication?.id === item.id ? "is-selected" : ""}`} key={item.id}><div><span className="list-icon tone-blue"><AppIcon name="applications" size={18} /></span><span><strong>{item.title}</strong><small>{item.company_name}</small><small className="application-resume">{item.resume_name ? <>使用简历：{item.resume_name} · 第 {item.resume_version_number} 版{item.resume_deleted ? "（已删除）" : ""}{item.resume_id && item.resume_version_id ? <> · <a href={resumeDocumentUrl(item.resume_id, item.resume_version_id, { apiBaseUrl: props.apiBaseUrl })} target="_blank" rel="noreferrer noopener">查看</a></> : null}</> : "未记录简历版本"} · <button type="button" className="link-button" onClick={() => { setEditingResume(item.id); setEditedVersion(item.resume_version_id ?? UNKNOWN_RESUME); }}>{item.resume_version_id ? "更换" : "补填"}</button></small>{editingResume === item.id ? <span className="application-resume-editor"><SearchableSelect label="投递时用的简历" placeholder="请选择简历版本" searchPlaceholder="搜索简历名称或版本" value={editedVersion} onChange={setEditedVersion} disabled={savingResume} options={resumeVersionOptions(state.data?.resumes ?? [])} /><button type="button" disabled={savingResume || !editedVersion} onClick={() => void saveResumeVersion(item.id)}>{savingResume ? "正在保存…" : "保存"}</button><button type="button" className="link-button" disabled={savingResume} onClick={() => setEditingResume(null)}>取消</button></span> : null}<button type="button" className="row-detail-button" onClick={() => setPracticeApplication(item)}>面试与练习</button></span></div><span><span className={`status-pill status-${item.status}`}>{STATUS_LABELS[item.status] ?? item.status}</span>{item.interview_round_number ? <small className="application-round-label">{item.interview_round_label || `第 ${item.interview_round_number} 场`}</small> : null}</span><span>{[item.city, item.salary].filter(Boolean).join(" · ") || "未披露"}</span><time>{dateLabel(item.submitted_at)}</time></article>)}</div> : <EmptyState icon="applications" title="还没有投递记录" description="在外部平台投递后，点“直接记录投递”选择岗位和所用简历；也可以在对话里说“我投了某某岗位”。" />}
+      {state.data && state.data.applications.length > 0 ? (
+        <section className="surface-card" aria-label="更正误记的投递">
+          <h2>更正误记的投递</h2>
+          <p>只删除本项目的记录，不会撤回招聘平台上的真实投递。</p>
+          {state.data.applications.map((item) => (
+            <div className="research-card-actions" key={item.id}>
+              <span>{item.company_name} · {item.title}</span>
+              <label>状态
+                <select value={statusDrafts[item.id] ?? item.status}
+                  onChange={(event) => setStatusDrafts((current) => ({ ...current, [item.id]: event.target.value }))}>
+                  {Object.entries(STATUS_LABELS).filter(([status]) => (
+                    ["submitted", "acknowledged", "interviewing", "interview_completed", "offer", "rejected", "withdrawn"].includes(status)
+                  )).map(([status, label]) => <option value={status} key={status}>{label}</option>)}
+                </select>
+              </label>
+              <button type="button" className="soft-button" disabled={savingStatus === item.id || (statusDrafts[item.id] ?? item.status) === item.status}
+                onClick={() => void saveStatus(item)}>{savingStatus === item.id ? "保存中…" : "保存状态更正"}</button>
+              <button type="button" className="soft-button" onClick={() => props.onAskAgent(
+                `请帮我更正投递记录 application_id=${item.id}（${item.company_name} · ${item.title}），先确认我想改哪项。`,
+              )}>更正记录</button>
+              <button type="button" className="danger-action" disabled={deletingApplication === item.id}
+                onClick={() => void removeApplication(item)}>
+                {deletingApplication === item.id ? "正在删除…" : "删除误记记录"}
+              </button>
+            </div>
+          ))}
+        </section>
+      ) : null}
       {practiceApplication ? (
         <ApplicationPracticePanel
           application={practiceApplication}
@@ -1198,11 +1269,13 @@ function RepeatPracticeButton({
 }
 
 export function CalendarPanel(props: PageProps) {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [activeSection, setActiveSection] = useState<"schedule" | "practice">("schedule");
   const [cursor, setCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<CalendarWorkspace["events"][number] | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showConnectionHelp, setShowConnectionHelp] = useState(false);
+  const [deletingInterview, setDeletingInterview] = useState(false);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
   const selectedMonth = monthKey(cursor);
   const load = useCallback((signal: AbortSignal) => fetchCalendar({
@@ -1212,6 +1285,10 @@ export function CalendarPanel(props: PageProps) {
     timezone,
   }), [props.apiBaseUrl, selectedMonth, timezone]);
   const state = usePageData<CalendarWorkspace>(load, props.refreshToken, !props.hidden && activeSection === "schedule");
+  const interviewState = usePageData<InterviewRecordView[]>(
+    useCallback((signal: AbortSignal) => fetchInterviews({ apiBaseUrl: props.apiBaseUrl, signal }), [props.apiBaseUrl]),
+    props.refreshToken, !props.hidden && activeSection === "schedule",
+  );
   const loadPractice = useCallback(async (signal: AbortSignal) => {
     const options = { apiBaseUrl: props.apiBaseUrl, signal };
     const history = await fetchMockInterviews(options);
@@ -1231,6 +1308,26 @@ export function CalendarPanel(props: PageProps) {
       window.location.assign(await startGoogleConnection("calendar", { apiBaseUrl: props.apiBaseUrl }));
     } catch (cause) {
       setConnectionError(cause instanceof Error ? cause.message : "无法启动 Google Calendar 授权。");
+    }
+  }
+
+  async function removeInterview(interviewRoundId: string): Promise<void> {
+    if (!(await confirm({
+      title: "删除误记的面试安排？",
+      body: "只删除本项目的面试记录；有日历操作或模拟练习关联时会阻止删除。",
+      confirmLabel: "删除这轮面试",
+    }))) return;
+    setDeletingInterview(true);
+    setConnectionError(null);
+    try {
+      await deleteInterview(interviewRoundId, { apiBaseUrl: props.apiBaseUrl });
+      if (selected?.interview_round_id === interviewRoundId) setSelected(null);
+      state.reload();
+      interviewState.reload();
+    } catch (cause) {
+      setConnectionError(cause instanceof Error ? cause.message : "删除面试记录失败。");
+    } finally {
+      setDeletingInterview(false);
     }
   }
 
@@ -1285,7 +1382,26 @@ export function CalendarPanel(props: PageProps) {
         </div>
         {state.data && state.data.events.length === 0 ? <div className="calendar-empty">本月还没有已安排的面试。</div> : null}
       </section>
-      {selected ? <aside className="calendar-detail"><button type="button" className="calendar-detail-close" onClick={() => setSelected(null)}>关闭</button><span className="card-kicker">{selected.employer_label || "面试安排"}</span><h2>{selected.company_name || "未关联公司"} · {selected.job_title || "未关联岗位"}</h2><p>{selected.scheduled_start ? new Date(selected.scheduled_start).toLocaleString("zh-CN", { timeZone: selected.timezone || timezone }) : "时间待确认"} · {selected.timezone}</p><dl><div><dt>形式</dt><dd>{selected.interview_format || "unknown"}</dd></div><div><dt>地点</dt><dd>{selected.location || "未提供"}</dd></div><div><dt>日历状态</dt><dd>{selected.sync_status === "not_synced" ? "尚未添加到 Google Calendar" : selected.sync_status}</dd></div>{selected.contact_summary ? <div><dt>联系人</dt><dd>{selected.contact_summary}</dd></div> : null}</dl><div className="calendar-detail-actions">{selectedMeetingUrl ? <a href={selectedMeetingUrl} target="_blank" rel="noreferrer">加入会议</a> : null}{selectedExternalUrl ? <a href={selectedExternalUrl} target="_blank" rel="noreferrer">在 Google Calendar 打开</a> : <button type="button" onClick={() => props.onAskAgent(`把 interview_round_id=${selected.interview_round_id} 的面试安排添加到 Google Calendar`)}>添加到 Google Calendar</button>}</div></aside> : null}
+      {selected ? <aside className="calendar-detail"><button type="button" className="calendar-detail-close" onClick={() => setSelected(null)}>关闭</button><span className="card-kicker">{selected.employer_label || "面试安排"}</span><h2>{selected.company_name || "未关联公司"} · {selected.job_title || "未关联岗位"}</h2><p>{selected.scheduled_start ? new Date(selected.scheduled_start).toLocaleString("zh-CN", { timeZone: selected.timezone || timezone }) : "时间待确认"} · {selected.timezone}</p><dl><div><dt>形式</dt><dd>{selected.interview_format || "unknown"}</dd></div><div><dt>地点</dt><dd>{selected.location || "未提供"}</dd></div><div><dt>日历状态</dt><dd>{selected.sync_status === "not_synced" ? "尚未添加到 Google Calendar" : selected.sync_status}</dd></div>{selected.contact_summary ? <div><dt>联系人</dt><dd>{selected.contact_summary}</dd></div> : null}</dl><div className="calendar-detail-actions">{selectedMeetingUrl ? <a href={selectedMeetingUrl} target="_blank" rel="noreferrer">加入会议</a> : null}{selectedExternalUrl ? <a href={selectedExternalUrl} target="_blank" rel="noreferrer">在 Google Calendar 打开</a> : <button type="button" onClick={() => props.onAskAgent(`把 interview_round_id=${selected.interview_round_id} 的面试安排添加到 Google Calendar`)}>添加到 Google Calendar</button>}<button type="button" className="danger-action" disabled={deletingInterview} onClick={() => void removeInterview(selected.interview_round_id)}>{deletingInterview ? "正在删除…" : "删除误记面试"}</button></div></aside> : null}
+      <section className="surface-card" aria-label="全部面试记录">
+        <div className="section-heading"><div><small>INTERVIEW RECORDS</small><h2>全部面试记录</h2></div></div>
+        <ErrorBanner message={interviewState.error} />
+        {interviewState.data?.length ? interviewState.data.map((item) => (
+          <article className="research-card-actions" key={item.id}>
+            <div><strong>{item.company_name} · {item.job_title}</strong><small>
+              第 {item.sequence_number} 场 · {item.employer_label || "面试"} · {item.status} ·
+              {item.scheduled_start ? dateLabel(item.scheduled_start) : "时间待定"}
+            </small></div>
+            <button type="button" className="danger-action" disabled={deletingInterview}
+              onClick={() => void removeInterview(item.id)}>
+              {deletingInterview ? "正在删除…" : "删除误记面试"}
+            </button>
+            <button type="button" className="soft-button" onClick={() => props.onAskAgent(
+              `请帮我更正面试记录 interview_round_id=${item.id}（${item.company_name} · ${item.job_title}），先确认我想改哪项。`,
+            )}>更正面试</button>
+          </article>
+        )) : <p>还没有面试记录。</p>}
+      </section>
       </> : <>
         <ErrorBanner message={practice.error} />
         <section className="surface-card interview-practice-hero">
@@ -1319,6 +1435,7 @@ export function CalendarPanel(props: PageProps) {
           </section>
         ) : practice.data ? <section className="surface-card"><EmptyState icon="sparkles" title="还没有模拟面试记录" description="可以从投递记录开始岗位练习，也可以点击“开始自由练习”直接开始。" action="开始自由练习" onAction={() => props.onAskAgent("开始一场自由模拟面试，先询问我的目标岗位和题目数量")} /></section> : null}
       </>}
+      {confirmDialog}
     </section>
   );
 }

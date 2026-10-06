@@ -17,7 +17,7 @@ describe("standalone agent task", () => {
   it("gets its own conversation and keeps the exact resume version", () => {
     const task = newStandaloneAgentTask("帮我分析简历“AI Resume”的 v1", resource);
     expect(task.conversationId).toMatch(/^conversation-/);
-    expect(isJobAttachment(task.resource)).toBe(false);
+    expect(isJobAttachment(task.resource!)).toBe(false);
     expect(task.resource).toMatchObject({ resumeVersionId: "resume_version-v1" });
     expect(newStandaloneAgentTask("x", resource).conversationId).not.toBe(task.conversationId);
   });
@@ -32,7 +32,7 @@ describe("standalone agent task", () => {
       jdVersion: 3,
     };
     const task = newStandaloneAgentTask("分析 JD", job);
-    expect(isJobAttachment(task.resource)).toBe(true);
+    expect(isJobAttachment(task.resource!)).toBe(true);
     expect(task.resource).toMatchObject({ jdSnapshotId: "snapshot-3" });
   });
 

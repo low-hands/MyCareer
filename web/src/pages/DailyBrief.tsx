@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { ActionItemView, DailyBrief, fetchDailyBrief } from "../api/client";
+import { ActionItemView, DailyBrief, fetchDailyBrief, fetchDismissedActionItems, restoreDismissedActionItem } from "../api/client";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
 
 const BUCKETS: { key: keyof DailyBrief; label: string; tone: string; icon: AppIconName }[] = [
@@ -32,15 +32,21 @@ export function DailyBriefPanel({
   hidden: boolean;
 }) {
   const [brief, setBrief] = useState<DailyBrief | null>(null);
+  const [dismissed, setDismissed] = useState<ActionItemView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   const load = useCallback(
     (signal?: AbortSignal) => {
       setLoading(true);
-      return fetchDailyBrief({ apiBaseUrl, signal })
-        .then((next) => {
+      return Promise.all([
+        fetchDailyBrief({ apiBaseUrl, signal }),
+        fetchDismissedActionItems({ apiBaseUrl, signal }),
+      ])
+        .then(([next, ignored]) => {
           setBrief(next);
+          setDismissed(ignored);
           setError(null);
         })
         .catch((cause: unknown) => {
@@ -64,6 +70,19 @@ export function DailyBriefPanel({
   const total = brief
     ? BUCKETS.reduce((sum, bucket) => sum + (brief[bucket.key] as ActionItemView[]).length, 0)
     : 0;
+
+  async function restore(item: ActionItemView): Promise<void> {
+    setRestoring(item.id);
+    setError(null);
+    try {
+      await restoreDismissedActionItem(item.id, { apiBaseUrl });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "恢复待办失败。");
+    } finally {
+      setRestoring(null);
+    }
+  }
 
   return (
     <section className="brief-panel" hidden={hidden} aria-label="今日待办">
@@ -124,6 +143,20 @@ export function DailyBriefPanel({
             );
           })
         : null}
+
+      {dismissed.length > 0 ? (
+        <div className="brief-bucket brief-someday" aria-label="已忽略的待办">
+          <h2>已忽略 <span>{dismissed.length}</span></h2>
+          <ul>{dismissed.map((item) => (
+            <li key={item.id}>
+              <div className="brief-item-body"><strong>{item.title}</strong><p>{item.summary}</p></div>
+              <button type="button" disabled={restoring === item.id} onClick={() => void restore(item)}>
+                {restoring === item.id ? "恢复中…" : "恢复待办"}
+              </button>
+            </li>
+          ))}</ul>
+        </div>
+      ) : null}
 
       <p className="brief-footnote">
         这些条目由投递、面试、邮件事件和简历证据缺口推导而来，改动仍然通过对话完成。

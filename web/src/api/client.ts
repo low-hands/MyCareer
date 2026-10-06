@@ -44,6 +44,17 @@ export interface ApplicationView {
   resume_version_id?: string | null;
 }
 
+export interface InterviewRecordView {
+  id: string;
+  application_id: string;
+  company_name: string;
+  job_title: string;
+  sequence_number: number;
+  employer_label: string | null;
+  status: string;
+  scheduled_start: string | null;
+}
+
 export interface MockInterviewSessionView {
   session_id: string;
   status: string;
@@ -436,6 +447,18 @@ export function fetchDailyBrief(
   return getJson<DailyBrief>("/v1/daily-brief", {}, options);
 }
 
+export function fetchDismissedActionItems(options: ReadOptions): Promise<ActionItemView[]> {
+  return getJson<ActionItemView[]>("/v1/action-items/dismissed", {}, options);
+}
+
+export async function restoreDismissedActionItem(id: string, options: ReadOptions): Promise<ActionItemView> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/action-items/${encodeURIComponent(id)}/restore`, {
+    method: "POST", headers: { Accept: "application/json" }, signal: options.signal,
+  });
+  if (!response.ok) throw new ApiError(`恢复待办失败：${response.status}`, response.status);
+  return (await response.json()) as ActionItemView;
+}
+
 type ReadOptions = { apiBaseUrl: string; signal?: AbortSignal };
 
 export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {
@@ -445,12 +468,47 @@ export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {
 export function fetchApplications(options: ReadOptions): Promise<ApplicationView[]> {
   return getJson<ApplicationView[]>("/v1/applications", {}, options);
 }
+export function fetchInterviews(options: ReadOptions): Promise<InterviewRecordView[]> {
+  return getJson<InterviewRecordView[]>("/v1/interviews", {}, options);
+}
 export function fetchMockInterviews(options: ReadOptions): Promise<MockInterviewsResponse> {
   return getJson<MockInterviewsResponse>("/v1/mock-interviews", {}, options);
 }
 export async function clearApplications(options: ReadOptions): Promise<void> {
   const response = await fetch(`${options.apiBaseUrl}/v1/applications`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });
-  if (!response.ok) throw new ApiError(`清空投递记录失败：${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(payload.detail ?? `清空投递记录失败：${response.status}`, response.status);
+  }
+}
+export async function deleteApplication(id: string, options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/applications/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(payload.detail ?? `删除投递记录失败：${response.status}`, response.status);
+  }
+}
+export async function deleteInterview(id: string, options: ReadOptions): Promise<void> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/interviews/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(payload.detail ?? `删除面试记录失败：${response.status}`, response.status);
+  }
+}
+export async function correctApplicationStatus(
+  id: string, status: string, options: ReadOptions,
+): Promise<ApplicationView> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/applications/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ status }), signal: options.signal,
+  });
+  if (!response.ok) throw new ApiError(`更正投递状态失败：${response.status}`, response.status);
+  return (await response.json()) as ApplicationView;
 }
 export async function deleteResume(resumeId: string, options: ReadOptions): Promise<void> {
   const response = await fetch(`${options.apiBaseUrl}/v1/resumes/${encodeURIComponent(resumeId)}`, { method: "DELETE", headers: { Accept: "application/json" }, signal: options.signal });

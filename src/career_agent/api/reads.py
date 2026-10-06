@@ -60,10 +60,14 @@ from career_agent.storage.api_keys import (
     WORKSPACE_WRITE,
 )
 from career_agent.domain.action_center import ActionItem, DailyBrief
-from career_agent.services.action_center import ActionCenterService
+from career_agent.domain.applications import ApplicationStatus
+from career_agent.services.action_center import (
+    ActionCenterService, ActionItemNotFoundError, InvalidActionTransitionError,
+)
 from career_agent.services.applications import (
     ApplicationInputNotFoundError,
     ApplicationService,
+    ConcurrentApplicationUpdateError,
 )
 from career_agent.services.email_tracking import EmailTrackingService
 from career_agent.services.resume_text import ResumeTextService
@@ -212,6 +216,19 @@ class ApplicationView(BaseModel):
     resume_version_id: str | None = None
 
 
+class InterviewRecordView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    application_id: str
+    company_name: str
+    job_title: str
+    sequence_number: int
+    employer_label: str | None = None
+    status: str
+    scheduled_start: datetime | None = None
+
+
 class ApplicationCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -223,6 +240,11 @@ class ApplicationCreateRequest(BaseModel):
 class ApplicationResumeVersionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     resume_version_id: str | None = Field(default=None, max_length=200)
+
+
+class ApplicationStatusCorrectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: ApplicationStatus
 
 
 RESUMABLE_MOCK_INTERVIEW_STATUSES = frozenset({"created", "active", "paused"})
@@ -779,6 +801,25 @@ class WorkspaceReader:
             views.append(self._application_view(user_id=user_id, detail=item))
         return tuple(views)
 
+    def interviews(self, *, user_id: str, limit: int = 100) -> tuple[InterviewRecordView, ...]:
+        records = []
+        for item in self._interviews.list(user_id=user_id, limit=limit):
+            try:
+                application = self._applications.get_application(
+                    user_id=user_id, application_id=item.application_id,
+                )
+            except ApplicationInputNotFoundError:
+                continue
+            records.append(InterviewRecordView(
+                id=item.id, application_id=item.application_id,
+                company_name=application.job.posting.company_name,
+                job_title=application.job.posting.title,
+                sequence_number=item.sequence_number,
+                employer_label=item.employer_label, status=item.status,
+                scheduled_start=item.scheduled_start,
+            ))
+        return tuple(records)
+
     def _resume_view(self, *, user_id: str, resume_version_id: str | None) -> dict[str, object]:
         if resume_version_id is None:
             return {}
@@ -1005,6 +1046,17 @@ class WorkspaceReader:
         )
         return self._application_view(user_id=user_id, detail=detail)
 
+    def correct_application_status(
+        self, *, user_id: str, application_id: str, status: ApplicationStatus,
+    ) -> ApplicationView:
+        self._applications.correct_status(
+            user_id=user_id, application_id=application_id, status=status,
+        )
+        detail = self._applications.get_application(
+            user_id=user_id, application_id=application_id,
+        )
+        return self._application_view(user_id=user_id, detail=detail)
+
     def clear_applications(self, *, user_id: str) -> int:
         """Clear the owner's applications and everything that hangs off them.
 
@@ -1020,14 +1072,74 @@ class WorkspaceReader:
         dependents go first and the applications last: a failure part way
         leaves the applications in place and a repeat finishes the job.
         """
+        if self._calendar.has_any_round_record(user_id=user_id):
+            raise ValueError("calendar records must be resolved before clearing applications")
         self._actions.clear_application_derived(user_id=user_id)
         self._mock_interviews.clear_user(user_id=user_id, application_bound_only=True)
         self._preparations.clear_user(user_id=user_id)
         self._interviews.clear_user(user_id=user_id)
-        return self._applications._application_store.clear_user(user_id=user_id)
+        return self._applications.clear_records(user_id=user_id)
+
+    def delete_application(self, *, user_id: str, application_id: str) -> Literal[
+        "deleted", "not_found", "has_dependents"
+    ]:
+        if self._applications.get_record(
+            user_id=user_id, application_id=application_id,
+        ) is None:
+            return "not_found"
+        if (
+            self._interviews.list(user_id=user_id, application_id=application_id, limit=1)
+            or self._mock_interviews.list_sessions(user_id=user_id, application_id=application_id, limit=1)
+            or self._email.has_application_reference(user_id=user_id, application_id=application_id)
+        ):
+            return "has_dependents"
+        self._actions.clear_for_application(user_id=user_id, application_id=application_id)
+        return "deleted" if self._applications.delete_record(
+            user_id=user_id, application_id=application_id,
+        ) else "not_found"
+
+    def delete_interview(self, *, user_id: str, interview_round_id: str) -> Literal[
+        "deleted", "not_found", "has_dependents"
+    ]:
+        round_ = self._interviews.get(user_id=user_id, interview_round_id=interview_round_id)
+        if round_ is None:
+            return "not_found"
+        if (
+            self._calendar.has_round_record(user_id=user_id, interview_round_id=interview_round_id)
+            or self._mock_interviews.has_round_reference(user_id=user_id, interview_round_id=interview_round_id)
+        ):
+            return "has_dependents"
+        # These stores use separate SQLite files. A linked record can still be
+        # created after the checks above; this is not a cross-store transaction.
+        # Keep the main round and its same-file history atomic, then clean up
+        # derived data only after that delete succeeds.
+        if not self._interviews.delete(
+            user_id=user_id, interview_round_id=interview_round_id,
+        ):
+            return "not_found"
+        self._actions.clear_for_interview(user_id=user_id, interview_round_id=interview_round_id)
+        self._preparations.delete_for_round(user_id=user_id, interview_round_id=interview_round_id)
+        if not self._interviews.list(
+            user_id=user_id, application_id=round_.application_id, limit=1,
+        ):
+            application = self._applications.get_record(user_id=user_id, application_id=round_.application_id)
+            events = self._applications.list_events(user_id=user_id, application_id=round_.application_id)
+            latest = events[-1] if events else None
+            if (
+                application is not None and application.status == "interviewing"
+                and latest is not None and latest.event_type == "status_changed"
+                and latest.new_status == "interviewing"
+                and latest.reason == "interview_created"
+                and latest.previous_status in ("submitted", "acknowledged")
+            ):
+                self._applications.restore_status_after_interview(
+                    user_id=user_id, application_id=round_.application_id,
+                    previous_status=latest.previous_status,
+                )
+        return "deleted"
 
     def delete_resume(self, *, user_id: str, resume_id: str) -> bool:
-        referenced = set(self._applications._application_store.list_resume_version_ids(user_id=user_id))
+        referenced = set(self._applications.list_resume_version_ids(user_id=user_id))
         referenced.update(self._mock_interviews.list_resume_version_ids(user_id=user_id))
         keep = [version.id for version in self._resumes.list_versions(user_id=user_id, resume_id=resume_id) if version.id in referenced]
         return self._resumes.delete_resume(user_id=user_id, resume_id=resume_id, keep_version_ids=keep)
@@ -2460,12 +2572,42 @@ def build_read_router(
             action_center().daily_brief(user_id=principal.user_id, timezone_name=timezone)
         )
 
+    @router.get("/action-items/dismissed", response_model=tuple[ActionItemView, ...])
+    async def dismissed_action_items(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> tuple[ActionItemView, ...]:
+        return tuple(ActionItemView.of(item) for item in action_center().list_actions(
+            user_id=principal.user_id, statuses=("dismissed",), refresh=False,
+        ))
+
+    @router.post("/action-items/{action_item_id}/restore", response_model=ActionItemView)
+    async def restore_dismissed_action(
+        action_item_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ActionItemView:
+        try:
+            item = action_center().restore_dismissed_action(
+                user_id=principal.user_id, action_item_id=action_item_id,
+            )
+        except ActionItemNotFoundError as error:
+            raise HTTPException(status_code=404, detail="没有找到这条待办。") from error
+        except InvalidActionTransitionError as error:
+            raise HTTPException(status_code=409, detail="只有已忽略的待办可以恢复。") from error
+        return ActionItemView.of(item)
+
     @router.get("/applications", response_model=tuple[ApplicationView, ...])
     async def applications(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
         limit: int = Query(default=100, ge=1, le=500),
     ) -> tuple[ApplicationView, ...]:
         return workspace().applications(user_id=principal.user_id, limit=limit)
+
+    @router.get("/interviews", response_model=tuple[InterviewRecordView, ...])
+    async def interviews(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> tuple[InterviewRecordView, ...]:
+        return workspace().interviews(user_id=principal.user_id, limit=limit)
 
     @router.get("/mock-interviews", response_model=FreeMockInterviewsResponse)
     async def free_mock_interviews(
@@ -2531,11 +2673,67 @@ def build_read_router(
         except ApplicationInputNotFoundError as error:
             raise HTTPException(status_code=404, detail={"code": "APPLICATION_INPUT_NOT_FOUND", "message": "没有找到投递或简历版本。"}) from error
 
+    @router.patch("/applications/{application_id}/status", response_model=ApplicationView)
+    async def correct_application_status(
+        application_id: str,
+        request: ApplicationStatusCorrectionRequest,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> ApplicationView:
+        try:
+            return workspace().correct_application_status(
+                user_id=principal.user_id, application_id=application_id,
+                status=request.status,
+            )
+        except ApplicationInputNotFoundError as error:
+            raise HTTPException(status_code=404, detail="没有找到这条投递记录。") from error
+        except ConcurrentApplicationUpdateError as error:
+            raise HTTPException(status_code=409, detail="投递状态刚刚发生变化，请刷新后重试。") from error
+
     @router.delete("/applications", response_model=CountResponse)
     async def clear_applications(
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
     ) -> CountResponse:
-        return CountResponse(count=workspace().clear_applications(user_id=principal.user_id))
+        try:
+            return CountResponse(count=workspace().clear_applications(user_id=principal.user_id))
+        except ValueError as error:
+            raise HTTPException(
+                status_code=409,
+                detail="仍有关联的日历记录，请先处理日历同步，再清空投递。",
+            ) from error
+
+    @router.delete("/applications/{application_id}", status_code=204)
+    async def delete_application(
+        application_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> Response:
+        result = workspace().delete_application(
+            user_id=principal.user_id, application_id=application_id,
+        )
+        if result == "not_found":
+            raise HTTPException(status_code=404, detail="没有找到这条投递记录。")
+        if result == "has_dependents":
+            raise HTTPException(
+                status_code=409,
+                detail="这条投递已关联面试、模拟练习或邮件事件，请先处理关联记录。",
+            )
+        return Response(status_code=204)
+
+    @router.delete("/interviews/{interview_round_id}", status_code=204)
+    async def delete_interview(
+        interview_round_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> Response:
+        result = workspace().delete_interview(
+            user_id=principal.user_id, interview_round_id=interview_round_id,
+        )
+        if result == "not_found":
+            raise HTTPException(status_code=404, detail="没有找到这轮面试。")
+        if result == "has_dependents":
+            raise HTTPException(
+                status_code=409,
+                detail="这轮面试已有日历操作或模拟练习记录，不能直接删除。",
+            )
+        return Response(status_code=204)
 
     @router.get("/jobs", response_model=tuple[SavedJobView, ...])
     async def jobs(

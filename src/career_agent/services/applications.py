@@ -111,6 +111,7 @@ class ApplicationService:
         status: ApplicationStatus,
         note: str | None = None,
         source: str = "user_reported",
+        reason: str | None = None,
     ) -> Application:
         application = self._application_store.get(
             user_id=user_id,
@@ -135,12 +136,61 @@ class ApplicationService:
             submitted_at=application.submitted_at,
             note=note,
             source=source,
+            reason=reason,
         )
         if updated is None:
             raise ConcurrentApplicationUpdateError(
                 "Application changed before this update could be saved"
             )
         return updated
+
+    def correct_status(
+        self, *, user_id: str, application_id: str, status: ApplicationStatus,
+    ) -> Application:
+        """A direct owner correction may move backward through the normal status flow."""
+        current = self._application_store.get(user_id=user_id, application_id=application_id)
+        if current is None:
+            raise ApplicationInputNotFoundError("application")
+        if current.status == status:
+            return current
+        updated = self._application_store.update(
+            user_id=user_id, application_id=application_id,
+            expected_status=current.status, new_status=status,
+            submitted_at=current.submitted_at,
+            note="用户在界面中更正误记状态。", source="user_reported",
+        )
+        if updated is None:
+            raise ConcurrentApplicationUpdateError("Application changed before status correction")
+        return updated
+
+    def restore_status_after_interview(
+        self, *, user_id: str, application_id: str,
+        previous_status: ApplicationStatus,
+    ) -> Application | None:
+        current = self._application_store.get(user_id=user_id, application_id=application_id)
+        if current is None or current.status != "interviewing":
+            return None
+        return self._application_store.update(
+            user_id=user_id, application_id=application_id,
+            expected_status="interviewing", new_status=previous_status,
+            submitted_at=current.submitted_at,
+            note="已删除误记面试，恢复先前投递状态。", source="system",
+        )
+
+    def get_record(self, *, user_id: str, application_id: str) -> Application | None:
+        return self._application_store.get(user_id=user_id, application_id=application_id)
+
+    def list_events(self, *, user_id: str, application_id: str) -> tuple[ApplicationEvent, ...]:
+        return self._application_store.list_events(user_id=user_id, application_id=application_id)
+
+    def delete_record(self, *, user_id: str, application_id: str) -> bool:
+        return self._application_store.delete(user_id=user_id, application_id=application_id)
+
+    def clear_records(self, *, user_id: str) -> int:
+        return self._application_store.clear_user(user_id=user_id)
+
+    def list_resume_version_ids(self, *, user_id: str) -> frozenset[str]:
+        return self._application_store.list_resume_version_ids(user_id=user_id)
 
     def update_resume_version(self, *, user_id: str, application_id: str, resume_version_id: str | None) -> Application:
         if resume_version_id is not None and self._resume_store.get_version(user_id=user_id, resume_version_id=resume_version_id) is None:

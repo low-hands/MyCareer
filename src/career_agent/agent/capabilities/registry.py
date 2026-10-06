@@ -1998,6 +1998,7 @@ class MainAgentToolRegistry:
                     application_id=application_id,
                     status="interviewing",
                     note="用户已报告收到面试安排。",
+                    reason="interview_created",
                 )
         except InterviewApplicationConflictError as error:
             return ToolObservation(
@@ -2010,7 +2011,12 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="create_interview",
             state="interview_ready",
-            message=f"已记录系统中的第 {interview.sequence_number} 场面试。",
+            message=(
+                f"已记录第 {interview.sequence_number} 场面试"
+                f"（{interview.employer_label or '面试'}，"
+                f"{interview.scheduled_start.isoformat() if interview.scheduled_start else '时间待定'}）。"
+                "可在“面试中心”查看或删除误记。"
+            ),
             payload={
                 **self._interview_payload(interview),
                 # The capability has already materialized every local record
@@ -2406,7 +2412,10 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name=f"{action}_action_item",
             state="action_item_resolved",
-            message="行动事项已完成。" if action == "complete" else "行动事项已忽略。",
+            message=(
+                f"待办「{item.title}」已完成。" if action == "complete" else
+                f"待办「{item.title}」已忽略，可在“今日待办”的“已忽略”中恢复。"
+            ),
             payload=self._action_payload(item),
             execution_outcome="committed",
         )
@@ -4449,7 +4458,9 @@ class MainAgentToolRegistry:
             tool_name="create_application",
             state="application_ready",
             message=(
-                "已创建投递记录。"
+                f"已记录投递：{detail.job.posting.company_name} · "
+                f"{detail.job.posting.title}（状态：{result.application.status}）。"
+                "可在“投递记录”查看或删除误记。"
                 if result.created
                 else "这个岗位已有进行中的投递记录，已返回原记录。"
             ),

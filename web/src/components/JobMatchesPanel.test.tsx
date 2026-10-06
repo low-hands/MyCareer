@@ -56,7 +56,7 @@ beforeEach(() => {
     created_at: first.created_at, resume_job_match: id === first.report_id ? first : second,
   }));
   vi.mocked(fetchResumes).mockResolvedValue([{
-    id: "resume", name: "Engineering", target_role: "Engineer", status: "active",
+    id: "resume", name: "Engineering", target_role: "Engineer", target_role_id: "role-1", status: "active",
     latest_version_number: 2, latest_version_id: "resume-v2", version_count: 2,
     document_format: "text", byte_size: 20, updated_at: first.created_at,
     versions: [2, 1].map((number) => ({

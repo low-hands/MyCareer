@@ -28,6 +28,26 @@ class CalendarExecutionUnresolvedError(RuntimeError):
 
 
 class SQLiteCalendarStore:
+    def has_any_round_record(self, *, user_id: str) -> bool:
+        with self._connect() as connection:
+            for table in ("calendar_change_proposals", "calendar_event_links"):
+                if connection.execute(
+                    f"SELECT 1 FROM {table} WHERE user_id = ? LIMIT 1", (user_id,),
+                ).fetchone():
+                    return True
+        return False
+
+    def has_round_record(self, *, user_id: str, interview_round_id: str) -> bool:
+        """A calendar proposal or link must be resolved before local round removal."""
+        with self._connect() as connection:
+            for table in ("calendar_change_proposals", "calendar_event_links"):
+                if connection.execute(
+                    f"SELECT 1 FROM {table} WHERE user_id = ? AND interview_round_id = ? LIMIT 1",
+                    (user_id, interview_round_id),
+                ).fetchone():
+                    return True
+        return False
+
     def __init__(self, path: Path) -> None:
         self.path = path.expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)

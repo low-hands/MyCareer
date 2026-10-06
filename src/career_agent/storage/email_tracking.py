@@ -380,6 +380,16 @@ class SQLiteEmailTrackingStore:
             rows = connection.execute(query, tuple(params)).fetchall()
         return tuple(self._event(row) for row in rows)
 
+    def has_application_reference(self, *, user_id: str, application_id: str) -> bool:
+        with self._connect() as connection:
+            for table in ("email_messages", "email_events"):
+                if connection.execute(
+                    f"SELECT 1 FROM {table} WHERE user_id = ? AND application_id = ? LIMIT 1",
+                    (user_id, application_id),
+                ).fetchone():
+                    return True
+        return False
+
     def resolve_event(
         self,
         *,
