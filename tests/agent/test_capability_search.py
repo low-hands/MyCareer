@@ -84,6 +84,25 @@ def test_unrelated_colloquial_queries_do_not_offer_writes(query: str) -> None:
     assert all(CAPABILITIES[name].effect != "WRITE" for name in offered)
 
 
+@pytest.mark.parametrize("query", [
+    "帮我看看我的经历", "看看我的面试安排", "我的投递记录有哪些", "这个岗位不错",
+])
+def test_read_or_observational_queries_do_not_offer_action_tools(query: str) -> None:
+    offered = search_catalog(query=query, semantic_scores={
+        "propose_memory_tombstone": 1.0,
+        "confirm_career_fact": 1.0,
+        "create_application": 1.0,
+    })
+    assert all(
+        CAPABILITIES[name].effect != "WRITE" and not name.startswith("propose_")
+        for name in offered
+    )
+
+
+def test_explicit_application_creation_still_retrieves_create_tool() -> None:
+    assert "create_application" in search_catalog(query="我想把这个岗位加入投递")
+
+
 def test_common_example_terms_derive_from_tool_and_namespace_frequency() -> None:
     entries = searchable_capabilities()
     one_per_namespace = {}
@@ -135,8 +154,8 @@ def test_development_query_recall_and_control_write_exposure() -> None:
                 writes += sum(CAPABILITIES[name].effect == "WRITE" for name in offered)
         return demand_count, dict(hits), writes
 
-    assert counts(bare) == (43, {1: 14, 3: 23, 5: 30}, 6)
-    assert counts() == (43, {1: 17, 3: 31, 5: 35}, 6)
+    assert counts(bare) == (43, {1: 14, 3: 24, 5: 30}, 0)
+    assert counts() == (43, {1: 16, 3: 30, 5: 33}, 2)
 
 
 def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:

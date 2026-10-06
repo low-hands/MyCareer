@@ -104,3 +104,33 @@ noise probes rather than a claim of perfect out-of-domain detection.
 describe the initial `0c07bce` index only and do not establish revised-index
 holdout performance. The test run for this revision explicitly deselected the
 test that invokes both frozen holdouts.
+
+## Cross-field action gate — 2026-10-06
+
+The example-only evidence gate left an alias and summary path for action
+tools. A query such as `帮我看看我的经历` could therefore rank fact confirmation
+and deletion proposals from shared object words. `WRITE` tools and
+`propose_*` tools now need at least two non-common matched terms across all
+indexed fields: name, aliases, summary, parameter names, and examples. The
+same eligibility check filters semantic candidates. Exact tool names,
+namespaces, and full aliases remain explicit discovery requests.
+
+Two object terms alone can still describe a read request, for example
+`投递记录`. For non-exact requests the gate also requires an explicit action
+term, or a request form without a read cue. This additional conservative
+check is shared by every action tool; it is not a special case for career
+memory. No example query was added or changed in this revision.
+
+On the development set, top-1/top-3/top-5 recall is now **16/43, 30/43,
+33/43**, compared with 17/43, 31/43, 35/43 before this gate. Control-case
+`WRITE` results fell from **6 to 2**. `帮我看看我的经历`, `看看我的面试安排`,
+`我的投递记录有哪些`, and `这个岗位不错` return no `WRITE` or `propose_*`
+tool in the top five, even when synthetic semantic scores favor those tools.
+`我想把这个岗位加入投递` still returns `create_application` in the top five.
+All 141 exact aliases remain retrievable. The career-memory read recall was
+not tuned with new examples; its behavior should be checked with model-written
+queries in the next phase.
+
+**Neither holdout was rescored for this gate.** All holdout metrics earlier
+in this report remain historical observations for `0c07bce`, not claims about
+the current index.
