@@ -1,6 +1,83 @@
 # Offline tool-selection baseline — 2026-10-05
 
-This report evaluates **which schemas were offered at each decision snapshot**, without calling a model, changing a prompt, or re-recording a cassette. It uses the existing 46 trajectory scenarios plus five new offline-only follow-on scenarios. Run `pytest tests/agent/test_tool_selection_evaluation.py` to reproduce the locked counts and missing-step list.
+This report measures which schemas the current mechanism offers at each decision snapshot. It calls no model and changes no prompt, schema, or cassette. Run `pytest tests/agent/test_tool_selection_evaluation.py` to reproduce the development baseline.
+
+## 2B revised selection baseline
+
+There are **65 selection cases: 45 development and 20 original holdout**, plus **12 separately authored independent holdout cases** reserved for final evaluation. The 46 existing trajectory scenarios remain separate. The 65 cases comprise 34 single, 14 cross, 9 chain, and 8 control cases. Development has 27 single, 9 cross, 6 chain, and 3 control cases; the original holdout has 7, 5, 3, and 5 respectively. Thus both splits exercise cross-tool-group requests and multistep continuation.
+
+New first-turn cases start with `tool_profile=core`; the legacy baseline applies the real `keyword_tool_profile` ingress before the first decision. Cross-group cases start in the prior group. The five older offline probes are already post-ingress snapshots and are not routed again. After a new user message, ingress is applied again; within a turn the projected task state persists. This corrects the earlier preselected-profile baseline.
+
+The original holdout's fixture manifest SHA-256 is `c2f8477110cf2591f8ccbe9d707071ef4262667fd438ff9607939d44705ef209`. **Change log:** 2026-10-05, revised the split, fixed the clock, corrected scenario state and gold expectations, and added `raw_turn` to distinguish ingress snapshots; the prior `e073edab2d2d0c5fb83e1e9e9872f22226f54ca54ce4690f09709c3787963183` freeze is superseded. The original holdout was authored by the same implementer who saw catalog metadata, so it is a frozen regression set rather than a blind sample.
+
+A separate agent wrote the 12 independent prompts and next-action expectations from the case-writing rules without seeing catalog aliases, successor edges, or existing fixtures. They are stored in `independent_tool_selection_holdout.py` and have a separate manifest SHA-256 of `f7fcfef7322a566a80e739fd5cb1690626adf2b59123a1e53d5d9e5c70b23804`. The implementation bound their references to runtime-shaped task states and checked that every expected tool is reachable. They have **not been used for selector tuning or scored in this report**. Their wording and gold choices were independently authored; implementation and state validation were performed in this repository.
+
+### LegacyProfileSelector by split and case type
+
+Recall is first-offer coverage of business-tool demand snapshots. Size and token ranges exclude the two synthetic post-route snapshots. The last three metrics count (snapshot, tool) exposures, not unique tools. Schema tokens use the repository's proxy tokenizer.
+
+| Split | Type | Cases | Snapshots / comparable | Recall | Route steps | Offered tools, mean (range) | Schema tokens, mean (range) | Unreachable offered | Waiting reoffered | Unrequested writes |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Dev | All | 45 | 66 / 64 | **46 / 62 (74.2%)** | 2 | 24.6 (17–30) | 4,827 (3,018–7,111) | 339 | 1 | 469 |
+| Dev | Single | 27 | 27 / 27 | 21 / 27 | 0 | 23.4 (17–30) | 4,470 (3,018–7,111) | 150 | 0 | 204 |
+| Dev | Cross | 9 | 20 / 18 | 10 / 18 | 2 | 24.9 (23–27) | 4,772 (4,114–5,389) | 88 | 0 | 132 |
+| Dev | Chain | 6 | 16 / 16 | 14 / 16 | 0 | 26.1 (23–30) | 5,311 (4,114–7,111) | 85 | 0 | 107 |
+| Dev | Control | 3 | 3 / 3 | 1 / 1 | 0 | 26.7 (25–30) | 5,788 (5,127–7,111) | 16 | 1 | 26 |
+| Original holdout | All | 20 | 32 / 32 | **26 / 29 (89.7%)** | 0 | 26.2 (17–31) | 5,327 (3,018–7,201) | 173 | 2 | 249 |
+| Original holdout | Single | 7 | 7 / 7 | 6 / 7 | 0 | 23.3 (17–30) | 4,517 (3,018–7,111) | 50 | 0 | 56 |
+| Original holdout | Cross | 5 | 12 / 12 | 10 / 12 | 0 | 26.9 (17–30) | 5,494 (3,018–7,111) | 63 | 0 | 84 |
+| Original holdout | Chain | 3 | 7 / 7 | 7 / 7 | 0 | 28.3 (25–31) | 6,095 (5,127–7,201) | 33 | 1 | 66 |
+| Original holdout | Control | 5 | 6 / 6 | 3 / 3 | 0 | 25.5 (17–30) | 5,043 (3,018–7,111) | 27 | 1 | 43 |
+
+The 46 cassette scenarios separately remain **20/23** first-offer coverage. The 65 selection cases demand **55 of 71** model-callable tools. Development demands 39 distinct tools; the original holdout adds 16. Each of the 17 business namespaces has at least two development cases. The `control` namespace also has three development controls; its migration tool `route_to_capability` is intentionally not a positive business demand.
+
+| Namespace | Dev | Original holdout | Namespace | Dev | Original holdout |
+| --- | ---: | ---: | --- | ---: | ---: |
+| `context` | 3 | 1 | `actions` | 2 | 2 |
+| `job.library` | 6 | 2 | `job.analysis` | 4 | 0 |
+| `job.research` | 2 | 1 | `job.intent` | 2 | 1 |
+| `resume.library` | 3 | 1 | `resume.match` | 4 | 1 |
+| `resume.tailoring` | 5 | 1 | `application.tracking` | 7 | 2 |
+| `application.email` | 5 | 0 | `interview.schedule` | 5 | 4 |
+| `interview.prep` | 4 | 1 | `interview.calendar` | 3 | 3 |
+| `interview.mock` | 2 | 0 | `memory.search` | 4 | 0 |
+| `memory.proposals` | 2 | 3 | `control` | 3 | 5 |
+
+The comparison metrics are:
+
+1. **Unreachable offered:** an offered tool does not meet its state prerequisite.
+2. **Waiting reoffered:** a tool whose observation says user confirmation is needed is offered again in the same turn. The check includes observations already present in the initial snapshot and `working_notes_derived_argument`; a new user message resets it. The development control now exposes one such reoffer.
+3. **Unrequested writes:** an offered write tool is neither an accepted next action nor in a namespace named by the case's user intent. This is a coarse trend metric, not an authorization verdict.
+
+### Missing business tools at first offer
+
+All 19 misses are `not_selected`; none is `unreachable`.
+
+| Split | Case | Step | Missing business tool |
+| --- | --- | ---: | --- |
+| Dev | `offline_resume_to_interview_preparation` | 0 | `prepare_interview` |
+| Dev | `offline_job_to_application_creation` | 0 | `create_application` |
+| Dev | `selection_dev_job_analysis_first` | 0 | `analyze_job` |
+| Dev | `selection_dev_job_research_first` | 0 | `research_job` |
+| Dev | `selection_dev_job_intent_first` | 0 | `propose_job_intent` |
+| Dev | `selection_dev_interview_prep_first` | 0 | `prepare_interview` |
+| Dev | `selection_dev_memory_search_first` | 0 | `search_career_history` |
+| Dev | `selection_dev_memory_proposals_first` | 0 | `propose_career_fact` |
+| Dev | `selection_dev_cross_compare_then_match` | 2 | `match_resume_to_job` |
+| Dev | `selection_dev_cross_export_then_prepare` | 1 | `prepare_interview` |
+| Dev | `selection_dev_cross_read_job_then_track` | 1 | `create_application` |
+| Dev | `selection_dev_cross_memory_then_job` | 1 | `search_career_episodes` |
+| Dev | `selection_dev_cross_application_then_interview` | 1 | `create_interview` |
+| Dev | `selection_dev_cross_source_then_tailor` | 1 | `draft_resume_tailoring` |
+| Dev | `selection_dev_chain_job_resume` | 2 | `match_resume_to_job` |
+| Dev | `selection_dev_chain_job_resume` | 3 | `draft_resume_tailoring` |
+| Original holdout | `selection_holdout_interview_calendar_first` | 0 | `list_calendar_accounts` |
+| Original holdout | `selection_holdout_cross_research_retry_then_application` | 1 | `create_application` |
+| Original holdout | `selection_holdout_cross_retro_then_memory` | 1 | `propose_career_fact` |
+
+The development counts and miss list are locked in pytest. The original and independent holdouts lock their fixtures and evaluability, but no recall score. During selector tuning, use development only. Score both holdouts once after the selector is fixed and report them separately.
+
+## Earlier 2A snapshot (historical)
 
 ## Measurement contract
 

@@ -6,12 +6,22 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Protocol, Sequence
 
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.profiles import CORE_TOOLS, profile_schemas, profile_tools
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.context.turn_builder import keyword_tool_profile
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.providers.token_budget import count_tokens
 from career_agent.evaluation.trajectory import TrajectoryScenario, advance_trajectory_context
+
+
+@dataclass(frozen=True)
+class SelectionCase:
+    scenario: TrajectoryScenario
+    split: Literal["dev", "holdout"]
+    kind: Literal["single", "cross", "chain", "control"]
+    namespaces: frozenset[str]
+    raw_turn: bool = True
 
 
 @dataclass(frozen=True)
@@ -57,6 +67,13 @@ class LegacyProfileSelector:
     def select_ingress(
         self, context: MainAgentContext, prior: object | None = None
     ) -> tuple[ToolOffer, object | None]:
+        _, offer, state = self.select_ingress_snapshot(context, prior)
+        return offer, state
+
+    def select_ingress_snapshot(
+        self, context: MainAgentContext, prior: object | None = None
+    ) -> tuple[MainAgentContext, ToolOffer, object | None]:
+        """Apply the actual raw-turn keyword promotion before deciding."""
         profile = context.task.tool_profile
         if profile == "core":
             profile = keyword_tool_profile(context.user_message) or profile
@@ -64,12 +81,16 @@ class LegacyProfileSelector:
             context = context.model_copy(update={
                 "task": context.task.model_copy(update={"tool_profile": profile})
             })
-        return self.select(context, prior)
+        offer, state = self.select(context, prior)
+        return context, offer, state
 
 
 @dataclass(frozen=True)
 class SelectionStep:
     scenario: str
+    split: Literal["dev", "holdout"] | None
+    kind: Literal["single", "cross", "chain", "control"] | None
+    intent_namespaces: frozenset[str] | None
     index: int
     profile: str
     offered_names: frozenset[str]
@@ -79,6 +100,9 @@ class SelectionStep:
     route_round_trip: bool
     legacy_only: bool
     missing_reasons: Mapping[str, Literal["not_selected", "unreachable"]]
+    unreachable_offered: frozenset[str]
+    waiting_reoffered: frozenset[str]
+    unrequested_writes: frozenset[str]
     schema_tokens_proxy: int
 
     @property
@@ -120,6 +144,40 @@ class SelectionReport:
             *(step.required_names for step in self.steps if step.has_demand)
         )
 
+    @property
+    def unreachable_offer_count(self) -> int:
+        return sum(len(step.unreachable_offered) for step in self.comparable_steps)
+
+    @property
+    def waiting_reoffer_count(self) -> int:
+        return sum(len(step.waiting_reoffered) for step in self.comparable_steps)
+
+    @property
+    def unrequested_write_offer_count(self) -> int:
+        return sum(len(step.unrequested_writes) for step in self.comparable_steps)
+
+
+WAITING_FOR_USER_STATES = frozenset({
+    "working_notes_derived_argument",
+    "calendar_approval_required",
+    "capability_confirmation_required",
+    "email_events_pending",
+    "mock_interview_answer_required",
+    "mock_interview_running",
+    "mock_interview_resume_choice_required",
+    "mock_interview_job_choice_required",
+    "job_intent_proposed",
+    "memory_amendment_proposed",
+    "memory_tombstone_proposed",
+    "free_text_preference_confirmation_proposed",
+    "free_text_preference_confirmed_structured_proposed",
+    "career_fact_proposed",
+    "constraint_retirement_proposed",
+    "resume_final_review_blocked",
+    "resume_tailoring_review_blocked",
+    "resume_tailoring_superseded",
+})
+
 
 def _expected_business_tools(scenario: TrajectoryScenario, index: int) -> frozenset[str]:
     step = scenario.steps[index]
@@ -141,15 +199,30 @@ def _is_legacy_only(scenario: TrajectoryScenario, index: int) -> bool:
 
 
 def evaluate_tool_selection(
-    scenarios: Sequence[TrajectoryScenario], *, selector: ToolSelector
+    scenarios: Sequence[TrajectoryScenario | SelectionCase], *, selector: ToolSelector
 ) -> SelectionReport:
     steps: list[SelectionStep] = []
-    for scenario in scenarios:
+    for item in scenarios:
+        case = item if isinstance(item, SelectionCase) else None
+        scenario = case.scenario if case else item
         context = scenario.context
+        turn_observations = list(context.tool_observations)
         prior: object | None = None
         for index, step in enumerate(scenario.steps):
+            if step.user_message is not None:
+                turn_observations = []
             context = advance_trajectory_context(context, step)
-            offer, prior = selector.select(context, prior)
+            if step.observation is not None and step.user_message is None:
+                turn_observations.append(step.observation)
+            if (
+                case is not None
+                and case.raw_turn
+                and (index == 0 or step.user_message is not None)
+                and isinstance(selector, LegacyProfileSelector)
+            ):
+                context, offer, prior = selector.select_ingress_snapshot(context, prior)
+            else:
+                offer, prior = selector.select(context, prior)
             if not offer.names <= offer.selected_names:
                 raise ValueError("selector offered a tool it did not select")
             schema_names = frozenset(schema["function"]["name"] for schema in offer.schemas)
@@ -171,8 +244,27 @@ def evaluate_tool_selection(
                         missing_reasons[name] = "unreachable"
                     else:
                         raise ValueError(f"selected reachable tool was not offered: {name}")
+            unreachable_offered = frozenset(
+                name for name in offer.names if not reachable(name, context.task)
+            )
+            waiting_reoffered = frozenset(
+                observation.tool_name
+                for observation in turn_observations
+                if observation.state in WAITING_FOR_USER_STATES
+                and observation.tool_name in offer.names
+            )
+            unrequested_writes = frozenset(
+                name for name in offer.names
+                if case is not None
+                and CAPABILITIES[name].effect == "WRITE"
+                and name not in required
+                and CAPABILITIES[name].namespace not in case.namespaces
+            )
             steps.append(SelectionStep(
                 scenario=scenario.name,
+                split=case.split if case else None,
+                kind=case.kind if case else None,
+                intent_namespaces=case.namespaces if case else None,
                 index=index,
                 profile=context.task.tool_profile,
                 offered_names=offer.names,
@@ -182,6 +274,9 @@ def evaluate_tool_selection(
                 route_round_trip=step.expect_tool == "route_to_capability",
                 legacy_only=legacy_only,
                 missing_reasons=missing_reasons,
+                unreachable_offered=unreachable_offered,
+                waiting_reoffered=waiting_reoffered,
+                unrequested_writes=unrequested_writes,
                 schema_tokens_proxy=count_tokens(schema_json),
             ))
     return SelectionReport(tuple(steps))

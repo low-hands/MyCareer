@@ -2,21 +2,37 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
+import hashlib
+import json
 from statistics import mean
 from types import SimpleNamespace
 
+from pydantic_core import to_jsonable_python
+from pydantic import BaseModel
+
 from career_agent.agent.capabilities.catalog import CAPABILITIES
+from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.interactions import CONFIRMATION_SPECS
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
+from career_agent.evaluation.independent_tool_selection_holdout import SELECTION_INDEPENDENT_HOLDOUT
 from career_agent.evaluation.tool_selection import (
     LegacyProfileSelector,
     classify_recorded_failure,
     evaluate_tool_selection,
 )
-from career_agent.evaluation.tool_selection_scenarios import TOOL_SELECTION_SCENARIOS
+from career_agent.evaluation.tool_selection_scenarios import (
+    FIXTURE_NOW,
+    SELECTION_DEV,
+    SELECTION_HOLDOUT,
+    TOOL_SELECTION_SCENARIOS,
+)
 from career_agent.evaluation.trajectory import (
     EVALUATION_BASELINE_MODEL,
     TrajectoryScenario,
@@ -40,6 +56,212 @@ _STALE = {
     "stated_intent_is_proposed_before_it_is_recorded",
     "a_questionnaire_answer_is_proposed_with_user_input_provenance",
 }
+
+
+def test_selection_cases_have_balanced_coverage_and_no_cassette_names() -> None:
+    cases = (*SELECTION_DEV, *SELECTION_HOLDOUT)
+    assert (len(SELECTION_DEV), len(SELECTION_HOLDOUT)) == (45, 20)
+    assert all(case.split == "dev" for case in SELECTION_DEV)
+    assert all(case.split == "holdout" for case in SELECTION_HOLDOUT)
+    assert len({case.scenario.name for case in cases}) == len(cases)
+    assert {case.scenario.name for case in cases}.isdisjoint(
+        {scenario.name for scenario in SCENARIOS}
+    )
+    counts = Counter(case.kind for case in cases)
+    assert counts == {"single": 34, "cross": 14, "chain": 9, "control": 8}
+    assert Counter(case.kind for case in SELECTION_DEV) == {
+        "single": 27, "cross": 9, "chain": 6, "control": 3,
+    }
+    assert Counter(case.kind for case in SELECTION_HOLDOUT) == {
+        "single": 7, "cross": 5, "chain": 3, "control": 5,
+    }
+    namespace_counts = Counter(namespace for case in SELECTION_DEV for namespace in case.namespaces)
+    assert {descriptor.namespace for descriptor in CAPABILITIES.values() if descriptor.model_callable} == set(namespace_counts)
+    assert min(namespace_counts.values()) >= 2
+    for case in cases:
+        assert case.split in {"dev", "holdout"}
+        assert case.namespaces
+        assert case.scenario.context.user_message
+
+
+def test_expanded_dev_baseline_is_locked_without_tuning_on_holdout() -> None:
+    report = evaluate_tool_selection(
+        SELECTION_DEV, selector=LegacyProfileSelector(trajectory_tool_specs())
+    )
+    assert (len(report.steps), len(report.comparable_steps)) == (66, 64)
+    assert (report.demand_steps, report.covered_steps, report.route_round_trips) == (62, 46, 2)
+    assert len(report.demanded_tool_names) == 39
+    assert (
+        report.unreachable_offer_count,
+        report.waiting_reoffer_count,
+        report.unrequested_write_offer_count,
+    ) == (339, 1, 469)
+    assert {
+        (step.scenario, step.index, tuple(sorted(step.missing_reasons.items())))
+        for step in report.steps if step.missing_reasons
+    } == {
+        ("offline_resume_to_interview_preparation", 0, (("prepare_interview", "not_selected"),)),
+        ("offline_job_to_application_creation", 0, (("create_application", "not_selected"),)),
+        ("selection_dev_job_analysis_first", 0, (("analyze_job", "not_selected"),)),
+        ("selection_dev_job_research_first", 0, (("research_job", "not_selected"),)),
+        ("selection_dev_job_intent_first", 0, (("propose_job_intent", "not_selected"),)),
+        ("selection_dev_interview_prep_first", 0, (("prepare_interview", "not_selected"),)),
+        ("selection_dev_memory_search_first", 0, (("search_career_history", "not_selected"),)),
+        ("selection_dev_memory_proposals_first", 0, (("propose_career_fact", "not_selected"),)),
+        ("selection_dev_cross_compare_then_match", 2, (("match_resume_to_job", "not_selected"),)),
+        ("selection_dev_cross_export_then_prepare", 1, (("prepare_interview", "not_selected"),)),
+        ("selection_dev_cross_read_job_then_track", 1, (("create_application", "not_selected"),)),
+        ("selection_dev_cross_memory_then_job", 1, (("search_career_episodes", "not_selected"),)),
+        ("selection_dev_cross_application_then_interview", 1, (("create_interview", "not_selected"),)),
+        ("selection_dev_cross_source_then_tailor", 1, (("draft_resume_tailoring", "not_selected"),)),
+        ("selection_dev_chain_job_resume", 2, (("match_resume_to_job", "not_selected"),)),
+        ("selection_dev_chain_job_resume", 3, (("draft_resume_tailoring", "not_selected"),)),
+    }
+
+
+def test_holdout_runs_without_a_locked_recall_score() -> None:
+    report = evaluate_tool_selection(
+        SELECTION_HOLDOUT, selector=LegacyProfileSelector(trajectory_tool_specs())
+    )
+    assert len(report.steps) >= len(SELECTION_HOLDOUT)
+    assert all(step.split == "holdout" for step in report.steps)
+    assert all(step.schema_tokens_proxy > 0 for step in report.steps)
+
+
+def _holdout_manifest_digest(cases) -> str:
+    def stable(value):
+        if isinstance(value, BaseModel):
+            return stable(value.model_dump(mode="python"))
+        if is_dataclass(value):
+            return stable(asdict(value))
+        if isinstance(value, Mapping):
+            return {key: stable(item) for key, item in value.items()}
+        if isinstance(value, (set, frozenset)):
+            return sorted(
+                (stable(item) for item in value),
+                key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True),
+            )
+        if isinstance(value, (list, tuple)):
+            return [stable(item) for item in value]
+        return to_jsonable_python(value)
+
+    manifest = [
+        {
+            "name": case.scenario.name,
+            "split": case.split,
+            "kind": case.kind,
+            "namespaces": sorted(case.namespaces),
+            "message": case.scenario.context.user_message,
+            "task": stable(case.scenario.context.task),
+            "raw_turn": case.raw_turn,
+            "steps": stable(case.scenario.steps),
+        }
+        for case in cases
+    ]
+    encoded = json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def test_holdout_fixture_is_frozen_independently_of_selector_scores() -> None:
+    assert _holdout_manifest_digest(SELECTION_HOLDOUT) == (
+            "c2f8477110cf2591f8ccbe9d707071ef4262667fd438ff9607939d44705ef209"
+    )
+
+
+def test_independently_authored_holdout_is_valid_and_frozen() -> None:
+    assert len(SELECTION_INDEPENDENT_HOLDOUT) == 12
+    assert Counter(case.kind for case in SELECTION_INDEPENDENT_HOLDOUT) == {
+        "single": 4, "cross": 3, "chain": 3, "control": 2,
+    }
+    report = evaluate_tool_selection(
+        SELECTION_INDEPENDENT_HOLDOUT,
+        selector=LegacyProfileSelector(trajectory_tool_specs()),
+    )
+    assert len(report.steps) == 19
+    for case in SELECTION_INDEPENDENT_HOLDOUT:
+        context = case.scenario.context
+        for step in case.scenario.steps:
+            context = advance_trajectory_context(context, step)
+            assert step.expect_tool is not None
+            assert reachable(step.expect_tool, context.task), (
+                case.scenario.name, step.expect_tool
+            )
+    assert _holdout_manifest_digest(SELECTION_INDEPENDENT_HOLDOUT) == (
+        "f7fcfef7322a566a80e739fd5cb1690626adf2b59123a1e53d5d9e5c70b23804"
+    )
+
+
+def test_overoffer_metrics_distinguish_prerequisites_waits_and_write_intent() -> None:
+    cases = (
+        next(case for case in SELECTION_DEV if case.scenario.name == "selection_dev_job_research_next"),
+        next(case for case in SELECTION_DEV if case.scenario.name == "selection_dev_control_planning_to_apply"),
+        next(case for case in SELECTION_DEV if case.scenario.name == "selection_dev_control_note_derived_filter_waits"),
+    )
+    report = evaluate_tool_selection(cases, selector=LegacyProfileSelector(trajectory_tool_specs()))
+    by_name = {step.scenario: step for step in report.steps if step.index == 0}
+    assert "research_job" in by_name["selection_dev_job_research_next"].unreachable_offered
+    assert "analyze_job" in by_name["selection_dev_control_planning_to_apply"].unrequested_writes
+    waiting = by_name["selection_dev_control_note_derived_filter_waits"]
+    assert waiting.waiting_reoffered == {"find_saved_jobs"}
+    assert waiting.required_names == frozenset()
+
+
+def test_raw_cases_use_ingress_and_reference_reads_have_bound_sources() -> None:
+    selector = LegacyProfileSelector(trajectory_tool_specs())
+    cases = (*SELECTION_DEV, *SELECTION_HOLDOUT)
+    for case in cases:
+        first = case.scenario.steps[0]
+        context = advance_trajectory_context(case.scenario.context, first)
+        expected, _ = (
+            selector.select_ingress(context)
+            if case.raw_turn else selector.select(context, None)
+        )
+        actual = evaluate_tool_selection((case,), selector=selector).steps[0]
+        assert actual.offered_names == expected.names
+    for case in cases:
+        if case.scenario.name.endswith("_first") and case.kind == "single":
+            assert case.scenario.context.task.tool_profile == "core"
+
+    by_name = {case.scenario.name: case.scenario.context for case in cases}
+    span = by_name["selection_dev_context_next"]
+    assert span.through_sequence > 0
+    assert span.recent_from_sequence > span.through_sequence
+    assert by_name["selection_dev_context_first"].attached_resumes
+    assert by_name["selection_dev_interview_mock_next"].task.active_application_id
+    claim = by_name["selection_dev_memory_search_next"].career_memory.records[0].confirmed_highlights[0]
+    assert claim.detail_ref
+
+
+def test_expanded_positive_demands_cover_at_least_55_model_tools_without_unreachable_targets() -> None:
+    cases = (*SELECTION_DEV, *SELECTION_HOLDOUT)
+    report = evaluate_tool_selection(
+        cases,
+        selector=LegacyProfileSelector(trajectory_tool_specs()),
+    )
+    assert len(report.demanded_tool_names) >= 55
+    assert all("unreachable" not in step.missing_reasons.values() for step in report.steps)
+    by_scenario = {
+        case.scenario.name: tuple(step for step in report.steps if step.scenario == case.scenario.name)
+        for case in cases
+    }
+    for case in cases:
+        context = case.scenario.context
+        for snapshot, declaration in zip(by_scenario[case.scenario.name], case.scenario.steps):
+            context = advance_trajectory_context(context, declaration)
+            ConversationTaskState.model_validate(context.task.model_dump(mode="python"))
+            if snapshot.has_demand:
+                assert any(reachable(name, context.task) for name in snapshot.required_names), (
+                    case.scenario.name, snapshot.index, snapshot.required_names
+                )
+                for name in snapshot.required_names:
+                    if name in CONFIRMATION_SPECS:
+                        assert context.task.pending_proposal_is_live(
+                            CONFIRMATION_SPECS[name].slot, FIXTURE_NOW
+                        )
+                    if name == "execute_calendar_proposal":
+                        assert context.task.active_calendar_proposal_expires_at > FIXTURE_NOW
 
 
 def test_legacy_selection_baseline_counts_and_route_gaps() -> None:
