@@ -54,6 +54,13 @@ def test_discovery_metadata_covers_the_model_catalogue() -> None:
         if not descriptor.model_callable
     )
     assert "research_job" not in capability("analyze_job").successors
+    assert all(
+        5 <= len(descriptor.example_queries) <= 10
+        for descriptor in model_tools
+        if descriptor.name not in {"search_capabilities", "route_to_capability"}
+    )
+    assert not capability("search_capabilities").example_queries
+    assert not capability("route_to_capability").example_queries
 
 
 def test_a_read_never_suggests_an_ungated_write() -> None:
@@ -89,6 +96,10 @@ def test_a_read_never_suggests_an_ungated_write() -> None:
         ({"successors": ("create_application",)}, "a read cannot suggest an ungated write"),
         ({"profiles": frozenset()}, "needs a profile"),
         ({"legacy_profile_exposed": False}, "hidden legacy capability cannot have a profile"),
+        ({"example_queries": ()}, "needs 5-10 example queries"),
+        ({"example_queries": ("帮我找一下",) * 11}, "needs 5-10 example queries"),
+        ({"example_queries": ("帮我",) * 5}, "must have 4-40 characters"),
+        ({"example_queries": ("加载技能",) * 5}, "duplicates name or alias"),
     ],
 )
 def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error) -> None:
@@ -99,6 +110,18 @@ def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error)
     monkeypatch.setattr(catalog_module, "_descriptors", lambda: iter(descriptors))
     with pytest.raises(RuntimeError, match=error):
         catalog_module._build_catalog()
+
+
+def test_excluded_and_runtime_capabilities_reject_examples(monkeypatch) -> None:
+    for name in ("search_capabilities", "route_to_capability", "handle_mock_interview_input"):
+        descriptors = tuple(
+            replace(descriptor, example_queries=("给我看看具体内容",) * 5)
+            if descriptor.name == name else descriptor
+            for descriptor in CAPABILITIES.values()
+        )
+        monkeypatch.setattr(catalog_module, "_descriptors", lambda: iter(descriptors))
+        with pytest.raises(RuntimeError, match="example queries|discovery metadata"):
+            catalog_module._build_catalog()
 
 
 def test_discovery_metadata_does_not_change_model_schemas_or_prompt_fingerprint() -> None:

@@ -18,6 +18,7 @@ EXCLUDED = frozenset({"search_capabilities", "route_to_capability"})
 MIN_SEMANTIC_SIMILARITY = 0.55
 MAX_SEMANTIC_CANDIDATES = 10
 _WORDS = re.compile(r"[a-zA-Z0-9]+|[\u3400-\u9fff]+")
+_CJK_STOPWORDS = frozenset({"怎么", "么样"})
 
 
 def searchable_capabilities() -> tuple[CapabilityDescriptor, ...]:
@@ -35,7 +36,10 @@ def _tokens(text: str) -> tuple[str, ...]:
             if len(word) == 1:
                 result.append(word)
             else:
-                result.extend(word[index:index + 2] for index in range(len(word) - 1))
+                result.extend(
+                    pair for index in range(len(word) - 1)
+                    if (pair := word[index:index + 2]) not in _CJK_STOPWORDS
+                )
         else:
             result.append(word)
     return tuple(result)
@@ -95,6 +99,45 @@ def lexical_scores(
             score += idf * (tf * 2.2) / (tf + 1.2 * (0.25 + 0.75 * lengths[item.name] / average))
         if score:
             scores[item.name] = score
+    # Score each example as its own short document, then keep the strongest
+    # match per tool. More examples expand vocabulary without increasing the
+    # BM25 document length or adding repeated votes for the same tool.
+    example_documents = {
+        item.name: tuple(Counter(_tokens(query)) for query in item.example_queries)
+        for item in entries
+    }
+    all_examples = [tokens for rows in example_documents.values() for tokens in rows]
+    if all_examples:
+        example_average = sum(sum(tokens.values()) for tokens in all_examples) / len(all_examples)
+        example_frequency = Counter(
+            token for rows in example_documents.values()
+            for token in set().union(*(set(tokens) for tokens in rows))
+        )
+        for item in entries:
+            best = 0.0
+            for tokens in example_documents[item.name]:
+                length = sum(tokens.values())
+                example_score = 0.0
+                # A single generic bigram (such as 岗位 or 面试) is too weak
+                # to make a whole example query relevant.
+                overlap = len(terms.intersection(tokens))
+                required_coverage = 0.5 if item.effect == "WRITE" else 0.25
+                if overlap < 2 or overlap / len(tokens) < required_coverage:
+                    continue
+                for term in terms:
+                    tf = tokens.get(term, 0)
+                    if not tf:
+                        continue
+                    idf = math.log(
+                        1 + (len(entries) - example_frequency[term] + 0.5)
+                        / (example_frequency[term] + 0.5)
+                    )
+                    example_score += idf * (tf * 2.2) / (
+                        tf + 1.2 * (0.25 + 0.75 * length / example_average)
+                    )
+                best = max(best, example_score)
+            if best:
+                scores[item.name] = scores.get(item.name, 0.0) + 3 * best
     return scores
 
 
@@ -105,6 +148,7 @@ def _rank(scores: Mapping[str, float], order: Mapping[str, int]) -> tuple[str, .
 def search_catalog(
     *, query: str | None = None, names: Sequence[str] | None = None,
     limit: int = 5, semantic_scores: Mapping[str, float] | None = None,
+    descriptors: Sequence[CapabilityDescriptor] | None = None,
 ) -> tuple[str, ...]:
     """Return catalogue names in stable order; exact names/namespaces lead."""
     if (query is None) == (names is None):
@@ -115,7 +159,7 @@ def search_catalog(
         raise ValueError("names must contain between 1 and 10 entries")
     if query is not None and not 1 <= len(query) <= 200:
         raise ValueError("query must contain between 1 and 200 characters")
-    entries = searchable_capabilities()
+    entries = tuple(searchable_capabilities() if descriptors is None else descriptors)
     order = {item.name: index for index, item in enumerate(entries)}
     namespaces = {item.namespace for item in entries}
     if names is not None:

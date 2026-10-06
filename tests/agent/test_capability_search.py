@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import replace
+
 import pytest
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES, TOOL_PROFILE_NAMES
@@ -18,6 +21,11 @@ from career_agent.agent.contracts.tools.core_memory import SearchCapabilitiesToo
 from career_agent.agent.middleware.argument_projection import project_atomic_arguments
 from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.agent.runtime.reducers import reduce_task_state
+from career_agent.evaluation.tool_selection_scenarios import SELECTION_DEV
+from career_agent.evaluation.tool_selection_scenarios import SELECTION_HOLDOUT
+from career_agent.evaluation.independent_tool_selection_holdout import (
+    SELECTION_INDEPENDENT_HOLDOUT,
+)
 
 
 @pytest.mark.parametrize("arguments", [
@@ -57,14 +65,51 @@ def test_exact_names_namespaces_and_exclusions() -> None:
 def test_chinese_reordering_aliases_and_tie_order_are_stable() -> None:
     assert search_catalog(query="天气怎么样") == ()
     assert search_catalog(query="的") == ()
+    assert search_catalog(query="zzzxxyyunknownword") == ()
     assert "match_resume_to_job" in search_catalog(query="岗位跟简历匹配一下")
     assert "match_resume_to_job" in search_catalog(query="简历和岗位匹配一下")
+    assert sum(len(item.aliases_zh) for item in searchable_capabilities()) == 141
     for descriptor in searchable_capabilities():
         for alias in descriptor.aliases_zh:
             assert descriptor.name in search_catalog(query=alias, limit=5), (
                 descriptor.name, alias,
             )
     assert search_catalog(query="岗位", limit=10) == search_catalog(query="岗位", limit=10)
+
+
+def test_search_runs_on_both_frozen_holdouts_without_locking_scores() -> None:
+    assert (len(SELECTION_HOLDOUT), len(SELECTION_INDEPENDENT_HOLDOUT)) == (20, 12)
+    for case in (*SELECTION_HOLDOUT, *SELECTION_INDEPENDENT_HOLDOUT):
+        offered = search_catalog(query=case.scenario.context.user_message)
+        assert isinstance(offered, tuple)
+        assert all(name in CAPABILITIES for name in offered)
+
+
+def test_development_query_recall_and_control_write_exposure() -> None:
+    bare = tuple(replace(item, example_queries=()) for item in searchable_capabilities())
+
+    def counts(descriptors=None):
+        hits: Counter[int] = Counter()
+        writes = 0
+        demand_count = 0
+        for case in SELECTION_DEV:
+            offered = search_catalog(
+                query=case.scenario.context.user_message, descriptors=descriptors,
+            )
+            first = case.scenario.steps[0]
+            if first.expect_tool == "route_to_capability":
+                first = case.scenario.steps[1]
+            expected = set(first.expect_tools or ({first.expect_tool} if first.expect_tool else set()))
+            if expected:
+                demand_count += 1
+                for rank in (1, 3, 5):
+                    hits[rank] += bool(expected.intersection(offered[:rank]))
+            if case.kind == "control":
+                writes += sum(CAPABILITIES[name].effect == "WRITE" for name in offered)
+        return demand_count, dict(hits), writes
+
+    assert counts(bare) == (43, {1: 14, 3: 23, 5: 30}, 6)
+    assert counts() == (43, {1: 16, 3: 32, 5: 35}, 6)
 
 
 def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:

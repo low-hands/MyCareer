@@ -13,6 +13,8 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Mapping, get_args
 
+from career_agent.agent.capabilities.example_queries import EXAMPLE_QUERIES
+
 if TYPE_CHECKING:
     from career_agent.agent.contracts.task_state import ConversationTaskState
 else:
@@ -44,6 +46,7 @@ class CapabilityDescriptor:
     namespace: str | None = None
     summary: str | None = None
     aliases_zh: tuple[str, ...] = ()
+    example_queries: tuple[str, ...] = ()
     successors: tuple[str, ...] = ()
     execution_kind: ExecutionKind = "atomic_tool"
     approval_policy: ApprovalPolicy = "never"
@@ -1114,10 +1117,13 @@ def _descriptors() -> Iterable[CapabilityDescriptor]:
             namespace=namespace,
             summary=summary,
             aliases_zh=aliases,
+            example_queries=EXAMPLE_QUERIES.get(descriptor.name, ()),
             successors=successors,
         )
     if extra := metadata.keys() - declared_names:
         raise RuntimeError(f"discovery metadata names unknown capabilities: {sorted(extra)}")
+    if extra := EXAMPLE_QUERIES.keys() - declared_names:
+        raise RuntimeError(f"example queries name unknown capabilities: {sorted(extra)}")
 
 
 def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
@@ -1160,6 +1166,17 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
                 raise RuntimeError(f"model-callable capability needs a summary: {descriptor.name}")
             if not 2 <= len(descriptor.aliases_zh) <= 5:
                 raise RuntimeError(f"model-callable capability needs 2-5 Chinese aliases: {descriptor.name}")
+            searchable = descriptor.name not in {"search_capabilities", "route_to_capability"}
+            if searchable and not 5 <= len(descriptor.example_queries) <= 10:
+                raise RuntimeError(f"searchable capability needs 5-10 example queries: {descriptor.name}")
+            if not searchable and descriptor.example_queries:
+                raise RuntimeError(f"excluded capability has example queries: {descriptor.name}")
+            for example in descriptor.example_queries:
+                normalized = example.strip()
+                if not 4 <= len(normalized) <= 40:
+                    raise RuntimeError(f"example query must have 4-40 characters: {descriptor.name}")
+                if normalized == descriptor.name or normalized in descriptor.aliases_zh:
+                    raise RuntimeError(f"example query duplicates name or alias: {descriptor.name}")
             namespace_sizes[descriptor.namespace] = namespace_sizes.get(descriptor.namespace, 0) + 1
             if namespace_sizes[descriptor.namespace] > 10:
                 raise RuntimeError(f"capability namespace exceeds ten tools: {descriptor.namespace}")
@@ -1172,7 +1189,7 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
                     raise RuntimeError(
                         f"Chinese alias {normalized!r} belongs to both {owner} and {descriptor.name}"
                     )
-        elif descriptor.namespace or descriptor.summary or descriptor.aliases_zh or descriptor.successors:
+        elif descriptor.namespace or descriptor.summary or descriptor.aliases_zh or descriptor.example_queries or descriptor.successors:
             raise RuntimeError(f"runtime-only capability has discovery metadata: {descriptor.name}")
         if descriptor.model_callable and descriptor.name not in _SCHEMA_SPECS:
             raise RuntimeError(f"model-callable capability needs a tool schema: {descriptor.name}")

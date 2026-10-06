@@ -1,0 +1,84 @@
+# Capability search example queries — 2026-10-05
+
+## Data and review
+
+The example author worked in a separate agent context. It received only an
+export of the 70 searchable tools' names, namespaces, summaries, parameter
+schemas, and precondition descriptions. It did not receive the development
+cases, either holdout, Qwen baseline, or existing Chinese aliases. It wrote
+350 Chinese queries (five per tool) as JSON outside the repository. The
+reviewed set is stored in `capabilities/example_queries.py`.
+
+I reviewed every query for tool ownership, one-action wording, read/write
+distinctions, and write requests that were too weak. Fourteen queries were
+rewritten: nine for meaning or wording, and five after a similarity audit.
+The audit compared normalized query text with every original user message in
+the development set and both holdouts using `SequenceMatcher` at 0.65, plus
+long substring matches. It flagged four development overlaps and one original
+holdout overlap; all five were rewritten. Re-running the audit found **zero**
+matches at that threshold in all three sets. The generated JSON remained
+outside the repository.
+
+The catalogue validates 5–10 queries of 4–40 characters for every searchable
+tool, rejects exact copies of the tool name or its aliases, and forbids
+examples on runtime-only tools, `search_capabilities`, and
+`route_to_capability`. Examples are retrieval metadata only. Registered and
+legacy-visible schema hashes and prompt fingerprints remain the values in the
+stage 1–2 report; the search tool is still hidden from every legacy profile.
+
+## Index rule
+
+BM25 still scores names and aliases at weight 5, summaries at 2, and parameter
+names at 1. Each example is tokenized and scored as a separate short document;
+the strongest example for a tool contributes at weight 3. Taking the maximum
+prevents tools with more examples from receiving more votes or a longer BM25
+document. Generic two-character overlaps are ignored: an example needs at
+least two matching tokens and 25% token coverage. For a `WRITE` tool it needs
+50% coverage, so an incidental mention of a job or interview does not promote
+a write. These thresholds were set using the development set only. The
+optional semantic index still uses the earlier catalogue text; adding examples
+to its embedding or averaging example vectors is deferred until a real
+embedding provider can be compared.
+
+## First-step query recall
+
+The original user message is used as the search query. A hit means one of the
+accepted first-step business tools is in the first 1, 3, or 5 results. Control
+cases with no positive first-step demand are excluded from recall.
+
+| Set | Configuration | Top 1 | Top 3 | Top 5 |
+| --- | --- | ---: | ---: | ---: |
+| Development (43 demands) | Before examples | 14/43 | 23/43 | 30/43 (69.8%) |
+| Development (43 demands) | With examples | 16/43 | 32/43 | **35/43 (81.4%)** |
+| Original holdout (18 demands) | Before examples | 5/18 | 8/18 | 12/18 (66.7%) |
+| Original holdout (18 demands) | With examples | 7/18 | 12/18 | **15/18 (83.3%)** |
+| Independent holdout (12 demands) | Before examples | 2/12 | 6/12 | 8/12 (66.7%) |
+| Independent holdout (12 demands) | With examples | 2/12 | 5/12 | **9/12 (75.0%)** |
+
+The development set alone was used for the index thresholds. Each holdout was
+scored once after those values and the audited examples were fixed. The
+independent holdout's top-3 result fell by one; its top-5 gain is only one
+case, so broader independent samples are needed before treating this as a
+stable gain. No holdout score is locked in tests.
+
+Independent holdout top-5 misses with examples:
+
+| Case | Expected first tool | Top-five results |
+| --- | --- | --- |
+| `independent_holdout_saved_job_requirements` | `get_saved_job` | `find_saved_jobs`, `correct_job_requirement_tier`, `analyze_job`, `update_owner_settings` |
+| `independent_holdout_email_to_interview` | `sync_application_emails` | `list_applications`, `update_interview`, `list_email_events`, `get_interview`, `search_career_episodes` |
+| `independent_holdout_tailor_review_export` | `draft_resume_tailoring` | `get_resume_job_match`, `export_resume_artifact`, `review_resume_tailoring`, `analyze_job`, `finalize_resume_tailoring` |
+
+## Noise and write exposure
+
+All **141/141** existing Chinese aliases still retrieve their owner in the
+top five. `天气怎么样`, `的`, and `zzzxxyyunknownword` still return no result.
+The CJK tokenizer ignores the very generic `怎么` and `么样` bigrams; the
+development baseline without examples remains 30/43 after that adjustment.
+
+For control cases, the number of `WRITE` tool names in the first five was
+**6 → 6** on development, **9 → 7** on the original holdout, and **5 → 5**
+on the independent holdout. This is a retrieval proxy, not authorization;
+existing execution checks still decide whether a tool can run. The
+development counts are locked by a test. Both holdouts are only tested for
+successful search execution, with no score assertions.
