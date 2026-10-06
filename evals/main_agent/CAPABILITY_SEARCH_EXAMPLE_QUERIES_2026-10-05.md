@@ -72,9 +72,8 @@ Independent holdout top-5 misses with examples:
 ## Noise and write exposure
 
 All **141/141** existing Chinese aliases still retrieve their owner in the
-top five. `天气怎么样`, `的`, and `zzzxxyyunknownword` still return no result.
-The CJK tokenizer ignores the very generic `怎么` and `么样` bigrams; the
-development baseline without examples remains 30/43 after that adjustment.
+top five. `天气怎么样`, `的`, and `zzzxxyyunknownword` returned no result in
+the initial run. The development baseline without examples was 30/43.
 
 For control cases, the number of `WRITE` tool names in the first five was
 **6 → 6** on development, **9 → 7** on the original holdout, and **5 → 5**
@@ -82,3 +81,26 @@ on the independent holdout. This is a retrieval proxy, not authorization;
 existing execution checks still decide whether a tool can run. The
 development counts are locked by a test. Both holdouts are only tested for
 successful search execution, with no score assertions.
+
+## Frequency-gate revision after the holdout run
+
+The initial index excluded `怎么` and `么样` by hand. Those exceptions were
+removed. A Chinese bigram now loses its *evidence vote* for the two-token
+example-match gate when it occurs in more than 15% of tools' aliases/examples
+**and** spans more than 60% of tool namespaces. The namespace condition keeps
+frequent but meaningful terms such as `岗位` and `面试` from being treated as
+general filler. Common terms still contribute to BM25 with their normal IDF;
+they are not deleted from query or document tokens. This rule is derived from
+the catalogue and changes automatically as example metadata changes.
+
+On the development set, the revised index gives **17/43** at top 1,
+**31/43** at top 3, and **35/43** at top 5. Development control write
+exposure remains **6**, and all 141 aliases still retrieve their owner in
+the top five. `天气怎么样`, `这个怎么弄`, and `帮我看一下` return no result;
+`今天吃什么` returns only the read tool `get_daily_brief`. These are new
+noise probes rather than a claim of perfect out-of-domain detection.
+
+**The holdouts were not rescored for this revision.** Their numbers above
+describe the initial `0c07bce` index only and do not establish revised-index
+holdout performance. The test run for this revision explicitly deselected the
+test that invokes both frozen holdouts.

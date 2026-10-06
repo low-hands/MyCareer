@@ -10,6 +10,7 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.search import (
     MAX_SEMANTIC_CANDIDATES,
     SemanticCapabilityIndex,
+    _common_example_terms,
     search_catalog,
     searchable_capabilities,
 )
@@ -77,6 +78,32 @@ def test_chinese_reordering_aliases_and_tie_order_are_stable() -> None:
     assert search_catalog(query="岗位", limit=10) == search_catalog(query="岗位", limit=10)
 
 
+@pytest.mark.parametrize("query", ["今天吃什么", "这个怎么弄", "帮我看一下"])
+def test_unrelated_colloquial_queries_do_not_offer_writes(query: str) -> None:
+    offered = search_catalog(query=query)
+    assert all(CAPABILITIES[name].effect != "WRITE" for name in offered)
+
+
+def test_common_example_terms_derive_from_tool_and_namespace_frequency() -> None:
+    entries = searchable_capabilities()
+    one_per_namespace = {}
+    for item in entries:
+        one_per_namespace.setdefault(item.namespace, item.name)
+    selected = tuple(one_per_namespace.values())
+    assert len(selected) >= 11
+
+    def with_token(count: int):
+        names = set(selected[:count])
+        return tuple(
+            replace(item, example_queries=(*item.example_queries, "这是闲词测试"))
+            if item.name in names else item
+            for item in entries
+        )
+
+    assert "闲词" not in _common_example_terms(with_token(10))
+    assert "闲词" in _common_example_terms(with_token(11))
+
+
 def test_search_runs_on_both_frozen_holdouts_without_locking_scores() -> None:
     assert (len(SELECTION_HOLDOUT), len(SELECTION_INDEPENDENT_HOLDOUT)) == (20, 12)
     for case in (*SELECTION_HOLDOUT, *SELECTION_INDEPENDENT_HOLDOUT):
@@ -109,7 +136,7 @@ def test_development_query_recall_and_control_write_exposure() -> None:
         return demand_count, dict(hits), writes
 
     assert counts(bare) == (43, {1: 14, 3: 23, 5: 30}, 6)
-    assert counts() == (43, {1: 16, 3: 32, 5: 35}, 6)
+    assert counts() == (43, {1: 17, 3: 31, 5: 35}, 6)
 
 
 def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:

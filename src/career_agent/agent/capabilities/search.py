@@ -17,8 +17,9 @@ from career_agent.agent.context.semantic_retrieval import EmbeddingClient
 EXCLUDED = frozenset({"search_capabilities", "route_to_capability"})
 MIN_SEMANTIC_SIMILARITY = 0.55
 MAX_SEMANTIC_CANDIDATES = 10
+COMMON_EXAMPLE_TERM_FRACTION = 0.15
+COMMON_EXAMPLE_NAMESPACE_FRACTION = 0.60
 _WORDS = re.compile(r"[a-zA-Z0-9]+|[\u3400-\u9fff]+")
-_CJK_STOPWORDS = frozenset({"怎么", "么样"})
 
 
 def searchable_capabilities() -> tuple[CapabilityDescriptor, ...]:
@@ -36,10 +37,7 @@ def _tokens(text: str) -> tuple[str, ...]:
             if len(word) == 1:
                 result.append(word)
             else:
-                result.extend(
-                    pair for index in range(len(word) - 1)
-                    if (pair := word[index:index + 2]) not in _CJK_STOPWORDS
-                )
+                result.extend(word[index:index + 2] for index in range(len(word) - 1))
         else:
             result.append(word)
     return tuple(result)
@@ -75,6 +73,30 @@ def _document(descriptor: CapabilityDescriptor) -> Counter[str]:
     return weighted
 
 
+def _common_example_terms(entries: Sequence[CapabilityDescriptor]) -> frozenset[str]:
+    """Find frequent, widely dispersed CJK bigrams in query metadata."""
+    if not entries:
+        return frozenset()
+    tool_frequency: Counter[str] = Counter()
+    namespaces: dict[str, set[str]] = {}
+    for item in entries:
+        terms = {
+            token
+            for phrase in (*item.aliases_zh, *item.example_queries)
+            for token in _tokens(phrase)
+            if len(token) == 2 and "\u3400" <= token[0] <= "\u9fff"
+        }
+        tool_frequency.update(terms)
+        for token in terms:
+            namespaces.setdefault(token, set()).add(item.namespace or "")
+    namespace_count = len({item.namespace for item in entries})
+    return frozenset(
+        token for token, count in tool_frequency.items()
+        if count / len(entries) > COMMON_EXAMPLE_TERM_FRACTION
+        and len(namespaces[token]) / namespace_count > COMMON_EXAMPLE_NAMESPACE_FRACTION
+    )
+
+
 def lexical_scores(
     query: str, descriptors: Sequence[CapabilityDescriptor] | None = None,
 ) -> dict[str, float]:
@@ -106,6 +128,7 @@ def lexical_scores(
         item.name: tuple(Counter(_tokens(query)) for query in item.example_queries)
         for item in entries
     }
+    common_example_terms = _common_example_terms(entries)
     all_examples = [tokens for rows in example_documents.values() for tokens in rows]
     if all_examples:
         example_average = sum(sum(tokens.values()) for tokens in all_examples) / len(all_examples)
@@ -118,9 +141,9 @@ def lexical_scores(
             for tokens in example_documents[item.name]:
                 length = sum(tokens.values())
                 example_score = 0.0
-                # A single generic bigram (such as 岗位 or 面试) is too weak
-                # to make a whole example query relevant.
-                overlap = len(terms.intersection(tokens))
+                # Frequent phrases spread across many namespaces do not count
+                # as evidence, but still contribute their normal BM25 IDF.
+                overlap = len(terms.intersection(tokens).difference(common_example_terms))
                 required_coverage = 0.5 if item.effect == "WRITE" else 0.25
                 if overlap < 2 or overlap / len(tokens) < required_coverage:
                     continue
