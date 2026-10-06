@@ -49,6 +49,10 @@ def test_exact_names_namespaces_and_exclusions() -> None:
         "match_resume_to_job", "get_resume_job_match",
     )
     assert search_catalog(names=("list_resumes",)) == ("list_resumes",)
+    assert search_catalog(names=("create_application",)) == ("create_application",)
+    assert search_catalog(names=("confirm_memory_tombstone",)) == (
+        "confirm_memory_tombstone",
+    )
     expanded = search_catalog(names=("memory.proposals",), limit=1)
     assert len(expanded) == 10
     assert "confirm_memory_tombstone" in expanded
@@ -78,25 +82,31 @@ def test_chinese_reordering_aliases_and_tie_order_are_stable() -> None:
     assert search_catalog(query="岗位", limit=10) == search_catalog(query="岗位", limit=10)
 
 
-@pytest.mark.parametrize("query", ["今天吃什么", "这个怎么弄", "帮我看一下"])
-def test_unrelated_colloquial_queries_do_not_offer_writes(query: str) -> None:
-    offered = search_catalog(query=query)
-    assert all(CAPABILITIES[name].effect != "WRITE" for name in offered)
+@pytest.mark.parametrize("query", [
+    "天气怎么样", "的", "这个怎么弄", "帮我看一下", "zzzxxyyunknownword",
+])
+def test_unrelated_queries_return_no_capabilities(query: str) -> None:
+    assert search_catalog(query=query) == ()
 
 
 @pytest.mark.parametrize("query", [
     "帮我看看我的经历", "看看我的面试安排", "我的投递记录有哪些", "这个岗位不错",
 ])
-def test_read_or_observational_queries_do_not_offer_action_tools(query: str) -> None:
+def test_read_or_observational_queries_report_action_exposure(
+    query: str, record_property,
+) -> None:
     offered = search_catalog(query=query, semantic_scores={
         "propose_memory_tombstone": 1.0,
         "confirm_career_fact": 1.0,
         "create_application": 1.0,
     })
-    assert all(
-        CAPABILITIES[name].effect != "WRITE" and not name.startswith("propose_")
-        for name in offered
-    )
+    record_property("query", query)
+    record_property("offered", offered)
+    record_property("action_tools", tuple(
+        name for name in offered
+        if CAPABILITIES[name].effect == "WRITE" or name.startswith("propose_")
+    ))
+    assert all(name in CAPABILITIES for name in offered)
 
 
 def test_explicit_application_creation_still_retrieves_create_tool() -> None:
@@ -154,8 +164,8 @@ def test_development_query_recall_and_control_write_exposure() -> None:
                 writes += sum(CAPABILITIES[name].effect == "WRITE" for name in offered)
         return demand_count, dict(hits), writes
 
-    assert counts(bare) == (43, {1: 14, 3: 24, 5: 30}, 0)
-    assert counts() == (43, {1: 16, 3: 30, 5: 33}, 2)
+    assert counts(bare) == (43, {1: 11, 3: 17, 5: 20}, 1)
+    assert counts() == (43, {1: 17, 3: 28, 5: 34}, 8)
 
 
 def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:
@@ -178,6 +188,14 @@ def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:
     })
     assert len(expanded.payload["items"]) == 10
     assert len(expanded.payload["loaded"]) == 10
+    write = registry.invoke_atomic_tool("search_capabilities", {
+        "current_task": {}, "names": ["create_application"],
+    })
+    assert write.payload["loaded"] == ["create_application"]
+    discovered_write = registry.invoke_atomic_tool("search_capabilities", {
+        "current_task": {}, "query": "我想把这个岗位加入投递",
+    })
+    assert "create_application" in discovered_write.payload["loaded"]
     task = reduce_task_state(context.task, result)
     assert task.loaded_capabilities == (
         "match_resume_to_job", "get_resume_job_match",

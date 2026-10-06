@@ -19,21 +19,6 @@ MIN_SEMANTIC_SIMILARITY = 0.55
 MAX_SEMANTIC_CANDIDATES = 10
 COMMON_EXAMPLE_TERM_FRACTION = 0.15
 COMMON_EXAMPLE_NAMESPACE_FRACTION = 0.60
-ACTION_INTENT_TERMS = frozenset({
-    "分析", "比较", "创建", "登记", "加入", "新增", "更新", "修改", "改成",
-    "调整", "修正", "更正", "修订", "确认", "批准", "保存", "写入",
-    "删除", "移除", "撤销", "停用", "执行", "同步", "完成", "标记",
-    "推迟", "延后", "暂缓", "调研", "研究", "解析", "匹配", "定制",
-    "起草", "生成", "导出", "下载", "重试", "准备", "关联",
-    "提出", "预览", "定稿", "启动", "开始", "重启", "处理", "加进",
-})
-READ_REQUEST_CUES = (
-    "看看", "查看", "看下", "有哪些", "是什么", "几点", "多少", "给我看",
-)
-REQUEST_CUES = (
-    "帮我", "请", "给我", "把", "让我", "先", "一下", "吧", "吗",
-    "？", "?", "想要", "我想", "来一场",
-)
 _WORDS = re.compile(r"[a-zA-Z0-9]+|[\u3400-\u9fff]+")
 
 
@@ -112,34 +97,21 @@ def _common_example_terms(entries: Sequence[CapabilityDescriptor]) -> frozenset[
     )
 
 
-def _needs_action_evidence(descriptor: CapabilityDescriptor) -> bool:
-    return descriptor.effect == "WRITE" or descriptor.name.startswith("propose_")
-
-
-def _has_action_evidence(
+def _has_retrieval_evidence(
     query: str, query_terms: set[str], descriptor: CapabilityDescriptor,
     common_terms: frozenset[str],
 ) -> bool:
-    if not _needs_action_evidence(descriptor):
+    normalized = query.strip().lower()
+    if normalized in (descriptor.name, descriptor.namespace):
+        return True
+    if normalized in (alias.strip().lower() for alias in descriptor.aliases_zh):
         return True
     indexed_terms = set(_document(descriptor))
     indexed_terms.update(
         token for example in descriptor.example_queries for token in _tokens(example)
     )
     matches = query_terms.intersection(indexed_terms).difference(common_terms)
-    normalized = query.strip().lower()
-    if normalized == descriptor.namespace:
-        return True
-    if len(matches) < 2:
-        return False
-    if normalized == descriptor.name or normalized in (
-        alias.strip().lower() for alias in descriptor.aliases_zh
-    ):
-        return True
-    explicit_action = bool(matches.intersection(ACTION_INTENT_TERMS))
-    if any(cue in query for cue in READ_REQUEST_CUES) and not explicit_action:
-        return False
-    return explicit_action or any(cue in query for cue in REQUEST_CUES)
+    return len(matches) >= 2
 
 
 def lexical_scores(
@@ -189,8 +161,7 @@ def lexical_scores(
                 # Frequent phrases spread across many namespaces do not count
                 # as evidence, but still contribute their normal BM25 IDF.
                 overlap = len(terms.intersection(tokens).difference(common_example_terms))
-                required_coverage = 0.5 if item.effect == "WRITE" else 0.25
-                if overlap < 2 or overlap / len(tokens) < required_coverage:
+                if overlap < 2 or overlap / len(tokens) < 0.25:
                     continue
                 for term in terms:
                     tf = tokens.get(term, 0)
@@ -209,7 +180,7 @@ def lexical_scores(
     return {
         item.name: scores[item.name]
         for item in entries if item.name in scores
-        and _has_action_evidence(query, terms, item, common_example_terms)
+        and _has_retrieval_evidence(query, terms, item, common_example_terms)
     }
 
 
@@ -249,7 +220,7 @@ def search_catalog(
     common_terms = _common_example_terms(entries)
     eligible = {
         item.name for item in entries
-        if _has_action_evidence(query, query_terms, item, common_terms)
+        if _has_retrieval_evidence(query, query_terms, item, common_terms)
     }
     exact = tuple(
         item.name for item in entries
