@@ -116,6 +116,49 @@ def test_evaluation_can_capture_rejected_output_verbatim() -> None:
     ]
 
 
+def test_search_mode_implicitly_loads_a_known_unoffered_tool_without_its_arguments() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call(
+            "list_action_items", '{"invented_argument":"must not execute"}',
+        )]),
+    )
+    decision = maker.decide(_context(), ("search_capabilities",))
+    assert decision.tool_call is not None
+    assert decision.tool_call.name == "search_capabilities"
+    assert decision.tool_call.arguments == {"names": ["list_action_items"]}
+    assert len(completions.requests) == 1
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "implicit_capability_load", "retried": True},
+    ]
+
+
+def test_known_but_still_unavailable_loaded_tool_remains_a_discovery_result() -> None:
+    maker, _ = _scripted_maker(
+        _response(tool_calls=[_tool_call("match_resume_to_job", '{}')]),
+    )
+    context = _context().model_copy(update={
+        "task": ConversationTaskState(
+            loaded_capabilities=("match_resume_to_job",),
+        ),
+    })
+    decision = maker.decide(context, ("search_capabilities",))
+    assert decision.tool_call is not None
+    assert decision.tool_call.name == "search_capabilities"
+    assert decision.tool_call.arguments == {"names": ["match_resume_to_job"]}
+
+
+@pytest.mark.parametrize("name", ["route_to_capability", "not_a_capability"])
+def test_search_mode_still_rejects_unknown_or_legacy_only_tools(name: str) -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call(name, '{}')]),
+        _response(tool_calls=[_tool_call(name, '{}')]),
+    )
+    with pytest.raises(AgentWorkerError) as raised:
+        maker.decide(_context(), ("search_capabilities",))
+    assert raised.value.code == "MAIN_AGENT_UNAVAILABLE_TOOL"
+    assert len(completions.requests) == 2
+
+
 def _spotlight_json(content: str, *, label: str) -> dict:
     lines = content.splitlines()
     assert lines[0] == label

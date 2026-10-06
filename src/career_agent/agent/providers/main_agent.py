@@ -699,6 +699,28 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 if getattr(getattr(call, "function", None), "name", None) not in offered_names
             ]
             if unknown_names:
+                if (
+                    len(tool_calls) == 1
+                    and len(unknown_names) == 1
+                    and "search_capabilities" in offered_names
+                ):
+                    from career_agent.agent.capabilities.search import searchable_capabilities
+
+                    searchable = {item.name for item in searchable_capabilities()}
+                    if unknown_names[0] in searchable:
+                        # The model saw only the directory entry. Treat its
+                        # name as a discovery request; discard the arguments
+                        # it wrote without seeing this tool's schema.
+                        self._record_decision_rejection(
+                            "implicit_capability_load", retried=True,
+                        )
+                        return AgentDecision(
+                            action="tool_call",
+                            tool_call=ToolCall(
+                                name="search_capabilities",
+                                arguments={"names": [unknown_names[0]]},
+                            ),
+                        )
                 self._record_decision_rejection(
                     "unavailable_tool", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
                 )

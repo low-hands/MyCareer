@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from threading import Event
 from pathlib import Path
+from types import SimpleNamespace
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.selection import ALWAYS_OFFERED_TOOLS
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy, strategy_for_mode
 from career_agent.agent.capabilities.selection_strategy import capability_directory
 from career_agent.agent.capabilities.search import searchable_capabilities
+from career_agent.agent.capabilities.search import search_catalog
 from career_agent.agent.capabilities.waiting import (
     SELECTION_ONLY_WAITING_STATES, WAITING_FOR_USER_STATES,
 )
@@ -29,6 +31,7 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.storage.context import CareerContextStore
 from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
+from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 from career_agent.evaluation.trajectory import prompt_fingerprint, trajectory_prompt_fingerprint
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 
@@ -62,6 +65,45 @@ def test_search_offer_starts_small_and_retains_loaded_tools() -> None:
     assert "match_resume_to_job" not in loaded.offered_names
     assert "route_to_capability" not in loaded.offered_names
     assert strategy.select(_context(task), SCHEMAS).schemas is loaded.schemas
+
+
+def test_turn_intent_is_temporary_and_reuses_one_lexical_search(monkeypatch) -> None:
+    import career_agent.agent.capabilities.selection_strategy as selection_module
+
+    calls = []
+    real_search = selection_module.search_catalog
+
+    def counted_search(*, query, limit):
+        calls.append(query)
+        return real_search(query=query, limit=limit)
+
+    monkeypatch.setattr(selection_module, "search_catalog", counted_search)
+    strategy = SearchStrategy()
+    task = ConversationTaskState(active_application_id="app-1")
+    context = _context(task).model_copy(update={"user_message": "更新我的投递状态"})
+    first = strategy.select(context, SCHEMAS)
+    assert "update_application_status" in first.offered_names
+    assert dict(first.sources)["update_application_status"] == "intent"
+    assert context.task.loaded_capabilities == ()
+    strategy.select(context, SCHEMAS)
+    assert calls == ["更新我的投递状态"]
+
+    next_turn = context.model_copy(update={"user_message": "帮我看一下"})
+    later = strategy.select(next_turn, SCHEMAS)
+    assert "update_application_status" not in later.offered_names
+    assert context.task.loaded_capabilities == ()
+    assert calls == ["更新我的投递状态", "帮我看一下"]
+
+
+def test_intent_selection_keeps_unreachable_results_out_of_schemas() -> None:
+    context = _context().model_copy(update={"user_message": "更新我的投递状态"})
+    selection = SearchStrategy().select(context, SCHEMAS)
+    assert "update_application_status" in selection.selected_names
+    assert "update_application_status" not in selection.offered_names
+    assert (
+        "update_application_status", CAPABILITIES["update_application_status"].requirement,
+    ) in selection.blocked_requirements
+    assert search_catalog(query=context.user_message, limit=5)[0] == "update_application_status"
 
 
 def test_newly_satisfied_state_gate_is_offered_without_search() -> None:
@@ -104,7 +146,7 @@ def test_w_does_not_follow_a_failed_or_waiting_observation() -> None:
 
 
 def test_w_keeps_successors_after_intervening_search_within_turn() -> None:
-    strategy = SearchStrategy()
+    strategy = SearchStrategy(intent_enabled=False)
     task = ConversationTaskState(
         active_job_posting_id="job-1", active_jd_snapshot_id="jd-1",
         active_job_analysis_id="analysis-1",
@@ -150,7 +192,7 @@ def test_w_unions_successors_from_two_business_results() -> None:
             tool_name="analyze_job", state="job_analysis_ready", message="已分析岗位。",
         ),
     )
-    offered = SearchStrategy().select(_context(task, observations), SCHEMAS).offered_names
+    offered = SearchStrategy(intent_enabled=False).select(_context(task, observations), SCHEMAS).offered_names
     assert {"list_email_events", "match_resume_to_job"} <= set(offered)
 
 
@@ -171,7 +213,9 @@ def test_w_skips_failed_and_waiting_observations_among_multiple_results() -> Non
             tool_name="search_capabilities", state="capabilities_found", message="已搜索。",
         ),
     )
-    offered = SearchStrategy().select(_context(task, observations), SCHEMAS).offered_names
+    offered = SearchStrategy(intent_enabled=False).select(
+        _context(task, observations), SCHEMAS,
+    ).offered_names
     assert "list_email_events" not in offered
     assert "match_resume_to_job" not in offered
 
@@ -333,7 +377,10 @@ def test_search_mode_is_wired_at_runtime_startup(tmp_path, monkeypatch) -> None:
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="列出我的简历",
     )
-    assert set(schema["function"]["name"] for schema in maker.schemas) == set(ALWAYS_OFFERED_TOOLS)
+    assert set(ALWAYS_OFFERED_TOOLS) <= set(
+        schema["function"]["name"] for schema in maker.schemas
+    )
+    assert "list_resumes" in {schema["function"]["name"] for schema in maker.schemas}
     assert maker.context.model_context()["task"]["available_now"] == [
         schema["function"]["name"] for schema in maker.schemas
     ]
@@ -369,9 +416,52 @@ def test_search_result_loads_schema_on_the_next_decision(tmp_path, monkeypatch) 
     )
     runtime = MainAgentRuntime(context_manager=manager, decision_maker=maker, tools=tools)
     result = runtime.run_turn(
-        user_id="u1", conversation_id="c1", user_message="列出我的简历",
+        user_id="u1", conversation_id="c1", user_message="帮我看一下",
     )
     assert len(maker.offers) == 2
     assert "list_resumes" not in maker.offers[0]
     assert "list_resumes" in maker.offers[1]
     assert result.context.task.loaded_capabilities == ("list_resumes",)
+
+
+def test_unoffered_catalogue_call_loads_without_executing_original_tool(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MAIN_AGENT_TOOL_SELECTION", "search")
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+
+    def response(name: str, arguments: str):
+        function = SimpleNamespace(name=name, arguments=arguments)
+        call = SimpleNamespace(function=function)
+        message = SimpleNamespace(content=None, tool_calls=[call])
+        choice = SimpleNamespace(message=message, finish_reason="tool_calls")
+        return SimpleNamespace(choices=[choice], usage=None)
+
+    class Completions:
+        def __init__(self):
+            self.responses = [
+                response("list_resumes", '{"unseen_argument":"discard me"}'),
+                response("final_response", '{"message":"工具已加载。"}'),
+            ]
+
+        def create(self, **_kwargs):
+            return self.responses.pop(0)
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(
+            endpoint="https://replay.invalid/v1/chat/completions",
+            api_key="replay", model="replay",
+        ), client=client,
+    )
+    tools = MainAgentToolRegistry(
+        conversation_store=store, career_history_store=object(),
+        skills_root=Path("skills"), resume_store=object(),
+    )
+    runtime = MainAgentRuntime(context_manager=manager, decision_maker=maker, tools=tools)
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="帮我看一下",
+    )
+    assert result.context.task.loaded_capabilities == ("list_resumes",)
+    assert [item.tool_name for item in result.tool_results] == ["search_capabilities"]
+    assert "请重新发起调用" in result.tool_results[0].message

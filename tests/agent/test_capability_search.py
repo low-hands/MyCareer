@@ -192,6 +192,11 @@ def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:
         "current_task": {}, "names": ["create_application"],
     })
     assert write.payload["loaded"] == ["create_application"]
+    assert "已加载" in write.message
+    if write.payload["items"][0]["reachable"]:
+        assert "请重新发起调用" in write.message
+    else:
+        assert "先满足前置条件" in write.message
     discovered_write = registry.invoke_atomic_tool("search_capabilities", {
         "current_task": {}, "query": "我想把这个岗位加入投递",
     })

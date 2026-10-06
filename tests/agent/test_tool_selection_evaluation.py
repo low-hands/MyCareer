@@ -26,10 +26,30 @@ from career_agent.evaluation.tool_selection import (
     BatchSearchSimulationSelector,
     LegacyProfileSelector,
     ProactiveSearchSimulationSelector,
+    RuntimeSearchSelector,
     SearchSimulationSelector,
     classify_recorded_failure,
     evaluate_tool_selection,
 )
+
+
+def test_runtime_intent_plus_w_locks_dev_offer_tradeoff_without_search_round_trips() -> None:
+    specs = trajectory_tool_specs()
+    w = evaluate_tool_selection(
+        SELECTION_DEV, selector=RuntimeSearchSelector(specs, intent_enabled=False),
+    )
+    combined = evaluate_tool_selection(
+        SELECTION_DEV, selector=RuntimeSearchSelector(specs, intent_enabled=True),
+    )
+    assert (w.covered_steps, w.demand_steps) == (19, 62)
+    assert (combined.covered_steps, combined.demand_steps) == (51, 62)
+    assert combined.search_round_trips == 0
+    assert (
+        combined.unreachable_offer_count,
+        combined.waiting_reoffer_count,
+        combined.unrequested_write_offer_count,
+    ) == (0, 0, 30)
+    assert mean(len(step.offered_names) for step in combined.comparable_steps) < 9
 
 
 def test_search_simulators_lock_dev_comparison_only() -> None:

@@ -96,7 +96,7 @@ class SearchSimulationSelector:
         self._tool_specs = tool_specs
         self._ideal = ideal
         # Keep the historical search-only comparator after W enters runtime.
-        self._strategy = SearchStrategy(proactive_enabled=False)
+        self._strategy = SearchStrategy(proactive_enabled=False, intent_enabled=False)
 
     def select(
         self, context: MainAgentContext, prior: object | None,
@@ -177,6 +177,27 @@ class ProactiveSearchSimulationSelector(SearchSimulationSelector):
                 for name, source in selection.sources
             },
         ), loaded
+
+
+class RuntimeSearchSelector:
+    """Exact zero-round-trip search-mode offer, with optional user-turn intent."""
+
+    def __init__(
+        self, tool_specs: tuple[dict[str, Any], ...], *, intent_enabled: bool,
+    ) -> None:
+        self._tool_specs = tool_specs
+        self._strategy = SearchStrategy(intent_enabled=intent_enabled)
+
+    def select(
+        self, context: MainAgentContext, prior: object | None,
+    ) -> tuple[ToolOffer, object | None]:
+        selection = self._strategy.select(context, self._tool_specs)
+        return ToolOffer(
+            names=frozenset(selection.offered_names),
+            selected_names=frozenset(selection.selected_names),
+            schemas=selection.schemas,
+            sources=dict(selection.sources),
+        ), prior
 
 
 @dataclass(frozen=True)

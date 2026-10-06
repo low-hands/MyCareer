@@ -4841,9 +4841,22 @@ class MainAgentToolRegistry:
                 tool_name="search_capabilities", state="no_capabilities_found",
                 message="没有找到匹配的能力。", payload={"items": [], "loaded": []},
             )
+        message = f"找到 {len(found)} 个相关能力。"
+        if request.names is not None and len(found) == 1:
+            name = found[0]
+            if reachable(name, task):
+                message = (
+                    f"{name} 已加载。下一次决策如仍然需要且当前提供了它，"
+                    "请重新发起调用。"
+                )
+            else:
+                message = (
+                    f"{name} 已加载，但当前尚不能调用："
+                    f"{CAPABILITIES[name].requirement}。先满足前置条件。"
+                )
         return ToolObservation(
             tool_name="search_capabilities", state="capabilities_found",
-            message=f"找到 {len(found)} 个相关能力。",
+            message=message,
             payload={"items": items, "loaded": list(loaded)},
         )
 

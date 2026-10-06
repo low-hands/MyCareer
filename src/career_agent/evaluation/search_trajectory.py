@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from career_agent.agent.capabilities.search import search_catalog
+from career_agent.agent.capabilities.catalog import CAPABILITIES
+from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.runtime.decision_messages import project_decision_messages
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.contracts.context import MainAgentContext
@@ -57,10 +59,23 @@ def _search_result(context: MainAgentContext, arguments: Mapping[str, Any]) -> M
     request = SearchCapabilitiesToolArguments.model_validate(arguments)
     found = search_catalog(query=request.query, names=request.names, limit=request.limit)
     loaded = tuple(name for name in found if name not in context.task.loaded_capabilities)
+    message = f"找到 {len(found)} 个相关能力。" if found else "没有找到匹配的能力。"
+    if request.names is not None and len(found) == 1:
+        name = found[0]
+        if reachable(name, context.task):
+            message = (
+                f"{name} 已加载。下一次决策如仍然需要且当前提供了它，"
+                "请重新发起调用。"
+            )
+        else:
+            message = (
+                f"{name} 已加载，但当前尚不能调用："
+                f"{CAPABILITIES[name].requirement}。先满足前置条件。"
+            )
     observation = DecisionObservation(
         tool_name="search_capabilities",
         state="capabilities_found" if found else "no_capabilities_found",
-        message=f"找到 {len(found)} 个相关能力。" if found else "没有找到匹配的能力。",
+        message=message,
         arguments=dict(arguments),
     )
     return context.model_copy(update={

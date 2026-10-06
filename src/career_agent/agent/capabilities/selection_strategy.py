@@ -9,7 +9,7 @@ from typing import Any, Protocol
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.proactive import proactive_tool_names
 from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
-from career_agent.agent.capabilities.search import searchable_capabilities
+from career_agent.agent.capabilities.search import search_catalog, searchable_capabilities
 from career_agent.agent.capabilities.selection import (
     ALWAYS_OFFERED_TOOLS, CapabilitySelection, prepare_capability_selection,
 )
@@ -56,10 +56,28 @@ class SearchStrategy:
     mode = "search"
     ingress_profile = False
 
-    def __init__(self, *, proactive_enabled: bool = True) -> None:
+    def __init__(
+        self, *, proactive_enabled: bool = True, intent_enabled: bool = True,
+    ) -> None:
         self._schema_cache: dict[tuple[str, ...], tuple[dict[str, Any], ...]] = {}
+        self._intent_cache: dict[tuple[str, object, str], tuple[str, ...]] = {}
         self._directory = capability_directory()
         self._proactive_enabled = proactive_enabled
+        self._intent_enabled = intent_enabled
+
+    def _intent_names(self, context: MainAgentContext) -> tuple[str, ...]:
+        if not self._intent_enabled or not context.user_message.strip():
+            return ()
+        key = (context.conversation_id, context.received_at, context.user_message)
+        if key not in self._intent_cache:
+            # The same user turn can contain several model calls. Keep the
+            # lexical result for that turn, without persisting it in task state.
+            if len(self._intent_cache) >= 1024:
+                self._intent_cache.pop(next(iter(self._intent_cache)))
+            self._intent_cache[key] = search_catalog(
+                query=context.user_message[:200], limit=5,
+            )
+        return self._intent_cache[key]
 
     def select(
         self, context: MainAgentContext,
@@ -75,10 +93,17 @@ class SearchStrategy:
             if name in STATE_GATED_TOOLS and reachable(name, task)
             and name != "route_to_capability"
         )
+        registered_names = frozenset(
+            schema["function"]["name"] for schema in registered
+        )
         source_names = (
             ("always", ALWAYS_OFFERED_TOOLS),
             ("loaded", task.loaded_capabilities),
             ("state", state_needed),
+            ("intent", tuple(
+                name for name in self._intent_names(context)
+                if name in registered_names
+            )),
             ("proactive", proactive_tool_names(context) if self._proactive_enabled else ()),
         )
         sources: dict[str, str] = {}
@@ -139,7 +164,7 @@ class SearchStrategy:
 
 def selection_trace(selection: CapabilitySelection) -> dict[str, object]:
     counts = {source: sum(kind == source for _, kind in selection.sources)
-              for source in ("always", "loaded", "state", "proactive")}
+              for source in ("always", "loaded", "state", "intent", "proactive")}
     return {
         "selection_mode": selection.mode,
         "selection_sources": counts,
