@@ -1,5 +1,5 @@
 <div align="center">
-
+**目前不可用，调整架构中**
 # MyCareer
 
 **跑在你自己电脑上的 AI 求职助手**
