@@ -740,6 +740,10 @@ def build_parser() -> argparse.ArgumentParser:
         "trajectories", help="Replay the scenario catalogue, or re-record it."
     )
     eval_trajectories.add_argument(
+        "--selection", choices=("legacy", "search"), default="legacy",
+        help="Tool-selection mode to evaluate; search uses separate cassettes.",
+    )
+    eval_trajectories.add_argument(
         "--record",
         action="store_true",
         help=(
@@ -1896,6 +1900,144 @@ def _run_memory_file_command(args, stdout) -> int:
         )
 
 
+def _run_search_trajectory_evaluation(args, stdout) -> int:
+    """Evaluate search-mode decisions against separately recorded cassettes."""
+    from dataclasses import replace as _replace
+
+    from career_agent.evaluation.search_scenarios import SEARCH_SCENARIOS
+    from career_agent.evaluation.search_trajectory import (
+        SEARCH_CASSETTE_ROOT, check_search_contract, record_search_catalogue,
+        replay_search_sample, search_cassette_staleness,
+    )
+    from career_agent.evaluation.trajectory import (
+        load_cassette, minimum_detectable_regression, quality_shortfall,
+        summarize_decision_retries, trajectory_tool_specs,
+    )
+
+    try:
+        schemas = trajectory_tool_specs()
+        selected = (
+            tuple(item for item in SEARCH_SCENARIOS if item.name in set(args.scenario))
+            if args.scenario else SEARCH_SCENARIOS
+        )
+        if args.scenario and len(selected) != len(set(args.scenario)):
+            raise ValueError("unknown search trajectory scenario")
+        if args.samples is not None and args.samples != 3:
+            raise ValueError("search-mode paired evaluation uses exactly 3 samples")
+        config = None
+        recording_error = None
+        recording_failures = []
+        if args.record:
+            config = _replace(
+                OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
+                timeout_seconds=args.main_agent_timeout_seconds,
+            )
+            try:
+                record_search_catalogue(
+                    selected, tool_specs=schemas, config=config,
+                    root=SEARCH_CASSETTE_ROOT, sample_count=3,
+                    jobs=args.jobs, force=args.force,
+                )
+            except AgentWorkerError as error:
+                recording_error = f"{error.code}: {error}"
+                recording_failures = getattr(error, "recording_failures", [])
+        from dotenv import load_dotenv
+        load_dotenv()
+        expected_model = config.model if config else os.environ.get("MAIN_AGENT_MODEL", "").strip()
+        results = []
+        retry_cassettes = []
+        for scenario in selected:
+            contract = check_search_contract(scenario, tool_specs=schemas)
+            cassette = load_cassette(scenario.name, root=SEARCH_CASSETTE_ROOT)
+            stale = (
+                search_cassette_staleness(
+                    cassette, scenario=scenario, tool_specs=schemas,
+                    expected_model=expected_model,
+                ) if cassette is not None else None
+            )
+            replayable = cassette is not None and stale is None and not contract
+            sample_failures = (
+                tuple(replay_search_sample(scenario, tool_specs=schemas, responses=sample)
+                      for sample in cassette.recordings)
+                if replayable else ()
+            )
+            graded = (
+                tuple(replay_search_sample(scenario, tool_specs=schemas,
+                    responses=sample, quality=True) for sample in cassette.recordings)
+                if replayable and scenario.has_quality_assertions else ()
+            )
+            shortfall = quality_shortfall(scenario, graded) if graded else None
+            if replayable:
+                retry_cassettes.append(cassette)
+            failures = list(contract)
+            if stale:
+                failures.append(f"{scenario.name}: {stale}")
+            if shortfall:
+                failures.append(shortfall)
+            failures.extend(
+                f"{failure} (sample {sample_index}/{len(sample_failures)})"
+                for sample_index, group in enumerate(sample_failures, start=1)
+                for failure in group
+            )
+            results.append({
+                "scenario": scenario.name,
+                "policy": scenario.policy,
+                "contract": "failed" if contract else "passed",
+                "behaviour": (
+                    "unrecorded" if cassette is None else
+                    "stale" if stale else
+                    "failed" if any(sample_failures) else "passed"
+                ),
+                "sample_count": cassette.sample_count if cassette else 0,
+                "samples_passed": sum(not group for group in sample_failures),
+                "quality_status": (
+                    "not_applicable" if not scenario.has_quality_assertions else
+                    "unrecorded" if cassette is None else
+                    "stale" if stale else
+                    "failed" if shortfall else "passed"
+                ),
+                "quality_min_pass_rate": scenario.quality_min_pass_rate,
+                "quality_min_detectable_regression": (
+                    minimum_detectable_regression(len(graded), scenario.quality_min_pass_rate)
+                    if graded and scenario.quality_min_pass_rate else None
+                ),
+                "quality_samples_passed": sum(not group for group in graded) if graded else None,
+                "quality_sample_count": len(graded) if graded else None,
+                "quality_pass_rate": (
+                    sum(not group for group in graded) / len(graded) if graded else None
+                ),
+                "known_gap_status": None,
+                "failures": failures,
+            })
+        payload = {
+            "selection_mode": "search",
+            "scenarios": len(results),
+            "contract_failed": sum(item["contract"] == "failed" for item in results),
+            "behaviour_failed": sum(item["behaviour"] == "failed" for item in results),
+            "quality_failed": sum(item["quality_status"] == "failed" for item in results),
+            "stale": sum(item["behaviour"] == "stale" for item in results),
+            "unrecorded": sum(item["behaviour"] == "unrecorded" for item in results),
+            "retry_measurement": summarize_decision_retries(retry_cassettes),
+            **({"recording_error": recording_error,
+                "recording_failures": recording_failures} if recording_error else {}),
+            "note": "Search calls are intermediate decisions; business assertions remain unchanged.",
+            "results": results,
+        }
+        json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
+        stdout.write("\n")
+        return EXIT_OK if not any(item["failures"] for item in results) and not recording_error else EXIT_ARGUMENT_ERROR
+    except AgentConfigurationError as error:
+        json.dump({"state": "failed", "error_code": error.code,
+                   "error_detail": str(error)}, stdout, ensure_ascii=False)
+        stdout.write("\n")
+        return EXIT_CONFIGURATION_ERROR
+    except (OSError, ValueError) as error:
+        json.dump({"state": "failed", "error_code": "EVAL_INPUT_ERROR",
+                   "error_detail": str(error)}, stdout, ensure_ascii=False)
+        stdout.write("\n")
+        return EXIT_ARGUMENT_ERROR
+
+
 def _run_trajectory_evaluation(args, stdout) -> int:
     """Replay the scenario catalogue, or re-cut it against the live model.
 
@@ -1903,6 +2045,8 @@ def _run_trajectory_evaluation(args, stdout) -> int:
     because the two mean different things and collapsing them would let a green
     run be read as "the model behaves" when no cassette exists.
     """
+    if getattr(args, "selection", "legacy") == "search":
+        return _run_search_trajectory_evaluation(args, stdout)
     from dataclasses import replace as _replace
 
     from career_agent.evaluation.main_agent_scenarios import SCENARIOS
