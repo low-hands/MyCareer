@@ -8,7 +8,7 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from career_agent.agent.contracts.context import MainAgentContext
-from career_agent.agent.capabilities.profiles import project_tool_availability
+from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy
 
 
 CONTROL_CONTEXT_LABEL = "Harness control state (authoritative runtime state):"
@@ -277,7 +277,14 @@ def project_decision_messages(
 
     projected = context.model_context()
     projected_task = dict(projected["task"])
-    classified = _TASK_CONTROL_KEYS | _TASK_DATA_KEYS
+    selection = getattr(context, "capability_selection", None)
+    search_selection = selection is not None and selection.mode == "search"
+    control_keys = (
+        (_TASK_CONTROL_KEYS - {"tool_profile"})
+        | {"available_now", "loaded_capabilities", "blocked"}
+        if search_selection else _TASK_CONTROL_KEYS
+    )
+    classified = control_keys | _TASK_DATA_KEYS
     unknown = set(projected_task) - classified
     missing = classified - set(projected_task)
     if unknown or missing:
@@ -285,10 +292,11 @@ def project_decision_messages(
             "decision task projection classification is stale; "
             f"unknown={sorted(unknown)!r}, missing={sorted(missing)!r}"
         )
-    task_control = {key: projected_task[key] for key in _TASK_CONTROL_KEYS}
+    task_control = {key: projected_task[key] for key in control_keys}
     # Derived from the profile and precondition tables rather than stored, so
     # the control slot can never disagree with what the runtime will enforce.
-    task_control.update(project_tool_availability(context.task))
+    if not search_selection:
+        task_control.update(LegacyProfileStrategy.tool_context(context.task, selection))
     task_data = {key: projected_task[key] for key in _TASK_DATA_KEYS}
 
     control: dict[str, Any] = {

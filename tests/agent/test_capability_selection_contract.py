@@ -23,7 +23,10 @@ def _schemas():
 
 def test_core_profile_is_not_implicitly_always_offered() -> None:
     assert len(CORE_TOOLS) == 17
-    assert ALWAYS_OFFERED_TOOLS == ()
+    assert ALWAYS_OFFERED_TOOLS == (
+        "search_capabilities", "load_skill", "read_conversation_span",
+        "fetch_archived_constraints", "search_career_memory",
+    )
     assert {"update_owner_settings", "open_job_search"} <= CORE_TOOLS
 
 

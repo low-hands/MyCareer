@@ -111,10 +111,12 @@ class TurnContextBuilder:
         context_manager: ContextManager,
         tools: MainAgentToolRegistry,
         owns_next_turn: Callable[[ConversationTaskState], bool],
+        ingress_profile: bool = True,
     ) -> None:
         self._context_manager = context_manager
         self._tools = tools
         self._owns_next_turn = owns_next_turn
+        self._ingress_profile = ingress_profile
 
     def prepare(
         self,
@@ -196,7 +198,7 @@ class TurnContextBuilder:
             prepared.active_application,
         )
         context = self.refresh_saved_job_focus(context)
-        if route_profile:
+        if route_profile and self._ingress_profile:
             fast_profile = keyword_tool_profile(context.user_message)
             if fast_profile is not None and context.task.tool_profile == "core":
                 context = context.model_copy(

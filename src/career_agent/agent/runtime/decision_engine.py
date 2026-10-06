@@ -22,8 +22,8 @@ from career_agent.agent.contracts.decisions import (
 )
 from career_agent.agent.contracts.observations import decision_observation_chars
 from career_agent.agent.contracts.task_state import ConversationTaskState
-from career_agent.agent.capabilities.profiles import profile_schemas, profile_tools
-from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
+from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy
+from career_agent.agent.capabilities.selection_strategy import ToolSelectionStrategy, selection_trace
 from career_agent.agent.capabilities.effects import is_notes_guarded
 from career_agent.agent.runtime.turn_coordinator import STREAM_SINK
 from career_agent.agent.middleware.working_notes import working_notes_only_tokens
@@ -59,6 +59,7 @@ class DecisionEngine:
         decision_maker_provider: Callable[[], DecisionMaker],
         tools: MainAgentToolRegistry,
         career_memory_enabled: bool,
+        selection_strategy: ToolSelectionStrategy | None = None,
     ) -> None:
         self._emit = emit
         self._decision_heartbeat = decision_heartbeat
@@ -69,11 +70,12 @@ class DecisionEngine:
         self._decision_maker_provider = decision_maker_provider
         self._tools = tools
         self._career_memory_enabled = career_memory_enabled
+        self._selection_strategy = selection_strategy or LegacyProfileStrategy()
         self._registered_tool_schemas: tuple[dict[str, Any], ...] | None = None
-        self._profile_tool_schemas: dict[
-            tuple[ToolProfile, tuple[str, ...] | None],
-            tuple[dict[str, Any], ...],
-        ] = {}
+
+    @property
+    def selection_mode(self) -> str:
+        return self._selection_strategy.mode
 
     def registered_schemas(self) -> tuple[dict[str, Any], ...]:
         if self._registered_tool_schemas is None:
@@ -85,33 +87,12 @@ class DecisionEngine:
         profile: ToolProfile,
         task: ConversationTaskState | None = None,
     ) -> tuple[dict[str, Any], ...]:
-        registered = self.registered_schemas()
-        reachable_names = (
-            tuple(
-                sorted(
-                    str(schema.get("function", {}).get("name"))
-                    for schema in registered
-                    if schema.get("function", {}).get("name")
-                    in profile_tools(profile)
-                    and task is not None
-                    and (
-                        str(schema.get("function", {}).get("name"))
-                        not in STATE_GATED_TOOLS
-                        or reachable(
-                            str(schema.get("function", {}).get("name")), task
-                        )
-                    )
-                )
-            )
-            if task is not None
-            else None
-        )
-        key = (profile, reachable_names)
-        cached = self._profile_tool_schemas.get(key)
-        if cached is None:
-            cached = profile_schemas(profile, registered, task)
-            self._profile_tool_schemas[key] = cached
-        return cached
+        if self._selection_strategy.mode != "legacy":
+            raise ValueError("profile schemas are only available in legacy mode")
+        return self._selection_strategy.schemas(profile, task, self.registered_schemas())
+
+    def select(self, context: MainAgentContext):
+        return self._selection_strategy.select(context, self.registered_schemas())
 
     def decide(self, state: MainAgentState) -> MainAgentState:
         self._emit(
@@ -126,12 +107,16 @@ class DecisionEngine:
             )
             control["episodes_marked"] = True
 
-        schemas = self.tool_schemas(context.task.tool_profile, context.task)
+        selection = self.select(context)
+        schemas = selection.schemas
+        decision_context = context.model_copy(update={"capability_selection": selection})
         control["offered_tool_names"] = tuple(
             str(schema["function"]["name"]) for schema in schemas
         )
         decision_maker = self._decision_maker_provider()
-        details = self._trace_details(context, schemas, decision_maker)
+        details = self._trace_details(decision_context, schemas, decision_maker)
+        if selection.mode == "search":
+            details.update(selection_trace(selection))
         started = perf_counter()
         self._record_trace_event(
             "model_attempt",
@@ -149,7 +134,7 @@ class DecisionEngine:
         heartbeat = self._decision_heartbeat(STREAM_SINK.get())
         try:
             with observing_decision_attempts(on_attempt):
-                decision = decision_maker.decide(context, schemas)
+                decision = decision_maker.decide(decision_context, schemas)
         except Exception as error:
             self._record_memory_context(context, ())
             failure_details = self._with_cache_metrics(details, decision_maker)

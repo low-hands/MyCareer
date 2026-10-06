@@ -12,6 +12,7 @@ from career_agent.agent.contracts.observations import (
     append_decision_observation,
 )
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
+from career_agent.agent.capabilities.proactive import eligible_successors
 from career_agent.agent.runtime.state import LoopControl, MainAgentState, PendingAction
 from career_agent.agent.capabilities.effects import is_external_write
 from career_agent.agent.presentation.delivery_policy import condenses_message
@@ -163,6 +164,7 @@ class ObservationReducer:
                         "task": updated.task,
                         "attached_resumes": context.attached_resumes,
                         "attached_jobs": context.attached_jobs,
+                        "turn_proactive_capabilities": context.turn_proactive_capabilities,
                     }
                 )
             self._account_for_call(state, pending, result, control)
@@ -181,7 +183,11 @@ class ObservationReducer:
                 "tool_observations": append_decision_observation(
                     updated.tool_observations,
                     observation,
-                )
+                ),
+                "turn_proactive_capabilities": tuple(dict.fromkeys((
+                    *updated.turn_proactive_capabilities,
+                    *eligible_successors(observation),
+                ))),
             }
         )
 
@@ -246,6 +252,8 @@ class ObservationReducer:
             "CONTROL": "control_calls",
         }[effect]
         control[budget_key] = control.get(budget_key, 0) + 1
+        if pending["name"] == "search_capabilities":
+            control["search_calls"] = control.get("search_calls", 0) + 1
         if effect == "WRITE" and is_external_write(pending["name"]):
             control["external_write_calls"] = (
                 control.get("external_write_calls", 0) + 1

@@ -17,7 +17,13 @@ from career_agent.agent.contracts.task_state import ConversationTaskState
 # The old ``core`` profile is not an always-offered set: it includes domain
 # discovery lists and writes. An always-offered tool must earn its place from
 # the tool-selection evaluation, rather than inherit it from that profile.
-ALWAYS_OFFERED_TOOLS: tuple[str, ...] = ()
+ALWAYS_OFFERED_TOOLS: tuple[str, ...] = (
+    "search_capabilities",
+    "load_skill",
+    "read_conversation_span",
+    "fetch_archived_constraints",
+    "search_career_memory",
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +34,10 @@ class CapabilitySelection:
     offered_names: tuple[str, ...]
     blocked_requirements: tuple[tuple[str, str], ...]
     schemas: tuple[dict[str, Any], ...]
+    mode: str = "search"
+    sources: tuple[tuple[str, str], ...] = ()
+    waiting_suppressed: tuple[str, ...] = ()
+    tool_projection: dict[str, object] | None = None
 
     @property
     def available_now(self) -> tuple[str, ...]:
@@ -48,7 +58,7 @@ def prepare_capability_selection(
     failure explicitly rather than silently exposing all registered tools.
     """
 
-    requested = tuple(dict.fromkeys((*ALWAYS_OFFERED_TOOLS, *selected_names)))
+    requested = tuple(dict.fromkeys(selected_names))
     for name in requested:
         descriptor = CAPABILITIES.get(name)
         if descriptor is None or not descriptor.model_callable:

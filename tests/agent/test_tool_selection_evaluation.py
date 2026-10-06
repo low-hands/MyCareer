@@ -23,10 +23,97 @@ from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.independent_tool_selection_holdout import SELECTION_INDEPENDENT_HOLDOUT
 from career_agent.evaluation.tool_selection import (
+    BatchSearchSimulationSelector,
     LegacyProfileSelector,
+    ProactiveSearchSimulationSelector,
+    SearchSimulationSelector,
     classify_recorded_failure,
     evaluate_tool_selection,
 )
+
+
+def test_search_simulators_lock_dev_comparison_only() -> None:
+    specs = trajectory_tool_specs()
+    ideal = evaluate_tool_selection(
+        SELECTION_DEV, selector=SearchSimulationSelector(specs, ideal=True),
+    )
+    lexical = evaluate_tool_selection(
+        SELECTION_DEV, selector=SearchSimulationSelector(specs, ideal=False),
+    )
+    assert (ideal.covered_steps, ideal.demand_steps, ideal.search_round_trips, ideal.search_failures) == (62, 62, 57, 0)
+    assert (lexical.covered_steps, lexical.demand_steps, lexical.search_round_trips, lexical.search_failures) == (49, 62, 44, 13)
+    assert (ideal.unreachable_offer_count, ideal.waiting_reoffer_count, ideal.unrequested_write_offer_count) == (0, 0, 0)
+    assert (lexical.unreachable_offer_count, lexical.waiting_reoffer_count, lexical.unrequested_write_offer_count) == (0, 0, 27)
+
+
+def test_proactive_successors_and_bound_reads_reduce_dev_search_trips() -> None:
+    report = evaluate_tool_selection(
+        SELECTION_DEV,
+        selector=ProactiveSearchSimulationSelector(trajectory_tool_specs()),
+    )
+    assert (report.covered_steps, report.demand_steps) == (62, 62)
+    assert (report.search_round_trips, report.search_failures) == (43, 0)
+    assert (
+        report.unreachable_offer_count,
+        report.waiting_reoffer_count,
+        report.unrequested_write_offer_count,
+    ) == (0, 0, 0)
+
+
+def test_batch_idealization_loads_same_turn_tools_without_crossing_user_turn() -> None:
+    specs = trajectory_tool_specs()
+    context = MainAgentContext(
+        conversation_id="c1", profile=CareerProfileContext(user_id="u1"),
+        user_message="先列简历，再分析岗位",
+        task=ConversationTaskState(active_job_posting_id="job-1", active_jd_snapshot_id="jd-1"),
+    )
+    same_turn = TrajectoryScenario(
+        name="batch_same_turn", policy="test", context=context,
+        steps=(TrajectoryStep(expect_tool="list_resumes"),
+               TrajectoryStep(expect_tool="analyze_job")),
+    )
+    separate_turn = TrajectoryScenario(
+        name="batch_separate_turn", policy="test", context=context,
+        steps=(TrajectoryStep(expect_tool="list_resumes"),
+               TrajectoryStep(expect_tool="analyze_job", user_message="现在分析岗位")),
+    )
+    batched = evaluate_tool_selection(
+        (same_turn,), selector=BatchSearchSimulationSelector(specs),
+    )
+    separate = evaluate_tool_selection(
+        (separate_turn,), selector=BatchSearchSimulationSelector(specs),
+    )
+    assert batched.search_round_trips == 1
+    assert "analyze_job" in batched.steps[0].offered_names
+    assert separate.search_round_trips == 2
+    assert "analyze_job" not in separate.steps[0].offered_names
+
+
+def test_batch_idealization_locks_dev_lower_bound_without_holdout_scores() -> None:
+    report = evaluate_tool_selection(
+        SELECTION_DEV,
+        selector=BatchSearchSimulationSelector(trajectory_tool_specs()),
+    )
+    assert (report.covered_steps, report.demand_steps, report.search_round_trips) == (
+        62, 62, 39,
+    )
+    assert (report.unreachable_offer_count, report.waiting_reoffer_count,
+            report.unrequested_write_offer_count) == (0, 0, 0)
+
+
+def test_proactive_offer_uses_bound_read_and_reviewed_successor_only() -> None:
+    specs = trajectory_tool_specs()
+    selector = ProactiveSearchSimulationSelector(specs)
+    task = ConversationTaskState(active_application_id="app-1")
+    context = MainAgentContext(
+        conversation_id="c1",
+        profile=CareerProfileContext(user_id="u1"),
+        user_message="看看投递",
+        task=task,
+    )
+    offer, _ = selector.select(context, None)
+    assert "get_application" in offer.names
+    assert "create_application" not in offer.names
 from career_agent.evaluation.tool_selection_scenarios import (
     FIXTURE_NOW,
     SELECTION_DEV,

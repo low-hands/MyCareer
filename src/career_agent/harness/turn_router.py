@@ -12,8 +12,8 @@ from career_agent.agent.contracts.decisions import (
 )
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.state import MainAgentState
-from career_agent.agent.capabilities.profiles import profile_tools
-from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
+from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy, legacy_offers_tool
+from career_agent.agent.capabilities.selection_strategy import ToolSelectionStrategy
 from career_agent.agent.contracts.turn import (
     MainAgentTurnResult,
     RuntimeAction,
@@ -43,10 +43,12 @@ class TurnRouter:
         context_manager: ContextManager,
         confirmation_store: SQLiteCapabilityConfirmationStore | None,
         agent_loop: AgentLoop,
+        selection_strategy: ToolSelectionStrategy | None = None,
     ) -> None:
         self._context_manager = context_manager
         self._confirmation_store = confirmation_store
         self._agent_loop = agent_loop
+        self._selection_strategy = selection_strategy or LegacyProfileStrategy()
 
     def accepts_background_turn(self, *, user_id: str, conversation_id: str) -> bool:
         task = self._context_manager.get_task(
@@ -138,10 +140,8 @@ class TurnRouter:
         if context.through_sequence < 1 or context.recent_from_sequence is None:
             return {}
         span = explicit_sequence_span(context.user_message)
-        if span is None or not self.offers_tool(
-            "read_conversation_span",
-            context.task.tool_profile,
-            context.task,
+        if span is None or not self._selection_strategy.offers_tool(
+            context, "read_conversation_span",
         ):
             return {}
         arguments = {
@@ -170,9 +170,7 @@ class TurnRouter:
         profile: ToolProfile = "core",
         task: ConversationTaskState | None = None,
     ) -> bool:
-        if name not in profile_tools(profile):
-            return False
-        return name not in STATE_GATED_TOOLS or task is None or reachable(name, task)
+        return legacy_offers_tool(name, profile, task)
 
     def run_runtime_policy_tool(
         self,

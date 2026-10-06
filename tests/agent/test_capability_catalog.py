@@ -131,7 +131,7 @@ def test_discovery_metadata_does_not_change_model_schemas_or_prompt_fingerprint(
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "47d2012a1dc66fb7dd6355cd3cd0c55186ebc0e2506ba0be7a832a976ca62a78"
+        "cba3a378685924fd60639f7dad8da29927fdb14f9a3207e7bb0633e7efdc7c3e"
     )
     schemas = registered[:-1]
     encoded = json.dumps(

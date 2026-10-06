@@ -829,7 +829,7 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
     ),
     'search_capabilities': (
         'SearchCapabilitiesToolArguments',
-        'Find available capabilities by a natural-language query or exact tool and namespace names. Search does not execute them.',
+        'Search and load capabilities. Use names for known tool or namespace names, or query for one natural-language need. Names may load writes. Query ranks by relevance. Loaded tools become callable from the next decision; search itself does not execute them.',
     ),
 })
 MODEL_SCHEMA_ORDER: tuple[str, ...] = tuple(_SCHEMA_SPECS)

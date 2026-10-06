@@ -54,6 +54,7 @@ from career_agent.agent.contracts.observations import (
 
 class MainAgentContext(ContractModel):
     conversation_id: str
+    capability_selection: Any = Field(default=None, exclude=True)
     received_at: datetime | None = Field(default=None, exclude=True)
     """When this turn's user message arrived; harness-only, never projected.
 
@@ -142,6 +143,12 @@ class MainAgentContext(ContractModel):
         default=(),
         max_length=MAX_DECISION_OBSERVATIONS,
     )
+    turn_proactive_capabilities: tuple[str, ...] = ()
+    """Per-turn W successors survive observation trimming and graph checkpointing.
+
+    This runtime field is never included in ``model_context()``; only the
+    selected ``available_now`` names are shown to the model.
+    """
     conversation_summary: ConversationSummaryContent | None = None
     attached_resumes: tuple[AttachedResumeContext, ...] = Field(
         default=(), max_length=8
@@ -615,7 +622,12 @@ class MainAgentContext(ContractModel):
                     if (focus := self.task.focused_saved_job()) is not None
                     else None
                 ),
-                "tool_profile": self.task.tool_profile,
+                **(
+                    {"tool_profile": self.task.tool_profile}
+                    if self.capability_selection is None
+                    or self.capability_selection.mode == "legacy"
+                    else self.capability_selection.tool_projection
+                ),
                 "phase": self.task.phase,
                 "email_sync_phase": self.task.email_sync_phase,
                 "manual_search_query": self.task.manual_search_query,

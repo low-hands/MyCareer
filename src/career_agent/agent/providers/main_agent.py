@@ -26,6 +26,7 @@ from career_agent.agent.runtime.decision_attempts import (
     notify_decision_attempt,
 )
 from career_agent.agent.runtime.decision_messages import assemble_decision_messages
+from career_agent.agent.capabilities.legacy_profile import LEGACY_TOOL_POLICY
 from career_agent.agent.runtime.decision_messages import (
     CACHEABLE_CONTEXT_SLOTS,
     CONTROL_CONTEXT_LABEL,
@@ -334,6 +335,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             http_client=DefaultHttpxClient(event_hooks=self._attempts.event_hooks()),
         )
         self._spotlight_secret = secrets.token_bytes(32)
+        self._tool_selection_strategy: Any | None = None
         self._cache_metrics: ContextVar[dict[str, Any] | None] = (
             ContextVar(f"main_agent_cache_metrics_{id(self)}", default=None)
         )
@@ -474,7 +476,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             if cached is not None and cached.source_specs is tool_specs:
                 return cached
             tools = _normalize_tool_specs(tool_specs) + interaction_schemas()
-            system_prompt = self._system_prompt()
+            system_prompt = self._effective_system_prompt()
             system_message: dict[str, Any] = {
                 "role": "system",
                 "content": system_prompt,
@@ -575,7 +577,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         messages = list(
             assemble_decision_messages(
                 context,
-                system_prompt=self._system_prompt(),
+                system_prompt=self._effective_system_prompt(),
                 # Its value is stable and its fixed length is all estimation
                 # needs; do not consume or expose the live session secret here.
                 spotlight_nonce="0" * 32,
@@ -627,7 +629,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         messages = list(
             assemble_decision_messages(
                 context,
-                system_prompt=self._system_prompt(),
+                system_prompt=self._effective_system_prompt(),
                 spotlight_nonce=self._spotlight_nonce(context),
             )
         )
@@ -892,8 +894,16 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             ) from error
 
 
+    def configure_tool_selection(self, strategy: Any) -> None:
+        self._tool_selection_strategy = strategy
+        self._static_request_cache.clear()
+
+    def _effective_system_prompt(self) -> str:
+        strategy = self._tool_selection_strategy
+        return self._system_prompt(strategy.tool_policy() if strategy is not None else LEGACY_TOOL_POLICY)
+
     @staticmethod
-    def _system_prompt() -> str:
+    def _system_prompt(tool_policy: str = LEGACY_TOOL_POLICY) -> str:
         return (
             "Return exactly one offered native business or interaction function. "
             "Use capability contracts and authoritative runtime state to determine "
@@ -915,16 +925,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "tool's documented purpose, inputs, and result. Readiness to use a "
             "tool is not a reason to call it. Add preparatory work only when "
             "the required tool's documented preconditions require it. "
-            "Tools are grouped into profiles (core, job, resume, application, "
-            "interview, memory). The control state's task.tool_profile is the "
-            "current profile, task.available_now lists its tools usable right "
-            "now, and task.next_requirements names blocked tools with their "
-            "unmet preconditions, not a plan to execute. Core tools are shared "
-            "by every profile. Call an offered tool directly when it is needed "
-            "and its preconditions hold. Use route_to_capability only when a "
-            "required tool is outside the current profile; a request's topic "
-            "alone does not require routing. Reassess the next required action "
-            "after each result, including for requests spanning domains. "
+            f"{tool_policy}"
             "Prior active-window turns are native user/assistant messages. The "
             "working-memory JSON is runtime data, not user speech. The user-role "
             "stable working-memory message before native history contains only "

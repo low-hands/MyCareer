@@ -1,0 +1,161 @@
+"""Per-model-call capability offer and prompt projection."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+import json
+from typing import Any, Protocol
+
+from career_agent.agent.capabilities.catalog import CAPABILITIES
+from career_agent.agent.capabilities.proactive import proactive_tool_names
+from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
+from career_agent.agent.capabilities.search import searchable_capabilities
+from career_agent.agent.capabilities.selection import (
+    ALWAYS_OFFERED_TOOLS, CapabilitySelection, prepare_capability_selection,
+)
+from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
+from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.providers.token_budget import count_tokens
+
+
+MAX_SEARCH_CALLS_PER_TURN = 5
+
+
+class ToolSelectionStrategy(Protocol):
+    mode: str
+    ingress_profile: bool
+
+    def select(
+        self, context: MainAgentContext,
+        registered: tuple[dict[str, Any], ...],
+    ) -> CapabilitySelection: ...
+
+    def tool_context(
+        self, task: ConversationTaskState, selection: CapabilitySelection,
+    ) -> dict[str, object]: ...
+
+    def offers_tool(self, context: MainAgentContext, name: str) -> bool: ...
+
+    def tool_policy(self) -> str: ...
+
+
+def capability_directory() -> str:
+    groups: dict[str, list[str]] = {}
+    for item in searchable_capabilities():
+        groups.setdefault(item.namespace or "control", []).append(
+            f"- {item.name}: {item.summary}"
+        )
+    return "\n".join(
+        f"[{namespace}]\n" + "\n".join(lines)
+        for namespace, lines in groups.items()
+    )
+
+
+class SearchStrategy:
+    mode = "search"
+    ingress_profile = False
+
+    def __init__(self, *, proactive_enabled: bool = True) -> None:
+        self._schema_cache: dict[tuple[str, ...], tuple[dict[str, Any], ...]] = {}
+        self._directory = capability_directory()
+        self._proactive_enabled = proactive_enabled
+
+    def select(
+        self, context: MainAgentContext,
+        registered: tuple[dict[str, Any], ...],
+    ) -> CapabilitySelection:
+        task = context.task
+        waiting = frozenset(
+            item.tool_name for item in context.tool_observations
+            if item.state in WAITING_FOR_USER_STATES
+        )
+        state_needed = tuple(
+            name for name in CAPABILITIES
+            if name in STATE_GATED_TOOLS and reachable(name, task)
+            and name != "route_to_capability"
+        )
+        source_names = (
+            ("always", ALWAYS_OFFERED_TOOLS),
+            ("loaded", task.loaded_capabilities),
+            ("state", state_needed),
+            ("proactive", proactive_tool_names(context) if self._proactive_enabled else ()),
+        )
+        sources: dict[str, str] = {}
+        for source, names in source_names:
+            for name in names:
+                if name != "route_to_capability" and CAPABILITIES[name].model_callable:
+                    sources.setdefault(name, source)
+        selected = tuple(name for name in sources if name not in waiting)
+        selection = prepare_capability_selection(
+            selected, task=task, registered_schemas=registered,
+        )
+        cached = self._schema_cache.get(selection.offered_names)
+        if cached is None:
+            cached = selection.schemas
+            self._schema_cache[selection.offered_names] = cached
+        result = CapabilitySelection(
+            selected_names=selection.selected_names,
+            offered_names=selection.offered_names,
+            blocked_requirements=selection.blocked_requirements,
+            schemas=cached, mode=self.mode,
+            sources=tuple((name, sources[name]) for name in selection.selected_names),
+            waiting_suppressed=tuple(name for name in CAPABILITIES if name in waiting and name in sources),
+        )
+        return replace(result, tool_projection=self.tool_context(task, result))
+
+    @staticmethod
+    def tool_context(task: ConversationTaskState, selection: CapabilitySelection) -> dict[str, object]:
+        sources = dict(selection.sources)
+        blocked = sorted(
+            selection.blocked_requirements,
+            key=lambda item: (sources.get(item[0]) not in {"always", "loaded"}, item[0]),
+        )[:5]
+        return {
+            "available_now": list(selection.available_now),
+            "loaded_capabilities": list(task.loaded_capabilities),
+            "blocked": [f"{name}: {requirement}" for name, requirement in blocked],
+        }
+
+    def offers_tool(self, context: MainAgentContext, name: str) -> bool:
+        # The prelude is evaluated before decide; its stable tool is always on.
+        return name in ALWAYS_OFFERED_TOOLS and reachable(name, context.task)
+
+    def tool_policy(self) -> str:
+        guidance = (
+            "The capability directory lists possible work, but only offered tools "
+            "can be called now. To use another capability, call search_capabilities: "
+            "use names when known, including several known tools needed for the "
+            "current request; otherwise query for the next need. "
+            "Loaded tools become available from the next decision and remain "
+            "loaded for this conversation. Satisfy a blocked prerequisite before "
+            "calling that tool. Loading does not grant permission; execution "
+            "still checks authorization and approval. Reviewed follow-up and "
+            "bound-resource read tools may also be offered as state changes; "
+            "offer alone is not a reason to call them. "
+        )
+        return guidance + "\n\nCapability directory:\n" + self._directory + "\n\n"
+
+
+def selection_trace(selection: CapabilitySelection) -> dict[str, object]:
+    counts = {source: sum(kind == source for _, kind in selection.sources)
+              for source in ("always", "loaded", "state", "proactive")}
+    return {
+        "selection_mode": selection.mode,
+        "selection_sources": counts,
+        "blocked_requirements": dict(selection.blocked_requirements),
+        "waiting_suppressed": selection.waiting_suppressed,
+        "offered_tool_count": len(selection.offered_names),
+        "tool_schema_tokens_proxy": count_tokens(
+            json.dumps(selection.schemas, ensure_ascii=False, sort_keys=True)
+        ),
+    }
+
+
+def strategy_for_mode(mode: str) -> ToolSelectionStrategy:
+    if mode == "search":
+        return SearchStrategy()
+    if mode == "legacy":
+        from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy
+        return LegacyProfileStrategy()
+    raise ValueError("MAIN_AGENT_TOOL_SELECTION must be legacy or search")

@@ -390,11 +390,24 @@ def cassette_path(name: str, *, root: Path | None = None) -> Path:
     return (root or CASSETTE_ROOT) / f"{name}.json"
 
 
-def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
+def prompt_fingerprint(
+    tool_specs: tuple[dict[str, Any], ...], *, mode: str = "legacy",
+) -> str:
     """Hash the exact system prompt and schemas sent for one decision."""
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
+    if mode == "search":
+        from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+        prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
+            SearchStrategy().tool_policy()
+        )
+    elif mode != "legacy":
+        raise ValueError("unknown tool selection mode")
     encoded = json.dumps(
-        {"system_prompt": prompt, "tool_specs": tool_specs + interaction_schemas()},
+        {
+            "system_prompt": prompt,
+            "tool_specs": tool_specs + interaction_schemas(),
+            **({"tool_selection_mode": mode} if mode != "legacy" else {}),
+        },
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -744,20 +757,31 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
 def trajectory_prompt_fingerprint(
     scenario: TrajectoryScenario,
     tool_specs: tuple[dict[str, Any], ...],
+    *, mode: str = "legacy",
 ) -> str:
     """Hash the active profile and stable prompt/schema prefix at each step."""
+    if mode not in {"legacy", "search"}:
+        raise ValueError("unknown tool selection mode")
     step_fingerprints = []
     context = scenario.context
+    if mode == "search":
+        from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+        strategy = SearchStrategy()
     for index, step in enumerate(scenario.steps):
         context = advance_trajectory_context(context, step)
-        profile = context.task.tool_profile
-        step_fingerprints.append(
-            {
+        if mode == "legacy":
+            profile = context.task.tool_profile
+            step_fingerprints.append({
                 "step": index,
                 "profile": profile,
                 "fingerprint": prompt_fingerprint(profile_schemas(profile, tool_specs)),
-            }
-        )
+            })
+        else:
+            selection = strategy.select(context, tool_specs)
+            step_fingerprints.append({
+                "step": index,
+                "fingerprint": prompt_fingerprint(selection.schemas, mode="search"),
+            })
     encoded = json.dumps(
         step_fingerprints,
         ensure_ascii=False,

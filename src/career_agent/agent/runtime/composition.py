@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import os
 from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -24,6 +25,9 @@ from career_agent.agent.execution.reconciliation import ReconciliationCoordinato
 from career_agent.agent.execution.recovery import OperationReconcilerRegistry
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
 from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
+from career_agent.agent.capabilities.selection_strategy import strategy_for_mode
+from career_agent.agent.capabilities.selection import ALWAYS_OFFERED_TOOLS, prepare_capability_selection
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
@@ -119,6 +123,11 @@ def build_main_runtime_components(
 ) -> RuntimeComponents:
     """Build every collaborator from explicit dependencies."""
 
+    # Temporary migration switch. Remove with legacy_profile.py after validation.
+    selection_mode = os.environ.get("MAIN_AGENT_TOOL_SELECTION", "legacy")
+    selection_strategy = strategy_for_mode(selection_mode)
+    decision_maker_slot.configure_selection(selection_strategy)
+
     try:
         embedding_config = CareerEmbeddingConfig.optional_from_env()
         if embedding_config is not None:
@@ -148,6 +157,7 @@ def build_main_runtime_components(
         context_manager=context_manager,
         tools=tools,
         owns_next_turn=TurnRouter.owns_next_turn,
+        ingress_profile=selection_strategy.ingress_profile,
     )
     authorization_engine = AuthorizationEngine(
         tools=tools,
@@ -162,6 +172,7 @@ def build_main_runtime_components(
         max_projection_refusals=max_projection_refusals,
         max_authorization_refusals=max_authorization_refusals,
         max_failure_retries=max_failure_retries,
+        search_mode=selection_mode == "search",
     )
     capability_executor = CapabilityExecutor(
         tools=tools,
@@ -201,6 +212,7 @@ def build_main_runtime_components(
         decision_maker_provider=decision_maker_slot.get,
         tools=tools,
         career_memory_enabled=career_context_projector is not None,
+        selection_strategy=selection_strategy,
     )
     interaction_coordinator = InteractionCoordinator(
         context_manager=context_manager,
@@ -268,6 +280,7 @@ def build_main_runtime_components(
         context_manager=context_manager,
         confirmation_store=capability_confirmation_store,
         agent_loop=agent_loop,
+        selection_strategy=selection_strategy,
     )
     confirmation_coordinator = CapabilityConfirmationCoordinator(
         confirmation_store=capability_confirmation_store,
@@ -348,12 +361,10 @@ def _configure_request_token_estimator(
 
     def estimate_complete_request(context: MainAgentContext) -> tuple[int, int]:
         hydrated = context_hydrator.project_context(context)
+        selection = decision_engine.select(hydrated)
         return request_token_usage(
-            hydrated,
-            decision_engine.tool_schemas(
-                hydrated.task.tool_profile,
-                hydrated.task,
-            ),
+            hydrated.model_copy(update={"capability_selection": selection}),
+            selection.schemas,
         )
 
     static_request_token_usage = getattr(
@@ -364,15 +375,20 @@ def _configure_request_token_estimator(
             "decision makers that report request token usage must also "
             "report static request token usage"
         )
-    static_tokens, max_input_tokens = max(
-        (
-            static_request_token_usage(
-                decision_engine.tool_schemas(profile)
-            )
-            for profile in TOOL_PROFILE_NAMES
-        ),
-        key=lambda usage: usage[0],
-    )
+    if decision_engine.selection_mode == "legacy":
+        static_tokens, max_input_tokens = max(
+            (
+                static_request_token_usage(decision_engine.tool_schemas(profile))
+                for profile in TOOL_PROFILE_NAMES
+            ), key=lambda usage: usage[0],
+        )
+    else:
+        initial = prepare_capability_selection(
+            ALWAYS_OFFERED_TOOLS,
+            task=ConversationTaskState(),
+            registered_schemas=decision_engine.registered_schemas(),
+        )
+        static_tokens, max_input_tokens = static_request_token_usage(initial.schemas)
     context_manager.configure_request_token_estimator(
         estimate_complete_request,
         static_input_tokens=static_tokens,

@@ -27,8 +27,10 @@ class ToolAvailabilityMiddleware:
         self,
         *,
         tools: MainAgentToolRegistry,
+        search_mode: bool = False,
     ) -> None:
         self._tools = tools
+        self._search_mode = search_mode
 
     def resolve(
         self,
@@ -59,6 +61,8 @@ class ToolAvailabilityMiddleware:
                 kind="not_offered",
                 reason=f"{name} 未在本次模型调用中提供。",
                 next_action=(
+                    "请从本次提供的工具中选择；如果所需工具不在其中，先调用 search_capabilities。"
+                    if self._search_mode else
                     "请从本次提供的工具中选择；如果所需工具不在其中，"
                     "先使用 route_to_capability 切换当前工具档。"
                 ),

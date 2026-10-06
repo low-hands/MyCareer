@@ -41,6 +41,7 @@ class LoopControl(TypedDict, total=False):
     read_calls: int
     # Profile switches change the next offered tool set and consume no I/O slot.
     control_calls: int
+    search_calls: int
     # All durable writes, including the external subset below.
     write_calls: int
     external_write_calls: int
