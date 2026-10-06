@@ -951,10 +951,11 @@ def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     )
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search")
+    assert tools.atomic_tool_names == ("route_to_capability", "search_capabilities", "open_job_search")
     assert [spec["function"]["name"] for spec in tools.schemas()] == [
         "route_to_capability",
         "open_job_search",
+        "search_capabilities",
     ]
     description = tools.schemas()[1]["function"]["description"]
     assert "ask for the city instead of guessing or searching nationwide" in description
@@ -1020,7 +1021,7 @@ def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
     tools = MainAgentToolRegistry(job_repository=repository)
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tools.atomic_tool_names == ("route_to_capability", "search_capabilities", "open_job_search", "find_saved_jobs", "get_saved_job")
     assert tools.capability_kind("open_job_search") == "atomic_tool"
     assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
 
@@ -3875,7 +3876,7 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
 
-    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job", "search_capabilities")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
     tool_result = result.tool_results[0]

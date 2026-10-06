@@ -44,6 +44,26 @@ from career_agent.domain.mock_interviews import MockInterviewType
 
 from career_agent.agent.contracts.candidates import *
 
+
+class SearchCapabilitiesToolArguments(ContractModel):
+    query: str | None = Field(default=None, min_length=1, max_length=200)
+    names: tuple[str, ...] | None = Field(default=None, min_length=1, max_length=10)
+    limit: int = Field(
+        default=5, ge=1, le=10,
+        description="Maximum results for query mode; names mode expands all exact matches.",
+    )
+
+    @model_validator(mode="after")
+    def _one_search_mode(self) -> "SearchCapabilitiesToolArguments":
+        if (self.query is None) == (self.names is None):
+            raise ValueError("provide exactly one of query or names")
+        if self.query is not None and not self.query.strip():
+            raise ValueError("query must contain non-whitespace text")
+        if self.names is not None and any(not name.strip() for name in self.names):
+            raise ValueError("names must be nonempty")
+        return self
+
+
 class OpenJobSearchToolArguments(ContractModel):
     platform: Literal["boss"] = "boss"
     keyword: str = Field(min_length=1, max_length=100)

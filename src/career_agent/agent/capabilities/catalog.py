@@ -40,6 +40,7 @@ class CapabilityDescriptor:
     arguments_model: str | None
     effect: ToolEffect
     profiles: frozenset[ToolProfile]
+    legacy_profile_exposed: bool = True
     namespace: str | None = None
     summary: str | None = None
     aliases_zh: tuple[str, ...] = ()
@@ -821,6 +822,10 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
             'approve a new preview.'
         ),
     ),
+    'search_capabilities': (
+        'SearchCapabilitiesToolArguments',
+        'Find available capabilities by a natural-language query or exact tool and namespace names. Search does not execute them.',
+    ),
 })
 MODEL_SCHEMA_ORDER: tuple[str, ...] = tuple(_SCHEMA_SPECS)
 
@@ -839,6 +844,7 @@ def _capability(
     schema_gated: bool = False,
     precondition: Precondition | None = None,
     requirement: str | None = None,
+    legacy_profile_exposed: bool = True,
 ) -> CapabilityDescriptor:
     schema_spec = _SCHEMA_SPECS.get(name)
     approval_policy: ApprovalPolicy
@@ -864,6 +870,7 @@ def _capability(
         description=schema_spec[1] if schema_spec is not None else None,
         effect=effect,
         profiles=frozenset(profiles),
+        legacy_profile_exposed=legacy_profile_exposed,
         execution_kind=execution_kind,
         approval_policy=approval_policy,
         replay_policy=replay_policy,
@@ -961,6 +968,7 @@ def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
 
     yield _capability("handle_mock_interview_input", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
     yield _capability("retry_mock_interview", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
+    yield _capability("search_capabilities", "CONTROL", legacy_profile_exposed=False)
 
 
 def _descriptors() -> Iterable[CapabilityDescriptor]:
@@ -1082,6 +1090,7 @@ def _descriptors() -> Iterable[CapabilityDescriptor]:
         ),
         "control": (
             ("route_to_capability", "迁移期间切换旧工具组以暴露所需工具。", ("切换工具组", "路由到能力"), ()),
+            ("search_capabilities", "按描述或名称搜索可用能力，不执行搜索结果。", ("查找工具", "搜索能力"), ()),
         ),
     }
     metadata = {
@@ -1140,8 +1149,10 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"external write must always require approval: {descriptor.name}")
         if descriptor.runtime_owned != (descriptor.execution_kind == "runtime_workflow"):
             raise RuntimeError(f"runtime ownership and execution kind disagree: {descriptor.name}")
-        if descriptor.model_callable and not descriptor.profiles:
+        if descriptor.model_callable and not descriptor.profiles and descriptor.legacy_profile_exposed:
             raise RuntimeError(f"model-callable capability needs a profile: {descriptor.name}")
+        if descriptor.model_callable and descriptor.profiles and not descriptor.legacy_profile_exposed:
+            raise RuntimeError(f"hidden legacy capability cannot have a profile: {descriptor.name}")
         if descriptor.model_callable:
             if not descriptor.namespace or not descriptor.namespace.strip():
                 raise RuntimeError(f"model-callable capability needs a namespace: {descriptor.name}")

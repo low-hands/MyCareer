@@ -9,6 +9,7 @@ def test_task_state_has_only_orchestration_and_grouped_domain_fields() -> None:
     assert tuple(ConversationTaskState.model_fields) == (
         "workflow",
         "tool_profile",
+        "loaded_capabilities",
         "pending_interaction",
         "domain_context",
     )

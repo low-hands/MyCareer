@@ -71,7 +71,10 @@ from career_agent.agent.contracts.profile import (
     OwnerSettingsContext,
 )
 from career_agent.agent.contracts.resources import ConversationResourceReference
-from career_agent.agent.contracts.task_state import RouteToCapabilityToolArguments
+from career_agent.agent.contracts.task_state import (
+    ConversationTaskState,
+    RouteToCapabilityToolArguments,
+)
 from career_agent.agent.contracts.tools.action_center import (
     ExecuteCalendarProposalToolArguments,
     GetCalendarProposalToolArguments,
@@ -94,6 +97,7 @@ from career_agent.agent.contracts.tools.application import (
     UpdateOwnerSettingsToolArguments,
 )
 from career_agent.agent.contracts.tools.core_memory import (
+    SearchCapabilitiesToolArguments,
     ConfirmCareerFactToolArguments,
     FetchArchivedConstraintsToolArguments,
     GetCareerMemoryDetailToolArguments,
@@ -161,6 +165,8 @@ from career_agent.agent.providers.openai_client import (
     worker_failure_reason,
 )
 from career_agent.agent.capabilities.effects import effect_for
+from career_agent.agent.capabilities.reachability import reachable
+from career_agent.agent.capabilities.search import search_catalog, SemanticCapabilityIndex
 from career_agent.agent.capabilities.catalog import (
     CAPABILITIES,
     MODEL_SCHEMA_ORDER,
@@ -406,8 +412,10 @@ class MainAgentToolRegistry:
         ] = {}
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
             "route_to_capability": self._route_to_capability,
+            "search_capabilities": self._search_capabilities,
             "open_job_search": self._open_job_search,
         }
+        self._capability_semantic_index: SemanticCapabilityIndex | None = None
         if career_profile_store is not None:
             self._atomic_handlers.update(
                 {
@@ -892,6 +900,12 @@ class MainAgentToolRegistry:
             for name in MODEL_SCHEMA_ORDER
             if name in installed
         )
+
+    def configure_capability_search(
+        self, semantic_index: SemanticCapabilityIndex | None,
+    ) -> None:
+        """Inject an index already warmed outside the request path."""
+        self._capability_semantic_index = semantic_index
 
     @staticmethod
     def _decision_tool_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -4776,6 +4790,50 @@ class MainAgentToolRegistry:
             message=f"工具档已切换为 {domain}。",
             next_action="根据更新后的 task.available_now 选择下一步工具。",
             payload={"tool_profile": domain},
+        )
+
+    def _search_capabilities(self, arguments: dict[str, Any]) -> ToolObservation:
+        task = ConversationTaskState.model_validate(arguments.get("current_task", {}))
+        request = SearchCapabilitiesToolArguments.model_validate(
+            {key: value for key, value in arguments.items() if key != "current_task"}
+        )
+        found = search_catalog(
+            query=request.query, names=request.names, limit=request.limit,
+        )
+        semantic_scores = None
+        if request.query is not None and self._capability_semantic_index is not None:
+            try:
+                semantic_scores = self._capability_semantic_index.scores(request.query)
+            except Exception:
+                logger.exception("capability semantic retrieval failed; using lexical results")
+            if semantic_scores is not None:
+                found = search_catalog(
+                    query=request.query, limit=request.limit,
+                    semantic_scores=semantic_scores,
+                )
+        loaded = tuple(name for name in found if name not in task.loaded_capabilities)
+        items = [
+            {
+                "name": name,
+                "namespace": CAPABILITIES[name].namespace,
+                "summary": CAPABILITIES[name].summary,
+                "reachable": reachable(name, task),
+                "requirement": (
+                    CAPABILITIES[name].requirement if not reachable(name, task) else None
+                ),
+                "already_loaded": name in task.loaded_capabilities,
+            }
+            for name in found
+        ]
+        if not found:
+            return ToolObservation(
+                tool_name="search_capabilities", state="no_capabilities_found",
+                message="没有找到匹配的能力。", payload={"items": [], "loaded": []},
+            )
+        return ToolObservation(
+            tool_name="search_capabilities", state="capabilities_found",
+            message=f"找到 {len(found)} 个相关能力。",
+            payload={"items": items, "loaded": list(loaded)},
         )
 
     def _update_working_notes(self, arguments: dict[str, Any]) -> ToolObservation:

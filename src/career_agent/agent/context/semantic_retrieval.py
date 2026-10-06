@@ -78,7 +78,10 @@ class CareerEmbeddingConfig:
 
 
 class OpenAICompatibleEmbeddingClient:
-    def __init__(self, config: CareerEmbeddingConfig) -> None:
+    def __init__(
+        self, config: CareerEmbeddingConfig, *,
+        timeout_seconds: float = _EMBED_TIMEOUT_SECONDS,
+    ) -> None:
         namespace = f"{config.base_url.rstrip('/')}\n{config.model}"
         self.model_id = "openai-compatible:" + hashlib.sha256(
             namespace.encode("utf-8")
@@ -87,7 +90,7 @@ class OpenAICompatibleEmbeddingClient:
         self._client = OpenAI(
             base_url=config.base_url.rstrip("/"),
             api_key=config.api_key,
-            timeout=_EMBED_TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
             max_retries=0,
         )
 

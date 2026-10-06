@@ -48,6 +48,7 @@ EventType = Literal[
     # narrower surface, and whether that trade is worth its cost depends on how
     # often each gate actually fires — which nothing currently measures.
     "authorization_refused",
+    "capability_search_empty",
     "capability_failed",
     "presentation_degraded",
     "context_compacted",

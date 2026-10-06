@@ -41,9 +41,10 @@ TOOL_PROFILES: Mapping[ToolProfile, frozenset[str]] = MappingProxyType(
 ROUTABLE_TOOLS: frozenset[str] = frozenset().union(*TOOL_PROFILES.values())
 
 if ROUTABLE_TOOLS != frozenset(
-    name for name, descriptor in CAPABILITIES.items() if descriptor.model_callable
+    name for name, descriptor in CAPABILITIES.items()
+    if descriptor.model_callable and descriptor.legacy_profile_exposed
 ):
-    raise RuntimeError("every model-callable capability must be reachable from a profile")
+    raise RuntimeError("every legacy-exposed capability must be reachable from a profile")
 if ROUTE_TOOL not in CORE_TOOLS or CAPABILITIES[ROUTE_TOOL].effect != "CONTROL":
     raise RuntimeError("the route tool must be a core CONTROL capability")
 

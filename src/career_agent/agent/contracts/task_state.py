@@ -24,6 +24,7 @@ from career_agent.agent.contracts.memory import (
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
 from career_agent.agent.capabilities.catalog import (
+    CAPABILITIES,
     DOMAIN_TOOL_PROFILES,
     TOOL_PROFILE_NAMES,
     ToolProfile,
@@ -137,8 +138,28 @@ class ConversationTaskState(ContractModel):
 
     workflow: WorkflowState | None = None
     tool_profile: ToolProfile = "core"
+    loaded_capabilities: tuple[str, ...] = ()
     pending_interaction: PendingInteraction | None = None
     domain_context: DomainTaskContext = Field(default_factory=DomainTaskContext)
+
+    @field_validator("loaded_capabilities", mode="before")
+    @classmethod
+    def _known_loaded_capabilities(cls, value: Any) -> tuple[str, ...]:
+        if not isinstance(value, (list, tuple, set, frozenset)):
+            return ()
+        known = {name for name in value if isinstance(name, str)}
+        return tuple(
+            name for name, descriptor in CAPABILITIES.items()
+            if descriptor.model_callable and name in known
+        )
+
+    def add_loaded_capabilities(self, names: tuple[str, ...]) -> "ConversationTaskState":
+        known = set(self.loaded_capabilities) | set(names)
+        ordered = tuple(
+            name for name, descriptor in CAPABILITIES.items()
+            if descriptor.model_callable and name in known
+        )
+        return self.model_copy(update={"loaded_capabilities": ordered})
 
     @model_validator(mode="before")
     @classmethod

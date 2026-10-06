@@ -23,11 +23,13 @@ class CapabilityExecutor:
             [PendingAction, Callable[[], MainAgentToolOutput]],
             MainAgentToolOutput,
         ],
+        record_trace_event: Callable[..., None] | None = None,
     ) -> None:
         self._tools = tools
         self._emit_capability_started = emit_capability_started
         self._emit_capability_completed = emit_capability_completed
         self._run_capability = run_capability
+        self._record_trace_event = record_trace_event
         self._operation_journal = OperationJournal(
             store=action_execution_store,
             policy_epoch=action_policy_epoch,
@@ -50,6 +52,15 @@ class CapabilityExecutor:
         if pending.get("effect") == "WRITE" and result.execution_outcome is None:
             raise ValueError(
                 f"WRITE capability {name!r} returned without execution_outcome"
+            )
+        if (
+            name == "search_capabilities"
+            and result.state == "no_capabilities_found"
+            and self._record_trace_event is not None
+        ):
+            self._record_trace_event(
+                "capability_search_empty", "act", outcome="succeeded",
+                details={"tool_name": name},
             )
         self._emit_capability_completed(name, result.state)
         return {"pending": {**pending, "result": result}}

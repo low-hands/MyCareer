@@ -7,6 +7,7 @@ depending on the ``MainAgentRuntime`` facade.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -26,6 +27,11 @@ from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.search import SemanticCapabilityIndex
+from career_agent.agent.context.semantic_retrieval import (
+    CareerEmbeddingConfig,
+    OpenAICompatibleEmbeddingClient,
+)
 from career_agent.agent.runtime.graph import MainGraphNodes, build_main_graph
 from career_agent.agent.runtime.observation_reducer import (
     ObservationReducer,
@@ -62,6 +68,8 @@ from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
+
+_LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RuntimeComponents:
@@ -111,6 +119,20 @@ def build_main_runtime_components(
 ) -> RuntimeComponents:
     """Build every collaborator from explicit dependencies."""
 
+    try:
+        embedding_config = CareerEmbeddingConfig.optional_from_env()
+        if embedding_config is not None:
+            semantic_index = SemanticCapabilityIndex(
+                client=OpenAICompatibleEmbeddingClient(embedding_config),
+                query_client=OpenAICompatibleEmbeddingClient(
+                    embedding_config, timeout_seconds=3.0,
+                ),
+            )
+            semantic_index.warm()
+            tools.configure_capability_search(semantic_index)
+    except Exception:
+        _LOGGER.exception("capability index warmup failed; lexical search remains available")
+
     runtime_observability = RuntimeObservability(
         trace_recorder=trace_recorder,
     )
@@ -145,6 +167,7 @@ def build_main_runtime_components(
         tools=tools,
         action_execution_store=action_execution_store,
         action_policy_epoch=action_policy_epoch,
+        record_trace_event=RuntimeObservability.record_trace_event,
         emit_capability_started=ports.emit_capability_started,
         emit_capability_completed=ports.emit_capability_completed,
         run_capability=lambda pending, run: RuntimeObservability.run_capability(

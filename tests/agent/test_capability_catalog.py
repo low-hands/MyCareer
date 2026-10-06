@@ -35,8 +35,8 @@ from career_agent.evaluation.trajectory import (
 
 def test_discovery_metadata_covers_the_model_catalogue() -> None:
     model_tools = [descriptor for descriptor in CAPABILITIES.values() if descriptor.model_callable]
-    assert len(model_tools) == 71
-    assert len({descriptor.name for descriptor in model_tools}) == 71
+    assert len(model_tools) == 72
+    assert len({descriptor.name for descriptor in model_tools}) == 72
     assert max(Counter(descriptor.namespace for descriptor in model_tools).values()) <= 10
     aliases = [alias for descriptor in model_tools for alias in descriptor.aliases_zh]
     assert len(aliases) == len(set(aliases))
@@ -87,6 +87,8 @@ def test_a_read_never_suggests_an_ungated_write() -> None:
         ({"successors": ("missing_tool",)}, "invalid capability successor"),
         ({"successors": ("handle_mock_interview_input",)}, "invalid capability successor"),
         ({"successors": ("create_application",)}, "a read cannot suggest an ungated write"),
+        ({"profiles": frozenset()}, "needs a profile"),
+        ({"legacy_profile_exposed": False}, "hidden legacy capability cannot have a profile"),
     ],
 )
 def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error) -> None:
@@ -100,7 +102,15 @@ def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error)
 
 
 def test_discovery_metadata_does_not_change_model_schemas_or_prompt_fingerprint() -> None:
-    schemas = trajectory_tool_specs()
+    registered = trajectory_tool_specs()
+    assert registered[-1]["function"]["name"] == "search_capabilities"
+    encoded_registered = json.dumps(
+        registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    assert hashlib.sha256(encoded_registered).hexdigest() == (
+        "47d2012a1dc66fb7dd6355cd3cd0c55186ebc0e2506ba0be7a832a976ca62a78"
+    )
+    schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
@@ -119,7 +129,7 @@ def test_compatibility_views_are_derived_from_the_catalog() -> None:
     assert set(TOOL_EFFECTS) == set(CAPABILITIES)
     assert ROUTABLE_TOOLS == frozenset(
         name for name, descriptor in CAPABILITIES.items()
-        if descriptor.model_callable
+        if descriptor.model_callable and descriptor.legacy_profile_exposed
     )
     assert PRECONDITIONS == {
         name: descriptor.precondition

@@ -152,7 +152,9 @@ def _holdout_manifest_digest(cases) -> str:
             "kind": case.kind,
             "namespaces": sorted(case.namespaces),
             "message": case.scenario.context.user_message,
-            "task": stable(case.scenario.context.task),
+            "task": stable(case.scenario.context.task.model_dump(
+                mode="python", exclude={"loaded_capabilities"}
+            )),
             "raw_turn": case.raw_turn,
             "steps": stable(case.scenario.steps),
         }
@@ -272,7 +274,7 @@ def test_legacy_selection_baseline_counts_and_route_gaps() -> None:
     assert (len(report.steps), len(report.comparable_steps)) == (64, 59)
     assert (report.demand_steps, report.covered_steps) == (31, 26)
     assert report.route_round_trips == 5
-    assert len(trajectory_tool_specs()) == 71
+    assert len(trajectory_tool_specs()) == 72
     assert len(report.demanded_tool_names) == 22
     assert {"job", "resume", "application", "interview", "memory"} <= {
         group
