@@ -115,6 +115,24 @@ def test_newly_satisfied_state_gate_is_offered_without_search() -> None:
     assert dict(selection.sources)["retry_job_research"] == "state"
 
 
+def test_submitted_questionnaire_offers_its_bound_target_for_this_turn() -> None:
+    strategy = SearchStrategy(intent_enabled=False)
+    task = ConversationTaskState(
+        active_job_posting_id="job-1",
+        active_resume_version_id="resume-version-1",
+        active_resume_job_match_id="match-1",
+        resume_job_match_status="ready",
+    )
+    resumed = _context(task).model_copy(update={
+        "turn_continuation_capability": "draft_resume_tailoring",
+    })
+    selection = strategy.select(resumed, SCHEMAS)
+    assert "draft_resume_tailoring" in selection.offered_names
+    assert dict(selection.sources)["draft_resume_tailoring"] == "state"
+    assert "draft_resume_tailoring" not in strategy.select(_context(task), SCHEMAS).offered_names
+    assert "turn_continuation_capability" not in resumed.model_context()
+
+
 def test_w_offers_bound_reads_and_reviewed_successor_transiently() -> None:
     strategy = SearchStrategy()
     task = ConversationTaskState(active_application_id="app-1")

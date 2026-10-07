@@ -90,6 +90,8 @@ class InteractionCoordinator:
         if (
             task.active_workflow != pending.active_workflow
             or task.active_resume_version_id != pending.resume_version_id
+            or (pending.resume_job_match_id is not None and
+                task.active_resume_job_match_id != pending.resume_job_match_id)
             or task.active_job_posting_id != pending.job_posting_id
             or task.active_jd_snapshot_id != pending.jd_snapshot_id
         ):
@@ -141,6 +143,7 @@ class InteractionCoordinator:
         return context.model_copy(
             update={
                 "task": context.task.clear_pending_questionnaire(),
+                "turn_continuation_capability": pending.continuation_capability,
                 "user_message_source": "已提交当前任务问卷：\n"
                 + "\n".join(visible_answers),
                 "user_interaction_id": pending.interaction_id,

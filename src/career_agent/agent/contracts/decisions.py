@@ -24,6 +24,7 @@ from career_agent.agent.contracts.memory import (
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
 from career_agent.agent.capabilities.catalog import (
+    CAPABILITIES,
     DOMAIN_TOOL_PROFILES,
     TOOL_PROFILE_NAMES,
     ToolProfile,
@@ -54,6 +55,7 @@ class AgentDecision(ContractModel):
     message: str | None = None
     tool_call: ToolCall | None = None
     questions: tuple[UserQuestion, ...] = Field(default=(), max_length=8)
+    continuation_capability: str | None = None
     selection_source: Literal["latest_tool_result"] | None = None
 
     @model_validator(mode="after")
@@ -67,6 +69,12 @@ class AgentDecision(ContractModel):
                 raise ValueError("questionnaire ids must be ordered q1..qN")
         elif self.questions:
             raise ValueError("questions require questionnaire action")
+        if self.continuation_capability is not None and self.action != "questionnaire":
+            raise ValueError("continuation_capability requires questionnaire action")
+        if self.continuation_capability is not None:
+            descriptor = CAPABILITIES.get(self.continuation_capability)
+            if descriptor is None or not descriptor.model_callable or descriptor.effect == "CONTROL":
+                raise ValueError("questionnaire continuation must name a callable business capability")
         if self.selection_source is not None and self.action != "ask_user":
             raise ValueError("selection_source requires ask_user action")
         return self

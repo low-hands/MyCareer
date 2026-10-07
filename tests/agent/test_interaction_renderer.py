@@ -5,6 +5,7 @@ from career_agent.agent.contracts.decisions import (
     AgentDecision,
     ToolCall,
 )
+from career_agent.agent.contracts.questionnaire import UserQuestion
 from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.presentation.interaction_renderer import InteractionRenderer
@@ -56,3 +57,49 @@ def test_interaction_renderer_enforces_the_configured_renderer_boundary() -> Non
 
     with pytest.raises(ValueError, match="has no interaction renderer"):
         renderer.interrupt(state)
+
+
+@pytest.mark.parametrize("offered,expected", [
+    (("draft_resume_tailoring",), "draft_resume_tailoring"),
+    (("list_resumes",), None),
+])
+def test_questionnaire_continuation_is_bound_to_the_decision_offer(offered, expected) -> None:
+    decision = AgentDecision(
+        action="questionnaire", message="请补充两项。",
+        continuation_capability="draft_resume_tailoring",
+        questions=(
+            UserQuestion(question_id="q1", prompt="经历？", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="工具？", kind="free_text"),
+        ),
+    )
+    context = MainAgentContext(
+        conversation_id="conversation-1",
+        profile=CareerProfileContext(user_id="user-1"),
+        user_message="帮我定制简历",
+    )
+    result = _renderer().interrupt({
+        "decision": decision, "context": context,
+        "control": {"offered_tool_names": offered},
+    })
+    assert result["context"].task.pending_questionnaire.continuation_capability == expected
+
+
+def test_questionnaire_cannot_bind_unoffered_write_capability() -> None:
+    decision = AgentDecision(
+        action="questionnaire", message="请补充两项。",
+        continuation_capability="create_application",
+        questions=(
+            UserQuestion(question_id="q1", prompt="一？", kind="free_text"),
+            UserQuestion(question_id="q2", prompt="二？", kind="free_text"),
+        ),
+    )
+    context = MainAgentContext(
+        conversation_id="conversation-1",
+        profile=CareerProfileContext(user_id="user-1"),
+        user_message="帮我看看",
+    )
+    result = _renderer().interrupt({
+        "decision": decision, "context": context,
+        "control": {"offered_tool_names": ("list_resumes",)},
+    })
+    assert result["context"].task.pending_questionnaire.continuation_capability is None

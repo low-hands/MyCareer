@@ -93,6 +93,8 @@ class SearchStrategy:
             if name in STATE_GATED_TOOLS and reachable(name, task)
             and name != "route_to_capability"
         )
+        if context.turn_continuation_capability is not None:
+            state_needed = (*state_needed, context.turn_continuation_capability)
         registered_names = frozenset(
             schema["function"]["name"] for schema in registered
         )
@@ -158,6 +160,9 @@ class SearchStrategy:
             "still checks authorization and approval. Reviewed follow-up and "
             "bound-resource read tools may also be offered as state changes; "
             "offer alone is not a reason to call them. "
+            "When a questionnaire pauses a requested capability, set its "
+            "continuation_capability to that exact tool name so the resumed "
+            "turn can offer it; omit it for a standalone questionnaire. "
         )
         return guidance + "\n\nCapability directory:\n" + self._directory + "\n\n"
 

@@ -149,6 +149,7 @@ class MainAgentContext(ContractModel):
     This runtime field is never included in ``model_context()``; only the
     selected ``available_now`` names are shown to the model.
     """
+    turn_continuation_capability: str | None = None
     conversation_summary: ConversationSummaryContent | None = None
     attached_resumes: tuple[AttachedResumeContext, ...] = Field(
         default=(), max_length=8

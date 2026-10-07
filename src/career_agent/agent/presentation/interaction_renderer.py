@@ -146,6 +146,14 @@ class InteractionRenderer:
         if decision.action == "questionnaire":
             context = state["context"]
             task = context.task
+            offered = state.get("control", {}).get("offered_tool_names", ())
+            # The model proposes a continuation. Bind it only when the same
+            # decision actually saw that capability's full schema. A name from
+            # the directory alone cannot promote an undisclosed write tool.
+            continuation = (
+                decision.continuation_capability
+                if decision.continuation_capability in offered else None
+            )
             now = datetime.now(timezone.utc)
             questionnaire = PendingQuestionnaire(
                 interaction_id=interaction_id(
@@ -158,7 +166,9 @@ class InteractionRenderer:
                 created_at=now,
                 expires_at=now + timedelta(days=7),
                 active_workflow=task.active_workflow,
+                continuation_capability=continuation,
                 resume_version_id=task.active_resume_version_id,
+                resume_job_match_id=task.active_resume_job_match_id,
                 job_posting_id=task.active_job_posting_id,
                 jd_snapshot_id=task.active_jd_snapshot_id,
             )
