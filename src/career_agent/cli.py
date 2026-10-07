@@ -744,6 +744,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tool-selection mode to evaluate; search uses separate cassettes.",
     )
     eval_trajectories.add_argument(
+        "--cassette-root", type=Path,
+        help="Cassette directory for this selection mode; keeps recording and replay isolated.",
+    )
+    eval_trajectories.add_argument(
         "--record",
         action="store_true",
         help=(
@@ -785,7 +789,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Set the live recording sample count for every selected scenario "
-            "(1-5). It may increase, but not lower, a scenario's requirement."
+            "(1-5). With --cassette-root, use this count for isolated "
+            "recording and replay; the default catalogue keeps its quality pins."
         ),
     )
     eval_rederivation = eval_subparsers.add_parser(
@@ -1907,15 +1912,16 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
     from career_agent.evaluation.search_scenarios import SEARCH_SCENARIOS
     from career_agent.evaluation.search_trajectory import (
         SEARCH_CASSETTE_ROOT, check_search_contract, record_search_catalogue,
-        replay_search_sample, search_cassette_staleness,
+        replay_search_sample, search_cassette_staleness, search_replay_staleness,
     )
     from career_agent.evaluation.trajectory import (
-        load_cassette, minimum_detectable_regression, quality_shortfall,
+        known_gap_reproduction, load_cassette, minimum_detectable_regression, quality_shortfall,
         summarize_decision_retries, trajectory_tool_specs,
     )
 
     try:
         schemas = trajectory_tool_specs()
+        cassette_root = args.cassette_root or SEARCH_CASSETTE_ROOT
         selected = (
             tuple(item for item in SEARCH_SCENARIOS if item.name in set(args.scenario))
             if args.scenario else SEARCH_SCENARIOS
@@ -1927,6 +1933,7 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
         config = None
         recording_error = None
         recording_failures = []
+        partial_recordings = []
         if args.record:
             config = _replace(
                 OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
@@ -1935,12 +1942,13 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
             try:
                 record_search_catalogue(
                     selected, tool_specs=schemas, config=config,
-                    root=SEARCH_CASSETTE_ROOT, sample_count=3,
+                    root=cassette_root, sample_count=3,
                     jobs=args.jobs, force=args.force,
                 )
             except AgentWorkerError as error:
                 recording_error = f"{error.code}: {error}"
                 recording_failures = getattr(error, "recording_failures", [])
+                partial_recordings = getattr(error, "partial_recordings", [])
         from dotenv import load_dotenv
         load_dotenv()
         expected_model = config.model if config else os.environ.get("MAIN_AGENT_MODEL", "").strip()
@@ -1948,7 +1956,7 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
         retry_cassettes = []
         for scenario in selected:
             contract = check_search_contract(scenario, tool_specs=schemas)
-            cassette = load_cassette(scenario.name, root=SEARCH_CASSETTE_ROOT)
+            cassette = load_cassette(scenario.name, root=cassette_root)
             stale = (
                 search_cassette_staleness(
                     cassette, scenario=scenario, tool_specs=schemas,
@@ -1961,9 +1969,16 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
                       for sample in cassette.recordings)
                 if replayable else ()
             )
+            if replayable:
+                replay_stale = search_replay_staleness(sample_failures)
+                if replay_stale is not None:
+                    stale = replay_stale
+                    replayable = False
+                    sample_failures = ()
             graded = (
                 tuple(replay_search_sample(scenario, tool_specs=schemas,
-                    responses=sample, quality=True) for sample in cassette.recordings)
+                    responses=sample, quality=True)
+                    for sample in cassette.recordings)
                 if replayable and scenario.has_quality_assertions else ()
             )
             shortfall = quality_shortfall(scenario, graded) if graded else None
@@ -2006,7 +2021,10 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
                 "quality_pass_rate": (
                     sum(not group for group in graded) / len(graded) if graded else None
                 ),
-                "known_gap_status": None,
+                "known_gap_status": (
+                    known_gap_reproduction(sample_failures)
+                    if scenario.known_gap is not None and replayable else None
+                ),
                 "failures": failures,
             })
         payload = {
@@ -2019,7 +2037,8 @@ def _run_search_trajectory_evaluation(args, stdout) -> int:
             "unrecorded": sum(item["behaviour"] == "unrecorded" for item in results),
             "retry_measurement": summarize_decision_retries(retry_cassettes),
             **({"recording_error": recording_error,
-                "recording_failures": recording_failures} if recording_error else {}),
+                "recording_failures": recording_failures,
+                "partial_recordings": partial_recordings} if recording_error else {}),
             "note": "Search calls are intermediate decisions; business assertions remain unchanged.",
             "results": results,
         }
@@ -2066,6 +2085,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
 
     try:
         schemas = trajectory_tool_specs()
+        cassette_root = args.cassette_root
         selected = (
             tuple(item for item in SCENARIOS if item.name in set(args.scenario))
             if args.scenario
@@ -2074,7 +2094,15 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         if args.scenario and len(selected) != len(set(args.scenario)):
             known = ", ".join(item.name for item in SCENARIOS)
             raise ValueError(f"unknown scenario; available: {known}")
-        if args.record and args.samples is not None:
+        isolated_sample_count = cassette_root is not None and args.samples is not None
+        if isolated_sample_count:
+            # An isolated comparison can use one denominator for every scenario.
+            # Keep the default cassette catalogue and its quality pins intact.
+            selected = tuple(
+                _replace(scenario, recording_samples=args.samples)
+                for scenario in selected
+            )
+        if args.record and args.samples is not None and not isolated_sample_count:
             required = max(
                 (scenario.recording_samples for scenario in selected),
                 default=1,
@@ -2109,7 +2137,8 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                     selected,
                     tool_specs=schemas,
                     config=config,
-                    sample_count=args.samples,
+                    root=cassette_root,
+                    sample_count=None if isolated_sample_count else args.samples,
                     jobs=args.jobs,
                     force=args.force,
                 )
@@ -2129,7 +2158,7 @@ def _run_trajectory_evaluation(args, stdout) -> int:
         retry_cassettes = []
         for scenario in selected:
             contract = check_contract(scenario, tool_specs=schemas)
-            cassette = load_cassette(scenario.name)
+            cassette = load_cassette(scenario.name, root=cassette_root)
             stale = (
                 cassette_staleness(
                     cassette,

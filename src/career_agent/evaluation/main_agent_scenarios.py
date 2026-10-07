@@ -442,7 +442,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 forbid_tools=frozenset(
-                    {"propose_job_intent", "confirm_job_intent"}
+                    {"propose_job_intent", "confirm_job_intent", "analyze_job"}
                 ),
             ),
         ),
@@ -634,7 +634,9 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         decisive_facts=("task.candidates",),
-        steps=(TrajectoryStep(forbid_tools=frozenset({"create_application"})),),
+        steps=(TrajectoryStep(forbid_tools=frozenset({
+            "create_application", "analyze_job",
+        })),),
     ),
     TrajectoryScenario(
         name="a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
@@ -2154,6 +2156,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "career_memory": CareerMemoryContext(
                     records=(
                         CareerMemoryRecord(
+                            record_id="career_record_" + "a" * 32,
                             record_type="work",
                             organization="示例科技",
                             title="软件工程师",

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.observations import DecisionObservation
 from career_agent.agent.contracts.interactions import CONFIRMATION_SPECS
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.task_state import ConversationTaskState
@@ -157,11 +158,14 @@ _OTHER_BEHAVIOR = {
     "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
     "an_empty_conversation_span_is_not_filled_from_the_window",
 }
-# Re-recording left these two on an older prompt fingerprint. They are not
-# evaluated until re-recorded, so they must not be counted as passes either.
+# The default historical Qwen cassettes remain stale: two use an older prompt,
+# and two now expose task updates that model_copy previously dropped. None may
+# be counted as a pass until that historical directory is deliberately recut.
 _STALE = {
     "stated_intent_is_proposed_before_it_is_recorded",
     "a_questionnaire_answer_is_proposed_with_user_input_provenance",
+    "a_repeated_call_is_not_reissued_after_an_observation",
+    "tool_selection_combines_job_analysis_and_resume_match",
 }
 
 
@@ -237,6 +241,13 @@ def test_holdout_runs_without_a_locked_recall_score() -> None:
 
 def _holdout_manifest_digest(cases) -> str:
     def stable(value):
+        if isinstance(value, DecisionObservation):
+            receipt = value.model_dump(mode="python")
+            # An absent internal receipt does not change the authored fixture.
+            for field in ("disposition", "execution_outcome"):
+                if receipt[field] is None:
+                    receipt.pop(field)
+            return stable(receipt)
         if isinstance(value, BaseModel):
             return stable(value.model_dump(mode="python"))
         if is_dataclass(value):
@@ -538,8 +549,8 @@ def test_existing_qwen_failures_have_a_reviewed_selection_classification() -> No
                 recordings=cassette.recordings,
             )
     assert stale == _STALE
-    assert len(categories) == 10
+    assert len(categories) == 9
     assert {name for name, kind in categories.items() if kind == "other_behavior"} == _OTHER_BEHAVIOR
-    assert list(categories.values()).count("selection_gap_and_model_decision") == 2
+    assert list(categories.values()).count("selection_gap_and_model_decision") == 1
     assert list(categories.values()).count("model_decision") == 5
     assert list(categories.values()).count("other_behavior") == 3

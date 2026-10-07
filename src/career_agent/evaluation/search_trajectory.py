@@ -18,6 +18,7 @@ from typing import Any, Mapping, Sequence
 
 from career_agent.agent.capabilities.search import search_catalog
 from career_agent.agent.capabilities.catalog import CAPABILITIES
+from career_agent.agent.capabilities.proactive import succeeded
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.runtime.decision_messages import project_decision_messages
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
@@ -39,6 +40,10 @@ from career_agent.evaluation.trajectory import (
 SEARCH_CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent_search"
 MAX_SEARCH_DECISIONS = 5
 _FINGERPRINT_CLOCK = {"now": "2000-01-01T00:00:00+08:00", "timezone": "Asia/Shanghai"}
+_REPLAY_STALE_MARKERS = (
+    "selected schema changed during replay",
+    "model context changed during replay",
+)
 
 
 def _selected_context(context: MainAgentContext, strategy: SearchStrategy,
@@ -86,6 +91,19 @@ def _search_result(context: MainAgentContext, arguments: Mapping[str, Any]) -> M
     })
 
 
+def _advance_search_context(
+    context: MainAgentContext, step: TrajectoryStep,
+) -> MainAgentContext:
+    """Mirror the runtime's retention of a completed business tool."""
+    advanced = advance_trajectory_context(context, step)
+    observation = step.observation
+    if observation is None or not succeeded(observation):
+        return advanced
+    return advanced.model_copy(update={
+        "task": advanced.task.add_loaded_capabilities((observation.tool_name,)),
+    })
+
+
 def check_search_contract(scenario: TrajectoryScenario,
                           *, tool_specs: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
     """Verify every declared business tool can be offered after exact-name discovery."""
@@ -99,7 +117,7 @@ def check_search_contract(scenario: TrajectoryScenario,
     for index, step in enumerate(scenario.steps):
         if step.expect_user_input and step.expect_action is not None:
             failures.append(f"{scenario.name}[{index}]: conflicting action expectations")
-        context = advance_trajectory_context(context, step)
+        context = _advance_search_context(context, step)
         expected = set(step.expect_tools)
         if step.expect_tool:
             expected.add(step.expect_tool)
@@ -158,7 +176,7 @@ def _record_sample(scenario: TrajectoryScenario,
     for index, step in enumerate(scenario.steps):
         if step.user_message is not None:
             search_count = 0
-        context = advance_trajectory_context(context, step)
+        context = _advance_search_context(context, step)
         while True:
             decision_context, selection = _selected_context(context, strategy, tool_specs)
             attempts = 0
@@ -237,10 +255,21 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
     work = []
     for scenario in scenarios:
         existing = load_cassette(scenario.name, root=root)
-        if existing is not None and not force and search_cassette_staleness(
-            existing, scenario=scenario, tool_specs=tool_specs, expected_model=config.model,
-        ) is None:
-            continue
+        if existing is not None and not force:
+            metadata_stale = search_cassette_staleness(
+                existing, scenario=scenario, tool_specs=tool_specs,
+                expected_model=config.model,
+            )
+            replay_stale = None if metadata_stale else search_replay_staleness(
+                tuple(
+                    replay_search_sample(
+                        scenario, tool_specs=tool_specs, responses=sample,
+                    )
+                    for sample in existing.recordings
+                )
+            )
+            if metadata_stale is None and replay_stale is None:
+                continue
         count = scenario.recording_samples if sample_count is None else sample_count
         if not 1 <= count <= 5:
             raise ValueError("trajectory sample count must be between 1 and 5")
@@ -271,9 +300,9 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
                 if first_error is None:
                     first_error = error
                 continue
+            completed.setdefault(scenario.name, {})[index] = sample
             if scenario.name in failed:
                 continue
-            completed.setdefault(scenario.name, {})[index] = sample
             count = sum(item.name == scenario.name for item, _ in work)
             if len(completed[scenario.name]) != count:
                 continue
@@ -296,6 +325,11 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
             written.append(path)
     if first_error is not None:
         first_error.recording_failures = recording_failures
+        first_error.partial_recordings = [
+            {"scenario": scenario, "sample": index + 1, "recording": sample}
+            for scenario, indexed in completed.items() if scenario in failed
+            for index, sample in sorted(indexed.items())
+        ]
         raise first_error
     return tuple(written)
 
@@ -313,6 +347,17 @@ def search_cassette_staleness(cassette, *, scenario: TrajectoryScenario,
         return "cassette model differs from current model; re-record it"
     if cassette.sample_count < scenario.recording_samples:
         return "cassette has too few samples; re-record it"
+    return None
+
+
+def search_replay_staleness(
+    sample_failures: Sequence[Sequence[str]],
+) -> str | None:
+    """Detect a changed later decision snapshot in an otherwise fresh cassette."""
+    for failures in sample_failures:
+        for failure in failures:
+            if any(marker in failure for marker in _REPLAY_STALE_MARKERS):
+                return f"{failure}; re-record it"
     return None
 
 
@@ -335,7 +380,7 @@ def replay_search_sample(scenario: TrajectoryScenario,
     for index, step in enumerate(scenario.steps):
         if step.user_message is not None:
             search_count = 0
-        context = advance_trajectory_context(context, step)
+        context = _advance_search_context(context, step)
         while response_index < len(responses):
             item = responses[response_index]
             if item.get("scenario_step") != index:
@@ -349,6 +394,11 @@ def replay_search_sample(scenario: TrajectoryScenario,
             if (item.get("decision_shape_fingerprint") is not None and
                     item["decision_shape_fingerprint"] != _decision_shape_fingerprint(decision_context)):
                 failures.append(f"{scenario.name}[{index}]: model context changed during replay")
+            if failures and any(
+                marker in failure for failure in failures
+                for marker in _REPLAY_STALE_MARKERS
+            ):
+                return tuple(failures)
             call = item.get("tool_call")
             if call is not None and call["name"] not in selection.offered_names:
                 failures.append(f"{scenario.name}[{index}]: called unavailable tool '{call['name']}'")

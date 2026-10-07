@@ -32,9 +32,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from pydantic import BaseModel
+
 from career_agent.agent.runtime.decision_messages import project_decision_messages
 from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.contracts.observations import (
     DecisionObservation,
@@ -405,7 +408,7 @@ def prompt_fingerprint(
     encoded = json.dumps(
         {
             "system_prompt": prompt,
-            "tool_specs": tool_specs + interaction_schemas(),
+            "tool_specs": tool_specs + interaction_schemas(continuation=mode == "search"),
             **({"tool_selection_mode": mode} if mode != "legacy" else {}),
         },
         ensure_ascii=False,
@@ -1076,8 +1079,57 @@ def advance_trajectory_context(context: MainAgentContext, step: TrajectoryStep) 
             step.observation,
         )
     if step.task_update:
-        update["task"] = context.task.model_copy(update=dict(step.task_update))
+        patch: dict[str, Any] = {}
+        for name, value in step.task_update.items():
+            if name == "domain_context" and isinstance(value, Mapping):
+                _reject_unknown_nested_fields(
+                    value, type(context.task.domain_context), name,
+                )
+            part = ConversationTaskState.model_validate({name: value})
+            if not part.model_fields_set:
+                raise ValueError(f"unknown trajectory task_update field: {name}")
+            normalized = part.model_dump(mode="python", exclude_unset=True)
+            for tagged_field in ("pending_interaction", "workflow"):
+                if tagged_field in normalized:
+                    # exclude_unset omits a discriminator when the model used
+                    # its default kind; a tagged union needs the complete value.
+                    normalized[tagged_field] = part.model_dump(mode="python")[
+                        tagged_field
+                    ]
+            _merge_trajectory_patch(
+                patch, normalized,
+            )
+        merged = context.task.model_dump(mode="python")
+        _merge_trajectory_patch(merged, patch)
+        for tagged_field in ("pending_interaction", "workflow"):
+            if tagged_field in patch:
+                merged[tagged_field] = patch[tagged_field]
+        update["task"] = ConversationTaskState.model_validate(merged)
     return context.model_copy(update=update) if update else context
+
+
+def _merge_trajectory_patch(target: dict[str, Any], patch: Mapping[str, Any]) -> None:
+    for name, value in patch.items():
+        if isinstance(value, Mapping) and isinstance(target.get(name), dict):
+            _merge_trajectory_patch(target[name], value)
+        else:
+            target[name] = value
+
+
+def _reject_unknown_nested_fields(
+    raw: Mapping[str, Any], model: type[BaseModel], path: str,
+) -> None:
+    for name, value in raw.items():
+        field = model.model_fields.get(name)
+        if field is None:
+            raise ValueError(f"unknown trajectory task_update field: {path}.{name}")
+        nested_model = field.annotation
+        if (
+            isinstance(value, Mapping)
+            and isinstance(nested_model, type)
+            and issubclass(nested_model, BaseModel)
+        ):
+            _reject_unknown_nested_fields(value, nested_model, f"{path}.{name}")
 
 
 def trajectory_tool_specs() -> tuple[dict[str, Any], ...]:
