@@ -1,0 +1,112 @@
+{
+  "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+  "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "5ded75bbcfdef4eadf71acfa79fa19eeb8a68382dd94aa02cfaf25206b647182",
+  "context_shape_fingerprint": "ae388c9a7f1c4b1242b3daf7bda1cd38e7d5ead88708ad730b8951c8a0b1b105",
+  "recorded_at": "2026-10-07T21:57:46.695707+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么岗位？请告诉我目标职位关键词（例如 Rust 开发、前端工程师等），以及期望的工作城市。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+      "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3088.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:57:43.269261+00:00",
+      "elapsed_ms": 3150.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么岗位？请告诉我目标职位关键词（例如 Rust 开发、前端工程师等），以及期望的工作城市。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3088.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:57:44.104409+00:00",
+      "elapsed_ms": 3343.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想找什么岗位？请告诉我关键词（例如“Rust 工程师”）和城市。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3164.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:57:46.695707+00:00",
+      "elapsed_ms": 3417.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我看到工作笔记中提到你可能偏好 Rust 岗位，但这尚未确认。请问你想找什么类型的岗位？例如：Rust 开发、后端开发、或其他具体方向？另外，你希望在哪个城市找工作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3357.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

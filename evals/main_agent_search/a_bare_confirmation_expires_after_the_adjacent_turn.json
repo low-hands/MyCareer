@@ -1,0 +1,216 @@
+{
+  "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+  "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "f48949e07ea6c71f2ce6732a7ac03e53644b3e8e0ac8afb9ff61f3a9c0b60110",
+  "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
+  "recorded_at": "2026-10-07T21:57:54.893500+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "open_job_search"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+      "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2789.2,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "open_job_search",
+        "arguments": {
+          "keyword": "软件工程师"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "00b66d122b0b42fa30f128289b336a9946d422deec086a5f52c69bfacf77dafb",
+      "decision_shape_fingerprint": "ebb72006df6fca19fe8074d1c0035983c69e1c178c7938e8776948a9b65796a2",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2397.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:57:52.263760+00:00",
+      "elapsed_ms": 5244.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2789.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "open_job_search",
+            "arguments": {
+              "keyword": "软件工程师"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "00b66d122b0b42fa30f128289b336a9946d422deec086a5f52c69bfacf77dafb",
+          "decision_shape_fingerprint": "ebb72006df6fca19fe8074d1c0035983c69e1c178c7938e8776948a9b65796a2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2397.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:57:52.881590+00:00",
+      "elapsed_ms": 5790.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3077.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的岗位关键词（例如：产品经理、Java开发）以及目标城市。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "00b66d122b0b42fa30f128289b336a9946d422deec086a5f52c69bfacf77dafb",
+          "decision_shape_fingerprint": "ebb72006df6fca19fe8074d1c0035983c69e1c178c7938e8776948a9b65796a2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2654.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:57:54.893500+00:00",
+      "elapsed_ms": 6929.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"要看新岗位，我需要知道你的搜索条件。请告诉我：\\n\\n1. 你想在哪个城市找工作？\\n2. 你想找什么类型的岗位（比如前端开发、产品经理、数据分析师等）？\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你想找什么类型的岗位？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false}]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6876.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "我需要先了解你想看什么岗位。请告诉我：\n\n1. 你想搜索的城市是哪里？\n2. 你感兴趣的岗位方向或职位名称是什么？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

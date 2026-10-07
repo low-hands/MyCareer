@@ -1,0 +1,153 @@
+{
+  "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+  "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "56d17b3096edcde866ff5d8f18df8407727b1d6a556f69e157d2807926dfc722",
+  "context_shape_fingerprint": "6f7ab15e3404cb7f54d023c2fc6eba467749357f0654789f183c2afe8fec7a53",
+  "recorded_at": "2026-10-07T21:58:45.143717+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前会话里没有记录任何已确认的目标公司。你之前只提过“找算法工程师岗位”，但具体目标公司尚未明确。\\n\\n另外，刚才窗口里提到的美团 JD 并不是你主动指定的目标，而是作为对照出现的。如果你希望分析某家公司的岗位，需要先通过搜索或收藏将其加入已保存岗位列表。\\n\\n请问：\\n1. 你是否有特定的目标公司想要关注？\\n2. 还是希望我从已保存的岗位中帮你筛选算法工程师相关的机会？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+      "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "list_target_roles",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 5614.0,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "raw_output": {
+            "content": "当前记录里没有已确认的目标公司。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:45.075720+00:00",
+      "elapsed_ms": 5670.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前会话里没有记录任何已确认的目标公司。你之前只提过“找算法工程师岗位”，但具体目标公司尚未明确。\\n\\n另外，刚才窗口里提到的美团 JD 并不是你主动指定的目标，而是作为对照出现的。如果你希望分析某家公司的岗位，需要先通过搜索或收藏将其加入已保存岗位列表。\\n\\n请问：\\n1. 你是否有特定的目标公司想要关注？\\n2. 还是希望我从已保存的岗位中帮你筛选算法工程师相关的机会？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5614.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "当前记录里没有已确认的目标公司。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:43.191829+00:00",
+      "elapsed_ms": 3344.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3287.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:45.143717+00:00",
+      "elapsed_ms": 5167.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前记录里没有已确认的目标公司。之前提到过美团，但那是窗口里的对照岗位，并未作为正式目标保存。你希望把哪家公司设为目标？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5073.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "当前没有已确认的目标公司记录。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

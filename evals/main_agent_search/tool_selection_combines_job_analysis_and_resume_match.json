@@ -1,0 +1,244 @@
+{
+  "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+  "policy": "For a request that needs job analysis followed by resume matching, complete the job step and use the analysis result for matching without asking the user to restart.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "811230aa499643222d392b645a4a7f5ea39e152e118a14204375dc8b8f881cab",
+  "context_shape_fingerprint": "6815cc9ecb474dff505afcb66df1cd7af4b2af133352b45b229f27d07771adf1",
+  "recorded_at": "2026-10-07T21:59:07.171661+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "d3de3450f8fccec853250d4747cb505148ace40b1e44b7252376d021bb818a47",
+      "decision_shape_fingerprint": "748d390ba26e4440be361435ada6236f61732b2e479a8011a7537e41c2fd2709",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "compare_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4302.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "match_resume_to_job",
+        "arguments": {}
+      },
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "4bf7a42ecc6218f5ee2fa544f09ca07ab35407fa470735a3116768f1c4ea75d8",
+      "decision_shape_fingerprint": "e40fd0e7f58acb1d6b93163bf5eb80e7a6c8430dab250e942867d754fbb3d218",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "compare_saved_jobs",
+        "match_resume_to_job",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2289.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:59:06.329601+00:00",
+      "elapsed_ms": 6659.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d3de3450f8fccec853250d4747cb505148ace40b1e44b7252376d021bb818a47",
+          "decision_shape_fingerprint": "748d390ba26e4440be361435ada6236f61732b2e479a8011a7537e41c2fd2709",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4302.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "4bf7a42ecc6218f5ee2fa544f09ca07ab35407fa470735a3116768f1c4ea75d8",
+          "decision_shape_fingerprint": "e40fd0e7f58acb1d6b93163bf5eb80e7a6c8430dab250e942867d754fbb3d218",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2289.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:59:06.158114+00:00",
+      "elapsed_ms": 5346.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d3de3450f8fccec853250d4747cb505148ace40b1e44b7252376d021bb818a47",
+          "decision_shape_fingerprint": "748d390ba26e4440be361435ada6236f61732b2e479a8011a7537e41c2fd2709",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2865.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "4bf7a42ecc6218f5ee2fa544f09ca07ab35407fa470735a3116768f1c4ea75d8",
+          "decision_shape_fingerprint": "e40fd0e7f58acb1d6b93163bf5eb80e7a6c8430dab250e942867d754fbb3d218",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2373.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:59:07.171661+00:00",
+      "elapsed_ms": 6246.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d3de3450f8fccec853250d4747cb505148ace40b1e44b7252376d021bb818a47",
+          "decision_shape_fingerprint": "748d390ba26e4440be361435ada6236f61732b2e479a8011a7537e41c2fd2709",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4373.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "4bf7a42ecc6218f5ee2fa544f09ca07ab35407fa470735a3116768f1c4ea75d8",
+          "decision_shape_fingerprint": "e40fd0e7f58acb1d6b93163bf5eb80e7a6c8430dab250e942867d754fbb3d218",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1807.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

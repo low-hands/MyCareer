@@ -1,0 +1,222 @@
+{
+  "scenario": "saved_jd_body_drives_the_next_read_step",
+  "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "e032a54f4f80e7e86b5d2bf005e4812db58f37c337e6cbb328c6c15fb6cf89ac",
+  "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
+  "recorded_at": "2026-10-07T21:58:18.718640+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "list_resumes"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+      "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3434.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "implicit_capability_load",
+          "retried": true,
+          "raw_output": {
+            "content": "JD 明确要求 Rust。为了继续匹配简历，我需要先分析岗位并选定一个简历版本。当前没有已绑定的简历版本，需要先列出简历供选择。\n\n",
+            "tool_calls": [
+              {
+                "name": "list_resumes",
+                "arguments": "{}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_resumes",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "6156e69eaef835b277ff0fd5dc293534280f3b38ac94cfe204bfff504b5560b5",
+      "decision_shape_fingerprint": "c907c8a1120ae2e27f3b15cc1f51fc3b26b1407a0a672ece7bacd97c61529e56",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_resumes",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2457.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:20.187431+00:00",
+      "elapsed_ms": 5954.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_resumes"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3434.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "JD 明确要求 Rust。为了继续匹配简历，我需要先分析岗位并选定一个简历版本。当前没有已绑定的简历版本，需要先列出简历供选择。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_resumes",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6156e69eaef835b277ff0fd5dc293534280f3b38ac94cfe204bfff504b5560b5",
+          "decision_shape_fingerprint": "c907c8a1120ae2e27f3b15cc1f51fc3b26b1407a0a672ece7bacd97c61529e56",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_resumes",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2457.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:17.659114+00:00",
+      "elapsed_ms": 3157.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3096.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:18.718640+00:00",
+      "elapsed_ms": 3680.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3620.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

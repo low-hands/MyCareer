@@ -1,0 +1,148 @@
+{
+  "scenario": "a_stored_report_is_read_back_rather_than_recalled",
+  "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "1fad49bfe19506649afc991cbfbc1d987d63385053313d693f0919947f75a516",
+  "context_shape_fingerprint": "6870b9be60f58b242200c44bb7cdbe61d9f7030dda2dccbbbcdc767e3921ad85",
+  "recorded_at": "2026-10-07T21:58:02.704955+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_job_research",
+        "arguments": {
+          "reference": "report_9ca510"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "4c84a9fe46b805f10590f572bf7c873a5d47a2da96efb53f40c14ae176f2fe7c",
+      "decision_shape_fingerprint": "254c4097fa6d96b68d2b82efe4322f5ecd40424080abb27cc86cd6beede199a4",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "create_interview",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4282.6,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:01.808571+00:00",
+      "elapsed_ms": 4370.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_9ca510"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c84a9fe46b805f10590f572bf7c873a5d47a2da96efb53f40c14ae176f2fe7c",
+          "decision_shape_fingerprint": "254c4097fa6d96b68d2b82efe4322f5ecd40424080abb27cc86cd6beede199a4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "create_interview",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4282.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:02.876496+00:00",
+      "elapsed_ms": 4752.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_9ca510"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c84a9fe46b805f10590f572bf7c873a5d47a2da96efb53f40c14ae176f2fe7c",
+          "decision_shape_fingerprint": "254c4097fa6d96b68d2b82efe4322f5ecd40424080abb27cc86cd6beede199a4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "create_interview",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4696.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:02.704955+00:00",
+      "elapsed_ms": 4489.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_9ca510"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c84a9fe46b805f10590f572bf7c873a5d47a2da96efb53f40c14ae176f2fe7c",
+          "decision_shape_fingerprint": "254c4097fa6d96b68d2b82efe4322f5ecd40424080abb27cc86cd6beede199a4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "create_interview",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4433.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

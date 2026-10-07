@@ -1,0 +1,152 @@
+{
+  "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
+  "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "f4cab019da58ff2086b71a859b8da8c1819675e49f83e67122e94cb1922b2e45",
+  "context_shape_fingerprint": "37f048c49dcc5a1603a30c1635d95e9939d05660fb35d4589f5e037566930600",
+  "recorded_at": "2026-10-07T21:58:29.641419+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查询已保存的 RAG 岗位。请稍后再试。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+      "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 5518.3,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "raw_output": {
+            "content": "岗位库暂时不可用，无法查询您保存过的 RAG 岗位。请稍后重试或检查网络连接。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:28.090140+00:00",
+      "elapsed_ms": 5578.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查询已保存的 RAG 岗位。请稍后再试。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5518.3,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "岗位库暂时不可用，无法查询您保存过的 RAG 岗位。请稍后重试或检查网络连接。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:28.085139+00:00",
+      "elapsed_ms": 5510.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查找你保存过的 RAG 岗位。请稍后再试。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5443.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "岗位库暂时不可用，无法查找已保存的 RAG 岗位。请稍后再试。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:29.641419+00:00",
+      "elapsed_ms": 6796.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"岗位库暂时不可用，无法查找已保存的 RAG 岗位。请稍后再试。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6735.8,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "岗位库暂时不可用，无法查找您保存过的 RAG 岗位。您可以稍后重试，或确认是否有其他方式可以访问这些岗位信息。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

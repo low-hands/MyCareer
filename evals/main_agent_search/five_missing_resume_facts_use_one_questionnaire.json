@@ -1,0 +1,112 @@
+{
+  "scenario": "five_missing_resume_facts_use_one_questionnaire",
+  "policy": "For two to eight independent missing facts needed for the current task, use JSON action='questionnaire' rather than a Markdown question list.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "8f327a0c610dde5e6d902907adecf10ca73f320fd38bd12afaba97d0c7a0c804",
+  "context_shape_fingerprint": "ce63e8185614deddd488ff82e8eac2523542b5e4048c92001044811397fa0579",
+  "recorded_at": "2026-10-07T21:58:59.589417+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五项关于简历定制的信息，每题可跳过或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验情况？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关经验吗？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有开源项目或技术博客吗？请简要描述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "5de5b2137202ffbfb1e24a20e66cf0850a1d9de4f27bbdafad4783f307920121",
+      "decision_shape_fingerprint": "82ba93a2c89260fbfb201288d290908da980adfa3a95ca95892abecdfd95d538",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 7561.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:59.664413+00:00",
+      "elapsed_ms": 7624.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五项关于简历定制的信息，每题可跳过或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验情况？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关经验吗？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有开源项目或技术博客吗？请简要描述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5de5b2137202ffbfb1e24a20e66cf0850a1d9de4f27bbdafad4783f307920121",
+          "decision_shape_fingerprint": "82ba93a2c89260fbfb201288d290908da980adfa3a95ca95892abecdfd95d538",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 7561.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:59:00.787009+00:00",
+      "elapsed_ms": 8334.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五项关于简历定制的问题，以便后续进行精准优化。您可以选择跳过任意问题或明确回答“没有”。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请描述您的前端开发经验（如年限、主要技术栈、核心项目等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"您使用过哪些向量数据库？（如 Milvus, Pinecone, Chroma 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"您是否有 Dify 平台的使用或开发经验？请简要说明。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"您常用哪些 AI 编程工具？（如 GitHub Copilot, Cursor, Codeium 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"您是否有参与的开源项目或个人技术博客？如有，请提供链接或简要介绍。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5de5b2137202ffbfb1e24a20e66cf0850a1d9de4f27bbdafad4783f307920121",
+          "decision_shape_fingerprint": "82ba93a2c89260fbfb201288d290908da980adfa3a95ca95892abecdfd95d538",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 8271.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:59.589417+00:00",
+      "elapsed_ms": 7059.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息，允许跳过或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过的向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"Dify 经验？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"开源项目或博客？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5de5b2137202ffbfb1e24a20e66cf0850a1d9de4f27bbdafad4783f307920121",
+          "decision_shape_fingerprint": "82ba93a2c89260fbfb201288d290908da980adfa3a95ca95892abecdfd95d538",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6993.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

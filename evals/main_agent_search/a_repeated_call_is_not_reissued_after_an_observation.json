@@ -1,0 +1,263 @@
+{
+  "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
+  "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
+  "selection_mode": "search",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "2860fee8256867886d992a9c920e3a292cc64faa7eb6a7c5d642f639c67dbebb",
+  "context_shape_fingerprint": "35be590b42294ef652d531ab0aa3febf15a1b0304fbdf362ae3d9ac30b1f24a7",
+  "recorded_at": "2026-10-07T21:58:27.370898+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "find_saved_jobs",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "02f3c81e875f69b15ba29d2e84c71ff0459508f3d1d23f8c99696289957142dc",
+      "decision_shape_fingerprint": "037348c981cd03b940f471564cfff08c87a5645dc64b84b564440247e4f9d7ee",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "get_job_research",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2273.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **算法工程师** - 示例科技（上海），薪资 30-50K\\n\\n需要我读取这个岗位的详细信息，或者与其他岗位进行比较吗？\",\"questions\":[]}",
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "dd8354fe5596496cc069495723f46cf349c4af9e2ea2df2a5f755e541a7c70c3",
+      "decision_shape_fingerprint": "17163bf7a1d728a77b1b59090a5ba22de0fbf0462d19d71bc975637d8e79c8df",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "get_saved_job",
+        "compare_saved_jobs",
+        "get_job_research",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 5683.3,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "raw_output": {
+            "content": "已找到 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n如需查看该岗位的完整职位描述，请告诉我。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-07T21:58:28.280079+00:00",
+      "elapsed_ms": 8063.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "02f3c81e875f69b15ba29d2e84c71ff0459508f3d1d23f8c99696289957142dc",
+          "decision_shape_fingerprint": "037348c981cd03b940f471564cfff08c87a5645dc64b84b564440247e4f9d7ee",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2273.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你目前保存了 1 个岗位：\\n\\n1. **算法工程师** - 示例科技（上海），薪资 30-50K\\n\\n需要我读取这个岗位的详细信息，或者与其他岗位进行比较吗？\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "dd8354fe5596496cc069495723f46cf349c4af9e2ea2df2a5f755e541a7c70c3",
+          "decision_shape_fingerprint": "17163bf7a1d728a77b1b59090a5ba22de0fbf0462d19d71bc975637d8e79c8df",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5683.3,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "已找到 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n如需查看该岗位的完整职位描述，请告诉我。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:30.057934+00:00",
+      "elapsed_ms": 9037.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "02f3c81e875f69b15ba29d2e84c71ff0459508f3d1d23f8c99696289957142dc",
+          "decision_shape_fingerprint": "037348c981cd03b940f471564cfff08c87a5645dc64b84b564440247e4f9d7ee",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3195.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"找到了 1 个已保存岗位：\\n\\n1. 示例科技 - 算法工程师（上海，30-50K）\\n\\n你想查看这个岗位的详细信息吗？或者有其他需要帮助的地方？\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "dd8354fe5596496cc069495723f46cf349c4af9e2ea2df2a5f755e541a7c70c3",
+          "decision_shape_fingerprint": "17163bf7a1d728a77b1b59090a5ba22de0fbf0462d19d71bc975637d8e79c8df",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5744.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "你目前保存了 1 个岗位：\n\n1. **算法工程师** - 示例科技（上海），薪资 30-50K\n\n需要我读取这个岗位的详细信息，或者你有其他想了解的方面吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-07T21:58:27.370898+00:00",
+      "elapsed_ms": 5826.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "02f3c81e875f69b15ba29d2e84c71ff0459508f3d1d23f8c99696289957142dc",
+          "decision_shape_fingerprint": "037348c981cd03b940f471564cfff08c87a5645dc64b84b564440247e4f9d7ee",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2981.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "dd8354fe5596496cc069495723f46cf349c4af9e2ea2df2a5f755e541a7c70c3",
+          "decision_shape_fingerprint": "17163bf7a1d728a77b1b59090a5ba22de0fbf0462d19d71bc975637d8e79c8df",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2781.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}
