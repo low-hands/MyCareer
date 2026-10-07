@@ -65,12 +65,8 @@ class AuthorizationEngine:
         max_projection_refusals: int,
         max_authorization_refusals: int,
         max_failure_retries: int,
-        search_mode: bool = False,
     ) -> None:
-        self._availability = ToolAvailabilityMiddleware(
-            tools=tools,
-            search_mode=search_mode,
-        )
+        self._availability = ToolAvailabilityMiddleware(tools=tools)
         self._tracing = MiddlewareTracing(
             record_trace_event=record_trace_event,
         )
@@ -82,7 +78,6 @@ class AuthorizationEngine:
             max_read_calls=max_read_calls,
             max_write_calls=max_write_calls,
             max_external_write_calls=max_external_write_calls,
-            search_mode=search_mode,
         )
         self._idempotency = IdempotencyMiddleware(
             max_failure_retries=max_failure_retries

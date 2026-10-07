@@ -5,7 +5,6 @@ from typing import Any, Literal
 from career_agent.agent.runtime.observability import RuntimeObservability
 from career_agent.agent.runtime.ports import DecisionMakerSlot, RuntimePorts
 from career_agent.agent.context.manager import ContextManager
-from career_agent.agent.context.turn_builder import keyword_tool_profile
 from career_agent.agent.context.career import CareerContextProjector
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker

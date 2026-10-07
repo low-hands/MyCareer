@@ -14,7 +14,7 @@ from career_agent.agent.capabilities.catalog import CAPABILITIES, CapabilityDesc
 from career_agent.agent.context.semantic_retrieval import EmbeddingClient
 
 
-EXCLUDED = frozenset({"search_capabilities", "route_to_capability"})
+EXCLUDED = frozenset({"search_capabilities"})
 MIN_SEMANTIC_SIMILARITY = 0.55
 MAX_SEMANTIC_CANDIDATES = 10
 COMMON_EXAMPLE_TERM_FRACTION = 0.15

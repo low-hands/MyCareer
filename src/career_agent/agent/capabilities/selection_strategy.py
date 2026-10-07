@@ -24,7 +24,6 @@ MAX_SEARCH_CALLS_PER_TURN = 5
 
 class ToolSelectionStrategy(Protocol):
     mode: str
-    ingress_profile: bool
 
     def select(
         self, context: MainAgentContext,
@@ -54,7 +53,6 @@ def capability_directory() -> str:
 
 class SearchStrategy:
     mode = "search"
-    ingress_profile = False
 
     def __init__(
         self, *, proactive_enabled: bool = True, intent_enabled: bool = True,
@@ -91,7 +89,6 @@ class SearchStrategy:
         state_needed = tuple(
             name for name in CAPABILITIES
             if name in STATE_GATED_TOOLS and reachable(name, task)
-            and name != "route_to_capability"
         )
         if context.turn_continuation_capability is not None:
             state_needed = (*state_needed, context.turn_continuation_capability)
@@ -111,7 +108,7 @@ class SearchStrategy:
         sources: dict[str, str] = {}
         for source, names in source_names:
             for name in names:
-                if name != "route_to_capability" and CAPABILITIES[name].model_callable:
+                if name in registered_names and CAPABILITIES[name].model_callable:
                     sources.setdefault(name, source)
         selected = tuple(name for name in sources if name not in waiting)
         selection = prepare_capability_selection(
@@ -180,12 +177,3 @@ def selection_trace(selection: CapabilitySelection) -> dict[str, object]:
             json.dumps(selection.schemas, ensure_ascii=False, sort_keys=True)
         ),
     }
-
-
-def strategy_for_mode(mode: str) -> ToolSelectionStrategy:
-    if mode == "search":
-        return SearchStrategy()
-    if mode == "legacy":
-        from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy
-        return LegacyProfileStrategy()
-    raise ValueError("MAIN_AGENT_TOOL_SELECTION must be legacy or search")

@@ -24,14 +24,8 @@ class AvailableCapability:
 class ToolAvailabilityMiddleware:
     """Resolve execution kind and enforce the model's offered tool set."""
 
-    def __init__(
-        self,
-        *,
-        tools: MainAgentToolRegistry,
-        search_mode: bool = False,
-    ) -> None:
+    def __init__(self, *, tools: MainAgentToolRegistry) -> None:
         self._tools = tools
-        self._search_mode = search_mode
 
     def resolve(
         self,
@@ -75,12 +69,7 @@ class ToolAvailabilityMiddleware:
             return AuthorizationRefusal(
                 kind="not_offered",
                 reason=f"{name} 未在本次模型调用中提供。",
-                next_action=(
-                    "请从本次提供的工具中选择；如果所需工具不在其中，先调用 search_capabilities。"
-                    if self._search_mode else
-                    "请从本次提供的工具中选择；如果所需工具不在其中，"
-                    "先使用 route_to_capability 切换当前工具档。"
-                ),
+                next_action="请从本次提供的工具中选择；如果所需工具不在其中，先调用 search_capabilities。",
             )
         if not runtime_owned:
             kind = self._tools.capability_kind(name)

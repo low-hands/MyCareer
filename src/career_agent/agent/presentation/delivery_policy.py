@@ -137,8 +137,6 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "capability_confirmation_in_progress": _PLAIN,
     "owner_settings_updated": _PLAIN,
     "owner_settings_conflict": _PLAIN,
-    "tool_profile_switched": _PLAIN,
-    "tool_profile_unchanged": _PLAIN,
     "capabilities_found": _PLAIN,
     "no_capabilities_found": _PLAIN,
     "calendar_sync_not_available": _FAILED,

@@ -25,9 +25,6 @@ from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
 from career_agent.agent.capabilities.catalog import (
     CAPABILITIES,
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
 )
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus

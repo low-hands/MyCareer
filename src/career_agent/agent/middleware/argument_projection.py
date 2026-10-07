@@ -31,7 +31,6 @@ from career_agent.agent.contracts.projections.memory import (
     project_working_notes_arguments,
 )
 from career_agent.agent.contracts.projections.resume import project_resume_arguments
-from career_agent.agent.contracts.task_state import RouteToCapabilityToolArguments
 from career_agent.agent.contracts.tools.application import UpdateOwnerSettingsToolArguments
 from career_agent.agent.contracts.tools.core_memory import (
     SearchCapabilitiesToolArguments,
@@ -234,12 +233,6 @@ def project_atomic_arguments(
         return {
             "user_id": context.profile.user_id,
             **LoadSkillToolArguments.model_validate(arguments).model_dump(),
-        }
-    if name == "route_to_capability":
-        model_arguments = RouteToCapabilityToolArguments.model_validate(arguments)
-        return {
-            "current_tool_profile": context.task.tool_profile,
-            **model_arguments.model_dump(),
         }
     if name == "search_capabilities":
         model_arguments = SearchCapabilitiesToolArguments.model_validate(arguments)

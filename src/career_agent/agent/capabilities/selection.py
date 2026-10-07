@@ -1,8 +1,4 @@
-"""Contract for a future per-model-call capability selector.
-
-This module prepares and validates a selector's output. It does not choose
-tools or change the current profile-based model request.
-"""
+"""Validate a model call's selected capabilities and derive their schemas."""
 
 from __future__ import annotations
 
@@ -14,9 +10,7 @@ from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.contracts.task_state import ConversationTaskState
 
 
-# The old ``core`` profile is not an always-offered set: it includes domain
-# discovery lists and writes. An always-offered tool must earn its place from
-# the tool-selection evaluation, rather than inherit it from that profile.
+# These tools can be useful before any task-specific capability is loaded.
 ALWAYS_OFFERED_TOOLS: tuple[str, ...] = (
     "search_capabilities",
     "load_skill",

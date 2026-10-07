@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.resources.conversation_span import explicit_sequence_span
-from career_agent.agent.capabilities.catalog import ToolProfile
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
@@ -12,8 +11,7 @@ from career_agent.agent.contracts.decisions import (
 )
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.runtime.state import MainAgentState
-from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy, legacy_offers_tool
-from career_agent.agent.capabilities.selection_strategy import ToolSelectionStrategy
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.contracts.turn import (
     MainAgentTurnResult,
     RuntimeAction,
@@ -43,12 +41,12 @@ class TurnRouter:
         context_manager: ContextManager,
         confirmation_store: SQLiteCapabilityConfirmationStore | None,
         agent_loop: AgentLoop,
-        selection_strategy: ToolSelectionStrategy | None = None,
+        selection_strategy: SearchStrategy | None = None,
     ) -> None:
         self._context_manager = context_manager
         self._confirmation_store = confirmation_store
         self._agent_loop = agent_loop
-        self._selection_strategy = selection_strategy or LegacyProfileStrategy()
+        self._selection_strategy = selection_strategy or SearchStrategy()
 
     def accepts_background_turn(self, *, user_id: str, conversation_id: str) -> bool:
         task = self._context_manager.get_task(
@@ -163,14 +161,6 @@ class TurnRouter:
                 "arguments": arguments,
             },
         }
-
-    @staticmethod
-    def offers_tool(
-        name: str,
-        profile: ToolProfile = "core",
-        task: ConversationTaskState | None = None,
-    ) -> bool:
-        return legacy_offers_tool(name, profile, task)
 
     def run_runtime_policy_tool(
         self,

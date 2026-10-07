@@ -29,7 +29,7 @@ from career_agent.agent.runtime.decision_attempts import (
 )
 from career_agent.harness.observability import record_active_trace
 from career_agent.agent.runtime.decision_messages import assemble_decision_messages
-from career_agent.agent.capabilities.legacy_profile import LEGACY_TOOL_POLICY
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
 from career_agent.agent.runtime.decision_messages import (
@@ -603,9 +603,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             cached = self._static_request_cache.get(id(tool_specs))
             if cached is not None and cached.source_specs is tool_specs:
                 return cached
-            tools = _normalize_tool_specs(tool_specs) + interaction_schemas(
-                continuation=getattr(self._tool_selection_strategy, "mode", "legacy") == "search",
-            )
+            tools = _normalize_tool_specs(tool_specs) + interaction_schemas(continuation=True)
             system_prompt = self._effective_system_prompt()
             system_message: dict[str, Any] = {
                 "role": "system",
@@ -1123,10 +1121,12 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
 
     def _effective_system_prompt(self) -> str:
         strategy = self._tool_selection_strategy
-        return self._system_prompt(strategy.tool_policy() if strategy is not None else LEGACY_TOOL_POLICY)
+        return self._system_prompt(strategy.tool_policy() if strategy is not None else SearchStrategy().tool_policy())
 
     @staticmethod
-    def _system_prompt(tool_policy: str = LEGACY_TOOL_POLICY) -> str:
+    def _system_prompt(tool_policy: str | None = None) -> str:
+        if tool_policy is None:
+            tool_policy = SearchStrategy().tool_policy()
         return (
             "Return exactly one offered native business or interaction function. "
             "Use capability contracts and authoritative runtime state to determine "

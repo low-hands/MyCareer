@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import re
 from typing import Literal
 
 from career_agent.agent.context.manager import ContextManager
@@ -12,7 +11,6 @@ from career_agent.agent.resources.input import (
     resolve_input_resources,
     resolve_job_input_resources,
 )
-from career_agent.agent.capabilities.catalog import ToolProfile
 from career_agent.agent.contracts.candidates import (
     ActiveSavedJobContextItem,
     SavedJobCandidateContextItem,
@@ -41,67 +39,6 @@ class PreparedTurnContext:
     active_application: tuple[str | None, ApplicationStatus | None]
 
 
-_FAST_PROFILE_PATTERNS: tuple[tuple[ToolProfile, re.Pattern[str]], ...] = (
-    (
-        "interview",
-        re.compile(
-            r"(?:模拟面试|面试(?:准备|安排|通知|记录|复盘|题|官)|"
-            r"(?:准备|参加|安排|记录|模拟).{0,4}面试|"
-            r"(?:有|收到|约了|参加).{0,8}面试|mock\s+interview|interview\s+prep)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "application",
-        re.compile(
-            r"(?:投递(?:记录|进度|状态)?|申请进度|招聘邮件|offer(?:\s|$)|"
-            r"跟进招聘|application\s+status)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "resume",
-        re.compile(
-            r"(?:简历(?:分析|优化|修改|润色|匹配|导出)?|(?:^|\s)CV(?:\s|$)|resume)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "job",
-        re.compile(
-            r"(?:找.{0,12}(?:工作|岗位|职位|实习)|搜(?:索)?.{0,8}(?:岗位|职位|实习)|"
-            r"(?:分析|看看|对比).{0,8}(?:JD|岗位|职位)|岗位库|职位描述|job\s+search)",
-            re.IGNORECASE,
-        ),
-    ),
-)
-
-_NAMED_CAPABILITY_PATTERNS: tuple[tuple[ToolProfile, re.Pattern[str]], ...] = (
-    ("interview", re.compile(r"模拟面试|mock\s+interview", re.IGNORECASE)),
-)
-
-
-def keyword_tool_profile(message: str) -> ToolProfile | None:
-    """Route only unmistakable domain language; actions still need a decision."""
-
-    normalized = " ".join(message.split())
-    if not normalized:
-        return None
-    named = {
-        profile
-        for profile, pattern in _NAMED_CAPABILITY_PATTERNS
-        if pattern.search(normalized)
-    }
-    if len(named) == 1:
-        return next(iter(named))
-    matches = [
-        profile
-        for profile, pattern in _FAST_PROFILE_PATTERNS
-        if pattern.search(normalized)
-    ]
-    return matches[0] if len(matches) == 1 else None
-
-
 class TurnContextBuilder:
     """Resolve trusted turn inputs and construct the context given to a runner."""
 
@@ -111,12 +48,10 @@ class TurnContextBuilder:
         context_manager: ContextManager,
         tools: MainAgentToolRegistry,
         owns_next_turn: Callable[[ConversationTaskState], bool],
-        ingress_profile: bool = True,
     ) -> None:
         self._context_manager = context_manager
         self._tools = tools
         self._owns_next_turn = owns_next_turn
-        self._ingress_profile = ingress_profile
 
     def prepare(
         self,
@@ -184,7 +119,6 @@ class TurnContextBuilder:
         user_id: str,
         conversation_id: str,
         user_message: str,
-        route_profile: bool,
     ) -> MainAgentContext:
         context = self._context_manager.load_for_turn(
             user_id=user_id,
@@ -198,16 +132,6 @@ class TurnContextBuilder:
             prepared.active_application,
         )
         context = self.refresh_saved_job_focus(context)
-        if route_profile and self._ingress_profile:
-            fast_profile = keyword_tool_profile(context.user_message)
-            if fast_profile is not None and context.task.tool_profile == "core":
-                context = context.model_copy(
-                    update={
-                        "task": context.task.model_copy(
-                            update={"tool_profile": fast_profile}
-                        )
-                    }
-                )
         return context
 
     def load_workflow_turn(

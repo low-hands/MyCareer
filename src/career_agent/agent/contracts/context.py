@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -624,10 +619,8 @@ class MainAgentContext(ContractModel):
                     else None
                 ),
                 **(
-                    {"tool_profile": self.task.tool_profile}
-                    if self.capability_selection is None
-                    or self.capability_selection.mode == "legacy"
-                    else self.capability_selection.tool_projection
+                    self.capability_selection.tool_projection
+                    if self.capability_selection is not None else {}
                 ),
                 "phase": self.task.phase,
                 "email_sync_phase": self.task.email_sync_phase,

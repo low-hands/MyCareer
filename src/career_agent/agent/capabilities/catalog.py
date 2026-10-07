@@ -3,7 +3,7 @@
 Handlers remain dependency-bound by :class:`MainAgentToolRegistry`, but every
 static fact used to expose, authorize, gate, and replay a capability lives in
 this catalogue.  The small compatibility modules ``tool_effects``,
-``tool_profiles``, and ``tool_reachability`` derive their public views from it.
+``tool_reachability`` derives its public view from it.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal, Mapping, get_args
+from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 from career_agent.agent.capabilities.example_queries import EXAMPLE_QUERIES
 
@@ -19,13 +19,6 @@ if TYPE_CHECKING:
     from career_agent.agent.contracts.task_state import ConversationTaskState
 else:
     ConversationTaskState = Any
-
-ToolProfile = Literal["core", "job", "resume", "application", "interview", "memory"]
-TOOL_PROFILE_NAMES: tuple[ToolProfile, ...] = get_args(ToolProfile)
-DOMAIN_TOOL_PROFILES: tuple[ToolProfile, ...] = tuple(
-    name for name in TOOL_PROFILE_NAMES if name != "core"
-)
-
 
 ToolEffect = Literal["READ", "WRITE", "CONTROL"]
 ExecutionKind = Literal["atomic_tool", "workflow", "runtime_workflow"]
@@ -43,8 +36,6 @@ class CapabilityDescriptor:
     description: str | None
     arguments_model: str | None
     effect: ToolEffect
-    profiles: frozenset[ToolProfile]
-    legacy_profile_exposed: bool = True
     namespace: str | None = None
     summary: str | None = None
     aliases_zh: tuple[str, ...] = ()
@@ -195,19 +186,6 @@ _ALWAYS_CONFIRM = frozenset({
 # Model-facing schema metadata. The insertion order is part of the stable
 # tool-prefix contract sent to providers; append deliberately and do not sort.
 _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
-    'route_to_capability': (
-        'RouteToCapabilityToolArguments',
-        (
-            'Expose a required tool outside the current profile by switching to its domain: job (save'
-            'd jobs, comparison, company research), resume (critique, experience import, job match, t'
-            'ailoring, export), application (applications, status, email events), interview (rounds, '
-            'preparation, retro, calendar, mock interview) or memory (career facts, preferences, amen'
-            'dments, deletions). task.tool_profile shows the current profile and task.available_now t'
-            'he tools usable in it. Core tools are shared by every profile. A tool already offered ne'
-            'eds no route; its missing inputs or approval must be supplied, not bypassed by routing. '
-            'Routing only changes the offered tool set, not business data, evidence, or authority.'
-        ),
-    ),
     'read_conversation_span': (
         'ReadConversationSpanToolArguments',
         (
@@ -838,7 +816,6 @@ MODEL_SCHEMA_ORDER: tuple[str, ...] = tuple(_SCHEMA_SPECS)
 def _capability(
     name: str,
     effect: ToolEffect,
-    *profiles: ToolProfile,
     execution_kind: ExecutionKind = "atomic_tool",
     external_write: bool = False,
     replay_safe: bool = False,
@@ -849,7 +826,6 @@ def _capability(
     schema_gated: bool = False,
     precondition: Precondition | None = None,
     requirement: str | None = None,
-    legacy_profile_exposed: bool = True,
 ) -> CapabilityDescriptor:
     schema_spec = _SCHEMA_SPECS.get(name)
     approval_policy: ApprovalPolicy
@@ -874,8 +850,6 @@ def _capability(
         arguments_model=schema_spec[0] if schema_spec is not None else None,
         description=schema_spec[1] if schema_spec is not None else None,
         effect=effect,
-        profiles=frozenset(profiles),
-        legacy_profile_exposed=legacy_profile_exposed,
         execution_kind=execution_kind,
         approval_policy=approval_policy,
         replay_policy=replay_policy,
@@ -892,88 +866,85 @@ def _capability(
 
 
 def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
-    # Core tools are exposed in every profile.  Domain-only tools list each
-    # profile in which they are visible.
-    yield _capability("route_to_capability", "CONTROL", "core")
-    yield _capability("load_skill", "READ", "core")
-    yield _capability("read_conversation_span", "READ", "core")
-    yield _capability("update_working_notes", "WRITE", "core", notes_guarded=False)
-    yield _capability("fetch_archived_constraints", "READ", "core")
-    yield _capability("search_career_memory", "READ", "core")
-    yield _capability("update_owner_settings", "WRITE", "core", replay_safe=True)
-    yield _capability("get_daily_brief", "READ", "core")
-    yield _capability("list_action_items", "READ", "core")
-    yield _capability("complete_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
-    yield _capability("dismiss_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
-    yield _capability("snooze_action_item", "WRITE", "core", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
-    yield _capability("open_job_search", "WRITE", "core")
-    yield _capability("find_saved_jobs", "READ", "core", notes_guarded=True)
-    yield _capability("list_resumes", "READ", "core")
-    yield _capability("list_applications", "READ", "core")
-    yield _capability("list_interviews", "READ", "core")
+    yield _capability("load_skill", "READ")
+    yield _capability("read_conversation_span", "READ")
+    yield _capability("update_working_notes", "WRITE", notes_guarded=False)
+    yield _capability("fetch_archived_constraints", "READ")
+    yield _capability("search_career_memory", "READ")
+    yield _capability("update_owner_settings", "WRITE", replay_safe=True)
+    yield _capability("get_daily_brief", "READ")
+    yield _capability("list_action_items", "READ")
+    yield _capability("complete_action_item", "WRITE", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("dismiss_action_item", "WRITE", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("snooze_action_item", "WRITE", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
+    yield _capability("open_job_search", "WRITE")
+    yield _capability("find_saved_jobs", "READ", notes_guarded=True)
+    yield _capability("list_resumes", "READ")
+    yield _capability("list_applications", "READ")
+    yield _capability("list_interviews", "READ")
 
-    yield _capability("get_saved_job", "READ", "job", "resume", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
-    yield _capability("analyze_job", "WRITE", "job", "resume", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
-    yield _capability("correct_job_requirement_tier", "WRITE", "job")
-    yield _capability("compare_saved_jobs", "READ", "job", notes_guarded=True, preference_bound=True, precondition=lambda task: bool(task.saved_job_candidates), requirement="先用 find_saved_jobs 列出可比较的岗位")
-    yield _capability("research_job", "WRITE", "job", execution_kind="workflow", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
-    yield _capability("retry_job_research", "WRITE", "job", execution_kind="workflow", schema_gated=True, precondition=lambda task: bool(task.active_job_research_run_id), requirement="只能重试当前会话里已发起的公司调研")
-    yield _capability("get_job_research", "READ", "job", reference_readback=True)
-    yield _capability("list_target_roles", "READ", "job", "resume")
-    yield _capability("propose_job_intent", "READ", "job", "memory")
-    yield _capability("confirm_job_intent", "WRITE", "job", "memory", schema_gated=True, precondition=lambda task: task.pending_job_intent_update is not None, requirement="先用 propose_job_intent 展示意图变更")
+    yield _capability("get_saved_job", "READ", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("analyze_job", "WRITE", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("correct_job_requirement_tier", "WRITE")
+    yield _capability("compare_saved_jobs", "READ", notes_guarded=True, preference_bound=True, precondition=lambda task: bool(task.saved_job_candidates), requirement="先用 find_saved_jobs 列出可比较的岗位")
+    yield _capability("research_job", "WRITE", execution_kind="workflow", precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("retry_job_research", "WRITE", execution_kind="workflow", schema_gated=True, precondition=lambda task: bool(task.active_job_research_run_id), requirement="只能重试当前会话里已发起的公司调研")
+    yield _capability("get_job_research", "READ", reference_readback=True)
+    yield _capability("list_target_roles", "READ")
+    yield _capability("propose_job_intent", "READ")
+    yield _capability("confirm_job_intent", "WRITE", schema_gated=True, precondition=lambda task: task.pending_job_intent_update is not None, requirement="先用 propose_job_intent 展示意图变更")
 
-    yield _capability("get_resume_metadata", "READ", "resume", precondition=lambda task: bool(task.resume_candidates), requirement="先用 list_resumes 列出简历")
-    yield _capability("match_resume_to_job", "WRITE", "resume", preference_bound=True, precondition=lambda task: _reachable_via_job(task) and _reachable_via_resume_version(task) and _has_current_job_analysis(task), requirement="先用 analyze_job 分析当前 JD，并同时选定一个岗位和一个简历版本")
-    yield _capability("get_resume_job_match", "READ", "resume", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="先用 match_resume_to_job 完成岗位匹配")
-    yield _capability("draft_resume_tailoring", "WRITE", "resume", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="定制前需先用 match_resume_to_job 完成岗位匹配")
-    yield _capability("get_resume_tailoring_draft", "READ", "resume", precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
-    yield _capability("review_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
-    yield _capability("revise_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
-    yield _capability("finalize_resume_tailoring", "WRITE", "resume", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
-    yield _capability("export_resume_artifact", "WRITE", "resume", precondition=lambda task: bool(task.active_resume_version_id), requirement="先选定一个简历版本（定制完成后自动选定）")
+    yield _capability("get_resume_metadata", "READ", precondition=lambda task: bool(task.resume_candidates), requirement="先用 list_resumes 列出简历")
+    yield _capability("match_resume_to_job", "WRITE", preference_bound=True, precondition=lambda task: _reachable_via_job(task) and _reachable_via_resume_version(task) and _has_current_job_analysis(task), requirement="先用 analyze_job 分析当前 JD，并同时选定一个岗位和一个简历版本")
+    yield _capability("get_resume_job_match", "READ", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="先用 match_resume_to_job 完成岗位匹配")
+    yield _capability("draft_resume_tailoring", "WRITE", precondition=lambda task: bool(task.active_resume_job_match_id), requirement="定制前需先用 match_resume_to_job 完成岗位匹配")
+    yield _capability("get_resume_tailoring_draft", "READ", precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("review_resume_tailoring", "WRITE", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("revise_resume_tailoring", "WRITE", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("finalize_resume_tailoring", "WRITE", schema_gated=True, precondition=lambda task: bool(task.active_resume_tailoring_draft_id), requirement=_NEEDS_TAILORING_DRAFT)
+    yield _capability("export_resume_artifact", "WRITE", precondition=lambda task: bool(task.active_resume_version_id), requirement="先选定一个简历版本（定制完成后自动选定）")
 
-    yield _capability("get_application", "READ", "application", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
-    yield _capability("create_application", "WRITE", "application", replay_safe=True, preference_bound=True, precondition=_reachable_via_job, requirement=_NEEDS_JOB)
-    yield _capability("update_application_status", "WRITE", "application", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
-    yield _capability("sync_application_emails", "WRITE", "application", execution_kind="workflow")
-    yield _capability("list_email_events", "READ", "application")
-    yield _capability("resolve_email_event", "WRITE", "application", precondition=lambda task: bool(task.email_event_candidates), requirement="先用 list_email_events 列出邮件事件")
+    yield _capability("get_application", "READ", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
+    yield _capability("create_application", "WRITE", replay_safe=True, preference_bound=True, precondition=_reachable_via_job, requirement=_NEEDS_JOB)
+    yield _capability("update_application_status", "WRITE", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
+    yield _capability("sync_application_emails", "WRITE", execution_kind="workflow")
+    yield _capability("list_email_events", "READ")
+    yield _capability("resolve_email_event", "WRITE", precondition=lambda task: bool(task.email_event_candidates), requirement="先用 list_email_events 列出邮件事件")
 
-    yield _capability("get_interview", "READ", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
-    yield _capability("create_interview", "WRITE", "interview", precondition=lambda task: _reachable_via_application(task) or _reachable_via_job(task), requirement="需要上下文唯一指向一条投递记录或一个已保存岗位；若都没有，先询问是否纳入跟踪，并请用户提供或选择公司与岗位，不能关联无关 JD")
-    yield _capability("update_interview", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
-    yield _capability("complete_interview", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
-    yield _capability("record_interview_retro", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
-    yield _capability("prepare_interview", "WRITE", "interview", precondition=lambda task: _reachable_via_interview(task) or bool(task.action_candidates), requirement="先选定一轮面试或一条待办事项")
-    yield _capability("get_interview_preparation", "READ", "interview", reference_readback=True)
-    yield _capability("list_calendar_accounts", "READ", "interview")
-    yield _capability("list_calendar_links", "READ", "interview")
-    yield _capability("prepare_interview_calendar_sync", "WRITE", "interview", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
-    yield _capability("get_calendar_proposal", "READ", "interview", precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
-    yield _capability("execute_calendar_proposal", "WRITE", "interview", external_write=True, replay_safe=True, schema_gated=True, precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
-    yield _capability("start_mock_interview", "WRITE", "interview", execution_kind="workflow", precondition=lambda task: True, requirement="可直接自由练习，也可选择一条投递或面试")
-    yield _capability("restart_mock_interview", "WRITE", "interview", execution_kind="workflow", schema_gated=True, precondition=lambda task: task.active_workflow == "mock_interview" and task.phase in {"mock_interview_checkpoint_missing", "mock_interview_graph_incompatible"}, requirement="只有模拟面试检查点丢失或不兼容时才能重启")
-    yield _capability("get_mock_interview_result", "READ", "interview", reference_readback=True)
+    yield _capability("get_interview", "READ", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("create_interview", "WRITE", precondition=lambda task: _reachable_via_application(task) or _reachable_via_job(task), requirement="需要上下文唯一指向一条投递记录或一个已保存岗位；若都没有，先询问是否纳入跟踪，并请用户提供或选择公司与岗位，不能关联无关 JD")
+    yield _capability("update_interview", "WRITE", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("complete_interview", "WRITE", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("record_interview_retro", "WRITE", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("prepare_interview", "WRITE", precondition=lambda task: _reachable_via_interview(task) or bool(task.action_candidates), requirement="先选定一轮面试或一条待办事项")
+    yield _capability("get_interview_preparation", "READ", reference_readback=True)
+    yield _capability("list_calendar_accounts", "READ")
+    yield _capability("list_calendar_links", "READ")
+    yield _capability("prepare_interview_calendar_sync", "WRITE", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
+    yield _capability("get_calendar_proposal", "READ", precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
+    yield _capability("execute_calendar_proposal", "WRITE", external_write=True, replay_safe=True, schema_gated=True, precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
+    yield _capability("start_mock_interview", "WRITE", execution_kind="workflow", precondition=lambda task: True, requirement="可直接自由练习，也可选择一条投递或面试")
+    yield _capability("restart_mock_interview", "WRITE", execution_kind="workflow", schema_gated=True, precondition=lambda task: task.active_workflow == "mock_interview" and task.phase in {"mock_interview_checkpoint_missing", "mock_interview_graph_incompatible"}, requirement="只有模拟面试检查点丢失或不兼容时才能重启")
+    yield _capability("get_mock_interview_result", "READ", reference_readback=True)
 
-    yield _capability("search_career_history", "READ", "memory")
-    yield _capability("search_career_episodes", "READ", "memory")
-    yield _capability("get_career_memory_detail", "READ", "memory")
-    yield _capability("resolve_claim_source", "READ", "memory")
-    yield _capability("propose_free_text_preference_confirmation", "READ", "memory")
-    yield _capability("confirm_free_text_preference", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_free_text_preference is not None, requirement=_NEEDS_PROPOSAL)
-    yield _capability("propose_memory_amendment", "READ", "memory")
-    yield _capability("confirm_memory_amendment", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_memory_amendment is not None, requirement=_NEEDS_PROPOSAL)
-    yield _capability("propose_memory_tombstone", "READ", "memory")
-    yield _capability("confirm_memory_tombstone", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_memory_tombstone is not None, requirement=_NEEDS_PROPOSAL)
-    yield _capability("propose_career_fact", "WRITE", "memory")
-    yield _capability("confirm_career_fact", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_career_fact is not None, requirement=_NEEDS_PROPOSAL)
-    yield _capability("propose_constraint_retirement", "READ", "memory")
-    yield _capability("confirm_constraint_retirement", "WRITE", "memory", schema_gated=True, precondition=lambda task: task.pending_constraint_retirement is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("search_career_history", "READ")
+    yield _capability("search_career_episodes", "READ")
+    yield _capability("get_career_memory_detail", "READ")
+    yield _capability("resolve_claim_source", "READ")
+    yield _capability("propose_free_text_preference_confirmation", "READ")
+    yield _capability("confirm_free_text_preference", "WRITE", schema_gated=True, precondition=lambda task: task.pending_free_text_preference is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_memory_amendment", "READ")
+    yield _capability("confirm_memory_amendment", "WRITE", schema_gated=True, precondition=lambda task: task.pending_memory_amendment is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_memory_tombstone", "READ")
+    yield _capability("confirm_memory_tombstone", "WRITE", schema_gated=True, precondition=lambda task: task.pending_memory_tombstone is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_career_fact", "WRITE")
+    yield _capability("confirm_career_fact", "WRITE", schema_gated=True, precondition=lambda task: task.pending_career_fact is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("propose_constraint_retirement", "READ")
+    yield _capability("confirm_constraint_retirement", "WRITE", schema_gated=True, precondition=lambda task: task.pending_constraint_retirement is not None, requirement=_NEEDS_PROPOSAL)
 
     yield _capability("handle_mock_interview_input", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
     yield _capability("retry_mock_interview", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
-    yield _capability("search_capabilities", "CONTROL", legacy_profile_exposed=False)
+    yield _capability("search_capabilities", "CONTROL")
 
 
 def _descriptors() -> Iterable[CapabilityDescriptor]:
@@ -1094,7 +1065,6 @@ def _descriptors() -> Iterable[CapabilityDescriptor]:
             ("confirm_constraint_retirement", "用户同意后停用已展示的对话约束。", ("确认约束退役", "取消旧限制"), ()),
         ),
         "control": (
-            ("route_to_capability", "迁移期间切换旧工具组以暴露所需工具。", ("切换工具组", "路由到能力"), ()),
             ("search_capabilities", "按描述或名称搜索可用能力，不执行搜索结果。", ("查找工具", "搜索能力"), ()),
         ),
     }
@@ -1159,10 +1129,6 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"external write must always require approval: {descriptor.name}")
         if descriptor.runtime_owned != (descriptor.execution_kind == "runtime_workflow"):
             raise RuntimeError(f"runtime ownership and execution kind disagree: {descriptor.name}")
-        if descriptor.model_callable and not descriptor.profiles and descriptor.legacy_profile_exposed:
-            raise RuntimeError(f"model-callable capability needs a profile: {descriptor.name}")
-        if descriptor.model_callable and descriptor.profiles and not descriptor.legacy_profile_exposed:
-            raise RuntimeError(f"hidden legacy capability cannot have a profile: {descriptor.name}")
         if descriptor.model_callable:
             if not descriptor.namespace or not descriptor.namespace.strip():
                 raise RuntimeError(f"model-callable capability needs a namespace: {descriptor.name}")
@@ -1170,7 +1136,7 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
                 raise RuntimeError(f"model-callable capability needs a summary: {descriptor.name}")
             if not 2 <= len(descriptor.aliases_zh) <= 5:
                 raise RuntimeError(f"model-callable capability needs 2-5 Chinese aliases: {descriptor.name}")
-            searchable = descriptor.name not in {"search_capabilities", "route_to_capability"}
+            searchable = descriptor.name != "search_capabilities"
             if searchable and not 5 <= len(descriptor.example_queries) <= 10:
                 raise RuntimeError(f"searchable capability needs 5-10 example queries: {descriptor.name}")
             if not searchable and descriptor.example_queries:
@@ -1199,8 +1165,6 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"model-callable capability needs a tool schema: {descriptor.name}")
         if not descriptor.model_callable and descriptor.name in _SCHEMA_SPECS:
             raise RuntimeError(f"runtime-only capability cannot expose a tool schema: {descriptor.name}")
-        if not descriptor.model_callable and descriptor.profiles:
-            raise RuntimeError(f"runtime-only capability cannot have a model profile: {descriptor.name}")
         if (descriptor.precondition is None) != (descriptor.requirement is None):
             raise RuntimeError(f"precondition and requirement must be declared together: {descriptor.name}")
         if descriptor.schema_gated and descriptor.precondition is None:

@@ -14,16 +14,13 @@ from career_agent.agent.runtime.decision_attempts import (
     observing_decision_attempts,
 )
 from career_agent.agent.runtime.decision_messages import decision_context_chars
-from career_agent.agent.capabilities.catalog import ToolProfile
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
     DecisionMaker,
 )
 from career_agent.agent.contracts.observations import decision_observation_chars
-from career_agent.agent.contracts.task_state import ConversationTaskState
-from career_agent.agent.capabilities.legacy_profile import LegacyProfileStrategy
-from career_agent.agent.capabilities.selection_strategy import ToolSelectionStrategy, selection_trace
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy, selection_trace
 from career_agent.agent.capabilities.effects import is_notes_guarded
 from career_agent.agent.runtime.turn_coordinator import STREAM_SINK
 from career_agent.agent.middleware.working_notes import working_notes_only_tokens
@@ -59,7 +56,7 @@ class DecisionEngine:
         decision_maker_provider: Callable[[], DecisionMaker],
         tools: MainAgentToolRegistry,
         career_memory_enabled: bool,
-        selection_strategy: ToolSelectionStrategy | None = None,
+        selection_strategy: SearchStrategy | None = None,
     ) -> None:
         self._emit = emit
         self._decision_heartbeat = decision_heartbeat
@@ -70,26 +67,13 @@ class DecisionEngine:
         self._decision_maker_provider = decision_maker_provider
         self._tools = tools
         self._career_memory_enabled = career_memory_enabled
-        self._selection_strategy = selection_strategy or LegacyProfileStrategy()
+        self._selection_strategy = selection_strategy or SearchStrategy()
         self._registered_tool_schemas: tuple[dict[str, Any], ...] | None = None
-
-    @property
-    def selection_mode(self) -> str:
-        return self._selection_strategy.mode
 
     def registered_schemas(self) -> tuple[dict[str, Any], ...]:
         if self._registered_tool_schemas is None:
             self._registered_tool_schemas = tuple(self._tools.schemas())
         return self._registered_tool_schemas
-
-    def tool_schemas(
-        self,
-        profile: ToolProfile,
-        task: ConversationTaskState | None = None,
-    ) -> tuple[dict[str, Any], ...]:
-        if self._selection_strategy.mode != "legacy":
-            raise ValueError("profile schemas are only available in legacy mode")
-        return self._selection_strategy.schemas(profile, task, self.registered_schemas())
 
     def select(self, context: MainAgentContext):
         return self._selection_strategy.select(context, self.registered_schemas())
@@ -115,8 +99,7 @@ class DecisionEngine:
         )
         decision_maker = self._decision_maker_provider()
         details = self._trace_details(decision_context, schemas, decision_maker)
-        if selection.mode == "search":
-            details.update(selection_trace(selection))
+        details.update(selection_trace(selection))
         started = perf_counter()
         self._record_trace_event(
             "model_attempt",
@@ -251,7 +234,6 @@ class DecisionEngine:
                 context.tool_observations
             ),
             "observation_count": len(context.tool_observations),
-            "tool_profile": context.task.tool_profile,
             "offered_tool_count": len(schemas),
             "tool_schema_chars": len(
                 json.dumps(schemas, ensure_ascii=False, sort_keys=True)

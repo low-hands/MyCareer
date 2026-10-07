@@ -321,7 +321,6 @@ class TurnCoordinator(Generic[TurnResultT]):
                 user_id=user_id,
                 conversation_id=conversation_id,
                 user_message=user_message,
-                route_profile=False,
             )
             try:
                 result = self._operations.run_interaction_response(
@@ -404,7 +403,6 @@ class TurnCoordinator(Generic[TurnResultT]):
             user_id=user_id,
             conversation_id=conversation_id,
             user_message=user_message,
-            route_profile=True,
         )
         try:
             result = self._operations.run_loaded_context(

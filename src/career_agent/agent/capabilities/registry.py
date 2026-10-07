@@ -73,7 +73,6 @@ from career_agent.agent.contracts.profile import (
 from career_agent.agent.contracts.resources import ConversationResourceReference
 from career_agent.agent.contracts.task_state import (
     ConversationTaskState,
-    RouteToCapabilityToolArguments,
 )
 from career_agent.agent.contracts.tools.action_center import (
     ExecuteCalendarProposalToolArguments,
@@ -411,7 +410,6 @@ class MainAgentToolRegistry:
             str, Callable[[dict[str, Any]], MainAgentToolOutput]
         ] = {}
         self._atomic_handlers: dict[str, Callable[[dict[str, Any]], ToolObservation]] = {
-            "route_to_capability": self._route_to_capability,
             "search_capabilities": self._search_capabilities,
             "open_job_search": self._open_job_search,
         }
@@ -4778,29 +4776,6 @@ class MainAgentToolRegistry:
             message=clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT),
             proposal=proposal,
             execution_outcome="not_committed",
-        )
-
-    @staticmethod
-    def _route_to_capability(arguments: dict[str, Any]) -> ToolObservation:
-        current = arguments.get("current_tool_profile")
-        model_arguments = RouteToCapabilityToolArguments.model_validate(
-            {key: value for key, value in arguments.items() if key != "current_tool_profile"}
-        )
-        domain = model_arguments.domain
-        if current == domain:
-            return ToolObservation(
-                tool_name="route_to_capability",
-                state="tool_profile_unchanged",
-                message=f"当前已在 {domain} 工具档。",
-                next_action="直接使用 task.available_now 中的工具，不要重复路由。",
-                payload={"tool_profile": domain},
-            )
-        return ToolObservation(
-            tool_name="route_to_capability",
-            state="tool_profile_switched",
-            message=f"工具档已切换为 {domain}。",
-            next_action="根据更新后的 task.available_now 选择下一步工具。",
-            payload={"tool_profile": domain},
         )
 
     def _search_capabilities(self, arguments: dict[str, Any]) -> ToolObservation:

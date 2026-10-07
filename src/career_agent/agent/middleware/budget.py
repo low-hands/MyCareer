@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from career_agent.agent.capabilities.catalog import DOMAIN_TOOL_PROFILES
 from career_agent.agent.runtime.state import LoopControl
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
 from career_agent.agent.capabilities.effects import ToolEffect, is_external_write
@@ -16,26 +15,20 @@ class BudgetMiddleware:
         max_read_calls: int,
         max_write_calls: int,
         max_external_write_calls: int,
-        search_mode: bool = False,
     ) -> None:
         self._max_read_calls = max_read_calls
         self._max_write_calls = max_write_calls
         self._max_external_write_calls = max_external_write_calls
-        self._search_mode = search_mode
 
     def bucket(
         self, control: LoopControl, *, name: str, effect: ToolEffect
     ) -> tuple[str, int, int]:
-        if self._search_mode and name == "search_capabilities":
+        if name == "search_capabilities":
             return "SEARCH", control.get("search_calls", 0), MAX_SEARCH_CALLS_PER_TURN
         if effect == "READ":
             return "READ", control.get("read_calls", 0), self._max_read_calls
         if effect == "CONTROL":
-            return (
-                "CONTROL",
-                control.get("control_calls", 0),
-                len(DOMAIN_TOOL_PROFILES),
-            )
+            raise ValueError(f"unknown control capability: {name}")
         external_used = control.get("external_write_calls", 0)
         if is_external_write(name):
             return (
