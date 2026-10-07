@@ -5,6 +5,7 @@ from typing import Any
 
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
 from career_agent.agent.runtime.state import LoopControl, MainAgentState
 from career_agent.agent.middleware.approval import ApprovalMiddleware
 from career_agent.agent.middleware.argument_projection import (
@@ -128,6 +129,10 @@ class AuthorizationEngine:
             name=name,
             task=state["context"].task,
             offered_tool_names=state.get("control", {}).get("offered_tool_names", ()),
+            waiting_tool_names=tuple(
+                item.tool_name for item in state["context"].tool_observations
+                if item.state in WAITING_FOR_USER_STATES
+            ),
             runtime_owned=runtime_owned,
             owner_confirmed=owner_confirmed,
             policy_owned=policy_owned,

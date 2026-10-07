@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
@@ -14,6 +16,63 @@ from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.runtime.observation_reducer import ObservationReducer
+
+
+@pytest.mark.parametrize(
+    ("state", "disposition", "retain", "expected_loaded"),
+    (
+        ("resumes_listed", "completed", True, True),
+        ("resumes_listed", "completed", False, False),
+        ("invalid_input", "failed", True, False),
+        ("working_notes_derived_argument", "completed", True, False),
+    ),
+)
+def test_successful_tool_stays_loaded_only_in_search_mode(
+    state, disposition, retain, expected_loaded,
+) -> None:
+    class Clock:
+        def now(self):
+            return None
+
+    context = MainAgentContext(
+        conversation_id="c1", profile=CareerProfileContext(user_id="u1"),
+        user_message="看看简历", task=ConversationTaskState(),
+    )
+    reducer = ObservationReducer(
+        context_manager=Clock(),  # type: ignore[arg-type]
+        emit_trace=lambda *args, **kwargs: None,
+        update_mock_interview_task=lambda context, result: context,
+        update_atomic_task=lambda context, result, now: context,
+        tool_call_fingerprint=lambda decision: "fingerprint",
+        tool_observation=lambda name, result, arguments: DecisionObservation(
+            tool_name=name, state=result.state, message=result.message,
+        ),
+        retain_successful_tools=retain,
+    )
+    update = reducer.reduce({
+        "context": context,
+        "decision": AgentDecision(
+            action="tool_call", tool_call=ToolCall(name="list_resumes", arguments={}),
+        ),
+        "pending": {
+            "name": "list_resumes", "effect": "READ",
+            "result": ToolObservation(
+                tool_name="list_resumes", state=state, message="完成。",
+                disposition=disposition,
+            ),
+        },
+        "control": {},
+    })
+    updated = update["context"]
+    assert ("list_resumes" in updated.task.loaded_capabilities) is expected_loaded
+    if expected_loaded:
+        next_turn = MainAgentContext.model_validate(updated.model_dump()).model_copy(
+            update={"tool_observations": (), "user_message": "再看一次"},
+        )
+        schemas = tuple(item.tool_schema() for item in CAPABILITIES.values() if item.model_callable)
+        assert "list_resumes" in SearchStrategy(
+            proactive_enabled=False, intent_enabled=False,
+        ).select(next_turn, schemas).offered_names
 
 
 def test_synthetic_refusal_reduces_without_runtime_host_or_task_mutation() -> None:

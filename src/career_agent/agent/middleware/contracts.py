@@ -6,6 +6,8 @@ from typing import Literal
 
 AuthorizationRefusalKind = Literal[
     "not_offered",
+    "precondition",
+    "waiting_for_user",
     "preference_deny",
     "budget_exhausted",
     "duplicate_call",

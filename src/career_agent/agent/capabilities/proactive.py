@@ -24,15 +24,45 @@ BOUND_RESOURCE_READS = (
     ("active_calendar_proposal_id", "get_calendar_proposal"),
 )
 
+_NON_SUCCESS_RESULT_STATES = frozenset({
+    "authorization_refused",
+    "invalid_input",
+    "working_notes_stale",
+})
+
 
 def eligible_successors(observation: DecisionObservation) -> tuple[str, ...]:
-    if (
-        observation.state in WAITING_FOR_USER_STATES
-        or is_failed(observation.state)
-        or observation.tool_name not in CAPABILITIES
-    ):
+    if not succeeded(observation):
         return ()
     return CAPABILITIES[observation.tool_name].successors
+
+
+def succeeded(observation: DecisionObservation) -> bool:
+    """Use the same success boundary for retained tools and W successors."""
+    return retainable_tool_result(
+        observation.tool_name,
+        observation.state,
+        observation.disposition or "completed",
+        observation.execution_outcome,
+    )
+
+
+def retainable_tool_result(
+    name: str, state: str, disposition: str = "completed",
+    execution_outcome: str | None = None,
+) -> bool:
+    """A completed model-callable tool stays loaded in search mode."""
+    descriptor = CAPABILITIES.get(name)
+    return bool(
+        descriptor is not None
+        and descriptor.model_callable
+        and descriptor.effect != "CONTROL"
+        and disposition == "completed"
+        and execution_outcome not in {"not_committed", "unknown"}
+        and state not in _NON_SUCCESS_RESULT_STATES
+        and state not in WAITING_FOR_USER_STATES
+        and not is_failed(state)
+    )
 
 
 def proactive_tool_names(context: MainAgentContext) -> tuple[str, ...]:

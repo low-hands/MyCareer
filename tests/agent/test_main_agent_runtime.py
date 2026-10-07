@@ -2303,6 +2303,8 @@ def test_saved_job_exposes_only_the_bounded_presenter_body_not_internal_payload(
     assert observation.model_dump() == {
         "tool_name": "get_saved_job",
         "state": "saved_job_ready",
+        "disposition": "completed",
+        "execution_outcome": None,
         "message": "已读取已保存岗位。",
         "body": sentinel,
         "facts": {},
@@ -3418,6 +3420,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="questionnaire", message="请补充五项信息。",
+            continuation_capability="list_resumes",
             questions=(
                 UserQuestion(
                     question_id="q1", prompt="用过哪种数据库？", kind="single",
@@ -3440,7 +3443,11 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     interaction = next(event for event in first_events if event.type == "interaction_required")
     assert interaction.kind == "questionnaire" and len(interaction.questions) == 5
     assert first_events[-1].type == "turn_suspended"
-    assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is not None
+    pending = manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire
+    assert pending is not None
+    # The fixture registry offered no tools, so a model-declared continuation
+    # is not bound to this questionnaire.
+    assert pending.continuation_capability is None
     graph_config = {
         "configurable": {
             "thread_id": main_graph_thread_id(
@@ -3464,6 +3471,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert result.assistant_message == "收到这五项补充，继续当前任务。"
     assert second_events[-1].type == "turn_completed"
     assert len(decisions.contexts) == 2
+    assert decisions.contexts[1].turn_continuation_capability is None
     assert "内部检索平台" in decisions.contexts[1].user_message
     assert "泛泛的技能回答不能扩写成项目" in decisions.contexts[1].user_message
     assert "propose_career_fact" in decisions.contexts[1].user_message
@@ -3640,7 +3648,7 @@ def test_questionnaire_resource_removed_before_submit_fails_closed(tmp_path, res
     assert len(decisions.contexts) == 1
 
 
-@pytest.mark.parametrize("failure", ("expired", "binding_changed"))
+@pytest.mark.parametrize("failure", ("expired", "binding_changed", "match_binding_changed"))
 def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_path, failure) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
@@ -3672,8 +3680,14 @@ def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_pat
         )
         expected = "QUESTIONNAIRE_EXPIRED"
         message_part = "已过期"
-    else:
+    elif failure == "binding_changed":
         task = task.update_resume_context(active_version_id="other-resume")
+        expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
+        message_part = "已变化"
+    else:
+        task = task.with_pending_questionnaire(
+            pending.model_copy(update={"resume_job_match_id": "old-match"})
+        ).update_resume_context(active_job_match_id="new-match")
         expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
         message_part = "已变化"
     store.upsert_task(user_id="u1", conversation_id="c1", task=task)

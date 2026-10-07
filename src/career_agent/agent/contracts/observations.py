@@ -271,6 +271,8 @@ class DecisionObservation(ContractModel):
 
     tool_name: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     state: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    disposition: Literal["completed", "interaction_required", "failed"] | None = None
+    execution_outcome: Literal["committed", "not_committed", "unknown"] | None = None
     message: str = Field(
         min_length=1,
         max_length=DECISION_OBSERVATION_RECEIPT_LIMIT,
@@ -408,6 +410,10 @@ def decision_observation_projection(
     projected = []
     for observation in observations:
         line = observation.model_dump(mode="json", exclude_none=True)
+        # Selection needs these receipts, but the model-facing observation
+        # already explains the outcome through state and message.
+        line.pop("disposition", None)
+        line.pop("execution_outcome", None)
         reference = observation.resource_ref
         if reference is not None and reference_handles is not None:
             handle = reference_handles.get(reference.resource_id)
