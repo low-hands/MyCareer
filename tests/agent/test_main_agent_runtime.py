@@ -57,7 +57,7 @@ from career_agent.agent.contracts.resources import (
     ConversationMessageContext,
     ConversationResourceReference,
 )
-from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.runtime.observability import RuntimeObservability
@@ -93,6 +93,7 @@ from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
 from conftest import CatalogSchemaRegistry, enter_tool_profile
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 
 
 class DecisionMaker:
@@ -106,7 +107,7 @@ class DecisionMaker:
         self,
         decision: AgentDecision,
         *,
-        offered: tuple[str, ...] | None = ("route_to_capability", "open_job_search"),
+        offered: tuple[str, ...] | None = None,
     ) -> None:
         self.decision = decision
         self.offered = offered
@@ -115,31 +116,9 @@ class DecisionMaker:
         names = tuple(spec["function"]["name"] for spec in tool_names)
         if self.offered is not None:
             assert names == self.offered
-        elif self.decision.tool_call is not None:
+        elif self.decision.tool_call is not None and self.decision.tool_call.name in CAPABILITIES:
             assert self.decision.tool_call.name in names
         return self.decision
-
-
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        ("我有个字节的面试，帮我准备", "interview"),
-        ("开始模拟面试", "interview"),
-        # Named outright; the other domain words only describe the request.
-        ("我想做一场自由模拟面试，不针对具体投递", "interview"),
-        ("用我的简历做一场模拟面试", "interview"),
-        # Two topical domains and no named capability stay a model decision.
-        ("我投递的岗位有面试安排了", None),
-        ("看看我的投递进度", "application"),
-        ("帮我优化一下简历", "resume"),
-        ("找上海的 AIGC 实习", "job"),
-        ("分析这个 JD", "job"),
-        ("最近有点焦虑，聊聊吧", None),
-        ("记住我更喜欢小团队", None),
-    ],
-)
-def test_high_confidence_keyword_profile_routing(message, expected) -> None:
-    assert keyword_tool_profile(message) == expected
 
 
 class SequenceDecisionMaker:
@@ -183,27 +162,6 @@ def build_runtime(tmp_path, decision: AgentDecision):
     manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     tools = CountingRegistry()
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
-
-
-def test_keyword_route_skips_the_core_profile_decision(tmp_path) -> None:
-    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
-    manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    decisions = SequenceDecisionMaker(AgentDecision(action="final", message="请告诉我面试时间。"))
-    runtime = MainAgentRuntime(
-        context_manager=manager,
-        decision_maker=decisions,
-        tools=MainAgentToolRegistry(),
-    )
-
-    runtime.run_turn(
-        user_id="u1",
-        conversation_id="c1",
-        user_message="我有个字节的面试，帮我准备",
-    )
-
-    assert len(decisions.contexts) == 1
-    assert decisions.contexts[0].task.tool_profile == "interview"
-    assert manager.get_task(user_id="u1", conversation_id="c1").tool_profile == "interview"
 
 
 def _never_called_decision_maker():
@@ -951,13 +909,12 @@ def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     )
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "search_capabilities", "open_job_search")
+    assert tools.atomic_tool_names == ("search_capabilities", "open_job_search")
     assert [spec["function"]["name"] for spec in tools.schemas()] == [
-        "route_to_capability",
         "open_job_search",
         "search_capabilities",
     ]
-    description = tools.schemas()[1]["function"]["description"]
+    description = tools.schemas()[0]["function"]["description"]
     assert "ask for the city instead of guessing or searching nationwide" in description
     assert result.tool_results[0].state == "job_search_page_ready"
     action = next(event for event in events if isinstance(event, ClientActionEvent))
@@ -1021,7 +978,7 @@ def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
     tools = MainAgentToolRegistry(job_repository=repository)
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "search_capabilities", "open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tools.atomic_tool_names == ("search_capabilities", "open_job_search", "find_saved_jobs", "get_saved_job")
     assert tools.capability_kind("open_job_search") == "atomic_tool"
     assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
 
@@ -2642,8 +2599,6 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             kinds = {
                 "get_job_research": ("job_research_report", "report-1"),
                 "get_resume_job_match": ("resume_job_match", "match-1"),
@@ -2684,12 +2639,6 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
         AgentDecision(
             action="tool_call",
             tool_call=ToolCall(name="get_job_research", arguments={}),
-        ),
-        AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(
-                name="route_to_capability", arguments={"domain": "resume"}
-            ),
         ),
         AgentDecision(
             action="tool_call",
@@ -3009,8 +2958,6 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             if name == "get_career_memory_detail":
                 return ToolResult(
                     tool_name=name,
@@ -3049,12 +2996,6 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="get_career_memory_detail", arguments={}),
-            ),
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(
-                    name="route_to_capability", arguments={"domain": "job"}
-                ),
             ),
             AgentDecision(
                 action="tool_call",
@@ -3890,7 +3831,7 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
 
-    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job", "search_capabilities")
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("open_job_search", "find_saved_jobs", "get_saved_job", "search_capabilities")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
     tool_result = result.tool_results[0]
@@ -5627,8 +5568,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             self.calls.append(name)
             return ToolObservation(
                 tool_name=name,
@@ -5642,10 +5581,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
 
     def Runtime(**kwargs):
         def project(context, name, arguments):
-            if name == "route_to_capability":
-                return default_ports.project_atomic_tool_arguments(
-                    context, name, arguments
-                )
             return {"user_id": context.profile.user_id, **arguments}
 
         return MainAgentRuntime(
@@ -5672,12 +5607,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
             ),
             AgentDecision(
                 action="tool_call",
-                tool_call=ToolCall(
-                    name="route_to_capability", arguments={"domain": "interview"}
-                ),
-            ),
-            AgentDecision(
-                action="tool_call",
                 tool_call=ToolCall(name="execute_calendar_proposal", arguments={}),
             ),
             AgentDecision(action="final", message="请确认。"),
@@ -5693,7 +5622,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     assert states == [
         "application_ready",
         "authorization_refused",
-        "tool_profile_switched",
     ]
     assert "本轮 WRITE 委派预算已经用完" in result.context.tool_observations[1].message
     assert result.delegated_write_count == 1

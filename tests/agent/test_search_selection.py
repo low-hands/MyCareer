@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.selection import ALWAYS_OFFERED_TOOLS
-from career_agent.agent.capabilities.selection_strategy import SearchStrategy, strategy_for_mode
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.capabilities.selection_strategy import capability_directory
 from career_agent.agent.capabilities.search import searchable_capabilities
 from career_agent.agent.capabilities.search import search_catalog
@@ -307,24 +307,12 @@ def test_directory_is_stable_complete_and_metadata_only() -> None:
     assert "tool_profile" not in prompt
 
 
-def test_search_mode_fingerprint_has_its_own_namespace() -> None:
-    selection = SearchStrategy().select(_context(), SCHEMAS)
-    assert prompt_fingerprint(selection.schemas, mode="search") != prompt_fingerprint(selection.schemas)
-    assert trajectory_prompt_fingerprint(SCENARIOS[0], SCHEMAS, mode="search") != trajectory_prompt_fingerprint(SCENARIOS[0], SCHEMAS)
-
-
-def test_search_budget_is_independent_of_legacy_control_budget() -> None:
+def test_search_budget_is_bounded_per_turn() -> None:
     budget = BudgetMiddleware(
         max_read_calls=6, max_write_calls=1, max_external_write_calls=1,
-        search_mode=True,
     )
     assert budget.check({"search_calls": 4}, name="search_capabilities", effect="CONTROL") is None
     assert budget.check({"search_calls": 5}, name="search_capabilities", effect="CONTROL") is not None
-
-
-def test_unknown_mode_fails_during_strategy_construction() -> None:
-    with pytest.raises(ValueError, match="MAIN_AGENT_TOOL_SELECTION"):
-        strategy_for_mode("typo")
 
 
 def test_decide_uses_one_selection_for_model_and_execution() -> None:
@@ -374,8 +362,7 @@ def test_explicit_span_prelude_uses_strategy_offer() -> None:
     assert router.explicit_span_prelude(context)["decision"].tool_call.name == "read_conversation_span"
 
 
-def test_search_mode_is_wired_at_runtime_startup(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("MAIN_AGENT_TOOL_SELECTION", "search")
+def test_search_selection_is_wired_at_runtime_startup(tmp_path) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -402,11 +389,10 @@ def test_search_mode_is_wired_at_runtime_startup(tmp_path, monkeypatch) -> None:
     assert maker.context.model_context()["task"]["available_now"] == [
         schema["function"]["name"] for schema in maker.schemas
     ]
-    assert result.context.task.tool_profile == "core"
+    assert "tool_profile" not in result.context.task.model_dump()
 
 
-def test_search_result_loads_schema_on_the_next_decision(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("MAIN_AGENT_TOOL_SELECTION", "search")
+def test_search_result_loads_schema_on_the_next_decision(tmp_path) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -442,8 +428,7 @@ def test_search_result_loads_schema_on_the_next_decision(tmp_path, monkeypatch) 
     assert result.context.task.loaded_capabilities == ("list_resumes",)
 
 
-def test_unoffered_catalogue_call_loads_without_executing_original_tool(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("MAIN_AGENT_TOOL_SELECTION", "search")
+def test_unoffered_catalogue_call_loads_without_executing_original_tool(tmp_path) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))

@@ -1372,10 +1372,6 @@ def test_main_agent_match_reads_the_snapshot_the_capture_attached(tmp_path) -> N
         AgentDecision(action="final", message="已保存，我可以继续做匹配分析。"),
         AgentDecision(
             action="tool_call",
-            tool_call=ToolCall(name="route_to_capability", arguments={"domain": "resume"}),
-        ),
-        AgentDecision(
-            action="tool_call",
             tool_call=ToolCall(
                 name="match_resume_to_job",
                 arguments={"resume_version_selection_index": 1},

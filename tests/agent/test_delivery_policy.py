@@ -73,19 +73,19 @@ def _emitted_states() -> set[str]:
     The second pattern catches the mock interview graph mapping, whose states
     are dict values rather than ``state=`` keywords.
     """
-    source = _TOOLS_SOURCE.read_text()
+    source = _TOOLS_SOURCE.read_text(encoding="utf-8")
     states = set(re.findall(r'state="([a-z_]+)"', source))
     # ``invalid_input`` is emitted by the runtime's projection-refusal path,
     # not spelled as a tool-layer state literal. It belongs to the same
     # single-source-of-truth check, so the runtime source joins the scan.
     policy_sources = (
-        Path(inspect.getsourcefile(MainAgentRuntime)).read_text(),
-        Path(inspect.getsourcefile(AuthorizationEngine)).read_text(),
-        Path(inspect.getsourcefile(CapabilityExecutor)).read_text(),
-        Path(inspect.getsourcefile(ActionLedger)).read_text(),
-        Path(inspect.getsourcefile(InteractionCoordinator)).read_text(),
+        Path(inspect.getsourcefile(MainAgentRuntime)).read_text(encoding="utf-8"),
+        Path(inspect.getsourcefile(AuthorizationEngine)).read_text(encoding="utf-8"),
+        Path(inspect.getsourcefile(CapabilityExecutor)).read_text(encoding="utf-8"),
+        Path(inspect.getsourcefile(ActionLedger)).read_text(encoding="utf-8"),
+        Path(inspect.getsourcefile(InteractionCoordinator)).read_text(encoding="utf-8"),
         *(
-            path.read_text()
+            path.read_text(encoding="utf-8")
             for path in sorted(
                 Path(inspect.getsourcefile(agent_middleware)).parent.glob("*.py")
             )
@@ -494,7 +494,7 @@ def test_waiting_policy_and_control_disposition_cannot_drift() -> None:
             disposition="interaction_required",
         )
 
-    source = _TOOLS_SOURCE.read_text()
+    source = _TOOLS_SOURCE.read_text(encoding="utf-8")
     explicit_states = set()
     for block in re.split(r"ToolObservation\(", source)[1:]:
         constructor = block[: block.find(")\n")]
@@ -518,7 +518,7 @@ def test_a_match_receipt_must_embed_the_value_a_scenario_decides_on() -> None:
     This asserts every emitter of that state interpolates the fit rather than
     describing it, so the drift is a red test instead of a silent one.
     """
-    source = _TOOLS_SOURCE.read_text()
+    source = _TOOLS_SOURCE.read_text(encoding="utf-8")
     receipts = re.findall(r'message=f"[^"]*整体匹配度为[^"]*"', source)
 
     assert receipts, "no resume_job_match receipt found; did the wording change?"
@@ -549,7 +549,7 @@ def test_failure_disposition_is_intentional_and_not_waiting() -> None:
 
 
 def test_every_failed_emitter_declares_retryability_in_its_payload() -> None:
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     checked = 0
     for node in ast.walk(tree):
         if not (
@@ -757,7 +757,7 @@ def _states_that_attach_a_resource_ref() -> set[str]:
     is what ``_graph_states_with_a_reference`` does, for the states where the
     distinction matters.
     """
-    source = _TOOLS_SOURCE.read_text()
+    source = _TOOLS_SOURCE.read_text(encoding="utf-8")
     states = set()
     for block in re.split(r"return ToolObservation\(|= ToolObservation\(", source)[1:]:
         head = block[: block.find("\n    def ") if "\n    def " in block else len(block)]

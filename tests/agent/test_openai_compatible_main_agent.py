@@ -574,7 +574,7 @@ def test_main_agent_decision_maker_separates_control_data_and_native_chat() -> N
         "education",
     } & payload["career_memory"].keys()
     assert "resume_text" not in payload
-    assert "open_job_search" not in system_content
+    assert "open_job_search" in system_content
     assert (
         "single <system-reminder> after native prior turns"
     ) in system_content

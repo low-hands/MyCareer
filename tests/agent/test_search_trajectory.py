@@ -24,11 +24,11 @@ from career_agent.evaluation.search_trajectory import (
 from career_agent.evaluation.trajectory import TrajectoryStep, trajectory_tool_specs
 
 
-def test_search_scenarios_keep_legacy_catalogue_untouched() -> None:
+def test_search_scenarios_preserve_business_assertions() -> None:
     assert len(SEARCH_SCENARIOS) == len(SCENARIOS) == 46
-    legacy = {scenario.name: scenario for scenario in SCENARIOS}
+    base = {scenario.name: scenario for scenario in SCENARIOS}
     search = {scenario.name: scenario for scenario in SEARCH_SCENARIOS}
-    assert legacy["a_core_request_routes_before_job_analysis"].steps[0].expect_tool == "route_to_capability"
+    assert base["a_core_request_routes_before_job_analysis"].steps[0].expect_tool == "analyze_job"
     assert [step.expect_tool for step in search["a_core_request_routes_before_job_analysis"].steps] == ["analyze_job"]
     assert [step.expect_tool for step in search["tool_selection_combines_job_analysis_and_resume_match"].steps] == [
         "analyze_job", "match_resume_to_job",
@@ -37,7 +37,7 @@ def test_search_scenarios_keep_legacy_catalogue_untouched() -> None:
         "intent_is_not_inferred_from_a_job_the_user_liked",
         "planning_to_apply_does_not_create_an_application",
     ):
-        assert "analyze_job" in legacy[name].steps[0].forbid_tools
+        assert "analyze_job" in base[name].steps[0].forbid_tools
         assert "analyze_job" in search[name].steps[0].forbid_tools
 
 
@@ -165,10 +165,10 @@ def test_search_replay_accepts_intermediate_discovery() -> None:
     responses = (
         {"scenario_step": 0, "tool_call": {
             "name": "search_capabilities", "arguments": {"names": ["analyze_job"]},
-        }, "selected_schema_fingerprint": prompt_fingerprint(first.schemas, mode="search")},
+    }, "selected_schema_fingerprint": prompt_fingerprint(first.schemas)},
         {"scenario_step": 0, "tool_call": {
             "name": "analyze_job", "arguments": {},
-        }, "selected_schema_fingerprint": prompt_fingerprint(second.schemas, mode="search")},
+    }, "selected_schema_fingerprint": prompt_fingerprint(second.schemas)},
     )
     assert replay_search_sample(scenario, tool_specs=specs, responses=responses) == ()
 

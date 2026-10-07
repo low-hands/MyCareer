@@ -18,7 +18,6 @@ from career_agent.agent.capabilities.effects import (
     is_runtime_owned,
     replay_safe,
 )
-from career_agent.agent.capabilities.profiles import ROUTABLE_TOOLS, profile_tools
 from career_agent.agent.contracts.tools.job import FindSavedJobsToolArguments
 from career_agent.agent.capabilities.reachability import (
     PRECONDITIONS,
@@ -35,8 +34,8 @@ from career_agent.evaluation.trajectory import (
 
 def test_discovery_metadata_covers_the_model_catalogue() -> None:
     model_tools = [descriptor for descriptor in CAPABILITIES.values() if descriptor.model_callable]
-    assert len(model_tools) == 72
-    assert len({descriptor.name for descriptor in model_tools}) == 72
+    assert len(model_tools) == 71
+    assert len({descriptor.name for descriptor in model_tools}) == 71
     assert max(Counter(descriptor.namespace for descriptor in model_tools).values()) <= 10
     aliases = [alias for descriptor in model_tools for alias in descriptor.aliases_zh]
     assert len(aliases) == len(set(aliases))
@@ -57,10 +56,9 @@ def test_discovery_metadata_covers_the_model_catalogue() -> None:
     assert all(
         5 <= len(descriptor.example_queries) <= 10
         for descriptor in model_tools
-        if descriptor.name not in {"search_capabilities", "route_to_capability"}
+        if descriptor.name != "search_capabilities"
     )
     assert not capability("search_capabilities").example_queries
-    assert not capability("route_to_capability").example_queries
 
 
 def test_a_read_never_suggests_an_ungated_write() -> None:
@@ -94,8 +92,6 @@ def test_a_read_never_suggests_an_ungated_write() -> None:
         ({"successors": ("missing_tool",)}, "invalid capability successor"),
         ({"successors": ("handle_mock_interview_input",)}, "invalid capability successor"),
         ({"successors": ("create_application",)}, "a read cannot suggest an ungated write"),
-        ({"profiles": frozenset()}, "needs a profile"),
-        ({"legacy_profile_exposed": False}, "hidden legacy capability cannot have a profile"),
         ({"example_queries": ()}, "needs 5-10 example queries"),
         ({"example_queries": ("帮我找一下",) * 11}, "needs 5-10 example queries"),
         ({"example_queries": ("帮我",) * 5}, "must have 4-40 characters"),
@@ -113,7 +109,7 @@ def test_catalog_rejects_invalid_discovery_metadata(monkeypatch, changes, error)
 
 
 def test_excluded_and_runtime_capabilities_reject_examples(monkeypatch) -> None:
-    for name in ("search_capabilities", "route_to_capability", "handle_mock_interview_input"):
+    for name in ("search_capabilities", "handle_mock_interview_input"):
         descriptors = tuple(
             replace(descriptor, example_queries=("给我看看具体内容",) * 5)
             if descriptor.name == name else descriptor
@@ -124,36 +120,32 @@ def test_excluded_and_runtime_capabilities_reject_examples(monkeypatch) -> None:
             catalog_module._build_catalog()
 
 
-def test_discovery_metadata_does_not_change_model_schemas_or_prompt_fingerprint() -> None:
+def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "cba3a378685924fd60639f7dad8da29927fdb14f9a3207e7bb0633e7efdc7c3e"
+        "675d6c774ae719f1dc250a1ea0e6b19a5c9564679b11012f43ba7f01fb234ec8"
     )
     schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded).hexdigest() == (
-        "f801c8fd86e99a8704f1d5f1189099598f37134703dd285078bec64b013ffdef"
+        "768e4eb8021d0e31955eb7faa504aaf64cae8a000f65a4b13a06bab2ca705524"
     )
     assert prompt_fingerprint(schemas) == (
-        "077b9db3d56cdd8b7f07e8b364b875e5a7db6dbcbc3f448b5500d4f1edf2fe40"
+        "4c77f4d4a0434800ff1b9fc850050f8dfbf64994282272a58d28a1c8b0ec77e9"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "a27d3ecd951f05a387a030a017419c82f8581efdf9aa5b08a4cf9287561dfb38"
+        "b2c2a9e370eaca8271690c105a919399b54898d6e617c06fe975b95d39b3b33d"
     )
 
 
 def test_compatibility_views_are_derived_from_the_catalog() -> None:
     assert set(TOOL_EFFECTS) == set(CAPABILITIES)
-    assert ROUTABLE_TOOLS == frozenset(
-        name for name, descriptor in CAPABILITIES.items()
-        if descriptor.model_callable and descriptor.legacy_profile_exposed
-    )
     assert PRECONDITIONS == {
         name: descriptor.precondition
         for name, descriptor in CAPABILITIES.items()
@@ -179,17 +171,9 @@ def test_effect_and_safety_queries_read_the_same_descriptor() -> None:
         assert is_runtime_owned(name) is descriptor.runtime_owned
 
 
-def test_core_membership_expands_to_every_profile() -> None:
-    for name, descriptor in CAPABILITIES.items():
-        if "core" in descriptor.profiles:
-            assert all(name in profile_tools(profile) for profile in (
-                "core", "job", "resume", "application", "interview", "memory"
-            ))
-
-
 def test_registry_refuses_a_handler_bound_under_the_wrong_execution_kind() -> None:
     registry = MainAgentToolRegistry()
-    registry._workflow_handlers["route_to_capability"] = registry._route_to_capability
+    registry._workflow_handlers["search_capabilities"] = registry._search_capabilities
 
     try:
         registry._validate_catalog_bindings()
@@ -301,9 +285,9 @@ def test_output_contract_rejects_a_result_for_another_capability() -> None:
         state="completed",
         message="ok",
     )
-    registry._atomic_handlers["route_to_capability"] = lambda arguments: result
+    registry._atomic_handlers["search_capabilities"] = lambda arguments: result
     try:
-        registry.invoke_atomic_tool("route_to_capability", {})
+        registry.invoke_atomic_tool("search_capabilities", {})
     except ValueError as error:
         assert "returned result for" in str(error)
     else:

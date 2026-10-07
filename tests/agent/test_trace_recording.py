@@ -296,7 +296,6 @@ def test_a_refused_action_is_counted_by_gate_without_recording_its_prose(
     assert event.details == {
         "tool_name": "sync_application_emails",
         "refusal_kind": "not_offered",
-        "tool_profile": "core",
         "capped": False,
     }
     assert event.recoverable is True
@@ -387,4 +386,4 @@ def test_a_second_gate_reports_its_own_kind_not_the_first(tmp_path: Path) -> Non
         if event.event_type == "authorization_refused"
     ]
     assert [event.details["refusal_kind"] for event in refused] == ["duplicate_call"]
-    assert refused[0].details["tool_profile"] == "application"
+    assert "tool_profile" not in refused[0].details

@@ -33,13 +33,6 @@ class SequenceDecisionMaker:
         return self.decisions.pop(0)
 
 
-def _route(domain: str) -> AgentDecision:
-    return AgentDecision(
-        action="tool_call",
-        tool_call=ToolCall(
-            name="route_to_capability", arguments={"domain": domain}
-        ),
-    )
 
 
 def build_application_agent(tmp_path, decisions):
@@ -113,7 +106,6 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
                     arguments={"query": job.posting.title},
                 ),
             ),
-            _route("resume"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
@@ -132,7 +124,6 @@ def test_main_agent_tracks_active_job_and_resume_then_updates_across_turns(
                     arguments={"selection_index": 1},
                 ),
             ),
-            _route("application"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
@@ -280,7 +271,6 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
                     name="get_resume_metadata", arguments={"selection_index": 1}
                 ),
             ),
-            _route("application"),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="create_application", arguments={}),

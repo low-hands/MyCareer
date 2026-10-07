@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
-from career_agent.agent.capabilities.profiles import CORE_TOOLS
 from career_agent.agent.capabilities.selection import (
     ALWAYS_OFFERED_TOOLS,
     prepare_capability_selection,
@@ -21,18 +20,15 @@ def _schemas():
     )
 
 
-def test_core_profile_is_not_implicitly_always_offered() -> None:
-    assert len(CORE_TOOLS) == 17
+def test_only_small_discovery_set_is_always_offered() -> None:
     assert ALWAYS_OFFERED_TOOLS == (
         "search_capabilities", "load_skill", "read_conversation_span",
         "fetch_archived_constraints", "search_career_memory",
     )
-    assert {"update_owner_settings", "open_job_search"} <= CORE_TOOLS
 
 
 def test_cross_domain_selection_uses_one_offer_and_reports_blocked_step() -> None:
     task = ConversationTaskState(
-        tool_profile="job",
         active_job_posting_id="job-1",
         active_resume_version_id="resume-1",
     )
@@ -52,7 +48,6 @@ def test_cross_domain_selection_uses_one_offer_and_reports_blocked_step() -> Non
     ready = prepare_capability_selection(
         ("analyze_job", "match_resume_to_job"),
         task=ConversationTaskState(
-            tool_profile="job",
             active_job_posting_id="job-1",
             active_resume_version_id="resume-1",
             active_jd_snapshot_id="jd-1",

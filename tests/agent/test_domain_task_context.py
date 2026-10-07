@@ -8,7 +8,6 @@ from career_agent.agent.contracts.task_state import ConversationTaskState
 def test_task_state_has_only_orchestration_and_grouped_domain_fields() -> None:
     assert tuple(ConversationTaskState.model_fields) == (
         "workflow",
-        "tool_profile",
         "loaded_capabilities",
         "pending_interaction",
         "domain_context",

@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 
-from career_agent.agent.capabilities.catalog import CAPABILITIES, TOOL_PROFILE_NAMES
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.search import (
     MAX_SEMANTIC_CANDIDATES,
@@ -20,7 +20,6 @@ from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.tools.core_memory import SearchCapabilitiesToolArguments
 from career_agent.agent.middleware.argument_projection import project_atomic_arguments
-from career_agent.agent.runtime.decision_engine import DecisionEngine
 from career_agent.agent.runtime.reducers import reduce_task_state
 from career_agent.evaluation.tool_selection_scenarios import SELECTION_DEV
 from career_agent.evaluation.tool_selection_scenarios import SELECTION_HOLDOUT
@@ -168,7 +167,7 @@ def test_development_query_recall_and_control_write_exposure() -> None:
     assert counts() == (43, {1: 17, 3: 28, 5: 34}, 8)
 
 
-def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:
+def test_registry_result_reducer_and_old_state_roundtrip() -> None:
     registry = MainAgentToolRegistry()
     context = MainAgentContext(
         conversation_id="search-test", profile=CareerProfileContext(user_id="u"),
@@ -219,25 +218,6 @@ def test_registry_result_reducer_and_legacy_state_roundtrip() -> None:
         registry.invoke_atomic_tool("search_capabilities", {
             "current_task": {}, "names": ["made_up"],
         })
-
-
-def test_search_is_registered_but_absent_from_every_legacy_decision_offer() -> None:
-    assert CAPABILITIES["search_capabilities"].legacy_profile_exposed is False
-    registry = MainAgentToolRegistry()
-    assert registry.schemas()[-1]["function"]["name"] == "search_capabilities"
-    engine = DecisionEngine(
-        emit=lambda _: None, decision_heartbeat=lambda _: None,
-        record_trace_event=lambda *args, **kwargs: None,
-        project_atomic_tool_arguments=lambda *args: {},
-        project_workflow_arguments=lambda *args: {},
-        context_manager=object(), decision_maker_provider=lambda: object(),
-        tools=registry, career_memory_enabled=False,
-    )
-    for profile in TOOL_PROFILE_NAMES:
-        names = {schema["function"]["name"] for schema in engine.tool_schemas(
-            profile, ConversationTaskState(tool_profile=profile)
-        )}
-        assert "search_capabilities" not in names
 
 
 def test_semantic_catalog_vectors_are_cached_by_catalogue_hash() -> None:

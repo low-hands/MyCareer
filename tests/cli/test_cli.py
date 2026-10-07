@@ -113,11 +113,17 @@ def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
 
 
 def test_trajectory_cli_reports_quality_as_an_independent_axis(monkeypatch) -> None:
-    # Pinned to the repository's evaluation baseline, not the deployment's
-    # MAIN_AGENT_MODEL: this test replays committed cassettes, so it must give
-    # the same verdict in a clean clone, in CI and in a worktree without .env.
-    # The CLI's own deployment-model check has its own test below.
-    monkeypatch.setenv("MAIN_AGENT_MODEL", trajectory.EVALUATION_BASELINE_MODEL)
+    from career_agent.evaluation import search_trajectory
+    scenario = next(item for item in SCENARIOS if item.name == "a_report_that_scrolled_out_of_the_catalogue_is_not_faked")
+    cassette = trajectory.TrajectoryCassette(
+        steps=(), samples=((),) * 5, prompt_fingerprint=None,
+        context_shape_fingerprint=None, model="offline",
+    )
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root: cassette)
+    monkeypatch.setattr(search_trajectory, "check_search_contract", lambda *a, **k: ())
+    monkeypatch.setattr(search_trajectory, "search_cassette_staleness", lambda *a, **k: None)
+    monkeypatch.setattr(search_trajectory, "replay_search_sample", lambda *a, quality=False, **k: ("failed",))
+    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
     output = StringIO()
 
     code = main(
@@ -426,6 +432,7 @@ def test_memory_exposure_eval_reads_keyed_tombstones(tmp_path) -> None:
 def test_trajectory_cli_maps_sample_failures_to_exit_status(
     monkeypatch, passed_samples, expected_code
 ) -> None:
+    from career_agent.evaluation import search_trajectory
     scenario = next(
         item for item in SCENARIOS
         if item.name == "an_empty_conversation_span_is_not_filled_from_the_window"
@@ -461,10 +468,17 @@ def test_trajectory_cli_maps_sample_failures_to_exit_status(
 
     def load_cassette(name, *, root=None):
         assert name == scenario.name
-        assert root is None
+        assert root == trajectory.Path(__file__).resolve().parents[2] / "evals" / "main_agent_search"
         return cassette
 
     monkeypatch.setattr(trajectory, "load_cassette", load_cassette)
+    monkeypatch.setattr(search_trajectory, "check_search_contract", lambda *a, **k: ())
+    monkeypatch.setattr(search_trajectory, "search_cassette_staleness", lambda *a, **k: None)
+    monkeypatch.setattr(
+        search_trajectory, "replay_search_sample",
+        lambda scenario, *, responses, **kwargs: ()
+        if "该范围没有记录" in responses[0]["content"] else ("forbidden fact",),
+    )
     monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
     output = StringIO()
 
@@ -511,104 +525,11 @@ def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> Non
     result = json.loads(output.getvalue())["results"][0]
     assert code == 2
     assert result["behaviour"] == "stale"
-    assert "recording-model" in result["failures"][0]
-    assert "deployment-model" in result["failures"][0]
+    assert "model differs from current model" in result["failures"][0]
 
 
-def test_legacy_cassette_root_is_used_for_record_replay_and_staleness(
-    monkeypatch, tmp_path,
-) -> None:
-    scenario = SCENARIOS[0]
-    default_root = tmp_path / "main_agent"
-    custom_root = tmp_path / "main_agent_deepseek_legacy"
-    default_root.mkdir()
-    default_path = default_root / f"{scenario.name}.json"
-    original = b"qwen baseline must stay byte-for-byte unchanged\n"
-    default_path.write_bytes(original)
-    monkeypatch.setattr(trajectory, "CASSETTE_ROOT", default_root)
-    monkeypatch.setenv("MAIN_AGENT_BASE_URL", "https://offline.invalid/v1")
-    monkeypatch.setenv("MAIN_AGENT_API_KEY", "offline")
-    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline-deepseek")
-
-    def fake_record_catalogue(selected, *, tool_specs, config, root, **kwargs):
-        assert tuple(item.name for item in selected) == (scenario.name,)
-        assert root == custom_root
-        path = trajectory.cassette_path(scenario.name, root=root)
-        path.parent.mkdir(parents=True)
-        steps = [{"content": '{"action":"final","message":"完成"}'}]
-        path.write_text(json.dumps({
-            "scenario": scenario.name,
-            "model": config.model,
-            "prompt_fingerprint": trajectory.trajectory_prompt_fingerprint(
-                scenario, tool_specs,
-            ),
-            "context_shape_fingerprint": trajectory.context_shape_fingerprint(scenario),
-            "steps": steps,
-            "samples": [{"steps": steps} for _ in range(scenario.recording_samples)],
-        }, ensure_ascii=False), encoding="utf-8")
-        return (path,)
-
-    monkeypatch.setattr(trajectory, "record_catalogue", fake_record_catalogue)
-    arguments = [
-        "eval", "trajectories", "--selection", "legacy",
-        "--cassette-root", str(custom_root), "--scenario", scenario.name,
-    ]
-    recorded_output = StringIO()
-    main([*arguments, "--record"], stdout=recorded_output, stderr=StringIO())
-    assert default_path.read_bytes() == original
-    assert json.loads(recorded_output.getvalue())["results"][0]["behaviour"] != "unrecorded"
-
-    replay_output = StringIO()
-    main(arguments, stdout=replay_output, stderr=StringIO())
-    replay = json.loads(replay_output.getvalue())["results"][0]
-    assert replay["behaviour"] != "stale"
-    assert replay["sample_count"] == scenario.recording_samples
-    assert default_path.read_bytes() == original
-
-    monkeypatch.setenv("MAIN_AGENT_MODEL", "another-model")
-    stale_output = StringIO()
-    main(arguments, stdout=stale_output, stderr=StringIO())
-    assert json.loads(stale_output.getvalue())["results"][0]["behaviour"] == "stale"
-    assert default_path.read_bytes() == original
 
 
-def test_isolated_legacy_batch_can_use_three_samples_for_five_sample_quality_case(
-    monkeypatch, tmp_path,
-) -> None:
-    scenario = next(
-        item for item in SCENARIOS
-        if item.name == "a_report_that_scrolled_out_of_the_catalogue_is_not_faked"
-    )
-    assert scenario.recording_samples == 5
-    custom_root = tmp_path / "deepseek_legacy"
-    monkeypatch.setenv("MAIN_AGENT_BASE_URL", "https://offline.invalid/v1")
-    monkeypatch.setenv("MAIN_AGENT_API_KEY", "offline")
-    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline-deepseek")
-
-    def fake_record_catalogue(selected, *, root, sample_count, **kwargs):
-        assert root == custom_root
-        assert sample_count is None
-        assert len(selected) == 1
-        assert selected[0].recording_samples == 3
-        return ()
-
-    monkeypatch.setattr(trajectory, "record_catalogue", fake_record_catalogue)
-    arguments = [
-        "eval", "trajectories", "--selection", "legacy",
-        "--scenario", scenario.name, "--samples", "3",
-    ]
-    isolated_output = StringIO()
-    main(
-        [*arguments, "--cassette-root", str(custom_root), "--record"],
-        stdout=isolated_output, stderr=StringIO(),
-    )
-    assert json.loads(isolated_output.getvalue())["results"][0]["sample_count"] == 0
-
-    default_output = StringIO()
-    assert main(
-        [*arguments, "--record"], stdout=default_output, stderr=StringIO(),
-    ) == 2
-    assert "selected scenarios require at least 5 sample(s)" in default_output.getvalue()
 
 
 def test_search_replay_context_change_counts_as_stale_not_behaviour_failure(
@@ -628,7 +549,7 @@ def test_search_replay_context_change_counts_as_stale_not_behaviour_failure(
     )
     output = StringIO()
     main(
-        ["eval", "trajectories", "--selection", "search", "--scenario", scenario.name],
+        ["eval", "trajectories", "--scenario", scenario.name],
         stdout=output, stderr=StringIO(),
     )
     report = json.loads(output.getvalue())
@@ -1191,6 +1112,7 @@ def test_chat_passes_no_interaction_argument_on_an_ordinary_turn() -> None:
 
 def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
     """One scenario the model cannot answer must not hide the whole report."""
+    from career_agent.evaluation import search_trajectory
     scenario = SCENARIOS[0]
 
     def record_catalogue(*args, **kwargs):
@@ -1198,7 +1120,7 @@ def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
             "MAIN_AGENT_INVALID_RESPONSE", "Main Agent model returned an invalid decision."
         )
 
-    monkeypatch.setattr(trajectory, "record_catalogue", record_catalogue)
+    monkeypatch.setattr(search_trajectory, "record_search_catalogue", record_catalogue)
     monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root=None: None)
     monkeypatch.setenv("MAIN_AGENT_BASE_URL", "https://offline.invalid/v1")
     monkeypatch.setenv("MAIN_AGENT_API_KEY", "offline")

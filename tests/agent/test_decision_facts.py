@@ -86,7 +86,7 @@ DECLARED_FACTS = {
 def _fact_keys_by_state() -> dict[str, set[str]]:
     """Every literal fact key, including keys hidden in conditional spreads."""
 
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     builders: dict[str, ast.expr] = {}
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -249,7 +249,7 @@ def test_no_capability_hands_the_model_an_enum_where_prose_was_meant() -> None:
         # is operator-facing English prose.
         if "mock_interview" in str(source) or source.name == "cli.py":
             continue
-        for node in ast.walk(ast.parse(source.read_text())):
+        for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
                 continue
             for keyword in node.keywords:

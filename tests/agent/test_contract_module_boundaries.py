@@ -16,7 +16,7 @@ def test_production_code_does_not_import_the_compatibility_facade() -> None:
     for path in source_root.rglob("*.py"):
         if path.name == "main_agent.py" and path.parent.name == "contracts":
             continue
-        tree = ast.parse(path.read_text(), filename=str(path))
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         if any(
             isinstance(node, ast.ImportFrom)
             and node.module == COMPATIBILITY_MODULE

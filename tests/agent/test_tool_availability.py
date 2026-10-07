@@ -7,9 +7,7 @@ from career_agent.agent.middleware.tool_availability import ToolAvailabilityMidd
 
 
 def _resolve(name: str, *, waiting: tuple[str, ...] = ()) -> AuthorizationRefusal:
-    result = ToolAvailabilityMiddleware(
-        tools=MainAgentToolRegistry(), search_mode=True,
-    ).resolve(
+    result = ToolAvailabilityMiddleware(tools=MainAgentToolRegistry()).resolve(
         name=name,
         task=ConversationTaskState(),
         offered_tool_names=("search_capabilities",),
