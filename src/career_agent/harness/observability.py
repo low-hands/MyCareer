@@ -30,6 +30,8 @@ EventType = Literal[
     "node_interrupted",
     "model_attempt",
     "model_retry",
+    "model_response_corrupted",
+    "model_response_replacement_observed",
     "model_succeeded",
     "model_failed",
     "turn_completed",
@@ -443,6 +445,8 @@ def validate_model_call_category(
     is_model_event = event_type in {
         "model_attempt",
         "model_retry",
+        "model_response_corrupted",
+        "model_response_replacement_observed",
         "model_succeeded",
         "model_failed",
     }

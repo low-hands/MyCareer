@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
+import base64
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ import time
 from threading import Lock
 from time import perf_counter
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 from openai import (
     APIConnectionError,
@@ -25,8 +27,11 @@ from career_agent.agent.runtime.decision_attempts import (
     DecisionAttempt,
     notify_decision_attempt,
 )
+from career_agent.harness.observability import record_active_trace
 from career_agent.agent.runtime.decision_messages import assemble_decision_messages
 from career_agent.agent.capabilities.legacy_profile import LEGACY_TOOL_POLICY
+from career_agent.agent.capabilities.reachability import reachable
+from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
 from career_agent.agent.runtime.decision_messages import (
     CACHEABLE_CONTEXT_SLOTS,
     CONTROL_CONTEXT_LABEL,
@@ -46,6 +51,11 @@ from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
+)
+from career_agent.agent.providers.main_agent_vendors import (
+    MainAgentVendor,
+    QwenMainAgentVendor,
+    main_agent_vendor,
 )
 from career_agent.agent.providers.structured_responses import provider_code
 from career_agent.agent.providers.token_budget import count_tokens
@@ -295,13 +305,26 @@ def _request_envelope_token_count(
 
 
 def main_model_options(environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Vendor request options from MAIN_AGENT_VENDOR and MAIN_AGENT_ENABLE_THINKING.
+
+    The thinking setting says whether to think; the vendor decides how that is
+    spelled on the wire. An unset vendor is Qwen, whose unset thinking sends
+    nothing, so existing configurations and recordings are unchanged.
+    """
     values = os.environ if environ is None else environ
+    vendor = main_agent_vendor(values.get("MAIN_AGENT_VENDOR", "") or "qwen")
     setting = values.get("MAIN_AGENT_ENABLE_THINKING", "").strip().lower()
-    if not setting:
-        return {}
-    if setting not in {"true", "false"}:
+    if setting and setting not in {"true", "false"}:
         raise AgentConfigurationError("MAIN_AGENT_INVALID_ENABLE_THINKING", "MAIN_AGENT_ENABLE_THINKING must be true or false")
-    return {"model_extra_body": {"enable_thinking": setting == "true"}}
+    thinking = None if not setting else setting == "true"
+    vendor.validate(thinking=thinking)
+    options: dict[str, Any] = {}
+    extra_body = vendor.request_extra_body(thinking=thinking)
+    if extra_body:
+        options["model_extra_body"] = extra_body
+    if vendor.name != "qwen":
+        options["vendor"] = vendor
+    return options
 
 
 class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
@@ -315,9 +338,16 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         sleep: Callable[[float], None] = time.sleep,
         model_extra_body: Mapping[str, Any] | None = None,
         capture_rejected_output: bool = False,
+        vendor: MainAgentVendor | None = None,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least one")
+        self._vendor = vendor or QwenMainAgentVendor()
+        if config.prompt_cache == "explicit" and not self._vendor.sends_prompt_cache_key:
+            raise AgentConfigurationError(
+                "MAIN_AGENT_UNSUPPORTED_PROMPT_CACHE",
+                f"MAIN_AGENT_PROMPT_CACHE=explicit is not supported for vendor {self._vendor.name}.",
+            )
         self._config = config
         self._model_extra_body = dict(model_extra_body or {})
         self._capture_rejected_output = capture_rejected_output
@@ -328,16 +358,30 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._max_output_tokens = max_output_tokens
         self._sleep = sleep
         self._attempts = _AttemptLog()
+        self._wire_response: ContextVar[dict[str, Any] | None] = ContextVar(
+            f"main_agent_wire_response_{id(self)}", default=None
+        )
+        self._corrupted_response_count: ContextVar[int] = ContextVar(
+            f"main_agent_corrupted_response_count_{id(self)}", default=0
+        )
+        self._corrupted_response_retry_count: ContextVar[int] = ContextVar(
+            f"main_agent_corrupted_response_retry_count_{id(self)}", default=0
+        )
+        self._replacement_echo_count: ContextVar[int] = ContextVar(
+            f"main_agent_replacement_echo_count_{id(self)}", default=0
+        )
         self._finish_reason: ContextVar[str | None] = ContextVar(
             f"main_agent_finish_reason_{id(self)}", default=None
         )
+        attempt_hooks = self._attempts.event_hooks()
+        attempt_hooks["response"].append(self._capture_wire_response)
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
             # Retries are this class's job so each one can be announced.
             max_retries=0,
             # The SDK's own client defaults, plus hooks that count attempts.
-            http_client=DefaultHttpxClient(event_hooks=self._attempts.event_hooks()),
+            http_client=DefaultHttpxClient(event_hooks=attempt_hooks),
         )
         self._spotlight_secret = secrets.token_bytes(32)
         self._tool_selection_strategy: Any | None = None
@@ -362,7 +406,83 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._finish_reason.set(None)
         if finish_reason is not None:
             metrics = {**metrics, "finish_reason": finish_reason}
+        corrupted = self._corrupted_response_count.get()
+        retried = self._corrupted_response_retry_count.get()
+        echoed = self._replacement_echo_count.get()
+        self._corrupted_response_count.set(0)
+        self._corrupted_response_retry_count.set(0)
+        self._replacement_echo_count.set(0)
+        if corrupted:
+            metrics["corrupted_response_count"] = corrupted
+            metrics["corrupted_response_retry_count"] = retried
+        if echoed:
+            metrics["input_replacement_echo_count"] = echoed
         return {**metrics, **self._attempts.consume()}
+
+    def _capture_wire_response(self, response: Any) -> None:
+        # The chat-completions request is non-streaming. httpx caches read(),
+        # so the SDK parses exactly these bytes after this hook returns.
+        raw = response.read()
+        self._wire_response.set({
+            "raw": raw,
+            "content_type": response.headers.get("content-type"),
+            "encoding": response.encoding,
+        })
+
+    def _record_corrupted_response(
+        self, *, in_text: bool, in_tool_call: bool, retried: bool,
+        input_contains_replacement: bool = False,
+    ) -> None:
+        if input_contains_replacement:
+            self._replacement_echo_count.set(self._replacement_echo_count.get() + 1)
+        else:
+            self._corrupted_response_count.set(self._corrupted_response_count.get() + 1)
+            if retried:
+                self._corrupted_response_retry_count.set(
+                    self._corrupted_response_retry_count.get() + 1
+                )
+        wire = self._wire_response.get()
+        raw = wire.get("raw") if wire is not None else None
+        utf8_valid: bool | None = None
+        wire_json_has_replacement: bool | None = None
+        if isinstance(raw, bytes):
+            try:
+                decoded = raw.decode("utf-8", errors="strict")
+                utf8_valid = True
+                try:
+                    wire_json_has_replacement = "\ufffd" in json.dumps(
+                        json.loads(decoded), ensure_ascii=False,
+                    )
+                except ValueError:
+                    wire_json_has_replacement = None
+            except UnicodeDecodeError:
+                utf8_valid = False
+        details = {
+            "model": self._config.model,
+            "provider_host": urlsplit(self._config.endpoint).hostname,
+            "streaming": False,
+            "in_text": in_text,
+            "in_tool_call": in_tool_call,
+            "retried": retried,
+            "input_contains_replacement": input_contains_replacement,
+            "wire_utf8_valid": utf8_valid,
+            "wire_json_has_replacement": wire_json_has_replacement,
+            "content_type": wire.get("content_type") if wire else None,
+            "encoding": wire.get("encoding") if wire else None,
+            "raw_response_base64": base64.b64encode(raw).decode("ascii") if isinstance(raw, bytes) else None,
+            "raw_response_captured": isinstance(raw, bytes),
+        }
+        # A replacement-bearing response is the one exception to content-free tracing:
+        # the original bytes are needed to distinguish upstream corruption
+        # from decoding loss. No request headers or credentials are included.
+        record_active_trace(
+            "model_response_replacement_observed" if input_contains_replacement
+            else "model_response_corrupted",
+            "main_agent_provider_response",
+            outcome="failed", details=details,
+            model_call_category="orchestrator_decision",
+        )
+        self._wire_response.set(None)
 
     def consume_decision_retry_metrics(self) -> dict[str, Any]:
         events = self._decision_retry_events.get()
@@ -382,7 +502,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         mode = self._config.prompt_cache
         return {
             "prompt_cache_mode": mode,
-            "prompt_cache_key_applied": mode != "disabled",
+            "prompt_cache_key_applied": mode != "disabled" and self._vendor.sends_prompt_cache_key,
             "prompt_cache_breakpoint_applied": mode == "explicit",
             "prompt_cache_stable_slots": CACHEABLE_CONTEXT_SLOTS,
         }
@@ -483,7 +603,9 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             cached = self._static_request_cache.get(id(tool_specs))
             if cached is not None and cached.source_specs is tool_specs:
                 return cached
-            tools = _normalize_tool_specs(tool_specs) + interaction_schemas()
+            tools = _normalize_tool_specs(tool_specs) + interaction_schemas(
+                continuation=getattr(self._tool_selection_strategy, "mode", "legacy") == "search",
+            )
             system_prompt = self._effective_system_prompt()
             system_message: dict[str, Any] = {
                 "role": "system",
@@ -629,6 +751,10 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         self._decision_retry_events.set(())
         self._rejected_output.set(None)
         self._finish_reason.set(None)
+        self._wire_response.set(None)
+        self._corrupted_response_count.set(0)
+        self._corrupted_response_retry_count.set(0)
+        self._replacement_echo_count.set(0)
         self._attempts.start()
         capture_receipt = self._capture_receipt_decision(context)
         if capture_receipt is not None:
@@ -645,8 +771,11 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         messages[0] = metadata.system_message
         if self._config.prompt_cache == "explicit":
             self._apply_explicit_cache_breakpoint(messages)
+        input_contains_replacement = "\ufffd" in json.dumps(
+            messages, ensure_ascii=False,
+        )
         request_options: dict[str, Any] = {}
-        if self._config.prompt_cache != "disabled":
+        if self._config.prompt_cache != "disabled" and self._vendor.sends_prompt_cache_key:
             request_options["extra_body"] = {
                 "prompt_cache_key": self._request_cache_key(
                     metadata, messages
@@ -659,6 +788,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                 }
         reprompts = 0
         proposal_reprompts = 0
+        corrupted_response_retries = 0
         if self._model_extra_body:
             request_options.setdefault("extra_body", {}).update(self._model_extra_body)
         while True:
@@ -669,11 +799,13 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             choice = response.choices[0] if response.choices else None
             message = choice.message if choice is not None else None
             if message is None:
+                self._wire_response.set(None)
                 raise AgentWorkerError("MAIN_AGENT_EMPTY_RESPONSE", "Main Agent model returned no decision.")
             finish_reason = getattr(choice, "finish_reason", None)
             if isinstance(finish_reason, str):
                 self._finish_reason.set(finish_reason)
             if finish_reason == "length":
+                self._wire_response.set(None)
                 # Cut off mid-decision. Fail-closed like malformed JSON, but under
                 # its own code: the fix is budget, not the model's formatting.
                 raise AgentWorkerError(
@@ -692,6 +824,37 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                         for call in tool_calls
                     ],
                 })
+            in_text = "\ufffd" in (getattr(message, "content", None) or "")
+            in_tool_call = any(
+                "\ufffd" in (getattr(getattr(call, "function", None), "name", None) or "")
+                or "\ufffd" in (getattr(getattr(call, "function", None), "arguments", None) or "")
+                for call in tool_calls
+            )
+            if in_text or in_tool_call:
+                if input_contains_replacement:
+                    self._record_corrupted_response(
+                        in_text=in_text, in_tool_call=in_tool_call,
+                        retried=False, input_contains_replacement=True,
+                    )
+                else:
+                    retry_corruption = corrupted_response_retries == 0
+                    self._record_corrupted_response(
+                        in_text=in_text, in_tool_call=in_tool_call,
+                        retried=retry_corruption,
+                    )
+                    self._record_decision_rejection(
+                        "unicode_replacement", retried=retry_corruption,
+                    )
+                    if not retry_corruption:
+                        raise AgentWorkerError(
+                            "MAIN_AGENT_CORRUPTED_RESPONSE",
+                            "Main Agent response contained damaged text twice.",
+                        )
+                    corrupted_response_retries += 1
+                    # Same messages, schemas and tool choice. This has a separate
+                    # one-retry budget from invalid decisions and HTTP errors.
+                    continue
+            self._wire_response.set(None)
             offered_names = {spec["function"]["name"] for spec in tools}
             unknown_names = [
                 getattr(getattr(call, "function", None), "name", None) or "?"
@@ -708,6 +871,23 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
 
                     searchable = {item.name for item in searchable_capabilities()}
                     if unknown_names[0] in searchable:
+                        waiting = any(
+                            item.tool_name == unknown_names[0]
+                            and item.state in WAITING_FOR_USER_STATES
+                            for item in context.tool_observations
+                        )
+                        blocked = not reachable(unknown_names[0], context.task)
+                        if waiting or blocked:
+                            # Return the known name to authorization. It emits
+                            # a deterministic refusal observation before any
+                            # argument projection or execution; loading here
+                            # would only repeat the same unavailable state.
+                            return AgentDecision(
+                                action="tool_call",
+                                tool_call=ToolCall(
+                                    name=unknown_names[0], arguments={},
+                                ),
+                            )
                         # The model saw only the directory entry. Treat its
                         # name as a discovery request; discard the arguments
                         # it wrote without seeing this tool's schema.
@@ -909,6 +1089,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         request_options: dict[str, Any],
     ) -> Any:
         try:
+            self._wire_response.set(None)
             options = dict(request_options)
             tool_choice = options.pop("tool_choice", "auto")
             return self._client.chat.completions.create(

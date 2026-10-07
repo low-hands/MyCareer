@@ -1,5 +1,8 @@
 import copy
+import base64
 import json
+import httpx2 as httpx
+from openai import DefaultHttpxClient, OpenAI
 from datetime import datetime, timezone
 
 import pytest
@@ -36,6 +39,7 @@ from career_agent.agent.providers.openai_client import (
 )
 from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.agent.providers.main_agent import main_model_options
+from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 
 
 @pytest.mark.parametrize("setting, expected", [("false", False), ("true", True)])
@@ -54,6 +58,74 @@ def test_main_thinking_setting_is_explicit_and_validated():
     assert main_model_options({}) == {}
     with pytest.raises(AgentConfigurationError):
         main_model_options({"MAIN_AGENT_ENABLE_THINKING": "automatic"})
+
+
+@pytest.mark.parametrize(
+    ("environ", "expected"),
+    [
+        ({}, {}),
+        ({"MAIN_AGENT_VENDOR": "qwen"}, {}),
+        ({"MAIN_AGENT_ENABLE_THINKING": "false"}, {"model_extra_body": {"enable_thinking": False}}),
+        ({"MAIN_AGENT_VENDOR": "qwen", "MAIN_AGENT_ENABLE_THINKING": "true"}, {"model_extra_body": {"enable_thinking": True}}),
+    ],
+)
+def test_qwen_vendor_keeps_existing_request_options(environ, expected):
+    assert main_model_options(environ) == expected
+
+
+@pytest.mark.parametrize("environ", [
+    {"MAIN_AGENT_VENDOR": "deepseek"},
+    {"MAIN_AGENT_VENDOR": "DeepSeek", "MAIN_AGENT_ENABLE_THINKING": "false"},
+])
+def test_deepseek_vendor_disables_its_default_thinking(environ):
+    options = main_model_options(environ)
+    assert options["model_extra_body"] == {"thinking": {"type": "disabled"}}
+    assert options["vendor"].name == "deepseek"
+
+
+def test_deepseek_thinking_is_rejected_at_startup():
+    with pytest.raises(AgentConfigurationError, match="forced tool_choice"):
+        main_model_options({"MAIN_AGENT_VENDOR": "deepseek", "MAIN_AGENT_ENABLE_THINKING": "true"})
+
+
+def test_unknown_main_agent_vendor_is_rejected():
+    with pytest.raises(AgentConfigurationError, match="MAIN_AGENT_VENDOR"):
+        main_model_options({"MAIN_AGENT_VENDOR": "openai"})
+
+
+def test_deepseek_requests_send_its_thinking_switch_without_prompt_cache_key():
+    completions = ScriptedCompletions([
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？"}')]),
+    ])
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": completions})()})()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        _config(), client=client,
+        **main_model_options({"MAIN_AGENT_VENDOR": "deepseek"}),
+    )
+    maker.decide(_context(), ())
+    extra_body = completions.requests[0]["extra_body"]
+    assert extra_body == {"thinking": {"type": "disabled"}}
+    assert maker.cache_configuration()["prompt_cache_key_applied"] is False
+
+
+def test_qwen_requests_still_send_prompt_cache_key():
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"城市？"}')]),
+    )
+    maker.decide(_context(), ())
+    assert "prompt_cache_key" in completions.requests[0]["extra_body"]
+    assert "thinking" not in completions.requests[0]["extra_body"]
+
+
+def test_deepseek_rejects_explicit_prompt_cache_breakpoints():
+    config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.test/v1/chat/completions", api_key="test",
+        model="deepseek-flash", prompt_cache="explicit",
+    )
+    with pytest.raises(AgentConfigurationError, match="explicit"):
+        OpenAICompatibleMainAgentDecisionMaker(
+            config, **main_model_options({"MAIN_AGENT_VENDOR": "deepseek"}),
+        )
 
 
 @pytest.mark.parametrize("text", ["城市？", '{"action":"ask_user","text":"城市？"}', '```json\n{"action":"final","message":"完成"}\n```', '{"action":"tool_call"'])
@@ -116,6 +188,146 @@ def test_evaluation_can_capture_rejected_output_verbatim() -> None:
     ]
 
 
+def test_replacement_character_in_tool_arguments_gets_one_independent_retry() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Ru�st"}')]),
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Rust"}')]),
+    )
+    decision = maker.decide(_context(), ("open_job_search",))
+    assert decision.tool_call.arguments == {"keyword": "Rust"}
+    assert len(completions.requests) == 2
+    assert completions.requests[0]["messages"] == completions.requests[1]["messages"]
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "unicode_replacement", "retried": True},
+    ]
+    assert maker.consume_cache_metrics()["corrupted_response_retry_count"] == 1
+
+
+def test_second_corrupted_response_fails_without_using_tool_arguments() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Ru�st"}')]),
+        _response(tool_calls=[_tool_call("open_job_search", '{"keyword":"Ru�st"}')]),
+    )
+    with pytest.raises(AgentWorkerError) as caught:
+        maker.decide(_context(), ("open_job_search",))
+    assert caught.value.code == "MAIN_AGENT_CORRUPTED_RESPONSE"
+    assert len(completions.requests) == 2
+    assert maker.consume_cache_metrics()["corrupted_response_count"] == 2
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "unicode_replacement", "retried": True},
+        {"reason": "unicode_replacement", "retried": False},
+    ]
+
+
+def test_replacement_character_in_text_is_detected_before_text_reprompt() -> None:
+    maker, completions = _scripted_maker(
+        _response(content="坏�", raw_text=True),
+        _response(tool_calls=[_tool_call("final_response", '{"message":"完成"}')]),
+    )
+    assert maker.decide(_context(), ()).action == "final"
+    assert len(completions.requests) == 2
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "unicode_replacement", "retried": True},
+    ]
+
+
+def test_replacement_character_already_in_input_is_logged_without_retry() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("final_response", '{"message":"原文是 �"}')]),
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "replacement-echo"))
+    try:
+        decision = maker.decide(
+            _context().model_copy(update={"user_message": "原文是 �"}), (),
+        )
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    assert decision.message == "原文是 �"
+    assert len(completions.requests) == 1
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == []
+    metrics = maker.consume_cache_metrics()
+    assert metrics["input_replacement_echo_count"] == 1
+    assert "corrupted_response_count" not in metrics
+    event = recorder.snapshot("replacement-echo").events[0]
+    assert event.event_type == "model_response_replacement_observed"
+    assert event.details["input_contains_replacement"] is True
+
+
+def test_corruption_trace_preserves_wire_evidence_and_encoding() -> None:
+    maker, _ = _scripted_maker()
+    raw = b'{"message":"\\ufffd"}'
+    maker._wire_response.set({
+        "raw": raw, "content_type": "application/json; charset=utf-8",
+        "encoding": "utf-8",
+    })
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "corrupted-turn"))
+    try:
+        maker._record_corrupted_response(in_text=False, in_tool_call=True, retried=True)
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    event = recorder.snapshot("corrupted-turn").events[0]
+    assert event.event_type == "model_response_corrupted"
+    assert event.details["raw_response_base64"] == base64.b64encode(raw).decode("ascii")
+    assert event.details["content_type"] == "application/json; charset=utf-8"
+    assert event.details["encoding"] == "utf-8"
+    assert event.details["model"] == "test-model"
+    assert event.details["provider_host"] == "example.test"
+    assert event.details["streaming"] is False
+
+
+def test_http_corruption_retry_trace_has_exact_provider_response_bytes() -> None:
+    maker, _ = _scripted_maker()
+    requests = []
+    raw_responses = []
+
+    def respond(request):
+        requests.append(request.content)
+        keyword = "Ru�st" if len(requests) == 1 else "Rust"
+        payload = {
+            "id": f"chat-{len(requests)}", "object": "chat.completion",
+            "created": 1, "model": "test-model",
+            "choices": [{"index": 0, "finish_reason": "tool_calls", "message": {
+                "role": "assistant", "content": None,
+                "tool_calls": [{"id": "call-1", "type": "function", "function": {
+                    "name": "open_job_search",
+                    "arguments": json.dumps({"keyword": keyword}, ensure_ascii=False),
+                }}],
+            }}],
+        }
+        raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        raw_responses.append(raw)
+        return httpx.Response(200, content=raw, headers={
+            "content-type": "application/json; charset=utf-8",
+        })
+
+    hooks = maker._attempts.event_hooks()
+    hooks["response"].append(maker._capture_wire_response)
+    maker._client = OpenAI(
+        api_key="test", base_url="https://example.test/v1",
+        max_retries=0,
+        http_client=DefaultHttpxClient(
+            transport=httpx.MockTransport(respond), event_hooks=hooks,
+        ),
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "http-corruption"))
+    try:
+        decision = maker.decide(_context(), ("open_job_search",))
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    assert decision.tool_call.arguments == {"keyword": "Rust"}
+    assert len(requests) == 2 and requests[0] == requests[1]
+    event = next(item for item in recorder.snapshot("http-corruption").events
+                 if item.event_type == "model_response_corrupted")
+    assert base64.b64decode(event.details["raw_response_base64"]) == raw_responses[0]
+    assert event.details["raw_response_captured"] is True
+    assert event.details["wire_utf8_valid"] is True
+    assert event.details["wire_json_has_replacement"] is True
+    assert maker.consume_cache_metrics()["attempt_count"] == 2
+
+
 def test_search_mode_implicitly_loads_a_known_unoffered_tool_without_its_arguments() -> None:
     maker, completions = _scripted_maker(
         _response(tool_calls=[_tool_call(
@@ -132,7 +344,31 @@ def test_search_mode_implicitly_loads_a_known_unoffered_tool_without_its_argumen
     ]
 
 
-def test_known_but_still_unavailable_loaded_tool_remains_a_discovery_result() -> None:
+def test_waiting_tool_call_is_not_converted_into_implicit_loading() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("list_action_items", "{}")]),
+    )
+    context = _context().model_copy(update={
+        "tool_observations": (DecisionObservation(
+            tool_name="list_action_items",
+            state="working_notes_derived_argument", message="需要确认。",
+        ),),
+    })
+    decision = maker.decide(context, ("search_capabilities",))
+    assert decision.tool_call.name == "list_action_items"
+    assert len(completions.requests) == 1
+
+
+def test_unreachable_tool_call_is_not_converted_into_implicit_loading() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("match_resume_to_job", "{}")]),
+    )
+    decision = maker.decide(_context(), ("search_capabilities",))
+    assert decision.tool_call.name == "match_resume_to_job"
+    assert len(completions.requests) == 1
+
+
+def test_known_but_still_unavailable_loaded_tool_goes_to_precondition_refusal() -> None:
     maker, _ = _scripted_maker(
         _response(tool_calls=[_tool_call("match_resume_to_job", '{}')]),
     )
@@ -143,8 +379,8 @@ def test_known_but_still_unavailable_loaded_tool_remains_a_discovery_result() ->
     })
     decision = maker.decide(context, ("search_capabilities",))
     assert decision.tool_call is not None
-    assert decision.tool_call.name == "search_capabilities"
-    assert decision.tool_call.arguments == {"names": ["match_resume_to_job"]}
+    assert decision.tool_call.name == "match_resume_to_job"
+    assert decision.tool_call.arguments == {}
 
 
 @pytest.mark.parametrize("name", ["route_to_capability", "not_a_capability"])
