@@ -1,9 +1,4 @@
-"""Search-mode trajectory recording with intermediate capability discovery.
-
-The legacy recorder has one response per declared step. Here a declared step
-is the business decision; discovery decisions are recorded ahead of it and
-replayed through the same selection strategy.
-"""
+"""Trajectory recording with intermediate capability discovery."""
 
 from __future__ import annotations
 
@@ -148,7 +143,7 @@ def _response(decision, *, scenario_step: int, selection, context: MainAgentCont
     )
     item.update({
         "scenario_step": scenario_step,
-        "selected_schema_fingerprint": prompt_fingerprint(selection.schemas, mode="search"),
+        "selected_schema_fingerprint": prompt_fingerprint(selection.schemas),
         "decision_shape_fingerprint": _decision_shape_fingerprint(context),
         "offered_tools": list(selection.offered_names),
         "elapsed_ms": round(elapsed_ms, 1),
@@ -315,7 +310,7 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
                 "selection_mode": "search",
                 "model": config.model,
                 "prompt_fingerprint": trajectory_prompt_fingerprint(
-                    scenario, tool_specs, mode="search"),
+                    scenario, tool_specs),
                 "context_shape_fingerprint": context_shape_fingerprint(scenario),
                 "recorded_at": samples[-1]["recorded_at"],
                 "steps": samples[0]["steps"],
@@ -338,7 +333,7 @@ def search_cassette_staleness(cassette, *, scenario: TrajectoryScenario,
                               tool_specs: tuple[dict[str, Any], ...],
                               expected_model: str | None) -> str | None:
     if cassette.prompt_fingerprint != trajectory_prompt_fingerprint(
-        scenario, tool_specs, mode="search",
+        scenario, tool_specs,
     ):
         return "search prompt or schema changed; re-record it"
     if cassette.context_shape_fingerprint != context_shape_fingerprint(scenario):
@@ -388,7 +383,7 @@ def replay_search_sample(scenario: TrajectoryScenario,
                 break
             decision_context, selection = _selected_context(context, strategy, tool_specs)
             if item.get("selected_schema_fingerprint") != prompt_fingerprint(
-                selection.schemas, mode="search",
+                selection.schemas,
             ):
                 failures.append(f"{scenario.name}[{index}]: selected schema changed during replay")
             if (item.get("decision_shape_fingerprint") is not None and

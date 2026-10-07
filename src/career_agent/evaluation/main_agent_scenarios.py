@@ -227,7 +227,7 @@ def compacted_span_context(
     if page_in:
         return _context(
             user_message=user_message,
-            task=ConversationTaskState(tool_profile="core"),
+            task=ConversationTaskState(),
             conversation_summary=_SPAN_SUMMARY,
             through_sequence=len(_SPAN_PRE_WATERMARK),
             recent_from_sequence=len(_SPAN_PRE_WATERMARK) + 1,
@@ -235,7 +235,7 @@ def compacted_span_context(
         )
     return _context(
         user_message=user_message,
-        task=ConversationTaskState(tool_profile="core"),
+        task=ConversationTaskState(),
         conversation_summary=_SPAN_SUMMARY,
         recent_messages=_SPAN_POST_WATERMARK,
     )
@@ -245,7 +245,7 @@ def stuffed_span_context(*, user_message: str) -> MainAgentContext:
     """The same turns with pre-watermark originals forced back into the window."""
     return _context(
         user_message=user_message,
-        task=ConversationTaskState(tool_profile="core"),
+        task=ConversationTaskState(),
         recent_messages=_SPAN_PRE_WATERMARK + _SPAN_POST_WATERMARK,
     )
 
@@ -325,7 +325,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # downstream reports that the search was unscoped.
         context=_context(
             user_message="帮我找找工作吧",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=(
             "career_profile.memory/profile.md",
@@ -354,7 +354,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             # (as before 5c9415d's analysis precondition) the scenario was
             # measuring the missing precondition, not the research rule.
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
                 active_jd_snapshot_id="jd-1",
@@ -370,11 +370,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "task.has_active_job_analysis",
         ),
         known_gap=(
-            "2026-09-25/26 gpt-5.6-sol cuts passed 5/5, 2/5, 2/5 (the same code "
-            "without that day's changes), 1/3, 1/1 and 0/1: the failing samples "
-            "first call route_to_capability to the profile they are already in, "
-            "or list_resumes, instead of match_resume_to_job. No sample started "
-            "research, which is what this policy is about."
+            "Earlier recordings sometimes listed resumes instead of using the "
+            "already bound version for match_resume_to_job. No sample started "
+            "research; keep measuring the next-tool choice separately from the "
+            "prohibition on unrequested company research."
         ),
         steps=(
             TrajectoryStep(
@@ -401,7 +400,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             user_message=(
                 "请把我的求职意向记下来：我想找上海的算法岗，期望薪资 40K 以上"
             ),
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=("task.target_roles", "user_message"),
         steps=(
@@ -433,7 +432,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="这个岗位看着还不错",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -464,7 +463,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 revision="aaaaaaaaaaaa",
             ),
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
             ),
         ),
@@ -511,7 +510,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户可能偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -553,7 +552,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -587,7 +586,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="可以",
             task=ConversationTaskState(
-                tool_profile="memory",
+
                 pending_job_intent_update=JobIntentUpdate(city="上海"),
                 bare_confirmation_target=None,
             ),
@@ -628,7 +627,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我准备投这个岗位了",
             task=ConversationTaskState(
-                tool_profile="application",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -648,7 +647,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="把这场面试同步到我的日历",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="round-1",
                 active_calendar_proposal_id="proposal-1",
                 active_calendar_proposal_expires_at=_NOW.replace(hour=12),
@@ -745,7 +744,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认，执行吧",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_calendar_proposal_id="proposal-1",
                 active_calendar_proposal_expires_at=datetime(
                     2026, 8, 31, 12, tzinfo=timezone.utc
@@ -774,7 +773,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我那场面试怎么样了",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="round-1",
                 interview_candidates=(
                     InterviewCandidateContextItem(
@@ -809,7 +808,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="那份调研里说这家公司的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -865,7 +864,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # differed only in an opaque suffix, presented as the complete set.
         context=_context(
             user_message="上个月 Shopee 那份调研里，他们的主要竞争对手是谁？",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             archived_resources=tuple(
                 ConversationMessageContext(
                     role="assistant",
@@ -963,7 +962,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1074,7 +1073,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1156,7 +1155,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="上次那份调研里提到的竞品是谁来着",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
             ),
             archived_resources=(
@@ -1298,7 +1297,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "不是 weak 就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 active_resume_job_match_id="match-1",
@@ -1337,7 +1336,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1386,7 +1385,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1439,7 +1438,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="调研完了吗？一句话说说结论就行。",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1502,7 +1501,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果是刚完成的新报告就直接结束。"
             ),
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1543,7 +1542,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # never told, so a model that loops burns the whole budget on one call.
         context=_context(
             user_message="看看我保存的岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=("task.candidates",),
         steps=(
@@ -1569,7 +1568,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1599,7 +1598,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1630,7 +1629,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认执行刚才的日历变更",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="interview-1",
             ),
             tool_observations=(
@@ -1669,7 +1668,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="再查一下我保存的算法岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1718,7 +1717,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我刚在官网投了示例科技的算法工程师，帮我记一下。",
             task=ConversationTaskState(
-                tool_profile="application",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -1766,7 +1765,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="打开第 2 个岗位的完整 JD",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
             ),
             tool_observations=(
@@ -1992,34 +1991,19 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="a_core_request_routes_before_job_analysis",
         policy=(
-            "When the current profile lacks a required domain tool, route to "
-            "that domain first, then use the tool under the updated profile."
+            "Discover the requested job analysis capability if needed, then "
+            "analyze the selected job without starting resume matching."
         ),
         context=_context(
             user_message="请对当前选中的示例科技岗位做独立 JD 分析，不要做简历匹配。",
             task=ConversationTaskState(
-                tool_profile="core",
+
                 active_job_posting_id="job-1",
                 saved_job_candidates=(_SAVED_JOB,),
             ),
         ),
-        decisive_facts=("task.tool_profile", "task.saved_jobs.0.selection_index"),
-        steps=(
-            TrajectoryStep(
-                expect_tool="route_to_capability",
-                expect_arguments={"domain": "job"},
-            ),
-            TrajectoryStep(
-                task_update={"tool_profile": "job"},
-                observation=DecisionObservation(
-                    tool_name="route_to_capability",
-                    state="tool_profile_switched",
-                    message="工具档已切换为 job。",
-                    arguments={"domain": "job"},
-                ),
-                expect_tool="analyze_job",
-            ),
-        ),
+        decisive_facts=("task.saved_jobs.0.selection_index",),
+        steps=(TrajectoryStep(expect_tool="analyze_job"),),
     ),
     TrajectoryScenario(
         name="a_resume_critique_loads_its_skill",
@@ -2031,7 +2015,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="帮我点评一下这份简历，看看哪里写得不好、应该怎么改。",
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_resume_version_id="resume-version-1",
             ),
         ).model_copy(
@@ -2074,9 +2058,9 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "4 AI 编程工具；5 开源项目或博客。每项都需要我分别回答，"
                 "允许跳过或明确回答没有。请一次性生成结构化五题问卷。"
             ),
-            task=ConversationTaskState(tool_profile="resume"),
+            task=ConversationTaskState(),
         ),
-        decisive_facts=("user_message", "task.tool_profile"),
+        decisive_facts=("user_message",),
         steps=(TrajectoryStep(expect_action="questionnaire", expect_question_count=5),),
     ),
     TrajectoryScenario(
@@ -2098,7 +2082,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 '{"question":"开源项目或博客","answer":"跳过"}]'
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 active_resume_job_match_id="match-1",
@@ -2139,7 +2123,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "把刚才问卷里我说的 AI 编程工具使用情况，作为我在示例科技的"
                 "工作经历事实提案；先让我确认，不要直接写入。"
             ),
-            task=ConversationTaskState(tool_profile="memory"),
+            task=ConversationTaskState(),
             recent_messages=(
                 ConversationMessageContext(
                     role="user",
@@ -2182,23 +2166,13 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="tool_selection_switches_from_resume_to_job_research",
         policy=(
-            "When the current tool profile lacks the domain capability needed by "
-            "the user's new request, route to that capability and continue the "
-            "same task after the switch."
-        ),
-        known_gap=(
-            "qwen3.7-plus passed 2/3 on 2026-10-04 and 0/3 after the 2026-10-05 "
-            "re-record: no sample routed to the job profile before calling "
-            "research_job (get_saved_job -> research_job, list_resumes -> "
-            "ask_user, get_saved_job -> get_saved_job). The offline selection "
-            "baseline shows research_job not offered before the route. Expected "
-            "fix: the working-set selector (tool-selection step 3); remove this "
-            "marker when all samples pass."
+            "When a requested business tool is not yet offered, discover it "
+            "and continue the user's task in the same conversation."
         ),
         context=_context(
             user_message="现在研究一下当前岗位公司的主要竞争对手。",
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -2208,47 +2182,21 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 ),
             ),
         ),
-        decisive_facts=("task.tool_profile", "task.has_active_job_posting", "user_message"),
-        steps=(
-            TrajectoryStep(
-                expect_tool="route_to_capability",
-                expect_arguments={"domain": "job"},
-                forbid_tools=frozenset({"research_job"}),
-            ),
-            TrajectoryStep(
-                observation=DecisionObservation(
-                    tool_name="route_to_capability",
-                    state="tool_profile_switched",
-                    message="已切换到岗位能力。",
-                    arguments={"domain": "job"},
-                ),
-                task_update={"tool_profile": "job"},
-                expect_tool="research_job",
-            ),
-        ),
+        decisive_facts=("task.has_active_job_posting", "user_message"),
+        steps=(TrajectoryStep(expect_tool="research_job"),),
         recording_samples=3,
     ),
     TrajectoryScenario(
         name="tool_selection_combines_job_analysis_and_resume_match",
         policy=(
             "For a request that needs job analysis followed by resume matching, "
-            "complete the job step, switch to the resume capability, and use "
-            "the analysis result without asking the user to restart."
-        ),
-        known_gap=(
-            "qwen3.7-plus passed 0/3 on 2026-10-04 and again 0/3 after the "
-            "2026-10-05 re-record: after the job step every sample calls "
-            "list_resumes instead of routing, and in the post-route snapshot it "
-            "still calls list_resumes although match_resume_to_job is offered "
-            "and a resume version is bound. The working-set selector "
-            "(tool-selection step 3) closes the offer gap, but the model-choice "
-            "error means it may not fix this alone; remove this marker when all "
-            "samples pass."
+            "complete the job step and use the analysis result for matching "
+            "without asking the user to restart."
         ),
         context=_context(
             user_message="先分析这个岗位，再和我当前的简历比较匹配程度。",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
                 active_jd_snapshot_id="jd-1",
@@ -2256,7 +2204,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             ),
         ),
         decisive_facts=(
-            "task.tool_profile", "task.has_active_job_posting", "task.has_active_resume_version",
+            "task.has_active_job_posting", "task.has_active_resume_version",
         ),
         steps=(
             TrajectoryStep(expect_tool="analyze_job"),
@@ -2272,17 +2220,6 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     "active_job_analysis_jd_snapshot_id": "jd-1",
                     "job_analysis_status": "ready",
                 },
-                expect_tool="route_to_capability",
-                expect_arguments={"domain": "resume"},
-            ),
-            TrajectoryStep(
-                observation=DecisionObservation(
-                    tool_name="route_to_capability",
-                    state="tool_profile_switched",
-                    message="已切换到简历能力。",
-                    arguments={"domain": "resume"},
-                ),
-                task_update={"tool_profile": "resume"},
                 expect_tool="match_resume_to_job",
             ),
         ),

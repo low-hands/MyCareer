@@ -34,7 +34,6 @@ def _context(message: str, task: ConversationTaskState) -> MainAgentContext:
 
 
 _MATCH_TASK = ConversationTaskState(
-    tool_profile="resume",
     active_job_posting_id="job-1",
     active_jd_snapshot_id="jd-1",
     active_job_analysis_id="analysis-1",
@@ -53,18 +52,10 @@ TOOL_SELECTION_SCENARIOS: tuple[TrajectoryScenario, ...] = (
         policy="A resume task can be followed by preparation for the selected interview.",
         context=_context(
             "简历先看到这里，接着准备当前这轮面试。",
-            ConversationTaskState(tool_profile="resume", active_interview_round_id="round-1"),
+            ConversationTaskState(active_interview_round_id="round-1"),
         ),
         steps=(
-            TrajectoryStep(expect_tool="route_to_capability"),
-            TrajectoryStep(
-                task_update={"tool_profile": "interview"},
-                observation=DecisionObservation(
-                    tool_name="route_to_capability", state="tool_profile_switched",
-                    message="已切换。", arguments={"domain": "interview"},
-                ),
-                expect_tool="prepare_interview",
-            ),
+            TrajectoryStep(expect_tool="prepare_interview"),
         ),
     ),
     TrajectoryScenario(
@@ -72,18 +63,10 @@ TOOL_SELECTION_SCENARIOS: tuple[TrajectoryScenario, ...] = (
         policy="A selected job can lead to an explicitly requested application record.",
         context=_context(
             "把当前选中的岗位建立投递记录。",
-            ConversationTaskState(tool_profile="job", active_job_posting_id="job-1"),
+            ConversationTaskState(active_job_posting_id="job-1"),
         ),
         steps=(
-            TrajectoryStep(expect_tool="route_to_capability"),
-            TrajectoryStep(
-                task_update={"tool_profile": "application"},
-                observation=DecisionObservation(
-                    tool_name="route_to_capability", state="tool_profile_switched",
-                    message="已切换。", arguments={"domain": "application"},
-                ),
-                expect_tool="create_application",
-            ),
+            TrajectoryStep(expect_tool="create_application"),
         ),
     ),
     TrajectoryScenario(
@@ -91,7 +74,7 @@ TOOL_SELECTION_SCENARIOS: tuple[TrajectoryScenario, ...] = (
         policy="After reading an application, inspect its email events when requested.",
         context=_context(
             "看一下当前投递相关的邮件事件。",
-            ConversationTaskState(tool_profile="application", active_application_id="app-1"),
+            ConversationTaskState(active_application_id="app-1"),
         ),
         steps=(
             TrajectoryStep(expect_tool="get_application"),
@@ -109,7 +92,7 @@ TOOL_SELECTION_SCENARIOS: tuple[TrajectoryScenario, ...] = (
         policy="A selected interview can lead to a calendar-sync proposal.",
         context=_context(
             "给当前这轮面试准备日历同步预览。",
-            ConversationTaskState(tool_profile="interview", active_interview_round_id="round-1"),
+            ConversationTaskState(active_interview_round_id="round-1"),
         ),
         steps=(
             TrajectoryStep(expect_tool="get_interview"),
@@ -142,10 +125,7 @@ TOOL_SELECTION_SCENARIOS: tuple[TrajectoryScenario, ...] = (
 
 
 def _single(namespace: str, ordinal: str, message: str, tool: str, **state: object) -> SelectionCase:
-    profile = namespace.split(".", 1)[0]
-    if ordinal == "first" or profile in {"context", "actions"}:
-        profile = "core"
-    task = ConversationTaskState(tool_profile=profile, **state)
+    task = ConversationTaskState(**state)
     context = _context(message, task)
     if tool == "load_skill":
         critique = next(
@@ -154,7 +134,7 @@ def _single(namespace: str, ordinal: str, message: str, tool: str, **state: obje
         )
         context = critique.context.model_copy(update={
             "user_message": message,
-            "task": critique.context.task.model_copy(update={"tool_profile": "core"}),
+            "task": critique.context.task,
         })
     elif tool == "read_conversation_span":
         context = compacted_span_context(user_message=message, page_in=True)
@@ -305,33 +285,33 @@ def _sequence(
 
 _CROSS_SPECS = (
     # Four development examples; the remaining eight are frozen holdouts.
-    ("dev", "compare_then_match", "我现在有哪些求职方向？这两个收藏岗位也比一下，再看简历跟更合适的那个匹不匹配。", "job", {"active_job_posting_id": "job-1", "saved_job_candidates": ({"job_posting_id": "job-1", "title": "产品经理", "company_name": "甲"}, {"job_posting_id": "job-2", "title": "产品经理", "company_name": "乙"}), "active_jd_snapshot_id": "jd-1", "active_job_analysis_id": "analysis-1", "active_job_analysis_jd_snapshot_id": "jd-1", "job_analysis_status": "ready", "active_resume_version_id": "resume-1"}, ("list_target_roles", "compare_saved_jobs", "match_resume_to_job"), ("job.library", "resume.match")),
-    ("dev", "export_then_prepare", "刚改好的简历导出一份，然后帮我准备明天那场面试。", "resume", {"active_resume_version_id": "resume-1", "active_interview_round_id": "round-1"}, ("export_resume_artifact", "prepare_interview"), ("resume.library", "interview.prep")),
-    ("dev", "read_job_then_track", "先看下这个收藏岗位，没问题就给它建一条投递记录。", "job", {"active_job_posting_id": "job-1"}, ("get_saved_job", "create_application"), ("job.library", "application.tracking")),
-    ("dev", "application_then_email", "这条申请我看看；那封招聘邮件也帮我对上。", "application", {"active_application_id": "app-1", "email_event_candidates": ({"email_event_id": "email-1", "event_type": "interview_invitation", "status": "pending_confirmation", "summary": "面试邀请"},)}, ("get_application", "resolve_email_event"), ("application.tracking", "application.email")),
-    ("holdout", "interview_then_links", "先确认这场面试是哪轮，时间改到下午三点，再看看日历里是不是已经有它了。", "interview", {"active_interview_round_id": "round-1"}, ("get_interview", "update_interview", "list_calendar_links"), ("interview.schedule", "interview.calendar")),
-    ("holdout", "memory_then_job", "我之前说过的远程经历和那次面试的记录找一下，再拆拆这个岗位要求。", "core", {"active_job_posting_id": "job-1"}, ("search_career_memory", "search_career_episodes", "analyze_job"), ("context", "memory.search", "job.analysis")),
-    ("holdout", "research_retry_then_application", "刚才那家公司资料没查完，再试一次；然后把这个职位加入我的投递清单。", "job", {"active_job_posting_id": "job-1", "active_job_research_run_id": "research-1"}, ("retry_job_research", "create_application"), ("job.research", "application.tracking")),
-    ("holdout", "review_then_job", "改好的简历先检查，没问题就定稿，然后把这个职位原文给我看看。", "resume", {"active_resume_tailoring_draft_id": "draft-1", "active_job_posting_id": "job-1"}, ("review_resume_tailoring", "finalize_resume_tailoring", "get_saved_job"), ("resume.tailoring", "job.library")),
-    ("holdout", "application_then_interview", "这条申请状态改成面试中，再给它登记一轮面试。", "application", {"active_application_id": "app-1"}, ("update_application_status", "create_interview"), ("application.tracking", "interview.schedule")),
-    ("holdout", "retro_then_memory", "把刚才那场面试复盘记下来，我提到的项目成绩也留一条。", "interview", {"active_interview_round_id": "round-1"}, ("record_interview_retro", "propose_career_fact"), ("interview.schedule", "memory.proposals")),
-    ("holdout", "constraints_then_actions", "先看看我之前定的限制，再把今天的待办列出来。", "core", {}, ("fetch_archived_constraints", "list_action_items"), ("context", "actions")),
-    ("holdout", "source_then_tailor", "这条经历原文找出来，再照着岗位改简历。", "memory", {"active_resume_job_match_id": "match-1"}, ("resolve_claim_source", "draft_resume_tailoring"), ("memory.search", "resume.tailoring")),
+    ("dev", "compare_then_match", "我现在有哪些求职方向？这两个收藏岗位也比一下，再看简历跟更合适的那个匹不匹配。", {"active_job_posting_id": "job-1", "saved_job_candidates": ({"job_posting_id": "job-1", "title": "产品经理", "company_name": "甲"}, {"job_posting_id": "job-2", "title": "产品经理", "company_name": "乙"}), "active_jd_snapshot_id": "jd-1", "active_job_analysis_id": "analysis-1", "active_job_analysis_jd_snapshot_id": "jd-1", "job_analysis_status": "ready", "active_resume_version_id": "resume-1"}, ("list_target_roles", "compare_saved_jobs", "match_resume_to_job"), ("job.library", "resume.match")),
+    ("dev", "export_then_prepare", "刚改好的简历导出一份，然后帮我准备明天那场面试。", {"active_resume_version_id": "resume-1", "active_interview_round_id": "round-1"}, ("export_resume_artifact", "prepare_interview"), ("resume.library", "interview.prep")),
+    ("dev", "read_job_then_track", "先看下这个收藏岗位，没问题就给它建一条投递记录。", {"active_job_posting_id": "job-1"}, ("get_saved_job", "create_application"), ("job.library", "application.tracking")),
+    ("dev", "application_then_email", "这条申请我看看；那封招聘邮件也帮我对上。", {"active_application_id": "app-1", "email_event_candidates": ({"email_event_id": "email-1", "event_type": "interview_invitation", "status": "pending_confirmation", "summary": "面试邀请"},)}, ("get_application", "resolve_email_event"), ("application.tracking", "application.email")),
+    ("holdout", "interview_then_links", "先确认这场面试是哪轮，时间改到下午三点，再看看日历里是不是已经有它了。", {"active_interview_round_id": "round-1"}, ("get_interview", "update_interview", "list_calendar_links"), ("interview.schedule", "interview.calendar")),
+    ("holdout", "memory_then_job", "我之前说过的远程经历和那次面试的记录找一下，再拆拆这个岗位要求。", {"active_job_posting_id": "job-1"}, ("search_career_memory", "search_career_episodes", "analyze_job"), ("context", "memory.search", "job.analysis")),
+    ("holdout", "research_retry_then_application", "刚才那家公司资料没查完，再试一次；然后把这个职位加入我的投递清单。", {"active_job_posting_id": "job-1", "active_job_research_run_id": "research-1"}, ("retry_job_research", "create_application"), ("job.research", "application.tracking")),
+    ("holdout", "review_then_job", "改好的简历先检查，没问题就定稿，然后把这个职位原文给我看看。", {"active_resume_tailoring_draft_id": "draft-1", "active_job_posting_id": "job-1"}, ("review_resume_tailoring", "finalize_resume_tailoring", "get_saved_job"), ("resume.tailoring", "job.library")),
+    ("holdout", "application_then_interview", "这条申请状态改成面试中，再给它登记一轮面试。", {"active_application_id": "app-1"}, ("update_application_status", "create_interview"), ("application.tracking", "interview.schedule")),
+    ("holdout", "retro_then_memory", "把刚才那场面试复盘记下来，我提到的项目成绩也留一条。", {"active_interview_round_id": "round-1"}, ("record_interview_retro", "propose_career_fact"), ("interview.schedule", "memory.proposals")),
+    ("holdout", "constraints_then_actions", "先看看我之前定的限制，再把今天的待办列出来。", {}, ("fetch_archived_constraints", "list_action_items"), ("context", "actions")),
+    ("holdout", "source_then_tailor", "这条经历原文找出来，再照着岗位改简历。", {"active_resume_job_match_id": "match-1"}, ("resolve_claim_source", "draft_resume_tailoring"), ("memory.search", "resume.tailoring")),
 )
 
 _CROSS_CASES = tuple(
     _sequence(
         f"selection_{split}_cross_{name}", split, "cross", message,
-        ConversationTaskState(tool_profile=profile, **state), tools,
+        ConversationTaskState(**state), tools,
         frozenset(namespaces),
     )
-    for split, name, message, profile, state, tools, namespaces in _CROSS_SPECS
+    for split, name, message, state, tools, namespaces in _CROSS_SPECS
 )
 
 
-_job_chain_start = ConversationTaskState(tool_profile="job", active_resume_version_id="resume-1")
+_job_chain_start = ConversationTaskState(active_resume_version_id="resume-1")
 _job_chain_found = ConversationTaskState(
-    tool_profile="job", active_job_posting_id="job-1", active_jd_snapshot_id="jd-1",
+    active_job_posting_id="job-1", active_jd_snapshot_id="jd-1",
     active_resume_version_id="resume-1",
 )
 _job_chain_analyzed = _job_chain_found.update_job_context(
@@ -342,24 +322,24 @@ _job_chain_matched = _job_chain_analyzed.update_resume_context(
     active_job_match_id="match-1", job_match_status="ready",
 )
 
-_application_chain_start = ConversationTaskState(tool_profile="application")
+_application_chain_start = ConversationTaskState()
 _application_chain_found = _application_chain_start.update_application_context(active_id="app-1")
 _application_chain_emailed = ConversationTaskState(
-    tool_profile="application", active_application_id="app-1",
+    active_application_id="app-1",
     email_event_candidates=({"email_event_id": "email-1", "event_type": "interview_invitation", "status": "pending_confirmation", "summary": "面试邀请"},),
 )
 
-_interview_chain_start = ConversationTaskState(tool_profile="interview", active_application_id="app-1")
+_interview_chain_start = ConversationTaskState(active_application_id="app-1")
 _interview_chain_created = _interview_chain_start.update_interview_context(active_round_id="round-1")
 _interview_chain_prepared = _interview_chain_created.update_interview_context(
     active_preparation_id="prep-1"
 )
 
-_intent_chain_start = ConversationTaskState(tool_profile="job")
+_intent_chain_start = ConversationTaskState()
 _intent_chain_proposed = _intent_chain_start.with_pending_proposal(
     "pending_job_intent_update", JobIntentUpdate(city="上海"), proposed_at=FIXTURE_NOW
 )
-_amendment_chain_start = ConversationTaskState(tool_profile="memory")
+_amendment_chain_start = ConversationTaskState()
 _amendment_chain_proposed = _amendment_chain_start.with_pending_proposal(
     "pending_memory_amendment",
     MemoryAmendmentProposal(
@@ -369,7 +349,7 @@ _amendment_chain_proposed = _amendment_chain_start.with_pending_proposal(
     proposed_at=FIXTURE_NOW,
 )
 _calendar_chain_start = ConversationTaskState(
-    tool_profile="interview", active_interview_round_id="round-1"
+    active_interview_round_id="round-1"
 )
 _calendar_chain_proposed = _calendar_chain_start.update_interview_context(
     active_calendar_proposal_id="proposal-1",
@@ -455,12 +435,12 @@ def _control(
 _CONTROL_DEV = (
     _control(
         "planning_to_apply", "dev", "这个岗位我准备投了，先放在心里。",
-        ConversationTaskState(tool_profile="job", active_job_posting_id="job-1"),
+        ConversationTaskState(active_job_posting_id="job-1"),
         TrajectoryStep(expect_action="final", forbid_tools=frozenset({"create_application"})),
     ),
     _control(
         "interview_read_only", "dev", "看看这轮面试是几点，先别动日历。",
-        ConversationTaskState(tool_profile="interview", active_interview_round_id="round-1"),
+        ConversationTaskState(active_interview_round_id="round-1"),
         TrajectoryStep(expect_tool="get_interview", forbid_tools=frozenset({"prepare_interview_calendar_sync"})),
         frozenset({"control", "interview.schedule"}),
     ),
@@ -470,7 +450,7 @@ _CONTROL_DEV = (
             policy="Ask before reusing a filter inferred only from unconfirmed notes.",
             context=_context(
                 "帮我找岗位，但别猜我想搜什么方向。",
-                ConversationTaskState(tool_profile="job"),
+                ConversationTaskState(),
             ).model_copy(update={
                 "tool_observations": (DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -491,29 +471,29 @@ _CONTROL_DEV = (
 _CONTROL_HOLDOUT = (
     _control(
         "job_maybe_later", "holdout", "这个职位我再想想，暂时别帮我投。",
-        ConversationTaskState(tool_profile="job", active_job_posting_id="job-1"),
+        ConversationTaskState(active_job_posting_id="job-1"),
         TrajectoryStep(expect_action="final", forbid_tools=frozenset({"create_application"})),
     ),
     _control(
         "resume_pause", "holdout", "刚才那份简历先别改，我想缓缓。",
-        ConversationTaskState(tool_profile="resume", active_resume_job_match_id="match-1"),
+        ConversationTaskState(active_resume_job_match_id="match-1"),
         TrajectoryStep(expect_action="final", forbid_tools=frozenset({"draft_resume_tailoring"})),
     ),
     _control(
         "today_read", "holdout", "今天有什么要紧的事？",
-        ConversationTaskState(tool_profile="core"),
+        ConversationTaskState(),
         TrajectoryStep(expect_tools=frozenset({"get_daily_brief", "list_action_items"}), forbid_tools=frozenset({"complete_action_item", "dismiss_action_item"})),
         frozenset({"control", "actions"}),
     ),
     _control(
         "no_calendar", "holdout", "这场面试怎么安排的？不用加到日历。",
-        ConversationTaskState(tool_profile="interview", active_interview_round_id="round-1"),
+        ConversationTaskState(active_interview_round_id="round-1"),
         TrajectoryStep(expect_tool="get_interview", forbid_tools=frozenset({"prepare_interview_calendar_sync"})),
         frozenset({"control", "interview.schedule"}),
     ),
     _control(
         "proposal_not_approved", "holdout", "那个日历改动我还没答应，先别执行。",
-        ConversationTaskState(tool_profile="interview", active_calendar_proposal_id="proposal-1"),
+        ConversationTaskState(active_calendar_proposal_id="proposal-1"),
         TrajectoryStep(expect_action="final", forbid_tools=frozenset({"execute_calendar_proposal"})),
     ),
     SelectionCase(
@@ -576,7 +556,6 @@ SELECTION_DEV: tuple[SelectionCase, ...] = (
             "offline_interview_to_calendar_sync": frozenset({"interview.schedule", "interview.calendar"}),
             "offline_match_to_resume_tailoring": frozenset({"resume.match", "resume.tailoring"}),
         }[scenario.name],
-        raw_turn=False,
     ) for scenario in TOOL_SELECTION_SCENARIOS),
     *(case for case in _SINGLE_DEV if case.scenario.name not in _DEMOTED_SINGLE),
     *(case for case in _CROSS_CASES if case.split == "dev"),
