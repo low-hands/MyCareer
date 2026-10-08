@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import OrderedDict
 from datetime import datetime, timezone
 import json
 import math
@@ -8,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+from threading import RLock
 from typing import get_args
 from uuid import uuid4
 
@@ -24,6 +26,7 @@ _SHORT_QUERY_CANDIDATE_LIMIT = 200
 _PROJECTION_CANDIDATE_LIMIT = 200
 _MAX_ACCESS_MULTIPLIER = 2.0
 _EPISODE_KINDS = frozenset(get_args(EpisodeKind))
+_ENTITY_CACHE_USERS = 128
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +108,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
     apply_schema(
         connection,
         "career_episodes",
-        8,
+        9,
         SQLiteCareerEpisodeStore._baseline,
         {
             2: SQLiteCareerEpisodeStore._upgrade_to_v2,
@@ -115,7 +118,9 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
             6: SQLiteCareerEpisodeStore._upgrade_to_v6,
             7: SQLiteCareerEpisodeStore._upgrade_to_v7,
             8: SQLiteCareerEpisodeStore._upgrade_to_v8,
+            9: SQLiteCareerEpisodeStore._ensure_entity_revision_schema,
         },
+        finalize=SQLiteCareerEpisodeStore._ensure_entity_revision_schema,
     )
 
 
@@ -130,6 +135,8 @@ class SQLiteCareerEpisodeStore:
     ) -> None:
         self.path = path.expanduser()
         self.decay_policy = decay_policy or DecayPolicy()
+        self._entity_cache: OrderedDict[str, tuple[int, tuple[str, ...]]] = OrderedDict()
+        self._entity_cache_lock = RLock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
@@ -654,14 +661,29 @@ class SQLiteCareerEpisodeStore:
     def prepare_query(
         self, *, user_id: str, query: str
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        with self._connect() as connection:
-            titles = (
-                row[0]
-                for row in connection.execute(
-                    "SELECT title FROM career_episodes WHERE user_id = ?", (user_id,)
+        with self._entity_cache_lock, self._connect() as connection:
+            # Revision and titles must come from one snapshot. Otherwise a
+            # concurrent commit could associate old titles with a new revision.
+            connection.execute("BEGIN")
+            row = connection.execute(
+                "SELECT revision FROM career_episode_entity_revisions WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            revision = row[0] if row is not None else 0
+            cached = self._entity_cache.get(user_id)
+            if cached is not None and cached[0] == revision:
+                entities = cached[1]
+                self._entity_cache.move_to_end(user_id)
+            else:
+                entities = title_entities(
+                    row[0] for row in connection.execute(
+                        "SELECT title FROM career_episodes WHERE user_id = ?", (user_id,)
+                    )
                 )
-            )
-            entities = title_entities(titles)
+                self._entity_cache[user_id] = (revision, entities)
+                self._entity_cache.move_to_end(user_id)
+                if len(self._entity_cache) > _ENTITY_CACHE_USERS:
+                    self._entity_cache.popitem(last=False)
         return search_terms(query, entities), entities
 
     def term_matches(
@@ -718,6 +740,41 @@ class SQLiteCareerEpisodeStore:
             elif len(word) >= 2:
                 unmatched.append(word)
         return tuple(matched), tuple(partial), tuple(unmatched)
+
+    @staticmethod
+    def _ensure_entity_revision_schema(connection: sqlite3.Connection) -> None:
+        """Invalidate per-user title caches in the same transaction as writes.
+
+        Triggers also cover caller-owned context transactions, other store
+        instances, and deletes. Access counts and summary-only updates do not
+        change title entities, so they leave the revision intact.
+        """
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS career_episode_entity_revisions ("
+            "user_id TEXT PRIMARY KEY, revision INTEGER NOT NULL)"
+        )
+        for operation, owner in (("INSERT", "NEW"), ("DELETE", "OLD")):
+            connection.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS career_episode_entities_{operation.lower()}
+                AFTER {operation} ON career_episodes BEGIN
+                    INSERT INTO career_episode_entity_revisions(user_id, revision)
+                    VALUES ({owner}.user_id, 1)
+                    ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+                END
+            """)
+        connection.execute("""
+            CREATE TRIGGER IF NOT EXISTS career_episode_entities_update
+            AFTER UPDATE OF title, user_id ON career_episodes
+            WHEN OLD.title IS NOT NEW.title OR OLD.user_id IS NOT NEW.user_id
+            BEGIN
+                INSERT INTO career_episode_entity_revisions(user_id, revision)
+                VALUES (OLD.user_id, 1)
+                ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+                INSERT INTO career_episode_entity_revisions(user_id, revision)
+                SELECT NEW.user_id, 1 WHERE OLD.user_id IS NOT NEW.user_id
+                ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+            END
+        """)
 
     @staticmethod
     def _baseline(connection: sqlite3.Connection) -> None:

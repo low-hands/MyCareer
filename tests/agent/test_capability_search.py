@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
+from career_agent.agent.capabilities import search as catalog_search
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.search import (
     MAX_SEMANTIC_CANDIDATES,
@@ -239,6 +240,69 @@ def test_semantic_catalog_vectors_are_cached_by_catalogue_hash() -> None:
     assert len(index.scores("简历")) == MAX_SEMANTIC_CANDIDATES
     assert len(index.scores("岗位")) == MAX_SEMANTIC_CANDIDATES
     assert [len(call) for call in client.calls] == [20, 20, 20, 10, 1, 1]
+
+
+def test_default_catalogue_queries_never_rebuild_metadata(monkeypatch):
+    queries = ("resume", "简历", "查看我的简历", "面试", "calendar", "帮我看看我的经历")
+    expected = {query: catalog_search.lexical_scores(query) for query in queries}
+    ranked = {query: search_catalog(query=query) for query in queries}
+
+    def unexpected_rebuild(*args, **kwargs):
+        raise AssertionError("query rebuilt immutable catalogue metadata")
+
+    for helper in ("_build_index", "_document", "_parameter_names", "_common_example_terms", "_metadata_terms"):
+        monkeypatch.setattr(catalog_search, helper, unexpected_rebuild)
+    for _ in range(2):
+        for query in queries:
+            assert catalog_search.lexical_scores(query) == expected[query]
+            assert search_catalog(query=query) == ranked[query]
+    assert search_catalog(names=("list_resumes",)) == ("list_resumes",)
+
+
+def test_custom_catalogue_index_is_isolated_from_the_default():
+    expected = search_catalog(query="resume")
+    entry = replace(CAPABILITIES["list_resumes"], name="custom_resume", aliases_zh=(),
+                    namespace="custom", summary="custom resume", example_queries=())
+    assert search_catalog(query="custom_resume", descriptors=(entry,)) == (entry.name,)
+    changed = replace(entry, name="custom_calendar", summary="calendar")
+    assert search_catalog(query="custom_calendar", descriptors=(changed,)) == (changed.name,)
+    assert search_catalog(query="resume") == expected
+
+
+def test_semantic_queries_reuse_catalogue_texts_and_digest(monkeypatch):
+    class Client:
+        model_id = "test-cache"
+
+        def embed(self, texts):
+            return [(1.0, 0.0) for _ in texts]
+
+    index = SemanticCapabilityIndex(Client())
+    index.warm()
+
+    def unexpected_rebuild(*args, **kwargs):
+        raise AssertionError("semantic query rebuilt catalogue text or digest")
+
+    monkeypatch.setattr(catalog_search, "capability_embedding_texts", unexpected_rebuild)
+    monkeypatch.setattr(catalog_search, "hashlib", type("HashGuard", (), {"sha256": unexpected_rebuild}))
+    assert index.scores("简历")
+    assert index.scores("面试")
+
+
+def test_semantic_model_change_requires_rewarming():
+    class Client:
+        model_id = "first-model"
+
+        def embed(self, texts):
+            return [(1.0, 0.0) for _ in texts]
+
+    client = Client()
+    index = SemanticCapabilityIndex(client)
+    index.warm()
+    assert index.scores("简历")
+    client.model_id = "second-model"
+    assert index.scores("简历") == {}
+    index.warm()
+    assert index.scores("简历")
 
 
 def test_small_positive_semantic_scores_cannot_fill_zero_lexical_results() -> None:

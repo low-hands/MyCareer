@@ -552,7 +552,7 @@ def test_v1_unicode_index_is_rebuilt_and_backfilled_as_trigram(tmp_path) -> None
             "WHERE career_episodes_fts MATCH ?",
             ("模拟面试",),
         ).fetchall()
-    assert version == 8
+    assert version == 9
     assert indexed_ids == [(stored.id,)]
     assert reopened.get_by_source(
         user_id="u1",

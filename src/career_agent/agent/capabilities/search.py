@@ -24,10 +24,7 @@ _WORDS = re.compile(r"[a-zA-Z0-9]+|[\u3400-\u9fff]+")
 
 
 def searchable_capabilities() -> tuple[CapabilityDescriptor, ...]:
-    return tuple(
-        descriptor for descriptor in CAPABILITIES.values()
-        if descriptor.model_callable and descriptor.name not in EXCLUDED
-    )
+    return _DEFAULT_INDEX.entries
 
 
 def _tokens(text: str) -> tuple[str, ...]:
@@ -134,85 +131,132 @@ def _effective_query_terms(
 def _has_retrieval_evidence(
     query: str, query_terms: set[str], descriptor: CapabilityDescriptor,
     common_terms: frozenset[str], effective_query_terms: frozenset[str],
+    indexed_terms: frozenset[str] | None = None,
+    exact_queries: frozenset[str | None] | None = None,
 ) -> bool:
     normalized = query.strip().lower()
-    if normalized in (descriptor.name, descriptor.namespace):
+    if exact_queries is not None and normalized in exact_queries:
         return True
-    if normalized in (alias.strip().lower() for alias in descriptor.aliases_zh):
+    if exact_queries is None and normalized in (descriptor.name, descriptor.namespace):
         return True
-    matches = query_terms.intersection(_indexed_terms(descriptor)).difference(common_terms)
+    if exact_queries is None and normalized in (alias.strip().lower() for alias in descriptor.aliases_zh):
+        return True
+    indexed = _indexed_terms(descriptor) if indexed_terms is None else indexed_terms
+    matches = query_terms.intersection(indexed).difference(common_terms)
     minimum = 1 if len(effective_query_terms) <= 2 else 2
     return len(matches) >= minimum
+
+
+@dataclass(frozen=True)
+class _CatalogIndex:
+    entries: tuple[CapabilityDescriptor, ...]
+    order: Mapping[str, int]
+    namespaces: frozenset[str | None]
+    documents: Mapping[str, Counter[str]]
+    lengths: Mapping[str, int]
+    average: float
+    idf: Mapping[str, float]
+    examples: Mapping[str, tuple[tuple[Counter[str], int], ...]]
+    example_average: float
+    example_idf: Mapping[str, float]
+    common_terms: frozenset[str]
+    vocabulary: frozenset[str]
+    indexed_terms: Mapping[str, frozenset[str]]
+    exact_queries: Mapping[str, frozenset[str | None]]
+    embedding_texts: tuple[str, ...]
+
+
+def _build_index(entries: tuple[CapabilityDescriptor, ...]) -> _CatalogIndex:
+    documents = {item.name: _document(item) for item in entries}
+    lengths = {name: sum(tokens.values()) for name, tokens in documents.items()}
+    frequency = Counter(token for tokens in documents.values() for token in tokens)
+    examples = {
+        item.name: tuple((tokens, sum(tokens.values())) for tokens in (
+            Counter(_tokens(phrase)) for phrase in item.example_queries
+        )) for item in entries
+    }
+    all_examples = [row for rows in examples.values() for row in rows]
+    example_frequency = Counter(
+        token for rows in examples.values()
+        for token in set().union(*(set(tokens) for tokens, _ in rows))
+    )
+
+    def inverse_frequency(counts: Counter[str]) -> dict[str, float]:
+        return {term: math.log(1 + (len(entries) - count + 0.5) / (count + 0.5))
+                for term, count in counts.items()}
+
+    return _CatalogIndex(
+        entries=entries,
+        order={item.name: index for index, item in enumerate(entries)},
+        namespaces=frozenset(item.namespace for item in entries),
+        documents=documents, lengths=lengths,
+        average=sum(lengths.values()) / len(lengths) if lengths else 0.0,
+        idf=inverse_frequency(frequency), examples=examples,
+        example_average=(sum(length for _, length in all_examples) / len(all_examples)
+                         if all_examples else 0.0),
+        example_idf=inverse_frequency(example_frequency),
+        common_terms=_common_example_terms(entries),
+        vocabulary=frozenset().union(*(_metadata_terms(item) for item in entries)),
+        indexed_terms={item.name: frozenset(documents[item.name]).union(
+            *(tokens for tokens, _ in examples[item.name])
+        ) for item in entries},
+        exact_queries={item.name: frozenset((
+            item.name, item.namespace, *(alias.strip().lower() for alias in item.aliases_zh),
+        )) for item in entries},
+        embedding_texts=capability_embedding_texts(entries),
+    )
 
 
 def lexical_scores(
     query: str, descriptors: Sequence[CapabilityDescriptor] | None = None,
 ) -> dict[str, float]:
     """BM25 over weighted catalogue fields; zero-overlap entries are omitted."""
-    entries = tuple(searchable_capabilities() if descriptors is None else descriptors)
+    index = _DEFAULT_INDEX if descriptors is None else _build_index(tuple(descriptors))
+    return _lexical_scores(query, index)
+
+
+def _lexical_scores(query: str, index: _CatalogIndex) -> dict[str, float]:
     terms = set(_tokens(query))
-    if not terms or not entries:
+    if not terms or not index.entries:
         return {}
-    documents = {item.name: _document(item) for item in entries}
-    lengths = {name: sum(tokens.values()) for name, tokens in documents.items()}
-    average = sum(lengths.values()) / len(lengths)
-    frequency = Counter(token for tokens in documents.values() for token in tokens)
     scores: dict[str, float] = {}
-    for item in entries:
-        tokens = documents[item.name]
+    for item in index.entries:
+        tokens = index.documents[item.name]
         score = 0.0
         for term in terms:
             tf = tokens.get(term, 0)
             if not tf:
                 continue
-            idf = math.log(1 + (len(entries) - frequency[term] + 0.5) / (frequency[term] + 0.5))
-            score += idf * (tf * 2.2) / (tf + 1.2 * (0.25 + 0.75 * lengths[item.name] / average))
+            score += index.idf[term] * (tf * 2.2) / (
+                tf + 1.2 * (0.25 + 0.75 * index.lengths[item.name] / index.average)
+            )
         if score:
             scores[item.name] = score
-    # Score each example as its own short document, then keep the strongest
-    # match per tool. More examples expand vocabulary without increasing the
-    # BM25 document length or adding repeated votes for the same tool.
-    example_documents = {
-        item.name: tuple(Counter(_tokens(query)) for query in item.example_queries)
-        for item in entries
-    }
-    common_example_terms = _common_example_terms(entries)
-    effective_query_terms = _effective_query_terms(terms, entries, common_example_terms)
-    all_examples = [tokens for rows in example_documents.values() for tokens in rows]
-    if all_examples:
-        example_average = sum(sum(tokens.values()) for tokens in all_examples) / len(all_examples)
-        example_frequency = Counter(
-            token for rows in example_documents.values()
-            for token in set().union(*(set(tokens) for tokens in rows))
-        )
-        for item in entries:
-            best = 0.0
-            for tokens in example_documents[item.name]:
-                length = sum(tokens.values())
-                example_score = 0.0
-                # Frequent phrases spread across many namespaces do not count
-                # as evidence, but still contribute their normal BM25 IDF.
-                overlap = len(terms.intersection(tokens).difference(common_example_terms))
-                if overlap < 2 or overlap / len(tokens) < 0.25:
+    # Keep the strongest short-example match per tool, with unchanged BM25
+    # weights and evidence rules. Only query-dependent work happens here.
+    effective = frozenset(terms.intersection(index.vocabulary).difference(index.common_terms))
+    for item in index.entries:
+        best = 0.0
+        for tokens, length in index.examples[item.name]:
+            overlap = len(terms.intersection(tokens).difference(index.common_terms))
+            if overlap < 2 or overlap / len(tokens) < 0.25:
+                continue
+            example_score = 0.0
+            for term in terms:
+                tf = tokens.get(term, 0)
+                if not tf:
                     continue
-                for term in terms:
-                    tf = tokens.get(term, 0)
-                    if not tf:
-                        continue
-                    idf = math.log(
-                        1 + (len(entries) - example_frequency[term] + 0.5)
-                        / (example_frequency[term] + 0.5)
-                    )
-                    example_score += idf * (tf * 2.2) / (
-                        tf + 1.2 * (0.25 + 0.75 * length / example_average)
-                    )
-                best = max(best, example_score)
-            if best:
-                scores[item.name] = scores.get(item.name, 0.0) + 3 * best
+                example_score += index.example_idf[term] * (tf * 2.2) / (
+                    tf + 1.2 * (0.25 + 0.75 * length / index.example_average)
+                )
+            best = max(best, example_score)
+        if best:
+            scores[item.name] = scores.get(item.name, 0.0) + 3 * best
     return {
         item.name: scores[item.name]
-        for item in entries if item.name in scores
-        and _has_retrieval_evidence(query, terms, item, common_example_terms, effective_query_terms)
+        for item in index.entries if item.name in scores
+        and _has_retrieval_evidence(query, terms, item, index.common_terms, effective,
+                                    index.indexed_terms[item.name], index.exact_queries[item.name])
     }
 
 
@@ -234,9 +278,8 @@ def search_catalog(
         raise ValueError("names must contain between 1 and 10 entries")
     if query is not None and not 1 <= len(query) <= 200:
         raise ValueError("query must contain between 1 and 200 characters")
-    entries = tuple(searchable_capabilities() if descriptors is None else descriptors)
-    order = {item.name: index for index, item in enumerate(entries)}
-    namespaces = {item.namespace for item in entries}
+    index = _DEFAULT_INDEX if descriptors is None else _build_index(tuple(descriptors))
+    entries, order, namespaces = index.entries, index.order, index.namespaces
     if names is not None:
         unknown = [name for name in names if name not in order and name not in namespaces]
         if unknown:
@@ -250,10 +293,9 @@ def search_catalog(
     normalized = query.strip().lower()
     exact = tuple(
         item.name for item in entries
-        if item.name == normalized or item.namespace == normalized
-        or normalized in (alias.strip().lower() for alias in item.aliases_zh)
+        if normalized in index.exact_queries[item.name]
     )
-    lexical = _rank(lexical_scores(query, entries), order)
+    lexical = _rank(_lexical_scores(query, index), order)
     semantic = _rank(
         {
             name: score for name, score in (semantic_scores or {}).items()
@@ -278,6 +320,15 @@ def capability_embedding_texts(
     )
 
 
+# Catalogue descriptors are fixed after import. Custom descriptor sequences
+# get an independent index per call, so test and caller-specific catalogues
+# cannot contaminate the default index.
+_DEFAULT_INDEX = _build_index(tuple(
+    descriptor for descriptor in CAPABILITIES.values()
+    if descriptor.model_callable and descriptor.name not in EXCLUDED
+))
+
+
 class CapabilityScorer(Protocol):
     def scores(self, query: str) -> Mapping[str, float]: ...
 
@@ -290,14 +341,18 @@ class SemanticCapabilityIndex:
     query_client: EmbeddingClient | None = None
     _key: str | None = None
     _vectors: tuple[tuple[float, ...], ...] = ()
+    _vector_norms: tuple[float, ...] = ()
+    _catalogue_model: str | None = None
+    _catalogue_digest: str | None = None
 
     def _catalogue(self) -> tuple[tuple[CapabilityDescriptor, ...], tuple[str, ...], str]:
-        entries = searchable_capabilities()
-        texts = capability_embedding_texts(entries)
-        digest = hashlib.sha256(json.dumps(
-            (self.client.model_id, texts), ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")).hexdigest()
-        return entries, texts, digest
+        if self._catalogue_model != self.client.model_id or self._catalogue_digest is None:
+            self._catalogue_digest = hashlib.sha256(json.dumps(
+                (self.client.model_id, _DEFAULT_INDEX.embedding_texts),
+                ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")).hexdigest()
+            self._catalogue_model = self.client.model_id
+        return _DEFAULT_INDEX.entries, _DEFAULT_INDEX.embedding_texts, self._catalogue_digest
 
     def warm(self) -> None:
         """Build catalogue vectors before handling any search request."""
@@ -312,6 +367,7 @@ class SemanticCapabilityIndex:
         if len(vectors) != len(entries):
             raise ValueError("embedding provider returned the wrong number of vectors")
         self._vectors = vectors
+        self._vector_norms = tuple(math.sqrt(sum(value * value for value in vector)) for vector in vectors)
         self._key = digest
 
     def scores(self, query: str) -> dict[str, float]:
@@ -326,13 +382,12 @@ class SemanticCapabilityIndex:
         if not needle_norm:
             return {}
         scores: dict[str, float] = {}
-        for item, vector in zip(entries, self._vectors):
-            norm = math.sqrt(sum(value * value for value in vector))
+        for item, vector, norm in zip(entries, self._vectors, self._vector_norms):
             if norm and len(vector) == len(needle):
                 score = sum(left * right for left, right in zip(needle, vector)) / (needle_norm * norm)
                 if score >= MIN_SEMANTIC_SIMILARITY:
                     scores[item.name] = score
-        order = {item.name: index for index, item in enumerate(entries)}
+        order = _DEFAULT_INDEX.order
         ranked = sorted(scores, key=lambda name: (-scores[name], order[name]))[
             :MAX_SEMANTIC_CANDIDATES
         ]

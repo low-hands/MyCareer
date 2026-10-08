@@ -86,7 +86,7 @@ DECLARED_VERSIONS = {
     "job_captures": 2,
     "job_research": 2,
     "run_events": 2,
-    "career_episodes": 8,
+    "career_episodes": 9,
 }
 
 
