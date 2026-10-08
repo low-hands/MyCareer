@@ -108,6 +108,130 @@ def test_episode_search_filters_time_and_kind_and_returns_pointers(tmp_path) -> 
     assert accessed.access_count == 1
 
 
+def test_episode_search_reports_unmatched_company_without_hiding_other_hits(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="interview-1",
+        kind="interview_round",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="美团 · 配送算法工程师 · 第 1 轮面试",
+        summary="完成面试。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes", {"user_id": "u1", "query": "饿了么 面试"}
+    )
+    assert result.state == "career_episode_search_found"
+    assert result.payload["items"][0]["title"].startswith("美团")
+    assert "饿了么" in result.payload["unmatched_terms"]
+    assert "面试" in result.payload["matched_terms"]
+
+
+def test_episode_search_alias_does_not_negate_full_name_match(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="interview-1",
+        kind="interview_round",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="腾讯 · 后台开发工程师 · 第 1 轮面试",
+        summary="完成面试。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes", {"user_id": "u1", "query": "腾讯 鹅厂"}
+    )
+    assert result.state == "career_episode_search_found"
+    assert result.payload["matched_terms"] == ["腾讯"]
+    assert result.payload["unmatched_terms"] == ["鹅厂"]
+    assert result.payload["items"][0]["title"].startswith("腾讯")
+
+
+def test_sentence_query_does_not_report_unmatched_fragments(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="interview-1",
+        kind="interview_round",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="美团 · 配送算法工程师 · 第 1 轮面试",
+        summary="完成面试。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes", {"user_id": "u1", "query": "我在美团的面试怎么样"}
+    )
+    assert result.state == "career_episode_search_found"
+    assert result.payload["matched_terms"] == []
+    assert result.payload["partially_matched_terms"] == []
+    assert result.payload["unmatched_terms"] == []
+
+
+@pytest.mark.parametrize("query", ["快手", "ByteDance", "PDD", "拼夕夕", "饿了么", "华为技术"])
+def test_single_name_query_reports_missing_name(tmp_path, query: str) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="research-1",
+        kind="job_research",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="美团 · 公司调研",
+        summary="完成配送研究。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes", {"user_id": "u1", "query": query}
+    )
+    assert result.payload["matched_terms"] == []
+    assert result.payload["partially_matched_terms"] == []
+    assert result.payload["unmatched_terms"] == [query.casefold()]
+
+
+@pytest.mark.parametrize("name", ["京东物流", "蚂蚁集团"])
+def test_name_fragment_is_not_reported_as_full_match(tmp_path, name: str) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="research-1",
+        kind="job_research",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="美团 · 公司调研",
+        summary="物流集团的配送研究。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes", {"user_id": "u1", "query": f"{name} 调研"}
+    )
+    assert name not in result.payload["matched_terms"]
+    assert name in result.payload["partially_matched_terms"]
+    assert name not in result.payload["unmatched_terms"]
+
+
+def test_episode_term_feedback_uses_the_same_kind_and_time_filters(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_episode(
+        source_run_id="research-1",
+        kind="job_research",
+        occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        title="美团 · 公司调研",
+        summary="完成调研。",
+    ))
+    store.upsert(_episode(
+        source_run_id="interview-1",
+        kind="interview_round",
+        occurred_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        title="腾讯 · 后台开发工程师 · 第 1 轮面试",
+        summary="完成面试。",
+    ))
+    result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes",
+        {"user_id": "u1", "query": "美团 面试", "kinds": ["interview_round"]},
+    )
+    assert result.payload["matched_terms"] == ["面试"]
+    assert result.payload["unmatched_terms"] == ["美团"]
+    timed = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
+        "search_career_episodes",
+        {
+            "user_id": "u1",
+            "query": "美团 调研",
+            "start_datetime": "2026-08-15T00:00:00Z",
+        },
+    )
+    assert timed.payload["matched_terms"] == []
+    assert timed.payload["unmatched_terms"] == ["美团", "调研"]
+
+
 def test_projected_detail_ref_can_be_expanded_and_unprojected_ref_is_rejected(
     tmp_path,
 ) -> None:

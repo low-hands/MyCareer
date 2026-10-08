@@ -18,6 +18,7 @@ from career_agent.domain.episodes import (
     EpisodeResourceRef,
 )
 from career_agent.storage.schema import apply_schema
+from career_agent.storage.episode_terms import search_terms, title_entities
 
 _SHORT_QUERY_CANDIDATE_LIMIT = 200
 _PROJECTION_CANDIDATE_LIMIT = 200
@@ -80,6 +81,15 @@ def _like_fragment(value: str) -> str:
         value.replace("\\", "\\\\")
         .replace("%", "\\%")
         .replace("_", "\\_")
+    )
+
+
+def word_is_explicit(word: str, entities: tuple[str, ...]) -> bool:
+    """Distinguish one intentional search term from an unspaced sentence."""
+    return (
+        word in entities
+        or bool(re.fullmatch(r"[a-z0-9][a-z0-9+#.×-]*", word))
+        or (2 <= len(word) <= 6 and all("\u4e00" <= char <= "\u9fff" for char in word))
     )
 
 
@@ -367,6 +377,7 @@ class SQLiteCareerEpisodeStore:
         start_datetime: datetime | None = None,
         end_datetime: datetime | None = None,
         kinds: tuple[str, ...] = (),
+        _terms: tuple[str, ...] | None = None,
     ) -> tuple[CareerEpisode, ...]:
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -383,15 +394,8 @@ class SQLiteCareerEpisodeStore:
         if any(kind not in _EPISODE_KINDS for kind in selected_kinds):
             raise ValueError("unknown episode kind")
         normalized_query = query.strip()
-        tokens = tuple(
-            dict.fromkeys(
-                token.casefold()
-                for token in re.findall(
-                    r"[\w+#.-]+",
-                    normalized_query,
-                    flags=re.UNICODE,
-                )
-            )
+        tokens = _terms if _terms is not None else self.query_terms(
+            user_id=user_id, query=normalized_query
         )
         short_tokens = tuple(token for token in tokens if len(token) < 3)
         long_tokens = tuple(token for token in tokens if len(token) >= 3)
@@ -563,13 +567,14 @@ class SQLiteCareerEpisodeStore:
 
         if not 1 <= limit <= 5:
             raise ValueError("episode projection limit must be between 1 and 5")
-        terms = self._projection_terms(query)
+        terms = self.query_terms(user_id=user_id, query=query)
         if not terms:
             return ()
         candidates = self.search(
             user_id=user_id,
             query=" ".join(terms),
             limit=max(_PROJECTION_CANDIDATE_LIMIT, limit * 10),
+            _terms=terms,
         )
         if exclude_conversation_id is not None:
             candidates = tuple(
@@ -643,21 +648,76 @@ class SQLiteCareerEpisodeStore:
                 ),
             )
 
-    @staticmethod
-    def _projection_terms(query: str) -> tuple[str, ...]:
-        normalized = query.casefold()
-        terms: list[str] = re.findall(
-            r"[a-z0-9][a-z0-9+#.-]{1,}",
-            normalized,
-        )
-        for run in re.findall(r"[\u4e00-\u9fff]+", normalized):
-            width = 3 if len(run) >= 3 else len(run)
-            if width:
-                terms.extend(
-                    run[index : index + width]
-                    for index in range(len(run) - width + 1)
+    def query_terms(self, *, user_id: str, query: str) -> tuple[str, ...]:
+        return self.prepare_query(user_id=user_id, query=query)[0]
+
+    def prepare_query(
+        self, *, user_id: str, query: str
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        with self._connect() as connection:
+            titles = (
+                row[0]
+                for row in connection.execute(
+                    "SELECT title FROM career_episodes WHERE user_id = ?", (user_id,)
                 )
-        return tuple(dict.fromkeys(terms))
+            )
+            entities = title_entities(titles)
+        return search_terms(query, entities), entities
+
+    def term_matches(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+        kinds: tuple[str, ...] = (),
+        entities: tuple[str, ...] | None = None,
+    ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+        """Classify explicit query words within the requested episode scope."""
+        words = tuple(dict.fromkeys(query.casefold().split()))
+        if not words:
+            return (), (), ()
+        filters = ["user_id = ?"]
+        parameters: list[object] = [user_id]
+        if start_datetime is not None:
+            filters.append("julianday(occurred_at) >= julianday(?)")
+            parameters.append(_utc_bound(start_datetime, name="start_datetime").isoformat())
+        if end_datetime is not None:
+            filters.append("julianday(occurred_at) <= julianday(?)")
+            parameters.append(_utc_bound(end_datetime, name="end_datetime").isoformat())
+        if kinds:
+            filters.append("kind IN (" + ",".join("?" for _ in kinds) + ")")
+            parameters.extend(kinds)
+        with self._connect() as connection:
+            rows = tuple(
+                connection.execute(
+                    "SELECT title, summary FROM career_episodes WHERE " + " AND ".join(filters),
+                    parameters,
+                )
+            )
+        bodies = tuple(f"{title} {summary}".casefold() for title, summary in rows)
+        if entities is None:
+            _, entities = self.prepare_query(user_id=user_id, query=query)
+        if len(words) == 1 and not word_is_explicit(words[0], entities):
+            # A long unspaced sentence is a retrieval fallback, not an object.
+            return (), (), ()
+        matched: list[str] = []
+        partial: list[str] = []
+        unmatched: list[str] = []
+        for word in words:
+            if any(word in body for body in bodies):
+                matched.append(word)
+            elif any(
+                fragment in body
+                for fragment in search_terms(word, entities)
+                if fragment != word
+                for body in bodies
+            ):
+                partial.append(word)
+            elif len(word) >= 2:
+                unmatched.append(word)
+        return tuple(matched), tuple(partial), tuple(unmatched)
 
     @staticmethod
     def _baseline(connection: sqlite3.Connection) -> None:

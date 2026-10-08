@@ -127,17 +127,17 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "675d6c774ae719f1dc250a1ea0e6b19a5c9564679b11012f43ba7f01fb234ec8"
+        "25405cfc4c23251d9981761aa5e817b59a86249215bd6a9d6e320b2ddba9260e"
     )
     schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded).hexdigest() == (
-        "768e4eb8021d0e31955eb7faa504aaf64cae8a000f65a4b13a06bab2ca705524"
+        "0a3b2b4315119903559d934b942bd12e903b7499d7a42616c200c7eabe73bf9b"
     )
     assert prompt_fingerprint(schemas) == (
-        "4c77f4d4a0434800ff1b9fc850050f8dfbf64994282272a58d28a1c8b0ec77e9"
+        "dfa1fce74ae2ddac1642ec2ce4013b11d9f0841d79e4fc15992be9cf67dd8fe6"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
         "b2c2a9e370eaca8271690c105a919399b54898d6e617c06fe975b95d39b3b33d"

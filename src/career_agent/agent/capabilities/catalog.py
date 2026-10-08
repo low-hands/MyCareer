@@ -227,10 +227,19 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
     'search_career_episodes': (
         'SearchCareerEpisodesToolArguments',
         (
-            'Search L1 memories of completed applications, job research, interviews, and mock intervi'
-            'ews across conversations, or expand one projected detail_ref. Supports an occurred-at wi'
-            'ndow and episode-type filters. Results are compact pointers and synopses; dereference re'
-            'source_refs before using an episode as factual evidence.'
+            'Search completed applications, job research, interviews, and mock interviews across '
+            'conversations, or expand one projected detail_ref. In query, pass company names, role '
+            'names, and key nouns separated by spaces. Include a known alias and full name together, '
+            'for example 腾讯 鹅厂 or 拼多多 PDD. Put time and episode type in start_datetime, '
+            'end_datetime, and kinds, not in query. Feedback is scoped to those filters: '
+            'matched_terms means the full query word occurs in an episode; '
+            'partially_matched_terms means only fragments occur and is not evidence that the '
+            'named object exists; unmatched_terms means no fragment occurs. Long unspaced '
+            'sentences have no term feedback. If no spelling of an object, including aliases, '
+            'is in matched_terms, do not substitute another object. Separate term matches do '
+            'not prove that the terms occur together in one episode. '
+            'Results are compact pointers and synopses; dereference resource_refs before using an '
+            'episode as factual evidence.'
         ),
     ),
     'update_working_notes': (

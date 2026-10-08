@@ -5392,7 +5392,21 @@ class MainAgentToolRegistry:
                 episode_id=model_arguments.detail_ref.removeprefix("episode:"),
             )
             episodes = (episode,) if episode is not None else ()
+            matched_terms: tuple[str, ...] = ()
+            partially_matched_terms: tuple[str, ...] = ()
+            unmatched_terms: tuple[str, ...] = ()
         else:
+            terms, entities = self._episode_store.prepare_query(
+                user_id=user_id, query=model_arguments.query
+            )
+            matched_terms, partially_matched_terms, unmatched_terms = self._episode_store.term_matches(
+                user_id=user_id,
+                query=model_arguments.query,
+                start_datetime=model_arguments.start_datetime,
+                end_datetime=model_arguments.end_datetime,
+                kinds=model_arguments.kinds,
+                entities=entities,
+            )
             episodes = self._episode_store.search(
                 user_id=user_id,
                 query=model_arguments.query,
@@ -5400,6 +5414,7 @@ class MainAgentToolRegistry:
                 start_datetime=model_arguments.start_datetime,
                 end_datetime=model_arguments.end_datetime,
                 kinds=model_arguments.kinds,
+                _terms=terms,
             )
         self._episode_store.mark_accessed(
             user_id=user_id,
@@ -5435,13 +5450,22 @@ class MainAgentToolRegistry:
                 tool_name="search_career_episodes",
                 state="career_episode_search_empty",
                 message="没有找到匹配的过往求职事件。",
-                payload={"items": []},
+                payload={
+                    "items": [],
+                    "matched_terms": list(matched_terms),
+                    "partially_matched_terms": list(partially_matched_terms),
+                    "unmatched_terms": list(unmatched_terms),
+                },
             )
         body = "过往求职事件：\n" + "\n".join(
             f"- {item['occurred_at']} [{item['kind']}] "
             f"{item['title']}：{item['summary']}"
             for item in items
         )
+        if unmatched_terms:
+            body += "\n未命中任何事件的查询词：" + "、".join(unmatched_terms)
+        if partially_matched_terms:
+            body += "\n仅片段命中的查询词：" + "、".join(partially_matched_terms)
         body_clipped = len(body) > DECISION_OBSERVATION_BODY_LIMIT
         if body_clipped:
             body = clamp(body, limit=DECISION_OBSERVATION_BODY_LIMIT)
@@ -5455,6 +5479,9 @@ class MainAgentToolRegistry:
             },
             payload={
                 "items": items,
+                "matched_terms": list(matched_terms),
+                "partially_matched_terms": list(partially_matched_terms),
+                "unmatched_terms": list(unmatched_terms),
                 "body": body,
                 "body_clipped": body_clipped,
             },

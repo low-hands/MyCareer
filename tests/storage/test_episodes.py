@@ -71,6 +71,21 @@ def test_fts_tracks_the_latest_synopsis_without_authorizing_facts(tmp_path) -> N
     assert fts_hits == 1
 
 
+def test_sentence_search_finds_two_character_company_and_reports_missing_terms(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="已完成配送算法面试。").model_copy(update={
+        "title": "美团 · 配送算法工程师 · 第 1 轮面试",
+    }))
+
+    assert [item.title for item in store.search(
+        user_id="u1", query="我在美团的面试怎么样"
+    )] == ["美团 · 配送算法工程师 · 第 1 轮面试"]
+    matched, partial, unmatched = store.term_matches(user_id="u1", query="饿了么 面试")
+    assert "面试" in matched
+    assert partial == ()
+    assert "饿了么" in unmatched
+
+
 def test_delete_for_scope_removes_episode_and_fts_index(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     scope_key = "career_evidence/record-1/claim"
