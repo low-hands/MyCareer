@@ -205,7 +205,7 @@ def test_a_mistaken_interview_and_application_can_be_removed_individually(tmp_pa
     ) is not None
 
 
-def test_concurrent_application_delete_returns_404_without_clearing_actions(
+def test_concurrent_application_delete_returns_404_and_clears_orphan_actions(
     tmp_path, api_keys, issue_key, monkeypatch,
 ) -> None:
     paths = _paths(tmp_path)
@@ -229,7 +229,46 @@ def test_concurrent_application_delete_returns_404_without_clearing_actions(
     with TestClient(app) as client:
         response = client.delete(f"/v1/applications/{application.id}", headers=key)
     assert response.status_code == 404
-    assert reader._actions.list(user_id="u1", statuses=("open",)) == before
+    assert not reader._actions.list(user_id="u1", statuses=("open",))
+
+
+def test_application_delete_retry_finishes_failed_cleanup(
+    tmp_path, api_keys, issue_key, monkeypatch,
+) -> None:
+    paths = _paths(tmp_path)
+    application, interview = _seed_application(
+        paths, user_id="u1", source_job_id="cleanup-retry", mock=False,
+    )
+    reader = WorkspaceReader(paths)
+    reader.delete_interview(user_id="u1", interview_round_id=interview.id)
+    before = reader._actions.list(user_id="u1", statuses=("open",))
+    assert before
+    clear = reader._actions.clear_for_application
+    failures = 1
+
+    def fail_once(**kwargs):
+        nonlocal failures
+        if failures:
+            failures -= 1
+            raise OSError("cleanup unavailable")
+        return clear(**kwargs)
+
+    monkeypatch.setattr(reader._actions, "clear_for_application", fail_once)
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader,
+                     api_key_store_factory=lambda: api_keys)
+    owner = issue_key("u1", WORKSPACE_WRITE)
+    other = issue_key("u2", WORKSPACE_WRITE)
+    url = f"/v1/applications/{application.id}"
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.delete(url, headers=owner).status_code == 500
+        assert reader._applications.get_record(user_id="u1", application_id=application.id) is None
+        assert reader._actions.list(user_id="u1", statuses=("open",)) == before
+        # Absence for another owner must not permit clearing this owner's actions.
+        assert client.delete(url, headers=other).status_code == 404
+        assert reader._actions.list(user_id="u1", statuses=("open",)) == before
+        assert client.delete(url, headers=owner).status_code == 404
+        assert not reader._actions.list(user_id="u1", statuses=("open",))
+        assert client.delete(url, headers=owner).status_code == 404
 
 
 def test_bulk_clear_does_not_mislabel_other_value_errors(

@@ -1091,6 +1091,8 @@ class WorkspaceReader:
         if self._applications.get_record(
             user_id=user_id, application_id=application_id,
         ) is None:
+            # Retry cleanup left behind by a previous successful parent delete.
+            self._actions.clear_for_application(user_id=user_id, application_id=application_id)
             return "not_found"
         if (
             self._interviews.list(user_id=user_id, application_id=application_id, limit=1)
@@ -1098,12 +1100,13 @@ class WorkspaceReader:
             or self._email.has_application_reference(user_id=user_id, application_id=application_id)
         ):
             return "has_dependents"
-        if not self._applications.delete_record(
+        deleted = self._applications.delete_record(
             user_id=user_id, application_id=application_id,
-        ):
-            return "not_found"
+        )
+        # A concurrent delete also leaves no parent to protect. Always finish
+        # derived cleanup once deletion has succeeded or found it absent.
         self._actions.clear_for_application(user_id=user_id, application_id=application_id)
-        return "deleted"
+        return "deleted" if deleted else "not_found"
 
     def restore_interview_completion(self, *, user_id: str, interview_round_id: str) -> InterviewRecordView:
         restored = InterviewService(self._interviews, self._applications).restore_completion(
