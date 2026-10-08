@@ -145,6 +145,10 @@ class ToolResult(ContractModel):
 
     This object is deliberately excluded from ``MainAgentContext`` so adding a
     field to a tool handler can never silently expand the decision prompt.
+
+    Tools and workers only return this result; they never write to the
+    conversation or the UI stream. The Main Agent runtime owns delivery and
+    decides what the user sees.
     """
 
     tool_name: str
