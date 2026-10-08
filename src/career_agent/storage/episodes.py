@@ -8,11 +8,13 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+from typing import get_args
 from uuid import uuid4
 
 from career_agent.domain.episodes import (
     CareerEpisode,
     CareerEpisodeDraft,
+    EpisodeKind,
     EpisodeResourceRef,
 )
 from career_agent.storage.schema import apply_schema
@@ -20,6 +22,7 @@ from career_agent.storage.schema import apply_schema
 _SHORT_QUERY_CANDIDATE_LIMIT = 200
 _PROJECTION_CANDIDATE_LIMIT = 200
 _MAX_ACCESS_MULTIPLIER = 2.0
+_EPISODE_KINDS = frozenset(get_args(EpisodeKind))
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,14 +379,8 @@ class SQLiteCareerEpisodeStore:
         if start_datetime is not None and end_datetime is not None:
             if start_datetime > end_datetime:
                 raise ValueError("start_datetime cannot exceed end_datetime")
-        allowed_kinds = {
-            "mock_interview",
-            "job_research",
-            "application",
-            "interview_round",
-        }
         selected_kinds = tuple(dict.fromkeys(kinds))
-        if any(kind not in allowed_kinds for kind in selected_kinds):
+        if any(kind not in _EPISODE_KINDS for kind in selected_kinds):
             raise ValueError("unknown episode kind")
         normalized_query = query.strip()
         tokens = tuple(

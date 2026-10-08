@@ -441,6 +441,24 @@ def test_half_life_days_really_halves_salience() -> None:
     ) == pytest.approx(0.5)
 
 
+def test_search_accepts_every_episode_kind(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="美团简历投递记录。"))
+    tailored = store.upsert(
+        _draft(summary="为美团岗位定制了简历。").model_copy(
+            update={"kind": "resume_tailoring", "source_run_id": "tailoring-1"}
+        )
+    )
+
+    assert [item.id for item in store.search(
+        user_id="u1", query="美团 简历", kinds=("resume_tailoring",)
+    )] == [tailored.id]
+    for kind in ("resume_analysis", "intent_confirmation"):
+        assert store.search(user_id="u1", query="", kinds=(kind,)) == ()
+    with pytest.raises(ValueError, match="unknown episode kind"):
+        store.search(user_id="u1", query="", kinds=("not_a_kind",))
+
+
 def test_time_filters_compare_instants_and_require_offsets(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     store.upsert(_draft())
