@@ -31,7 +31,7 @@ from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.run_events import SQLiteTraceRecorder
 from career_agent.harness.observability import InMemoryTraceRecorder
-from conftest import load_capability_family
+from agent_test_support import load_capability_family
 
 
 class FailingEmailService:

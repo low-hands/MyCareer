@@ -316,9 +316,10 @@ def read_pdf_pages(
         raise _failure("PDF_EXTRACTION_LIMIT") from None
     if completed.returncode == _SANDBOX_UNAVAILABLE_EXIT:
         raise _failure("PDF_SANDBOX_UNAVAILABLE")
-    if completed.returncode < 0:
+    if completed.returncode < 0 or completed.returncode == _WINDOWS_STATUS_QUOTA_EXCEEDED:
         # Killed by a signal: SIGXCPU/SIGKILL from RLIMIT_CPU is the expected
-        # path; any other signal is still an abnormal bounded-parser stop.
+        # path; any other signal is still an abnormal bounded-parser stop. On
+        # Windows the Job Object's CPU cap ends the child with a quota status.
         raise _failure("PDF_EXTRACTION_LIMIT")
     if completed.returncode != 0:
         raise _failure("PDF_EXTRACTION_FAILED")
@@ -449,7 +450,10 @@ _PDF_CHILD_CPU_SECONDS = 8
 
 def _apply_child_limits() -> None:
     # Limits apply only to this parser subprocess, not the API process or any
-    # existing shell/server. Unix is the supported deployment boundary.
+    # existing shell/server.
+    if sys.platform == "win32":
+        _apply_windows_job_limits()
+        return
     import resource
 
     # macOS rejects any finite RLIMIT_AS ("current limit exceeds maximum
@@ -463,6 +467,94 @@ def _apply_child_limits() -> None:
     resource.setrlimit(
         resource.RLIMIT_CPU, (_PDF_CHILD_CPU_SECONDS, _PDF_CHILD_CPU_SECONDS)
     )
+
+
+# Windows has no setrlimit. The child joins a Job Object that caps its
+# committed memory (allocations past it fail, surfacing as MemoryError) and
+# its user-mode CPU time (the kernel then ends it with this status).
+_JOB_OBJECT_LIMIT_PROCESS_TIME = 0x00000002
+_JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+_WINDOWS_STATUS_QUOTA_EXCEEDED = 0xC0000044
+
+
+def _apply_windows_job_limits() -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    class BasicLimits(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class IoCounters(ctypes.Structure):
+        _fields_ = [
+            (name, ctypes.c_ulonglong)
+            for name in (
+                "ReadOperationCount",
+                "WriteOperationCount",
+                "OtherOperationCount",
+                "ReadTransferCount",
+                "WriteTransferCount",
+                "OtherTransferCount",
+            )
+        ]
+
+    class ExtendedLimits(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", BasicLimits),
+            ("IoInfo", IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    ]
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+    # The handle is deliberately never closed: the job lives as long as this
+    # short-lived child does.
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        raise ctypes.WinError(ctypes.get_last_error())
+    limits = ExtendedLimits()
+    limits.BasicLimitInformation.LimitFlags = (
+        _JOB_OBJECT_LIMIT_PROCESS_TIME | _JOB_OBJECT_LIMIT_PROCESS_MEMORY
+    )
+    # In 100-nanosecond ticks.
+    limits.BasicLimitInformation.PerProcessUserTimeLimit = (
+        _PDF_CHILD_CPU_SECONDS * 10_000_000
+    )
+    limits.ProcessMemoryLimit = _PDF_CHILD_MEMORY_BYTES
+    if not kernel32.SetInformationJobObject(
+        job,
+        _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+        ctypes.byref(limits),
+        ctypes.sizeof(limits),
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if not kernel32.AssignProcessToJobObject(job, kernel32.GetCurrentProcess()):
+        raise ctypes.WinError(ctypes.get_last_error())
 
 
 def _pdf_child() -> None:
@@ -489,7 +581,10 @@ def _pdf_child() -> None:
     except MemoryError:
         # Raised under RLIMIT_AS outside _read_pdf (e.g. importing pypdfium2).
         payload = {"error": "PDF_EXTRACTION_LIMIT"}
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False))
+    # Raw UTF-8 bytes: the text stream would use the platform locale (e.g.
+    # cp1252 on Windows), which cannot encode most resume text.
+    sys.stdout.buffer.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    sys.stdout.buffer.flush()
 
 
 if __name__ == "__main__":

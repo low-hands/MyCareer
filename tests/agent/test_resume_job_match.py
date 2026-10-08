@@ -48,7 +48,7 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
-from conftest import load_capability_family
+from agent_test_support import load_capability_family
 
 
 VALID_MATCH = {

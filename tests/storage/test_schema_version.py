@@ -101,7 +101,7 @@ def test_no_component_declares_a_version_this_table_does_not_know_about() -> Non
     declared: dict[str, int] = {}
     for source in sources:
         for component, version in re.findall(
-            r"apply_schema\(\s*connection,\s*\"([a-z_]+)\",\s*(\d+)", source.read_text()
+            r"apply_schema\(\s*connection,\s*\"([a-z_]+)\",\s*(\d+)", source.read_text(encoding="utf-8")
         ):
             declared[component] = int(version)
 
@@ -279,7 +279,7 @@ def test_no_store_writes_the_file_wide_version_the_registry_replaced() -> None:
     offenders = [
         source.name
         for source in Path("src/career_agent/storage").glob("*.py")
-        if re.search(r"PRAGMA\s+user_version\s*=", source.read_text())
+        if re.search(r"PRAGMA\s+user_version\s*=", source.read_text(encoding="utf-8"))
     ]
     assert offenders == []
 

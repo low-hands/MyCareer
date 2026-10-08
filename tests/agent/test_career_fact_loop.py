@@ -19,7 +19,7 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.harness.streaming import InteractionResponse
-from conftest import load_capability_family
+from agent_test_support import load_capability_family
 
 
 class SequenceDecisionMaker:

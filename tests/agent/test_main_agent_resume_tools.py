@@ -20,7 +20,7 @@ from career_agent.harness.streaming import (
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
-from conftest import load_capability_family
+from agent_test_support import load_capability_family
 
 
 class SequenceDecisionMaker:

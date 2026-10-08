@@ -89,7 +89,7 @@ def test_project_skill_loader_routes_only_relevant_references() -> None:
     assert tuple(
         reference.name
         for reference in loader.load("plan", interview_type="mixed").references
-    ) == ("planning", "company", "technical", "behavioral", "hr")
+    ) == ("planning",)
     assert tuple(
         reference.name
         for reference in loader.load(
@@ -133,7 +133,10 @@ def test_skill_bundle_loads_operation_specific_methodology() -> None:
 
     assert "# Loaded reference: planning" in plan
     assert "Build a coverage map first" in plan
-    assert "# Loaded reference: company" in plan
+    # Plan loads only planning rules; company and question-type guidance is
+    # loaded later by the exact `ask` operation.
+    assert "# Loaded reference: company" not in plan
+    assert "# Loaded reference: technical" not in plan
     assert "# Loaded reference: reporting" not in plan
     assert "# Loaded reference: reporting" in report
     assert "Distinguish four kinds of conclusion" in report
@@ -149,6 +152,25 @@ def test_skill_loader_requires_operation_routing_context() -> None:
         loader.load("ask")
 
 
+def test_skill_loader_accepts_crlf_skill_files(tmp_path: Path) -> None:
+    # A Windows checkout with core.autocrlf=true writes the skill with CRLF.
+    references = tmp_path / "mock-interview" / "references"
+    references.mkdir(parents=True)
+    (tmp_path / "mock-interview" / "SKILL.md").write_bytes(
+        b"---\r\nname: mock-interview\r\n---\r\nRules\r\n"
+    )
+    (references / "technical.md").write_bytes(b"Technical\r\nguidance\r\n")
+
+    rendered = (
+        MockInterviewSkillLoader(tmp_path)
+        .load("evaluate", question_type="system_design")
+        .render()
+    )
+
+    assert "\r" not in rendered
+    assert "# Loaded reference: technical\n\nTechnical\nguidance" in rendered
+
+
 def test_skill_loader_rejects_a_reference_symlink_outside_the_skill(tmp_path: Path) -> None:
     skill_dir = tmp_path / "mock-interview"
     references = skill_dir / "references"
@@ -158,7 +180,14 @@ def test_skill_loader_rejects_a_reference_symlink_outside_the_skill(tmp_path: Pa
     )
     outside = tmp_path / "outside.md"
     outside.write_text("outside", encoding="utf-8")
-    (references / "technical.md").symlink_to(outside)
+    try:
+        (references / "technical.md").symlink_to(outside)
+    except OSError as error:
+        # Windows refuses unprivileged symlinks (ERROR_PRIVILEGE_NOT_HELD)
+        # unless Developer Mode is on.
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("creating symlinks needs Developer Mode or admin on Windows")
+        raise
 
     loader = MockInterviewSkillLoader(tmp_path)
     with pytest.raises(ValueError, match="escapes its root"):

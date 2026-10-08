@@ -92,7 +92,7 @@ from career_agent.storage.action_executions import (
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
-from conftest import CatalogSchemaRegistry, load_capability_family
+from agent_test_support import CatalogSchemaRegistry, load_capability_family
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 
 

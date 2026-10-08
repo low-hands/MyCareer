@@ -123,9 +123,15 @@ def lock_path_for(data_dir: Path) -> Path:
     return data_dir / LOCK_FILE_NAME
 
 
+# Windows byte-range locks are mandatory: locking byte 0 would make the pid the
+# file holds unreadable to every other process. Lock one byte far past it
+# instead (locks beyond end-of-file are allowed; the CRT offset is 32-bit).
+_WINDOWS_LOCK_OFFSET = 1 << 30
+
+
 def _lock_exclusive_nonblocking(handle) -> None:
     if sys.platform == "win32":
-        handle.seek(0)
+        os.lseek(handle.fileno(), _WINDOWS_LOCK_OFFSET, os.SEEK_SET)
         msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
     else:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -133,7 +139,7 @@ def _lock_exclusive_nonblocking(handle) -> None:
 
 def _unlock(handle) -> None:
     if sys.platform == "win32":
-        handle.seek(0)
+        os.lseek(handle.fileno(), _WINDOWS_LOCK_OFFSET, os.SEEK_SET)
         msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
     else:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

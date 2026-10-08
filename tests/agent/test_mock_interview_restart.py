@@ -29,7 +29,7 @@ from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
-from conftest import FixedSources, OneQuestionWorker
+from agent_test_support import FixedSources, OneQuestionWorker
 
 
 class _UnusedGateway:

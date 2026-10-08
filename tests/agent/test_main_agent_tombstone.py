@@ -17,7 +17,7 @@ from career_agent.storage.capability_confirmations import (
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
-from conftest import load_capability_family
+from agent_test_support import load_capability_family
 
 
 class SequenceDecisionMaker:

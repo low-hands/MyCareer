@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from io import BytesIO
 from typing import Literal
 
@@ -150,6 +151,17 @@ def test_chinese_text_pdf_keeps_exact_page_paragraph_quotes() -> None:
     }
 
 
+def test_chinese_pdf_survives_a_non_utf8_parser_locale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Regression: the child wrote its JSON through the locale's text stream,
+    # which cannot encode CJK text on e.g. a cp1252 Windows console.
+    monkeypatch.setenv("PYTHONIOENCODING", "ascii")
+    monkeypatch.setenv("PYTHONUTF8", "0")
+    source = extract_resume_source(document(synthetic_pdf(("后端工程师",))))
+    assert source.quotes_by_locator == {"page 1, paragraph 1": "后端工程师"}
+
+
 @pytest.mark.parametrize("document_format", ["text", "markdown"])
 def test_utf8_bom_blank_lines_and_untrusted_locator_text(document_format: str) -> None:
     resume = StoredResumeDocument(
@@ -212,6 +224,17 @@ def test_damaged_pdf_has_safe_diagnostics(
         (b"a" * 60_001, "CHARACTER_BUDGET_EXCEEDED"),
         ("中".encode() * 8_001, "TOKEN_BUDGET_EXCEEDED"),
     ],
+    # Explicit ids: pytest exports the test id in PYTEST_CURRENT_TEST, and a
+    # multi-megabyte id exceeds Windows' 32,767-character variable limit.
+    ids=[
+        "empty",
+        "whitespace-only",
+        "invalid-utf8",
+        "nul-byte",
+        "too-large",
+        "character-budget",
+        "token-budget",
+    ],
 )
 def test_text_fail_closed(raw: bytes, code: str) -> None:
     with pytest.raises(AgentWorkerError) as caught:
@@ -266,6 +289,9 @@ def test_real_pdf_extraction_succeeds_on_this_platform() -> None:
     assert source.quotes_by_locator == {"page 1, paragraph 1": "Engineer"}
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="the resource module (setrlimit) is Unix-only"
+)
 @pytest.mark.parametrize(
     ("platform", "expected"),
     [
@@ -277,7 +303,6 @@ def test_child_limits_skip_address_space_only_on_darwin(
     monkeypatch: pytest.MonkeyPatch, platform: str, expected: list[str]
 ) -> None:
     import resource
-    import sys
 
     from career_agent.agent.resources import resume_extraction as module
 
@@ -289,6 +314,44 @@ def test_child_limits_skip_address_space_only_on_darwin(
     )
     module._apply_child_limits()
     assert applied == expected
+
+
+def test_child_limits_use_a_job_object_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from career_agent.agent.resources import resume_extraction as module
+
+    applied: list[str] = []
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(
+        module, "_apply_windows_job_limits", lambda: applied.append("job")
+    )
+    module._apply_child_limits()
+    assert applied == ["job"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Job Objects are Windows-only")
+def test_windows_job_limits_cap_child_memory() -> None:
+    import subprocess
+
+    probe = (
+        "from career_agent.agent.resources import resume_extraction as m\n"
+        "m._apply_windows_job_limits()\n"
+        "try:\n"
+        "    bytearray(m._PDF_CHILD_MEMORY_BYTES + 64 * 1_048_576)\n"
+        "except MemoryError:\n"
+        "    print('capped')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "capped"
 
 
 def test_child_exits_with_sandbox_status_when_limits_cannot_apply(
@@ -311,6 +374,7 @@ def test_child_exits_with_sandbox_status_when_limits_cannot_apply(
         (3, "PDF_SANDBOX_UNAVAILABLE"),
         (-24, "PDF_EXTRACTION_LIMIT"),  # SIGXCPU
         (-9, "PDF_EXTRACTION_LIMIT"),
+        (0xC0000044, "PDF_EXTRACTION_LIMIT"),  # Windows job CPU quota
         (1, "PDF_EXTRACTION_FAILED"),
     ],
 )

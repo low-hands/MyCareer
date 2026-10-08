@@ -15,6 +15,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+import sys
+
+import pytest
 
 from career_agent.harness.observability import (
     InMemoryTraceRecorder,
@@ -65,6 +68,9 @@ def test_sequence_increments_per_run(tmp_path: Path) -> None:
     assert [e.sequence for e in recorder.snapshot("run-2").events] == [1]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows has no POSIX permission bits"
+)
 def test_run_events_file_is_chmod_600(tmp_path: Path) -> None:
     import os
 
