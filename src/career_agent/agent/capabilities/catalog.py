@@ -196,7 +196,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
             'ight rows at a time. Without query it returns the oldest rows in the exact span. Returns'
             ' at most 8 matching messages, clips each at 4000 characters, and reports returned/total '
             'plus clipping honestly. It never searches another conversation or substitutes nearby row'
-            's when the requested span is empty.'
+            's when the requested span is empty. This reads conversation messages, not the active '
+            'constraint ledger; use fetch_archived_constraints for omitted active constraints.'
         ),
     ),
     'fetch_archived_constraints': (
@@ -204,7 +205,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Read the constraints this conversation recorded but conversation_summary is not showing.'
             ' Call this when omitted_active_constraint_count is above zero and the reply depends on w'
-            'hich constraints apply; an archived constraint still applies. Read-only.'
+            'hich constraints apply; an archived constraint still applies. It does not recover '
+            'arbitrary earlier chat facts; use read_conversation_span for those. Read-only.'
         ),
     ),
     'propose_constraint_retirement': (

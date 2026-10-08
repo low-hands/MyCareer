@@ -177,6 +177,8 @@ def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
     assert "through_sequence > 0 and recent_from_sequence > 1" in prompt
     assert "summary is a lossy digest" in prompt
     assert "zero omitted_*_count values" in prompt
+    assert "still-active omitted constraints" in prompt
+    assert "earlier chat messages, not the active constraint ledger" in prompt
 
 
 def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:
