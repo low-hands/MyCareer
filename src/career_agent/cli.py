@@ -2189,6 +2189,19 @@ def _writes_workspace(args: argparse.Namespace) -> bool:
     return getattr(args, attribute) in subcommands
 
 
+def _utf8_stream(stream: TextIO) -> TextIO:
+    """Emit UTF-8 regardless of the platform locale.
+
+    Output is JSON with non-ASCII text; a Windows locale such as GBK would
+    otherwise make piped or redirected output unreadable as UTF-8.
+    """
+    encoding = (getattr(stream, "encoding", None) or "").replace("-", "").lower()
+    reconfigure = getattr(stream, "reconfigure", None)
+    if encoding != "utf8" and reconfigure is not None:
+        reconfigure(encoding="utf-8")
+    return stream
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -2197,8 +2210,8 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
-    stdout = stdout or sys.stdout
-    stderr = stderr or sys.stderr
+    stdout = stdout or _utf8_stream(sys.stdout)
+    stderr = stderr or _utf8_stream(sys.stderr)
     parser = build_parser()
     args = parser.parse_args(argv)
     if not _writes_workspace(args):

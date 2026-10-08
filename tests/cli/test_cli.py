@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from datetime import datetime, timezone
 from io import StringIO
 from types import SimpleNamespace
@@ -1137,3 +1140,31 @@ def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
     assert code != 0
     assert payload["recording_error"].startswith("MAIN_AGENT_INVALID_RESPONSE")
     assert payload["results"][0]["behaviour"] == "unrecorded"
+
+
+def test_cli_output_is_utf8_under_a_non_utf8_locale() -> None:
+    # PYTHONIOENCODING=gbk reproduces a Chinese Windows console on any OS.
+    script = "\n".join((
+        "import sys",
+        "import career_agent.cli as cli",
+        "def dispatch(args, **kwargs):",
+        "    kwargs['stdout'].write('{\"message\":\"对方会话保留的关键片段\"}')",
+        "    kwargs['stderr'].write('中文错误')",
+        "    return 0",
+        "cli._dispatch = dispatch",
+        "sys.exit(cli.main(['eval', 'trajectories']))",
+    ))
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in {"PYTHONUTF8", "PYTHONIOENCODING"}
+    }
+    env.update(PYTHONIOENCODING="gbk", PYTHONUTF8="0")
+    completed = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, env=env, check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout.decode("utf-8")) == {
+        "message": "对方会话保留的关键片段",
+    }
+    assert completed.stderr.decode("utf-8") == "中文错误"
