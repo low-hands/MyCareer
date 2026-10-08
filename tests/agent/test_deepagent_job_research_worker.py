@@ -131,6 +131,28 @@ def test_worker_builds_read_only_deepagent_with_web_search_and_checkpoint() -> N
     assert captured["model"].streaming is True
 
 
+def test_worker_mounts_only_its_own_skill_directory() -> None:
+    captured = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return Agent()
+
+    DeepAgentJobResearchWorker(
+        _config(),
+        skills_root=Path("skills"),
+        checkpointer=Checkpointer(),
+        agent_factory=factory,
+    )
+
+    backend = captured["backend"]
+    assert captured["skills"] == ["/"]
+    assert list(backend.routes) == ["/job-research/"]
+    skill_backend = backend.routes["/job-research/"]
+    assert skill_backend.download_files(["/SKILL.md"])[0].content
+    assert skill_backend.download_files(["/../mock-interview/SKILL.md"])[0].content is None
+
+
 def test_worker_request_does_not_treat_generic_jd_as_business_evidence() -> None:
     text = DeepAgentJobResearchWorker._request_text(_request())
 
