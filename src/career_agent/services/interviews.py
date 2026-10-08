@@ -201,8 +201,9 @@ class InterviewService:
                 user_id=user_id,
                 application_id=completed.application_id,
                 status="interview_completed",
-                note=f"面试已完成，等待招聘方结果。（面试记录：{completed.id}）",
+                note="面试已完成，等待招聘方结果。",
                 source="user_reported", reason="interview_completed",
+                source_interview_round_id=completed.id,
             )
         return completed
 

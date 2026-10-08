@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import os
+import re
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
@@ -24,9 +25,10 @@ class SQLiteApplicationStore:
             apply_schema(
                 connection,
                 "applications",
-                3,
+                4,
                 self._migrate,
-                upgrades={2: self._allow_unknown_resume, 3: self._add_event_reason},
+                upgrades={2: self._allow_unknown_resume, 3: self._add_event_reason,
+                          4: self._add_event_interview_source},
             )
         os.chmod(self.path, 0o600)
 
@@ -168,7 +170,7 @@ class SQLiteApplicationStore:
             rows = connection.execute(
                 """
                 SELECT id, application_id, user_id, source, event_type,
-                       previous_status, new_status, note, occurred_at, reason
+                       previous_status, new_status, note, occurred_at, reason, source_interview_round_id
                 FROM application_events
                 WHERE application_id = ? AND user_id = ?
                 ORDER BY occurred_at, rowid
@@ -189,6 +191,7 @@ class SQLiteApplicationStore:
         source: str = "user_reported",
         reason: str | None = None,
         expected_updated_at: datetime | None = None,
+        source_interview_round_id: str | None = None,
     ) -> Application | None:
         now = datetime.now(timezone.utc)
         event_type = "note_added" if expected_status == new_status else "status_changed"
@@ -202,6 +205,7 @@ class SQLiteApplicationStore:
             new_status=new_status,
             note=note,
             reason=reason,
+            source_interview_round_id=source_interview_round_id,
             occurred_at=now,
         )
         with self._connect() as connection:
@@ -304,7 +308,8 @@ class SQLiteApplicationStore:
                 new_status TEXT NOT NULL,
                 note TEXT,
                 occurred_at TEXT NOT NULL,
-                reason TEXT
+                reason TEXT,
+                source_interview_round_id TEXT
             )
             """
         )
@@ -402,6 +407,27 @@ class SQLiteApplicationStore:
         )
 
     @staticmethod
+    def _add_event_interview_source(connection: sqlite3.Connection) -> None:
+        connection.execute("ALTER TABLE application_events ADD COLUMN source_interview_round_id TEXT")
+        # One-time conversion of v3 events written by the completion handler.
+        # Unknown/edited legacy notes remain unlinked; runtime never parses prose.
+        rows = connection.execute(
+            "SELECT id, note FROM application_events WHERE reason = 'interview_completed' "
+            "AND event_type = 'status_changed' AND source = 'user_reported' "
+            "AND previous_status = 'interviewing' AND new_status = 'interview_completed'"
+        ).fetchall()
+        for event_id, note in rows:
+            match = re.fullmatch(
+                r"面试已完成，等待招聘方结果。（面试记录：(interview_round_[a-f0-9]{32})）",
+                note or "",
+            )
+            if match is not None:
+                connection.execute(
+                    "UPDATE application_events SET source_interview_round_id = ? WHERE id = ?",
+                    (match[1], event_id),
+                )
+
+    @staticmethod
     def _insert_event(
         connection: sqlite3.Connection, event: ApplicationEvent
     ) -> None:
@@ -409,8 +435,8 @@ class SQLiteApplicationStore:
             """
             INSERT INTO application_events(
                 id, application_id, user_id, source, event_type,
-                previous_status, new_status, note, occurred_at, reason
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                previous_status, new_status, note, occurred_at, reason, source_interview_round_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event.id,
@@ -423,6 +449,7 @@ class SQLiteApplicationStore:
                 event.note,
                 event.occurred_at.isoformat(),
                 event.reason,
+                event.source_interview_round_id,
             ),
         )
 
@@ -453,4 +480,5 @@ class SQLiteApplicationStore:
             note=row[7],
             occurred_at=row[8],
             reason=row[9],
+            source_interview_round_id=row[10],
         )

@@ -1,6 +1,7 @@
 from career_agent.domain.interviews.models import (
     InterviewChangeType,
     InterviewDetails,
+    InterviewCompletionRevertedDetails,
     InterviewRetroQuestion,
     InterviewRetroReport,
     InterviewRound,
@@ -12,6 +13,7 @@ from career_agent.domain.interviews.models import (
 __all__ = [
     "InterviewChangeType",
     "InterviewDetails",
+    "InterviewCompletionRevertedDetails",
     "InterviewRetroQuestion",
     "InterviewRetroReport",
     "InterviewRound",

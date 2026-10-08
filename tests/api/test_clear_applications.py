@@ -270,6 +270,7 @@ def test_application_event_reason_is_backfilled_from_v2(tmp_path) -> None:
     # Recreate the old column shape while retaining an event to migrate.
     with sqlite3.connect(path) as connection:
         connection.execute("PRAGMA foreign_keys=OFF")
+        connection.execute("ALTER TABLE application_events DROP COLUMN source_interview_round_id")
         connection.execute("ALTER TABLE application_events DROP COLUMN reason")
         connection.execute(
             "UPDATE schema_versions SET version = 2 WHERE component = 'applications'"
@@ -288,7 +289,7 @@ def test_application_event_reason_is_backfilled_from_v2(tmp_path) -> None:
         ).fetchone()[0] == "interview_created"
         assert connection.execute(
             "SELECT version FROM schema_versions WHERE component = 'applications'"
-        ).fetchone()[0] == 3
+        ).fetchone()[0] == 4
 
 
 def test_status_correction_retires_stale_follow_up_on_refresh(tmp_path) -> None:
@@ -471,6 +472,14 @@ def test_interview_undo_rolls_back_only_its_unchanged_application_transition(tmp
     service = InterviewService(reader._interviews, apps)
     service.complete_interview(user_id="u1", interview_round_id=interview.id)
     assert apps.get_record(user_id="u1", application_id=application.id).status == "interview_completed"
+    event = apps.list_events(user_id="u1", application_id=application.id)[-1]
+    assert event.source_interview_round_id == interview.id
+    assert apps.restore_status_after_completion(
+        user_id="u1", application_id=application.id, interview_round_id="unrelated-round",
+    ) is None
+    # Display wording is mutable and is no longer part of the rollback contract.
+    with sqlite3.connect(paths.application_store) as connection:
+        connection.execute("UPDATE application_events SET note = ? WHERE id = ?", ("新的完成提示文案", event.id))
     app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader, api_key_store_factory=lambda: api_keys)
     owner = issue_key("u1", WORKSPACE_READ, WORKSPACE_WRITE)
     other = issue_key("u2", WORKSPACE_READ, WORKSPACE_WRITE)

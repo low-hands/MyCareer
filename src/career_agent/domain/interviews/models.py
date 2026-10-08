@@ -58,6 +58,14 @@ class InterviewDetails(InterviewContract):
         return self
 
 
+class InterviewCompletionRevertedDetails(InterviewDetails):
+    """History-only status transition, never an email/model input change type."""
+
+    change_type: Literal["completion_reverted"] = "completion_reverted"
+    previous_status: Literal["completed"] = "completed"
+    new_status: Literal["scheduled"] = "scheduled"
+
+
 class InterviewRound(InterviewContract):
     id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
@@ -100,10 +108,11 @@ class InterviewRoundEvent(InterviewContract):
         "cancelled",
         "completed",
         "corrected",
+        "completion_reverted",
     ]
     email_event_id: str | None = Field(default=None, min_length=1)
     source_thread_id: str | None = Field(default=None, min_length=1)
-    details: InterviewDetails
+    details: InterviewDetails | InterviewCompletionRevertedDetails
     occurred_at: datetime
 
 

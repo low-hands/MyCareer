@@ -279,7 +279,11 @@ def test_restore_completed_interview_without_retro_and_reject_stale_retro_write(
     assert restored.status == "scheduled"
     assert restored.completed_at is None
     assert restored.scheduled_start == interview.scheduled_start
-    assert service.get_interview(user_id="u1", interview_round_id=interview.id).events[-1].event_type == "corrected"
+    event = service.get_interview(user_id="u1", interview_round_id=interview.id).events[-1]
+    assert event.event_type == "completion_reverted"
+    assert event.details.change_type == "completion_reverted"
+    assert event.details.previous_status == "completed"
+    assert event.details.new_status == "scheduled"
     with pytest.raises(ValueError, match="currently completed"):
         store.record_retro(round_=completed, source_notes="旧读取", summary="不能写入")
 

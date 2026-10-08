@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from career_agent.domain.interviews import (
     InterviewDetails,
+    InterviewCompletionRevertedDetails,
     InterviewRetroQuestion,
     InterviewRetroReport,
     InterviewRound,
@@ -29,9 +30,9 @@ class SQLiteInterviewStore:
             apply_schema(
                 connection,
                 "interviews",
-                2,
+                3,
                 self._migrate,
-                upgrades={2: self._upgrade_v2},
+                upgrades={2: self._upgrade_v2, 3: self._upgrade_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -289,10 +290,10 @@ class SQLiteInterviewStore:
             if not changed:
                 raise ValueError("only completed interviews without a retro can be restored")
             self._insert_event(connection, self._new_event(
-                round_=updated, source="user_reported", event_type="corrected",
+                round_=updated, source="user_reported", event_type="completion_reverted",
                 email_event_id=None, source_thread_id=None,
-                details=InterviewDetails(
-                    change_type="details_updated", employer_label=updated.employer_label,
+                details=InterviewCompletionRevertedDetails(
+                    employer_label=updated.employer_label,
                     scheduled_start=updated.scheduled_start, scheduled_end=updated.scheduled_end,
                     timezone=updated.timezone, interview_format=updated.interview_format,
                     location=updated.location, meeting_url=updated.meeting_url,
@@ -716,6 +717,23 @@ class SQLiteInterviewStore:
             round_.created_at.isoformat(), round_.updated_at.isoformat(),
             cls._iso(round_.completed_at),
         )
+
+    @staticmethod
+    def _upgrade_v3(connection: sqlite3.Connection) -> None:
+        # The sole v2 producer of "corrected" was restore_completion; repair
+        # both labels without reclassifying real details_updated events.
+        rows = connection.execute(
+            "SELECT id, details_json FROM interview_round_events WHERE event_type = 'corrected'"
+        ).fetchall()
+        for event_id, raw in rows:
+            details = json.loads(raw)
+            if details.get("change_type") != "details_updated":
+                continue
+            details.update(change_type="completion_reverted", previous_status="completed", new_status="scheduled")
+            connection.execute(
+                "UPDATE interview_round_events SET event_type = 'completion_reverted', details_json = ? WHERE id = ?",
+                (json.dumps(details, ensure_ascii=False), event_id),
+            )
 
     @staticmethod
     def _new_event(

@@ -112,6 +112,7 @@ class ApplicationService:
         note: str | None = None,
         source: str = "user_reported",
         reason: str | None = None,
+        source_interview_round_id: str | None = None,
     ) -> Application:
         application = self._application_store.get(
             user_id=user_id,
@@ -137,6 +138,7 @@ class ApplicationService:
             note=note,
             source=source,
             reason=reason,
+            source_interview_round_id=source_interview_round_id,
         )
         if updated is None:
             raise ConcurrentApplicationUpdateError(
@@ -173,7 +175,7 @@ class ApplicationService:
         latest = events[-1] if events else None
         if (latest is None or latest.reason != "interview_completed"
                 or latest.previous_status != "interviewing"
-                or latest.note != f"面试已完成，等待招聘方结果。（面试记录：{interview_round_id}）"):
+                or latest.source_interview_round_id != interview_round_id):
             return None
         return self._application_store.update(
             user_id=user_id, application_id=application_id,
