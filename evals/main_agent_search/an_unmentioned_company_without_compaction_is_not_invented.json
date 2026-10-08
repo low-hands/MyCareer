@@ -1,30 +1,29 @@
 {
-  "scenario": "saved_jd_body_drives_the_next_read_step",
-  "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "84c6db35c30194dc13ff579d8b64b94218a317fd8488f56faab7ff5b8b16e725",
-  "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
-  "recorded_at": "2026-10-08T16:24:33.767650+00:00",
+  "prompt_fingerprint": "1af4f1f7c2a52f1c0e4508dadfea88ccac798138f6a096ce425b4a93b26f18a2",
+  "context_shape_fingerprint": "0aaffe507c543f652ac9efaa8d5df33f36fc2623a917defa92da0d16371efafd",
+  "recorded_at": "2026-10-08T16:25:07.341834+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "analyze_job",
+        "name": "list_target_roles",
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
-      "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+      "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+      "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "get_saved_job",
-        "analyze_job",
-        "create_interview",
+        "get_job_research",
+        "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 2791.6,
+      "elapsed_ms": 2255.5,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,28 +34,27 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:32.842861+00:00",
-      "elapsed_ms": 2920.2,
+      "recorded_at": "2026-10-08T16:25:05.994824+00:00",
+      "elapsed_ms": 2311.3,
       "steps": [
         {
           "tool_call": {
-            "name": "analyze_job",
+            "name": "list_target_roles",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
-          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
+            "get_job_research",
+            "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 2791.6,
+          "elapsed_ms": 2255.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,28 +64,27 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:33.598670+00:00",
-      "elapsed_ms": 3512.2,
+      "recorded_at": "2026-10-08T16:25:07.409051+00:00",
+      "elapsed_ms": 3244.5,
       "steps": [
         {
           "tool_call": {
-            "name": "analyze_job",
+            "name": "list_target_roles",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
-          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
+            "get_job_research",
+            "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 3340.0,
+          "elapsed_ms": 3184.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -97,28 +94,27 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:33.767650+00:00",
-      "elapsed_ms": 3492.5,
+      "recorded_at": "2026-10-08T16:25:07.341834+00:00",
+      "elapsed_ms": 2934.8,
       "steps": [
         {
           "tool_call": {
-            "name": "analyze_job",
+            "name": "list_target_roles",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
-          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
+            "get_job_research",
+            "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 3399.3,
+          "elapsed_ms": 2875.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

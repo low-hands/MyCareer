@@ -1,11 +1,10 @@
 {
   "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "f4cab019da58ff2086b71a859b8da8c1819675e49f83e67122e94cb1922b2e45",
+  "prompt_fingerprint": "e1e36a269f2ba396ef0b8c429f9aa1ab291428729fbc404c0266dec491c2d1f0",
   "context_shape_fingerprint": "37f048c49dcc5a1603a30c1635d95e9939d05660fb35d4589f5e037566930600",
-  "recorded_at": "2026-10-08T01:12:43.878623+00:00",
+  "recorded_at": "2026-10-08T16:28:50.007651+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,8 +14,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
-      "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+      "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+      "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,7 +24,7 @@
         "find_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1114.3,
+      "elapsed_ms": 1177.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:42.939300+00:00",
-      "elapsed_ms": 1178.7,
+      "recorded_at": "2026-10-08T16:28:49.235765+00:00",
+      "elapsed_ms": 1361.3,
       "steps": [
         {
           "tool_call": {
@@ -47,8 +46,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
-          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -57,7 +56,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1114.3,
+          "elapsed_ms": 1177.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -67,19 +66,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:42.817735+00:00",
-      "elapsed_ms": 918.6,
+      "recorded_at": "2026-10-08T16:28:49.511932+00:00",
+      "elapsed_ms": 1659.9,
       "steps": [
         {
-          "tool_call": {
-            "name": "find_saved_jobs",
-            "arguments": {
-              "query": "RAG"
-            }
-          },
+          "content": "{\"action\":\"final\",\"message\":\"暂时查不了：岗位库此刻不可用（本次调用失败，未返回任何已收藏岗位内容，因此我无法给出你的 RAG 岗位列表）。这属于暂时的服务故障，不是你缺少信息。\\n\\n这个查询是可重试的，你可以稍后让我再试一次；如果岗位库恢复，我会重新按 \\\"RAG\\\" 检索你保存过的岗位，并把候选项列给你挑选。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
-          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,7 +82,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 856.7,
+          "elapsed_ms": 1502.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,8 +92,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:43.878623+00:00",
-      "elapsed_ms": 1464.4,
+      "recorded_at": "2026-10-08T16:28:50.007651+00:00",
+      "elapsed_ms": 1357.5,
       "steps": [
         {
           "tool_call": {
@@ -109,8 +103,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
-          "decision_shape_fingerprint": "8bd4ea1ffb682c558e4a549b95e1872bdbbe73db6d64722dc8276ebad5aba23b",
+          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -119,7 +113,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1401.3,
+          "elapsed_ms": 1219.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

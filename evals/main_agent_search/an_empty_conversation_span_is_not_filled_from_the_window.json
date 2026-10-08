@@ -1,17 +1,16 @@
 {
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "6ab0ea4f45873ffa94b4fb061edfa2ec6ca350b30f74e06f0e1cfef0bdc515d2",
-  "context_shape_fingerprint": "235564260f911383e8a2bd7e11d7cd5bd3b4511262927aea2e61c9113a8703e1",
-  "recorded_at": "2026-10-07T21:58:53.166317+00:00",
+  "prompt_fingerprint": "14da4cf3cbd107b1a10db8c7ddb53ecf9145f01d2adb79c9ce3dd82697a95804",
+  "context_shape_fingerprint": "99ca3c33195ad84be197dbb5ca8aa07e819bd3f141b101da3dd9aee39fedb075",
+  "recorded_at": "2026-10-08T16:25:17.027443+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 区间是空的，没有可读取的消息。请确认你希望查看的对话范围，或者告诉我你想了解哪部分内容。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 之间没有消息。当前摘要覆盖到序号 8，最近原始消息从序号 9 开始。如果你要找美团 JD 的内容，请告诉我更具体的序号范围或关键词。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-      "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+      "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+      "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -19,15 +18,26 @@
         "search_career_memory",
         "search_capabilities"
       ],
-      "elapsed_ms": 7665.1,
-      "model_request_count": 2,
+      "elapsed_ms": 9396.2,
+      "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
         {
           "reason": "text_rejected",
           "retried": true,
+          "forced_interaction": false,
           "raw_output": {
-            "content": "序号 100–110 这段对话是空的，没有消息可读取。\n\n你之前提到“美团 的 JD”，但当前会话里并没有保存任何岗位记录（saved_jobs 为空），也没有激活的岗位分析或 JD 快照。如果你希望我帮你评估某份美团的职位描述，可以：\n\n1. 把那份 JD 的文本贴出来，或者  \n2. 如果已经收藏过该岗位，告诉我具体是哪一条，我可以先列出已保存岗位供你选择。\n\n你想用哪种方式？",
+            "content": "会话序号 100–110 是空的，没有消息可读取。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "这段对话里序号 100–110 是空的，没有消息可读取。",
             "tool_calls": []
           },
           "decision_invocation": 1
@@ -40,14 +50,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:58:52.804129+00:00",
-      "elapsed_ms": 7720.6,
+      "recorded_at": "2026-10-08T16:25:17.029959+00:00",
+      "elapsed_ms": 9451.7,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 区间是空的，没有可读取的消息。请确认你希望查看的对话范围，或者告诉我你想了解哪部分内容。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 之间没有消息。当前摘要覆盖到序号 8，最近原始消息从序号 9 开始。如果你要找美团 JD 的内容，请告诉我更具体的序号范围或关键词。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -55,15 +65,26 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 7665.1,
-          "model_request_count": 2,
+          "elapsed_ms": 9396.2,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
               "reason": "text_rejected",
               "retried": true,
+              "forced_interaction": false,
               "raw_output": {
-                "content": "序号 100–110 这段对话是空的，没有消息可读取。\n\n你之前提到“美团 的 JD”，但当前会话里并没有保存任何岗位记录（saved_jobs 为空），也没有激活的岗位分析或 JD 快照。如果你希望我帮你评估某份美团的职位描述，可以：\n\n1. 把那份 JD 的文本贴出来，或者  \n2. 如果已经收藏过该岗位，告诉我具体是哪一条，我可以先列出已保存岗位供你选择。\n\n你想用哪种方式？",
+                "content": "会话序号 100–110 是空的，没有消息可读取。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "这段对话里序号 100–110 是空的，没有消息可读取。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -75,14 +96,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:52.029433+00:00",
-      "elapsed_ms": 6861.7,
+      "recorded_at": "2026-10-08T16:25:16.570635+00:00",
+      "elapsed_ms": 7680.7,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 是空的，没有消息可以读回来。请确认你指的“美团 JD”具体在哪一段对话里，或者告诉我你想看哪几段消息。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 是空的，没有消息。你想看哪一段的对话？或者可以直接告诉我你关心的内容，我帮你定位。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -90,15 +111,26 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 6774.0,
-          "model_request_count": 2,
+          "elapsed_ms": 7505.1,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
               "reason": "text_rejected",
               "retried": true,
+              "forced_interaction": false,
               "raw_output": {
-                "content": "序号 100–110 这段对话是空的，没有任何消息记录。\n\n你提到的“美团 JD”可能在更早的对话里。需要我往前读取其他序号范围来找那份 JD 吗？或者你可以直接告诉我那份 JD 的关键信息（比如岗位名称、要求等），我可以帮你分析。",
+                "content": "这段区间没有消息。你提到的美团 JD 具体是在哪一段对话里出现的？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息记录，返回 0/0 条。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -110,14 +142,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:53.166317+00:00",
-      "elapsed_ms": 5921.9,
+      "recorded_at": "2026-10-08T16:25:17.027443+00:00",
+      "elapsed_ms": 7703.6,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 之间没有消息（返回 0/0 条），所以无法读到美团 JD 的原文。\\n\\n你提到的“刚才窗口里这份美团的 JD”可能不在 100–110 这段。你可以：\\n- 告诉我更准确的序号范围，或者\\n- 直接粘贴那份美团 JD 的关键内容（岗位职责/要求/地点等），我可以帮你评估它是否符合你的算法工程师方向。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 是空的，没有消息可以读回来。你想看哪一段对话？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -125,15 +157,26 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 5819.6,
-          "model_request_count": 2,
+          "elapsed_ms": 7647.3,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
               "reason": "text_rejected",
               "retried": true,
+              "forced_interaction": false,
               "raw_output": {
-                "content": "序号 100–110 这段是空的，没有消息可回读。",
+                "content": "序号 100–110 这段对话是空的，没有消息可以读回来。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息，返回 0/0 条。",
                 "tool_calls": []
               },
               "decision_invocation": 1

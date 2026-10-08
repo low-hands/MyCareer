@@ -1,17 +1,16 @@
 {
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "e032a54f4f80e7e86b5d2bf005e4812db58f37c337e6cbb328c6c15fb6cf89ac",
+  "prompt_fingerprint": "84c6db35c30194dc13ff579d8b64b94218a317fd8488f56faab7ff5b8b16e725",
   "context_shape_fingerprint": "b8eacbd0ce7337fadac7ae52ea8ca5ce5ffa80e63820daabc9c782cf4c58a4d1",
-  "recorded_at": "2026-10-07T21:58:20.993779+00:00",
+  "recorded_at": "2026-10-08T16:24:38.695674+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"已检查该算法工程师岗位的完整 JD，其中未明确要求 Rust 技能（仅要求分布式系统设计和生产环境异步服务经验）。按照你的指示，流程到此结束，不再进行简历匹配。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中**没有明确要求 Rust**。按照你的指示，到这里为止，不进行简历匹配。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-      "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+      "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+      "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -22,7 +21,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 3621.5,
+      "elapsed_ms": 3831.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -33,14 +32,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:58:19.558745+00:00",
-      "elapsed_ms": 3826.6,
+      "recorded_at": "2026-10-08T16:24:35.741760+00:00",
+      "elapsed_ms": 3945.4,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"已检查该算法工程师岗位的完整 JD，其中未明确要求 Rust 技能（仅要求分布式系统设计和生产环境异步服务经验）。按照你的指示，流程到此结束，不再进行简历匹配。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中**没有明确要求 Rust**。按照你的指示，到这里为止，不进行简历匹配。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -51,7 +50,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3621.5,
+          "elapsed_ms": 3831.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -61,14 +60,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:20.014801+00:00",
-      "elapsed_ms": 3768.8,
+      "recorded_at": "2026-10-08T16:24:35.999723+00:00",
+      "elapsed_ms": 3888.4,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中没有明确要求 Rust。根据你的指示，如果没有明确要求就到这里，因此不再继续匹配简历。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\n该 JD **没有明确要求 Rust**，因此按照您的指示，简历匹配流程到此结束，不进行后续的 match_resume_to_job 操作。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -79,7 +78,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3708.3,
+          "elapsed_ms": 3723.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -89,14 +88,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:20.993779+00:00",
-      "elapsed_ms": 4057.9,
+      "recorded_at": "2026-10-08T16:24:38.695674+00:00",
+      "elapsed_ms": 6440.4,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"已读取岗位 JD，其中未明确要求 Rust 技能。根据你的指示，匹配流程到此结束。如需进一步操作（如分析岗位、定制简历等），请告诉我。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"已读取岗位“算法工程师（示例科技）”的完整 JD，内容为：“岗位要求：具备分布式系统设计和生产环境异步服务经验。”\\n\\nJD 中**没有明确要求 Rust**，因此按你的指示，简历匹配流程到此结束，不进行后续的 match_resume_to_job 操作。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -107,10 +106,21 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3999.4,
-          "model_request_count": 1,
+          "elapsed_ms": 6243.6,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "完整 JD 内容为：“岗位要求：具备分布式系统设计和生产环境异步服务经验。”\n\n该 JD **没有明确要求 Rust**。根据你的指示，到这里为止。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

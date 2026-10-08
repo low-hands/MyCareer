@@ -1,11 +1,10 @@
 {
   "scenario": "a_questionnaire_answer_is_proposed_with_user_input_provenance",
   "policy": "When proposing a career fact from a user's questionnaire answer, supply an exact user_quote so the stored origin is user_input.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "14a3fe2d72356f40134f8954ae4880dfb8a7ae9ae8f05a205d185a0899e7f3d7",
+  "prompt_fingerprint": "903c0134ea4685b7b634ea42029acdf0e8cdee4d052bd690d22fa24c900ed549",
   "context_shape_fingerprint": "ff797a0427602e0c18a429b4507726f6c9d2dad6671f60696af84cbd38f1aefc",
-  "recorded_at": "2026-10-08T01:12:58.381355+00:00",
+  "recorded_at": "2026-10-08T16:29:04.414088+00:00",
   "steps": [
     {
       "tool_call": {
@@ -17,8 +16,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "b32b31799ba32591b8584e7ddc643dda2647d040254bba62ad8a92304d440fda",
-      "decision_shape_fingerprint": "68a5c389a8fdfdb520bd866f07d155aa37b3cec56d013232f66432c31071de86",
+      "selected_schema_fingerprint": "89bf9924b0353666375c24c55ec8484bf63680f9eadbf36f25e9c485588db933",
+      "decision_shape_fingerprint": "5e580e00d7fa7e551fb7de3e3e56643ebb9385325c939760ca22d9d506e0071b",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -29,7 +28,7 @@
         "propose_memory_amendment",
         "search_capabilities"
       ],
-      "elapsed_ms": 1113.3,
+      "elapsed_ms": 1129.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -42,13 +41,13 @@
         "arguments": {
           "record_selection_index": 1,
           "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-          "reason": "用户明确要求在问卷中陈述的 AI 编程工具使用情况作为示例科技工作经历的事实提案，并先展示确认、暂不写入。",
+          "reason": "用户在问卷中明确陈述的 AI 编程工具使用情况，用户要求作为示例科技工作经历的事实提案先确认、不直接写入。",
           "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "964a89b9fceaea1bad27fd4b1c7853e8c7470c176c83b71fa21d782a92648f6e",
-      "decision_shape_fingerprint": "e9dab7ad28e25b36e83314f339049a2507946d545a6b716ea89eed954fcaf4fb",
+      "selected_schema_fingerprint": "67ae2b7c1792cb80ed605edbe4ed9ecc6e351c21205b557100f23131020f9a15",
+      "decision_shape_fingerprint": "2b8b91b5fb9883b7768b083c35ea4cff4d039becba3912632dd958aac36fdf26",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -60,7 +59,7 @@
         "propose_career_fact",
         "search_capabilities"
       ],
-      "elapsed_ms": 1573.7,
+      "elapsed_ms": 1144.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -71,8 +70,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:57.923890+00:00",
-      "elapsed_ms": 2829.4,
+      "recorded_at": "2026-10-08T16:29:03.647349+00:00",
+      "elapsed_ms": 2369.7,
       "steps": [
         {
           "tool_call": {
@@ -84,8 +83,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b32b31799ba32591b8584e7ddc643dda2647d040254bba62ad8a92304d440fda",
-          "decision_shape_fingerprint": "68a5c389a8fdfdb520bd866f07d155aa37b3cec56d013232f66432c31071de86",
+          "selected_schema_fingerprint": "89bf9924b0353666375c24c55ec8484bf63680f9eadbf36f25e9c485588db933",
+          "decision_shape_fingerprint": "5e580e00d7fa7e551fb7de3e3e56643ebb9385325c939760ca22d9d506e0071b",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -96,7 +95,7 @@
             "propose_memory_amendment",
             "search_capabilities"
           ],
-          "elapsed_ms": 1113.3,
+          "elapsed_ms": 1129.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,13 +108,13 @@
             "arguments": {
               "record_selection_index": 1,
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "用户明确要求在问卷中陈述的 AI 编程工具使用情况作为示例科技工作经历的事实提案，并先展示确认、暂不写入。",
+              "reason": "用户在问卷中明确陈述的 AI 编程工具使用情况，用户要求作为示例科技工作经历的事实提案先确认、不直接写入。",
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "964a89b9fceaea1bad27fd4b1c7853e8c7470c176c83b71fa21d782a92648f6e",
-          "decision_shape_fingerprint": "e9dab7ad28e25b36e83314f339049a2507946d545a6b716ea89eed954fcaf4fb",
+          "selected_schema_fingerprint": "67ae2b7c1792cb80ed605edbe4ed9ecc6e351c21205b557100f23131020f9a15",
+          "decision_shape_fingerprint": "2b8b91b5fb9883b7768b083c35ea4cff4d039becba3912632dd958aac36fdf26",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -127,7 +126,7 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1573.7,
+          "elapsed_ms": 1144.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -137,21 +136,22 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:58.163578+00:00",
-      "elapsed_ms": 2788.9,
+      "recorded_at": "2026-10-08T16:29:04.297144+00:00",
+      "elapsed_ms": 2584.0,
       "steps": [
         {
           "tool_call": {
             "name": "search_capabilities",
             "arguments": {
               "names": [
-                "propose_career_fact"
+                "propose_career_fact",
+                "confirm_career_fact"
               ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b32b31799ba32591b8584e7ddc643dda2647d040254bba62ad8a92304d440fda",
-          "decision_shape_fingerprint": "68a5c389a8fdfdb520bd866f07d155aa37b3cec56d013232f66432c31071de86",
+          "selected_schema_fingerprint": "89bf9924b0353666375c24c55ec8484bf63680f9eadbf36f25e9c485588db933",
+          "decision_shape_fingerprint": "5e580e00d7fa7e551fb7de3e3e56643ebb9385325c939760ca22d9d506e0071b",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -162,73 +162,7 @@
             "propose_memory_amendment",
             "search_capabilities"
           ],
-          "elapsed_ms": 1357.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "propose_career_fact",
-            "arguments": {
-              "record_selection_index": 1,
-              "claim": "日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "用户要求在示例科技的工作经历记录中，将其问卷中关于 AI 编程工具使用情况的陈述作为待确认事实提案展示。",
-              "user_quote": "日常使用 Claude Code 和 Cursor 开发内部工具。"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "964a89b9fceaea1bad27fd4b1c7853e8c7470c176c83b71fa21d782a92648f6e",
-          "decision_shape_fingerprint": "e9dab7ad28e25b36e83314f339049a2507946d545a6b716ea89eed954fcaf4fb",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "search_career_history",
-            "propose_free_text_preference_confirmation",
-            "propose_memory_amendment",
-            "propose_career_fact",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1322.5,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T01:12:58.381355+00:00",
-      "elapsed_ms": 2504.5,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "propose_career_fact"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "b32b31799ba32591b8584e7ddc643dda2647d040254bba62ad8a92304d440fda",
-          "decision_shape_fingerprint": "68a5c389a8fdfdb520bd866f07d155aa37b3cec56d013232f66432c31071de86",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "search_career_history",
-            "propose_free_text_preference_confirmation",
-            "propose_memory_amendment",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1018.4,
+          "elapsed_ms": 1133.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -241,13 +175,13 @@
             "arguments": {
               "record_selection_index": 1,
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "用户要求把其在问卷中明确陈述的 AI 编程工具使用情况记录为示例科技工作经历的事实；此提案仅展示，待用户确认后才写入。",
+              "reason": "用户在问卷中明确陈述了该 AI 编程工具使用情况，并按用户要求将其作为示例科技（selection_index 1）工作经历的事实提案提交确认，暂不写入。",
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "964a89b9fceaea1bad27fd4b1c7853e8c7470c176c83b71fa21d782a92648f6e",
-          "decision_shape_fingerprint": "e9dab7ad28e25b36e83314f339049a2507946d545a6b716ea89eed954fcaf4fb",
+          "selected_schema_fingerprint": "67ae2b7c1792cb80ed605edbe4ed9ecc6e351c21205b557100f23131020f9a15",
+          "decision_shape_fingerprint": "6b2842aeb57fe6d5510b51bd1d1a915a5f3ea78961a45f0730379c78e74f0a52",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -259,7 +193,74 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1410.4,
+          "elapsed_ms": 1351.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:29:04.414088+00:00",
+      "elapsed_ms": 2496.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "propose_career_fact",
+                "confirm_career_fact"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "89bf9924b0353666375c24c55ec8484bf63680f9eadbf36f25e9c485588db933",
+          "decision_shape_fingerprint": "5e580e00d7fa7e551fb7de3e3e56643ebb9385325c939760ca22d9d506e0071b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_history",
+            "propose_free_text_preference_confirmation",
+            "propose_memory_amendment",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1336.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "propose_career_fact",
+            "arguments": {
+              "record_selection_index": 1,
+              "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
+              "reason": "用户要求在问卷中陈述的 AI 编程工具使用情况，作为示例科技工作经历的职业事实提案，先展示待确认、不直接写入。",
+              "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "67ae2b7c1792cb80ed605edbe4ed9ecc6e351c21205b557100f23131020f9a15",
+          "decision_shape_fingerprint": "6b2842aeb57fe6d5510b51bd1d1a915a5f3ea78961a45f0730379c78e74f0a52",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_history",
+            "propose_free_text_preference_confirmation",
+            "propose_memory_amendment",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1071.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

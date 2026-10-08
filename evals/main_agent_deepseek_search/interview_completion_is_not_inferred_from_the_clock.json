@@ -1,11 +1,10 @@
 {
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "af329f83738cc56754833667cb00043b4ee3b3d77d9aa64b7cc9d67354396bb1",
+  "prompt_fingerprint": "c0522b9022d4cec3d4db7fe565b04d8f655744cde3fd018705c01539832673f4",
   "context_shape_fingerprint": "3985e1cdce22a81b9b85794d61632c752e81f3ba2b1045740b4198ff15bc3733",
-  "recorded_at": "2026-10-08T01:12:31.801211+00:00",
+  "recorded_at": "2026-10-08T16:28:39.298348+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,8 +14,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "a8969994cddda7a84671ff7ab5807e2dea1e61d3246b7021022f5cbaddc8e9c0",
-      "decision_shape_fingerprint": "79c64aebb1df5523c150e7c5024a64644571f9bbe07b68fedf3c1a70966c4be6",
+      "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
+      "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -29,7 +28,7 @@
         "get_interview_preparation",
         "search_capabilities"
       ],
-      "elapsed_ms": 1157.2,
+      "elapsed_ms": 1255.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -40,8 +39,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:31.435699+00:00",
-      "elapsed_ms": 1281.4,
+      "recorded_at": "2026-10-08T16:28:39.221852+00:00",
+      "elapsed_ms": 1401.8,
       "steps": [
         {
           "tool_call": {
@@ -51,8 +50,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a8969994cddda7a84671ff7ab5807e2dea1e61d3246b7021022f5cbaddc8e9c0",
-          "decision_shape_fingerprint": "79c64aebb1df5523c150e7c5024a64644571f9bbe07b68fedf3c1a70966c4be6",
+          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
+          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -65,7 +64,7 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 1157.2,
+          "elapsed_ms": 1255.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -75,8 +74,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:31.657721+00:00",
-      "elapsed_ms": 1476.2,
+      "recorded_at": "2026-10-08T16:28:39.382298+00:00",
+      "elapsed_ms": 1555.7,
       "steps": [
         {
           "tool_call": {
@@ -86,8 +85,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a8969994cddda7a84671ff7ab5807e2dea1e61d3246b7021022f5cbaddc8e9c0",
-          "decision_shape_fingerprint": "79c64aebb1df5523c150e7c5024a64644571f9bbe07b68fedf3c1a70966c4be6",
+          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
+          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -100,7 +99,7 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 1381.4,
+          "elapsed_ms": 1455.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -110,8 +109,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:31.801211+00:00",
-      "elapsed_ms": 1418.0,
+      "recorded_at": "2026-10-08T16:28:39.298348+00:00",
+      "elapsed_ms": 1317.6,
       "steps": [
         {
           "tool_call": {
@@ -121,8 +120,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a8969994cddda7a84671ff7ab5807e2dea1e61d3246b7021022f5cbaddc8e9c0",
-          "decision_shape_fingerprint": "79c64aebb1df5523c150e7c5024a64644571f9bbe07b68fedf3c1a70966c4be6",
+          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
+          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -135,7 +134,7 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 1288.4,
+          "elapsed_ms": 1181.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

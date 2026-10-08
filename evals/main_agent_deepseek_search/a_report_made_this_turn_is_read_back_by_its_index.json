@@ -1,22 +1,16 @@
 {
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "353135c4cf44d676cda9043ff0eeb957455a394073ff6cdb8d84453ae3725775",
+  "prompt_fingerprint": "003326a71dac3ab3028b798c6be74b1ed1557557299c23e06695314cb0415b5d",
   "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
-  "recorded_at": "2026-10-08T01:12:35.093403+00:00",
+  "recorded_at": "2026-10-08T16:28:40.693297+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "get_job_research",
-        "arguments": {
-          "reference": "report_440400"
-        }
-      },
+      "content": "{\"action\":\"final\",\"message\":\"「示例科技」的调研报告我已经生成完成了，但它这次给我的只是回执（receipt_only），正文内容并没有随结果一起返回，所以我暂时读不到里面写的竞争对手是谁——报告正文只能通过引用句柄读取，而此时我手上并没有示例科技那份报告的可用句柄，我不能凭空猜测或用别的来源代替。\\n\\n现有可见的只有另外两家：\\n- 历史科技甲（report_662e28，产品调研）\\n- 历史科技乙（report_15d28b，产品调研）\\n\\n需要说明的是，这两家都不是「示例科技」，即使后面读到内容，也不能当成示例科技的竞争对手。\\n\\n要回答你的问题，我需要指向「示例科技」那份报告的确切引用。请把示例科技报告卡片上的引用（形如 report_xxxxxx）发给我，我就能直接读出它的正文并告诉你主要竞争对手是谁。若你手上也没有，我可以按你的要求重新发起一次示例科技的公司调研。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-      "decision_shape_fingerprint": "8c05117f19e176b94fad4b0f481be8e5bbfd3357316b68b8b982534220bb2c59",
+      "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+      "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -27,73 +21,25 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 6693.6,
-      "model_request_count": 4,
+      "elapsed_ms": 2238.3,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "raw_output": {
-            "content": "示例科技的调研报告（report_440400）已经生成，但这次读到的只是回执，没有正文内容，所以我现在无法从它里面取竞争对手信息。\n\n另外说明一下：这次新跑出来的两份报告是「示例科技」和「另一家科技」；而你上周那份「示例科技」的调研报告，我在当前会话里只能看到资源目录里的两条：\n\n- 历史科技甲（report_662e28）\n- 历史科技乙（report_15d28b）\n\n这两条都是「历史科技X」，标题并不叫「示例科技」，所以不能确定哪一份是你说的一周前那份示例科技报告，我也不能借用不匹配的引用去读它。\n\n请帮我确认一下：你说的一周前那份「示例科技」调研，是下面哪一份，或者提供它对应的引用？\n\nまた、如果您希望，我现在可以直接读取刚才生成的「示例科技」报告（report_440400）正文并回答竞争对手问题。",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        },
-        {
-          "reason": "invalid_tool_arguments",
-          "retried": true,
-          "raw_output": {
-            "content": "",
-            "tool_calls": [
-              {
-                "name": "research_job",
-                "arguments": "{\"job_selection_index\": 3}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        },
-        {
-          "reason": "invalid_tool_arguments",
-          "retried": false,
-          "raw_output": {
-            "content": "",
-            "tool_calls": [
-              {
-                "name": "research_job",
-                "arguments": "{\"job_selection_index\": 3}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        }
-      ],
-      "recording_retry_events": [
-        {
-          "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-          "decision_invocation": 1
-        }
-      ],
-      "decision_invocations": 2
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
     }
   ],
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:38.413823+00:00",
-      "elapsed_ms": 6749.5,
+      "recorded_at": "2026-10-08T16:28:41.615670+00:00",
+      "elapsed_ms": 2307.3,
       "steps": [
         {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
-            }
-          },
+          "content": "{\"action\":\"final\",\"message\":\"「示例科技」的调研报告我已经生成完成了，但它这次给我的只是回执（receipt_only），正文内容并没有随结果一起返回，所以我暂时读不到里面写的竞争对手是谁——报告正文只能通过引用句柄读取，而此时我手上并没有示例科技那份报告的可用句柄，我不能凭空猜测或用别的来源代替。\\n\\n现有可见的只有另外两家：\\n- 历史科技甲（report_662e28，产品调研）\\n- 历史科技乙（report_15d28b，产品调研）\\n\\n需要说明的是，这两家都不是「示例科技」，即使后面读到内容，也不能当成示例科技的竞争对手。\\n\\n要回答你的问题，我需要指向「示例科技」那份报告的确切引用。请把示例科技报告卡片上的引用（形如 report_xxxxxx）发给我，我就能直接读出它的正文并告诉你主要竞争对手是谁。若你手上也没有，我可以按你的要求重新发起一次示例科技的公司调研。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "8c05117f19e176b94fad4b0f481be8e5bbfd3357316b68b8b982534220bb2c59",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -104,83 +50,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 6693.6,
-          "model_request_count": 4,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "raw_output": {
-                "content": "示例科技的调研报告（report_440400）已经生成，但这次读到的只是回执，没有正文内容，所以我现在无法从它里面取竞争对手信息。\n\n另外说明一下：这次新跑出来的两份报告是「示例科技」和「另一家科技」；而你上周那份「示例科技」的调研报告，我在当前会话里只能看到资源目录里的两条：\n\n- 历史科技甲（report_662e28）\n- 历史科技乙（report_15d28b）\n\n这两条都是「历史科技X」，标题并不叫「示例科技」，所以不能确定哪一份是你说的一周前那份示例科技报告，我也不能借用不匹配的引用去读它。\n\n请帮我确认一下：你说的一周前那份「示例科技」调研，是下面哪一份，或者提供它对应的引用？\n\nまた、如果您希望，我现在可以直接读取刚才生成的「示例科技」报告（report_440400）正文并回答竞争对手问题。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "research_job",
-                    "arguments": "{\"job_selection_index\": 3}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": false,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "research_job",
-                    "arguments": "{\"job_selection_index\": 3}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [
-            {
-              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-              "decision_invocation": 1
-            }
-          ],
-          "decision_invocations": 2
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T01:12:33.034368+00:00",
-      "elapsed_ms": 1300.2,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "8c05117f19e176b94fad4b0f481be8e5bbfd3357316b68b8b982534220bb2c59",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1244.3,
+          "elapsed_ms": 2238.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -190,14 +60,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:35.093403+00:00",
-      "elapsed_ms": 3229.7,
+      "recorded_at": "2026-10-08T16:28:40.475564+00:00",
+      "elapsed_ms": 1037.2,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"抱歉，我这边没法直接回答\\\"示例科技\\\"的竞争对手问题。原因如下：\\n\\n1. 我当前的提问工具里没有\\\"调研报告\\\"这个能力——虽然 `get_job_research` 就在功能目录里，但它不在本轮可用工具列表中，所以我无法调取它来读取报告正文。\\n\\n2. 更要紧的是，我手上能用的两份报告并不是你提到的那家：\\n\\n- `report_662e28` / 历史科技甲——\\\"历史公司甲的产品调研\\\"，只给了回执（receipt），没有正文，我无法从中读出任何竞争对手信息。\\n- `report_15d28b` / 历史科技乙——\\\"历史公司乙的产品调研\\\"，正文只有一句\\\"另一家科技近年主攻推荐系统，主要竞争对手为 B 公司\\\"。这句话谈的是\\\"另一家科技\\\"，不是\\\"示例科技\\\"。\\n\\n（我试着按对话里那份\\\"示例科技\\\"的调研去调用，系统返回的却是一个新建的、只有回执的\\\"示例科技\\\"报告 `report_440400`，同样没有可读正文。）\\n\\n也就是说，\\\"示例科技\\\"的竞争对手是谁，在现有可见证据里确实没有着落。我不想拿历史科技乙那句\\\"B 公司\\\"硬安到示例科技头上——公司身份不能替换。\\n\\n你可以这样做其一：\\n\\n- 直接告诉我那份示例科技调研的完整引用标识（形如 `report_xxxxxx`），或者把报告里的相关段落贴给我；\\n- 或者确认一下你要问的公司，是否其实是\\\"历史科技甲/历史科技乙\\\"其中之一。\\n\\n另外，你提到\\\"上周两家公司的调研都好了\\\"——我这边确实只看到历史科技甲、历史科技乙这两份带引用的报告，没有第三份。如果你说的两家就是这两家，请告诉我哪一家是你想细看的，我可以在拿到报告读取能力后帮你调取。\",\"questions\":[]}",
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "8c05117f19e176b94fad4b0f481be8e5bbfd3357316b68b8b982534220bb2c59",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -208,7 +83,40 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 3170.7,
+          "elapsed_ms": 941.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:40.693297+00:00",
+      "elapsed_ms": 1122.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1063.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

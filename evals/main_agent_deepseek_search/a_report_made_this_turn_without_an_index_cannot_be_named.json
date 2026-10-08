@@ -1,21 +1,21 @@
 {
-  "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
-  "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
-  "model": "qwen3.7-plus",
+  "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+  "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
+  "model": "deepseek-flash",
   "prompt_fingerprint": "003326a71dac3ab3028b798c6be74b1ed1557557299c23e06695314cb0415b5d",
-  "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
-  "recorded_at": "2026-10-08T16:24:19.456139+00:00",
+  "context_shape_fingerprint": "8a4b340e6807eb003cdf8571b07c35cb9cbcef6f800885b3c228b31d9ff7605c",
+  "recorded_at": "2026-10-08T16:28:42.813134+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "get_job_research",
         "arguments": {
-          "reference": "report_440400"
+          "reference": "report_662e28"
         }
       },
       "scenario_step": 0,
       "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-      "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+      "decision_shape_fingerprint": "d0aad066256df9941523941afbeea6a5026d0fe35f7883fa870691f16d56d5b2",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -26,7 +26,7 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 4030.5,
+      "elapsed_ms": 1183.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,19 +37,19 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:17.390912+00:00",
-      "elapsed_ms": 4104.9,
+      "recorded_at": "2026-10-08T16:28:40.975951+00:00",
+      "elapsed_ms": 1264.5,
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_440400"
+              "reference": "report_662e28"
             }
           },
           "scenario_step": 0,
           "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "decision_shape_fingerprint": "d0aad066256df9941523941afbeea6a5026d0fe35f7883fa870691f16d56d5b2",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -60,7 +60,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 4030.5,
+          "elapsed_ms": 1183.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,19 +70,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:17.504747+00:00",
-      "elapsed_ms": 3800.7,
+      "recorded_at": "2026-10-08T16:28:42.366722+00:00",
+      "elapsed_ms": 2355.6,
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_440400"
+              "reference": "report_662e28"
             }
           },
           "scenario_step": 0,
           "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "decision_shape_fingerprint": "d0aad066256df9941523941afbeea6a5026d0fe35f7883fa870691f16d56d5b2",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -93,29 +93,48 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 3676.8,
-          "model_request_count": 1,
+          "elapsed_ms": 2283.1,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"reference\": \"report_662e28\"}"
+                  },
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"reference\": \"report_15d28b\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:19.456139+00:00",
-      "elapsed_ms": 5257.0,
+      "recorded_at": "2026-10-08T16:28:42.813134+00:00",
+      "elapsed_ms": 2718.9,
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_440400"
+              "reference": "report_662e28"
             }
           },
           "scenario_step": 0,
           "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "decision_shape_fingerprint": "d0aad066256df9941523941afbeea6a5026d0fe35f7883fa870691f16d56d5b2",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -126,10 +145,37 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 5066.6,
-          "model_request_count": 1,
+          "elapsed_ms": 2659.9,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  },
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 2}"
+                  },
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"reference\": \"report_662e28\"}"
+                  },
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"reference\": \"report_15d28b\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

@@ -1,11 +1,10 @@
 {
   "scenario": "weak_match_routes_to_resume_tailoring",
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "0684839c20dffb100212f0bb2f0975f6273c350ec74cb45eb7d84fd27dedea05",
+  "prompt_fingerprint": "aca2b780376d14262303e5744801238ff1b3b7feac2cd56baf950b43a1c93384",
   "context_shape_fingerprint": "2f70d47ec1d54c1b45974be462857d0f524a5fcb59ba35c3785886c086684fce",
-  "recorded_at": "2026-10-07T21:58:17.394624+00:00",
+  "recorded_at": "2026-10-08T16:24:32.163433+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,8 +12,8 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "1824b151dc0a1bab97d9b6d5bd476e8481aa31616ec1b04518a7f9962c27bbd5",
-      "decision_shape_fingerprint": "786faebd0f93c27e7d11a7bf073063cb2d3c1269d44de6eba75f34c835993173",
+      "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
+      "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,7 +24,7 @@
         "draft_resume_tailoring",
         "search_capabilities"
       ],
-      "elapsed_ms": 2826.5,
+      "elapsed_ms": 2868.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:58:16.238944+00:00",
-      "elapsed_ms": 2885.0,
+      "recorded_at": "2026-10-08T16:24:30.242586+00:00",
+      "elapsed_ms": 3312.1,
       "steps": [
         {
           "tool_call": {
@@ -45,8 +44,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1824b151dc0a1bab97d9b6d5bd476e8481aa31616ec1b04518a7f9962c27bbd5",
-          "decision_shape_fingerprint": "786faebd0f93c27e7d11a7bf073063cb2d3c1269d44de6eba75f34c835993173",
+          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
+          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -57,7 +56,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 2826.5,
+          "elapsed_ms": 2868.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -67,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:16.930167+00:00",
-      "elapsed_ms": 2933.3,
+      "recorded_at": "2026-10-08T16:24:32.098833+00:00",
+      "elapsed_ms": 4251.4,
       "steps": [
         {
           "tool_call": {
@@ -76,8 +75,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1824b151dc0a1bab97d9b6d5bd476e8481aa31616ec1b04518a7f9962c27bbd5",
-          "decision_shape_fingerprint": "786faebd0f93c27e7d11a7bf073063cb2d3c1269d44de6eba75f34c835993173",
+          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
+          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,7 +87,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 2874.9,
+          "elapsed_ms": 4142.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:17.394624+00:00",
-      "elapsed_ms": 3229.5,
+      "recorded_at": "2026-10-08T16:24:32.163433+00:00",
+      "elapsed_ms": 2440.2,
       "steps": [
         {
           "tool_call": {
@@ -107,8 +106,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1824b151dc0a1bab97d9b6d5bd476e8481aa31616ec1b04518a7f9962c27bbd5",
-          "decision_shape_fingerprint": "786faebd0f93c27e7d11a7bf073063cb2d3c1269d44de6eba75f34c835993173",
+          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
+          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -119,7 +118,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 3170.2,
+          "elapsed_ms": 2328.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

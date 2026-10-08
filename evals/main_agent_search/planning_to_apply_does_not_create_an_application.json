@@ -1,22 +1,23 @@
 {
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "e64edb53c0262f6aa26cb403a12a05e58f76aa54ca072cadfc903e79335f415e",
+  "prompt_fingerprint": "9d43067ed3c2c1f5f88e9070f2e049f15bc129966aaea0d61e93e6705b1734e6",
   "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
-  "recorded_at": "2026-10-07T21:57:56.017775+00:00",
+  "recorded_at": "2026-10-08T16:24:10.314145+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "get_saved_job",
+        "name": "search_capabilities",
         "arguments": {
-          "selection_index": 1
+          "names": [
+            "list_resumes"
+          ]
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-      "decision_shape_fingerprint": "4776a872c440ed7097622ba3ea0635be9749dd25d3ca2d365c812389fbbac331",
+      "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+      "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -28,7 +29,34 @@
         "compare_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 3612.9,
+      "elapsed_ms": 2681.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_resumes",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "0ebc96e8f754508b932876ce04f29ddd1c31c9568f8f7faf8d67efb3de0a0d8f",
+      "decision_shape_fingerprint": "a8b23c6a3a90c6c743095eee91a157c9ee7f2ba3fedd3ed40fe729f9b7492998",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_resumes",
+        "get_saved_job",
+        "analyze_job",
+        "correct_job_requirement_tier",
+        "compare_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2322.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,19 +67,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:57:52.369760+00:00",
-      "elapsed_ms": 3673.4,
+      "recorded_at": "2026-10-08T16:24:05.865033+00:00",
+      "elapsed_ms": 5070.7,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
+            "name": "search_capabilities",
             "arguments": {
-              "selection_index": 1
+              "names": [
+                "list_resumes"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "4776a872c440ed7097622ba3ea0635be9749dd25d3ca2d365c812389fbbac331",
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -63,7 +93,34 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 3612.9,
+          "elapsed_ms": 2681.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0ebc96e8f754508b932876ce04f29ddd1c31c9568f8f7faf8d67efb3de0a0d8f",
+          "decision_shape_fingerprint": "a8b23c6a3a90c6c743095eee91a157c9ee7f2ba3fedd3ed40fe729f9b7492998",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_resumes",
+            "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2322.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -73,8 +130,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:57:54.567889+00:00",
-      "elapsed_ms": 5312.7,
+      "recorded_at": "2026-10-08T16:24:05.946994+00:00",
+      "elapsed_ms": 3556.6,
       "steps": [
         {
           "tool_call": {
@@ -84,8 +141,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "4776a872c440ed7097622ba3ea0635be9749dd25d3ca2d365c812389fbbac331",
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -97,7 +154,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 5203.5,
+          "elapsed_ms": 3443.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -107,8 +164,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:57:56.017775+00:00",
-      "elapsed_ms": 6442.7,
+      "recorded_at": "2026-10-08T16:24:10.314145+00:00",
+      "elapsed_ms": 5800.6,
       "steps": [
         {
           "tool_call": {
@@ -118,8 +175,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "4776a872c440ed7097622ba3ea0635be9749dd25d3ca2d365c812389fbbac331",
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -131,7 +188,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 6379.3,
+          "elapsed_ms": 5724.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

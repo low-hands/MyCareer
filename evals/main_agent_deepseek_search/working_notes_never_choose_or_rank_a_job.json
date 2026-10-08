@@ -1,17 +1,16 @@
 {
   "scenario": "working_notes_never_choose_or_rank_a_job",
   "policy": "working_notes is an unconfirmed agent scratchpad. It may guide clarifying questions and response style only. Never use it to filter, rank, recommend, apply, schedule, or mutate authoritative career state.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "1b6dad4c2d2f44939de9419920bd7d4bfc64a2a7830e545ab362271a0fdd504b",
+  "prompt_fingerprint": "3419ba5530e184f4ec46785a2b326eaa774c2eebf202ce3c3c648d9a4d137893",
   "context_shape_fingerprint": "bb9307a2db65d7bcc495e95eef6abe1889067841f3fc7ad19689e098034ae5f5",
-  "recorded_at": "2026-10-08T01:12:29.578104+00:00",
+  "recorded_at": "2026-10-08T16:28:34.816988+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我不能只凭记忆作推荐：目前关于你的偏好只有一条未确认的便笺（\\\"可能更偏好大厂、可能愿意为品牌接受较少自主权\\\"），它不能作为筛选或推荐的依据。\\n\\n请先明确：\\n1）这条偏好是否成立？如果你想让它生效，请直接陈述你现在的偏好（例如\\\"我更看重大厂品牌，可以接受自主权较少\\\"），我会先展示、等你确认后再启用；\\n2）另外我可以把两个收藏岗位（1. 算法工程师 @ 示例科技；2. 推荐算法工程师 @ 另一家科技）按已有记录逐项对比（城市、薪资，以及记录中缺失的维度会如实标为未知），再结合你确认的偏好给出建议。要我现在做这个对比吗？\\n\\n你也可以直接告诉我你的取舍标准（薪资优先 / 品牌优先 / 技术方向优先等），我按它来推荐。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"按你记得的偏好我不能直接推荐——「更偏好大厂」这条只是我未确认的笔记。请确认或更正你的偏好，我再给出推荐：\\\\n\\\\n1) 确认「我确实优先看大厂/品牌知名度」——若确认，我会把它记录为有效偏好，然后再结合岗位信息推荐。\\\\n2) 不确认，我按你真实的标准来：请告诉我你更看重什么（例如薪资上限、技术方向如推荐系统、公司规模、通勤等），我据此对比这两个岗位。\\\\n\\\\n另外，也可以让我先把两个岗位做一次逐维度对照（只依据已记录的岗位信息，不做的维度会标为未知），你看哪种方式？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-      "decision_shape_fingerprint": "e90513dabbc188072bd846228203cc1212e1251d894934dfaa48468a39cd8b3f",
+      "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+      "decision_shape_fingerprint": "fc6cba518375d8a77e8a1bc9e403c27a430c8ad53098c68fea3fa170b256e585",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -23,7 +22,7 @@
         "propose_free_text_preference_confirmation",
         "search_capabilities"
       ],
-      "elapsed_ms": 2934.1,
+      "elapsed_ms": 2386.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -31,10 +30,10 @@
       "decision_invocations": 1
     },
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"我先说明：我对你的偏好只有一条**未确认**的观察——\\\"可能更偏好大厂，可能愿意为品牌接受较少自主权\\\"。这条既没经你确认，也不能用来做筛选或推荐，所以我不据此替你选。\\n\\n两个岗位的客观差别（仅记录中的数据）：\\n- 示例科技 · 算法工程师：上海，30–50K，公司规模大型\\n- 另一家科技 · 推荐算法工程师：上海，35–55K，公司规模中型\\n\\n唯一有记录差异的维度是薪资（后者更高）和公司规模（前者更大），谁更合适完全取决于你的偏好。请确认一下：\\n\\n1）上面那条\\\"偏好大厂\\\"的观察成立吗？如果不成立或你不愿把它当成长期偏好，请直接说你的真实偏好（例如：更看重薪资／更看重自主权与团队规模／更看重岗位方向是否偏推荐算法）——你说出后我可以按你的原话展示确认，再据此给建议。\\n\\n或者，如果你更想自己看细节后再定，我也可以先为你读取任一个岗位的完整 JD。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"我不能按「记忆里的偏好」直接推荐：那条“偏好大厂、愿意用自主权换品牌”的记录只是我未确认的工作便笺，不是已确认的职业事实或偏好，用它排序会不靠谱。\\n\\n而且从已在记录的维度看，没有一个维度能让其中一个完整胜出：\\n- 示例科技 · 算法工程师：上海，30-50K，公司规模「大型」\\n- 另一家科技 · 推荐算法工程师：上海，35-55K，公司规模「中型」\\n（以上仅为对比摘录；JD 负责人、技术栈方向、成长空间、通勤等维度暂无记录，本次也未做新的简历匹配。）\\n\\n所以你希望按哪个标准来定？另外，那条未确认的偏好是否需要确认成正式偏好（确认后我才能据此推荐）？\",\"questions\":[]}",
       "scenario_step": 1,
-      "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-      "decision_shape_fingerprint": "087b677b3ff3476a0c24323d4354bb6e03f457733a38365b48da3c0fa6cbe066",
+      "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+      "decision_shape_fingerprint": "f919321792cb5158f0fcee1b3189acfd5f2aea4e5b015e6a435a1d0663b13ba8",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -46,7 +45,7 @@
         "propose_free_text_preference_confirmation",
         "search_capabilities"
       ],
-      "elapsed_ms": 3031.2,
+      "elapsed_ms": 2130.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -57,14 +56,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:27.591799+00:00",
-      "elapsed_ms": 6031.7,
+      "recorded_at": "2026-10-08T16:28:33.628191+00:00",
+      "elapsed_ms": 4583.2,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我不能只凭记忆作推荐：目前关于你的偏好只有一条未确认的便笺（\\\"可能更偏好大厂、可能愿意为品牌接受较少自主权\\\"），它不能作为筛选或推荐的依据。\\n\\n请先明确：\\n1）这条偏好是否成立？如果你想让它生效，请直接陈述你现在的偏好（例如\\\"我更看重大厂品牌，可以接受自主权较少\\\"），我会先展示、等你确认后再启用；\\n2）另外我可以把两个收藏岗位（1. 算法工程师 @ 示例科技；2. 推荐算法工程师 @ 另一家科技）按已有记录逐项对比（城市、薪资，以及记录中缺失的维度会如实标为未知），再结合你确认的偏好给出建议。要我现在做这个对比吗？\\n\\n你也可以直接告诉我你的取舍标准（薪资优先 / 品牌优先 / 技术方向优先等），我按它来推荐。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"按你记得的偏好我不能直接推荐——「更偏好大厂」这条只是我未确认的笔记。请确认或更正你的偏好，我再给出推荐：\\\\n\\\\n1) 确认「我确实优先看大厂/品牌知名度」——若确认，我会把它记录为有效偏好，然后再结合岗位信息推荐。\\\\n2) 不确认，我按你真实的标准来：请告诉我你更看重什么（例如薪资上限、技术方向如推荐系统、公司规模、通勤等），我据此对比这两个岗位。\\\\n\\\\n另外，也可以让我先把两个岗位做一次逐维度对照（只依据已记录的岗位信息，不做的维度会标为未知），你看哪种方式？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "e90513dabbc188072bd846228203cc1212e1251d894934dfaa48468a39cd8b3f",
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "fc6cba518375d8a77e8a1bc9e403c27a430c8ad53098c68fea3fa170b256e585",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -76,7 +75,7 @@
             "propose_free_text_preference_confirmation",
             "search_capabilities"
           ],
-          "elapsed_ms": 2934.1,
+          "elapsed_ms": 2386.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -84,10 +83,10 @@
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我先说明：我对你的偏好只有一条**未确认**的观察——\\\"可能更偏好大厂，可能愿意为品牌接受较少自主权\\\"。这条既没经你确认，也不能用来做筛选或推荐，所以我不据此替你选。\\n\\n两个岗位的客观差别（仅记录中的数据）：\\n- 示例科技 · 算法工程师：上海，30–50K，公司规模大型\\n- 另一家科技 · 推荐算法工程师：上海，35–55K，公司规模中型\\n\\n唯一有记录差异的维度是薪资（后者更高）和公司规模（前者更大），谁更合适完全取决于你的偏好。请确认一下：\\n\\n1）上面那条\\\"偏好大厂\\\"的观察成立吗？如果不成立或你不愿把它当成长期偏好，请直接说你的真实偏好（例如：更看重薪资／更看重自主权与团队规模／更看重岗位方向是否偏推荐算法）——你说出后我可以按你的原话展示确认，再据此给建议。\\n\\n或者，如果你更想自己看细节后再定，我也可以先为你读取任一个岗位的完整 JD。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"我不能按「记忆里的偏好」直接推荐：那条“偏好大厂、愿意用自主权换品牌”的记录只是我未确认的工作便笺，不是已确认的职业事实或偏好，用它排序会不靠谱。\\n\\n而且从已在记录的维度看，没有一个维度能让其中一个完整胜出：\\n- 示例科技 · 算法工程师：上海，30-50K，公司规模「大型」\\n- 另一家科技 · 推荐算法工程师：上海，35-55K，公司规模「中型」\\n（以上仅为对比摘录；JD 负责人、技术栈方向、成长空间、通勤等维度暂无记录，本次也未做新的简历匹配。）\\n\\n所以你希望按哪个标准来定？另外，那条未确认的偏好是否需要确认成正式偏好（确认后我才能据此推荐）？\",\"questions\":[]}",
           "scenario_step": 1,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "087b677b3ff3476a0c24323d4354bb6e03f457733a38365b48da3c0fa6cbe066",
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "f919321792cb5158f0fcee1b3189acfd5f2aea4e5b015e6a435a1d0663b13ba8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -99,69 +98,7 @@
             "propose_free_text_preference_confirmation",
             "search_capabilities"
           ],
-          "elapsed_ms": 3031.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T01:12:27.664799+00:00",
-      "elapsed_ms": 5765.5,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我记忆里只有一个**未确认**的观察：「你可能更偏好大厂，可能愿意为品牌接受较少自主权」。这是未确认的工作便笺，不能作为筛选或推荐依据，所以我现在没法据此替你直接挑一个。\\n\\n已确认的偏好记录里目前是空的，因此这个选择只能由你来定：\\n\\n- 岗位1：上海 · 示例科技 · 算法工程师 · 30-50K\\n- 岗位2：上海 · 另一家科技 · 推荐算法工程师 · 35-55K\\n\\n你可以直接告诉我看重什么（例如公司规模/品牌、薪资、方向匹配、自主权），我就按你说的标准给出推荐；或者把上面那条便笺确认为你的正式偏好，我再用它来推荐。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "e90513dabbc188072bd846228203cc1212e1251d894934dfaa48468a39cd8b3f",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "update_owner_settings",
-            "get_saved_job",
-            "compare_saved_jobs",
-            "propose_free_text_preference_confirmation",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 3847.4,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "raw_output": {
-                "content": "I need to stop here on the preference basis — let me explain.\n\nYou're asking me to recommend one of the two saved jobs \"based on what I remember about your preferences.\" But the only thing I have that resembles a preference is an **unconfirmed working note** (a scratchpad observation: possibly preferring big companies, possibly willing to trade autonomy for brand). That note has never been confirmed by you, so it can't be used to filter, rank, or recommend.\n\nThe confirmed preference list is **empty**, and your profile shows no confirmed city, constraints, or targets. The bare facts I do have on the two jobs are:\n\n| | 岗位1 | 岗位2 |\n|---|---|---|\n| 公司 | 示例科技 | 另一家科技 |\n| 职位 | 算法工程师 | 推荐算法工程师 |\n| 城市 | 上海 | 上海 |\n| 薪资 | 30-50K | 35-55K |\n\nThese are just plain attributes — no preference data exists to rank them against.\n\nSo one of these two paths is needed:\n\n1. **Confirm the note** — if \"prefers big companies / willing to trade autonomy for brand\" actually reflects you, confirm it and it becomes a lasting preference I can use.\n2. **State your preference** — tell me what matters most (薪资 / 公司品牌 / 技术方向 / 自主权等等), and I'll recommend on that basis.\n\nWhich would you like?",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请先确认：你确实更看重大厂品牌、并愿意为此接受较少的自主权吗？还是要以别的标准（薪资、方向、成长空间等）来选？确认后我可以帮你把这条偏好正式记录下来，再据此推荐一个岗位。\",\"questions\":[]}",
-          "scenario_step": 1,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "087b677b3ff3476a0c24323d4354bb6e03f457733a38365b48da3c0fa6cbe066",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "update_owner_settings",
-            "get_saved_job",
-            "compare_saved_jobs",
-            "propose_free_text_preference_confirmation",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1850.4,
+          "elapsed_ms": 2130.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -171,14 +108,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:29.578104+00:00",
-      "elapsed_ms": 7583.2,
+      "recorded_at": "2026-10-08T16:28:33.414148+00:00",
+      "elapsed_ms": 4075.5,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"抱歉，我不能直接按\\\"我记得的偏好\\\"替你二选一——那条关于\\\"可能偏好大厂\\\"的记录只是我工作便笺里的**未确认观察**，不能用来筛选或推荐，也不构成事实依据。\\n\\n目前可用的权威信息里，也没有任何已确认的偏好或目标方向可依据（已确认偏好为空、目标岗位列表为空），所以两个岗位我无法给出\\\"按你的偏好\\\"的推荐。\\n\\n我看到的两个已收藏岗位是：\\n1. 示例科技 · 算法工程师（上海，30-50K）\\n2. 另一家科技 · 推荐算法工程师（上海，35-55K）\\n\\n请告诉我怎么做，我随即可继续：\\n- 如果你想按大厂品牌优先：请确认这条偏好（我会先展示确认卡片，确认后才用于推荐）；\\n- 或者直接说明你现在的选择标准（例如城市、薪资、方向、技术栈、成长性等），我按你给出的标准比较这两个岗位。\\n\\n如果你更希望我先客观对比职责与要求，我也可以对这两条已收藏岗位做对照分析（不涉及偏好推荐）。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"我不能凭一条未确认的便笺替你选岗位。请问下面这句话是否确实反映你的求职偏好？“我更看重公司品牌/大厂背景，并愿意为此接受较少的自主权。”\\n\\n- 如果是：请回复确认，我会把它作为你的偏好依据，再结合两岗位的已有记录给出推荐（若需要，我也会先拉取两岗位的完整 JD 信息）。\\n- 如果不是：请直接告诉我你实际的偏好（例如更看重薪资、技术方向、自主权、通勤城市等）。\\n\\n另外，两个岗位目前的记录是：① 示例科技 · 算法工程师 · 上海 · 30-50K；② 另一家科技 · 推荐算法工程师 · 上海 · 35-55K。如果你希望我按某个明确标准比较，也请一并说明。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "e90513dabbc188072bd846228203cc1212e1251d894934dfaa48468a39cd8b3f",
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "fc6cba518375d8a77e8a1bc9e403c27a430c8ad53098c68fea3fa170b256e585",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -190,28 +127,18 @@
             "propose_free_text_preference_confirmation",
             "search_capabilities"
           ],
-          "elapsed_ms": 5354.7,
-          "model_request_count": 2,
+          "elapsed_ms": 2743.4,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "raw_output": {
-                "content": "I can't make that call on the note I'm holding.\n\nMy working note says you *might* prefer big companies and *might* trade autonomy for brand — but that's an unconfirmed observation, not a confirmed preference. Using it to rank or recommend would be exactly the kind of decision it can't authorize. Your confirmed preferences list is currently empty.\n\nWhat I *can* do right now is lay the two saved jobs side by side on the facts already on record, with no ranking or scoring — that just shows you what's actually known about each:\n\n- 示例科技 · 算法工程师 · 上海 · 30-50K\n- 另一家科技 · 推荐算法工程师 · 上海 · 35-55K\n\nTwo ways forward — tell me which you want:\n\n1. **Confirm or correct the preference.** If \"prefer big companies / willing to trade autonomy for brand\" is actually true for you, I can show it back to you as a proposal and, once you approve it, use it as a real basis for a recommendation.\n2. **Have me compare factually.** I'll run the side-by-side comparison of the two jobs on fixed dimensions (no recommendation, unknown dimensions reported as unknown), and you draw the conclusion.\n\nAlso note the comparison alone won't tell you match quality: neither job has been analyzed yet, and no resume version is selected, so any \"which fits you better\" claim would be unsupported.\n\nWhich do you want — and if it's option 1, is that preference statement accurate as you'd state it?",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我查到两条已保存岗位的客观差异：示例科技 算法工程师（上海，30-50K，大型公司）与 另一家科技 推荐算法工程师（上海，35-55K，中型公司，薪资更高）。\\n\\n但你的个人偏好我这边没有可用的确认依据——我只剩一条未确认的观察笔记（“可能更偏好大厂”），未经确认的笔记不能用来筛选或推荐岗位，所以现在不能替你直接选一个。\\n\\n请确认一下：你更看重大厂品牌，还是更高的薪资/更大的自主空间？确认后我再基于已保存岗位资料给出推荐（如需更贴合，也可以让我先分析某个岗位的 JD 再做匹配）。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"两个岗位已并列比较过：示例科技 算法工程师（上海，30-50K，大型）和 另一家科技 推荐算法工程师（上海，35-55K，中型）。我不能按你说的“记得的偏好”来推荐——那只是我未确认的便笺（“可能更偏好大厂”），未经确认不能用于筛选或推荐。所以想请你确认一下：\",\"questions\":[],\"selection_source\":\"latest_tool_result\"}",
           "scenario_step": 1,
-          "selected_schema_fingerprint": "cb236948145042763f84eddc996ef220a3ffc57c882d3dd8cce8558f2bc2b696",
-          "decision_shape_fingerprint": "087b677b3ff3476a0c24323d4354bb6e03f457733a38365b48da3c0fa6cbe066",
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "f919321792cb5158f0fcee1b3189acfd5f2aea4e5b015e6a435a1d0663b13ba8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -223,7 +150,59 @@
             "propose_free_text_preference_confirmation",
             "search_capabilities"
           ],
-          "elapsed_ms": 2165.2,
+          "elapsed_ms": 1173.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:34.816988+00:00",
+      "elapsed_ms": 5216.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我需要一条已确认的标准才能给出推荐。请确认：工作便笺里「可能更偏好大厂、愿为品牌接受较少自主权」这条说法是否准确？如果准确，我就把它当作待确认偏好正式展示给你确认；如果不准确，请直接说明你这次的取舍标准（例如薪资、技术方向、公司规模）。确认后我再比较这两个岗位。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "fc6cba518375d8a77e8a1bc9e403c27a430c8ad53098c68fea3fa170b256e585",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "update_owner_settings",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "propose_free_text_preference_confirmation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3330.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我不能按“我记住的偏好”直接推荐：那条“你更偏好大厂、愿为品牌接受较少自主权”只是我未确认的工作便笺，未经你确认不能用于筛选或推荐；而你的已确认自由文本偏好为“无”，也没有已记录的目标岗位方向。\\n\\n两个已收藏岗位按固定维度对比（仅记录到的信息）：\\n- 示例科技 算法工程师：上海，30-50K，公司规模大型\\n- 另一家科技 推荐算法工程师：上海，35-55K，公司规模中型\\n\\n请先确认下面哪一条是你的真实偏好（或直接告诉我你的取舍标准），我再据此给出一个明确推荐：\\n1) 更看重大厂/品牌背书，愿接受较少自主权；\\n2) 更看重薪资与业务自主权，公司规模不重要；\\n3) 你有其他排序标准（如技术方向、成长空间、通勤），请直接说明。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "2bc80317e117cd2a8305e33d02755bbc9cc539b3a5512794de7193f85789c967",
+          "decision_shape_fingerprint": "f919321792cb5158f0fcee1b3189acfd5f2aea4e5b015e6a435a1d0663b13ba8",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "update_owner_settings",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "propose_free_text_preference_confirmation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1821.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -1,22 +1,23 @@
 {
   "scenario": "a_core_request_routes_before_job_analysis",
   "policy": "Discover the requested job analysis capability if needed, then analyze the selected job without starting resume matching.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "c4adfd49eeb0639026b338361cc95de831ffc90c87d27677bfd3ee8a0bb62f0b",
+  "prompt_fingerprint": "1f9d6392aa63f9569003d06b2552c1a889f22449f43c2c77ea0f29c5d0bd2111",
   "context_shape_fingerprint": "2aa360c39eadbf98b807908a01ae52f5b981555d4d3e1b54908e774f1a9b4225",
-  "recorded_at": "2026-10-07T21:58:54.230491+00:00",
+  "recorded_at": "2026-10-08T16:25:22.678653+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "get_saved_job",
+        "name": "search_capabilities",
         "arguments": {
-          "selection_index": 1
+          "names": [
+            "analyze_job"
+          ]
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "47d41ee089bdc93bde7593abeda09231e1259766a8d8f9e07c2fbef64b158901",
-      "decision_shape_fingerprint": "e31c32c2b7ffd5275610ddc8052309acdd65664ef3c92af1ffa9e522287bdfd9",
+      "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
+      "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,7 +26,46 @@
         "get_saved_job",
         "search_capabilities"
       ],
-      "elapsed_ms": 2521.4,
+      "elapsed_ms": 6574.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "implicit_capability_load",
+          "retried": true,
+          "raw_output": {
+            "content": "当前已有一个活跃岗位（示例科技 - 算法工程师），且没有绑定简历版本。用户要求只做独立的 JD 分析，不做简历匹配。\n\n根据工具描述：\n- `analyze_job` 的说明是\"分析已选岗位的职位要求；已有分析时先检查是否仍对应当前 JD\"\n- `match_resume_to_job` 被阻塞，因为它需要先用 `analyze_job` 分析当前 JD，并同时选定一个岗位和一个简历版本\n\n但用户明确说不要做简历匹配，只需要独立 JD 分析。`analyze_job` 本身只需要已选岗位即可执行，不需要简历。当前 `has_active_job_posting` 为 true，说明有活跃岗位。\n\n我应该调用 `analyze_job` 来分析当前选中的岗位。\n\n",
+            "tool_calls": [
+              {
+                "name": "analyze_job",
+                "arguments": "{}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "cfcc405d00bf973d195d8d520302219fe4bc42d4f0760cc75718f4d5e1385f7f",
+      "decision_shape_fingerprint": "c83952c135cdfe121806534d7e03240d1b08dc0e88d2c141c59781141aadaf8f",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2169.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,19 +76,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:58:49.884908+00:00",
-      "elapsed_ms": 2621.0,
+      "recorded_at": "2026-10-08T16:25:19.908331+00:00",
+      "elapsed_ms": 8839.4,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
+            "name": "search_capabilities",
             "arguments": {
-              "selection_index": 1
+              "names": [
+                "analyze_job"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "47d41ee089bdc93bde7593abeda09231e1259766a8d8f9e07c2fbef64b158901",
-          "decision_shape_fingerprint": "e31c32c2b7ffd5275610ddc8052309acdd65664ef3c92af1ffa9e522287bdfd9",
+          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
+          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -57,7 +99,46 @@
             "get_saved_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 2521.4,
+          "elapsed_ms": 6574.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "当前已有一个活跃岗位（示例科技 - 算法工程师），且没有绑定简历版本。用户要求只做独立的 JD 分析，不做简历匹配。\n\n根据工具描述：\n- `analyze_job` 的说明是\"分析已选岗位的职位要求；已有分析时先检查是否仍对应当前 JD\"\n- `match_resume_to_job` 被阻塞，因为它需要先用 `analyze_job` 分析当前 JD，并同时选定一个岗位和一个简历版本\n\n但用户明确说不要做简历匹配，只需要独立 JD 分析。`analyze_job` 本身只需要已选岗位即可执行，不需要简历。当前 `has_active_job_posting` 为 true，说明有活跃岗位。\n\n我应该调用 `analyze_job` 来分析当前选中的岗位。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "analyze_job",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "cfcc405d00bf973d195d8d520302219fe4bc42d4f0760cc75718f4d5e1385f7f",
+          "decision_shape_fingerprint": "c83952c135cdfe121806534d7e03240d1b08dc0e88d2c141c59781141aadaf8f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2169.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -67,8 +148,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:52.445844+00:00",
-      "elapsed_ms": 5027.9,
+      "recorded_at": "2026-10-08T16:25:24.651537+00:00",
+      "elapsed_ms": 9243.2,
       "steps": [
         {
           "tool_call": {
@@ -78,8 +159,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "47d41ee089bdc93bde7593abeda09231e1259766a8d8f9e07c2fbef64b158901",
-          "decision_shape_fingerprint": "e31c32c2b7ffd5275610ddc8052309acdd65664ef3c92af1ffa9e522287bdfd9",
+          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
+          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,7 +169,7 @@
             "get_saved_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 4930.5,
+          "elapsed_ms": 9143.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,8 +179,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:58:54.230491+00:00",
-      "elapsed_ms": 6214.1,
+      "recorded_at": "2026-10-08T16:25:22.678653+00:00",
+      "elapsed_ms": 6780.9,
       "steps": [
         {
           "tool_call": {
@@ -109,8 +190,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "47d41ee089bdc93bde7593abeda09231e1259766a8d8f9e07c2fbef64b158901",
-          "decision_shape_fingerprint": "e31c32c2b7ffd5275610ddc8052309acdd65664ef3c92af1ffa9e522287bdfd9",
+          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
+          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -119,7 +200,7 @@
             "get_saved_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 6150.0,
+          "elapsed_ms": 6716.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

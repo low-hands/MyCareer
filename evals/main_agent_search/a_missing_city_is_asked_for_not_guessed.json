@@ -1,17 +1,16 @@
 {
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "6ab0ea4f45873ffa94b4fb061edfa2ec6ca350b30f74e06f0e1cfef0bdc515d2",
+  "prompt_fingerprint": "14da4cf3cbd107b1a10db8c7ddb53ecf9145f01d2adb79c9ce3dd82697a95804",
   "context_shape_fingerprint": "f0666a3515e7bd1dc205832ab30e27ed2d83207f6fd328740d4131d0ba8572ac",
-  "recorded_at": "2026-10-07T21:57:37.227590+00:00",
+  "recorded_at": "2026-10-08T16:23:44.565983+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你更精准地找工作，我需要了解一些基本信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么类型的岗位？（如前端开发、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你期望的工作城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的工作年限是多少？\",\"kind\":\"single\",\"options\":[{\"value\":\"option_1\",\"label\":\"应届/1年以下\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5-10年\",\"meaning\":\"choice\"},{\"value\":\"option_5\",\"label\":\"10年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+      "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你找到合适的工作，我需要了解你的求职意向：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位/职位？（例如：前端工程师、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-      "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+      "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+      "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -19,7 +18,7 @@
         "search_career_memory",
         "search_capabilities"
       ],
-      "elapsed_ms": 8420.6,
+      "elapsed_ms": 6766.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,14 +29,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:57:37.011901+00:00",
-      "elapsed_ms": 8676.6,
+      "recorded_at": "2026-10-08T16:23:42.479961+00:00",
+      "elapsed_ms": 6879.2,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你更精准地找工作，我需要了解一些基本信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么类型的岗位？（如前端开发、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你期望的工作城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的工作年限是多少？\",\"kind\":\"single\",\"options\":[{\"value\":\"option_1\",\"label\":\"应届/1年以下\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5-10年\",\"meaning\":\"choice\"},{\"value\":\"option_5\",\"label\":\"10年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你找到合适的工作，我需要了解你的求职意向：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位/职位？（例如：前端工程师、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你希望在哪个城市工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -45,7 +44,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 8420.6,
+          "elapsed_ms": 6766.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -55,21 +54,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:57:34.444097+00:00",
-      "elapsed_ms": 6076.5,
+      "recorded_at": "2026-10-08T16:23:45.960354+00:00",
+      "elapsed_ms": 10374.7,
       "steps": [
         {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "list_target_roles"
-              ]
-            }
-          },
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你找到合适的工作，我需要了解以下信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你希望找什么类型的工作岗位？（例如：软件工程师、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你期望的工作地点是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"你的工作年限是多少？\",\"kind\":\"single\",\"options\":[{\"value\":\"fresh_graduate\",\"label\":\"应届毕业生\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false}]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -77,45 +69,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 3603.8,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "implicit_capability_load",
-              "retried": true,
-              "raw_output": {
-                "content": "我来帮你找工作。首先需要了解你的求职意向和目标岗位方向。\n\n",
-                "tool_calls": [
-                  {
-                    "name": "list_target_roles",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "93ea464a17a82acc4fbbcb5b927ca4cc5e05cd7f2864eac0b335f3a7f08e2663",
-          "decision_shape_fingerprint": "b1a61a4fb381fb89a415c54133194661d594cd13b3913fef6586309a28f5450b",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_target_roles",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2241.0,
+          "elapsed_ms": 10132.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -125,14 +79,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:57:37.227590+00:00",
-      "elapsed_ms": 8951.0,
+      "recorded_at": "2026-10-08T16:23:44.565983+00:00",
+      "elapsed_ms": 8794.2,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你找到合适的工作，我需要了解一些基本信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么类型的工作岗位？（例如：软件工程师、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你期望的工作城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的工作年限是多少？\",\"kind\":\"single\",\"options\":[{\"value\":\"fresh_graduate\",\"label\":\"应届毕业生\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5-10年\",\"meaning\":\"choice\"},{\"value\":\"option_5\",\"label\":\"10年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了帮你找到合适的工作，我需要了解一些基本信息。请回答以下问题：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么类型的岗位？（例如：软件工程师、产品经理、数据分析师等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"你期望的工作城市是哪里？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的工作年限是多少？\",\"kind\":\"single\",\"options\":[{\"value\":\"option_1\",\"label\":\"应届毕业生/1年以下\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5-10年\",\"meaning\":\"choice\"},{\"value\":\"option_5\",\"label\":\"10年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
-          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
+          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -140,7 +94,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 8580.9,
+          "elapsed_ms": 8655.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

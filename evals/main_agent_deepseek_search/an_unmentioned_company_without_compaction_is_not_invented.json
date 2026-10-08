@@ -1,0 +1,165 @@
+{
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "1af4f1f7c2a52f1c0e4508dadfea88ccac798138f6a096ce425b4a93b26f18a2",
+  "context_shape_fingerprint": "0aaffe507c543f652ac9efaa8d5df33f36fc2623a917defa92da0d16371efafd",
+  "recorded_at": "2026-10-08T16:28:57.950738+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+      "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2557.5,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "我这边没有你目标公司的任何记录——当前任务状态里没有激活的岗位、收藏岗位或目标岗位方向，职业档案中的「当前目标」也写的是「无激活目标」。\n\n所以：\n\n- 对话里提到的「美团」只是上一轮的对照对象，不是已记录的目标公司。\n- 我没有可查询的已保存信息来回答它的全名。\n\n如果你告诉我公司名称，我可以用 propose_job_intent 把这条求职意向展示出来，等你确认后再保存。需要我现在就登记吗？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T16:28:57.148243+00:00",
+      "elapsed_ms": 2636.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2557.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我这边没有你目标公司的任何记录——当前任务状态里没有激活的岗位、收藏岗位或目标岗位方向，职业档案中的「当前目标」也写的是「无激活目标」。\n\n所以：\n\n- 对话里提到的「美团」只是上一轮的对照对象，不是已记录的目标公司。\n- 我没有可查询的已保存信息来回答它的全名。\n\n如果你告诉我公司名称，我可以用 propose_job_intent 把这条求职意向展示出来，等你确认后再保存。需要我现在就登记吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:57.031813+00:00",
+      "elapsed_ms": 2034.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我这边没有你的目标公司记录——当前档案里「No active targets」，也没有任何已记录的求职意向，所以我无法说出它的全名。\\n\\n如果你告诉我目标公司（或先把意向记下来），我可以帮你：\\n- 用 record 下来的意向做后续匹配和提醒；\\n- 若需要，针对该公司的岗位做调研。\\n\\n另外说明一下：刚才窗口里出现的 美团 JD 我这边也没有对应的有效内容可读（没有活跃的 JD 快照或已保存岗位），所以之前那条评论只是对比性的说法，并不代表我看过这份 JD。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1940.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:57.950738+00:00",
+      "elapsed_ms": 2805.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2189.2,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "search_career_memory",
+                    "arguments": "{\"query\": \"目标公司 公司全名\"}"
+                  },
+                  {
+                    "name": "list_target_roles",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

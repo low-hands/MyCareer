@@ -1,0 +1,149 @@
+{
+  "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+  "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "1af4f1f7c2a52f1c0e4508dadfea88ccac798138f6a096ce425b4a93b26f18a2",
+  "context_shape_fingerprint": "24e025405ea8a9acb69ba08cffb136efce5413f64505bc866b2099776af41b24",
+  "recorded_at": "2026-10-08T16:28:57.150751+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+      "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2955.9,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I don't have that on record — there's no target company stored for you in this session.\n\nWhat I can see:\n- Your current career profile says **no active targets** and no confirmed default city.\n- There's no saved-job, application, or research record with a company name attached.\n- This conversation is still only two turns long and hasn't been summarized, so there's no earlier window where the name could be hiding.\n\nThe 美团 JD you mentioned is just something you said was in the window — that's a company in a job description, not a recorded target of yours, and treating it as your target company would be a guess.\n\nIf you tell me the full company name, I can use it directly (and, if you want, set it as a target so future questions like this have an answer).",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T16:28:58.647386+00:00",
+      "elapsed_ms": 3116.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2955.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have that on record — there's no target company stored for you in this session.\n\nWhat I can see:\n- Your current career profile says **no active targets** and no confirmed default city.\n- There's no saved-job, application, or research record with a company name attached.\n- This conversation is still only two turns long and hasn't been summarized, so there's no earlier window where the name could be hiding.\n\nThe 美团 JD you mentioned is just something you said was in the window — that's a company in a job description, not a recorded target of yours, and treating it as your target company would be a guess.\n\nIf you tell me the full company name, I can use it directly (and, if you want, set it as a target so future questions like this have an answer).",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:56.756659+00:00",
+      "elapsed_ms": 1334.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1142.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:28:57.150751+00:00",
+      "elapsed_ms": 938.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 849.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

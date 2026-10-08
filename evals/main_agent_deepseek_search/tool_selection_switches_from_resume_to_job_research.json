@@ -1,22 +1,23 @@
 {
   "scenario": "tool_selection_switches_from_resume_to_job_research",
   "policy": "When a requested business tool is not yet offered, discover it and continue the user's task in the same conversation.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "353135c4cf44d676cda9043ff0eeb957455a394073ff6cdb8d84453ae3725775",
+  "prompt_fingerprint": "003326a71dac3ab3028b798c6be74b1ed1557557299c23e06695314cb0415b5d",
   "context_shape_fingerprint": "9ea445ee9609e1f03030d660b96ddd4f6484086fa09142d64c438ccf82a4ad1a",
-  "recorded_at": "2026-10-08T01:12:57.782450+00:00",
+  "recorded_at": "2026-10-08T16:29:05.270748+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "research_job",
+        "name": "search_capabilities",
         "arguments": {
-          "focus": "主要竞争对手与竞争格局（产品线、业务线、市场份额对比）"
+          "names": [
+            "research_job"
+          ]
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-      "decision_shape_fingerprint": "4a78e0d6950ebd561666e21a264084998a63593b7861c3b8c6c17f972c13d44b",
+      "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+      "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -27,7 +28,36 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 1117.0,
+      "elapsed_ms": 1636.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "research_job",
+        "arguments": {
+          "selection_index": 1,
+          "focus": "主要竞争对手及市场格局",
+          "max_sources": 8
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+      "decision_shape_fingerprint": "c7d9405cf74d9fc89c71ec4cb496989b85d5be511376232f53f4cd8163dd068a",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 955.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,19 +68,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:57.241776+00:00",
-      "elapsed_ms": 1184.8,
+      "recorded_at": "2026-10-08T16:29:04.699133+00:00",
+      "elapsed_ms": 2675.3,
       "steps": [
         {
           "tool_call": {
-            "name": "research_job",
+            "name": "search_capabilities",
             "arguments": {
-              "focus": "主要竞争对手与竞争格局（产品线、业务线、市场份额对比）"
+              "names": [
+                "research_job"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "4a78e0d6950ebd561666e21a264084998a63593b7861c3b8c6c17f972c13d44b",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -61,7 +93,36 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 1117.0,
+          "elapsed_ms": 1636.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "selection_index": 1,
+              "focus": "主要竞争对手及市场格局",
+              "max_sources": 8
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "c7d9405cf74d9fc89c71ec4cb496989b85d5be511376232f53f4cd8163dd068a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 955.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -71,8 +132,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:59.053406+00:00",
-      "elapsed_ms": 2813.2,
+      "recorded_at": "2026-10-08T16:29:04.731063+00:00",
+      "elapsed_ms": 2503.9,
       "steps": [
         {
           "tool_call": {
@@ -85,8 +146,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "4a78e0d6950ebd561666e21a264084998a63593b7861c3b8c6c17f972c13d44b",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -97,7 +158,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 1582.6,
+          "elapsed_ms": 1098.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -108,12 +169,13 @@
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "主要竞争对手、竞品公司及竞争格局"
+              "selection_index": 1,
+              "focus": "当前岗位公司（上海 算法工程师）的主要竞争对手，包括同行业竞争对手公司、产品线重叠与差异化、市场定位"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "7ec830839f2f1a0f59a59a8718568859e1b0c32eb6dbff5b3ef2a6e4e9e8e335",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "885f9509e0a3d13c32cf5b085c305341171d327973873e622ff49478f25cad50",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -124,7 +186,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 1152.7,
+          "elapsed_ms": 1136.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -134,20 +196,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:57.782450+00:00",
-      "elapsed_ms": 1335.4,
+      "recorded_at": "2026-10-08T16:29:05.270748+00:00",
+      "elapsed_ms": 2530.5,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "主要竞争对手：识别该公司（示例科技）在算法工程师岗位所在业务线的主要竞争对手、其产品与市场定位对比",
-              "selection_index": 1
+              "focus": "主要竞争对手：公司在算法/技术方向的主要竞争企业、竞品产品线、市场定位与差异化"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "689ee0bfbda2367def3d52949aac49db158c3e17028c338380a7bd29ca2384a5",
-          "decision_shape_fingerprint": "4a78e0d6950ebd561666e21a264084998a63593b7861c3b8c6c17f972c13d44b",
+          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -158,7 +219,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 1264.6,
+          "elapsed_ms": 2329.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

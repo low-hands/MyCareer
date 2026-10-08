@@ -1,11 +1,10 @@
 {
   "scenario": "a_resume_critique_loads_its_skill",
   "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "16b6c1b4f99d754fc947a482fa929ccc9cf213819226ead06398e3ec6cb14c39",
+  "prompt_fingerprint": "39786f6dd77a0ebad75be615a22b5b0f60a7219b2d24d2e6da94a275d5561009",
   "context_shape_fingerprint": "92af7027d1fa4470173dd363bd2f57e6209c21138065300fc113d56f0320ce65",
-  "recorded_at": "2026-10-08T01:12:55.078255+00:00",
+  "recorded_at": "2026-10-08T16:29:01.071597+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,8 +14,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "ffe2a9ca330526d05445a694307d1618cd3aa35eafefed7ac3129d34f76740a0",
-      "decision_shape_fingerprint": "a83244cb922e049edc6b87c281dc7562d1a873c1802b92f1345bb4735cda5f58",
+      "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+      "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,7 +24,7 @@
         "export_resume_artifact",
         "search_capabilities"
       ],
-      "elapsed_ms": 1097.6,
+      "elapsed_ms": 1643.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:53.936819+00:00",
-      "elapsed_ms": 1167.2,
+      "recorded_at": "2026-10-08T16:29:00.636720+00:00",
+      "elapsed_ms": 1785.3,
       "steps": [
         {
           "tool_call": {
@@ -47,8 +46,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ffe2a9ca330526d05445a694307d1618cd3aa35eafefed7ac3129d34f76740a0",
-          "decision_shape_fingerprint": "a83244cb922e049edc6b87c281dc7562d1a873c1802b92f1345bb4735cda5f58",
+          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -57,7 +56,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1097.6,
+          "elapsed_ms": 1643.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -67,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:54.162084+00:00",
-      "elapsed_ms": 1245.8,
+      "recorded_at": "2026-10-08T16:29:00.166239+00:00",
+      "elapsed_ms": 1203.1,
       "steps": [
         {
           "tool_call": {
@@ -78,8 +77,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ffe2a9ca330526d05445a694307d1618cd3aa35eafefed7ac3129d34f76740a0",
-          "decision_shape_fingerprint": "a83244cb922e049edc6b87c281dc7562d1a873c1802b92f1345bb4735cda5f58",
+          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,7 +87,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1167.8,
+          "elapsed_ms": 1094.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:55.078255+00:00",
-      "elapsed_ms": 1134.1,
+      "recorded_at": "2026-10-08T16:29:01.071597+00:00",
+      "elapsed_ms": 1683.6,
       "steps": [
         {
           "tool_call": {
@@ -109,8 +108,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ffe2a9ca330526d05445a694307d1618cd3aa35eafefed7ac3129d34f76740a0",
-          "decision_shape_fingerprint": "a83244cb922e049edc6b87c281dc7562d1a873c1802b92f1345bb4735cda5f58",
+          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -119,7 +118,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1070.7,
+          "elapsed_ms": 1591.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

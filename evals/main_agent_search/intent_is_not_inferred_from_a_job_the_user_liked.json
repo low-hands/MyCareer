@@ -1,22 +1,16 @@
 {
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
-  "selection_mode": "search",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "e64edb53c0262f6aa26cb403a12a05e58f76aa54ca072cadfc903e79335f415e",
+  "prompt_fingerprint": "9d43067ed3c2c1f5f88e9070f2e049f15bc129966aaea0d61e93e6705b1734e6",
   "context_shape_fingerprint": "a1229b8bace785cd313869392aadb14eb25d1a150da0eda8511d5a8ce9ea32f8",
-  "recorded_at": "2026-10-07T21:57:40.109456+00:00",
+  "recorded_at": "2026-10-08T16:23:47.732286+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "get_saved_job",
-        "arguments": {
-          "selection_index": 1
-        }
-      },
+      "content": "{\"action\":\"ask_user\",\"message\":\"您想对这个\\\"示例科技 - 算法工程师\\\"岗位做什么？我可以帮您：\\n1. 分析职位要求和核心能力\\n2. 查看完整的职位描述\\n3. 与您的简历进行匹配（需要先上传简历）\\n\\n请告诉我您的需求。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-      "decision_shape_fingerprint": "a33b70bc2da02904e8537b9f5af6d36f612e7a9c6a22829a2678438cbbfca172",
+      "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+      "decision_shape_fingerprint": "e2046e9c19cbdfa825a13b871631b2f7cf3177c5c99c6b63900ae268be063ad8",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -28,7 +22,7 @@
         "compare_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 5836.7,
+      "elapsed_ms": 9126.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,8 +33,37 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-07T21:57:40.737695+00:00",
-      "elapsed_ms": 5895.4,
+      "recorded_at": "2026-10-08T16:23:49.608244+00:00",
+      "elapsed_ms": 9190.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"您想对这个\\\"示例科技 - 算法工程师\\\"岗位做什么？我可以帮您：\\n1. 分析职位要求和核心能力\\n2. 查看完整的职位描述\\n3. 与您的简历进行匹配（需要先上传简历）\\n\\n请告诉我您的需求。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "e2046e9c19cbdfa825a13b871631b2f7cf3177c5c99c6b63900ae268be063ad8",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9126.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:23:46.975319+00:00",
+      "elapsed_ms": 4488.6,
       "steps": [
         {
           "tool_call": {
@@ -50,8 +73,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "a33b70bc2da02904e8537b9f5af6d36f612e7a9c6a22829a2678438cbbfca172",
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "e2046e9c19cbdfa825a13b871631b2f7cf3177c5c99c6b63900ae268be063ad8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -63,7 +86,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 5836.7,
+          "elapsed_ms": 4426.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -73,48 +96,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-07T21:57:39.362343+00:00",
-      "elapsed_ms": 4312.8,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想对这个\\\"示例科技 - 算法工程师\\\"岗位做什么？比如：分析职位要求、查看完整JD、或者与其他岗位比较？\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "a33b70bc2da02904e8537b9f5af6d36f612e7a9c6a22829a2678438cbbfca172",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "correct_job_requirement_tier",
-            "compare_saved_jobs",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 4250.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-07T21:57:40.109456+00:00",
-      "elapsed_ms": 4962.6,
+      "recorded_at": "2026-10-08T16:23:47.732286+00:00",
+      "elapsed_ms": 4447.8,
       "steps": [
         {
           "tool_call": {
-            "name": "analyze_job",
+            "name": "get_saved_job",
             "arguments": {
               "selection_index": 1
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "61c6a1a313b8234d544d7f91d237fe62d1abde267fcee1bb3274228858b5cbce",
-          "decision_shape_fingerprint": "a33b70bc2da02904e8537b9f5af6d36f612e7a9c6a22829a2678438cbbfca172",
+          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
+          "decision_shape_fingerprint": "e2046e9c19cbdfa825a13b871631b2f7cf3177c5c99c6b63900ae268be063ad8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -126,7 +120,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 4875.8,
+          "elapsed_ms": 4272.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

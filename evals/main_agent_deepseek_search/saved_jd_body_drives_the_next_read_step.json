@@ -1,11 +1,10 @@
 {
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "e032a54f4f80e7e86b5d2bf005e4812db58f37c337e6cbb328c6c15fb6cf89ac",
+  "prompt_fingerprint": "84c6db35c30194dc13ff579d8b64b94218a317fd8488f56faab7ff5b8b16e725",
   "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
-  "recorded_at": "2026-10-08T01:12:41.046636+00:00",
+  "recorded_at": "2026-10-08T16:28:51.318839+00:00",
   "steps": [
     {
       "tool_call": {
@@ -13,8 +12,8 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-      "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+      "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+      "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,7 +24,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 1230.1,
+      "elapsed_ms": 1573.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:39.738181+00:00",
-      "elapsed_ms": 1292.2,
+      "recorded_at": "2026-10-08T16:28:46.042027+00:00",
+      "elapsed_ms": 1658.5,
       "steps": [
         {
           "tool_call": {
@@ -45,8 +44,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -57,7 +56,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1230.1,
+          "elapsed_ms": 1573.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -67,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:39.538958+00:00",
-      "elapsed_ms": 918.4,
+      "recorded_at": "2026-10-08T16:28:46.517704+00:00",
+      "elapsed_ms": 1965.3,
       "steps": [
         {
           "tool_call": {
@@ -76,8 +75,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,7 +87,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 856.1,
+          "elapsed_ms": 1891.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,22 +97,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:41.046636+00:00",
-      "elapsed_ms": 2146.9,
+      "recorded_at": "2026-10-08T16:28:51.318839+00:00",
+      "elapsed_ms": 6667.0,
       "steps": [
         {
           "tool_call": {
             "name": "search_capabilities",
             "arguments": {
               "names": [
+                "match_resume_to_job",
                 "analyze_job",
-                "match_resume_to_job"
+                "list_resumes"
               ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -124,35 +124,55 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1069.4,
-          "model_request_count": 1,
+          "elapsed_ms": 2434.4,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "**JD 确实明确要求 Rust。**\n\n刚读取的「算法工程师（示例科技 · 上海 · 30-50K）」岗位要求中写明：**必须熟悉 Rust，并有生产环境异步服务经验**。\n\n但匹配这一步现在被前置条件挡住了，无法直接继续：\n\n- `match_resume_to_job` 的阻塞原因是：**需要先用 `analyze_job` 分析当前 JD，并同时选定一个岗位和一个简历版本**。\n- 目前只选定了一个岗位，简历版本还未选定（会话中尚未列出简历）。\n\n所以下一步需要先补上这两件事：\n\n1. 对当前岗位跑一次 `analyze_job`（岗位分析尚无结果）；\n2. 选定一个简历版本（需要先列出简历供你选择）。\n\n要我现在就按这个顺序推进吗？我会先分析该岗位的 JD，然后列出你的简历让你挑一个版本，再执行匹配。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         },
         {
-          "tool_call": {
-            "name": "analyze_job",
-            "arguments": {}
-          },
+          "content": "{\"action\":\"final\",\"message\":\"这一步没法按你的条件来判：我刚读取了当前岗位「算法工程师（示例科技，上海）」，但系统只返回了“已读取完整 JD”的凭据，回读状态为 unavailable——我拿不到 JD 正文，因此无法确认它是否明确要求 Rust。\\n\\n在无法确认“明确要求 Rust”之前，我不会启动简历匹配，也不会用别的来源（比如岗位标题、公司、我的推测）替代 JD 原文来做判断。\\n\\n如果你能提供以下任一项，我就可以继续：\\n1) 把该 JD 的正文（或要求部分）粘贴给我；或\\n2) 确认你要匹配的是另一个岗位——我可以先列一下已收藏岗位，你选一个后我再尝试读取其 JD。\\n\\n一旦能确认 JD 明确要求 Rust，我就按“先分析 JD、再选定一个简历版本”的顺序继续做匹配。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
-          "decision_shape_fingerprint": "b75c4c2bde6fdf50a68bd210d56421b768437309fae67ee955a46954c08d1dbe",
+          "selected_schema_fingerprint": "bc33cefb68105676a7fb73fc02297f94a2bfdfd2f6180f3e593323a97f38ef19",
+          "decision_shape_fingerprint": "3465b227a1cca91646814dd6751961ae2841ad88809bae59da42b9d85e44e8cb",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
+            "list_resumes",
             "get_saved_job",
             "analyze_job",
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1011.9,
-          "model_request_count": 1,
+          "elapsed_ms": 4094.7,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't verify the condition you set.\n\n- I read the saved job **算法工程师 @ 示例科技（上海）**, but the result came back as a receipt only — no readable JD text was delivered to me (`body_status: receipt_only`, `readback_status: unavailable`). So I cannot confirm whether the full JD explicitly requires Rust.\n- I also have no stored job analysis to fall back on (`has_active_job_analysis: false`), so there's no cached requirement list to check either.\n\nSince your instruction was conditional — proceed only if the JD explicitly requires Rust — and that condition can't be confirmed from readable evidence, I stopped here and did not start the resume match.\n\nIf you want to go ahead, tell me which of these you'd prefer:\n1. Re-read the JD and try again — if the text still isn't readable, the same block applies.\n2. Paste or paste-quote the requirement lines about Rust so I can judge directly.\n3. Treat the condition as satisfied and proceed to matching anyway — but note this requires also picking a resume version, and I'd be matching without having verified the Rust requirement.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

@@ -1,17 +1,16 @@
 {
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
-  "selection_mode": "search",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "c1084252f316b76e25b37a8468df4446375cae658fb8a267cd3a7619bbf4563f",
+  "prompt_fingerprint": "272567701d95253fdf332cc38750bcc376f1797ca61dca63387a54e3f8be9912",
   "context_shape_fingerprint": "8b9fb423d5fabb4379c39017c910e97f181035816faaf809385554ac769eb143",
-  "recorded_at": "2026-10-08T01:12:48.468163+00:00",
+  "recorded_at": "2026-10-08T16:28:53.885657+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"收藏列表中目前只有 1 个岗位，没有第 2 个，所以无法打开「第 2 个岗位」的 JD。\\n\\n当前唯一的收藏岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n你可以告诉我：\\n- 是否要看这 1 号岗位的完整 JD；\\n- 或者先到招聘网站浏览并收藏更多岗位，之后再选择序号。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前收藏列表里只有 1 个岗位——序号 1：示例科技 · 算法工程师（上海，30-50K），没有第 2 个岗位。请问你是要打开这个唯一岗位的完整 JD，还是需要我先刷新/重新查找收藏岗位列表？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
-      "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+      "selected_schema_fingerprint": "b538ed9afb6121b1aa4fe2652fe9666853c31f86b2ae0006f6168c8a125dfe5e",
+      "decision_shape_fingerprint": "79fda708b6a777f277a043d12aa5fae4cfbdddbc5c0a2058f09beb2a80fbcfcd",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -23,7 +22,7 @@
         "research_job",
         "search_capabilities"
       ],
-      "elapsed_ms": 1845.5,
+      "elapsed_ms": 1009.5,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -34,14 +33,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T01:12:47.575634+00:00",
-      "elapsed_ms": 1926.0,
+      "recorded_at": "2026-10-08T16:28:53.275719+00:00",
+      "elapsed_ms": 1124.6,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"收藏列表中目前只有 1 个岗位，没有第 2 个，所以无法打开「第 2 个岗位」的 JD。\\n\\n当前唯一的收藏岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n你可以告诉我：\\n- 是否要看这 1 号岗位的完整 JD；\\n- 或者先到招聘网站浏览并收藏更多岗位，之后再选择序号。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前收藏列表里只有 1 个岗位——序号 1：示例科技 · 算法工程师（上海，30-50K），没有第 2 个岗位。请问你是要打开这个唯一岗位的完整 JD，还是需要我先刷新/重新查找收藏岗位列表？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
-          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "selected_schema_fingerprint": "b538ed9afb6121b1aa4fe2652fe9666853c31f86b2ae0006f6168c8a125dfe5e",
+          "decision_shape_fingerprint": "79fda708b6a777f277a043d12aa5fae4cfbdddbc5c0a2058f09beb2a80fbcfcd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -53,7 +52,7 @@
             "research_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 1845.5,
+          "elapsed_ms": 1009.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -63,14 +62,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:47.407612+00:00",
-      "elapsed_ms": 1661.5,
+      "recorded_at": "2026-10-08T16:28:53.989197+00:00",
+      "elapsed_ms": 1573.8,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你提到的“第 2 个岗位”不存在——当前收藏的岗位只有 1 个：\\n\\n1. 算法工程师 · 示例科技 · 上海 · 30-50K\\n\\n我是直接读取这个岗位（序号 1）的完整 JD，还是你先去招聘网站收藏更多岗位后再选？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"你收藏的岗位目前只有 1 个（序号 1：上海 · 示例科技 · 算法工程师 · 30-50K），没有第 2 个岗位，所以无法打开第 2 个 JD。\\n\\n请选择下一步：\\n- 回复「1」，我就打开这个岗位的完整 JD；\\n- 或者先去 BOSS 上搜索、收藏更多岗位，再回来打开对应序号。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
-          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "selected_schema_fingerprint": "b538ed9afb6121b1aa4fe2652fe9666853c31f86b2ae0006f6168c8a125dfe5e",
+          "decision_shape_fingerprint": "79fda708b6a777f277a043d12aa5fae4cfbdddbc5c0a2058f09beb2a80fbcfcd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -82,7 +81,7 @@
             "research_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 1568.3,
+          "elapsed_ms": 1485.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -92,14 +91,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T01:12:48.468163+00:00",
-      "elapsed_ms": 2005.7,
+      "recorded_at": "2026-10-08T16:28:53.885657+00:00",
+      "elapsed_ms": 1359.6,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"没有第 2 个岗位——你已收藏的岗位目前只有 1 个：\\n\\n1. 示例科技 · 算法工程师（上海，30-50K）\\n\\n要读取哪一个？如果就是这个，回复「1」或「打开这个岗位」即可；如果你指的是别处的岗位，请先告诉我是哪一个（或先在招聘网站上保存它）。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"没有第 2 个岗位可打开。当前收藏列表里只有 1 个岗位：序号 1，示例科技 — 算法工程师（上海，30-50K）。\\n\\n请告诉我是否要打开这个岗位的完整 JD（回复「打开 1」即可），或者你先去浏览并收藏更多岗位后我再读取。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
-          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "selected_schema_fingerprint": "b538ed9afb6121b1aa4fe2652fe9666853c31f86b2ae0006f6168c8a125dfe5e",
+          "decision_shape_fingerprint": "79fda708b6a777f277a043d12aa5fae4cfbdddbc5c0a2058f09beb2a80fbcfcd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -111,7 +110,7 @@
             "research_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 1929.1,
+          "elapsed_ms": 1242.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

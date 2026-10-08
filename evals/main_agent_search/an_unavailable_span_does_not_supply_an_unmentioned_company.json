@@ -1,0 +1,145 @@
+{
+  "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+  "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "1af4f1f7c2a52f1c0e4508dadfea88ccac798138f6a096ce425b4a93b26f18a2",
+  "context_shape_fingerprint": "24e025405ea8a9acb69ba08cffb136efce5413f64505bc866b2099776af41b24",
+  "recorded_at": "2026-10-08T16:25:08.883248+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_career_memory",
+        "arguments": {
+          "query": "美团 目标公司"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+      "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2789.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T16:25:07.572014+00:00",
+      "elapsed_ms": 2896.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "美团 目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2789.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:25:11.038914+00:00",
+      "elapsed_ms": 6257.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前对话记录中没有提到目标公司的全名。请告诉我你的目标公司全称是什么？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6197.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "search_career_memory",
+                    "arguments": "{\"query\": \"美团\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:25:08.883248+00:00",
+      "elapsed_ms": 2882.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "美团 目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
+          "decision_shape_fingerprint": "4378857172bb90ad8d2fada99c2dea817d635fe7bf829fc33b339640209fd068",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2825.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}
