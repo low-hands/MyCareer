@@ -1769,9 +1769,9 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     observation = decisions.contexts[1].tool_observations[-1]
     assert observation.facts == {
         "from_sequence": 1,
-        "through_sequence": 2,
-        "returned": 2,
-        "total": 2,
+        "through_sequence": 4,
+        "returned": 4,
+        "total": 4,
         "body_clipped": False,
         "content_clipped": False,
             "resource_ref_count": 0,
@@ -1780,17 +1780,12 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     assert observation.body is not None
     assert "private-old-user-0" in observation.body
     assert "private-old-assistant-0" in observation.body
-    assert tools.calls == [
-        (
-            "read_conversation_span",
-            {
-                "user_id": "u1",
-                "conversation_id": "c1",
-                "from_sequence": 1,
-                "through_sequence": 2,
-            },
-        )
-    ]
+    assert len(tools.calls) == 1
+    assert tools.calls[0][0] == "read_conversation_span"
+    assert tools.calls[0][1]["user_id"] == "u1"
+    assert tools.calls[0][1]["conversation_id"] == "c1"
+    assert "from_sequence" not in tools.calls[0][1]
+    assert "through_sequence" not in tools.calls[0][1]
     recent = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="next"
     ).recent_messages

@@ -1566,7 +1566,20 @@ class ContextManager:
             "confirmed_decisions": 0,
             "unresolved_questions": 0,
         }
+        source_sequences = {message.sequence for message in to_summarize}
+        key_facts = [
+            item for item in content.key_facts
+            if item.source_sequence <= previous_through
+            or item.source_sequence in source_sequences
+        ]
         available = _SUMMARY_TEXT_BUDGET - constraint_chars
+        while key_facts and (
+            sum(len(item.fact) for item in key_facts)
+            + sum(len(item) for values in fields.values() for item in values)
+            > available
+        ):
+            key_facts.pop()
+        available -= sum(len(item.fact) for item in key_facts)
         while (
             any(fields.values())
             and sum(
@@ -1593,6 +1606,7 @@ class ContextManager:
         omitted_confirmed_decision_count += dropped_confirmed_decisions
         omitted_unresolved_question_count += dropped_unresolved_questions
         content = ConversationSummaryContent(
+            key_facts=tuple(key_facts),
             user_goals=tuple(fields["user_goals"]),
             confirmed_decisions=tuple(fields["confirmed_decisions"]),
             unresolved_questions=tuple(fields["unresolved_questions"]),

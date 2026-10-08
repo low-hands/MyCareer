@@ -129,6 +129,45 @@ def test_page_in_is_gated_by_the_watermark_not_by_the_tool_menu() -> None:
     assert "verbatim" in coverage["omits"]
 
 
+def test_runtime_selects_compressed_span_when_model_omits_bounds() -> None:
+    context = compacted_span_context(
+        user_message=SPAN_HIDDEN_QUESTION, page_in=True
+    )
+    projected = project_atomic_arguments(
+        context, "read_conversation_span", {"query": "目标公司"},
+        source_turn_id=None,
+    )
+    assert projected["_through_sequence"] == 8
+    assert "from_sequence" not in projected
+    assert "through_sequence" not in projected
+
+    class Store:
+        def read_conversation_span(self, **kwargs):
+            assert kwargs["from_sequence"] == 1
+            assert kwargs["through_sequence"] == 8
+            assert kwargs["query"] == "目标公司"
+            return _pre_watermark_span_view()
+
+    observation = MainAgentToolRegistry(
+        conversation_store=Store()
+    ).invoke_atomic_tool("read_conversation_span", projected)
+    assert observation.state == "conversation_span_found"
+
+
+def test_archive_fetch_with_zero_omitted_constraints_is_not_applicable() -> None:
+    class Store:
+        def list_conversation_constraints(self, **kwargs):
+            raise AssertionError("zero omitted constraints should avoid the store scan")
+
+    observation = MainAgentToolRegistry(
+        conversation_store=Store()
+    ).invoke_atomic_tool("fetch_archived_constraints", {
+        "user_id": "u1", "conversation_id": "c1",
+        "_omitted_active_constraint_count": 0,
+    })
+    assert observation.state == "archived_constraints_not_applicable"
+
+
 def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected() -> None:
     registry = MainAgentToolRegistry(conversation_store=object())
     strategy = SearchStrategy()
@@ -199,6 +238,15 @@ def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:
     assert any("forbidden answer" in failure for failure in check_step(
         step, assertion, scenario="asserted_decoy", index=0,
     ))
+    for message in (
+        "美团就是你的目标公司。",
+        "目标公司：美团。",
+        "我猜你说的应该是美团。",
+    ):
+        assert any("forbidden answer" in failure for failure in check_step(
+            step, AgentDecision(action="final", message=message),
+            scenario="asserted_decoy", index=0,
+        ))
 
 
 def test_retry_summary_distinguishes_forced_from_open_interactions() -> None:
@@ -235,13 +283,13 @@ def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
         stuffed_span_context(user_message=SPAN_HIDDEN_QUESTION)
     )
 
-    assert page_in_chars - ablation_chars < 80
-    assert stuffed_chars - page_in_chars >= 900
+    assert page_in_chars - ablation_chars < 250
+    assert stuffed_chars - page_in_chars >= 600
     # Native turns drop the per-message JSON keys and timestamps, so stuffing
     # costs less than it did in the document-shaped projection. Page-in still
-    # saves more than twenty-five percent of the complete request even after
-    # the summary's coverage metadata and fixed profile Markdown are included.
-    assert page_in_chars * 4 < stuffed_chars * 3
+    # saves at least one fifth of the request after adding the native boundary
+    # marker, message numbers, summary coverage, and fixed profile Markdown.
+    assert page_in_chars * 100 < stuffed_chars * 81
 
 
 def test_an_empty_span_observation_does_not_carry_the_window_decoy() -> None:
@@ -315,10 +363,11 @@ def test_span_saturation_scenarios_share_one_question_and_stay_decidable() -> No
     assert body.context.user_message == SPAN_HIDDEN_QUESTION
     assert SPAN_PAGE_IN_FACT in (body.context.tool_observations[0].body or "")
     assert body.context.tool_observations[0].body == _span_found_observation().body
-    assert page_in.steps[0].expect_arguments == {
-        "from_sequence": 1,
-        "through_sequence": 8,
-    }
+    assert page_in.steps[0].forbid_non_null_arguments == frozenset(
+        {"from_sequence", "through_sequence"}
+    )
+    assert stuffed.steps[0].forbid_message_regexes
+    assert empty.steps[0].forbid_message_regexes
     assert empty.context.user_message == SPAN_OUT_OF_RANGE_QUESTION
     assert empty.context.tool_observations[-1] == _span_empty_observation()
     assert SPAN_WINDOW_DECOY in _projected_text(empty.context)

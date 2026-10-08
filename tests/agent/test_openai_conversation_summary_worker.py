@@ -48,6 +48,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     client = Client(
         json.dumps(
             {
+                "key_facts": [{"fact": "Track my applications", "source_sequence": 9}],
                 "user_goals": ["Track applications"],
                 "confirmed_decisions": ["Use SQLite"],
                 "unresolved_questions": ["When to send a follow-up?"],
@@ -81,6 +82,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     )
 
     assert result.user_goals == ("Track applications",)
+    assert result.key_facts[0].source_sequence == 9
     assert result.long_term_memory_candidates[0].topic_key == "application_tracking"
     request = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert request["previous_summary"]["confirmed_decisions"] == ["Use SQLite"]
@@ -95,6 +97,13 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     assert "tools" not in client.completions.kwargs
     assert client.completions.kwargs["response_format"]["type"] == "json_schema"
     assert client.completions.kwargs["response_format"]["json_schema"]["strict"] is True
+
+
+def test_key_fact_requires_an_original_message_sequence() -> None:
+    with pytest.raises(ValueError):
+        ConversationSummaryContent.model_validate({
+            "key_facts": [{"fact": "目标公司是 Pinnacle Robotics"}],
+        })
 
 
 def test_summary_worker_rejects_unstructured_response() -> None:
@@ -113,6 +122,7 @@ def test_summary_worker_drops_bad_optional_candidate_without_losing_summary() ->
     client = Client(
         json.dumps(
             {
+                "key_facts": [],
                 "user_goals": ["Find a suitable role"],
                 "confirmed_decisions": ["Search this week"],
                 "unresolved_questions": [],

@@ -70,22 +70,25 @@ class OpenJobSearchToolArguments(ContractModel):
 
 
 class ReadConversationSpanToolArguments(ContractModel):
-    from_sequence: int = Field(ge=1)
-    through_sequence: int = Field(ge=1)
+    from_sequence: int | None = Field(default=None, ge=1)
+    through_sequence: int | None = Field(default=None, ge=1)
     query: str | None = Field(
         default=None,
         min_length=1,
         max_length=200,
         description=(
             "Focused terms from the user's request, such as 目标公司 or Rust. "
-            "Use this for long omitted ranges; omit it only for an exact "
-            "sequence span the user named."
+            "Use this for long omitted ranges. Omit sequence bounds unless "
+            "the user explicitly named an exact sequence span."
         ),
     )
 
     @model_validator(mode="after")
     def require_forward_span(self) -> "ReadConversationSpanToolArguments":
-        if self.from_sequence > self.through_sequence:
+        if (self.from_sequence is None) != (self.through_sequence is None):
+            raise ValueError("provide both sequence bounds or neither")
+        if (self.from_sequence is not None and self.through_sequence is not None
+                and self.from_sequence > self.through_sequence):
             raise ValueError("from_sequence cannot exceed through_sequence")
         return self
 

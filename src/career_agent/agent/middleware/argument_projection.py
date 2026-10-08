@@ -42,6 +42,7 @@ from career_agent.agent.contracts.tools.core_memory import (
     SearchCareerMemoryToolArguments,
 )
 from career_agent.agent.contracts.tools.job import LoadSkillToolArguments
+from career_agent.agent.resources.conversation_span import explicit_sequence_span
 from career_agent.agent.runtime.state import MainAgentState
 
 
@@ -242,13 +243,23 @@ def project_atomic_arguments(
         }
     if name == "read_conversation_span":
         model_arguments = ReadConversationSpanToolArguments.model_validate(arguments)
+        explicit = explicit_sequence_span(context.user_message)
+        exact_span = (
+            explicit is not None
+            and model_arguments.from_sequence == explicit.from_sequence
+            and model_arguments.through_sequence == explicit.through_sequence
+        )
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
             # Runtime-only watermark fields for the handler's availability guard.
             "_through_sequence": context.through_sequence,
             "_recent_from_sequence": context.recent_from_sequence,
-            **model_arguments.model_dump(exclude_none=True),
+            **({
+                "from_sequence": explicit.from_sequence,
+                "through_sequence": explicit.through_sequence,
+            } if exact_span else {}),
+            **({"query": model_arguments.query} if model_arguments.query else {}),
         }
     if name == "resolve_claim_source":
         model_arguments = ResolveClaimSourceToolArguments.model_validate(arguments)

@@ -427,12 +427,14 @@ class MainAgentContext(ContractModel):
             for reference in message.resource_refs
         ]
         unlisted_count = max(0, self.archived_resource_total - len(archived))
-        for message in self.recent_messages:
+        for index, message in enumerate(self.recent_messages):
             projected = {
                 "role": message.role,
                 "content": message.content,
                 "created_at": message.created_at.isoformat(),
             }
+            if self.recent_from_sequence is not None:
+                projected["sequence"] = self.recent_from_sequence + index
             if message.resource_refs:
                 resources = [
                     {
@@ -772,6 +774,15 @@ class MainAgentContext(ContractModel):
                 ),
             },
             "recent_messages": tuple(model_messages),
+            **({
+                "omitted_history": {
+                    "from_sequence": 1,
+                    "through_sequence": self.recent_from_sequence - 1,
+                    "summary_through_sequence": self.through_sequence,
+                    "readback_tool": "read_conversation_span",
+                }
+            } if self.recent_from_sequence is not None
+                 and self.recent_from_sequence > 1 else {}),
             **(
                 {
                     "through_sequence": self.through_sequence,
@@ -797,8 +808,8 @@ class MainAgentContext(ContractModel):
                     "coverage": {
                         "from_sequence": 1,
                         "through_sequence": self.through_sequence,
-                        "retains": "distilled facts within the summary budget",
-                        "omits": "verbatim messages and possibly facts trimmed by the budget",
+                        "retains": "key facts with source sequences, user goals, confirmed decisions, unresolved questions, and active constraints",
+                        "omits": "verbatim messages and facts not selected for these bounded summary categories",
                         "readback_tool": "read_conversation_span",
                     },
                 }

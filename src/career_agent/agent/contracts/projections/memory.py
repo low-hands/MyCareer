@@ -272,6 +272,10 @@ def project_constraint_retirement_arguments(
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
+            "_omitted_active_constraint_count": (
+                context.conversation_summary.omitted_active_constraint_count
+                if context.conversation_summary else 0
+            ),
         }
     if name == "propose_constraint_retirement":
         model_arguments = (

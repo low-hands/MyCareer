@@ -190,8 +190,11 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         'ReadConversationSpanToolArguments',
         (
             "The projection's through_sequence is the last message covered by conversation_summary, a"
-            'nd recent_from_sequence is the first raw recent message. Read an exact inclusive sequenc'
-            'e span from this same conversation only when those boundaries leave a relevant gap. For '
+            'nd recent_from_sequence is the first raw recent message. When the user needs an earlier '
+            'fact absent from the summary and recent messages, read the compressed history even when '
+            'the two sequence boundaries are adjacent. Omit the sequence bounds to let the runtime '
+            'select 1 through the message before recent_from_sequence, including any omitted rows '
+            'after the summary watermark; provide both only when the user names exact numbers. For '
             'long gaps, pass focused query terms to search message content instead of walking spans e'
             'ight rows at a time. Without query it returns the oldest rows in the exact span. Returns'
             ' at most 8 matching messages, clips each at 4000 characters, and reports returned/total '
@@ -205,7 +208,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Read the constraints this conversation recorded but conversation_summary is not showing.'
             ' Call this when omitted_active_constraint_count is above zero and the reply depends on w'
-            'hich constraints apply; an archived constraint still applies. It does not recover '
+            'hich constraints apply; when the count is zero it returns not applicable. An archived '
+            'constraint still applies. It does not recover '
             'arbitrary earlier chat facts; use read_conversation_span for those. Read-only.'
         ),
     ),

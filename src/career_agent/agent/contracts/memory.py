@@ -42,6 +42,13 @@ class SummaryMessage(ConversationMemoryContract):
     content: str = Field(max_length=SUMMARY_SOURCE_MAX_CHARS)
 
 
+class SummaryKeyFact(ConversationMemoryContract):
+    """A concise explicit chat fact with its original message sequence."""
+
+    fact: str = Field(min_length=1, max_length=200)
+    source_sequence: int = Field(ge=1)
+
+
 class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
     """A model-proposed long-term candidate, never an authorized preference."""
 
@@ -77,6 +84,7 @@ class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
 
 
 class ConversationSummaryContent(ConversationMemoryContract):
+    key_facts: tuple[SummaryKeyFact, ...] = Field(default=(), max_length=12)
     user_goals: tuple[str, ...] = Field(default=(), max_length=10)
     confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
     unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)
@@ -145,6 +153,7 @@ class ConversationSummaryContent(ConversationMemoryContract):
     @model_validator(mode="after")
     def bound_summary_text(self) -> "ConversationSummaryContent":
         values = (
+            *(item.fact for item in self.key_facts),
             *self.user_goals,
             *self.confirmed_decisions,
             *self.unresolved_questions,

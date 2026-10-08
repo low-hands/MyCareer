@@ -5728,6 +5728,13 @@ class MainAgentToolRegistry:
     ) -> ToolObservation:
         if self._conversation_store is None:
             raise ValueError("Conversation store is not configured")
+        if arguments.get("_omitted_active_constraint_count") == 0:
+            return ToolObservation(
+                tool_name="fetch_archived_constraints",
+                state="archived_constraints_not_applicable",
+                message="摘要没有省略仍生效的约束；此工具不适用。",
+                execution_outcome="not_committed",
+            )
         archived = self._conversation_store.list_conversation_constraints(
             user_id=str(arguments["user_id"]),
             conversation_id=str(arguments["conversation_id"]),
@@ -5857,8 +5864,14 @@ class MainAgentToolRegistry:
         span_arguments = {
             "user_id": user_id,
             "conversation_id": conversation_id,
-            "from_sequence": model_arguments.from_sequence,
-            "through_sequence": model_arguments.through_sequence,
+            "from_sequence": model_arguments.from_sequence or 1,
+            "through_sequence": (
+                model_arguments.through_sequence
+                or max(
+                    int(arguments["_through_sequence"]),
+                    int(arguments.get("_recent_from_sequence") or 1) - 1,
+                )
+            ),
         }
         if model_arguments.query is not None:
             span_arguments["query"] = model_arguments.query

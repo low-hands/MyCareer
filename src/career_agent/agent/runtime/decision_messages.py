@@ -338,8 +338,24 @@ def project_decision_messages(
     stable_data, volatile_data = split_context_cache_data(data)
 
     recent_messages = []
-    for message in context.recent_messages:
+    if context.recent_from_sequence is not None and context.recent_from_sequence > 1:
+        recent_messages.append({
+            "role": "user",
+            "content": (
+                f"<{CONTROL_REMINDER_TAG}>\n"
+                f"Runtime history boundary: 1–{context.recent_from_sequence - 1} omitted; "
+                f"summary covers 1–{context.through_sequence}. "
+                "Readback: read_conversation_span.\n"
+                f"</{CONTROL_REMINDER_TAG}>"
+            ),
+        })
+    for index, message in enumerate(context.recent_messages):
         content = message.content
+        if context.recent_from_sequence is not None:
+            content = (
+                f"[sequence: {context.recent_from_sequence + index}]\n"
+                + content
+            )
         if message.content_clipped:
             content += _CONTENT_CLIPPED_MARKER
         if message.resource_refs:

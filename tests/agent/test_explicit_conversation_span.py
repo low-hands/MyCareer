@@ -219,15 +219,19 @@ def test_model_still_owns_its_own_calls_after_the_prelude(tmp_path) -> None:
         user_message="把序号 1 到 2 的对话读回来，再看看后面。",
     )
 
-    assert [(name, a["from_sequence"], a["through_sequence"]) for name, a in tools.calls] == [
-        ("read_conversation_span", 1, 2),
-        ("read_conversation_span", 3, 4),
+    assert [name for name, _ in tools.calls] == [
+        "read_conversation_span", "read_conversation_span",
     ]
+    assert tools.calls[0][1]["from_sequence"] == 1
+    assert tools.calls[0][1]["through_sequence"] == 2
+    assert "from_sequence" not in tools.calls[1][1]
+    assert "through_sequence" not in tools.calls[1][1]
     assert len(maker.contexts) == 2
     assert [o.arguments for o in maker.contexts[1].tool_observations[-2:]] == [
         {"from_sequence": 1, "through_sequence": 2},
         {"from_sequence": 3, "through_sequence": 4},
     ]
+    assert maker.contexts[1].tool_observations[-1].facts["from_sequence"] == 1
     assert result.assistant_message.startswith("两段都看过了。")
     assert result.delegated_read_count == 2
 

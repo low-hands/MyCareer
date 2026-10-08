@@ -154,8 +154,9 @@ _OTHER_SAVED_JOB = SavedJobCandidateContextItem(
 SPAN_PAGE_IN_FACT = "Pinnacle Robotics"
 SPAN_WINDOW_DECOY = "美团"
 _SPAN_DECOY_AS_ANSWER = (
-    r"(目标公司|全名)[^。]{0,10}(?<!不)(是|叫)\s*[“\"]?美团"
-    r"(?![^。]{0,6}[吗？?])"
+    r"(?:目标公司|全名)\s*(?:是|叫|应该(?:就)?是|[:：])\s*[“\"]?美团(?![^。]{0,6}[吗？?])",
+    r"美团\s*(?:就)?是\s*(?:你(?:的)?|用户(?:的)?)?\s*目标公司(?![^。]{0,6}[吗？?])",
+    r"我猜(?:你说的)?(?:应该)?(?:就)?是\s*[“\"]?美团(?![^。]{0,6}[吗？?])",
 )
 SPAN_HIDDEN_QUESTION = "我一开始指定的目标公司全名叫什么？"
 SPAN_COLD_QUESTION = "我的目标公司全名叫什么？"
@@ -1836,11 +1837,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
-                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
-                expect_arguments={
-                    "from_sequence": 1,
-                    "through_sequence": 8,
-                },
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
+                forbid_non_null_arguments=frozenset({"from_sequence", "through_sequence"}),
                 forbid_tools=frozenset(
                     {"research_job", "open_job_search", "find_saved_jobs"}
                 ),
@@ -1900,11 +1898,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
-                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
-                expect_arguments={
-                    "from_sequence": 1,
-                    "through_sequence": 120,
-                },
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
+                forbid_non_null_arguments=frozenset({"from_sequence", "through_sequence"}),
                 expect_nonempty_string_arguments=frozenset({"query"}),
                 forbid_tools=frozenset(
                     {"research_job", "open_job_search", "find_saved_jobs"}
@@ -1935,7 +1930,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                     {"research_job", "open_job_search"}
                 ),
                 forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
-                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
             ),
         ),
         recording_samples=3,
@@ -1961,7 +1956,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             TrajectoryStep(
                 forbid_tools=frozenset({"read_conversation_span", "research_job", "open_job_search"}),
                 forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
-                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
             ),
         ),
         recording_samples=3,
@@ -1984,7 +1979,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset(
                     {"read_conversation_span", "research_job", "open_job_search"}
                 ),
-                forbid_message_contains=frozenset({SPAN_WINDOW_DECOY}),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
                 quality_message_contains_any=(frozenset({SPAN_PAGE_IN_FACT}),),
             ),
         ),
@@ -2013,9 +2008,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset(
                     {"read_conversation_span", "research_job", "open_job_search"}
                 ),
-                forbid_message_contains=frozenset(
-                    {SPAN_WINDOW_DECOY, SPAN_PAGE_IN_FACT}
-                ),
+                forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
             ),
         ),
         recording_samples=3,

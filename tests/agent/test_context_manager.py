@@ -14,6 +14,7 @@ from career_agent.agent.providers.token_budget import budget_encoding, message_t
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.middleware.argument_projection import project_atomic_arguments
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.observations import _bounded_markdown
@@ -1187,6 +1188,64 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
     assert second is not None
     assert second.through_sequence == 8
     assert len(worker.calls) == 2
+
+
+def test_key_fact_keeps_its_source_across_repeated_compaction(tmp_path) -> None:
+    class FactWorker:
+        def summarize(self, *, previous, messages):
+            facts = list(previous.key_facts if previous else ())
+            for message in messages:
+                if "Pinnacle Robotics" in message.content:
+                    facts.append({
+                        "fact": "目标公司是 Pinnacle Robotics",
+                        "source_sequence": message.sequence,
+                    })
+            return ConversationSummaryContent(key_facts=tuple(facts))
+
+    path = tmp_path / "repeated-facts.sqlite3"
+    writer = ContextManager(CareerContextStore(path), recent_message_limit=40)
+    for index in range(10):
+        context = writer.load_for_turn(
+            user_id="u1", conversation_id="c1",
+            user_message=(
+                "目标公司是 Pinnacle Robotics" if index == 0
+                else "UNIQUEFIVE" if index == 5 else f"user-{index}"
+            ),
+        )
+        writer.commit_turn(
+            context=context, task=ConversationTaskState(),
+            assistant_message=f"assistant-{index}",
+        )
+
+    manager = ContextManager(
+        CareerContextStore(path), summary_worker=FactWorker(),
+        recent_message_limit=4, summary_batch_size=4,
+    )
+    manager.configure_request_token_estimator(lambda context: (1000, 1000))
+    manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="first")
+    context = manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="second",
+    )
+    assert context.through_sequence == 8
+    assert context.conversation_summary.key_facts[0].fact == "目标公司是 Pinnacle Robotics"
+    assert context.conversation_summary.key_facts[0].source_sequence == 1
+    projected = context.model_context()
+    assert projected["recent_messages"][0]["sequence"] == context.recent_from_sequence
+    assert projected["omitted_history"]["through_sequence"] == context.recent_from_sequence - 1
+    assert projected["omitted_history"]["summary_through_sequence"] == 8
+    native = project_decision_messages(context)
+    assert "Runtime history boundary" in native.recent_messages[0]["content"]
+    assert f"[sequence: {context.recent_from_sequence}]" in native.recent_messages[1]["content"]
+    arguments = project_atomic_arguments(
+        context, "read_conversation_span", {"query": "UNIQUEFIVE"},
+        source_turn_id=None,
+    )
+    readback = MainAgentToolRegistry(
+        conversation_store=manager._store,
+    ).invoke_atomic_tool("read_conversation_span", arguments)
+    assert readback.state == "conversation_span_found"
+    assert readback.facts["through_sequence"] == context.recent_from_sequence - 1
+    assert any("UNIQUEFIVE" in item["content"] for item in readback.payload["messages"])
 
 
 def test_legacy_short_chat_compacts_when_unsummarized_rows_leave_projection(
