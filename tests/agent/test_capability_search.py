@@ -313,7 +313,7 @@ def test_empty_search_records_a_trace_event() -> None:
     ("zzzxxyyunknownword", False),
 ])
 @pytest.mark.parametrize("with_semantic", [False, True])
-def test_read_evidence_threshold_uses_catalogue_terms(query, expected_target, with_semantic):
+def test_lexical_threshold_does_not_limit_semantic_candidates(query, expected_target, with_semantic):
     target = replace(
         CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
         summary="alpha", example_queries=("delta epsilon",),
@@ -323,7 +323,7 @@ def test_read_evidence_threshold_uses_catalogue_terms(query, expected_target, wi
         query=query, descriptors=(target, other),
         semantic_scores={target.name: 1.0} if with_semantic else None,
     )
-    assert (target.name in offered) == expected_target
+    assert (target.name in offered) == (expected_target or with_semantic)
 
 
 def test_effective_terms_exclude_common_unknown_and_duplicate_tokens():
@@ -373,4 +373,31 @@ def test_all_tools_use_the_same_effective_query_threshold(effect, name, semantic
     scores = {name: 1.0} if semantic else None
     assert name in search_catalog(query="alpha", descriptors=(entry, other), semantic_scores=scores)
     assert name in search_catalog(query="alpha beta", descriptors=(entry, other), semantic_scores=scores)
-    assert name not in search_catalog(query="alpha beta gamma", descriptors=(entry, other), semantic_scores=scores)
+    offered = search_catalog(query="alpha beta gamma", descriptors=(entry, other), semantic_scores=scores)
+    assert (name in offered) is semantic
+
+
+@pytest.mark.parametrize("plural,singular", [
+    ("resumes", "resume"), ("interviews", "interview"),
+    ("matches", "match"), ("processes", "process"), ("boxes", "box"),
+    ("status", "status"), ("analysis", "analysis"), ("process", "process"),
+])
+def test_regular_english_plurals_and_singular_endings(plural, singular):
+    assert _tokens(plural) == _tokens(singular) == (singular,)
+
+
+def test_resume_singular_retrieves_plural_catalog_name():
+    assert "list_resumes" in search_catalog(query="resume", limit=5)
+
+
+@pytest.mark.parametrize("effect,name", [
+    ("READ", "read_sample"), ("WRITE", "write_sample"), ("READ", "propose_sample"),
+])
+def test_semantic_only_admission_obeys_threshold_and_catalog_membership(effect, name):
+    entry = replace(CAPABILITIES["list_resumes"], name=name, effect=effect,
+                    aliases_zh=(), summary="alpha", example_queries=())
+    assert search_catalog(query="unrelated", descriptors=(entry,)) == ()
+    assert search_catalog(query="unrelated", descriptors=(entry,),
+                          semantic_scores={name: 0.549, "unknown_name": 1.0}) == ()
+    assert search_catalog(query="unrelated", descriptors=(entry,),
+                          semantic_scores={name: 0.55, "unknown_name": 1.0}) == (name,)

@@ -1,0 +1,49 @@
+{
+  "baseline_revision": "02fd403",
+  "controlled_comparison": "old vs independent semantic admission; both use the current plural-normalized _tokens",
+  "baseline_search_sha256": "63f2186ae6b2873c05296bc336f9d145dc223f10b402cd48c2d33d48c272180f",
+  "current_search_sha256": "eb952c57982d21745fa23138ac6aadb2576bbe0920ded2c963444a5a9cca3831",
+  "before_coverage": [
+    54,
+    62
+  ],
+  "after_coverage": [
+    53,
+    62
+  ],
+  "changes": [
+    {
+      "scenario": "selection_dev_cross_application_then_email",
+      "step": 1,
+      "required": [
+        "resolve_email_event"
+      ],
+      "before": [
+        "fetch_archived_constraints",
+        "get_application",
+        "list_email_events",
+        "load_skill",
+        "open_job_search",
+        "resolve_email_event",
+        "search_capabilities",
+        "search_career_memory",
+        "sync_application_emails"
+      ],
+      "after": [
+        "fetch_archived_constraints",
+        "get_application",
+        "list_applications",
+        "list_email_events",
+        "load_skill",
+        "open_job_search",
+        "search_capabilities",
+        "search_career_memory",
+        "sync_application_emails"
+      ],
+      "before_missing": {},
+      "after_missing": {
+        "resolve_email_event": "not_selected"
+      }
+    }
+  ]
+}

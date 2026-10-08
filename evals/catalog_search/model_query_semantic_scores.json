@@ -1,0 +1,250 @@
+{
+  "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+  "model": "qwen3.7-text-embedding",
+  "scores": {
+    "calendar": {
+      "execute_calendar_proposal": 0.577017,
+      "get_calendar_proposal": 0.635678,
+      "list_calendar_accounts": 0.639295,
+      "list_calendar_links": 0.610265,
+      "prepare_interview_calendar_sync": 0.633731
+    },
+    "list my resumes": {
+      "draft_resume_tailoring": 0.583197,
+      "export_resume_artifact": 0.639759,
+      "get_resume_job_match": 0.577553,
+      "get_resume_metadata": 0.670643,
+      "get_resume_tailoring_draft": 0.62035,
+      "list_applications": 0.601153,
+      "list_resumes": 0.808041,
+      "revise_resume_tailoring": 0.562177
+    },
+    "resume": {
+      "draft_resume_tailoring": 0.613452,
+      "export_resume_artifact": 0.571302,
+      "finalize_resume_tailoring": 0.584295,
+      "get_resume_job_match": 0.596722,
+      "get_resume_metadata": 0.647174,
+      "get_resume_tailoring_draft": 0.621202,
+      "list_resumes": 0.677206,
+      "review_resume_tailoring": 0.567731,
+      "revise_resume_tailoring": 0.600485
+    },
+    "下载简历文件": {
+      "draft_resume_tailoring": 0.605221,
+      "export_resume_artifact": 0.773623,
+      "finalize_resume_tailoring": 0.606139,
+      "get_resume_job_match": 0.605055,
+      "get_resume_metadata": 0.669714,
+      "get_resume_tailoring_draft": 0.64894,
+      "list_resumes": 0.665839,
+      "revise_resume_tailoring": 0.556721
+    },
+    "导出简历": {
+      "draft_resume_tailoring": 0.648078,
+      "export_resume_artifact": 0.855455,
+      "finalize_resume_tailoring": 0.626442,
+      "get_resume_job_match": 0.572549,
+      "get_resume_metadata": 0.611439,
+      "get_resume_tailoring_draft": 0.64122,
+      "list_resumes": 0.645101,
+      "review_resume_tailoring": 0.556476,
+      "revise_resume_tailoring": 0.591148
+    },
+    "帮我把当前职位加到投递清单里": {
+      "compare_saved_jobs": 0.662005,
+      "confirm_job_intent": 0.580299,
+      "create_application": 0.65447,
+      "create_interview": 0.580142,
+      "find_saved_jobs": 0.611479,
+      "list_applications": 0.741507,
+      "list_resumes": 0.595043,
+      "list_target_roles": 0.61708,
+      "propose_job_intent": 0.598187,
+      "update_application_status": 0.585845
+    },
+    "帮我生成一份定制简历": {
+      "draft_resume_tailoring": 0.838773,
+      "export_resume_artifact": 0.666278,
+      "finalize_resume_tailoring": 0.800818,
+      "get_resume_job_match": 0.571997,
+      "get_resume_tailoring_draft": 0.771518,
+      "list_resumes": 0.58365,
+      "match_resume_to_job": 0.551041,
+      "review_resume_tailoring": 0.731229,
+      "revise_resume_tailoring": 0.7846
+    },
+    "帮我看看我的经历": {
+      "get_career_memory_detail": 0.617825,
+      "propose_career_fact": 0.555241,
+      "search_career_episodes": 0.559701,
+      "search_career_history": 0.634654,
+      "search_career_memory": 0.591292
+    },
+    "我的投递记录有哪些": {
+      "create_application": 0.73713,
+      "create_interview": 0.5563,
+      "get_application": 0.71104,
+      "list_applications": 0.826764,
+      "list_email_events": 0.603463,
+      "list_target_roles": 0.563872,
+      "search_career_episodes": 0.663552,
+      "sync_application_emails": 0.555085,
+      "update_application_status": 0.728112
+    },
+    "把简历导出成 PDF": {
+      "draft_resume_tailoring": 0.593315,
+      "export_resume_artifact": 0.791716,
+      "finalize_resume_tailoring": 0.601715,
+      "get_resume_metadata": 0.554347,
+      "get_resume_tailoring_draft": 0.598307,
+      "list_resumes": 0.580649
+    },
+    "把这个岗位加入投递": {
+      "compare_saved_jobs": 0.604399,
+      "confirm_job_intent": 0.575307,
+      "create_application": 0.690433,
+      "get_saved_job": 0.575464,
+      "list_applications": 0.633555,
+      "open_job_search": 0.560075,
+      "propose_job_intent": 0.588813
+    },
+    "投递": {
+      "update_application_status": 0.556375
+    },
+    "投递列表": {
+      "list_applications": 0.592145,
+      "list_email_events": 0.594909
+    },
+    "日历关联": {
+      "execute_calendar_proposal": 0.558825,
+      "get_calendar_proposal": 0.554098,
+      "list_calendar_accounts": 0.631814,
+      "list_calendar_links": 0.771667,
+      "prepare_interview_calendar_sync": 0.593272
+    },
+    "查看我保存的经历": {
+      "confirm_career_fact": 0.561532,
+      "get_career_memory_detail": 0.586079,
+      "search_career_episodes": 0.580338,
+      "search_career_history": 0.628567,
+      "search_career_memory": 0.60999
+    },
+    "查看我的简历": {
+      "draft_resume_tailoring": 0.550836,
+      "export_resume_artifact": 0.568735,
+      "get_resume_job_match": 0.629688,
+      "get_resume_metadata": 0.644115,
+      "get_resume_tailoring_draft": 0.669265,
+      "list_resumes": 0.660575,
+      "match_resume_to_job": 0.553546,
+      "review_resume_tailoring": 0.623416,
+      "revise_resume_tailoring": 0.578203
+    },
+    "生成针对岗位的简历": {
+      "draft_resume_tailoring": 0.77853,
+      "export_resume_artifact": 0.596861,
+      "finalize_resume_tailoring": 0.691868,
+      "get_resume_job_match": 0.663818,
+      "get_resume_tailoring_draft": 0.647107,
+      "list_resumes": 0.594596,
+      "match_resume_to_job": 0.626525,
+      "prepare_interview": 0.559131,
+      "review_resume_tailoring": 0.588193,
+      "revise_resume_tailoring": 0.635438
+    },
+    "看看我的面试安排": {
+      "complete_interview": 0.670877,
+      "create_interview": 0.703066,
+      "get_interview": 0.734563,
+      "get_interview_preparation": 0.634421,
+      "list_calendar_links": 0.621718,
+      "list_interviews": 0.77758,
+      "prepare_interview": 0.642778,
+      "prepare_interview_calendar_sync": 0.682482,
+      "record_interview_retro": 0.640664,
+      "update_interview": 0.704176
+    },
+    "简历": {
+      "draft_resume_tailoring": 0.660477,
+      "export_resume_artifact": 0.589718,
+      "finalize_resume_tailoring": 0.624883,
+      "get_resume_job_match": 0.601242,
+      "get_resume_metadata": 0.667332,
+      "get_resume_tailoring_draft": 0.645687,
+      "list_resumes": 0.693239,
+      "match_resume_to_job": 0.563241,
+      "review_resume_tailoring": 0.613595,
+      "revise_resume_tailoring": 0.628064
+    },
+    "简历列表": {
+      "draft_resume_tailoring": 0.587007,
+      "export_resume_artifact": 0.569761,
+      "get_resume_job_match": 0.56562,
+      "get_resume_metadata": 0.672958,
+      "get_resume_tailoring_draft": 0.584696,
+      "list_resumes": 0.766261
+    },
+    "请将这份简历导出为 PDF 文件": {
+      "draft_resume_tailoring": 0.592906,
+      "export_resume_artifact": 0.802393,
+      "finalize_resume_tailoring": 0.610931,
+      "get_resume_metadata": 0.5642,
+      "get_resume_tailoring_draft": 0.607832,
+      "list_resumes": 0.589469
+    },
+    "请按这个岗位起草一版定制简历": {
+      "draft_resume_tailoring": 0.81497,
+      "export_resume_artifact": 0.607515,
+      "finalize_resume_tailoring": 0.792616,
+      "get_resume_job_match": 0.555521,
+      "get_resume_tailoring_draft": 0.777624,
+      "list_resumes": 0.587137,
+      "match_resume_to_job": 0.562877,
+      "review_resume_tailoring": 0.731154,
+      "revise_resume_tailoring": 0.785384
+    },
+    "起草定制简历": {
+      "draft_resume_tailoring": 0.876642,
+      "export_resume_artifact": 0.642323,
+      "finalize_resume_tailoring": 0.8124,
+      "get_resume_tailoring_draft": 0.845027,
+      "list_resumes": 0.572491,
+      "review_resume_tailoring": 0.823185,
+      "revise_resume_tailoring": 0.847399
+    },
+    "这个岗位不错": {},
+    "面试": {
+      "complete_interview": 0.625361,
+      "create_interview": 0.681893,
+      "get_interview": 0.670555,
+      "get_interview_preparation": 0.642595,
+      "list_interviews": 0.68526,
+      "prepare_interview": 0.691681,
+      "prepare_interview_calendar_sync": 0.617737,
+      "record_interview_retro": 0.623495,
+      "start_mock_interview": 0.660615,
+      "update_interview": 0.64985
+    },
+    "面试列表": {
+      "complete_interview": 0.600682,
+      "create_interview": 0.660746,
+      "get_interview": 0.669641,
+      "get_interview_preparation": 0.61146,
+      "list_calendar_links": 0.62814,
+      "list_interviews": 0.779387,
+      "list_resumes": 0.59078,
+      "prepare_interview": 0.661007,
+      "record_interview_retro": 0.589322,
+      "update_interview": 0.631338
+    }
+  },
+  "recorded_at": "2026-10-08T19:42:47.640644+00:00",
+  "fixture_sha256": "dca9a3dae15fdcdefa1df50d1d4e38052ab0072ff1c02cfebf0b00d60f85a621",
+  "model_id": "openai-compatible:e112daba403c3f5265c29918e7eeeef1d7c3d31ce54efb618d2fc91ddc787494",
+  "query_count": 26,
+  "holdout_status": "embeddings_and_similarity_recorded_only; no search ranking or recall evaluation",
+  "score_scope": "runtime SemanticCapabilityIndex: similarity >= 0.55, top 10 candidates",
+  "min_similarity": 0.55,
+  "max_candidates": 10
+}

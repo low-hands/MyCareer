@@ -13,7 +13,7 @@ from career_agent.evaluation.catalog_search import FIXTURE, evaluate_queries
 
 FIXTURE_SHA256 = "dca9a3dae15fdcdefa1df50d1d4e38052ab0072ff1c02cfebf0b00d60f85a621"
 CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))["cases"]
-KNOWN_FAILURES = {"dev_resume_en", "dev_view_resumes", "dev_control_experience"}
+KNOWN_FAILURES = {"dev_view_resumes", "dev_control_experience"}
 
 
 def test_fixture_is_frozen_and_splits_are_disjoint():
@@ -59,7 +59,7 @@ def test_each_split_has_non_alias_write_demands_and_read_recall():
 
 @pytest.mark.parametrize("case", [
     pytest.param(case, id=case["id"], marks=(
-        pytest.mark.xfail(strict=True, reason="Recall regressions: English plural, resume ranking, uniform-gate experience rank 6")
+        pytest.mark.xfail(strict=True, reason="Remaining lexical recall regressions: resume ranking and experience rank 6")
         if case["id"] in KNOWN_FAILURES else ()
     ))
     for case in CASES if case["split"] == "dev"
@@ -187,3 +187,83 @@ def test_policy_amendment_preserves_all_query_targets_and_splits():
     assert [{k: c[k] for k in fields} for c in prior["cases"]] == [
         {k: c[k] for k in fields} for c in CASES
     ]
+
+
+@pytest.mark.parametrize("case", [c for c in CASES if c["split"] == "dev"], ids=lambda c: c["id"])
+def test_recorded_model_query_hybrid_dev_recall(case):
+    from career_agent.agent.capabilities.search import search_catalog
+    from career_agent.evaluation.catalog_search import MODEL_QUERY_SCORES, load_model_query_scores
+
+    scorer = load_model_query_scores(MODEL_QUERY_SCORES)
+    result = evaluate_queries([case], search=lambda **kwargs: search_catalog(
+        **kwargs, semantic_scores=scorer.scores(kwargs["query"]),
+    ))
+    assert not result["rows"][0]["missing"], result["rows"][0]
+
+
+def test_hybrid_dev_meets_step1_recall_floor():
+    from career_agent.agent.capabilities.search import search_catalog
+    from career_agent.evaluation.catalog_search import MODEL_QUERY_SCORES, load_model_query_scores
+
+    scorer = load_model_query_scores(MODEL_QUERY_SCORES)
+    result = evaluate_queries([c for c in CASES if c["split"] == "dev"],
+                              search=lambda **kwargs: search_catalog(
+                                  **kwargs, semantic_scores=scorer.scores(kwargs["query"]),
+                              ))
+    assert result["demand_count"] == 14
+    assert result["recall"]["5"]["hits"] >= 12
+
+
+@pytest.mark.parametrize("mismatch", ["catalogue_digest", "fixture_sha256", "missing_query"])
+def test_recorded_scores_reject_stale_or_incomplete_provenance(tmp_path, mismatch):
+    from career_agent.evaluation.catalog_search import MODEL_QUERY_SCORES, load_model_query_scores
+
+    payload = json.loads(MODEL_QUERY_SCORES.read_text())
+    if mismatch == "missing_query":
+        payload["scores"].pop("resume")
+    else:
+        payload[mismatch] = "stale"
+    path = tmp_path / "scores.json"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="changed|26 frozen queries"):
+        load_model_query_scores(path)
+
+
+def test_plural_normalization_preserves_prior_dev_recall():
+    from career_agent.agent.capabilities.search import search_catalog
+
+    baseline = json.loads(FIXTURE.with_name("uniform_gate_dev_2026-10-08.json").read_text())
+    # Both saved suites are dev. Never execute a holdout query for this check.
+    for suite in (baseline["model_queries"], baseline["existing_dev"]["user_sentence_search_catalog"]):
+        for row in suite["rows"]:
+            if not row["expected_tools"]:
+                continue
+            offered = search_catalog(query=row["query"], limit=5)
+            expected = set(row["expected_tools"])
+            for k in (1, 3, 5):
+                if expected <= set(row["offered"][:k]):
+                    assert expected <= set(offered[:k]), (row["query"], k, offered)
+
+
+def test_score_recorder_covers_both_splits_without_search_or_evaluation(tmp_path, monkeypatch):
+    from career_agent.evaluation import catalog_search
+    from career_agent.evaluation.catalog_search_embeddings import record_model_query_scores
+
+    def forbidden_evaluation(*args, **kwargs):
+        pytest.fail("recording similarities must never evaluate holdout")
+
+    class Client:
+        model_id = "fixture-client"
+
+        def embed(self, texts):
+            return [(1.0, 0.0) for _ in texts]
+
+    monkeypatch.setattr(catalog_search, "evaluate_queries", forbidden_evaluation)
+    path = record_model_query_scores(Client(), model="fixture-model", output=tmp_path / "scores.json")
+    payload = json.loads(path.read_text())
+    assert payload["query_count"] == len(payload["scores"]) == 26
+    assert set(payload["scores"]) == {c["query"] for c in CASES}
+    assert payload["fixture_sha256"] == FIXTURE_SHA256
+    assert "no search ranking or recall evaluation" in payload["holdout_status"]
+    with pytest.raises(FileExistsError):
+        record_model_query_scores(Client(), model="fixture-model", output=path)

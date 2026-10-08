@@ -40,6 +40,14 @@ def _tokens(text: str) -> tuple[str, ...]:
             else:
                 result.extend(word[index:index + 2] for index in range(len(word) - 1))
         else:
+            # Conservative regular plurals; retain singular endings such as
+            # status, analysis and process. Both queries and metadata use this.
+            if (word.isalpha() and len(word) > 3 and word.endswith("s")
+                    and not word.endswith(("ss", "us", "is"))):
+                if word.endswith(("sses", "shes", "ches", "xes", "zes")):
+                    word = word[:-2]
+                else:
+                    word = word[:-1]
             result.append(word)
     return tuple(result)
 
@@ -240,25 +248,16 @@ def search_catalog(
         return tuple(name for name in order if name in selected)
     assert query is not None
     normalized = query.strip().lower()
-    query_terms = set(_tokens(query))
-    common_terms = _common_example_terms(entries)
-    effective_query_terms = _effective_query_terms(query_terms, entries, common_terms)
-    eligible = {
-        item.name for item in entries
-        if _has_retrieval_evidence(query, query_terms, item, common_terms, effective_query_terms)
-    }
     exact = tuple(
         item.name for item in entries
-        if item.name in eligible and (
-            item.name == normalized or item.namespace == normalized
-            or normalized in (alias.strip().lower() for alias in item.aliases_zh)
-        )
+        if item.name == normalized or item.namespace == normalized
+        or normalized in (alias.strip().lower() for alias in item.aliases_zh)
     )
     lexical = _rank(lexical_scores(query, entries), order)
     semantic = _rank(
         {
             name: score for name, score in (semantic_scores or {}).items()
-            if name in eligible and score >= MIN_SEMANTIC_SIMILARITY
+            if name in order and score >= MIN_SEMANTIC_SIMILARITY
         },
         order,
     )[:MAX_SEMANTIC_CANDIDATES]
