@@ -743,6 +743,10 @@ def resume_version_change_summary(
     return result[:320] + ("…" if len(result) > 320 else "")
 
 
+class ApplicationClearCalendarConflictError(ValueError):
+    """Calendar records must be resolved before applications can be cleared."""
+
+
 class WorkspaceReader:
     """Read models for the person's UI, separate from model-facing tools."""
 
@@ -1074,7 +1078,7 @@ class WorkspaceReader:
         leaves the applications in place and a repeat finishes the job.
         """
         if self._calendar.has_any_round_record(user_id=user_id):
-            raise ValueError("calendar records must be resolved before clearing applications")
+            raise ApplicationClearCalendarConflictError("calendar records must be resolved before clearing applications")
         self._actions.clear_application_derived(user_id=user_id)
         self._mock_interviews.clear_user(user_id=user_id, application_bound_only=True)
         self._preparations.clear_user(user_id=user_id)
@@ -1094,10 +1098,12 @@ class WorkspaceReader:
             or self._email.has_application_reference(user_id=user_id, application_id=application_id)
         ):
             return "has_dependents"
-        self._actions.clear_for_application(user_id=user_id, application_id=application_id)
-        return "deleted" if self._applications.delete_record(
+        if not self._applications.delete_record(
             user_id=user_id, application_id=application_id,
-        ) else "not_found"
+        ):
+            return "not_found"
+        self._actions.clear_for_application(user_id=user_id, application_id=application_id)
+        return "deleted"
 
     def restore_interview_completion(self, *, user_id: str, interview_round_id: str) -> InterviewRecordView:
         restored = InterviewService(self._interviews, self._applications).restore_completion(
@@ -2716,7 +2722,7 @@ def build_read_router(
     ) -> CountResponse:
         try:
             return CountResponse(count=workspace().clear_applications(user_id=principal.user_id))
-        except ValueError as error:
+        except ApplicationClearCalendarConflictError as error:
             raise HTTPException(
                 status_code=409,
                 detail="仍有关联的日历记录，请先处理日历同步，再清空投递。",

@@ -12,10 +12,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
+import pytest
 from fastapi.testclient import TestClient
 
 from career_agent.api.app import create_app
-from career_agent.api.reads import WorkspaceReader
+from career_agent.api.reads import ApplicationClearCalendarConflictError, WorkspaceReader
 from career_agent.domain.action_center import ActionCandidate
 from career_agent.domain.interviews import InterviewDetails
 from career_agent.domain.job_discovery import JobDetail, Provenance
@@ -192,6 +193,7 @@ def test_a_mistaken_interview_and_application_can_be_removed_individually(tmp_pa
         user_id="u1", statuses=("open",),
     )) == 1  # application follow-up remains until its parent is deleted
     assert reader.delete_application(user_id="u1", application_id=application.id) == "deleted"
+    assert not reader._actions.list(user_id="u1", statuses=("open",))
     assert SQLiteApplicationStore(Path(paths.application_store)).get(
         user_id="u1", application_id=application.id,
     ) is None
@@ -201,6 +203,53 @@ def test_a_mistaken_interview_and_application_can_be_removed_individually(tmp_pa
     assert SQLiteInterviewStore(Path(paths.application_store)).get(
         user_id="u2", interview_round_id=other_interview.id,
     ) is not None
+
+
+def test_concurrent_application_delete_returns_404_without_clearing_actions(
+    tmp_path, api_keys, issue_key, monkeypatch,
+) -> None:
+    paths = _paths(tmp_path)
+    application, interview = _seed_application(
+        paths, user_id="u1", source_job_id="delete-race", mock=False,
+    )
+    reader = WorkspaceReader(paths)
+    reader.delete_interview(user_id="u1", interview_round_id=interview.id)
+    before = reader._actions.list(user_id="u1", statuses=("open",))
+    assert before
+    delete = reader._applications.delete_record
+
+    def lose_delete_race(**kwargs):
+        assert delete(**kwargs)  # Another request deletes the parent first.
+        return delete(**kwargs)
+
+    monkeypatch.setattr(reader._applications, "delete_record", lose_delete_race)
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader,
+                     api_key_store_factory=lambda: api_keys)
+    key = issue_key("u1", WORKSPACE_WRITE)
+    with TestClient(app) as client:
+        response = client.delete(f"/v1/applications/{application.id}", headers=key)
+    assert response.status_code == 404
+    assert reader._actions.list(user_id="u1", statuses=("open",)) == before
+
+
+def test_bulk_clear_does_not_mislabel_other_value_errors(
+    tmp_path, api_keys, issue_key, monkeypatch,
+) -> None:
+    reader = WorkspaceReader(_paths(tmp_path))
+
+    def fail_cleanup(**kwargs):
+        raise ValueError("mock cleanup failed")
+
+    monkeypatch.setattr(reader._mock_interviews, "clear_user", fail_cleanup)
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader,
+                     api_key_store_factory=lambda: api_keys)
+    key = issue_key("u1", WORKSPACE_WRITE)
+    with TestClient(app) as client, pytest.raises(ValueError, match="mock cleanup failed"):
+        client.delete("/v1/applications", headers=key)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.delete("/v1/applications", headers=key)
+    assert response.status_code == 500
+    assert "日历" not in response.text
 
 
 def test_a_dismissed_action_can_be_restored(tmp_path) -> None:
@@ -407,7 +456,7 @@ def test_unscheduled_interviews_are_visible_in_the_correction_list(tmp_path) -> 
     assert any(item.id == unscheduled.id and item.scheduled_start is None for item in records)
 
 
-def test_external_calendar_link_blocks_local_interview_and_bulk_deletion(tmp_path) -> None:
+def test_external_calendar_link_blocks_local_interview_and_bulk_deletion(tmp_path, api_keys, issue_key) -> None:
     paths = _paths(tmp_path)
     application, interview = _seed_application(
         paths, user_id="u1", source_job_id="calendar-linked", mock=False,
@@ -428,12 +477,17 @@ def test_external_calendar_link_blocks_local_interview_and_bulk_deletion(tmp_pat
     reader = WorkspaceReader(paths)
     assert reader.delete_interview(user_id="u1", interview_round_id=interview.id) == "has_dependents"
     assert reader.delete_application(user_id="u1", application_id=application.id) == "has_dependents"
-    try:
+    with pytest.raises(ApplicationClearCalendarConflictError):
         reader.clear_applications(user_id="u1")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("bulk clear bypassed the calendar-link guard")
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader,
+                     api_key_store_factory=lambda: api_keys)
+    key = issue_key("u1", WORKSPACE_WRITE)
+    with TestClient(app) as client:
+        response = client.delete("/v1/applications", headers=key)
+    assert response.status_code == 409
+    assert "日历" in response.json()["detail"]
+    assert reader._applications.get_record(user_id="u1", application_id=application.id) is not None
+    assert reader._actions.list(user_id="u1", statuses=("open",))
 
 
 def test_completed_and_snoozed_actions_have_scoped_restore_routes(tmp_path, api_keys, issue_key):

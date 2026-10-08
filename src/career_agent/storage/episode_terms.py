@@ -7,6 +7,7 @@ from collections.abc import Iterable
 
 _CJK = re.compile(r"[\u4e00-\u9fff]")
 _LATIN = re.compile(r"[a-z0-9][a-z0-9+#.×-]*", re.IGNORECASE)
+_ENGLISH_WORD_CHAR = re.compile(r"[a-z0-9_]")
 MAX_SEARCH_TERMS = 32
 
 
@@ -18,11 +19,29 @@ def search_terms(text: str, entities: Iterable[str]) -> tuple[str, ...]:
         key=len,
         reverse=True,
     )
+    # ASCII boundaries keep English names out of larger words while allowing
+    # Chinese prose immediately beside them (e.g. "我投过Meta的岗位").
+    name_patterns = tuple(
+        re.compile(
+            (r"(?<![a-z0-9_])" if _ENGLISH_WORD_CHAR.fullmatch(name[0]) else "")
+            + re.escape(name)
+            + (r"(?![a-z0-9_])" if _ENGLISH_WORD_CHAR.fullmatch(name[-1]) else "")
+        )
+        for name in names
+    )
+
+    def entity_at(position: int) -> str | None:
+        for pattern in name_patterns:
+            match = pattern.match(normalized, position)
+            if match is not None:
+                return match.group()
+        return None
+
     anchors: list[str] = []
     fragments: list[str] = []
     index = 0
     while index < len(normalized):
-        name = next((value for value in names if normalized.startswith(value, index)), None)
+        name = entity_at(index)
         if name is not None:
             anchors.append(name)
             index += len(name)
@@ -34,9 +53,7 @@ def search_terms(text: str, entities: Iterable[str]) -> tuple[str, ...]:
             continue
         if _CJK.match(normalized, index):
             end = index + 1
-            while end < len(normalized) and _CJK.match(normalized, end) and not any(
-                normalized.startswith(value, end) for value in names
-            ):
+            while end < len(normalized) and _CJK.match(normalized, end) and entity_at(end) is None:
                 end += 1
             run = normalized[index:end]
             if len(run) == 1:

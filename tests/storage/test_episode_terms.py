@@ -1,3 +1,5 @@
+import pytest
+
 from career_agent.storage.episode_terms import MAX_SEARCH_TERMS, search_terms, title_entities
 
 
@@ -21,6 +23,22 @@ def test_english_name_and_compensation_stay_whole() -> None:
 
 def test_terms_are_bounded() -> None:
     assert len(search_terms("求职" * 100, ())) <= MAX_SEARCH_TERMS
+
+
+@pytest.mark.parametrize("query", ["metadata", "metaverse", "metadata_store", "meta2", "metadata我投过"])
+def test_english_entity_does_not_split_a_larger_word(query) -> None:
+    assert search_terms(query, ("Meta",)) == search_terms(query, ())
+
+
+@pytest.mark.parametrize("query", ["Meta", "(META)", "我投过Meta的岗位"])
+def test_english_entity_at_a_word_boundary_is_preserved(query) -> None:
+    assert "meta" in search_terms(query, ("Meta",))
+
+
+def test_multiword_english_entity_cannot_match_a_longer_last_word() -> None:
+    assert search_terms("Pinnacle RoboticsLab", ("Pinnacle Robotics",)) == (
+        "pinnacle", "roboticslab",
+    )
 
 
 def test_empty_entity_dictionary_falls_back_to_fragments() -> None:

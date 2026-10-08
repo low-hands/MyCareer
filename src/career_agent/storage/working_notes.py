@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import errno
 import hashlib
 import logging
 import os
 import sys
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -86,8 +88,17 @@ class WorkingNotesStore:
         lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         with os.fdopen(lock_fd, "a+b") as lock_file:
             if sys.platform == "win32":
-                lock_file.seek(0)
-                msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+                while True:
+                    lock_file.seek(0)
+                    try:
+                        msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+                        break
+                    except OSError as error:
+                        # LK_LOCK gives up after ten attempts; match flock's
+                        # unbounded wait, but propagate unrelated I/O failures.
+                        if error.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                            raise
+                        time.sleep(0.1)
             else:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             try:
