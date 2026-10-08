@@ -53,7 +53,7 @@ def _context(task=None, observations=(), *, user_message="看看这个岗位和�
 def test_search_offer_starts_small_and_retains_loaded_tools() -> None:
     strategy = SearchStrategy()
     cold = strategy.select(_context(), SCHEMAS)
-    assert set(cold.offered_names) == set(ALWAYS_OFFERED_TOOLS)
+    assert set(cold.offered_names) == set(ALWAYS_OFFERED_TOOLS) - {"read_conversation_span"}
     assert "route_to_capability" not in cold.selected_names
     assert "create_application" not in cold.offered_names
     task = ConversationTaskState(loaded_capabilities=(
@@ -422,7 +422,7 @@ def test_search_selection_is_wired_at_runtime_startup(tmp_path) -> None:
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="列出我的简历",
     )
-    assert set(ALWAYS_OFFERED_TOOLS) <= set(
+    assert set(ALWAYS_OFFERED_TOOLS) - {"read_conversation_span"} <= set(
         schema["function"]["name"] for schema in maker.schemas
     )
     assert "list_resumes" in {schema["function"]["name"] for schema in maker.schemas}
@@ -508,3 +508,69 @@ def test_unoffered_catalogue_call_loads_without_executing_original_tool(tmp_path
     assert result.context.task.loaded_capabilities == ("list_resumes",)
     assert [item.tool_name for item in result.tool_results] == ["search_capabilities"]
     assert "请重新发起调用" in result.tool_results[0].message
+
+
+@pytest.mark.parametrize("through,recent,expected", [
+    (0, None, False), (0, 1, False), (0, 2, True),
+    (1, None, True), (1, 2, True),
+])
+def test_history_offer_uses_one_watermark_contract(through, recent, expected):
+    from career_agent.agent.middleware.argument_projection import project_atomic_arguments
+
+    context = _context(ConversationTaskState(loaded_capabilities=("read_conversation_span",))).model_copy(
+        update={"through_sequence": through, "recent_from_sequence": recent},
+    )
+    strategy = SearchStrategy()
+    selection = strategy.select(context, SCHEMAS)
+    assert context.has_compressed_history is expected
+    assert ("read_conversation_span" in selection.offered_names) is expected
+    assert ("read_conversation_span" in selection.selected_names) is expected
+    assert selection.tool_projection["available_now"] == list(selection.offered_names)
+    assert tuple(s["function"]["name"] for s in selection.schemas) == selection.offered_names
+    assert strategy.offers_tool(context, "read_conversation_span") is expected
+    assert strategy.resolve_unoffered("read_conversation_span", context) == ("load" if expected else "refuse")
+    arguments = project_atomic_arguments(context, "read_conversation_span", {}, source_turn_id=None)
+    assert arguments["_has_compressed_history"] is expected
+
+
+def test_forced_cold_history_call_is_not_offered_and_never_executes(tmp_path, monkeypatch):
+    from career_agent.agent.middleware.tool_availability import ToolAvailabilityMiddleware
+
+    refusals = []
+    resolve = ToolAvailabilityMiddleware.resolve
+
+    def capture_refusal(self, **kwargs):
+        result = resolve(self, **kwargs)
+        refusals.append(result)
+        return result
+
+    monkeypatch.setattr(ToolAvailabilityMiddleware, "resolve", capture_refusal)
+    store = CareerContextStore(tmp_path / "context.sqlite3")
+    manager = ContextManager(store)
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+
+    class Registry(MainAgentToolRegistry):
+        def invoke_atomic_tool(self, *args, **kwargs):
+            raise AssertionError("an unoffered history call must not execute")
+
+    class Maker:
+        calls = 0
+
+        def decide(self, context, schemas):
+            self.calls += 1
+            assert "read_conversation_span" not in {s["function"]["name"] for s in schemas}
+            if self.calls == 1:
+                return AgentDecision(action="tool_call", tool_call=ToolCall(
+                    name="read_conversation_span", arguments={"query": "earlier fact"},
+                ))
+            observation = context.tool_observations[-1]
+            assert observation.state == "authorization_refused"
+            assert refusals[-1].kind == "not_offered"
+            return AgentDecision(action="final", message="没有被压缩的历史。")
+
+    runtime = MainAgentRuntime(
+        context_manager=manager, decision_maker=Maker(),
+        tools=Registry(conversation_store=store),
+    )
+    result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="之前说了什么？")
+    assert result.tool_results == ()

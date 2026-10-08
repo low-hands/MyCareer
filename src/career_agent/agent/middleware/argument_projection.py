@@ -253,6 +253,7 @@ def project_atomic_arguments(
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
             # Runtime-only watermark fields for the handler's availability guard.
+            "_has_compressed_history": context.has_compressed_history,
             "_through_sequence": context.through_sequence,
             "_recent_from_sequence": context.recent_from_sequence,
             **({

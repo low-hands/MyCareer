@@ -47,6 +47,16 @@ from career_agent.agent.contracts.observations import (
     _HANDLE_PREFIXES, _HANDLE_SUFFIX_LENGTH, _PREFERENCE_CHAR_CAP, _bounded_markdown,
 )
 
+def compressed_history_available(
+    through_sequence: int | None, recent_from_sequence: int | None,
+) -> bool:
+    """Summary coverage or an omitted recent prefix permits readback.
+
+    A missing runtime watermark retains legacy direct-registry behavior.
+    """
+    return not (through_sequence == 0 and recent_from_sequence in (None, 1))
+
+
 class MainAgentContext(ContractModel):
     conversation_id: str
     capability_selection: Any = Field(default=None, exclude=True)
@@ -100,6 +110,10 @@ class MainAgentContext(ContractModel):
 
     recent_from_sequence: int | None = Field(default=None, ge=1)
     """Sequence of the first raw message projected into the recent window."""
+
+    @property
+    def has_compressed_history(self) -> bool:
+        return compressed_history_available(self.through_sequence, self.recent_from_sequence)
 
     archived_resource_total: int = Field(default=0, ge=0)
     """How many resources the catalogue would list uncapped.
@@ -788,11 +802,7 @@ class MainAgentContext(ContractModel):
                     "through_sequence": self.through_sequence,
                     "recent_from_sequence": self.recent_from_sequence,
                 }
-                if self.through_sequence
-                or (
-                    self.recent_from_sequence is not None
-                    and self.recent_from_sequence > 1
-                )
+                if self.has_compressed_history
                 else {}
             ),
             "tool_observations": decision_observation_projection(

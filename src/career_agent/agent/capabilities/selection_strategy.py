@@ -58,6 +58,8 @@ class SearchStrategy:
         argument projection or execution; loading it would only repeat the
         same unavailable state.
         """
+        if name == "read_conversation_span" and not context.has_compressed_history:
+            return "refuse"
         if name not in self._searchable_names:
             return "reject"
         if (
@@ -127,7 +129,11 @@ class SearchStrategy:
             for name in names:
                 if name in registered_names and CAPABILITIES[name].model_callable:
                     sources.setdefault(name, source)
-        selected = tuple(name for name in sources if name not in waiting)
+        selected = tuple(
+            name for name in sources
+            if name not in waiting
+            and (name != "read_conversation_span" or context.has_compressed_history)
+        )
         selection = prepare_capability_selection(
             selected, task=task, registered_schemas=registered,
         )
@@ -144,11 +150,6 @@ class SearchStrategy:
             waiting_suppressed=tuple(name for name in CAPABILITIES if name in waiting and name in sources),
         )
         projection = self.tool_context(task, result)
-        if context.through_sequence == 0 and context.recent_from_sequence in (None, 1):
-            projection["available_now"] = [
-                name for name in projection["available_now"]
-                if name != "read_conversation_span"
-            ]
         return replace(result, tool_projection=projection)
 
     @staticmethod
@@ -165,8 +166,11 @@ class SearchStrategy:
         }
 
     def offers_tool(self, context: MainAgentContext, name: str) -> bool:
-        # The prelude is evaluated before decide; its stable tool is always on.
-        return name in ALWAYS_OFFERED_TOOLS and reachable(name, context.task)
+        # The prelude runs before decide and uses the same history availability.
+        return (
+            name in ALWAYS_OFFERED_TOOLS and reachable(name, context.task)
+            and (name != "read_conversation_span" or context.has_compressed_history)
+        )
 
     def tool_policy(self) -> str:
         guidance = (

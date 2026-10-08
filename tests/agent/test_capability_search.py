@@ -11,6 +11,8 @@ from career_agent.agent.capabilities.search import (
     MAX_SEMANTIC_CANDIDATES,
     SemanticCapabilityIndex,
     _common_example_terms,
+    _effective_query_terms,
+    _tokens,
     search_catalog,
     searchable_capabilities,
 )
@@ -161,8 +163,8 @@ def test_development_query_recall_and_control_write_exposure() -> None:
                 writes += sum(CAPABILITIES[name].effect == "WRITE" for name in offered)
         return demand_count, dict(hits), writes
 
-    assert counts(bare) == (43, {1: 11, 3: 17, 5: 20}, 1)
-    assert counts() == (43, {1: 17, 3: 28, 5: 34}, 8)
+    assert counts(bare) == (43, {1: 14, 3: 21, 5: 26}, 5)
+    assert counts() == (43, {1: 17, 3: 27, 5: 34}, 8)
 
 
 def test_registry_result_reducer_and_old_state_roundtrip() -> None:
@@ -300,3 +302,75 @@ def test_empty_search_records_a_trace_event() -> None:
     assert rest == [(('capability_search_empty', 'act'), {
         'outcome': 'succeeded', 'details': {'tool_name': 'search_capabilities'},
     })]
+
+
+@pytest.mark.parametrize("query,expected_target", [
+    ("alpha", True),
+    ("alpha zzzunknown", True),
+    ("alpha beta", True),
+    ("alpha beta gamma", False),
+    ("alpha beta gamma delta", True),
+    ("zzzxxyyunknownword", False),
+])
+@pytest.mark.parametrize("with_semantic", [False, True])
+def test_read_evidence_threshold_uses_catalogue_terms(query, expected_target, with_semantic):
+    target = replace(
+        CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
+        summary="alpha", example_queries=("delta epsilon",),
+    )
+    other = replace(target, name="read_other", summary="beta gamma", example_queries=())
+    offered = search_catalog(
+        query=query, descriptors=(target, other),
+        semantic_scores={target.name: 1.0} if with_semantic else None,
+    )
+    assert (target.name in offered) == expected_target
+
+
+def test_effective_terms_exclude_common_unknown_and_duplicate_tokens():
+    entry = replace(
+        CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
+        summary="alpha beta", example_queries=("gamma delta",),
+    )
+    assert _effective_query_terms(
+        set(_tokens("alpha alpha beta gamma zzzunknown")), (entry,), frozenset({"beta"}),
+    ) == frozenset({"alpha"})
+
+
+def test_sentence_examples_cannot_inflate_effective_query_length():
+    entry = replace(
+        CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
+        summary="简历", example_queries=("查看我的简历",),
+    )
+    assert _effective_query_terms(set(_tokens("查看我的简历")), (entry,), frozenset()) == frozenset({"简历"})
+    other = replace(entry, name="read_other", namespace="other", summary="beta", example_queries=())
+    assert "read_sample" in search_catalog(query="查看我的简历", descriptors=(entry, other))
+
+
+@pytest.mark.parametrize("query,expected", [
+    ("查看我的简历", {"的简", "简历"}),
+    ("帮我看看我的经历", {"经历"}),
+])
+def test_development_chinese_queries_count_only_metadata_vocabulary(query, expected):
+    entries = searchable_capabilities()
+    assert _effective_query_terms(set(_tokens(query)), entries, _common_example_terms(entries)) == expected
+
+
+@pytest.mark.xfail(strict=True, reason="Uniform threshold admits actions that push search_career_memory to rank 6")
+def test_experience_read_recall_is_separate_from_remaining_action_exposure():
+    assert "search_career_memory" in search_catalog(query="帮我看看我的经历")
+
+
+@pytest.mark.parametrize("effect,name", [
+    ("WRITE", "write_sample"), ("READ", "propose_sample"), ("READ", "read_sample"),
+])
+@pytest.mark.parametrize("semantic", [False, True])
+def test_all_tools_use_the_same_effective_query_threshold(effect, name, semantic):
+    entry = replace(
+        CAPABILITIES["list_resumes"], name=name, effect=effect, aliases_zh=(),
+        summary="alpha", example_queries=(),
+    )
+    other = replace(entry, name="other_sample", summary="beta gamma")
+    scores = {name: 1.0} if semantic else None
+    assert name in search_catalog(query="alpha", descriptors=(entry, other), semantic_scores=scores)
+    assert name in search_catalog(query="alpha beta", descriptors=(entry, other), semantic_scores=scores)
+    assert name not in search_catalog(query="alpha beta gamma", descriptors=(entry, other), semantic_scores=scores)

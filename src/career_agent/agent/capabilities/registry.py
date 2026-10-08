@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 
 from pydantic import ValidationError
 
+from career_agent.agent.contracts.context import compressed_history_available
 from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     MockInterviewBodySource,
@@ -5844,8 +5845,9 @@ class MainAgentToolRegistry:
             raise ValueError("Conversation store is not configured")
         # These watermark keys are runtime-projected internal fields, never
         # model schema arguments. They prevent a cold-session read by any caller.
-        if (arguments.get("_through_sequence") == 0
-                and arguments.get("_recent_from_sequence") in (None, 1)):
+        if not compressed_history_available(
+            arguments.get("_through_sequence"), arguments.get("_recent_from_sequence"),
+        ) or arguments.get("_has_compressed_history") is False:
             return ToolObservation(
                 tool_name="read_conversation_span",
                 state="conversation_span_unavailable",
@@ -5858,7 +5860,7 @@ class MainAgentToolRegistry:
             {
                 key: value
                 for key, value in arguments.items()
-                if key not in {"user_id", "conversation_id", "_through_sequence", "_recent_from_sequence"}
+                if key not in {"user_id", "conversation_id", "_through_sequence", "_recent_from_sequence", "_has_compressed_history"}
             }
         )
         span_arguments = {

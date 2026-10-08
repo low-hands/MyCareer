@@ -181,7 +181,7 @@ def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected(
             "recent_from_sequence": recent_from,
         })
         selection = strategy.select(context, schemas)
-        assert "read_conversation_span" in selection.offered_names
+        assert "read_conversation_span" not in selection.offered_names
         assert "read_conversation_span" not in selection.tool_projection["available_now"]
         selected_context = context.model_copy(update={"capability_selection": selection})
         assert "read_conversation_span" not in (
@@ -193,6 +193,13 @@ def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected(
             source_turn_id=None,
         )
         observation = registry.invoke_atomic_tool("read_conversation_span", arguments)
+        # Direct callers without the projected flag still hit the shared guard;
+        # a contradictory flag cannot override the cold watermarks either.
+        for flag in (None, True):
+            direct = {key: value for key, value in arguments.items() if key != "_has_compressed_history"}
+            if flag is not None:
+                direct["_has_compressed_history"] = flag
+            assert registry.invoke_atomic_tool("read_conversation_span", direct).state == "conversation_span_unavailable"
         assert observation.state == "conversation_span_unavailable"
         assert observation.facts == {"through_sequence": 0}
         assert "还没有被压缩的历史" in observation.message

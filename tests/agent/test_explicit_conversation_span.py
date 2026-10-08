@@ -144,6 +144,7 @@ def test_named_span_is_read_before_the_model_is_asked(tmp_path) -> None:
             {
                 "user_id": "u1",
                 "conversation_id": "c1",
+                "_has_compressed_history": True,
                 "_through_sequence": 4,
                 "_recent_from_sequence": 5,
                 "from_sequence": 1,

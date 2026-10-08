@@ -121,26 +121,29 @@ def test_excluded_and_runtime_capabilities_reject_examples(monkeypatch) -> None:
 
 
 def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
+    # 23019e1 intentionally made span bounds optional and revised readback guidance.
+    # The trajectory fingerprint also reflects cold-session schema suppression
+    # and the user-requested uniform retrieval threshold.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "4e3d8460ad7985cc7c2c915065c0e666347666fc8194cdb723a359e430db9ae0"
+        "9e8d3f50d3fc0f690d60ef631fe0352aa53b0a6c9f9fea56c153e9ca3bf0441e"
     )
     schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded).hexdigest() == (
-        "7492097e01607e7d57c5e2ad29c6a0fe65cb99edc2d64b946cc530dbb2a9dcb3"
+        "5441650204630b35a8ac5201e4c34289b1d1885436711643cd441e91fed8e14d"
     )
     assert prompt_fingerprint(schemas) == (
-        "c4fb185d167566a51b3d333c8d367d9487fc06d4882bb1b01718f11562b66da8"
+        "05c2e750c8665eac45975a069093627c733d01c217a91be256ec9bc3b657a719"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "079560991f3257a897e76e7584aa3b0e623c6268df53ff2162f88b9e8f903f97"
+        "5efade0d1a7d0c79264c16b302e66e8fa1e8fb01a86b6fc6d9d9371c463cfcb7"
     )
 
 

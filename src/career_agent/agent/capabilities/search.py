@@ -98,21 +98,43 @@ def _common_example_terms(entries: Sequence[CapabilityDescriptor]) -> frozenset[
     )
 
 
+def _indexed_terms(descriptor: CapabilityDescriptor) -> set[str]:
+    terms = set(_document(descriptor))
+    terms.update(
+        token for example in descriptor.example_queries for token in _tokens(example)
+    )
+    return terms
+
+
+def _metadata_terms(descriptor: CapabilityDescriptor) -> set[str]:
+    return {
+        token for field in (descriptor.name, " ".join(descriptor.aliases_zh), descriptor.summary or "")
+        for token in _tokens(field)
+    }
+
+
+def _effective_query_terms(
+    query_terms: set[str], entries: Sequence[CapabilityDescriptor],
+    common_terms: frozenset[str],
+) -> frozenset[str]:
+    # Sentence examples contain cross-word CJK bigrams. They still contribute
+    # retrieval evidence and BM25 scores, but must not inflate query length.
+    vocabulary = set().union(*(_metadata_terms(item) for item in entries))
+    return frozenset(query_terms.intersection(vocabulary).difference(common_terms))
+
+
 def _has_retrieval_evidence(
     query: str, query_terms: set[str], descriptor: CapabilityDescriptor,
-    common_terms: frozenset[str],
+    common_terms: frozenset[str], effective_query_terms: frozenset[str],
 ) -> bool:
     normalized = query.strip().lower()
     if normalized in (descriptor.name, descriptor.namespace):
         return True
     if normalized in (alias.strip().lower() for alias in descriptor.aliases_zh):
         return True
-    indexed_terms = set(_document(descriptor))
-    indexed_terms.update(
-        token for example in descriptor.example_queries for token in _tokens(example)
-    )
-    matches = query_terms.intersection(indexed_terms).difference(common_terms)
-    return len(matches) >= 2
+    matches = query_terms.intersection(_indexed_terms(descriptor)).difference(common_terms)
+    minimum = 1 if len(effective_query_terms) <= 2 else 2
+    return len(matches) >= minimum
 
 
 def lexical_scores(
@@ -147,6 +169,7 @@ def lexical_scores(
         for item in entries
     }
     common_example_terms = _common_example_terms(entries)
+    effective_query_terms = _effective_query_terms(terms, entries, common_example_terms)
     all_examples = [tokens for rows in example_documents.values() for tokens in rows]
     if all_examples:
         example_average = sum(sum(tokens.values()) for tokens in all_examples) / len(all_examples)
@@ -181,7 +204,7 @@ def lexical_scores(
     return {
         item.name: scores[item.name]
         for item in entries if item.name in scores
-        and _has_retrieval_evidence(query, terms, item, common_example_terms)
+        and _has_retrieval_evidence(query, terms, item, common_example_terms, effective_query_terms)
     }
 
 
@@ -219,9 +242,10 @@ def search_catalog(
     normalized = query.strip().lower()
     query_terms = set(_tokens(query))
     common_terms = _common_example_terms(entries)
+    effective_query_terms = _effective_query_terms(query_terms, entries, common_terms)
     eligible = {
         item.name for item in entries
-        if _has_retrieval_evidence(query, query_terms, item, common_terms)
+        if _has_retrieval_evidence(query, query_terms, item, common_terms, effective_query_terms)
     }
     exact = tuple(
         item.name for item in entries

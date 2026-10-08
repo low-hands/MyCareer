@@ -10,7 +10,8 @@ from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.contracts.task_state import ConversationTaskState
 
 
-# These tools can be useful before any task-specific capability is loaded.
+# Baseline candidates before task-specific loading. History readback also
+# requires compressed history in SearchStrategy.
 ALWAYS_OFFERED_TOOLS: tuple[str, ...] = (
     "search_capabilities",
     "load_skill",
