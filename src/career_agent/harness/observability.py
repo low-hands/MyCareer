@@ -87,7 +87,6 @@ ModelCallCategory = Literal[
     "planner",
     "evaluator",
     "writer",
-    "legacy_router",
 ]
 
 

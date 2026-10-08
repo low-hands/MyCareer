@@ -31,7 +31,7 @@ def test_in_memory_trace_is_ordered_and_keeps_only_explicit_details() -> None:
     assert "job description" not in trace.model_dump_json().lower()
 
 
-def test_model_events_require_one_of_the_six_call_categories() -> None:
+def test_model_events_require_one_of_the_five_call_categories() -> None:
     recorder = InMemoryTraceRecorder()
     for category in (
         "orchestrator_decision",
@@ -39,7 +39,6 @@ def test_model_events_require_one_of_the_six_call_categories() -> None:
         "planner",
         "evaluator",
         "writer",
-        "legacy_router",
     ):
         recorder.record(
             "run-1",
@@ -56,7 +55,6 @@ def test_model_events_require_one_of_the_six_call_categories() -> None:
         "planner": 1,
         "evaluator": 1,
         "writer": 1,
-        "legacy_router": 1,
     }
 
     with pytest.raises(ValueError, match="model_call_category"):

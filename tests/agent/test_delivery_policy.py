@@ -33,7 +33,7 @@ from career_agent.agent.presentation.interaction_renderer import InteractionRend
 from career_agent.agent.presentation.presenter import TurnPresenter
 from career_agent.agent.runtime.authorization_engine import AuthorizationEngine
 from career_agent.agent import middleware as agent_middleware
-from career_agent.agent.capabilities.executor import CapabilityExecutor
+from career_agent.agent.execution.capability_executor import CapabilityExecutor
 from career_agent.agent.execution.action_ledger import ActionLedger
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
