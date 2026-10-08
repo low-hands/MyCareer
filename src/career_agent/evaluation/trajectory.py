@@ -281,24 +281,6 @@ def _as_response(recorded: Mapping[str, Any]) -> Any:
 
 
 @dataclass(frozen=True)
-class StepOutcome:
-    decision: AgentDecision
-    failures: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class ScenarioOutcome:
-    scenario: str
-    policy: str
-    replayed: bool
-    failures: tuple[str, ...]
-
-    @property
-    def passed(self) -> bool:
-        return not self.failures
-
-
-@dataclass(frozen=True)
 class TrajectoryCassette:
     """Recorded decisions plus the prompt identity they were made under."""
 

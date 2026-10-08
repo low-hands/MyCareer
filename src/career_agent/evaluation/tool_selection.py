@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Literal, Mapping, Protocol, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
-from career_agent.agent.capabilities.proactive import proactive_tool_names
 from career_agent.agent.capabilities.reachability import reachable
-from career_agent.agent.capabilities.search import search_catalog
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
 from career_agent.agent.contracts.context import MainAgentContext
@@ -31,102 +29,6 @@ class ToolOffer:
     selected_names: frozenset[str]
     schemas: tuple[dict[str, Any], ...]
     sources: Mapping[str, str]
-
-
-class ToolSelector(Protocol):
-    def select(
-        self, context: MainAgentContext, prior: object | None
-    ) -> tuple[ToolOffer, object | None]: ...
-
-
-class SearchSimulationSelector:
-    """Offline upper bound or lexical search using the original user wording."""
-
-    def __init__(self, tool_specs: tuple[dict[str, Any], ...], *, ideal: bool) -> None:
-        self._tool_specs = tool_specs
-        self._ideal = ideal
-        # Keep the historical search-only comparator after W enters runtime.
-        self._strategy = SearchStrategy(proactive_enabled=False, intent_enabled=False)
-
-    def select(
-        self, context: MainAgentContext, prior: object | None,
-    ) -> tuple[ToolOffer, object | None]:
-        loaded = tuple(prior) if isinstance(prior, tuple) else ()
-        task = context.task.add_loaded_capabilities(loaded)
-        selection = self._strategy.select(context.model_copy(update={"task": task}), self._tool_specs)
-        names = frozenset(selection.offered_names)
-        return ToolOffer(
-            names=names, selected_names=frozenset(selection.selected_names),
-            schemas=selection.schemas, sources=dict(selection.sources),
-        ), loaded
-
-    def select_for_demand(
-        self, context: MainAgentContext, prior: object | None,
-        required: frozenset[str],
-    ) -> tuple[ToolOffer, object | None, bool, bool]:
-        offer, loaded = self.select(context, prior)
-        if not required or required & offer.names:
-            return offer, loaded, False, False
-        if self._ideal:
-            found = tuple(name for name in CAPABILITIES if name in required)[:1]
-        else:
-            found = search_catalog(query=context.user_message, limit=5)
-        if found:
-            loaded = tuple(dict.fromkeys((*loaded, *found)))
-            offer, loaded = self.select(context, loaded)
-        return offer, loaded, True, not bool(required & offer.names)
-
-
-class BatchSearchSimulationSelector(SearchSimulationSelector):
-    """Optimistic bound: load known same-turn demands in one names call.
-
-    The oracle sees later answer-key tools before the model would. At most ten
-    names are loaded per call, matching the search tool's argument contract.
-    """
-
-    def __init__(self, tool_specs: tuple[dict[str, Any], ...]) -> None:
-        super().__init__(tool_specs, ideal=True)
-
-    def select_for_demand(
-        self, context: MainAgentContext, prior: object | None,
-        required: frozenset[str], *, same_turn_demands: tuple[str, ...],
-    ) -> tuple[ToolOffer, object | None, bool, bool]:
-        offer, loaded = self.select(context, prior)
-        if not required or required & offer.names:
-            return offer, loaded, False, False
-        # The first name must satisfy this decision. Remaining names are the
-        # optimistic look-ahead, capped by search_capabilities.names (10).
-        current = next(name for name in CAPABILITIES if name in required)
-        found = tuple(dict.fromkeys((current, *same_turn_demands)))[:10]
-        loaded = tuple(dict.fromkeys((*loaded, *found)))
-        offer, loaded = self.select(context, loaded)
-        return offer, loaded, True, not bool(required & offer.names)
-
-
-class ProactiveSearchSimulationSelector(SearchSimulationSelector):
-    """Ideal search plus reviewed successors and bound-resource reads."""
-
-    def __init__(self, tool_specs: tuple[dict[str, Any], ...]) -> None:
-        super().__init__(tool_specs, ideal=True)
-
-    def select(
-        self, context: MainAgentContext, prior: object | None,
-    ) -> tuple[ToolOffer, object | None]:
-        loaded = tuple(prior) if isinstance(prior, tuple) else ()
-        proactive = proactive_tool_names(context)
-        task = context.task.add_loaded_capabilities((*loaded, *proactive))
-        selection = self._strategy.select(
-            context.model_copy(update={"task": task}), self._tool_specs,
-        )
-        return ToolOffer(
-            names=frozenset(selection.offered_names),
-            selected_names=frozenset(selection.selected_names),
-            schemas=selection.schemas,
-            sources={
-                name: ("proactive" if name in proactive and name not in loaded else source)
-                for name, source in selection.sources
-            },
-        ), loaded
 
 
 class RuntimeSearchSelector:
@@ -166,8 +68,6 @@ class SelectionStep:
     waiting_reoffered: frozenset[str]
     unrequested_writes: frozenset[str]
     schema_tokens_proxy: int
-    search_round_trip: bool = False
-    search_failed: bool = False
 
     @property
     def has_demand(self) -> bool:
@@ -195,22 +95,8 @@ class SelectionReport:
         return sum(step.has_demand and step.covered for step in self.steps)
 
     @property
-    def search_round_trips(self) -> int:
-        return sum(step.search_round_trip for step in self.steps)
-
-    @property
-    def search_failures(self) -> int:
-        return sum(step.search_failed for step in self.steps)
-
-    @property
     def comparable_steps(self) -> tuple[SelectionStep, ...]:
         return self.steps
-
-    @property
-    def demanded_tool_names(self) -> frozenset[str]:
-        return frozenset().union(
-            *(step.required_names for step in self.steps if step.has_demand)
-        )
 
     @property
     def unreachable_offer_count(self) -> int:
@@ -230,22 +116,8 @@ def _expected_business_tools(scenario: TrajectoryScenario, index: int) -> frozen
     return frozenset(step.expect_tools or ({step.expect_tool} if step.expect_tool else set()))
 
 
-def _same_turn_demand_names(
-    scenario: TrajectoryScenario, index: int,
-) -> tuple[str, ...]:
-    """Oracle names up to, but never across, the next user message."""
-    wanted: list[str] = []
-    for offset in range(index, len(scenario.steps)):
-        if offset > index and scenario.steps[offset].user_message is not None:
-            break
-        demand = _expected_business_tools(scenario, offset)
-        if demand:
-            wanted.append(next(name for name in CAPABILITIES if name in demand))
-    return tuple(dict.fromkeys(wanted))
-
-
 def evaluate_tool_selection(
-    scenarios: Sequence[TrajectoryScenario | SelectionCase], *, selector: ToolSelector
+    scenarios: Sequence[TrajectoryScenario | SelectionCase], *, selector: RuntimeSearchSelector
 ) -> SelectionReport:
     steps: list[SelectionStep] = []
     for item in scenarios:
@@ -261,19 +133,7 @@ def evaluate_tool_selection(
             if step.observation is not None and step.user_message is None:
                 turn_observations.append(step.observation)
             required = _expected_business_tools(scenario, index)
-            search_round_trip = False
-            search_failed = False
-            if isinstance(selector, BatchSearchSimulationSelector):
-                offer, prior, search_round_trip, search_failed = selector.select_for_demand(
-                    context, prior, required,
-                    same_turn_demands=_same_turn_demand_names(scenario, index),
-                )
-            elif isinstance(selector, SearchSimulationSelector):
-                offer, prior, search_round_trip, search_failed = selector.select_for_demand(
-                    context, prior, required,
-                )
-            else:
-                offer, prior = selector.select(context, prior)
+            offer, prior = selector.select(context, prior)
             if not offer.names <= offer.selected_names:
                 raise ValueError("selector offered a tool it did not select")
             schema_names = frozenset(schema["function"]["name"] for schema in offer.schemas)
@@ -322,51 +182,5 @@ def evaluate_tool_selection(
                 waiting_reoffered=waiting_reoffered,
                 unrequested_writes=unrequested_writes,
                 schema_tokens_proxy=count_tokens(schema_json),
-                search_round_trip=search_round_trip,
-                search_failed=search_failed,
             ))
     return SelectionReport(tuple(steps))
-
-
-FailureKind = Literal[
-    "selection_gap_and_model_decision", "selection_gap", "model_decision", "other_behavior"
-]
-
-
-def classify_recorded_failure(
-    scenario: TrajectoryScenario,
-    *,
-    selection_steps: Sequence[SelectionStep],
-    recordings: Sequence[Sequence[Mapping[str, Any]]],
-) -> FailureKind:
-    """Attribute a known replay failure using offers and recorded tool calls.
-
-    The caller first checks replay assertions. This function intentionally does
-    not label a final-answer or grounding failure as a tool-selection failure.
-    """
-
-    selection_gap = any(step.missing_names for step in selection_steps)
-    model_decision = False
-    for recording in recordings:
-        for index, raw in enumerate(recording):
-            if index >= len(scenario.steps):
-                continue
-            expected_step = scenario.steps[index]
-            offered = selection_steps[index].offered_names
-            raw_call = raw.get("tool_call")
-            called = raw_call.get("name") if isinstance(raw_call, Mapping) else None
-            expected = expected_step.expect_tools or (
-                frozenset({expected_step.expect_tool})
-                if expected_step.expect_tool else frozenset()
-            )
-            if expected and expected & offered and called not in expected:
-                model_decision = True
-            if called in expected_step.forbid_tools and called in offered:
-                model_decision = True
-    if selection_gap and model_decision:
-        return "selection_gap_and_model_decision"
-    if selection_gap:
-        return "selection_gap"
-    if model_decision:
-        return "model_decision"
-    return "other_behavior"
