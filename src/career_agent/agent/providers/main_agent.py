@@ -1306,6 +1306,8 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "from sufficient visible evidence without unrelated tool calls. "
             "When required evidence is missing, retrieve it only through a "
             "tool that can supply it with the available inputs and authority. "
+            "If an offered read-only tool can retrieve the missing fact, call "
+            "it before asking the user to repeat that fact. "
             "If it cannot be retrieved, explain what is missing and ask the "
             "user to supply it. For two to eight independent missing facts "
             "needed for the current task, call questionnaire with "

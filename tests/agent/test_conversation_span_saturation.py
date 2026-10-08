@@ -180,6 +180,7 @@ def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
     assert "still-active omitted constraints" in prompt
     assert "earlier chat messages, not the active constraint ledger" in prompt
     assert "Absence from career_profile does not prove the user never said a fact" in prompt
+    assert "call it before asking the user to repeat that fact" in prompt
 
 
 def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:
