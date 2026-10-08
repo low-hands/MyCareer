@@ -103,14 +103,6 @@ def _common_example_terms(entries: Sequence[CapabilityDescriptor]) -> frozenset[
     )
 
 
-def _indexed_terms(descriptor: CapabilityDescriptor) -> set[str]:
-    terms = set(_document(descriptor))
-    terms.update(
-        token for example in descriptor.example_queries for token in _tokens(example)
-    )
-    return terms
-
-
 def _metadata_terms(descriptor: CapabilityDescriptor) -> set[str]:
     return {
         token for field in (descriptor.name, " ".join(descriptor.aliases_zh), descriptor.summary or "")
@@ -129,20 +121,15 @@ def _effective_query_terms(
 
 
 def _has_retrieval_evidence(
-    query: str, query_terms: set[str], descriptor: CapabilityDescriptor,
+    query: str, query_terms: set[str],
     common_terms: frozenset[str], effective_query_terms: frozenset[str],
-    indexed_terms: frozenset[str] | None = None,
-    exact_queries: frozenset[str | None] | None = None,
+    indexed_terms: frozenset[str],
+    exact_queries: frozenset[str | None],
 ) -> bool:
     normalized = query.strip().lower()
-    if exact_queries is not None and normalized in exact_queries:
+    if normalized in exact_queries:
         return True
-    if exact_queries is None and normalized in (descriptor.name, descriptor.namespace):
-        return True
-    if exact_queries is None and normalized in (alias.strip().lower() for alias in descriptor.aliases_zh):
-        return True
-    indexed = _indexed_terms(descriptor) if indexed_terms is None else indexed_terms
-    matches = query_terms.intersection(indexed).difference(common_terms)
+    matches = query_terms.intersection(indexed_terms).difference(common_terms)
     minimum = 1 if len(effective_query_terms) <= 2 else 2
     return len(matches) >= minimum
 
@@ -255,7 +242,7 @@ def _lexical_scores(query: str, index: _CatalogIndex) -> dict[str, float]:
     return {
         item.name: scores[item.name]
         for item in index.entries if item.name in scores
-        and _has_retrieval_evidence(query, terms, item, index.common_terms, effective,
+        and _has_retrieval_evidence(query, terms, index.common_terms, effective,
                                     index.indexed_terms[item.name], index.exact_queries[item.name])
     }
 

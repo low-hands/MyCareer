@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 import sqlite3
+from threading import Event
 
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.storage import episodes as episode_storage
@@ -122,3 +124,60 @@ def test_title_cache_has_a_bounded_user_count(tmp_path, monkeypatch):
         store.prepare_query(user_id=user, query="面试")
     assert len(reads) == 4
     assert len(store._entity_cache) == 2
+
+
+def _pause_first_title_read(store, monkeypatch):
+    started, release = Event(), Event()
+    reads = []
+    connect = store._connect
+
+    def traced_connect():
+        connection = connect()
+
+        def trace(sql):
+            if sql.startswith("SELECT title FROM career_episodes"):
+                reads.append(sql)
+                if not started.is_set():
+                    started.set()
+                    release.wait(timeout=5)
+
+        connection.set_trace_callback(trace)
+        return connection
+
+    monkeypatch.setattr(store, "_connect", traced_connect)
+    return started, release, reads
+
+
+def test_slow_title_read_does_not_block_another_users_query(tmp_path, monkeypatch):
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft())
+    store.upsert(_draft("Other Co · Developer", user_id="u2"))
+    started, release, _ = _pause_first_title_read(store, monkeypatch)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        slow = pool.submit(store.prepare_query, user_id="u1", query="Pinnacle")
+        try:
+            assert started.wait(timeout=5)
+            other = pool.submit(store.prepare_query, user_id="u2", query="Other Co")
+            assert "other co" in other.result(timeout=2)[1]
+        finally:
+            release.set()
+        assert "pinnacle robotics" in slow.result(timeout=2)[1]
+
+
+def test_older_read_snapshot_cannot_overwrite_a_newer_cache_entry(tmp_path, monkeypatch):
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    writer = SQLiteCareerEpisodeStore(store.path)
+    writer.upsert(_draft())
+    started, release, reads = _pause_first_title_read(store, monkeypatch)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        old = pool.submit(store.prepare_query, user_id="u1", query="Pinnacle")
+        try:
+            assert started.wait(timeout=5)
+            writer.upsert(_draft("New Co · Developer"))
+            new = pool.submit(store.prepare_query, user_id="u1", query="New Co")
+            assert "new co" in new.result(timeout=2)[1]
+        finally:
+            release.set()
+        assert "pinnacle robotics" in old.result(timeout=2)[1]
+    assert "new co" in store.prepare_query(user_id="u1", query="New Co")[1]
+    assert len(reads) == 2  # The old reader did not evict the new snapshot.

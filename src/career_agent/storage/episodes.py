@@ -661,7 +661,7 @@ class SQLiteCareerEpisodeStore:
     def prepare_query(
         self, *, user_id: str, query: str
     ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        with self._entity_cache_lock, self._connect() as connection:
+        with self._connect() as connection:
             # Revision and titles must come from one snapshot. Otherwise a
             # concurrent commit could associate old titles with a new revision.
             connection.execute("BEGIN")
@@ -670,20 +670,27 @@ class SQLiteCareerEpisodeStore:
                 (user_id,),
             ).fetchone()
             revision = row[0] if row is not None else 0
-            cached = self._entity_cache.get(user_id)
+            with self._entity_cache_lock:
+                cached = self._entity_cache.get(user_id)
+                if cached is not None and cached[0] == revision:
+                    self._entity_cache.move_to_end(user_id)
             if cached is not None and cached[0] == revision:
                 entities = cached[1]
-                self._entity_cache.move_to_end(user_id)
             else:
                 entities = title_entities(
                     row[0] for row in connection.execute(
                         "SELECT title FROM career_episodes WHERE user_id = ?", (user_id,)
                     )
                 )
-                self._entity_cache[user_id] = (revision, entities)
-                self._entity_cache.move_to_end(user_id)
-                if len(self._entity_cache) > _ENTITY_CACHE_USERS:
-                    self._entity_cache.popitem(last=False)
+                with self._entity_cache_lock:
+                    current = self._entity_cache.get(user_id)
+                    # An older read snapshot must not replace a newer cache
+                    # entry published while its database read was in progress.
+                    if current is None or current[0] <= revision:
+                        self._entity_cache[user_id] = (revision, entities)
+                        self._entity_cache.move_to_end(user_id)
+                        if len(self._entity_cache) > _ENTITY_CACHE_USERS:
+                            self._entity_cache.popitem(last=False)
         return search_terms(query, entities), entities
 
     def term_matches(

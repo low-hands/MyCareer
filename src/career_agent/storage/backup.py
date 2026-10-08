@@ -410,6 +410,8 @@ def restore_backup(
     current workspace is itself backed up into ``safety_copy_dir`` (unless
     None), so a restore of the wrong snapshot is one more restore away from
     undone.
+
+    Restart the service after restoring to discard caches of the replaced databases.
     """
 
     directory = directory.expanduser()
