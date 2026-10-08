@@ -346,7 +346,9 @@ def test_search_mode_implicitly_loads_a_known_unoffered_tool_without_its_argumen
 
 def test_waiting_tool_call_is_not_converted_into_implicit_loading() -> None:
     maker, completions = _scripted_maker(
-        _response(tool_calls=[_tool_call("list_action_items", "{}")]),
+        _response(tool_calls=[_tool_call(
+            "list_action_items", '{"unseen_argument":"discard me"}',
+        )]),
     )
     context = _context().model_copy(update={
         "tool_observations": (DecisionObservation(
@@ -356,16 +358,22 @@ def test_waiting_tool_call_is_not_converted_into_implicit_loading() -> None:
     })
     decision = maker.decide(context, ("search_capabilities",))
     assert decision.tool_call.name == "list_action_items"
+    assert decision.tool_call.arguments == {}
     assert len(completions.requests) == 1
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == []
 
 
 def test_unreachable_tool_call_is_not_converted_into_implicit_loading() -> None:
     maker, completions = _scripted_maker(
-        _response(tool_calls=[_tool_call("match_resume_to_job", "{}")]),
+        _response(tool_calls=[_tool_call(
+            "match_resume_to_job", '{"unseen_argument":"discard me"}',
+        )]),
     )
     decision = maker.decide(_context(), ("search_capabilities",))
     assert decision.tool_call.name == "match_resume_to_job"
+    assert decision.tool_call.arguments == {}
     assert len(completions.requests) == 1
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == []
 
 
 def test_known_but_still_unavailable_loaded_tool_goes_to_precondition_refusal() -> None:
@@ -393,6 +401,21 @@ def test_search_mode_still_rejects_unknown_or_legacy_only_tools(name: str) -> No
         maker.decide(_context(), ("search_capabilities",))
     assert raised.value.code == "MAIN_AGENT_UNAVAILABLE_TOOL"
     assert len(completions.requests) == 2
+
+
+def test_unsearchable_tool_with_discovery_offered_is_reprompted() -> None:
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("unknown_tool", '{}')]),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"请确认"}')]),
+    )
+
+    decision = maker.decide(_context(), ("search_capabilities",))
+
+    assert decision.action == "ask_user"
+    assert len(completions.requests) == 2
+    assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
+        {"reason": "unavailable_tool", "retried": True},
+    ]
 
 
 def _spotlight_json(content: str, *, label: str) -> dict:

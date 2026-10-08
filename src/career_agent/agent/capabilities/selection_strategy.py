@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
-from typing import Any
+from typing import Any, Literal
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.proactive import proactive_tool_names
@@ -38,7 +38,29 @@ class SearchStrategy:
     def __init__(self) -> None:
         self._schema_cache: dict[tuple[str, ...], tuple[dict[str, Any], ...]] = {}
         self._intent_cache: dict[tuple[str, object, str], tuple[str, ...]] = {}
+        self._searchable_names = frozenset(
+            item.name for item in searchable_capabilities()
+        )
         self._directory = capability_directory()
+
+    def resolve_unoffered(
+        self, name: str, context: MainAgentContext,
+    ) -> Literal["load", "refuse", "reject"]:
+        """Classify a discoverable name before deciding whether to load it.
+
+        A waiting or unreachable tool goes to authorization under its original
+        name. Authorization can then issue a deterministic refusal before
+        argument projection or execution; loading it would only repeat the
+        same unavailable state.
+        """
+        if name not in self._searchable_names:
+            return "reject"
+        if (
+            name in waiting_tool_names(context.tool_observations)
+            or not reachable(name, context.task)
+        ):
+            return "refuse"
+        return "load"
 
     def _intent_names(self, context: MainAgentContext) -> tuple[str, ...]:
         if not context.user_message.strip():

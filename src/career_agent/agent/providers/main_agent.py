@@ -30,8 +30,6 @@ from career_agent.agent.runtime.decision_attempts import (
 from career_agent.harness.observability import record_active_trace
 from career_agent.agent.runtime.decision_messages import assemble_decision_messages
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
-from career_agent.agent.capabilities.reachability import reachable
-from career_agent.agent.capabilities.waiting import waiting_tool_names
 from career_agent.agent.runtime.decision_messages import (
     CACHEABLE_CONTEXT_SLOTS,
     CONTROL_CONTEXT_LABEL,
@@ -384,7 +382,8 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             http_client=DefaultHttpxClient(event_hooks=attempt_hooks),
         )
         self._spotlight_secret = secrets.token_bytes(32)
-        self._tool_selection_strategy: Any | None = None
+        self._tool_selection_strategy: SearchStrategy | None = None
+        self._default_tool_selection_strategy = SearchStrategy()
         self._cache_metrics: ContextVar[dict[str, Any] | None] = (
             ContextVar(f"main_agent_cache_metrics_{id(self)}", default=None)
         )
@@ -865,28 +864,20 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     and len(unknown_names) == 1
                     and "search_capabilities" in offered_names
                 ):
-                    from career_agent.agent.capabilities.search import searchable_capabilities
-
-                    searchable = {item.name for item in searchable_capabilities()}
-                    if unknown_names[0] in searchable:
-                        waiting = unknown_names[0] in waiting_tool_names(
-                            context.tool_observations
+                    strategy = (
+                        self._tool_selection_strategy
+                        or self._default_tool_selection_strategy
+                    )
+                    resolution = strategy.resolve_unoffered(unknown_names[0], context)
+                    if resolution == "refuse":
+                        return AgentDecision(
+                            action="tool_call",
+                            tool_call=ToolCall(name=unknown_names[0], arguments={}),
                         )
-                        blocked = not reachable(unknown_names[0], context.task)
-                        if waiting or blocked:
-                            # Return the known name to authorization. It emits
-                            # a deterministic refusal observation before any
-                            # argument projection or execution; loading here
-                            # would only repeat the same unavailable state.
-                            return AgentDecision(
-                                action="tool_call",
-                                tool_call=ToolCall(
-                                    name=unknown_names[0], arguments={},
-                                ),
-                            )
+                    if resolution == "load":
                         # The model saw only the directory entry. Treat its
-                        # name as a discovery request; discard the arguments
-                        # it wrote without seeing this tool's schema.
+                        # name as a discovery request, discarding arguments it
+                        # wrote without seeing this tool's schema.
                         self._record_decision_rejection(
                             "implicit_capability_load", retried=True,
                         )
@@ -1113,13 +1104,13 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             ) from error
 
 
-    def configure_tool_selection(self, strategy: Any) -> None:
+    def configure_tool_selection(self, strategy: SearchStrategy) -> None:
         self._tool_selection_strategy = strategy
         self._static_request_cache.clear()
 
     def _effective_system_prompt(self) -> str:
-        strategy = self._tool_selection_strategy
-        return self._system_prompt(strategy.tool_policy() if strategy is not None else SearchStrategy().tool_policy())
+        strategy = self._tool_selection_strategy or self._default_tool_selection_strategy
+        return self._system_prompt(strategy.tool_policy())
 
     @staticmethod
     def _system_prompt(tool_policy: str | None = None) -> str:
