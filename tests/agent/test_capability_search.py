@@ -287,6 +287,16 @@ def test_empty_search_records_a_trace_event() -> None:
         "arguments": {"current_task": {}, "query": "zzzxxyyunknownword"},
     }})
     assert update["pending"]["result"].state == "no_capabilities_found"
-    assert events == [(('capability_search_empty', 'act'), {
+    executed, *rest = events
+    assert executed[0] == ('capability_executed', 'act')
+    assert executed[1]['duration_ms'] >= 0
+    assert {k: v for k, v in executed[1].items() if k != 'duration_ms'} == {
+        'outcome': 'succeeded', 'error_code': None,
+        'details': {
+            'tool_name': 'search_capabilities', 'effect': 'CONTROL',
+            'result_state': 'no_capabilities_found', 'disposition': 'completed',
+        },
+    }
+    assert rest == [(('capability_search_empty', 'act'), {
         'outcome': 'succeeded', 'details': {'tool_name': 'search_capabilities'},
     })]

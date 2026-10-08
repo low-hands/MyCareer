@@ -51,8 +51,10 @@ class InteractionRenderer:
         assistant_message: Callable[[MainAgentToolOutput], str],
         renderer_states: frozenset[str] | None = None,
         has_interaction_renderer: Callable[[str], bool] | None = None,
+        record_trace_event: Callable[..., None] | None = None,
     ) -> None:
         self._active_turn_id_callback = active_turn_id
+        self._record_trace_event = record_trace_event
         self._assistant_message_callback = assistant_message
         self._renderer_states = (
             self.RENDERER_STATES if renderer_states is None else renderer_states
@@ -137,6 +139,38 @@ class InteractionRenderer:
         return None
 
     def interrupt(self, state: MainAgentState) -> MainAgentState:
+        update = self._pause(state)
+        if self._record_trace_event is not None:
+            decision = state["decision"]
+            result = (
+                self._last_result(state)
+                if decision.action not in {"ask_user", "questionnaire"}
+                else None
+            )
+            details: dict[str, object] = {
+                "interaction_kind": (
+                    result.state if result is not None else decision.action
+                ),
+            }
+            if result is not None:
+                details["tool_name"] = result.tool_name
+            elif decision.action == "questionnaire":
+                task = update["context"].task
+                questionnaire = task.pending_questionnaire
+                if (
+                    questionnaire is not None
+                    and questionnaire.continuation_capability is not None
+                ):
+                    details["tool_name"] = questionnaire.continuation_capability
+            self._record_trace_event(
+                "run_interrupted",
+                "interrupt",
+                outcome="interrupted",
+                details=details,
+            )
+        return update
+
+    def _pause(self, state: MainAgentState) -> MainAgentState:
         decision = state["decision"]
         if decision.action == "ask_user":
             return {

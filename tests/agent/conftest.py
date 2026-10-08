@@ -18,7 +18,8 @@ _EXECUTION_TEST_MODULES = frozenset({
     "test_main_agent_job_comparison", "test_main_agent_job_research",
     "test_main_agent_loop_evaluation", "test_main_agent_mock_interview",
     "test_main_agent_resume_tools", "test_main_agent_runtime",
-    "test_resume_job_match", "test_trace_wiring_guard",
+    "test_resume_job_match", "test_tool_execution_trace",
+    "test_trace_wiring_guard",
     "test_working_notes_guard",
 })
 

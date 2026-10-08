@@ -42,9 +42,29 @@ class OperationJournal:
         *,
         store: SQLiteActionExecutionStore | None,
         policy_epoch: int,
+        record_trace_event: Callable[..., None] | None = None,
     ) -> None:
         self._store = store
         self._policy_epoch = policy_epoch
+        self._record_trace_event = record_trace_event
+
+    def _trace_unknown(self, name: str, *, reason: str, error_code: str) -> None:
+        """Record that a write may or may not have taken effect.
+
+        ``reason`` is closed-set; ``error_code`` is a result state or exception
+        class. The error detail stays in the journal, never in the trace.
+        """
+
+        if self._record_trace_event is None:
+            return
+        self._record_trace_event(
+            "write_outcome_unknown",
+            "act",
+            outcome="failed",
+            error_code=error_code,
+            recoverable=False,
+            details={"tool_name": name, "reason": reason},
+        )
 
     @property
     def enabled(self) -> bool:
@@ -91,6 +111,11 @@ class OperationJournal:
                 input_references=self.references(arguments),
             )
         except ActionExecutionReconciliationRequiredError:
+            self._trace_unknown(
+                name,
+                reason="earlier_attempt_unreconciled",
+                error_code="ACTION_RECONCILIATION_REQUIRED",
+            )
             return ToolObservation(
                 tool_name=name,
                 state="action_reconciliation_required",
@@ -132,6 +157,11 @@ class OperationJournal:
                             "The previous attempt did not settle before recovery."
                         ),
                     )
+                self._trace_unknown(
+                    name,
+                    reason="previous_attempt_unsettled",
+                    error_code="OUTCOME_UNKNOWN",
+                )
                 return ToolObservation(
                     tool_name=name,
                     state="action_reconciliation_required",
@@ -154,6 +184,11 @@ class OperationJournal:
                     error_code=type(error).__name__.upper()[:100],
                     error_detail=str(error) or "operation ended without an outcome",
                 )
+                self._trace_unknown(
+                    name,
+                    reason="raised_without_outcome",
+                    error_code=type(error).__name__.upper()[:100],
+                )
             raise
         finally:
             ACTIVE_OPERATION_ID.reset(operation_token)
@@ -165,6 +200,11 @@ class OperationJournal:
                     f"WRITE capability {name!r} returned without execution_outcome"
                 ),
             )
+            self._trace_unknown(
+                name,
+                reason="missing_execution_outcome",
+                error_code="MISSING_EXECUTION_OUTCOME",
+            )
             raise ValueError(
                 f"WRITE capability {name!r} returned without execution_outcome"
             )
@@ -173,6 +213,11 @@ class OperationJournal:
                 action_id=execution.action_id,
                 error_code=result.state.upper(),
                 error_detail=result.message,
+            )
+            self._trace_unknown(
+                name,
+                reason="reported_unknown",
+                error_code=result.state.upper(),
             )
             return result
         if result.execution_outcome == "not_committed":

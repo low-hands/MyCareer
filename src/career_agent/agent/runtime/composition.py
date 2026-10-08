@@ -213,6 +213,7 @@ def build_main_runtime_components(
         context_manager=context_manager,
         tools=tools,
         confirmation_store=capability_confirmation_store,
+        record_trace_event=RuntimeObservability.record_trace_event,
     )
     turn_presenter = build_turn_presenter(
         report_degraded=RuntimeObservability.emit_trace,
@@ -221,6 +222,7 @@ def build_main_runtime_components(
         active_turn_id=active_turn_id,
         assistant_message=turn_presenter._assistant_message,
         has_interaction_renderer=ports.has_interaction_renderer,
+        record_trace_event=RuntimeObservability.record_trace_event,
     )
     stream_adapter = StreamAdapter(
         interaction_renderer=interaction_renderer,

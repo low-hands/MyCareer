@@ -6,7 +6,7 @@ from functools import wraps
 import hashlib
 from threading import Lock
 from time import perf_counter
-from typing import Any, Callable, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol, get_args
 
 from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,14 +20,12 @@ from career_agent.security.redaction import redact, redact_text
 
 
 EventType = Literal[
-    "run_started",
+    # A turn paused for the owner (approval, questionnaire, a question or a
+    # capability interaction), and a later turn continuing from that pause.
+    # Tool name and closed-set interaction kind only, never argument values.
     "run_resumed",
-    "run_completed",
     "run_interrupted",
-    "node_started",
     "node_completed",
-    "node_failed",
-    "node_interrupted",
     "model_attempt",
     "model_retry",
     "model_response_corrupted",
@@ -51,7 +49,12 @@ EventType = Literal[
     # often each gate actually fires — which nothing currently measures.
     "authorization_refused",
     "capability_search_empty",
+    # One per executed capability: name, result state, disposition, write
+    # outcome and duration. Never arguments, payloads or messages.
+    "capability_executed",
     "capability_failed",
+    # A write whose effect could not be confirmed and now needs reconciliation.
+    "write_outcome_unknown",
     "presentation_degraded",
     "context_compacted",
     # The complete-request estimate a load took, as numbers. Paired with the
@@ -66,6 +69,17 @@ EventType = Literal[
     "memory_proposal_expired",
     "working_notes_oversize",
 ]
+
+# Written by the retired job-discovery runner and still present in older
+# run-event stores. Readable so those traces load; never written again.
+LegacyEventType = Literal[
+    "run_started",
+    "run_completed",
+    "node_started",
+    "node_failed",
+    "node_interrupted",
+]
+LEGACY_EVENT_TYPES: frozenset[str] = frozenset(get_args(LegacyEventType))
 
 ModelCallCategory = Literal[
     "orchestrator_decision",
@@ -82,7 +96,7 @@ class RunEvent(BaseModel):
 
     run_id: str
     sequence: int = Field(ge=1)
-    event_type: EventType
+    event_type: EventType | LegacyEventType
     stage: str
     attempt: int | None = Field(default=None, ge=1)
     occurred_at: datetime
@@ -440,8 +454,14 @@ def validate_model_call_category(
     event_type: EventType,
     model_call_category: ModelCallCategory | None,
 ) -> None:
-    """Enforce classification at the new-write boundary, not while reading v1."""
+    """Enforce classification at the new-write boundary, not while reading v1.
 
+    Retired event types are refused here too: old stores may hold them, but
+    nothing new may write them.
+    """
+
+    if event_type in LEGACY_EVENT_TYPES:
+        raise ValueError(f"{event_type} is a retired event type; it is read-only")
     is_model_event = event_type in {
         "model_attempt",
         "model_retry",

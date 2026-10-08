@@ -58,11 +58,39 @@ def test_the_sqlite_recorder_persists_and_reads_a_trace(tmp_path: Path) -> None:
     assert event.details.get("attempt") == 1
 
 
+def test_a_retired_event_type_is_read_back_but_never_written(tmp_path: Path) -> None:
+    import pytest
+
+    path = tmp_path / "run_events.sqlite3"
+    recorder = SQLiteTraceRecorder(path)
+    # A row the retired job-discovery runner wrote before these types went away.
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO run_events(
+                run_id, sequence, event_type, stage, attempt, occurred_at,
+                duration_ms, outcome, details_json, error_code,
+                error_detail, recoverable, model_call_category
+            ) VALUES ('run-old', 1, 'node_started', 'job_discovery', NULL,
+                      '2026-01-01T00:00:00+00:00', NULL, 'started', '{}',
+                      NULL, NULL, NULL, NULL)
+            """
+        )
+
+    (event,) = recorder.snapshot("run-old").events
+    assert event.event_type == "node_started"
+    with pytest.raises(ValueError, match="retired"):
+        recorder.record("run-new", "node_started", "boot")
+    with pytest.raises(ValueError, match="retired"):
+        InMemoryTraceRecorder().record("run-new", "run_started", "boot")
+    assert recorder.snapshot("run-new").events == ()
+
+
 def test_sequence_increments_per_run(tmp_path: Path) -> None:
     recorder = SQLiteTraceRecorder(tmp_path / "run_events.sqlite3")
-    recorder.record("run-1", "run_started", "boot")
+    recorder.record("run-1", "turn_rejected", "boot")
     recorder.record("run-1", "turn_completed", "boot")
-    recorder.record("run-2", "run_started", "boot")
+    recorder.record("run-2", "turn_rejected", "boot")
 
     assert [e.sequence for e in recorder.snapshot("run-1").events] == [1, 2]
     assert [e.sequence for e in recorder.snapshot("run-2").events] == [1]

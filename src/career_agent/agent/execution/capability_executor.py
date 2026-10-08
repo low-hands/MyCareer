@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from time import perf_counter
 
 from career_agent.agent.execution.operation_journal import OperationJournal
 from career_agent.agent.capabilities.registry import MainAgentToolOutput, MainAgentToolRegistry
@@ -33,26 +34,33 @@ class CapabilityExecutor:
         self._operation_journal = OperationJournal(
             store=action_execution_store,
             policy_epoch=action_policy_epoch,
+            record_trace_event=record_trace_event,
         )
 
     def act(self, state: MainAgentState) -> MainAgentState:
         pending = state["pending"]
         name = pending["name"]
         self._emit_capability_started(name)
-        if pending.get("effect") == "WRITE" and self._operation_journal.enabled:
-            result = self._run_capability(
-                pending,
-                lambda: self._act_request_anchored_write(state),
-            )
-        else:
-            result = self._run_capability(
-                pending,
-                lambda: self._invoke_pending(pending),
-            )
-        if pending.get("effect") == "WRITE" and result.execution_outcome is None:
-            raise ValueError(
-                f"WRITE capability {name!r} returned without execution_outcome"
-            )
+        started = perf_counter()
+        try:
+            if pending.get("effect") == "WRITE" and self._operation_journal.enabled:
+                result = self._run_capability(
+                    pending,
+                    lambda: self._act_request_anchored_write(state),
+                )
+            else:
+                result = self._run_capability(
+                    pending,
+                    lambda: self._invoke_pending(pending),
+                )
+            if pending.get("effect") == "WRITE" and result.execution_outcome is None:
+                raise ValueError(
+                    f"WRITE capability {name!r} returned without execution_outcome"
+                )
+        except Exception as error:
+            self._trace_executed(pending, started=started, error=error)
+            raise
+        self._trace_executed(pending, started=started, result=result)
         if (
             name == "search_capabilities"
             and result.state == "no_capabilities_found"
@@ -64,6 +72,39 @@ class CapabilityExecutor:
             )
         self._emit_capability_completed(name, result.state)
         return {"pending": {**pending, "result": result}}
+
+    def _trace_executed(
+        self,
+        pending: PendingAction,
+        *,
+        started: float,
+        result: MainAgentToolOutput | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        if self._record_trace_event is None:
+            return
+        details: dict[str, object] = {
+            "tool_name": pending["name"],
+            "effect": pending.get("effect"),
+        }
+        if result is not None:
+            details["result_state"] = result.state
+            details["disposition"] = result.disposition
+            if result.execution_outcome is not None:
+                details["execution_outcome"] = result.execution_outcome
+        self._record_trace_event(
+            "capability_executed",
+            "act",
+            outcome=(
+                "failed"
+                if error is not None or result.disposition == "failed"
+                else "succeeded"
+            ),
+            duration_ms=int((perf_counter() - started) * 1000),
+            # The exception class only: messages can carry argument values.
+            error_code=type(error).__name__ if error is not None else None,
+            details=details,
+        )
 
     def _invoke_pending(self, pending: PendingAction) -> MainAgentToolOutput:
         name = pending["name"]

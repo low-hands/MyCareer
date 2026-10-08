@@ -8,7 +8,7 @@ from career_agent.harness.observability import (
 
 def test_in_memory_trace_is_ordered_and_keeps_only_explicit_details() -> None:
     recorder = InMemoryTraceRecorder()
-    recorder.record("run-1", "run_started", "job_discovery", outcome="started", details={"candidate_count": 2})
+    recorder.record("run-1", "turn_completed", "turn", outcome="succeeded", details={"candidate_count": 2})
     recorder.record("run-1", "model_attempt", "candidate_triage", attempt=1, outcome="started", details={"schema": "CandidateTriage"}, model_call_category="capability_agent")
     recorder.record(
         "run-1",

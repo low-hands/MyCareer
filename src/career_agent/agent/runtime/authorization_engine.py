@@ -16,7 +16,10 @@ from career_agent.agent.middleware.authorization import (
     AuthorizationMiddleware,
 )
 from career_agent.agent.middleware.budget import BudgetMiddleware
-from career_agent.agent.middleware.contracts import AuthorizationRefusal
+from career_agent.agent.middleware.contracts import (
+    AuthorizationRefusal,
+    AuthorizationRefusalKind,
+)
 from career_agent.agent.middleware.idempotency import (
     IdempotencyAccepted,
     IdempotencyMiddleware,
@@ -109,6 +112,23 @@ class AuthorizationEngine:
             refusal=refusal,
         )
 
+    def _trace_projection_refusal(
+        self,
+        state: MainAgentState,
+        *,
+        name: str,
+        kind: AuthorizationRefusalKind,
+        update: MainAgentState,
+    ) -> None:
+        # The middleware already chose the route; a capped refusal is the one
+        # that skips the observation and goes straight to presentation.
+        self._tracing.authorization_refused(
+            state,
+            name=name,
+            kind=kind,
+            capped=update.get("authorization_route") == "present",
+        )
+
     def authorize(self, state: MainAgentState) -> MainAgentState:
         decision = state["decision"]
         if decision.tool_call is None:
@@ -170,6 +190,12 @@ class AuthorizationEngine:
             policy_prelude=policy_prelude,
         )
         if isinstance(projection, ProjectionRefusal):
+            self._trace_projection_refusal(
+                state,
+                name=name,
+                kind="argument_projection",
+                update=projection.state_update,
+            )
             return projection.state_update
         arguments = projection.arguments
 
@@ -183,6 +209,9 @@ class AuthorizationEngine:
             policy_prelude=policy_prelude,
         )
         if notes_refusal is not None:
+            self._trace_projection_refusal(
+                state, name=name, kind="working_notes", update=notes_refusal
+            )
             return notes_refusal
 
         if verdict == "review":
