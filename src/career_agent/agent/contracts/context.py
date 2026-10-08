@@ -792,7 +792,16 @@ class MainAgentContext(ContractModel):
                 }
             ),
             "conversation_summary": (
-                self.conversation_summary.model_dump(mode="json")
+                {
+                    **self.conversation_summary.model_dump(mode="json"),
+                    "coverage": {
+                        "from_sequence": 1,
+                        "through_sequence": self.through_sequence,
+                        "retains": "distilled facts within the summary budget",
+                        "omits": "verbatim messages and possibly facts trimmed by the budget",
+                        "readback_tool": "read_conversation_span",
+                    },
+                }
                 if self.conversation_summary
                 else None
             ),

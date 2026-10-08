@@ -121,6 +121,11 @@ def test_page_in_is_gated_by_the_watermark_not_by_the_tool_menu() -> None:
     assert "through_sequence" not in project_decision_messages(stuffed).control
     assert project_decision_messages(page_in).control["through_sequence"] == 8
     assert project_decision_messages(page_in).control["recent_from_sequence"] == 9
+    coverage = project_decision_messages(page_in).data["conversation_summary"]["coverage"]
+    assert coverage["from_sequence"] == 1
+    assert coverage["through_sequence"] == 8
+    assert coverage["readback_tool"] == "read_conversation_span"
+    assert "verbatim" in coverage["omits"]
 
 
 def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected() -> None:
@@ -217,13 +222,12 @@ def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
     )
 
     assert page_in_chars - ablation_chars < 80
-    assert stuffed_chars - page_in_chars >= 1_000
+    assert stuffed_chars - page_in_chars >= 900
     # Native turns drop the per-message JSON keys and timestamps, so stuffing
     # costs less than it did in the document-shaped projection. Page-in still
-    # saves more than thirty percent of the complete request even after the
-    # fixed, always-present profile Markdown and the tool-profile availability
-    # disclosure in the control slot are included.
-    assert page_in_chars * 10 < stuffed_chars * 7
+    # saves more than twenty-five percent of the complete request even after
+    # the summary's coverage metadata and fixed profile Markdown are included.
+    assert page_in_chars * 4 < stuffed_chars * 3
 
 
 def test_an_empty_span_observation_does_not_carry_the_window_decoy() -> None:
