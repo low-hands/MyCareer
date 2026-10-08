@@ -163,6 +163,25 @@ class ApplicationService:
             raise ConcurrentApplicationUpdateError("Application changed before status correction")
         return updated
 
+    def restore_status_after_completion(
+        self, *, user_id: str, application_id: str, interview_round_id: str,
+    ) -> Application | None:
+        current = self._application_store.get(user_id=user_id, application_id=application_id)
+        if current is None or current.status != "interview_completed":
+            return None
+        events = self._application_store.list_events(user_id=user_id, application_id=application_id)
+        latest = events[-1] if events else None
+        if (latest is None or latest.reason != "interview_completed"
+                or latest.previous_status != "interviewing"
+                or latest.note != f"面试已完成，等待招聘方结果。（面试记录：{interview_round_id}）"):
+            return None
+        return self._application_store.update(
+            user_id=user_id, application_id=application_id,
+            expected_status=current.status, expected_updated_at=current.updated_at,
+            new_status="interviewing", submitted_at=current.submitted_at,
+            note="已撤销误记的面试完成，恢复为面试中。", source="user_reported",
+        )
+
     def restore_status_after_interview(
         self, *, user_id: str, application_id: str,
         previous_status: ApplicationStatus,

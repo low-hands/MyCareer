@@ -268,3 +268,52 @@ def test_explicit_new_employer_label_can_split_appointments_in_same_thread(tmp_p
     assert first.sequence_number == 1
     assert second.sequence_number == 2
     assert second.employer_label == "二面"
+
+
+def test_restore_completed_interview_without_retro_and_reject_stale_retro_write(tmp_path):
+    store = SQLiteInterviewStore(tmp_path / "interviews.sqlite3")
+    service = InterviewService(store, Applications())
+    interview = service.create_manual(user_id="u1", application_id="app-1", details=details())
+    completed = service.complete_interview(user_id="u1", interview_round_id=interview.id)
+    restored = service.restore_completion(user_id="u1", interview_round_id=interview.id)
+    assert restored.status == "scheduled"
+    assert restored.completed_at is None
+    assert restored.scheduled_start == interview.scheduled_start
+    assert service.get_interview(user_id="u1", interview_round_id=interview.id).events[-1].event_type == "corrected"
+    with pytest.raises(ValueError, match="currently completed"):
+        store.record_retro(round_=completed, source_notes="旧读取", summary="不能写入")
+
+
+def test_existing_retro_blocks_completion_undo_even_with_stale_snapshot(tmp_path):
+    store = SQLiteInterviewStore(tmp_path / "interviews.sqlite3")
+    service = InterviewService(store, Applications())
+    interview = service.create_manual(user_id="u1", application_id="app-1", details=details())
+    completed = service.complete_interview(user_id="u1", interview_round_id=interview.id)
+    service.record_retro(user_id="u1", interview_round_id=interview.id, source_notes="已复盘", summary="总结")
+    with pytest.raises(ValueError, match="without a retro"):
+        store.restore_completion(round_=completed)
+    with pytest.raises(InterviewApplicationConflictError):
+        service.restore_completion(user_id="u1", interview_round_id=interview.id)
+    assert service.get_interview(user_id="u1", interview_round_id=interview.id).interview.status == "completed"
+
+
+def test_retro_receipt_names_the_completed_action_and_its_undo_location(tmp_path):
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+    from career_agent.domain.action_center import ActionCandidate
+    from career_agent.services.action_center import ActionCenterService
+    from career_agent.storage.action_center import SQLiteActionItemStore
+    service = InterviewService(SQLiteInterviewStore(tmp_path / "interviews.sqlite3"), Applications())
+    interview = service.create_manual(user_id="u1", application_id="app-1", details=details())
+    actions = SQLiteActionItemStore(tmp_path / "actions.sqlite3")
+    action = actions.upsert_candidate(user_id="u1", now=NOW, candidate=ActionCandidate(
+        stable_key="retro", action_type="interview_retro", source_type="interview_round", source_id=interview.id,
+        application_id="app-1", title="记录面试复盘", summary="回顾面试",
+    ))
+    registry = MainAgentToolRegistry(interview_service=service, action_center_service=ActionCenterService(actions, None, None, None))
+    completed = registry.invoke_atomic_tool("complete_interview", {"user_id": "u1", "interview_round_id": interview.id})
+    assert "面试中心" in completed.message and "撤销完成" in completed.message
+    retro = registry.invoke_atomic_tool("record_interview_retro", {
+        "user_id": "u1", "interview_round_id": interview.id, "source_notes": "复述", "summary": "总结",
+    })
+    assert "记录面试复盘" in retro.message and "今日待办 → 已完成" in retro.message
+    assert actions.get(user_id="u1", action_item_id=action.id).status == "completed"

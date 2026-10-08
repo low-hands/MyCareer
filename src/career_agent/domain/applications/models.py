@@ -47,7 +47,7 @@ class ApplicationEvent(ApplicationContract):
     previous_status: ApplicationStatus | None = None
     new_status: ApplicationStatus
     note: str | None = Field(default=None, min_length=1, max_length=2000)
-    reason: Literal["interview_created"] | None = None
+    reason: Literal["interview_created", "interview_completed"] | None = None
     occurred_at: datetime
 
     @model_validator(mode="after")

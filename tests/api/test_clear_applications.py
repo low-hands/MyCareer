@@ -433,3 +433,63 @@ def test_external_calendar_link_blocks_local_interview_and_bulk_deletion(tmp_pat
         pass
     else:
         raise AssertionError("bulk clear bypassed the calendar-link guard")
+
+
+def test_completed_and_snoozed_actions_have_scoped_restore_routes(tmp_path, api_keys, issue_key):
+    paths = _paths(tmp_path)
+    _seed_application(paths, user_id="u1", source_job_id="restore", mock=False)
+    store = SQLiteActionItemStore(Path(paths.action_store))
+    actions = ActionCenterService(store, None, None, None)
+    item = store.list(user_id="u1", statuses=("open",))[0]
+    owner = issue_key("u1", WORKSPACE_READ, WORKSPACE_WRITE)
+    other = issue_key("u2", WORKSPACE_READ, WORKSPACE_WRITE)
+    read_only = issue_key("u1", WORKSPACE_READ)
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: WorkspaceReader(paths),
+                     action_center_factory=lambda: actions, api_key_store_factory=lambda: api_keys)
+    with TestClient(app) as client:
+        for status in ("completed", "snoozed"):
+            if status == "completed":
+                actions.complete_action(user_id="u1", action_item_id=item.id)
+            else:
+                actions.snooze_action(user_id="u1", action_item_id=item.id, snoozed_until=datetime.now(timezone.utc) + timedelta(days=1))
+            assert client.get("/v1/action-items/restorable", headers=owner).json()[0]["status"] == status
+            assert client.get("/v1/action-items/restorable", headers=other).json() == []
+            assert client.post(f"/v1/action-items/{item.id}/restore", headers=read_only).status_code == 403
+            assert client.post(f"/v1/action-items/{item.id}/restore", headers=other).status_code == 404
+            response = client.post(f"/v1/action-items/{item.id}/restore", headers=owner)
+            assert response.status_code == 200
+            assert response.json()["status"] == "open"
+            assert response.json()["snoozed_until"] is None
+
+
+def test_interview_undo_rolls_back_only_its_unchanged_application_transition(tmp_path, api_keys, issue_key):
+    paths = _paths(tmp_path)
+    application, interview = _seed_application(paths, user_id="u1", source_job_id="undo", mock=False)
+    reader = WorkspaceReader(paths)
+    apps = reader._applications
+    apps.correct_status(user_id="u1", application_id=application.id, status="interviewing")
+    service = InterviewService(reader._interviews, apps)
+    service.complete_interview(user_id="u1", interview_round_id=interview.id)
+    assert apps.get_record(user_id="u1", application_id=application.id).status == "interview_completed"
+    app = create_app(runtime_factory=lambda: None, workspace_reader_factory=lambda: reader, api_key_store_factory=lambda: api_keys)
+    owner = issue_key("u1", WORKSPACE_READ, WORKSPACE_WRITE)
+    other = issue_key("u2", WORKSPACE_READ, WORKSPACE_WRITE)
+    read_only = issue_key("u1", WORKSPACE_READ)
+    with TestClient(app) as client:
+        url = f"/v1/interviews/{interview.id}/restore"
+        assert client.post(url, headers=other).status_code == 404
+        assert client.post(url, headers=read_only).status_code == 403
+        restored = client.post(url, headers=owner)
+        assert restored.status_code == 200
+        assert restored.json()["status"] == "scheduled"
+        assert apps.get_record(user_id="u1", application_id=application.id).status == "interviewing"
+        # Even a later correction to the same status must not be overwritten.
+        service.complete_interview(user_id="u1", interview_round_id=interview.id)
+        apps.correct_status(user_id="u1", application_id=application.id, status="offer")
+        apps.correct_status(user_id="u1", application_id=application.id, status="interview_completed")
+        assert client.post(url, headers=owner).status_code == 200
+        assert apps.get_record(user_id="u1", application_id=application.id).status == "interview_completed"
+        service.complete_interview(user_id="u1", interview_round_id=interview.id)
+        service.record_retro(user_id="u1", interview_round_id=interview.id, source_notes="已经复盘", summary="总结")
+        assert client.post(url, headers=owner).status_code == 409
+        assert reader._interviews.get(user_id="u1", interview_round_id=interview.id).status == "completed"

@@ -13,7 +13,7 @@ from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.runtime.state import MainAgentState
 from career_agent.agent.middleware.contracts import AuthorizationRefusal
-from career_agent.agent.capabilities.effects import is_external_write
+from career_agent.agent.capabilities.catalog import capability
 from career_agent.storage.capability_confirmations import (
     SQLiteCapabilityConfirmationStore,
 )
@@ -34,12 +34,17 @@ class ApprovalMiddleware:
     def seal(
         self, state: MainAgentState, *, name: str, arguments: dict[str, Any]
     ) -> MainAgentState | AuthorizationRefusal:
-        external = is_external_write(name)
-        rule = (
-            "这个操作会写入外部系统，写入后无法由这里撤回，因此必须由你亲自确认"
-            if external
-            else "你设置了这个操作需要先经你确认"
-        )
+        descriptor = capability(name)
+        external = descriptor.external_write
+        if external:
+            rule = "这个操作会写入外部系统，写入后无法由这里撤回，因此必须由你亲自确认"
+            prompt = "这是一次外部写入，执行后无法由这里撤回。是否执行？"
+        elif descriptor.destructive:
+            rule = "这是无法撤销的破坏性操作，系统要求必须由你亲自确认"
+            prompt = "这是无法撤销的破坏性操作，系统强制要求确认。是否执行？"
+        else:
+            rule = "你设置了这个操作需要先经你确认"
+            prompt = "你设置了此操作需要确认。是否执行？"
         if self._confirmation_store is None:
             return AuthorizationRefusal(
                 kind="seal_unavailable",
@@ -106,11 +111,7 @@ class ApprovalMiddleware:
                     state="capability_confirmation_required",
                     message=(
                         f"{display_summary}\n"
-                        + (
-                            "这是一次外部写入，执行后无法由这里撤回。是否执行？"
-                            if external
-                            else "你设置了此操作需要确认。是否执行？"
-                        )
+                        + prompt
                     ),
                     next_action=(
                         "向用户说明将要执行什么并等待确认；本轮不要重试这个操作。"
@@ -153,6 +154,14 @@ class ApprovalMiddleware:
             submitted = arguments.get("submitted_at")
             when = f"，投递时间 {submitted}" if submitted is not None else ""
             return f"准备创建投递记录：{target}{version}{when}。"
+        if name == "resolve_email_event":
+            event = next((item for item in context.task.email_event_candidates
+                          if item.email_event_id == arguments.get("event_id")), None)
+            target = event.summary if event is not None else "当前选中的邮件事件"
+            action = "应用到投递／面试记录" if arguments.get("approve") else "忽略"
+            return f"准备{action}：{target}。处理后不能恢复为待确认。"
+        if name == "restart_mock_interview":
+            return "准备取消当前卡住的模拟面试、删除旧检查点并新建替代练习；旧会话将无法恢复。"
         if name == "update_owner_settings":
             changes = []
             if arguments.get("boss_search") is not None:

@@ -188,6 +188,7 @@ class SQLiteApplicationStore:
         note: str | None,
         source: str = "user_reported",
         reason: str | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> Application | None:
         now = datetime.now(timezone.utc)
         event_type = "note_added" if expected_status == new_status else "status_changed"
@@ -205,6 +206,13 @@ class SQLiteApplicationStore:
         )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if expected_updated_at is not None:
+                current = connection.execute(
+                    "SELECT updated_at FROM applications WHERE id = ? AND user_id = ?",
+                    (application_id, user_id),
+                ).fetchone()
+                if current is None or current[0] != expected_updated_at.isoformat():
+                    return None
             updated = connection.execute(
                 """
                 UPDATE applications

@@ -70,6 +70,7 @@ from career_agent.services.applications import (
     ConcurrentApplicationUpdateError,
 )
 from career_agent.services.email_tracking import EmailTrackingService
+from career_agent.services.interviews import InterviewService, InterviewNotFoundError, InterviewApplicationConflictError
 from career_agent.services.resume_text import ResumeTextService
 from career_agent.agent.providers.resume_transcription import OpenAIResumeTranscriptionWorker
 from career_agent.agent.providers.openai_client import AgentConfigurationError
@@ -1097,6 +1098,18 @@ class WorkspaceReader:
         return "deleted" if self._applications.delete_record(
             user_id=user_id, application_id=application_id,
         ) else "not_found"
+
+    def restore_interview_completion(self, *, user_id: str, interview_round_id: str) -> InterviewRecordView:
+        restored = InterviewService(self._interviews, self._applications).restore_completion(
+            user_id=user_id, interview_round_id=interview_round_id,
+        )
+        application = self._applications.get_application(user_id=user_id, application_id=restored.application_id)
+        return InterviewRecordView(
+            id=restored.id, application_id=restored.application_id,
+            company_name=application.job.posting.company_name, job_title=application.job.posting.title,
+            sequence_number=restored.sequence_number, employer_label=restored.employer_label,
+            status=restored.status, scheduled_start=restored.scheduled_start,
+        )
 
     def delete_interview(self, *, user_id: str, interview_round_id: str) -> Literal[
         "deleted", "not_found", "has_dependents"
@@ -2580,19 +2593,27 @@ def build_read_router(
             user_id=principal.user_id, statuses=("dismissed",), refresh=False,
         ))
 
+    @router.get("/action-items/restorable", response_model=tuple[ActionItemView, ...])
+    async def restorable_action_items(
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_READ)),
+    ) -> tuple[ActionItemView, ...]:
+        return tuple(ActionItemView.of(item) for item in action_center().list_actions(
+            user_id=principal.user_id, statuses=("dismissed", "completed", "snoozed"), refresh=False, limit=200,
+        ))
+
     @router.post("/action-items/{action_item_id}/restore", response_model=ActionItemView)
     async def restore_dismissed_action(
         action_item_id: str,
         principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
     ) -> ActionItemView:
         try:
-            item = action_center().restore_dismissed_action(
+            item = action_center().restore_action(
                 user_id=principal.user_id, action_item_id=action_item_id,
             )
         except ActionItemNotFoundError as error:
             raise HTTPException(status_code=404, detail="没有找到这条待办。") from error
         except InvalidActionTransitionError as error:
-            raise HTTPException(status_code=409, detail="只有已忽略的待办可以恢复。") from error
+            raise HTTPException(status_code=409, detail="只有已完成、稍后提醒或已忽略的待办可以恢复。") from error
         return ActionItemView.of(item)
 
     @router.get("/applications", response_model=tuple[ApplicationView, ...])
@@ -2717,6 +2738,20 @@ def build_read_router(
                 detail="这条投递已关联面试、模拟练习或邮件事件，请先处理关联记录。",
             )
         return Response(status_code=204)
+
+    @router.post("/interviews/{interview_round_id}/restore", response_model=InterviewRecordView)
+    async def restore_interview_completion(
+        interview_round_id: str,
+        principal: ApiKeyPrincipal = Depends(require_scope(WORKSPACE_WRITE)),
+    ) -> InterviewRecordView:
+        try:
+            return workspace().restore_interview_completion(
+                user_id=principal.user_id, interview_round_id=interview_round_id,
+            )
+        except InterviewNotFoundError as error:
+            raise HTTPException(status_code=404, detail="没有找到这场面试。") from error
+        except InterviewApplicationConflictError as error:
+            raise HTTPException(status_code=409, detail="只有尚未记录复盘的已完成面试可以撤销完成。") from error
 
     @router.delete("/interviews/{interview_round_id}", status_code=204)
     async def delete_interview(

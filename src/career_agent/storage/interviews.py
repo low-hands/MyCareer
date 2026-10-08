@@ -271,6 +271,36 @@ class SQLiteInterviewStore:
             )
         return updated
 
+    def restore_completion(self, *, round_: InterviewRound) -> InterviewRound:
+        now = datetime.now(timezone.utc)
+        updated = round_.model_copy(update={
+            "status": "scheduled", "completed_at": None, "updated_at": now,
+        })
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            changed = connection.execute(
+                """UPDATE interview_rounds SET status = 'scheduled', completed_at = NULL, updated_at = ?
+                   WHERE id = ? AND user_id = ? AND status = 'completed' AND updated_at = ?
+                     AND NOT EXISTS (SELECT 1 FROM interview_retro_reports
+                                     WHERE interview_round_id = ? AND user_id = ?)""",
+                (now.isoformat(), round_.id, round_.user_id, round_.updated_at.isoformat(),
+                 round_.id, round_.user_id),
+            ).rowcount
+            if not changed:
+                raise ValueError("only completed interviews without a retro can be restored")
+            self._insert_event(connection, self._new_event(
+                round_=updated, source="user_reported", event_type="corrected",
+                email_event_id=None, source_thread_id=None,
+                details=InterviewDetails(
+                    change_type="details_updated", employer_label=updated.employer_label,
+                    scheduled_start=updated.scheduled_start, scheduled_end=updated.scheduled_end,
+                    timezone=updated.timezone, interview_format=updated.interview_format,
+                    location=updated.location, meeting_url=updated.meeting_url,
+                    contact_summary=updated.contact_summary,
+                ), occurred_at=now,
+            ))
+        return updated
+
     def list(
         self,
         *,
@@ -392,6 +422,13 @@ class SQLiteInterviewStore:
             created_at=timestamp,
         )
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = connection.execute(
+                "SELECT status FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (round_.id, round_.user_id),
+            ).fetchone()
+            if current is None or current[0] != "completed":
+                raise ValueError("a retro requires a currently completed interview")
             connection.execute(
                 """
                 INSERT OR IGNORE INTO interview_retro_reports(

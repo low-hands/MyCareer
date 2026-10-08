@@ -28,6 +28,9 @@ from career_agent.agent.workflows.mock_interview.contracts import MockInterviewS
 from career_agent.agent.workflows.mock_interview.graph import MockInterviewGraph
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.storage.context import CareerContextStore
+from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
+from career_agent.agent.presentation.factory import interaction_event
+from career_agent.harness.streaming import InteractionResponse
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
 from agent_test_support import FixedSources, OneQuestionWorker
 
@@ -338,10 +341,20 @@ def test_the_new_question_reaches_the_candidate_and_claims_the_next_turn(
         context_manager=manager,
         decision_maker=decision_maker,
         tools=_registry(store, graph),
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(tmp_path / "context.sqlite3"),
     )
 
-    result = runtime.run_turn(
+    stopped = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="重新开始一场"
+    )
+    assert stopped.tool_result.state == "capability_confirmation_required"
+    assert store.get_session(user_id="u1", session_id=stopped.context.task.run_id).status == "active"
+    gate = interaction_event(result=stopped, conversation_id="c1")
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认重启",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id, scope="capability_confirmation", action="confirm",
+        ),
     )
 
     assert "介绍一个你负责的检索改进。" in result.assistant_message
@@ -400,10 +413,20 @@ def test_a_failed_replacement_does_not_claim_the_next_runtime_turn(tmp_path) -> 
         context_manager=manager,
         decision_maker=_AlwaysRestart(),
         tools=_registry(store, graph),
+        capability_confirmation_store=SQLiteCapabilityConfirmationStore(tmp_path / "context.sqlite3"),
     )
 
-    result = runtime.run_turn(
+    stopped = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="重新开始一场"
+    )
+    assert stopped.tool_result.state == "capability_confirmation_required"
+    assert store.get_session(user_id="u1", session_id=stopped.context.task.run_id).status == "active"
+    gate = interaction_event(result=stopped, conversation_id="c1")
+    result = runtime.run_turn(
+        user_id="u1", conversation_id="c1", user_message="确认重启",
+        interaction_response=InteractionResponse(
+            interaction_id=gate.interaction_id, scope="capability_confirmation", action="confirm",
+        ),
     )
 
     assert result.context.task.active_workflow == "none"
@@ -411,7 +434,9 @@ def test_a_failed_replacement_does_not_claim_the_next_runtime_turn(tmp_path) -> 
     assert [item.state for item in result.tool_results] == [
         "mock_interview_restart_failed",
     ]
-    assert result.context.tool_observations[-1].state == "authorization_refused"
+    # A confirmed sealed action returns its outcome directly; it does not
+    # ask the model to issue the restart again after the failure.
+    assert result.context.tool_observations[-1].state == "mock_interview_restart_failed"
     assert result.delegated_write_count == 1
     assert "替代面试暂时启动失败" in result.assistant_message
     persisted = manager.get_task(user_id="u1", conversation_id="c1")

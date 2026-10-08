@@ -201,10 +201,28 @@ class InterviewService:
                 user_id=user_id,
                 application_id=completed.application_id,
                 status="interview_completed",
-                note="面试已完成，等待招聘方结果。",
-                source="user_reported",
+                note=f"面试已完成，等待招聘方结果。（面试记录：{completed.id}）",
+                source="user_reported", reason="interview_completed",
             )
         return completed
+
+    def restore_completion(self, *, user_id: str, interview_round_id: str) -> InterviewRound:
+        interview = self._store.get(user_id=user_id, interview_round_id=interview_round_id)
+        if interview is None:
+            raise InterviewNotFoundError(interview_round_id)
+        try:
+            restored = self._store.restore_completion(round_=interview)
+        except ValueError as error:
+            raise InterviewApplicationConflictError(str(error)) from error
+        # Separate stores: only undo our own most recent pipeline transition.
+        # A later owner/email update or another completed round must be kept.
+        restore_application = getattr(self._application_service, "restore_status_after_completion", None)
+        if callable(restore_application) and not self._store.list(
+            user_id=user_id, application_id=restored.application_id, statuses=("completed",), limit=1,
+        ):
+            restore_application(user_id=user_id, application_id=restored.application_id,
+                                interview_round_id=restored.id)
+        return restored
 
     def get_interview(
         self, *, user_id: str, interview_round_id: str
@@ -253,19 +271,22 @@ class InterviewService:
             raise InterviewApplicationConflictError(
                 "a real interview retro requires a user-confirmed completed interview"
             )
-        return self._store.record_retro(
-            round_=interview,
-            source_notes=source_notes,
-            summary=summary,
-            questions=questions,
-            strengths=strengths,
-            difficulties=difficulties,
-            interviewer_signals=interviewer_signals,
-            next_focus=next_focus,
-            action_items=action_items,
-            limitations=limitations,
-            self_assessment=self_assessment,
-        )
+        try:
+            return self._store.record_retro(
+                round_=interview,
+                source_notes=source_notes,
+                summary=summary,
+                questions=questions,
+                strengths=strengths,
+                difficulties=difficulties,
+                interviewer_signals=interviewer_signals,
+                next_focus=next_focus,
+                action_items=action_items,
+                limitations=limitations,
+                self_assessment=self_assessment,
+            )
+        except ValueError as error:
+            raise InterviewApplicationConflictError(str(error)) from error
 
     def list_retros(
         self,

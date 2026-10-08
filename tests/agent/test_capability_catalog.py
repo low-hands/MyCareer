@@ -247,6 +247,7 @@ def test_every_write_has_the_review_policy_from_the_inventory() -> None:
     mandatory_review = {
         "update_owner_settings", "execute_calendar_proposal",
         "confirm_memory_tombstone", "confirm_constraint_retirement",
+        "resolve_email_event", "restart_mock_interview",
     }
     writes = {name: item for name, item in CAPABILITIES.items() if item.effect == "WRITE"}
     assert set(writes) == runtime_owned | mandatory_review | {
@@ -300,9 +301,11 @@ def test_output_contract_rejects_a_result_for_another_capability() -> None:
 def test_safety_properties_and_approval_are_derived_from_metadata() -> None:
     assert {item.name for item in CAPABILITIES.values() if item.destructive} == {
         "update_owner_settings", "confirm_memory_tombstone", "confirm_constraint_retirement",
+        "resolve_email_event", "restart_mock_interview",
     }
     assert {item.name for item in CAPABILITIES.values() if item.approval_policy == "always"} == {
         "update_owner_settings", "confirm_memory_tombstone", "confirm_constraint_retirement",
+        "resolve_email_event", "restart_mock_interview",
         "execute_calendar_proposal",
     }
     for item in CAPABILITIES.values():

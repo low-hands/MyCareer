@@ -936,7 +936,7 @@ def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("update_application_status", "WRITE", precondition=_reachable_via_application, requirement=_NEEDS_APPLICATION)
     yield _capability("sync_application_emails", "WRITE", execution_kind="workflow")
     yield _capability("list_email_events", "READ")
-    yield _capability("resolve_email_event", "WRITE", precondition=lambda task: bool(task.email_event_candidates), requirement="先用 list_email_events 列出邮件事件")
+    yield _capability("resolve_email_event", "WRITE", destructive=True, precondition=lambda task: bool(task.email_event_candidates), requirement="先用 list_email_events 列出邮件事件")
 
     yield _capability("get_interview", "READ", precondition=_reachable_via_interview, requirement=_NEEDS_INTERVIEW)
     yield _capability("create_interview", "WRITE", precondition=lambda task: _reachable_via_application(task) or _reachable_via_job(task), requirement="需要上下文唯一指向一条投递记录或一个已保存岗位；若都没有，先询问是否纳入跟踪，并请用户提供或选择公司与岗位，不能关联无关 JD")
@@ -951,7 +951,7 @@ def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("get_calendar_proposal", "READ", precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
     yield _capability("execute_calendar_proposal", "WRITE", external_write=True, replay_safe=True, schema_gated=True, precondition=lambda task: bool(task.active_calendar_proposal_id), requirement="先用 prepare_interview_calendar_sync 生成日历预览")
     yield _capability("start_mock_interview", "WRITE", execution_kind="workflow", precondition=lambda task: True, requirement="可直接自由练习，也可选择一条投递或面试")
-    yield _capability("restart_mock_interview", "WRITE", execution_kind="workflow", schema_gated=True, precondition=lambda task: task.active_workflow == "mock_interview" and task.phase in {"mock_interview_checkpoint_missing", "mock_interview_graph_incompatible"}, requirement="只有模拟面试检查点丢失或不兼容时才能重启")
+    yield _capability("restart_mock_interview", "WRITE", destructive=True, execution_kind="workflow", schema_gated=True, precondition=lambda task: task.active_workflow == "mock_interview" and task.phase in {"mock_interview_checkpoint_missing", "mock_interview_graph_incompatible"}, requirement="只有模拟面试检查点丢失或不兼容时才能重启")
     yield _capability("get_mock_interview_result", "READ", reference_readback=True)
 
     yield _capability("search_career_history", "READ")

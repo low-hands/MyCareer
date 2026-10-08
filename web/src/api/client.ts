@@ -459,6 +459,23 @@ export async function restoreDismissedActionItem(id: string, options: ReadOption
   return (await response.json()) as ActionItemView;
 }
 
+export function fetchRestorableActionItems(options: ReadOptions): Promise<ActionItemView[]> {
+  return getJson<ActionItemView[]>("/v1/action-items/restorable", {}, options);
+}
+
+export const restoreActionItem = restoreDismissedActionItem;
+
+export async function restoreInterviewCompletion(id: string, options: ReadOptions): Promise<InterviewRecordView> {
+  const response = await fetch(`${options.apiBaseUrl}/v1/interviews/${encodeURIComponent(id)}/restore`, {
+    method: "POST", headers: { Accept: "application/json" }, signal: options.signal,
+  });
+  if (!response.ok) throw new ApiError(
+    response.status === 409 ? "已有复盘或状态已变化，不能撤销完成。" : `撤销面试完成失败：${response.status}`,
+    response.status,
+  );
+  return (await response.json()) as InterviewRecordView;
+}
+
 type ReadOptions = { apiBaseUrl: string; signal?: AbortSignal };
 
 export function fetchDashboard(options: ReadOptions): Promise<Dashboard> {

@@ -464,3 +464,66 @@ def test_a_terminal_application_is_never_followed_up(tmp_path) -> None:
             tmp_path / status, status=status, quiet_days=90
         )
         assert follow_ups(service, now=NOW) == []
+
+
+@pytest.mark.parametrize("status", ["completed", "dismissed", "snoozed"])
+def test_restore_action_clears_terminal_and_snooze_state(tmp_path, status):
+    service, store, _ = build_service(tmp_path)
+    item = service.refresh(user_id="u1", now=NOW)[0]
+    if status == "snoozed":
+        service.snooze_action(user_id="u1", action_item_id=item.id, snoozed_until=NOW + timedelta(days=2), now=NOW)
+    else:
+        getattr(service, "complete_action" if status == "completed" else "dismiss_action")(user_id="u1", action_item_id=item.id)
+    restored = service.restore_action(user_id="u1", action_item_id=item.id)
+    assert restored.status == "open"
+    assert restored.snoozed_until is None
+    assert restored.resolved_at is None
+    assert store.list_events(user_id="u1", action_item_id=item.id)[-1].event_type == "reopened"
+
+
+def test_restore_action_does_not_override_a_concurrent_state_change(tmp_path, monkeypatch):
+    service, store, _ = build_service(tmp_path)
+    item = service.refresh(user_id="u1", now=NOW)[0]
+    service.snooze_action(user_id="u1", action_item_id=item.id, snoozed_until=NOW + timedelta(days=2), now=NOW)
+    transition = store.transition
+    def raced(**kwargs):
+        transition(user_id="u1", action_item_id=item.id, status="completed")
+        return transition(**kwargs)
+    monkeypatch.setattr(store, "transition", raced)
+    with pytest.raises(InvalidActionTransitionError):
+        service.restore_action(user_id="u1", action_item_id=item.id)
+    assert store.get(user_id="u1", action_item_id=item.id).status == "completed"
+
+
+def test_undo_completion_survives_refresh_after_source_was_fulfilled(tmp_path):
+    service, store, emails = build_service(tmp_path)
+    item = next(item for item in service.refresh(user_id="u1", now=NOW) if item.action_type == "email_event_confirmation")
+    service.complete_action(user_id="u1", action_item_id=item.id)
+    emails.pending = False
+    service.restore_action(user_id="u1", action_item_id=item.id)
+    active = service.refresh(user_id="u1", now=NOW + timedelta(minutes=1))
+    assert item.id in {item.id for item in active}
+    assert store.get(user_id="u1", action_item_id=item.id).status == "open"
+
+
+def test_snooze_does_not_claim_success_for_a_completed_action(tmp_path):
+    service, store, _ = build_service(tmp_path)
+    item = service.refresh(user_id="u1", now=NOW)[0]
+    service.complete_action(user_id="u1", action_item_id=item.id)
+    with pytest.raises(InvalidActionTransitionError):
+        service.snooze_action(user_id="u1", action_item_id=item.id, snoozed_until=NOW + timedelta(days=2), now=NOW)
+    assert store.get(user_id="u1", action_item_id=item.id).status == "completed"
+
+
+@pytest.mark.parametrize("name", ["complete_action_item", "snooze_action_item"])
+def test_action_receipt_tells_the_user_where_to_undo(tmp_path, name):
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+    service, _, _ = build_service(tmp_path)
+    item = service.refresh(user_id="u1", now=NOW)[0]
+    arguments = {"user_id": "u1", "action_item_id": item.id}
+    if name == "snooze_action_item":
+        arguments["snoozed_until"] = datetime.now(timezone.utc) + timedelta(days=1)
+    result = MainAgentToolRegistry(action_center_service=service).invoke_atomic_tool(name, arguments)
+    assert item.title in result.message
+    assert "今日待办" in result.message and "恢复" in result.message
+    assert ("已完成" if name == "complete_action_item" else "稍后提醒") in result.message

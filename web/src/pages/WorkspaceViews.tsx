@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   type ApplicationView,
   type ApplicationMockInterviews,
+  restoreInterviewCompletion,
   type InterviewRecordView,
   type MockInterviewSessionView,
   type CalendarWorkspace,
@@ -1311,6 +1312,17 @@ export function CalendarPanel(props: PageProps) {
     }
   }
 
+  async function undoInterviewCompletion(id: string): Promise<void> {
+    setConnectionError(null);
+    try {
+      await restoreInterviewCompletion(id, { apiBaseUrl: props.apiBaseUrl });
+      state.reload();
+      interviewState.reload();
+    } catch (cause) {
+      setConnectionError(cause instanceof Error ? cause.message : "撤销面试完成失败。");
+    }
+  }
+
   async function removeInterview(interviewRoundId: string): Promise<void> {
     if (!(await confirm({
       title: "删除误记的面试安排？",
@@ -1396,6 +1408,8 @@ export function CalendarPanel(props: PageProps) {
               onClick={() => void removeInterview(item.id)}>
               {deletingInterview ? "正在删除…" : "删除误记面试"}
             </button>
+            {item.status === "completed" ? <button type="button" className="soft-button"
+              onClick={() => void undoInterviewCompletion(item.id)}>撤销完成（未复盘时）</button> : null}
             <button type="button" className="soft-button" onClick={() => props.onAskAgent(
               `请帮我更正面试记录 interview_round_id=${item.id}（${item.company_name} · ${item.job_title}），先确认我想改哪项。`,
             )}>更正面试</button>

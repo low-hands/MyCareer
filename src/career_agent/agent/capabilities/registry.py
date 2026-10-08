@@ -2057,7 +2057,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="update_interview",
             state="interview_ready",
-            message="面试安排已更新，原安排仍保留在事件历史中。",
+            message=("面试安排已更新，原安排仍保留在事件历史中。"
+                     "可在“面试中心 → 更正面试”再次修改未完成的安排。"),
             payload=self._interview_payload(interview),
             execution_outcome="committed",
         )
@@ -2093,7 +2094,9 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="complete_interview",
             state="interview_ready",
-            message="已将这场面试标记为完成。",
+            message=("已将这场面试标记为完成；关联投递可能同步为面试已完成。"
+                     "尚未记录复盘时，可在“面试中心 → 全部面试记录 → 撤销完成”恢复安排。"
+                     "撤销时只恢复本次自动推进且未被后续修改的投递状态。"),
             payload=self._interview_payload(interview),
             execution_outcome="committed",
         )
@@ -2139,8 +2142,9 @@ class MainAgentToolRegistry:
                 payload={"reason": str(error)},
                 execution_outcome="not_committed",
             )
+        completed_action = None
         if self._action_center_service is not None:
-            self._action_center_service.complete_source_action(
+            completed_action = self._action_center_service.complete_source_action(
                 user_id=user_id,
                 action_type="interview_retro",
                 source_id=report.interview_round_id,
@@ -2169,7 +2173,12 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="record_interview_retro",
             state="interview_retro_recorded",
-            message="真实面试复盘报告已保存；结论仅基于你的复述。",
+            message=(
+                "真实面试复盘报告已保存；结论仅基于你的复述。"
+                + (f"已完成关联待办「{completed_action.title}」，可在“今日待办 → 已完成”恢复。"
+                   if completed_action is not None else "")
+                + "复盘内容如需更正，可重新记录一份复盘。"
+            ),
             payload=self._interview_retro_payload(report),
             execution_outcome="committed",
             resource_ref=_deliverable_ref(
@@ -2412,7 +2421,7 @@ class MainAgentToolRegistry:
             tool_name=f"{action}_action_item",
             state="action_item_resolved",
             message=(
-                f"待办「{item.title}」已完成。" if action == "complete" else
+                f"待办「{item.title}」已完成，可在“今日待办 → 已完成”恢复。" if action == "complete" else
                 f"待办「{item.title}」已忽略，可在“今日待办”的“已忽略”中恢复。"
             ),
             payload=self._action_payload(item),
@@ -2452,7 +2461,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="snooze_action_item",
             state="action_item_snoozed",
-            message="行动事项已设置为稍后提醒。",
+            message=(f"待办「{item.title}」已设置为稍后提醒，时间：{item.snoozed_until.isoformat()}。"
+                     "可在“今日待办 → 稍后提醒”恢复，取消稍后提醒。"),
             payload=self._action_payload(item),
             execution_outcome="committed",
         )
@@ -3482,7 +3492,7 @@ class MainAgentToolRegistry:
                     update,
                     scope=None,
                     saved=True,
-                ),
+                ) + "如需更正，可再次提议并确认同一作用域的求职意向。",
                 payload={
                     "intent_episode_id": intent_episode_id,
                     "pref_scope": update.pref_scope,
@@ -3511,7 +3521,7 @@ class MainAgentToolRegistry:
             return ToolObservation(
                 tool_name="confirm_job_intent",
                 state="job_intent_recorded",
-                message=self._job_intent_readback(update, scope=role.title, saved=True),
+                message=self._job_intent_readback(update, scope=role.title, saved=True) + "如需更正，可再次提议并确认求职意向。",
                 payload={
                     "intent_episode_id": intent_episode_id,
                     "target_role": role.model_dump(mode="json"),
@@ -3534,7 +3544,7 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="confirm_job_intent",
             state="job_intent_recorded",
-            message=self._job_intent_readback(update, scope=None, saved=True),
+            message=self._job_intent_readback(update, scope=None, saved=True) + "如需更正，可再次提议并确认求职意向。",
             payload={
                 "intent_episode_id": intent_episode_id,
                 "profile": updated.model_dump(mode="json"),
@@ -3614,7 +3624,8 @@ class MainAgentToolRegistry:
                     ),
                 ),
             )
-        message = f"已确认并启用这条长期偏好：{version.value}"
+        message = (f"已确认并启用这条长期偏好：{version.value}。"
+                   "可通过 memory export、编辑 MEMORY.md、memory review、memory apply 更正。")
         payload: dict[str, Any] = {
             "scope_key": version.scope_key,
             "memory_entry_id": intent_entry_id(
@@ -3930,7 +3941,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="correct_job_requirement_tier",
             state="job_analysis_revision_ready",
-            message="已保存岗位要求分级修正；旧分析和旧匹配报告保持不变。",
+            message=("已保存岗位要求分级修正；旧分析和旧匹配报告保持不变。"
+                     "如需恢复原分级，可对最新分析再次更正为模型分级。"),
             payload={
                 "analysis_id": stored.id,
                 "supersedes_analysis_id": model_arguments.analysis_id,
@@ -4226,9 +4238,9 @@ class MainAgentToolRegistry:
             tool_name="review_resume_tailoring",
             draft=draft,
             message=(
-                "所有简历修改建议都已完成审阅。"
+                "所有简历修改建议都已完成审阅；定稿前可重新接受或拒绝同一条建议。"
                 if draft.status == "reviewed"
-                else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理。"
+                else f"已记录审阅决定，还有 {len(draft.pending_change_indices)} 条建议待处理；定稿前可重新接受或拒绝同一条建议。"
             ),
             execution_outcome="committed",
         )
@@ -4294,7 +4306,7 @@ class MainAgentToolRegistry:
             draft=draft,
             message=(
                 f"已根据反馈生成第 {draft.revision_number} 版草稿；"
-                "旧审批决定未继承，请重新逐条审阅。"
+                "旧审批决定未继承，请重新逐条审阅；如需更正，可继续反馈修订。"
             ),
             execution_outcome="committed",
         )
@@ -4368,7 +4380,7 @@ class MainAgentToolRegistry:
             tool_name="finalize_resume_tailoring",
             state="resume_tailoring_finalized",
             message=(
-                "已生成新的不可变 Markdown 简历版本。"
+                "已生成新的不可变 Markdown 简历版本，原版本保留可选；如需更正，可基于新版本重新匹配和定制。"
                 if finalized.created
                 else "这份定制草稿已经生成过简历版本，已返回原结果。"
             ),
@@ -4412,7 +4424,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="export_resume_artifact",
             state="resume_artifact_ready",
-            message=f"简历文件 {artifact.filename} 已准备好。",
+            message=(f"简历文件 {artifact.filename} 已准备好。"
+                     "导出不改变简历正文；如需修改，请更正简历后重新导出。"),
             payload={
                 "artifact_id": artifact.id,
                 "resume_version_id": artifact.resume_version_id,
@@ -4585,7 +4598,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="update_application_status",
             state="application_ready",
-            message=f"投递状态已更新为 {application.status}。",
+            message=(f"投递状态已更新为 {application.status}。"
+                     "可在“投递记录”更正状态，包括恢复为先前状态。"),
             payload=self._application_payload(application, detail.job),
             execution_outcome="committed",
         )
@@ -4736,7 +4750,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="confirm_career_fact",
             state="career_fact_confirmed",
-            message="已将这条事实确认为长期职业记忆。",
+            message=(f"已将这条事实确认为长期职业记忆：{confirmed.claim}。"
+                     "如需更正，可提议并确认职业事实更正；如需遗忘，先提议删除再确认。"),
             payload={
                 "career_evidence_id": confirmed.id,
                 "career_record_id": confirmed.career_record_id,
@@ -4906,7 +4921,8 @@ class MainAgentToolRegistry:
         return ToolObservation(
             tool_name="confirm_memory_amendment",
             state="career_memory_amended",
-            message=f"职业声明已更正为 revision {correction.current.revision}。",
+            message=(f"职业声明已更正为 revision {correction.current.revision}：{correction.current.claim}。"
+                     "如需恢复旧表述，可读取历史后再次提议并确认更正。"),
             payload={
                 "detail_ref": correction.current.detail_ref,
                 "revision": correction.current.revision,
