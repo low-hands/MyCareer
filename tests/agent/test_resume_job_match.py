@@ -48,7 +48,7 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.storage.jobs import SQLiteJobPostingRepository
 from career_agent.storage.resumes import ResumeStore, StoredResumeDocument
 from career_agent.storage.resume_job_matches import SQLiteResumeJobMatchStore
-from conftest import enter_tool_profile
+from conftest import load_capability_family
 
 
 VALID_MATCH = {
@@ -1130,7 +1130,7 @@ def test_main_agent_match_tool_returns_analysis_without_original_documents(tmp_p
                         salary=saved.salary,
                     ),
                 ),
-        ).model_copy(update={"tool_profile": "resume"}),
+        ),
         assistant_message="seeded",
     )
     decisions = SequenceDecisionMaker(
@@ -1217,7 +1217,7 @@ def test_main_agent_match_tool_rejects_model_supplied_user_id(tmp_path) -> None:
     resumes, jobs, history, version, saved = seed_inputs(tmp_path)
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "resume")
+    load_capability_family(manager, "resume")
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",

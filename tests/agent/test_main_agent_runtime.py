@@ -92,7 +92,7 @@ from career_agent.storage.action_executions import (
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
-from conftest import CatalogSchemaRegistry, enter_tool_profile
+from conftest import CatalogSchemaRegistry, load_capability_family
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 
 
@@ -353,7 +353,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     registry = Registry()
     ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
 
@@ -429,7 +429,7 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     projected_arguments = {"user_id": "u1"}
     fingerprint = hashlib.sha256(
@@ -530,7 +530,7 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
     database = tmp_path / f"{state}-{execution_outcome}.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     Runtime(
         context_manager=manager,
@@ -573,7 +573,7 @@ def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) ->
     database = tmp_path / "undeclared.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
 
     with pytest.raises(ValueError, match="returned without execution_outcome"):
@@ -652,7 +652,7 @@ def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> No
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     Runtime(
         context_manager=manager,
@@ -1208,7 +1208,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "resume")
+    load_capability_family(manager, "resume")
     agent = Runtime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
@@ -1478,7 +1478,7 @@ def _crashed_process_runtime(tmp_path, *decisions, profile="application"):
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, profile)
+    load_capability_family(manager, profile)
     receipts = SQLiteTurnReceiptStore(database)
     ledger = SQLiteActionExecutionStore(database)
     registry = Registry()
@@ -2634,7 +2634,7 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -2705,7 +2705,7 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     runtime = DirectRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
@@ -2989,7 +2989,7 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "memory")
+    load_capability_family(manager, "memory")
     runtime = DirectRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
@@ -3920,7 +3920,7 @@ def test_ask_user_after_listing_does_not_leak_options_into_a_fact_question(tmp_p
 def _saved_job_runtime(tmp_path, repository, *decisions):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     maker = SequenceDecisionMaker(*decisions)
     return maker, MainAgentRuntime(
         context_manager=manager,
@@ -4046,7 +4046,7 @@ def test_a_new_conversation_does_not_inherit_this_job(tmp_path) -> None:
 def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     job_posting_id = _seed_saved_job(repository)
     decisions = SequenceDecisionMaker(
@@ -4092,7 +4092,7 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
 def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, arguments) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     agent = MainAgentRuntime(
         context_manager=manager,
@@ -4678,7 +4678,7 @@ def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
     # What a crash between preparation and settlement leaves behind.
     stranded, _ = ledger.prepare(
@@ -4758,7 +4758,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
     ):
         manager = ContextManager(CareerContextStore(tmp_path / f"{tool}.sqlite3"))
         manager.upsert_profile(CareerProfileContext(user_id="u1"))
-        enter_tool_profile(manager, profile)
+        load_capability_family(manager, profile)
         ledger = SQLiteActionExecutionStore(tmp_path / f"{tool}.sqlite3")
         # A crash between preparation and settlement, with the same arguments:
         # the fingerprint matches, so this is a replay rather than a conflict.
@@ -4957,7 +4957,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     store.upsert_preferences(
         "u1", AgentPreferencesContext(application_confirmation=preference)
     )
@@ -5028,7 +5028,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
     Registry.calls = []
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
 
     # 1. The owner sets the rule, through the surface the model cannot reach.
     manager.upsert_preferences(
@@ -5105,7 +5105,7 @@ def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> No
     store = SQLiteCapabilityConfirmationStore(database)
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     manager.upsert_preferences(
         user_id="u1",
         preferences=AgentPreferencesContext(application_confirmation="always_ask"),
@@ -5212,7 +5212,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
     context_store = CareerContextStore(path)
     manager = ContextManager(context_store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     manager.upsert_preferences(
         user_id="u1",
         preferences=AgentPreferencesContext(application_confirmation="always_ask"),
@@ -5299,7 +5299,7 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
     store = CareerContextStore(path)
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     initial = manager.preferences(user_id="u1")
     guarded = manager.update_owner_settings(
         user_id="u1",
@@ -5504,7 +5504,7 @@ def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
     store = CareerContextStore(path)
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "interview")
+    load_capability_family(manager, "interview")
     initial = manager.preferences(user_id="u1")
     manager.update_owner_settings(
         user_id="u1",
@@ -5591,7 +5591,7 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     path = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(path))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     registry = Registry()
 
     result = Runtime(

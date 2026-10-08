@@ -243,7 +243,7 @@ def test_runtime_starts_then_resumes_mock_interview_through_the_main_graph(
     manager.commit_turn(
         context=seed,
         task=ConversationTaskState(
-            active_application_id=application.id, tool_profile="interview"
+            active_application_id=application.id
         ),
         assistant_message="已选择投递。",
     )
@@ -437,7 +437,7 @@ def _runtime_with_graph(
     manager.commit_turn(
         context=seed,
         task=ConversationTaskState(
-            active_application_id=application.id, tool_profile="interview"
+            active_application_id=application.id
         ),
         assistant_message="已选择投递。",
     )
@@ -996,7 +996,7 @@ def test_free_practice_asks_which_resume_before_starting_anything(tmp_path) -> N
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     seed = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="想练面试")
     manager.commit_turn(
-        context=seed, task=ConversationTaskState(tool_profile="interview"),
+        context=seed, task=ConversationTaskState(),
         assistant_message="好的。",
     )
     graph = FakeMockInterviewGraph()
@@ -1124,7 +1124,7 @@ def _company_runtime(tmp_path, decisions, *, research):
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     seed = manager.load_for_turn(user_id="u1", conversation_id="c1", user_message="想练面试")
     manager.commit_turn(
-        context=seed, task=ConversationTaskState(tool_profile="interview"),
+        context=seed, task=ConversationTaskState(),
         assistant_message="好的。",
     )
     graph = FakeMockInterviewGraph()

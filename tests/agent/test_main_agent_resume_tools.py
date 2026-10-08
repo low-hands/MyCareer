@@ -20,7 +20,7 @@ from career_agent.harness.streaming import (
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
-from conftest import enter_tool_profile
+from conftest import load_capability_family
 
 
 class SequenceDecisionMaker:
@@ -64,7 +64,7 @@ def build_agent(
 ):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
-    enter_tool_profile(manager, "resume", user_id=user_id)
+    load_capability_family(manager, "resume", user_id=user_id)
     tools = MainAgentToolRegistry(
         resume_store=store,
     )

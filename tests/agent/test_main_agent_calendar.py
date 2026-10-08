@@ -90,7 +90,7 @@ def test_calendar_preview_blocks_same_turn_write_and_confirmation_executes_next_
         context=seeded,
         task=seeded.task.update_interview_context(
             active_round_id="interview-1"
-        ).model_copy(update={"tool_profile": "interview"}),
+        ),
         assistant_message="seeded",
     )
     calendar = Calendar()

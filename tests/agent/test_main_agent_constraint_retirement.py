@@ -13,7 +13,7 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.harness.streaming import InteractionResponse
 from career_agent.storage.capability_confirmations import SQLiteCapabilityConfirmationStore
 from career_agent.storage.context import CareerContextStore
-from conftest import enter_tool_profile
+from conftest import load_capability_family
 
 
 class SequenceDecisionMaker:
@@ -37,7 +37,7 @@ def _final() -> AgentDecision:
 
 def _runtime(context: CareerContextStore, *decisions, profile=None):
     if profile is not None:
-        enter_tool_profile(context, profile)
+        load_capability_family(context, profile)
     return MainAgentRuntime(
         context_manager=ContextManager(context),
         decision_maker=SequenceDecisionMaker(*decisions),

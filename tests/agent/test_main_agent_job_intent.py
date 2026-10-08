@@ -17,7 +17,7 @@ from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
-from conftest import enter_tool_profile
+from conftest import load_capability_family
 
 
 class SequenceDecisionMaker:
@@ -37,7 +37,7 @@ def build_with(tmp_path, decision_maker, profile=None):
     manager = ContextManager(store)
     if profile is not None:
         manager.upsert_profile(profile)
-    enter_tool_profile(store, "job")
+    load_capability_family(store, "job")
     runtime = MainAgentRuntime(
         context_manager=manager,
         decision_maker=decision_maker,

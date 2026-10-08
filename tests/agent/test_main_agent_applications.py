@@ -260,7 +260,7 @@ def test_reading_other_resume_metadata_does_not_replace_application_version(
                     latest_version_id=other_version.id,
                 ),
             ),
-        ).model_copy(update={"tool_profile": "resume"}),
+        ),
         assistant_message="seeded",
     )
     decisions.decisions.extend(

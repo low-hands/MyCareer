@@ -19,7 +19,7 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.context import CareerContextStore
 from career_agent.harness.streaming import InteractionResponse
-from conftest import enter_tool_profile
+from conftest import load_capability_family
 
 
 class SequenceDecisionMaker:
@@ -47,7 +47,7 @@ def _runtime(tmp_path, *decisions, profile=None):
     context = CareerContextStore(tmp_path / "context.sqlite3")
     history = CareerHistoryStore(tmp_path / "career.sqlite3")
     if profile is not None:
-        enter_tool_profile(context, profile)
+        load_capability_family(context, profile)
     maker = SequenceDecisionMaker(*decisions)
     runtime = MainAgentRuntime(
         context_manager=ContextManager(context),

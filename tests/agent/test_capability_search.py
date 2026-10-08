@@ -152,8 +152,6 @@ def test_development_query_recall_and_control_write_exposure() -> None:
                 query=case.scenario.context.user_message, descriptors=descriptors,
             )
             first = case.scenario.steps[0]
-            if first.expect_tool == "route_to_capability":
-                first = case.scenario.steps[1]
             expected = set(first.expect_tools or ({first.expect_tool} if first.expect_tool else set()))
             if expected:
                 demand_count += 1

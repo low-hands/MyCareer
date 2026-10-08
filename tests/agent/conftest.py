@@ -74,9 +74,9 @@ def _isolate_runtime_execution_from_tool_discovery(request, monkeypatch):
     monkeypatch.setattr(tool_availability, "reachable", fixture_reachable)
 
 
-def enter_tool_profile(
+def load_capability_family(
     manager: ContextManager | CareerContextStore,
-    profile: str,
+    family: str,
     *,
     user_id: str = "u1",
     conversation_id: str = "c1",
@@ -91,7 +91,7 @@ def enter_tool_profile(
         task=task.add_loaded_capabilities(tuple(
             name for name, descriptor in CAPABILITIES.items()
             if descriptor.model_callable and descriptor.namespace is not None
-            and descriptor.namespace.split(".", 1)[0] == profile
+            and descriptor.namespace.split(".", 1)[0] == family
         )),
     )
 
