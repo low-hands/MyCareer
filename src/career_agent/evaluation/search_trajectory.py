@@ -17,6 +17,7 @@ from career_agent.agent.capabilities.proactive import succeeded
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.runtime.decision_messages import project_decision_messages
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+from career_agent.evaluation.capability_semantic_fixture import evaluation_strategy
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.observations import (
     DecisionObservation, append_decision_observation,
@@ -103,7 +104,7 @@ def check_search_contract(scenario: TrajectoryScenario,
                           *, tool_specs: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
     """Verify every declared business tool can be offered after exact-name discovery."""
     failures: list[str] = []
-    strategy = SearchStrategy()
+    strategy = evaluation_strategy()
     context = scenario.context
     projection = _selected_context(context, strategy, tool_specs)[0].model_context()
     for path in scenario.decisive_facts:
@@ -162,7 +163,7 @@ def _record_sample(scenario: TrajectoryScenario,
     maker = OpenAICompatibleMainAgentDecisionMaker(
         config, capture_rejected_output=True, **main_model_options(),
     )
-    strategy = SearchStrategy()
+    strategy = evaluation_strategy()
     maker.configure_tool_selection(strategy)
     context = scenario.context.model_copy(update={"received_at": datetime.now(timezone.utc)})
     recorded: list[dict[str, Any]] = []
@@ -359,7 +360,7 @@ def replay_search_sample(scenario: TrajectoryScenario,
                          *, tool_specs: tuple[dict[str, Any], ...],
                          responses: Sequence[Mapping[str, Any]],
                          quality: bool = False) -> tuple[str, ...]:
-    strategy = SearchStrategy()
+    strategy = evaluation_strategy()
     maker = OpenAICompatibleMainAgentDecisionMaker(
         OpenAICompatibleAgentConfig(
             endpoint="https://replay.invalid/v1/chat/completions",

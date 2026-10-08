@@ -677,8 +677,8 @@ def trajectory_prompt_fingerprint(
     """Hash the selected schemas and stable prompt at each step."""
     step_fingerprints = []
     context = scenario.context
-    from career_agent.agent.capabilities.selection_strategy import SearchStrategy
-    strategy = SearchStrategy()
+    from career_agent.evaluation.capability_semantic_fixture import evaluation_strategy
+    strategy = evaluation_strategy()
     for index, step in enumerate(scenario.steps):
         context = advance_trajectory_context(context, step)
         selection = strategy.select(context, tool_specs)

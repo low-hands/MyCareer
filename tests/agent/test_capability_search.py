@@ -236,7 +236,7 @@ def test_semantic_catalog_vectors_are_cached_by_catalogue_hash() -> None:
     index.warm()
     assert len(index.scores("简历")) == MAX_SEMANTIC_CANDIDATES
     assert len(index.scores("岗位")) == MAX_SEMANTIC_CANDIDATES
-    assert len(client.calls) == 3  # catalogue once, two query vectors
+    assert [len(call) for call in client.calls] == [20, 20, 20, 10, 1, 1]
 
 
 def test_small_positive_semantic_scores_cannot_fill_zero_lexical_results() -> None:
@@ -270,7 +270,7 @@ def test_semantic_query_uses_injected_client_and_falls_back_to_lexical() -> None
         "current_task": {}, "query": "简历和岗位匹配一下",
     })
     assert "match_resume_to_job" in result.payload["loaded"]
-    assert len(warm_client.calls) == 1  # no catalogue or query embedding on request
+    assert [len(call) for call in warm_client.calls] == [20, 20, 20, 10]
 
 
 def test_empty_search_records_a_trace_event() -> None:

@@ -152,7 +152,8 @@ def test_questionnaire_fact_scenario_has_a_projectable_exact_quote() -> None:
         )
 
 
-def test_search_replay_accepts_intermediate_discovery() -> None:
+def test_search_replay_accepts_intermediate_discovery(monkeypatch) -> None:
+    monkeypatch.setattr(search_trajectory, "evaluation_strategy", SearchStrategy)
     scenario = next(item for item in SEARCH_SCENARIOS
                     if item.name == "a_core_request_routes_before_job_analysis")
     specs = trajectory_tool_specs()

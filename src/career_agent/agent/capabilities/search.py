@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 import hashlib
 import json
 import math
 import re
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES, CapabilityDescriptor
-from career_agent.agent.context.semantic_retrieval import EmbeddingClient
+from career_agent.agent.context.semantic_retrieval import EmbeddingClient, MAX_EMBEDDING_BATCH_SIZE
 
 
 EXCLUDED = frozenset({"search_capabilities"})
@@ -245,6 +246,19 @@ def search_catalog(
     return tuple(dict.fromkeys((*exact, *ranked)))[:limit]
 
 
+def capability_embedding_texts(
+    entries: Sequence[CapabilityDescriptor],
+) -> tuple[str, ...]:
+    return tuple(
+        " ".join((item.name, item.namespace or "", item.summary or "", *item.aliases_zh))
+        for item in entries
+    )
+
+
+class CapabilityScorer(Protocol):
+    def scores(self, query: str) -> Mapping[str, float]: ...
+
+
 @dataclass
 class SemanticCapabilityIndex:
     """Optional in-memory embedding cache keyed by model and catalogue content."""
@@ -256,10 +270,7 @@ class SemanticCapabilityIndex:
 
     def _catalogue(self) -> tuple[tuple[CapabilityDescriptor, ...], tuple[str, ...], str]:
         entries = searchable_capabilities()
-        texts = tuple(
-            " ".join((item.name, item.namespace or "", item.summary or "", *item.aliases_zh))
-            for item in entries
-        )
+        texts = capability_embedding_texts(entries)
         digest = hashlib.sha256(json.dumps(
             (self.client.model_id, texts), ensure_ascii=False, separators=(",", ":")
         ).encode("utf-8")).hexdigest()
@@ -270,7 +281,11 @@ class SemanticCapabilityIndex:
         entries, texts, digest = self._catalogue()
         if digest == self._key:
             return
-        vectors = tuple(tuple(row) for row in self.client.embed(texts))
+        vectors = tuple(
+            tuple(row)
+            for start in range(0, len(texts), MAX_EMBEDDING_BATCH_SIZE)
+            for row in self.client.embed(texts[start:start + MAX_EMBEDDING_BATCH_SIZE])
+        )
         if len(vectors) != len(entries):
             raise ValueError("embedding provider returned the wrong number of vectors")
         self._vectors = vectors

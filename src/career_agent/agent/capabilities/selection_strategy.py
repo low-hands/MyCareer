@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import logging
 from typing import Any, Literal
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.proactive import proactive_tool_names
 from career_agent.agent.capabilities.reachability import STATE_GATED_TOOLS, reachable
-from career_agent.agent.capabilities.search import search_catalog, searchable_capabilities
+from career_agent.agent.capabilities.search import (
+    CapabilityScorer, search_catalog, searchable_capabilities,
+)
 from career_agent.agent.capabilities.selection import (
     ALWAYS_OFFERED_TOOLS, CapabilitySelection, prepare_capability_selection,
 )
@@ -20,6 +23,7 @@ from career_agent.agent.providers.token_budget import count_tokens
 
 
 MAX_SEARCH_CALLS_PER_TURN = 5
+_LOGGER = logging.getLogger(__name__)
 
 
 def capability_directory() -> str:
@@ -35,7 +39,8 @@ def capability_directory() -> str:
 
 
 class SearchStrategy:
-    def __init__(self) -> None:
+    def __init__(self, semantic_index: CapabilityScorer | None = None) -> None:
+        self._semantic_index = semantic_index
         self._schema_cache: dict[tuple[str, ...], tuple[dict[str, Any], ...]] = {}
         self._intent_cache: dict[tuple[str, object, str], tuple[str, ...]] = {}
         self._searchable_names = frozenset(
@@ -68,12 +73,28 @@ class SearchStrategy:
         key = (context.conversation_id, context.received_at, context.user_message)
         if key not in self._intent_cache:
             # The same user turn can contain several model calls. Keep the
-            # lexical result for that turn, without persisting it in task state.
+            # result for that turn, without persisting it in task state.
             if len(self._intent_cache) >= 1024:
                 self._intent_cache.pop(next(iter(self._intent_cache)))
-            self._intent_cache[key] = search_catalog(
-                query=context.user_message[:200], limit=5,
-            )
+            query = context.user_message[:200]
+            semantic_scores = None
+            if self._semantic_index is not None:
+                try:
+                    semantic_scores = self._semantic_index.scores(query)
+                except Exception as error:
+                    # The embedding service is optional; lexical discovery must
+                    # remain available when a query fails or times out.
+                    _LOGGER.warning(
+                        "capability intent embedding unavailable; lexical fallback: %s",
+                        type(error).__name__,
+                    )
+                    semantic_scores = None
+            if semantic_scores is None:
+                self._intent_cache[key] = search_catalog(query=query, limit=5)
+            else:
+                self._intent_cache[key] = search_catalog(
+                    query=query, limit=5, semantic_scores=semantic_scores,
+                )
         return self._intent_cache[key]
 
     def select(

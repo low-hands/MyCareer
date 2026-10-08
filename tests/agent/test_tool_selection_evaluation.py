@@ -63,7 +63,7 @@ def test_development_selection_baseline() -> None:
         SELECTION_DEV,
         selector=RuntimeSearchSelector(specs),
     )
-    assert (report.covered_steps, report.demand_steps) == (51, 62)
+    assert (report.covered_steps, report.demand_steps) == (54, 62)
     assert all(step.schema_tokens_proxy > 0 for step in report.steps)
     assert all(step.offered_names <= step.selected_names for step in report.steps)
 

@@ -121,9 +121,7 @@ def build_main_runtime_components(
 ) -> RuntimeComponents:
     """Build every collaborator from explicit dependencies."""
 
-    selection_strategy = SearchStrategy()
-    decision_maker_slot.configure_selection(selection_strategy)
-
+    semantic_index = None
     try:
         embedding_config = CareerEmbeddingConfig.optional_from_env()
         if embedding_config is not None:
@@ -137,6 +135,10 @@ def build_main_runtime_components(
             tools.configure_capability_search(semantic_index)
     except Exception:
         _LOGGER.exception("capability index warmup failed; lexical search remains available")
+        semantic_index = None
+
+    selection_strategy = SearchStrategy(semantic_index=semantic_index)
+    decision_maker_slot.configure_selection(selection_strategy)
 
     runtime_observability = RuntimeObservability(
         trace_recorder=trace_recorder,

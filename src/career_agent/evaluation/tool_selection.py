@@ -8,7 +8,7 @@ from typing import Any, Literal, Mapping, Sequence
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.reachability import reachable
-from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+from career_agent.evaluation.capability_semantic_fixture import evaluation_strategy
 from career_agent.agent.capabilities.waiting import waiting_tool_names
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.providers.token_budget import count_tokens
@@ -36,7 +36,7 @@ class RuntimeSearchSelector:
 
     def __init__(self, tool_specs: tuple[dict[str, Any], ...]) -> None:
         self._tool_specs = tool_specs
-        self._strategy = SearchStrategy()
+        self._strategy = evaluation_strategy()
 
     def select(
         self, context: MainAgentContext, prior: object | None,

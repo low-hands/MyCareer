@@ -106,6 +106,40 @@ def test_intent_selection_keeps_unreachable_results_out_of_schemas() -> None:
     assert search_catalog(query=context.user_message, limit=5)[0] == "update_application_status"
 
 
+def test_intent_combines_semantic_and_lexical_ranking_once_per_turn() -> None:
+    message = "请对当前选中的示例科技岗位做独立 JD 分析，不要做简历匹配。"
+    context = _context(
+        ConversationTaskState(active_job_posting_id="job-1"), user_message=message,
+    )
+    assert "analyze_job" not in SearchStrategy().select(context, SCHEMAS).offered_names
+
+    class Scorer:
+        calls = 0
+
+        def scores(self, query):
+            assert query == message
+            self.calls += 1
+            return {"analyze_job": 0.9}
+
+    scorer = Scorer()
+    strategy = SearchStrategy(scorer)
+    assert "analyze_job" in strategy.select(context, SCHEMAS).offered_names
+    strategy.select(context, SCHEMAS)
+    assert scorer.calls == 1
+
+
+def test_intent_embedding_failure_falls_back_to_lexical() -> None:
+    context = _context(user_message="帮我找岗位")
+
+    class FailingScorer:
+        def scores(self, query):
+            raise TimeoutError("embedding timed out")
+
+    expected = SearchStrategy().select(context, SCHEMAS)
+    actual = SearchStrategy(FailingScorer()).select(context, SCHEMAS)
+    assert actual.selected_names == expected.selected_names
+
+
 def test_newly_satisfied_state_gate_is_offered_without_search() -> None:
     selection = SearchStrategy().select(
         _context(ConversationTaskState(active_job_research_run_id="research-1")),
