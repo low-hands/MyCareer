@@ -1,0 +1,162 @@
+{
+  "scenario": "saved_jd_body_drives_the_next_read_step",
+  "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "e032a54f4f80e7e86b5d2bf005e4812db58f37c337e6cbb328c6c15fb6cf89ac",
+  "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
+  "recorded_at": "2026-10-08T01:12:41.046636+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+      "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1230.1,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:39.738181+00:00",
+      "elapsed_ms": 1292.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1230.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:39.538958+00:00",
+      "elapsed_ms": 918.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 856.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:41.046636+00:00",
+      "elapsed_ms": 2146.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "analyze_job",
+                "match_resume_to_job"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "e4e4591cdc3f88186724f3606fca2a61be87a46c7813eb29a447c284706f6f4c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1069.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "b75c4c2bde6fdf50a68bd210d56421b768437309fae67ee955a46954c08d1dbe",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1011.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

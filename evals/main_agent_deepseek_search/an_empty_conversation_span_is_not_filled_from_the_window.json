@@ -1,0 +1,128 @@
+{
+  "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+  "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "6ab0ea4f45873ffa94b4fb061edfa2ec6ca350b30f74e06f0e1cfef0bdc515d2",
+  "context_shape_fingerprint": "235564260f911383e8a2bd7e11d7cd5bd3b4511262927aea2e61c9113a8703e1",
+  "recorded_at": "2026-10-08T01:12:54.579331+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"序号 100–110 这段我读过了，结果是空的：该区间内没有任何消息（返回 0/0 条），所以没有内容可以复述。\\n\\n需要说明两点：\\n- 当前对话可见范围只到序号 8（through_sequence=8），最近的原始消息从序号 9 开始；100–110 完全在这段范围之外。\\n- 因此我无法确认这个区间是\\\"确实没有消息\\\"还是\\\"超出我可读取的范围\\\"。如果你指的是某个具体内容（比如某份 JD、某个岗位或某轮面试），告诉我关键词，我可以换成关键词在可读范围内再找一次。\\n\\n另外，上一条问题的状态也没变：美团那份 JD 只是窗口里的对照，目前没有与该 JD 或岗位绑定的分析结果，所以无法给出针对它的评价。如果你希望正经评估美团这个岗位，需要先把它作为指定对象（例如收藏/选定该岗位），我才能做分析。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+      "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2431.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:52.660138+00:00",
+      "elapsed_ms": 2570.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 这段我读过了，结果是空的：该区间内没有任何消息（返回 0/0 条），所以没有内容可以复述。\\n\\n需要说明两点：\\n- 当前对话可见范围只到序号 8（through_sequence=8），最近的原始消息从序号 9 开始；100–110 完全在这段范围之外。\\n- 因此我无法确认这个区间是\\\"确实没有消息\\\"还是\\\"超出我可读取的范围\\\"。如果你指的是某个具体内容（比如某份 JD、某个岗位或某轮面试），告诉我关键词，我可以换成关键词在可读范围内再找一次。\\n\\n另外，上一条问题的状态也没变：美团那份 JD 只是窗口里的对照，目前没有与该 JD 或岗位绑定的分析结果，所以无法给出针对它的评价。如果你希望正经评估美团这个岗位，需要先把它作为指定对象（例如收藏/选定该岗位），我才能做分析。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2431.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:54.160084+00:00",
+      "elapsed_ms": 3711.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"已经读取了会话序号 100–110：这一段没有返回任何消息（0/0 条），也就是说这个区间在当前窗口里是空的，没有可读回的内容。\\n\\n结合运行时状态：当前可见的历史只到序号 8（through_sequence=8，最近窗口从第 9 条开始），所以 100–110 超出了本次对话已记录的序号范围，读出为空是正常的，而不是内容被截断或读取失败。\\n\\n如果你要找的是别的区间，请告诉我具体序号；如果只是想知道更早聊过什么，我也可以改从当前窗口范围内可读的片段里帮你查。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3572.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "The span 100–110 came back empty: this conversation has only 9 messages so far (the summary covers through sequence 8, and your request was the 9th). There's no sequence 100–110 to read — nothing was omitted there.\n\nIf you meant a different range, or you're thinking of a different conversation, tell me the range or the topic and I'll look again.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:54.579331+00:00",
+      "elapsed_ms": 3980.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"已按你给的区间读取会话序号 100–110，结果是**空区间**：该范围内确实没有任何消息（返回 0 条）。\\n\\n同时说明一下上下文边界：当前这段对话目前只到序号 8（through_sequence=8），所以 100–110 落在现有会话范围之外，读不到内容也属正常——这不是读取失败，而是这些序号本就不存在。\\n\\n另外，你上一条问的\\\"美团这份 JD 看起来怎么样\\\"：窗口里它与目标岗位条件不符，我这边也没有可用的岗位快照、分析或调研报告（当前均无活跃对象），因此无法对这份 JD 给出评估结论。\\n\\n如果那个区间的内容其实在别的会话里，可以告诉我大致主题或公司/岗位关键词，我用跨会话检索去找；若你想看的是本段对话更早的内容，也可以给我 1–8 之间的具体区间。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "ef7abe7e96fdca4fd4f68c5bddeed55562cd27fcf32a7df1145f2a84b52cbdc4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3915.2,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "序号 100–110 这段对话读不回来：该区间内没有任何消息（返回 0/0 条）。当前窗口的摘要只覆盖到序号 8，最近的原生消息从序号 9 开始，所以 100–110 超出了本会话已有记录的范围——我不能用其他内容替代它。\n\n如果你其实想找的是窗口里提到的那份美团 JD，或本会话早先的某段内容，请告诉我大致时间或关键词，我可以在实际存在的序号范围内（从 1 开始）按内容检索；但如果你确认要的是序号 100–110，那就是空的，没有可读的内容。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+  "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "56d17b3096edcde866ff5d8f18df8407727b1d6a556f69e157d2807926dfc722",
+  "context_shape_fingerprint": "6f7ab15e3404cb7f54d023c2fc6eba467749357f0654789f183c2afe8fec7a53",
+  "recorded_at": "2026-10-08T01:12:49.834660+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "read_conversation_span",
+        "arguments": {
+          "from_sequence": 1,
+          "through_sequence": 120,
+          "query": "目标公司"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+      "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "list_target_roles",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1314.2,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:49.020595+00:00",
+      "elapsed_ms": 1406.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "from_sequence": 1,
+              "through_sequence": 120,
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1314.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:50.410458+00:00",
+      "elapsed_ms": 2236.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "from_sequence": 1,
+              "through_sequence": 120,
+              "query": "目标公司 美团 公司名"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2160.6,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "read_conversation_span",
+                    "arguments": "{\"from_sequence\": 1, \"through_sequence\": 120, \"query\": \"目标公司 美团 算法工程师\"}"
+                  },
+                  {
+                    "name": "fetch_archived_constraints",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:49.834660+00:00",
+      "elapsed_ms": 1574.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "fetch_archived_constraints",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b97824175686e911283421a1d5ee02e19514ac4679c0bfe2fac68220a3de460",
+          "decision_shape_fingerprint": "2455cd645b152409d6573253d2f853df74c30699231f640d1af27b39914a4605",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1511.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

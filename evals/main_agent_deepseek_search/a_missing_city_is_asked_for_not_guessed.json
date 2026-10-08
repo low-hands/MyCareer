@@ -1,0 +1,207 @@
+{
+  "scenario": "a_missing_city_is_asked_for_not_guessed",
+  "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "6ab0ea4f45873ffa94b4fb061edfa2ec6ca350b30f74e06f0e1cfef0bdc515d2",
+  "context_shape_fingerprint": "f0666a3515e7bd1dc205832ab30e27ed2d83207f6fd328740d4131d0ba8572ac",
+  "recorded_at": "2026-10-08T01:12:22.116247+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "open_job_search",
+            "list_target_roles",
+            "find_saved_jobs"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+      "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2075.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "721e6eb19265b00643b902e57e7775dee424db835c8b3185031e2b0f88fb9d3b",
+      "decision_shape_fingerprint": "e199a9e33bc4a18114e693ae1306cefa3dd25ce22878a685497012ffe8345173",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 792.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:21.240064+00:00",
+      "elapsed_ms": 3103.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search",
+                "list_target_roles",
+                "find_saved_jobs"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2075.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "721e6eb19265b00643b902e57e7775dee424db835c8b3185031e2b0f88fb9d3b",
+          "decision_shape_fingerprint": "e199a9e33bc4a18114e693ae1306cefa3dd25ce22878a685497012ffe8345173",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 792.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:21.988576+00:00",
+      "elapsed_ms": 3881.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search",
+                "list_target_roles",
+                "find_saved_jobs"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2132.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"可以，我来帮你打开 BOSS 直聘的搜索页。先确认几个条件：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？（BOSS 搜索必须指定城市，我不会替你猜）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"搜索用的岗位关键词是什么？（例如：数据分析师、后端开发、产品经理）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false}],\"continuation_capability\":\"open_job_search\"}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "721e6eb19265b00643b902e57e7775dee424db835c8b3185031e2b0f88fb9d3b",
+          "decision_shape_fingerprint": "e199a9e33bc4a18114e693ae1306cefa3dd25ce22878a685497012ffe8345173",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1535.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:22.116247+00:00",
+      "elapsed_ms": 3995.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"好的，我来帮你找工作。需要先确认几个搜索条件，逐题回答即可。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么岗位方向？（例如：后端工程师 / 数据分析 / 产品经理 等，可写多个）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"期望的工作城市？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"期望的工作类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"},{\"value\":\"contract\",\"label\":\"合同/外包\",\"meaning\":\"choice\"},{\"value\":\"any\",\"label\":\"都可以\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"工作经验年限？\",\"kind\":\"single\",\"options\":[{\"value\":\"fresh\",\"label\":\"应届/无经验\",\"meaning\":\"choice\"},{\"value\":\"option_2\",\"label\":\"1-3 年\",\"meaning\":\"choice\"},{\"value\":\"option_3\",\"label\":\"3-5 年\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"5-10 年\",\"meaning\":\"choice\"},{\"value\":\"option_5\",\"label\":\"10 年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"薪资期望（可写范围，如 20-30K/月）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q6\",\"prompt\":\"有没有必须满足的硬性条件？（如：不加班、接受远程、只投大厂、行业限制等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "91a223f311da4fbde421226ad18e3a2fd966fd98d182e04a1fdeaed9fd5d75ad",
+          "decision_shape_fingerprint": "aa1d8402760016186b4c3dd378eb0fa779f7a1b75741d06482111d2702c1e06f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3628.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "scenario": "clear_brief_finishes_without_opening_the_action_list",
+  "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "743c1025e6177ddc81ca4f041819cf8f7207811ae415cfca03a3bceacf8ac66b",
+  "context_shape_fingerprint": "370de30aa7f9707dc24625fe093b1a985f6009feddd2a0b2431eb65d3d74908a",
+  "recorded_at": "2026-10-08T01:12:40.382467+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"简报已生成：共 13 项待办，其中逾期 0 项、今天到期 4 项、等待中 9 项。既然没有逾期，按你的要求就到这里结束。\\n\\n（简报正文以卡片形式随本条回复提供；我这边只拿到了回执，如果卡片正常显示即可查看明细。若你想现在就从 4 项今日待办里挑一件先做，随时告诉我，我再打开行动清单让你选。）\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "247a1632ecbc443eeebdec2dce00fb24e67077265c82bc8766b55c3da9ce475a",
+      "decision_shape_fingerprint": "eac965a8cf1978fbffed02f72aea221d6688fd3db9075fa8e92bd21325892d90",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "list_action_items",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1528.1,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:38.611620+00:00",
+      "elapsed_ms": 1591.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"简报已生成：共 13 项待办，其中逾期 0 项、今天到期 4 项、等待中 9 项。既然没有逾期，按你的要求就到这里结束。\\n\\n（简报正文以卡片形式随本条回复提供；我这边只拿到了回执，如果卡片正常显示即可查看明细。若你想现在就从 4 项今日待办里挑一件先做，随时告诉我，我再打开行动清单让你选。）\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "247a1632ecbc443eeebdec2dce00fb24e67077265c82bc8766b55c3da9ce475a",
+          "decision_shape_fingerprint": "eac965a8cf1978fbffed02f72aea221d6688fd3db9075fa8e92bd21325892d90",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1528.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:38.997040+00:00",
+      "elapsed_ms": 1488.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"刚生成的今日简报显示：逾期 0 项，今日到期 4 项，等待中 9 项（共 13 项待办）。\\n\\n由于没有逾期项，按你的要求就到此结束，不打开行动清单。如果之后想逐项处理，随时告诉我，我可以列出待办并让你选择要完成、推迟或撤销的项目。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "247a1632ecbc443eeebdec2dce00fb24e67077265c82bc8766b55c3da9ce475a",
+          "decision_shape_fingerprint": "eac965a8cf1978fbffed02f72aea221d6688fd3db9075fa8e92bd21325892d90",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1429.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:40.382467+00:00",
+      "elapsed_ms": 2733.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"已读取今天的简报：**逾期 0 项**（今日到期 4 项，等待中 9 项，共 13 项待办）。\\n\\n按你说的规则——没有逾期，就不打开行动清单了，这次到此结束。之后想处理今日到期的 4 项，或需要我列出行动清单，随时说一声。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "247a1632ecbc443eeebdec2dce00fb24e67077265c82bc8766b55c3da9ce475a",
+          "decision_shape_fingerprint": "eac965a8cf1978fbffed02f72aea221d6688fd3db9075fa8e92bd21325892d90",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2676.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "简报已生成：**逾期 0 项**（今日到期 4 项，等待中 9 项）。按照你的指示，没有逾期就不打开行动清单。\n\n所以这一轮到此结束。需要的话，我可以随时帮你列出今天的待办并挑选一项处理。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

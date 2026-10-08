@@ -1,0 +1,112 @@
+{
+  "scenario": "a_nonretryable_read_failure_is_not_reissued",
+  "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "f4cab019da58ff2086b71a859b8da8c1819675e49f83e67122e94cb1922b2e45",
+  "context_shape_fingerprint": "9350a7c40ad7d4095b44ba3e388f0548663a66790a77ab8cb4401d09333d7a32",
+  "recorded_at": "2026-10-08T01:12:44.818541+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次查询没能完成：岗位库（已保存岗位）当前无法处理“RAG”这个检索请求，返回的是失败状态，且没有可读回的内容——也就是说我既没拿到结果列表，也无法确认是否真的没有匹配岗位。该工具明确标注为不可重试，所以我不会立刻用同样的条件再查一次。\\n\\n这属于工具侧的服务失败，不是你的条件有问题。你可以稍后再让我重试一次；如果你希望，也可以先告诉我更多线索（比如公司名或岗位关键词的另一种写法），我会在岗位库恢复后按这些线索查找。若你手上已经有该岗位的链接或 JD 文本，也可以直接发给我，我可以在不依赖岗位库检索的情况下继续帮你分析。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+      "decision_shape_fingerprint": "6fc514a8d9f8a58f25bdf62827a2b4e1abfeef05f047bc3ab08465cb6ef20db4",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2081.1,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:44.726339+00:00",
+      "elapsed_ms": 2181.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次查询没能完成：岗位库（已保存岗位）当前无法处理“RAG”这个检索请求，返回的是失败状态，且没有可读回的内容——也就是说我既没拿到结果列表，也无法确认是否真的没有匹配岗位。该工具明确标注为不可重试，所以我不会立刻用同样的条件再查一次。\\n\\n这属于工具侧的服务失败，不是你的条件有问题。你可以稍后再让我重试一次；如果你希望，也可以先告诉我更多线索（比如公司名或岗位关键词的另一种写法），我会在岗位库恢复后按这些线索查找。若你手上已经有该岗位的链接或 JD 文本，也可以直接发给我，我可以在不依赖岗位库检索的情况下继续帮你分析。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "6fc514a8d9f8a58f25bdf62827a2b4e1abfeef05f047bc3ab08465cb6ef20db4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2081.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:44.925289+00:00",
+      "elapsed_ms": 2100.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，岗位库这次没能完成查询——搜索你保存过的「RAG」岗位时失败（返回「岗位库当前无法完成这次查询」），且该失败不可重试，因此我无法列出现有收藏。这是工具侧的失败，不是你没有保存过相关岗位。\\n\\n接下来可以这样：\\n1. 如果你希望我换个方式再试，可以稍后再让我查询一次；或者\\n2. 如果你能提供岗位名称/公司，我可以改用其他可用能力来处理。\\n\\n需要我在你确认后重新尝试，还是先做别的？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "6fc514a8d9f8a58f25bdf62827a2b4e1abfeef05f047bc3ab08465cb6ef20db4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2038.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:44.818541+00:00",
+      "elapsed_ms": 1872.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"抱歉，这次查询没能完成：岗位库（已保存岗位）当前无法响应“RAG”这次检索，返回的是失败回执，且标注为不可重试，因此我也没有拿到任何岗位列表。\\n\\n所以现在无法确认你保存过的 RAG 岗位有哪些——不是「没有保存」，而是这次读取失败、我拿不到数据。\\n\\n可以选一个方式继续：\\n- 稍后再让我试一次（换一个更宽的关键词，比如“检索 / 大模型 / LLM”，或干脆不带关键词列出最近的收藏岗位）；\\n- 或者你直接把岗位名称/公司/链接发我，我按你给的信息继续。\\n\\n需要我在稍后重试时用什么关键词？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0a5abac7773f6485d6b266dce4f3adc3c2c2cda072b18dc01c35b2b86c9aaed3",
+          "decision_shape_fingerprint": "6fc514a8d9f8a58f25bdf62827a2b4e1abfeef05f047bc3ab08465cb6ef20db4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1809.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

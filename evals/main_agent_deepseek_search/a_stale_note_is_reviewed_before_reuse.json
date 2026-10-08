@@ -1,0 +1,127 @@
+{
+  "scenario": "a_stale_note_is_reviewed_before_reuse",
+  "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "5ded75bbcfdef4eadf71acfa79fa19eeb8a68382dd94aa02cfaf25206b647182",
+  "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
+  "recorded_at": "2026-10-08T01:12:28.560665+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你打开 BOSS 招聘的搜索页。需要你告诉我两件事：\\n\\n1. **职位关键词**：想找什么方向、什么关键词的岗位？（比如\\\"后端开发\\\"\\\"产品经理\\\"\\\"数据分析\\\"等）\\n2. **城市**：想在哪个城市找？你的档案里还没有确认过默认城市，所以这次需要你给一个，我不会默认搜全国。\\n\\n补充一点说明：我这边只记得一条**未确认**的笔记\\\"用户偏好 Rust 岗位\\\"——因为未经你确认，我不能直接拿它当搜索关键词或推荐依据。如果你确实想按 Rust 方向找，请明确说一句，我就用它。请把关键词和城市一起告诉我吧。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+      "decision_shape_fingerprint": "204c729dc315223bda9b12de7dd8d6c72daf31cb631ed0d35c69f0423a3ec776",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2470.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:27.026557+00:00",
+      "elapsed_ms": 2532.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你打开 BOSS 招聘的搜索页。需要你告诉我两件事：\\n\\n1. **职位关键词**：想找什么方向、什么关键词的岗位？（比如\\\"后端开发\\\"\\\"产品经理\\\"\\\"数据分析\\\"等）\\n2. **城市**：想在哪个城市找？你的档案里还没有确认过默认城市，所以这次需要你给一个，我不会默认搜全国。\\n\\n补充一点说明：我这边只记得一条**未确认**的笔记\\\"用户偏好 Rust 岗位\\\"——因为未经你确认，我不能直接拿它当搜索关键词或推荐依据。如果你确实想按 Rust 方向找，请明确说一句，我就用它。请把关键词和城市一起告诉我吧。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "204c729dc315223bda9b12de7dd8d6c72daf31cb631ed0d35c69f0423a3ec776",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2470.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:26.477305+00:00",
+      "elapsed_ms": 1514.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找岗位？（另外，能否顺带说明一下想搜的关键词或岗位方向，例如\\\"后端开发\\\"\\\"数据分析\\\"；如果只给城市，我就用默认关键词打开搜索页。）\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "204c729dc315223bda9b12de7dd8d6c72daf31cb631ed0d35c69f0423a3ec776",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1420.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:28.560665+00:00",
+      "elapsed_ms": 3487.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你打开招聘搜索页。你希望在哪个城市找工作？（另外请顺便告诉我你想搜的岗位关键词，比如\\\"数据分析\\\"\\\"前端\\\"等；如果需要实习/全职筛选也可以说明。）\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "204c729dc315223bda9b12de7dd8d6c72daf31cb631ed0d35c69f0423a3ec776",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3425.8,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_interaction",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll open a BOSS search for you. First I need to know where and what to search.\n\nOne thing to be clear about: my note saying you prefer Rust roles is an unconfirmed observation, so I can't use it to pick your search keyword.",
+                "tool_calls": [
+                  {
+                    "name": "questionnaire",
+                    "arguments": "{\"message\": \"请回答以下两个问题，我就能帮你打开对应的岗位搜索：\", \"questions\": [{\"question_id\": \"q1\", \"prompt\": \"你想找什么方向的岗位？（搜索关键词，例如：后端开发、Rust、数据分析）\", \"kind\": \"free_text\", \"options\": [], \"allow_free_text\": true, \"allow_skip\": false}, {\"question_id\": \"q2\", \"prompt\": \"在哪个城市找工作？\", \"kind\": \"free_text\", \"options\": [], \"allow_free_text\": true, \"allow_skip\": false}], \"continuation_capability\":: "
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+  "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "b23e779e91710208f054839c7dad1f09f21b9bdb3b59bc5adb4af2beea2f4530",
+  "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
+  "recorded_at": "2026-10-08T01:12:45.069821+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"没有执行成功，也没有确认到任何写入结果。\\n\\n情况说明：\\n- 我没有当前有效的日历变更提案（本会话中没有已生成、待批准的提案），系统状态也显示当前不存在活跃提案。\\n- 我尝试执行后返回的结果是：**日历写入结果暂时无法确认**（只拿到了回执，无法回读实际结果），且标记为不可重试。\\n\\n所以现在无法确认「刚才的日历变更」是否已经生效——既不能确认成功，也不能确认失败。\\n\\n建议的下一步：\\n1. 请先到 Google 日历里核对一下该面试事件的实际状态（是否已创建/已修改/已取消）。\\n2. 告诉我核对结果，或直接说一声，我就重新为该面试生成一份日历变更预览（prepare_interview_calendar_sync），\\n3. 你看过具体提案内容后明确批准，我再执行写入。\\n\\n另外，目前本会话里我没有拿到日历账户信息和面试轮次的候选列表。如果需要重新生成预览，我会先把可用的日历账户列出来供你选择。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "57526e63f16bdcb3abf85185eeae9cb764544aa5fbd930b5b9fda0e6b5992ae5",
+      "decision_shape_fingerprint": "760c7f3c969e894be515fcde9a01b8735b678e4d075f8c8c599e663690c63d2c",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "propose_job_intent",
+        "get_interview",
+        "list_calendar_accounts",
+        "prepare_interview_calendar_sync",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2309.0,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:45.639245+00:00",
+      "elapsed_ms": 2393.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"没有执行成功，也没有确认到任何写入结果。\\n\\n情况说明：\\n- 我没有当前有效的日历变更提案（本会话中没有已生成、待批准的提案），系统状态也显示当前不存在活跃提案。\\n- 我尝试执行后返回的结果是：**日历写入结果暂时无法确认**（只拿到了回执，无法回读实际结果），且标记为不可重试。\\n\\n所以现在无法确认「刚才的日历变更」是否已经生效——既不能确认成功，也不能确认失败。\\n\\n建议的下一步：\\n1. 请先到 Google 日历里核对一下该面试事件的实际状态（是否已创建/已修改/已取消）。\\n2. 告诉我核对结果，或直接说一声，我就重新为该面试生成一份日历变更预览（prepare_interview_calendar_sync），\\n3. 你看过具体提案内容后明确批准，我再执行写入。\\n\\n另外，目前本会话里我没有拿到日历账户信息和面试轮次的候选列表。如果需要重新生成预览，我会先把可用的日历账户列出来供你选择。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "57526e63f16bdcb3abf85185eeae9cb764544aa5fbd930b5b9fda0e6b5992ae5",
+          "decision_shape_fingerprint": "760c7f3c969e894be515fcde9a01b8735b678e4d075f8c8c599e663690c63d2c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2309.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:46.631521+00:00",
+      "elapsed_ms": 2861.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"日历变更**未能确认执行成功**。\\n\\n工具返回的结果是：日历写入结果暂时无法确认（body 仅有回执、无法读回状态），且该调用不可重试。\\n\\n原因说明：本次会话当前**没有任何处于生效状态的日历变更提案**——运行时的 `has_active_calendar_proposal` 为 false，且 `execute_calendar_proposal` 处于阻塞状态，前置条件是先用 `prepare_interview_calendar_sync` 生成预览。也就是说，没有可被这次\\\"确认\\\"所批准的有效提案，因此这次确认没有对应到任何已展示的具体变更。\\n\\n接下来可以这样做：\\n\\n1. 由于外部日历状态不明，建议你先在 Google 日历里核对一下，是否出现了重复或已存在的相关事件。\\n2. 如果需要我重新执行，请让我重新生成一次日历变更预览——我会用 `prepare_interview_calendar_sync` 生成固定内容的 create/update/cancel 预览给你看，你确认后我再执行。\\n\\n另外需要说明的是：这次没有写入成功，所以没有产生新的待批准提案，当前也不存在可继续执行的提案。请告诉我是否要重新生成预览；如果你想先看到现有面试轮次与日历的关联情况，也可以直接说，我先只读查看、不做任何写入。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "57526e63f16bdcb3abf85185eeae9cb764544aa5fbd930b5b9fda0e6b5992ae5",
+          "decision_shape_fingerprint": "760c7f3c969e894be515fcde9a01b8735b678e4d075f8c8c599e663690c63d2c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2803.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:45.069821+00:00",
+      "elapsed_ms": 1136.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "prepare_interview_calendar_sync",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "57526e63f16bdcb3abf85185eeae9cb764544aa5fbd930b5b9fda0e6b5992ae5",
+          "decision_shape_fingerprint": "760c7f3c969e894be515fcde9a01b8735b678e4d075f8c8c599e663690c63d2c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1071.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

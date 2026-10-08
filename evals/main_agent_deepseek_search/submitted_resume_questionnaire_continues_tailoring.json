@@ -1,0 +1,150 @@
+{
+  "scenario": "submitted_resume_questionnaire_continues_tailoring",
+  "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "c79268231136b4502b8b51490ceae4b53036c662ebce1ffa5c6a73aab4070aa2",
+  "context_shape_fingerprint": "2a7924fc8dda76d33903c9162cba2cf866d73a90fa7322af9149bfec6ac7b293",
+  "recorded_at": "2026-10-08T01:12:55.868212+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "draft_resume_tailoring",
+        "arguments": {
+          "tailoring_goal": "基于当前岗位匹配结果定制简历：突出 React 内部管理页面开发经验、Dify 基础工作流配置、日常使用 Claude Code 与 Cursor；不虚构向量数据库经验（用户明确未使用过），跳过开源项目或博客（用户跳过，不编造）"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "5cb41dc2f960732214baea4c956ba33cec3ff4b81f8caab3eb6426a1b71fa020",
+      "decision_shape_fingerprint": "e314e4c370c6b286a13aeb3a4563f48289a0b87b5d3c2da55af520f085be68d4",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "get_saved_job",
+        "get_resume_job_match",
+        "draft_resume_tailoring",
+        "get_career_memory_detail",
+        "propose_memory_tombstone",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1731.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:56.167661+00:00",
+      "elapsed_ms": 1807.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {
+              "tailoring_goal": "基于当前岗位匹配结果定制简历：突出 React 内部管理页面开发经验、Dify 基础工作流配置、日常使用 Claude Code 与 Cursor；不虚构向量数据库经验（用户明确未使用过），跳过开源项目或博客（用户跳过，不编造）"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5cb41dc2f960732214baea4c956ba33cec3ff4b81f8caab3eb6426a1b71fa020",
+          "decision_shape_fingerprint": "e314e4c370c6b286a13aeb3a4563f48289a0b87b5d3c2da55af520f085be68d4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "get_career_memory_detail",
+            "propose_memory_tombstone",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1731.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:56.049983+00:00",
+      "elapsed_ms": 1546.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {
+              "tailoring_goal": "根据当前岗位匹配结果定制简历。用户补充信息（仅用于本次定制，未确认为永久职业事实）：前端经验——使用 React 开发过内部管理页面；向量数据库——没有使用过；Dify——了解基础工作流配置；AI 编程工具——日常使用 Claude Code 和 Cursor；开源项目或博客——无/跳过。"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5cb41dc2f960732214baea4c956ba33cec3ff4b81f8caab3eb6426a1b71fa020",
+          "decision_shape_fingerprint": "e314e4c370c6b286a13aeb3a4563f48289a0b87b5d3c2da55af520f085be68d4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "get_career_memory_detail",
+            "propose_memory_tombstone",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1474.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:55.868212+00:00",
+      "elapsed_ms": 1264.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5cb41dc2f960732214baea4c956ba33cec3ff4b81f8caab3eb6426a1b71fa020",
+          "decision_shape_fingerprint": "e314e4c370c6b286a13aeb3a4563f48289a0b87b5d3c2da55af520f085be68d4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "get_career_memory_detail",
+            "propose_memory_tombstone",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1156.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

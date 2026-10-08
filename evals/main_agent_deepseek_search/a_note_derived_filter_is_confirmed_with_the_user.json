@@ -1,0 +1,112 @@
+{
+  "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+  "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "5ded75bbcfdef4eadf71acfa79fa19eeb8a68382dd94aa02cfaf25206b647182",
+  "context_shape_fingerprint": "ae388c9a7f1c4b1242b3daf7bda1cd38e7d5ead88708ad730b8951c8a0b1b105",
+  "recorded_at": "2026-10-08T01:12:24.935771+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你希望找什么岗位？另外默认城市目前还没确认，请告诉我目标城市（例如：上海），以及求职类型（全职／实习／兼职）。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+      "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1215.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:23.452322+00:00",
+      "elapsed_ms": 1312.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你希望找什么岗位？另外默认城市目前还没确认，请告诉我目标城市（例如：上海），以及求职类型（全职／实习／兼职）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1215.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:24.488224+00:00",
+      "elapsed_ms": 1839.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我可以帮你在 BOSS 上打开岗位搜索页，但在打开前需要两个信息：\\n\\n1）你想找什么方向/关键词的岗位？（比如「后端开发」「Rust 工程师」「数据分析」等。我笔记里有一条未确认的「可能偏好 Rust」，它没有用户或权威来源，所以需要你明确说一次）\\n2）优先看哪个城市？（你的档案里默认城市尚未确认，且搜索需要城市；如果你暂时不限定城市，也可以告诉我，我按全国范围打开）\\n\\n另外也可以说明求职类型（实习/全职/兼职），不说明我就默认不限。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1745.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:24.935771+00:00",
+      "elapsed_ms": 1477.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我这边只能看到一条未确认的笔记（猜测你偏好 Rust 岗位），工作便笺不能用于筛选或搜索，所以我先跟你确认两件事，再打开招聘搜索页：\\n\\n1）你想搜的岗位关键词是什么？（比如具体职位名称，Rust 只是我的未确认猜测）\\n2）在哪个城市找？（你的档案里还没有默认城市）\\n\\n另外，你要找的是实习、全职还是兼职？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "029fe421e783b1d6a4f63105f60b83793c077a886f104d7a6758ea7630202ae5",
+          "decision_shape_fingerprint": "3f21adcf78b7df1e10af1cc055d0ffbc562cff12859344b4887ba27c6b56c2f2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1408.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

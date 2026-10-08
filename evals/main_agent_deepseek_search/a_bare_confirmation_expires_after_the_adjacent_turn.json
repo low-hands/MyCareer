@@ -1,0 +1,161 @@
+{
+  "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+  "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "f48949e07ea6c71f2ce6732a7ac03e53644b3e8e0ac8afb9ff61f3a9c0b60110",
+  "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
+  "recorded_at": "2026-10-08T01:12:29.763110+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"questionnaire\",\"message\":\"我这边还没有可用的岗位信息：没有已收藏的岗位、没有进行中的岗位快照或分析，也没有记录过的目标岗位方向，本次对话里也没有具体的岗位链接或 JD 内容。\\n\\n另外，按你当前的设置，“打开招聘网站搜索页”只在你明确提出时才会执行，所以我不打算擅自替你打开搜索页。\\n\\n请补充一下你想看什么，我可以据此帮你找到对应岗位：\\n\\n1. 城市（例如上海、北京，或“不限”）\\n2. 岗位方向/关键词（例如“产品经理”“数据分析”）\\n3. 如果你已经有看好的岗位：把链接或 JD 文本贴给我\\n4. 想要的处理方式：帮你打开招聘网站搜索页浏览，或针对某个具体岗位做要求分析/公司调研\\n\\n告诉我这些后，我就能开始。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找岗位？\",\"kind\":\"single\",\"options\":[{\"value\":\"shanghai\",\"label\":\"上海\",\"meaning\":\"choice\"},{\"value\":\"beijing\",\"label\":\"北京\",\"meaning\":\"choice\"},{\"value\":\"shenzhen\",\"label\":\"深圳\",\"meaning\":\"choice\"},{\"value\":\"hangzhou\",\"label\":\"杭州\",\"meaning\":\"choice\"},{\"value\":\"any_city\",\"label\":\"不限城市\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"岗位方向或关键词是什么？（例如“产品经理”“数据分析”“前端开发”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你希望我怎么帮你处理？\",\"kind\":\"single\",\"options\":[{\"value\":\"open_search\",\"label\":\"打开招聘网站搜索页，我自己浏览\",\"meaning\":\"choice\"},{\"value\":\"has_link\",\"label\":\"我有具体岗位链接/JD，贴给你分析\",\"meaning\":\"choice\"},{\"value\":\"browse_saved\",\"label\":\"先看看我已收藏的岗位\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+      "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4708.0,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "raw_output": {
+            "content": "\"可以\"这个回答我没有对应的问题——我上一句问的是你想看哪个城市或岗位方向，并没有给你选项，所以无从确认。\n\n另外，你说的\"新岗位\"我需要先明确一下：是要我按你的条件**打开招聘网站的搜索页**（Boss 直聘的搜索只在你明确要求时才会执行，我需要你给出关键词），还是想让我帮你看看**已收藏的岗位**里有没有新机会？\n\n请告诉我：\n\n1. 搜索/筛选条件：岗位关键词（例如\"后端开发\"\"产品经理\"）、城市、经验/薪资等；\n2. 或者说明\"新岗位\"指的是已收藏岗位、某个具体职位，还是别的。\n\n目前你的档案里还没有确认的目标方向（Current targets 为空，默认城市也未确认），所以给我关键词就好，我用它来打开搜索页，结果由你自己浏览。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:29.907657+00:00",
+      "elapsed_ms": 4762.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"questionnaire\",\"message\":\"我这边还没有可用的岗位信息：没有已收藏的岗位、没有进行中的岗位快照或分析，也没有记录过的目标岗位方向，本次对话里也没有具体的岗位链接或 JD 内容。\\n\\n另外，按你当前的设置，“打开招聘网站搜索页”只在你明确提出时才会执行，所以我不打算擅自替你打开搜索页。\\n\\n请补充一下你想看什么，我可以据此帮你找到对应岗位：\\n\\n1. 城市（例如上海、北京，或“不限”）\\n2. 岗位方向/关键词（例如“产品经理”“数据分析”）\\n3. 如果你已经有看好的岗位：把链接或 JD 文本贴给我\\n4. 想要的处理方式：帮你打开招聘网站搜索页浏览，或针对某个具体岗位做要求分析/公司调研\\n\\n告诉我这些后，我就能开始。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找岗位？\",\"kind\":\"single\",\"options\":[{\"value\":\"shanghai\",\"label\":\"上海\",\"meaning\":\"choice\"},{\"value\":\"beijing\",\"label\":\"北京\",\"meaning\":\"choice\"},{\"value\":\"shenzhen\",\"label\":\"深圳\",\"meaning\":\"choice\"},{\"value\":\"hangzhou\",\"label\":\"杭州\",\"meaning\":\"choice\"},{\"value\":\"any_city\",\"label\":\"不限城市\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"岗位方向或关键词是什么？（例如“产品经理”“数据分析”“前端开发”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你希望我怎么帮你处理？\",\"kind\":\"single\",\"options\":[{\"value\":\"open_search\",\"label\":\"打开招聘网站搜索页，我自己浏览\",\"meaning\":\"choice\"},{\"value\":\"has_link\",\"label\":\"我有具体岗位链接/JD，贴给你分析\",\"meaning\":\"choice\"},{\"value\":\"browse_saved\",\"label\":\"先看看我已收藏的岗位\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4708.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "raw_output": {
+                "content": "\"可以\"这个回答我没有对应的问题——我上一句问的是你想看哪个城市或岗位方向，并没有给你选项，所以无从确认。\n\n另外，你说的\"新岗位\"我需要先明确一下：是要我按你的条件**打开招聘网站的搜索页**（Boss 直聘的搜索只在你明确要求时才会执行，我需要你给出关键词），还是想让我帮你看看**已收藏的岗位**里有没有新机会？\n\n请告诉我：\n\n1. 搜索/筛选条件：岗位关键词（例如\"后端开发\"\"产品经理\"）、城市、经验/薪资等；\n2. 或者说明\"新岗位\"指的是已收藏岗位、某个具体职位，还是别的。\n\n目前你的档案里还没有确认的目标方向（Current targets 为空，默认城市也未确认），所以给我关键词就好，我用它来打开搜索页，结果由你自己浏览。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:27.835920+00:00",
+      "elapsed_ms": 1351.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，帮我确认一下你这次想找什么岗位：\\n\\n1）岗位关键词/方向是什么？（比如「Java 后端」「数据分析」，或直接说行业）\\n2）城市或远程要求？（比如「上海」「不限/远程」）\\n\\n回复这两项我就直接打开招聘网站搜索页给你看。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1298.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:29.763110+00:00",
+      "elapsed_ms": 2729.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "query": "搜索招聘网站新岗位 open job search",
+              "limit": 5
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2cc36cb4170601582dc7d1df6d3ab53b8d727da87f9b02f360f7960d63de4275",
+          "decision_shape_fingerprint": "bb02be2aeae4d24024d2973cecd66745cdd4dca07b6cff6b5c99a0fd593c759d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1249.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想找哪个岗位方向、在哪个城市？（例如「数据分析 上海」「前端开发 杭州」）另外是实习、全职还是兼职，也可以一并告诉我。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "ec8fa77c6d8ac3bf9e83e1048b52fb472dd07b6dafd406009a8816c6114ec17a",
+          "decision_shape_fingerprint": "70199a84c278eb9078d55499b2986c0f498be116f0cf0467530cf280768a1644",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_career_history",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1361.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

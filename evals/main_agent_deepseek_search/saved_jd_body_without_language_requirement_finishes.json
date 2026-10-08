@@ -1,0 +1,120 @@
+{
+  "scenario": "saved_jd_body_without_language_requirement_finishes",
+  "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "e032a54f4f80e7e86b5d2bf005e4812db58f37c337e6cbb328c6c15fb6cf89ac",
+  "context_shape_fingerprint": "b8eacbd0ce7337fadac7ae52ea8ca5ce5ffa80e63820daabc9c782cf4c58a4d1",
+  "recorded_at": "2026-10-08T01:12:41.829759+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"已读取「算法工程师」（示例科技，上海，30-50K）的当前 JD 内容。可见的岗位要求只提到：具备分布式系统设计和生产环境异步服务经验，其中**没有明确要求 Rust**。\\n\\n需要说明的是，工具回执里这份 JD 的正文状态是 excerpt（片段）且 readback_status 为 unavailable，也就是说我能看到的只是摘要式片段，无法确认它是否完整覆盖了原 JD 的全部要求。按你给的条件——\\\"没有明确要求就到这里\\\"——我不会继续做简历匹配。\\n\\n如果你希望在此判断上再稳妥一些，可以：\\n1. 把该岗位的完整 JD 文本贴给我（或确认我可以尝试重新读取）；或\\n2. 如果你其实是想无论 JD 如何都推进匹配，请明确告诉我，我会先对当前 JD 做岗位分析（analyze_job），再选定简历版本进行匹配。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+      "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2235.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:41.308456+00:00",
+      "elapsed_ms": 2303.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"已读取「算法工程师」（示例科技，上海，30-50K）的当前 JD 内容。可见的岗位要求只提到：具备分布式系统设计和生产环境异步服务经验，其中**没有明确要求 Rust**。\\n\\n需要说明的是，工具回执里这份 JD 的正文状态是 excerpt（片段）且 readback_status 为 unavailable，也就是说我能看到的只是摘要式片段，无法确认它是否完整覆盖了原 JD 的全部要求。按你给的条件——\\\"没有明确要求就到这里\\\"——我不会继续做简历匹配。\\n\\n如果你希望在此判断上再稳妥一些，可以：\\n1. 把该岗位的完整 JD 文本贴给我（或确认我可以尝试重新读取）；或\\n2. 如果你其实是想无论 JD 如何都推进匹配，请明确告诉我，我会先对当前 JD 做岗位分析（analyze_job），再选定简历版本进行匹配。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2235.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:41.173365+00:00",
+      "elapsed_ms": 2082.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"就到**这里**为止——当前这份 JD（示例科技 · 算法工程师）里**没有明确要求 Rust**。\\n\\n我看到的 JD 要求为：“岗位要求：具备分布式系统设计和生产环境异步服务经验。”，未出现 Rust 字样，因此按你的条件不继续匹配简历。需要提醒的是，这次收到的是摘要片段（excerpt），全文回读不可用，我无法保证已覆盖 JD 的每一个字；如果你有完整原文，可以贴出来或让我再读一次确认。\\n\\n如果你想改变条件（例如“只要没写 Rust 排除就继续匹配”），告诉我一声，我就接着用 analyze_job → match_resume_to_job 往下走。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2020.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:41.829759+00:00",
+      "elapsed_ms": 2520.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我到目前读到的 JD 内容里没有出现 Rust 要求。\\n\\n这份 JD 的可读内容目前只有一条要求：「具备分布式系统设计和生产环境异步服务经验。」而且这属于**节选（excerpt）**，回读状态为不可用——也就是说我不能确认这是否是完整 JD 的全部内容，无法保证没有遗漏的 Rust 要求。\\n\\n按你给的条件「没有明确要求 Rust 就到这里」，我先停下，不继续做简历匹配：\\n- 现有可见文本中没有明确要求 Rust → 不满足继续匹配的条件；\\n- 但证据是节选而非全文，所以这个结论是「就目前可见内容而言」，不是对整份 JD 的完整断言。\\n\\n如果你手上有完整的 JD（例如原始招聘页面文本或截图），发给我或让我重新读取完整版本，我可以再确认一次是否出现 Rust；确认有明确要求后，我就接着走「分析 JD → 匹配简历」的流程。另外提醒一下：即使确认有 Rust，匹配前还需要先完成该岗位的 JD 分析，并同时选定岗位和简历版本。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "56644ec96607882e05c744429f4b3eca0e51c3de181fa91138f14759588211d5",
+          "decision_shape_fingerprint": "5f5f3074157b1d443180f5eef25cb348a2dfcedcc5d87aac15373f60bf2a6f5b",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2417.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

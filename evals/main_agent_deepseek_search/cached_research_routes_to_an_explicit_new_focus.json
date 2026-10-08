@@ -1,0 +1,148 @@
+{
+  "scenario": "cached_research_routes_to_an_explicit_new_focus",
+  "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "470e9cba6c7655374b7355a0d8f0bb75d09726e2ed7054912225f2197ccc37de",
+  "context_shape_fingerprint": "79745c4eefd48957d79891ae9379b18dd58a0000009376284292de1d03b6d148",
+  "recorded_at": "2026-10-08T01:12:42.520890+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "research_job",
+        "arguments": {
+          "focus": "竞争对手：主要竞争对手、竞争格局与差异化定位"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9b22ae5d3c59bd29eb35b769e1bd4b78f00c7a8430f0e53976358fa23291ecd7",
+      "decision_shape_fingerprint": "19cc209e732387b26d3e616ae2dedcb779c08729fffe4e75a50603729d0b174a",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "get_interview_preparation",
+        "get_mock_interview_result",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1252.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:41.754427+00:00",
+      "elapsed_ms": 1341.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手：主要竞争对手、竞争格局与差异化定位"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9b22ae5d3c59bd29eb35b769e1bd4b78f00c7a8430f0e53976358fa23291ecd7",
+          "decision_shape_fingerprint": "19cc209e732387b26d3e616ae2dedcb779c08729fffe4e75a50603729d0b174a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1252.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:42.407838+00:00",
+      "elapsed_ms": 1324.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9b22ae5d3c59bd29eb35b769e1bd4b78f00c7a8430f0e53976358fa23291ecd7",
+          "decision_shape_fingerprint": "19cc209e732387b26d3e616ae2dedcb779c08729fffe4e75a50603729d0b174a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1238.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:42.520890+00:00",
+      "elapsed_ms": 1339.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9b22ae5d3c59bd29eb35b769e1bd4b78f00c7a8430f0e53976358fa23291ecd7",
+          "decision_shape_fingerprint": "19cc209e732387b26d3e616ae2dedcb779c08729fffe4e75a50603729d0b174a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1219.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

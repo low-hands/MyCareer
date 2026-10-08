@@ -1,0 +1,504 @@
+{
+  "scenario": "stated_intent_is_proposed_before_it_is_recorded",
+  "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "807fb3acfd50391e412117bf7b294defad3efb5414103ba676e2967e1a457d74",
+  "context_shape_fingerprint": "f839e86544bfb5cb57c3afe825baa6ca5b0cb1894daf0513b46fe685578ffa97",
+  "recorded_at": "2026-10-08T01:12:25.139130+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "list_target_roles"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "39544cb3b0b36d58fc89038be19535d87cd29358860d52d91d140f82bb4f820d",
+      "decision_shape_fingerprint": "7a61d6ea77ad947dbc8c894ba2c9b9cf3153771cdccad0830381edd942ed786a",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3012.0,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": true,
+          "raw_output": {
+            "content": "I'll show you what would be recorded before saving anything.",
+            "tool_calls": [
+              {
+                "name": "propose_job_intent",
+                "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+      "decision_shape_fingerprint": "8f6a567eb6881048e90405ca021f662eab52cd04c2a3eac284e270ab31841649",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 953.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "propose_job_intent"
+          ]
+        }
+      },
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+      "decision_shape_fingerprint": "4172bd37c51626901b0b387d3bf934bbf6921b96246b5a1e8793d7d63d143722",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1020.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "propose_job_intent",
+        "arguments": {
+          "city": "上海",
+          "salary_expectation": "40K 以上",
+          "target_role_selection_index": 1
+        }
+      },
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+      "decision_shape_fingerprint": "94aaf8ab52dc491d8296c5c50bcc75642c25b08eda34eb32d09ff37a0b5e8480",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1531.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:25.065285+00:00",
+      "elapsed_ms": 6897.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "39544cb3b0b36d58fc89038be19535d87cd29358860d52d91d140f82bb4f820d",
+          "decision_shape_fingerprint": "7a61d6ea77ad947dbc8c894ba2c9b9cf3153771cdccad0830381edd942ed786a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3012.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll show you what would be recorded before saving anything.",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "8f6a567eb6881048e90405ca021f662eab52cd04c2a3eac284e270ab31841649",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 953.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "propose_job_intent"
+              ]
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "4172bd37c51626901b0b387d3bf934bbf6921b96246b5a1e8793d7d63d143722",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1020.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "propose_job_intent",
+            "arguments": {
+              "city": "上海",
+              "salary_expectation": "40K 以上",
+              "target_role_selection_index": 1
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "94aaf8ab52dc491d8296c5c50bcc75642c25b08eda34eb32d09ff37a0b5e8480",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1531.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:28.725026+00:00",
+      "elapsed_ms": 10461.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "39544cb3b0b36d58fc89038be19535d87cd29358860d52d91d140f82bb4f820d",
+          "decision_shape_fingerprint": "7a61d6ea77ad947dbc8c894ba2c9b9cf3153771cdccad0830381edd942ed786a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6824.4,
+          "model_request_count": 4,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "我来先展示一下待确认的求职意向记录（不会立即保存）。",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "I'll record this as your stated job intent for confirmation.",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll show you exactly what would be recorded, before saving anything.",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
+            }
+          ],
+          "decision_invocations": 2
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "8f6a567eb6881048e90405ca021f662eab52cd04c2a3eac284e270ab31841649",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1046.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "propose_job_intent"
+              ]
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "4172bd37c51626901b0b387d3bf934bbf6921b96246b5a1e8793d7d63d143722",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 999.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "propose_job_intent",
+            "arguments": {
+              "city": "上海",
+              "salary_expectation": "40K 以上",
+              "target_role_selection_index": 1
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "94aaf8ab52dc491d8296c5c50bcc75642c25b08eda34eb32d09ff37a0b5e8480",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1257.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:25.139130+00:00",
+      "elapsed_ms": 4758.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我可以把这个意向记录下来，但需要你先明确一点，因为薪资和经历要求是绑定在具体岗位方向上的：你说的“算法岗”希望作为一个新的目标岗位方向（例如“算法工程师”）来记录，还是你已经有已记录的目标方向、想更新其中某一个？目前系统里还没有任何已记录的目标岗位方向，所以如果允许，我会新建一个“算法工程师”方向，并把薪资 40K 以上挂在这个方向上；同时把上海记录为你的默认城市。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "39544cb3b0b36d58fc89038be19535d87cd29358860d52d91d140f82bb4f820d",
+          "decision_shape_fingerprint": "7a61d6ea77ad947dbc8c894ba2c9b9cf3153771cdccad0830381edd942ed786a",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3428.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll show you what would be recorded as your stated job intent — nothing is saved until you confirm.",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "c46cdf35d408d431888d727ed1e6e883cb59d7ea494071b0550dd6c1eb35385a",
+          "decision_shape_fingerprint": "5afc562edac17b4b847d6c8a8a9e487b75b57aecf425aea2b30ffa772994bf84",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1268.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

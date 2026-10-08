@@ -1,0 +1,124 @@
+{
+  "scenario": "an_invalid_selection_is_not_reconstructed",
+  "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "c1084252f316b76e25b37a8468df4446375cae658fb8a267cd3a7619bbf4563f",
+  "context_shape_fingerprint": "8b9fb423d5fabb4379c39017c910e97f181035816faaf809385554ac769eb143",
+  "recorded_at": "2026-10-08T01:12:48.468163+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"收藏列表中目前只有 1 个岗位，没有第 2 个，所以无法打开「第 2 个岗位」的 JD。\\n\\n当前唯一的收藏岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n你可以告诉我：\\n- 是否要看这 1 号岗位的完整 JD；\\n- 或者先到招聘网站浏览并收藏更多岗位，之后再选择序号。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
+      "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "get_saved_job",
+        "analyze_job",
+        "research_job",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1845.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:47.575634+00:00",
+      "elapsed_ms": 1926.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"收藏列表中目前只有 1 个岗位，没有第 2 个，所以无法打开「第 2 个岗位」的 JD。\\n\\n当前唯一的收藏岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n你可以告诉我：\\n- 是否要看这 1 号岗位的完整 JD；\\n- 或者先到招聘网站浏览并收藏更多岗位，之后再选择序号。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
+          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "get_saved_job",
+            "analyze_job",
+            "research_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1845.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:47.407612+00:00",
+      "elapsed_ms": 1661.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你提到的“第 2 个岗位”不存在——当前收藏的岗位只有 1 个：\\n\\n1. 算法工程师 · 示例科技 · 上海 · 30-50K\\n\\n我是直接读取这个岗位（序号 1）的完整 JD，还是你先去招聘网站收藏更多岗位后再选？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
+          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "get_saved_job",
+            "analyze_job",
+            "research_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1568.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:48.468163+00:00",
+      "elapsed_ms": 2005.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"没有第 2 个岗位——你已收藏的岗位目前只有 1 个：\\n\\n1. 示例科技 · 算法工程师（上海，30-50K）\\n\\n要读取哪一个？如果就是这个，回复「1」或「打开这个岗位」即可；如果你指的是别处的岗位，请先告诉我是哪一个（或先在招聘网站上保存它）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4e8ae3fbc738f8e9c1c52dfb68e637b3b793a5e9fd8d65698db3e0be4432be5b",
+          "decision_shape_fingerprint": "b17555eee7dac1763f25ece925f9c7a7fe23bfba1b933f3e06576a7bb733b155",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "get_saved_job",
+            "analyze_job",
+            "research_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1929.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

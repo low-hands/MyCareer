@@ -1,0 +1,220 @@
+{
+  "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
+  "policy": "An observation without body exposes only a bounded receipt and selected flat decision facts, not the internal payload. Use values explicitly present there, but never expand them into omitted details; when the user asks only for the brief, the runtime presenter remains the authoritative delivery.",
+  "selection_mode": "search",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "2c45656419019cbcdea1662d6daccfd80cabfc4e33d088baa4f79e5af5f56da0",
+  "context_shape_fingerprint": "fa20350bf0e20525e9c4084304522faf92339028eb10141ca7f3ccfe283afdd0",
+  "recorded_at": "2026-10-08T01:12:37.767638+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_daily_brief",
+        "arguments": {
+          "timezone": "Asia/Shanghai"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+      "decision_shape_fingerprint": "770a58e51150176a8e800c05323911856005b1e129dcfa08780e676bcc1eb423",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "propose_career_fact",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1195.6,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，摘要如下：\\n\\n- 今日到期：2 项\\n- 已逾期：1 项\\n- 等待中：0 项\\n\\n合计 3 个待办事项。按你的要求，我没有打开行动清单。需要看具体是哪几条待办时告诉我，我再帮你列出来。\",\"questions\":[]}",
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+      "decision_shape_fingerprint": "d429a82a9cc66e87e0a5a9fa16df42fe3d9c47a88ce32a56320b867ddfb43b3e",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "propose_career_fact",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1414.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-08T01:12:37.499567+00:00",
+      "elapsed_ms": 2670.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {
+              "timezone": "Asia/Shanghai"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "770a58e51150176a8e800c05323911856005b1e129dcfa08780e676bcc1eb423",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1195.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，摘要如下：\\n\\n- 今日到期：2 项\\n- 已逾期：1 项\\n- 等待中：0 项\\n\\n合计 3 个待办事项。按你的要求，我没有打开行动清单。需要看具体是哪几条待办时告诉我，我再帮你列出来。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "d429a82a9cc66e87e0a5a9fa16df42fe3d9c47a88ce32a56320b867ddfb43b3e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1414.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:37.839595+00:00",
+      "elapsed_ms": 2739.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {
+              "timezone": "Asia/Shanghai"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "770a58e51150176a8e800c05323911856005b1e129dcfa08780e676bcc1eb423",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1441.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成（未打开行动清单）：\\n\\n- 今日到期事项：2 项\\n- 已逾期事项：1 项\\n- 等待中事项：0 项\\n汇总：共 3 个待办事项。\\n\\n说明：本次只返回了简报的汇总回执，具体条目正文未在此次结果中回传，因此我无法逐条列出事项内容；按你的要求我也没有打开行动清单。如需查看这 3 项的具体内容，告诉我一声，我再帮你列出。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "d429a82a9cc66e87e0a5a9fa16df42fe3d9c47a88ce32a56320b867ddfb43b3e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1238.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T01:12:37.767638+00:00",
+      "elapsed_ms": 2598.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {
+              "timezone": "Asia/Shanghai"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "770a58e51150176a8e800c05323911856005b1e129dcfa08780e676bcc1eb423",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 879.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成：共 3 个待办事项——今天到期 2 个，已逾期 1 个，等待中 0 个。\\n\\n简报卡片已随本条回复一并送达，具体条目请在卡片中查看（本次只返回了回执，我这边读不到条目正文，因此不在此复述或推断内容）。按你的要求，没有打开行动清单，也没有做任何待办操作。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a5dce9f4090afb085d5d1e7d887292ca03c851a38530d1f6a797df90f9b2f604",
+          "decision_shape_fingerprint": "d429a82a9cc66e87e0a5a9fa16df42fe3d9c47a88ce32a56320b867ddfb43b3e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1659.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}
