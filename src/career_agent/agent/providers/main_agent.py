@@ -31,7 +31,7 @@ from career_agent.harness.observability import record_active_trace
 from career_agent.agent.runtime.decision_messages import assemble_decision_messages
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.capabilities.reachability import reachable
-from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
+from career_agent.agent.capabilities.waiting import waiting_tool_names
 from career_agent.agent.runtime.decision_messages import (
     CACHEABLE_CONTEXT_SLOTS,
     CONTROL_CONTEXT_LABEL,
@@ -869,10 +869,8 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
 
                     searchable = {item.name for item in searchable_capabilities()}
                     if unknown_names[0] in searchable:
-                        waiting = any(
-                            item.tool_name == unknown_names[0]
-                            and item.state in WAITING_FOR_USER_STATES
-                            for item in context.tool_observations
+                        waiting = unknown_names[0] in waiting_tool_names(
+                            context.tool_observations
                         )
                         blocked = not reachable(unknown_names[0], context.task)
                         if waiting or blocked:

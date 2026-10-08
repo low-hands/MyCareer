@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from typing import Literal
 
@@ -33,7 +34,7 @@ class ToolAvailabilityMiddleware:
         name: str,
         task: ConversationTaskState,
         offered_tool_names: tuple[str, ...],
-        waiting_tool_names: tuple[str, ...] = (),
+        waiting_tool_names: Collection[str] = (),
         runtime_owned: bool,
         owner_confirmed: bool,
         policy_owned: bool,

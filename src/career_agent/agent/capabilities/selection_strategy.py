@@ -13,7 +13,7 @@ from career_agent.agent.capabilities.search import search_catalog, searchable_ca
 from career_agent.agent.capabilities.selection import (
     ALWAYS_OFFERED_TOOLS, CapabilitySelection, prepare_capability_selection,
 )
-from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
+from career_agent.agent.capabilities.waiting import waiting_tool_names
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.token_budget import count_tokens
@@ -59,10 +59,7 @@ class SearchStrategy:
         registered: tuple[dict[str, Any], ...],
     ) -> CapabilitySelection:
         task = context.task
-        waiting = frozenset(
-            item.tool_name for item in context.tool_observations
-            if item.state in WAITING_FOR_USER_STATES
-        )
+        waiting = waiting_tool_names(context.tool_observations)
         state_needed = tuple(
             name for name in CAPABILITIES
             if name in STATE_GATED_TOOLS and reachable(name, task)

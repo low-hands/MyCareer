@@ -9,7 +9,7 @@ from typing import Any, Literal, Mapping, Sequence
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy
-from career_agent.agent.capabilities.waiting import WAITING_FOR_USER_STATES
+from career_agent.agent.capabilities.waiting import waiting_tool_names
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.providers.token_budget import count_tokens
 from career_agent.evaluation.trajectory import TrajectoryScenario, advance_trajectory_context
@@ -152,12 +152,7 @@ def evaluate_tool_selection(
             unreachable_offered = frozenset(
                 name for name in offer.names if not reachable(name, context.task)
             )
-            waiting_reoffered = frozenset(
-                observation.tool_name
-                for observation in turn_observations
-                if observation.state in WAITING_FOR_USER_STATES
-                and observation.tool_name in offer.names
-            )
+            waiting_reoffered = waiting_tool_names(turn_observations) & offer.names
             unrequested_writes = frozenset(
                 name for name in offer.names
                 if case is not None
