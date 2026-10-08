@@ -295,3 +295,30 @@ def test_output_contract_rejects_a_result_for_another_capability() -> None:
         assert "returned result for" in str(error)
     else:
         raise AssertionError("cross-capability result was accepted")
+
+
+def test_safety_properties_and_approval_are_derived_from_metadata() -> None:
+    assert {item.name for item in CAPABILITIES.values() if item.destructive} == {
+        "update_owner_settings", "confirm_memory_tombstone", "confirm_constraint_retirement",
+    }
+    assert {item.name for item in CAPABILITIES.values() if item.approval_policy == "always"} == {
+        "update_owner_settings", "confirm_memory_tombstone", "confirm_constraint_retirement",
+        "execute_calendar_proposal",
+    }
+    for item in CAPABILITIES.values():
+        assert item.read_only == (item.effect != "WRITE")
+        assert item.open_world == item.external_write
+        assert item.idempotent == (item.replay_policy == "idempotent")
+        assert item.replay_safe == item.idempotent
+    # Renaming or reusing a former always name cannot determine approval.
+    assert catalog_module._capability("update_owner_settings", "WRITE").approval_policy == "owner_rule"
+    assert catalog_module._capability("create_application", "WRITE", destructive=True).approval_policy == "always"
+    assert catalog_module._capability("create_application", "WRITE", external_write=True).approval_policy == "always"
+
+
+@pytest.mark.parametrize("metadata", [{"external_write": True}, {"destructive": True}])
+def test_catalog_rejects_unreviewed_external_or_destructive_writes(monkeypatch, metadata) -> None:
+    invalid = replace(capability("update_application_status"), **metadata)
+    monkeypatch.setattr(catalog_module, "_descriptors", lambda: iter([invalid]))
+    with pytest.raises(RuntimeError, match="external or destructive write must always require approval"):
+        catalog_module._build_catalog()

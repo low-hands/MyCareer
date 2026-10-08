@@ -47,6 +47,11 @@ class CapabilityDescriptor:
     recovery_policy: RecoveryPolicy = "not_applicable"
     output_model: str = "ToolObservation"
     external_write: bool = False
+    # MCP destructiveHint, with the project's undo/correction exception:
+    # 会覆盖或删除用户已有、可见的数据，并且产品里没有撤销或更正的途径，就是破坏性的。
+    # 只新增数据，或者有现成撤销、更正途径的写入，不算破坏性。
+    # Every new capability must answer this question before its approval policy is derived.
+    destructive: bool = False
     runtime_owned: bool = False
     notes_guarded: bool = False
     preference_bound: bool = False
@@ -81,10 +86,22 @@ class CapabilityDescriptor:
         return f"_{self.name}"
 
     @property
+    def read_only(self) -> bool:
+        return self.effect != "WRITE"
+
+    @property
+    def open_world(self) -> bool:
+        return self.external_write
+
+    @property
+    def idempotent(self) -> bool:
+        return self.replay_policy == "idempotent"
+
+    @property
     def replay_safe(self) -> bool:
         """Whether a durable receipt may safely return the prior result."""
 
-        return self.replay_policy == "idempotent"
+        return self.idempotent
 
     def tool_schema(self) -> dict[str, object]:
         """Build the provider-facing function schema from the declared contract."""
@@ -175,13 +192,6 @@ _NEEDS_INTERVIEW = "先用 list_interviews 列出或选定一轮面试"
 _NEEDS_ACTION_ITEM = "先用 list_action_items 列出待办事项"
 _NEEDS_TAILORING_DRAFT = "先用 draft_resume_tailoring 生成定制草稿"
 _NEEDS_PROPOSAL = "先调用对应的 propose_* 工具向用户展示提案"
-
-_ALWAYS_CONFIRM = frozenset({
-    "update_owner_settings",
-    "execute_calendar_proposal",
-    "confirm_memory_tombstone",
-    "confirm_constraint_retirement",
-})
 
 # Model-facing schema metadata. The insertion order is part of the stable
 # tool-prefix contract sent to providers; append deliberately and do not sort.
@@ -841,12 +851,13 @@ def _capability(
     schema_gated: bool = False,
     precondition: Precondition | None = None,
     requirement: str | None = None,
+    destructive: bool = False,
 ) -> CapabilityDescriptor:
     schema_spec = _SCHEMA_SPECS.get(name)
     approval_policy: ApprovalPolicy
     if runtime_owned or effect != "WRITE":
         approval_policy = "never"
-    elif name in _ALWAYS_CONFIRM:
+    elif external_write or destructive:
         approval_policy = "always"
     else:
         approval_policy = "owner_rule"
@@ -870,6 +881,7 @@ def _capability(
         replay_policy=replay_policy,
         recovery_policy=recovery_policy,
         external_write=external_write,
+        destructive=destructive,
         runtime_owned=runtime_owned,
         notes_guarded=(effect == "WRITE" if notes_guarded is None else notes_guarded),
         preference_bound=preference_bound,
@@ -886,7 +898,7 @@ def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("update_working_notes", "WRITE", notes_guarded=False)
     yield _capability("fetch_archived_constraints", "READ")
     yield _capability("search_career_memory", "READ")
-    yield _capability("update_owner_settings", "WRITE", replay_safe=True)
+    yield _capability("update_owner_settings", "WRITE", destructive=True, replay_safe=True)
     yield _capability("get_daily_brief", "READ")
     yield _capability("list_action_items", "READ")
     yield _capability("complete_action_item", "WRITE", precondition=_reachable_via_action_item, requirement=_NEEDS_ACTION_ITEM)
@@ -951,11 +963,11 @@ def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("propose_memory_amendment", "READ")
     yield _capability("confirm_memory_amendment", "WRITE", schema_gated=True, precondition=lambda task: task.pending_memory_amendment is not None, requirement=_NEEDS_PROPOSAL)
     yield _capability("propose_memory_tombstone", "READ")
-    yield _capability("confirm_memory_tombstone", "WRITE", schema_gated=True, precondition=lambda task: task.pending_memory_tombstone is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("confirm_memory_tombstone", "WRITE", destructive=True, schema_gated=True, precondition=lambda task: task.pending_memory_tombstone is not None, requirement=_NEEDS_PROPOSAL)
     yield _capability("propose_career_fact", "WRITE")
     yield _capability("confirm_career_fact", "WRITE", schema_gated=True, precondition=lambda task: task.pending_career_fact is not None, requirement=_NEEDS_PROPOSAL)
     yield _capability("propose_constraint_retirement", "READ")
-    yield _capability("confirm_constraint_retirement", "WRITE", schema_gated=True, precondition=lambda task: task.pending_constraint_retirement is not None, requirement=_NEEDS_PROPOSAL)
+    yield _capability("confirm_constraint_retirement", "WRITE", destructive=True, schema_gated=True, precondition=lambda task: task.pending_constraint_retirement is not None, requirement=_NEEDS_PROPOSAL)
 
     yield _capability("handle_mock_interview_input", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
     yield _capability("retry_mock_interview", "WRITE", execution_kind="runtime_workflow", runtime_owned=True)
@@ -1140,8 +1152,8 @@ def _build_catalog() -> Mapping[str, CapabilityDescriptor]:
             raise RuntimeError(f"runtime-owned capability cannot await owner approval: {descriptor.name}")
         if descriptor.model_callable and descriptor.effect == "WRITE" and descriptor.approval_policy == "never":
             raise RuntimeError(f"model-callable WRITE must honor owner approval rules: {descriptor.name}")
-        if descriptor.external_write and descriptor.approval_policy != "always":
-            raise RuntimeError(f"external write must always require approval: {descriptor.name}")
+        if (descriptor.external_write or descriptor.destructive) and descriptor.approval_policy != "always":
+            raise RuntimeError(f"external or destructive write must always require approval: {descriptor.name}")
         if descriptor.runtime_owned != (descriptor.execution_kind == "runtime_workflow"):
             raise RuntimeError(f"runtime ownership and execution kind disagree: {descriptor.name}")
         if descriptor.model_callable:
